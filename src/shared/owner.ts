@@ -68,6 +68,57 @@ export type FeedbackStatus = "open" | "resolved" | "archived";
 export interface FeedbackMessage {
   id: number; createdAt: string; topic: string; name: string | null; email: string; message: string;
   emailed: boolean; status: FeedbackStatus; statusAt: string | null;
+  triage: TriageState | null; triageAt: string | null;
+}
+/** Triage of a bug report, data correction or feature idea: null until the owner decides. */
+export type TriageState = "accepted" | "rejected" | "fixed";
+/** The contact-form topics that are triaged (an "other" message is only filed away). */
+export const TRIAGE_TOPICS: readonly string[] = ["bug", "data", "feature"];
+/**
+ * Where a message's triage may go from where it is (null: not triaged, or undo). Fixed or rejected can be
+ * taken back (accepted again, or undone); a message is never moved to the state it's already in.
+ */
+export const TRIAGE_NEXT: Record<TriageState | "untriaged", readonly (TriageState | null)[]> = {
+  untriaged: ["accepted", "rejected", "fixed"],
+  accepted: ["fixed", "rejected", null],
+  rejected: ["accepted", null],
+  fixed: ["accepted", null],
+};
+/** The Moderation tab's queue: untriaged and accepted (not fixed yet) bug reports, data corrections and ideas. */
+export interface TriageQueue { messages: FeedbackMessage[]; counts: Record<TriageState | "untriaged", number> }
+
+export type AbuseKind = "rate_limited" | "bot_ua" | "burst";
+export interface OwnerModeration {
+  /** Per-day counts by coarse network range (IPv4 /16, IPv6 /32): never a full address. */
+  abuse: {
+    days: number; from: string; to: string; retentionDays: number; burstPerMinute: number;
+    totals: Record<AbuseKind, number>;
+    daily: ({ day: string } & Record<AbuseKind, number>)[];
+    /** The ranges with the most signals (bursts weigh most), up to 25; `days`: on how many days it showed up. */
+    ranges: ({ range: string; days: number } & Record<AbuseKind, number>)[];
+  };
+  triage: TriageQueue;
+}
+
+/** GET /api/owner/analytics: owner-only usage numbers, and whether the home page publishes its "in use" section. */
+export interface OwnerAnalytics {
+  days: number; from: string; to: string;
+  /** Page views and sessions come from visitors who opted into usage statistics. */
+  totals: { pageViews: number; sessions: number; predictionCalls: number };
+  daily: { day: string; pageViews: number; sessions: number; predictionCalls: number }[];
+  /** Requests to /api/predict/* by route pattern, in the period. */
+  predictionRoutes: { route: string; count: number }[];
+  /** The prediction ledger: live calls logged before their match and scored once it was played (all time, and in the period). */
+  ledger: { liveLogged: number; liveScored: number; liveLoggedInPeriod: number; liveScoredInPeriod: number; backtestScored: number };
+  publishUsage: PublishUsageSetting;
+}
+export interface PublishUsageSetting {
+  enabled: boolean;
+  /** "owner": chosen in the console; "env": PUBLIC_USAGE_ENABLED (no console choice yet). */
+  source: "owner" | "env";
+  envDefault: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
 }
 /** One page, newest first; `more`: older messages follow (ask with ?before=<the last id>). */
 export interface FeedbackList { messages: FeedbackMessage[]; counts: Record<FeedbackStatus, number>; more: boolean }

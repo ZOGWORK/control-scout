@@ -63,6 +63,7 @@ import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
+import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
@@ -214,6 +215,8 @@ export function createApp(opts: { dist?: string } = {}) {
   if (env.r2Fake) app.use("/__fake-r2", fakeR2Router());
   // Request counts and latency per route pattern, for the owner portal (server/metrics.ts).
   app.use(requestMetrics());
+  // Abuse signals (429s, scraper user agents, bursts) per coarse network range, never a full address (server/moderation.ts).
+  app.use(abuseMonitor());
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
@@ -288,7 +291,8 @@ export function createApp(opts: { dist?: string } = {}) {
     return r;
   }));
 
-  // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
+  // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (the console's
+  // Analytics tab, server/ownerSettings.ts; PUBLIC_USAGE_ENABLED until chosen there).
   api.get("/public-usage", h(async (_req, res) => {
     const u = await cachedPublicUsage();
     // An unreadable feed answers 200 with its reason (the panel says so), but isn't kept by caches.

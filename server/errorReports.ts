@@ -73,6 +73,7 @@ export const fingerprintOf = (r: Pick<ErrorReport, "message" | "stack">) => crea
 interface Row {
   fingerprint: string; message: string; count: number; first_seen: string; last_seen: string; sample: string;
   issue_number: number | null; issue_state: string | null; reported_count: number; last_comment_at: string | null; filing_at: string | null;
+  owner_note?: string | null; owner_note_at?: string | null;
 }
 
 /** Adds one occurrence (a new row for a new fingerprint). The sample is always the latest report. */
@@ -319,19 +320,39 @@ export async function settleFilings(): Promise<void> {
 export interface ErrorReportSummary {
   fingerprint: string; message: string; count: number; firstSeen: string; lastSeen: string;
   issueNumber: number | null; issueUrl: string | null; issueState: string | null; lastCommentAt: string | null;
+  /** The owner's own note (migration 56), shown in the console only; never sent to GitHub. */
+  ownerNote: string | null; ownerNoteAt: string | null;
   sample: ErrorReport;
 }
+
+const toSummary = (r: Row): ErrorReportSummary => ({
+  fingerprint: r.fingerprint, message: r.message, count: Number(r.count), firstSeen: r.first_seen, lastSeen: r.last_seen,
+  issueNumber: r.issue_number == null ? null : Number(r.issue_number),
+  issueUrl: r.issue_number == null ? null : `https://github.com/${GITHUB_REPO}/issues/${r.issue_number}`,
+  issueState: r.issue_state, lastCommentAt: r.last_comment_at,
+  ownerNote: r.owner_note ?? null, ownerNoteAt: r.owner_note_at ?? null,
+  sample: JSON.parse(r.sample) as ErrorReport,
+});
 
 /** The most recently seen reports first. For the owner portal (Task 7): GET /api/reports/errors. */
 export async function listErrorReports(limit = 50): Promise<ErrorReportSummary[]> {
   const rows = await all<Row>("SELECT * FROM error_reports ORDER BY last_seen DESC LIMIT ?", [Math.min(200, Math.max(1, Math.floor(limit) || 50))]);
-  return rows.map((r) => ({
-    fingerprint: r.fingerprint, message: r.message, count: Number(r.count), firstSeen: r.first_seen, lastSeen: r.last_seen,
-    issueNumber: r.issue_number == null ? null : Number(r.issue_number),
-    issueUrl: r.issue_number == null ? null : `https://github.com/${GITHUB_REPO}/issues/${r.issue_number}`,
-    issueState: r.issue_state, lastCommentAt: r.last_comment_at,
-    sample: JSON.parse(r.sample) as ErrorReport,
-  }));
+  return rows.map(toSummary);
+}
+
+/** The longest owner note kept. */
+export const OWNER_NOTE_MAX = 2000;
+
+/**
+ * Set (or clear, with an empty note) the owner's note on one report. Returns the note it replaced and the
+ * updated report, or null when there's no such report.
+ */
+export async function setErrorNote(fingerprint: string, note: string, now = new Date()): Promise<{ was: string | null; report: ErrorReportSummary } | null> {
+  const before = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fingerprint]);
+  if (!before) return null;
+  const text = note.trim().slice(0, OWNER_NOTE_MAX) || null;
+  const row = await get<Row>("UPDATE error_reports SET owner_note = ?, owner_note_at = ? WHERE fingerprint = ? RETURNING *", [text, text ? now.toISOString() : null, fingerprint]);
+  return row ? { was: before.owner_note ?? null, report: toSummary(row) } : null;
 }
 
 // --- Routes ---------------------------------------------------------------------------------------
