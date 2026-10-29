@@ -191,6 +191,10 @@ export async function trackRecord(): Promise<TrackRecord> {
   return cached.value;
 }
 
+/** The track record last built, without checking or building anything (null before the first build): for page
+ *  HTML, which must never wait on the database. The warm-up keeps it current. */
+export function trackRecordIfReady(): TrackRecord | null { return cached?.value ?? null; }
+
 /** Build the track record now if the data moved on (server start, and polled after syncs), so no visitor waits for it. */
 export async function warmTrackRecord(): Promise<void> {
   const key = await trackRecordKey();
