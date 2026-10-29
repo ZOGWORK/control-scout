@@ -19,7 +19,7 @@
 // the file easy to read: ignored, the live name is shown), then optionally the author's own
 // movement in braces ({+3}, {-2}, {=}, {new}), used only for a season's first week (later
 // weeks compute it from the previous file). Pure: no files, no database.
-import { POWER_RANKINGS_SIZE, isWeekId, type BlurbAuthor, type Movement } from "../../src/shared/powerRankings.js";
+import { POWER_RANKINGS_SIZE, isWeekId, type BlurbAuthor, type Movement, type PowerRankingsStats } from "../../src/shared/powerRankings.js";
 
 export interface RankingEntry { rank: number; team: number; blurb: string; movement: Movement | null }
 
@@ -44,6 +44,11 @@ export interface RankingDoc {
     /** The week its movement (in `entries`) was frozen against, and the teams that dropped out then. */
     comparedWith: string | null;
     droppedOut: { team: number; lastRank: number }[];
+    /** The season its numbers come from (the packet's), when it isn't `season` (week 2026-w42 ranked on 2025–26). */
+    dataSeason: number;
+    /** Each entry's name and numbers as the week was written (its packet), in entry order: what the page shows,
+     *  so the heading, the stat line, the order and the blurb always agree and a past week never changes. */
+    shown: { name: string | null; stats: PowerRankingsStats | null }[];
   };
 }
 

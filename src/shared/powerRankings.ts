@@ -49,7 +49,8 @@ export function weekStart(id: string): string {
 /** Movement against the previous published week: up/down by places, same place, or new to the list. */
 export type Movement = { kind: "up" | "down"; by: number } | { kind: "same" } | { kind: "new" };
 
-/** A team's live numbers for the week's season (null when it has no rated matches yet). */
+/** A team's numbers for the week (null when it has no rated matches): an automatic week's as they stood
+ *  when its text was written (frozen with it), a hand-written week's live ones. */
 export interface PowerRankingsStats {
   /** The engine's prediction rating (non-penalty points) and its place in the world. */
   rating: number | null;
@@ -101,6 +102,12 @@ export interface PowerRankingsWeek {
   /** "YYYY-MM-DD" (New York) of the last daily check of an automatic week, when it's a later day than
    *  `published`; else null (a hand-written week, or not checked since the day it went out). */
   updated: string | null;
+  /** "YYYY-MM-DD" the entries' numbers are frozen at (an automatic week: its publish date or last daily
+   *  check); null when they're live (a hand-written week). */
+  statsAsOf: string | null;
+  /** The season the numbers come from when it isn't `season` (a week early in a season ranked on the
+   *  previous season's final numbers); else null. */
+  dataSeason: number | null;
   /** The intro, as sanitized HTML; and as plain text (descriptions, previews). */
   introHtml: string;
   introText: string;
@@ -116,7 +123,7 @@ export interface PowerRankingsWeek {
   next: string | null;
   /** Teams in the previous week's list that aren't in this one. */
   droppedOut: { team: number; name: string | null; lastRank: number }[];
-  /** The world rankings (/rankings) for the week's season: as they stood that week when there's a
+  /** The world rankings (/rankings) for the season its numbers come from: as they stood that week when there's a
    *  weekly snapshot for its Monday, else the live list. */
   worldRankings: string;
 }
@@ -134,6 +141,16 @@ export const publishedLabel = (d: string) => new Date(`${d}T12:00:00Z`).toLocale
 /** "Published Friday, Oct 23 · Updated Sunday, Oct 25" (the update only when it's another day). */
 export const publishedLine = (w: Pick<PowerRankingsWeek, "published" | "updated">) =>
   `Published ${publishedLabel(w.published)}${w.updated && w.updated !== w.published ? ` · Updated ${publishedLabel(w.updated)}` : ""}`;
+
+/**
+ * What the numbers under each blurb are: "Stats as of Oct 16, 2026." for an automatic week (frozen with
+ * its text), "Stats are live." for a hand-written one; and, when they come from another season, which.
+ */
+export function statsLine(w: Pick<PowerRankingsWeek, "statsAsOf" | "dataSeason">): string {
+  const asOf = w.statsAsOf ? `Stats as of ${longDate(w.statsAsOf)}.` : "Stats are live.";
+  if (w.dataSeason == null) return asOf;
+  return `${asOf} Ratings and records are from the ${w.dataSeason}–${String((w.dataSeason + 1) % 100).padStart(2, "0")} season.`;
+}
 
 /**
  * The line an automatically published week carries. Bruno is named only when he wrote some of it;
