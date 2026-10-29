@@ -57,9 +57,11 @@ async function weekList(season: number, week: string): Promise<TeamRow[]> {
      WHERE s.season = ? AND s.week = ? AND ${ranked} ORDER BY s.rank`, [season, week])).map((r, i) => ({ ...r, rank: i + 1, team: Number(r.team), rating: Number(r.rating) })));
 }
 
-/** A week's ranks and ratings by team (a written week never changes), numbered as weekList numbers them. */
-function snapshot(season: number, week: string) {
-  return snapMemo(`${season}|${week}`, async () => new Map((await all<{ team: number; rating: number }>(
+/** A week's ranks and ratings by team, numbered as weekList numbers them. A written week's rows never change, but
+ *  which teams count does (a team renamed to a placeholder by a sync), so the key carries the data version as the
+ *  live list's does: both always agree on who is ranked. */
+async function snapshot(season: number, week: string) {
+  return snapMemo(`${await dataVersion()}|${season}|${week}`, async () => new Map((await all<{ team: number; rating: number }>(
     `SELECT s.team, s.rating FROM ranking_snapshots s WHERE s.season = ? AND s.week = ? AND ${rankedNoJoin} ORDER BY s.rank`, [season, week])).map((r, i) => [Number(r.team), { rank: i + 1, rating: Number(r.rating) }])));
 }
 

@@ -443,8 +443,11 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  * 2: hybrid events counted (they were skipped, leaving events without stats).
  * 3: OPR computed exactly like FTC Scout (least squares, all listed teams, TeleOp as FIRST reports it).
  * 4: records tables (team_event_records, team_season_records) for /api/records.
+ * 5: league meets ranked on their own matches (src/shared/meetStandings.ts).
+ * 6: season ranks only among teams with a page (src/shared/teamPages.ts: no "Off-Season Demo Team"), and the
+ *    search index without them, so past seasons' ranks and "of N" drop the placeholders too.
  */
-export const STATS_RULES = 5; // 5: league meets ranked on their own matches (src/shared/meetStandings.ts)
+export const STATS_RULES = 6;
 
 /** True when past seasons were computed under older rules, or haven't all been
  *  recomputed by this engine version yet (a new engine rewrites every season's
