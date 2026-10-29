@@ -164,16 +164,16 @@ export const FLIPS_HINT_MS = 150;
 /**
  * Whether today has coin flips, for /events' first paint (COIN_FLIPS_META): the radar sits above the list there,
  * and on a day with none, a placeholder held while it loads would vanish and pull the whole list up (most of the
- * page's layout shift). Answered from the stored radar (server/api/coinFlips.ts); a slow or failed answer leaves the
- * tag out, and the page keeps the placeholder.
+ * page's layout shift). Answered from the stored radar only (server/api/coinFlips.ts storedCoinFlips: a page load
+ * never starts gathering one); none fresh, or a slow or failed read, leaves the tag out, and the page keeps the placeholder.
  */
 export async function coinFlipsHint(path: string): Promise<string> {
   if (path !== "/events") return "";
   try {
-    const { coinFlips } = await import("./api/coinFlips.js");
+    const { storedCoinFlips } = await import("./api/coinFlips.js");
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<null>((ok) => { timer = setTimeout(ok, FLIPS_HINT_MS, null); });
-    const r = await Promise.race([coinFlips(), late]).finally(() => clearTimeout(timer));
+    const r = await Promise.race([storedCoinFlips(), late]).finally(() => clearTimeout(timer));
     return r ? `<meta name="${COIN_FLIPS_META}" content="${hasFlips(r) ? 1 : 0}" />` : "";
   } catch {
     return "";
