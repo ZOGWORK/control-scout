@@ -23,6 +23,8 @@ import { partnershipPrefix } from "../predict/partnerships.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
 import { refreshReportCards } from "./reportCards.js";
 import { computeReliability } from "./reliability.js";
+import { teamPageTest } from "../teamPages.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -148,11 +150,14 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
   await writeBatch([{ sql: "DELETE FROM team_event_stats WHERE season = ?", args: [season] }, ...[...eventRows.values()].flat()]);
 
   const rating = await ratingReader(season);
-  const b = [...best];
+  // Season ranks are among teams with a page: a placeholder ("Off-Season Demo Team", src/shared/teamPages.ts) keeps
+  // its OPR and rating (its matches count for everyone it played) but takes no rank, and isn't in "of".
+  const paged = await teamPageTest();
+  const b = [...best].filter(([t]) => paged(t));
   // OPR ranks count every finite value, negatives included (as FTC Scout ranks them).
   const ranks = { np: rankBy(b.map(([t, x]) => [t, x.np])), auto: rankBy(b.map(([t, x]) => [t, x.auto])), teleop: rankBy(b.map(([t, x]) => [t, x.teleop])), endgame: rankBy(b.map(([t, x]) => [t, x.endgame])) };
   const ratingVals: [number, number][] = [];
-  for (const t of seasonAcc.keys()) { const r = rating(t); if (r && r.n >= 3) ratingVals.push([t, r.auto + r.teleop + r.endgame]); }
+  for (const t of seasonAcc.keys()) { const r = rating(t); if (r && r.n >= 3 && paged(t)) ratingVals.push([t, r.auto + r.teleop + r.endgame]); }
   const ratingRank = rankBy(ratingVals, 0); // ratings keep their floor
   const ss: InStatement[] = [{ sql: "DELETE FROM team_season_stats WHERE season = ?", args: [season] }];
   for (const [team, a] of seasonAcc) {
@@ -411,7 +416,9 @@ export async function scoreLivePredictions(log: Log = () => {}): Promise<number>
 // ---------------------------------------------------------------------------
 
 export async function rebuildSearch(log: Log = () => {}): Promise<void> {
-  const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number GROUP BY t.number`);
+  // Only teams with a page (src/shared/teamPages.ts): a hit must lead somewhere.
+  const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number
+    WHERE ${teamPageSql("t.number", "t.name")} GROUP BY t.number`);
   const events = await all<any>("SELECT season, code, name, city, state, country, start, type FROM events");
   const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }, { sql: "DELETE FROM search_fuzzy", args: [] }];
   for (const t of teams) {
@@ -447,8 +454,12 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  * 3: OPR computed exactly like FTC Scout (least squares, all listed teams, TeleOp as FIRST reports it).
  * 4: records tables (team_event_records, team_season_records) for /api/records.
  * 5: league meets ranked on their own matches (src/shared/meetStandings.ts).
+ * 6: season ranks only among teams with a page (src/shared/teamPages.ts: no "Off-Season Demo Team"), and the
+ *    search index without them, so past seasons' ranks and "of N" drop the placeholders too.
+ * 7: the season record is every match on the team's record (src/shared/eventRecord.ts): qualification no-shows
+ *    count as FIRST counts them, playoff matches sat out don't. Hosts already rebuilt under 6 rebuild once more.
  */
-export const STATS_RULES = 6; // 6: the season record counts qualification no-shows as FIRST does (src/shared/eventRecord.ts)
+export const STATS_RULES = 7;
 
 /** True when past seasons were computed under older rules, or haven't all been
  *  recomputed by this engine version yet (a new engine rewrites every season's
