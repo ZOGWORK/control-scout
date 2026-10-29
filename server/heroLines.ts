@@ -50,14 +50,15 @@ export class HeroLineError extends Error {}
 
 /** Add a line at the end. */
 export async function addHeroLine(plain: string, accent: string, enabled = true, at = new Date().toISOString()): Promise<HeroLineRow> {
-  const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM hero_lines"))!.n);
-  if (n >= HERO_LINES_MAX) throw new HeroLineError(`There can be up to ${HERO_LINES_MAX} lines.`);
+  // The limit is checked by the insert itself (one statement), so overlapping adds can't pass it together.
   const r = await get<Row>(
-    "INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at) VALUES ((SELECT COALESCE(MAX(position), -1) + 1 FROM hero_lines), ?, ?, ?, ?, ?) RETURNING *",
-    [cleanHeroPart(plain), cleanHeroPart(accent), enabled ? 1 : 0, at, at],
+    `INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at)
+     SELECT COALESCE(MAX(position), -1) + 1, ?, ?, ?, ?, ? FROM hero_lines HAVING COUNT(*) < ? RETURNING *`,
+    [cleanHeroPart(plain), cleanHeroPart(accent), enabled ? 1 : 0, at, at, HERO_LINES_MAX],
   );
+  if (!r) throw new HeroLineError(`There can be up to ${HERO_LINES_MAX} lines.`);
   invalidateHeroLines();
-  return view(r!);
+  return view(r);
 }
 
 const one = (r: { rows: unknown[] }) => (r.rows[0] ? view(r.rows[0] as unknown as Row) : null);
