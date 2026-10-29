@@ -11,7 +11,7 @@ import { invalidateOwnerSettings } from "../ownerSettings";
 import { resetAbuse } from "../moderation";
 import { resetMetrics } from "../metrics";
 import { recordPageView } from "../analytics";
-import { canTriage, statusForTriage } from "./feedback";
+import { canTriage, statusForTriage, triageQueue } from "./feedback";
 import { TRIAGE_NEXT } from "../../src/shared/owner";
 
 let server: Server;
@@ -143,14 +143,22 @@ describe("triage", () => {
     expect((await audit()).length).toBe(before);
   });
 
-  it("queues untriaged messages first, then accepted ones, leaving out decided, archived and 'other' ones", async () => {
+  it("lists untriaged and accepted messages apart, each in full, leaving out decided, archived and 'other' ones", async () => {
     const a = await add("bug"), b = await add("data"), c = await add("feature"), d = await add("other"), e = await add("bug");
     await call("PATCH", `/api/owner/feedback/${a}/triage`, { cookie: ownerCookie, body: { triage: "accepted" } });
     await call("PATCH", `/api/owner/feedback/${b}/triage`, { cookie: ownerCookie, body: { triage: "rejected" } });
     await call("PATCH", `/api/owner/feedback/${e}`, { cookie: ownerCookie, body: { status: "archived" } });
     const r = await call("GET", "/api/owner/moderation", { cookie: ownerCookie });
     expect(r.status).toBe(200);
-    expect(r.json.triage.messages.map((m: any) => m.id)).toEqual([c, a]);
+    expect(r.json.triage).toMatchObject({ state: "untriaged", more: false });
+    expect(r.json.triage.messages.map((m: any) => m.id)).toEqual([c]);
+    const accepted = await call("GET", "/api/owner/moderation?triage=accepted", { cookie: ownerCookie });
+    expect(accepted.json.triage.messages.map((m: any) => m.id)).toEqual([a]);
+    // Many untriaged messages never push an accepted one out of reach: each list pages on its own.
+    await add("bug"); await add("data");
+    const page = await triageQueue("untriaged", 1);
+    expect([page.messages.length, page.more]).toEqual([1, true]);
+    expect((await triageQueue("accepted", 1)).messages.map((m) => m.id)).toEqual([a]);
     expect(r.json.triage.counts).toEqual({ untriaged: 1, accepted: 1, rejected: 1, fixed: 0 });
     expect(r.json.triage.messages.some((m: any) => m.id === d)).toBe(false);
     // The same messages in the inbox: one list, not a second inbox.

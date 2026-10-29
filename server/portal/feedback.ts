@@ -45,19 +45,23 @@ export async function listFeedback(status: FeedbackStatus | "all" = "open", limi
 
 const TOPIC_SQL = `topic IN (${TRIAGE_TOPICS.map(() => "?").join(", ")})`;
 
-/** The triage queue: bug reports, data corrections and ideas not decided yet (first) or accepted and not fixed, newest first; plus counts per state. */
-export async function triageQueue(limit = 100): Promise<TriageQueue> {
+/**
+ * The triage queue, one list at a time: bug reports, data corrections and ideas not decided yet
+ * ("untriaged") or accepted and waiting for a fix ("accepted"), newest first, plus counts per state.
+ * `more`: the list holds more than `limit` messages (the oldest are left out).
+ */
+export async function triageQueue(state: "untriaged" | "accepted" = "untriaged", limit = 100): Promise<TriageQueue> {
   const n = Math.min(500, Math.max(1, Math.floor(limit) || 100));
   const rows = await all(
-    `SELECT * FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' AND (triage IS NULL OR triage = 'accepted')
-     ORDER BY (triage IS NOT NULL), id DESC LIMIT ?`, [...TRIAGE_TOPICS, n]);
+    `SELECT * FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' AND ${state === "accepted" ? "triage = 'accepted'" : "triage IS NULL"}
+     ORDER BY id DESC LIMIT ?`, [...TRIAGE_TOPICS, n + 1]);
   const counts: TriageQueue["counts"] = { untriaged: 0, accepted: 0, rejected: 0, fixed: 0 };
   for (const r of await all<{ triage: string | null; n: number }>(
     `SELECT triage, COUNT(*) n FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' GROUP BY triage`, [...TRIAGE_TOPICS])) {
     if (r.triage == null) counts.untriaged += Number(r.n);
     else if (isTriageState(r.triage)) counts[r.triage] += Number(r.n);
   }
-  return { messages: rows.map(toMessage), counts };
+  return { state, messages: rows.slice(0, n).map(toMessage), counts, more: rows.length > n };
 }
 
 /** One message (null: no such message). */
