@@ -6,6 +6,9 @@
 /** Simulations per run, and the floor an event that blows the time budget drops to. */
 export const PROJECTION_RUNS = 10_000;
 export const PROJECTION_FLOOR = 5_000;
+/** Simulation runs per event for the stored pre-event advancement odds (server/stats/records.ts), the
+ *  records' Adv. odds wherever an event has no stored projection. */
+export const PRE_EVENT_ADVANCEMENT_RUNS = 500;
 
 /** The device's local estimate (src/lib/localProjection), only when no stored run can be had: simulations it aims
  *  for, and the compute time it stops at (a slow phone reports the count it managed). */

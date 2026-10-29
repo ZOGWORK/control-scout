@@ -14,6 +14,8 @@ import { eventStatus } from "../../shared/eventDay";
 import { normalize, scoreWords, words } from "../../shared/fuzzy";
 import { regionNames } from "../../shared/regions";
 import { projectionsViewFromRows, type ProjectionsView } from "../../shared/projections";
+import { recordSql, recordsFromRows } from "../../shared/eventRecord";
+import { teamEventRows, teamEventsQuery } from "../../shared/teamEventRows";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -86,37 +88,15 @@ function packReliability(db: Db, season: number, team: number): Reliability | nu
   } catch { return null; }
 }
 
+/** The server's teamEvents (src/shared/teamEventRows.ts). A pack holds no records table, so a league meet's own rank
+ *  and ranking score are left out (FIRST's are the league's running standing): its record is still the meet's own. */
 function teamEvents(db: Db, season: number, team: number): TeamEventRow[] {
-  const rows = db.all(
-    `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country,
-            et.rank, et.rp, et.wins, et.losses, et.ties, et.qual_played,
-            s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen, s.avg_score, s.avg_np, s.avg_pen
-     FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-     LEFT JOIN team_event_stats s ON s.season = et.season AND s.code = et.code AND s.team = et.team
-     WHERE et.season = ? AND et.team = ?
-       -- League rosters list every league team at every meet: once an event has
-       -- results, keep it only if this team was on the field in a played match.
-       AND (NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1)
-            OR EXISTS (SELECT 1 FROM match_teams x JOIN matches m
-                         ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
-                       WHERE x.season = et.season AND x.code = et.code AND x.team = et.team AND x.on_field = 1 AND m.played = 1))
-     ORDER BY e.start, e.code`,
-    [season, team],
-  );
+  const q = teamEventsQuery(season, team, { meetRanks: false });
+  const rows = db.all(q.sql, q.args);
+  const recs = recordsFromRows(db.all(recordSql("mt.season = ? AND mt.team = ?"), [season, team]));
   const awards = db.all("SELECT code, type, placement, name FROM awards WHERE season = ? AND team = ?", [season, team]);
   const alliances = db.all("SELECT code, number, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND (captain = ? OR pick1 = ? OR pick2 = ? OR backup = ?)", [season, team, team, team, team]);
-  return rows.map((r) => {
-    const al = alliances.find((a) => a.code === r.code);
-    const seat = al ? (al.captain === team ? "captain" : al.pick1 === team ? "pick1" : al.pick2 === team ? "pick2" : "backup") : null;
-    return {
-      season, code: r.code, name: r.name, type: r.type, start: r.start, end: r.end, city: r.city, state: r.state, country: r.country,
-      rank: r.rank, rp: r.rp, wins: r.wins, losses: r.losses, ties: r.ties, qualPlayed: r.qual_played,
-      opr: { np: r.opr_np, auto: r.opr_auto, teleop: r.opr_teleop, endgame: r.opr_endgame, pen: r.opr_pen },
-      avg: { score: r.avg_score, np: r.avg_np, pen: r.avg_pen },
-      awards: awards.filter((a) => a.code === r.code).map((a) => ({ type: a.type, placement: a.placement, name: a.name })),
-      alliance: al && seat ? { number: al.number, seat } : null,
-    };
-  });
+  return teamEventRows(season, team, rows, recs, awards, alliances, new Date().toISOString().slice(0, 10));
 }
 
 /**
