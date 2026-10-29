@@ -15,11 +15,12 @@ const str = (k: string) => {
 
 /** A Cloudflare account id: 32 hex characters. */
 const R2_ACCOUNT_ID_RE = /^[0-9a-f]{32}$/i;
-/** An http(s) URL whose hostname is DNS labels (the URL parser lets an underscore through; browsers' CSP doesn't). */
+/** An http(s) URL whose hostname is DNS labels (the URL parser lets an underscore through; browsers' CSP doesn't),
+ *  or an IPv6 literal such as a local fake bucket's [::1] (server/scout/r2.ts; never put in the CSP). */
 const validEndpoint = (v: string) => {
   try {
     const u = new URL(v);
-    return (u.protocol === "https:" || u.protocol === "http:") && /^[a-z0-9-]+(\.[a-z0-9-]+)*$/i.test(u.hostname);
+    return (u.protocol === "https:" || u.protocol === "http:") && /^([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])$/i.test(u.hostname);
   } catch {
     return false;
   }
@@ -80,7 +81,7 @@ export const env = {
   get r2SecretAccessKey() { return str("R2_SECRET_ACCESS_KEY"); },
   get r2Bucket() { return str("R2_BUCKET"); },
   /** The S3 API endpoint, https://<account id>.r2.cloudflarestorage.com (derived from R2_ACCOUNT_ID when unset). */
-  /** Only an http(s) URL with a real hostname (letters, digits, hyphens, dots): anything else (an API token put in
+  /** Only an http(s) URL with a real hostname (letters, digits, hyphens, dots, or an IPv6 literal): anything else (an API token put in
    *  the host, say) would reach the page's CSP header, so it reads as unset, as R2_ACCOUNT_ID does. */
   get r2Endpoint() {
     const v = str("R2_ENDPOINT");
