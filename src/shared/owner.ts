@@ -23,7 +23,7 @@ export interface OwnerOverview {
     ledger: { kind: "live" | "backtest"; season: number; accuracy: number; n: number } | null;
     /** The offline pack manifest (packs/latest.json); null when no pack was built on this server. */
     packManifest: { version: string; builtAt: string; dataAsOf: string | null; engineVersion: string } | null;
-    /** Error reports seen in the last 24 hours / 7 days, and server errors (5xx) today (UTC) / the last 7 days. */
+    /** Distinct app errors (one per fingerprint, however often repeated) seen in the last 24 hours / 7 days, and server errors (5xx) today (UTC) / the last 7 days. */
     errors: { reports24h: number; reports7d: number; server5xxToday: number; server5xx7d: number };
   };
 }

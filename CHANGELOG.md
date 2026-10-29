@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.4.2 — 2026-10-29
+## 1.4.4 — 2026-10-29
 
 The owner console gains a Moderation tab, triage for bug reports and data corrections, notes on error reports, and an Analytics tab that decides whether the home page shows how much Control Scout is used.
 
@@ -34,7 +34,7 @@ The owner console gains a Moderation tab, triage for bug reports and data correc
 - **"In use" on the home page.** A console switch, behind a confirmation, publishes or hides the home page's page views and sessions; until it's used, the server setting decides as before.
 - Every triage decision, note and publish choice is in the audit log with its old and new value. (#338)
 
-## 1.4.1 — 2026-10-29
+## 1.4.3 — 2026-10-29
 
 The owner console is now organised the way it's run: health first, then data, predictions, rankings, features, feedback and analytics, with an audit log that records every change's old and new value and can't be edited.
 
@@ -45,11 +45,54 @@ The owner console is now organised the way it's run: health first, then data, pr
 - [fixes] The console shows counts, never your devices or workspace members' names
 
 ### Owner console
+- **One click away.** The owner's own sidebar has an Owner console button right above their name (an icon in the collapsed rail); nobody else ever sees it. It replaces the Owner row in the menu.
 - **One tab per job.** Overview, Data & sync, Predictions & ledger, Rankings & content, Features, Feedback & errors, Analytics, Accounts, Photo storage and Audit log. Links to the old tabs (`?panel=users`, `?panel=flags` …) open the section that holds them now.
 - **Health first.** Overview opens on whether the site is up, when data last synced (amber once it's more than six hours old), the engine version in production, the live ledger's headline, the offline pack manifest's date and version, and the error reports and server errors of the last day and week.
 - **An audit log that keeps its word.** Every switch flip, inbox move and stream change records the value it replaced and the value it set, shown as "on → off". The database refuses to delete a row or rewrite one; the only thing a row ever takes later is a data job's result.
 - **403 for everyone else.** Every owner route, read or write, known or not, answers 403 to anyone who isn't a signed-in owner, before any handler runs.
 - **Less personal data on screen.** An account shows how many devices are signed in, not which browsers; a read-only workspace shows how many members and admins can read it, not their names. (#335)
+
+## 1.4.2 — 2026-10-29
+
+Launch fixes: every team's event rows now add up to its season record, old power-rankings weeks stay as they were written, and the labels say exactly what each number is.
+
+### Highlights
+- [teams] Event rows count every match and add up to the season record
+- [rankings] Past power-rankings weeks keep their original numbers
+- [predict] Live and replay track records side by side, each labelled
+- [fixes] One address for How it works, and no more dead team links
+- [teams] Clearer ranks, odds and empty columns on team and event pages
+
+### Teams
+- **Rows that add up.** Each event on a team page now shows the team's record over every match there, playoffs included, with the quals record underneath when it differs. League meets show the meet's own record and rank instead of the league's running total, which made many teams look undefeated (one winless team showed 10-0-0). Rows for events a team never played are gone, scrimmages with matches show their record, and the season record counts qualification no-shows the way FIRST does. A tooltip says what each record counts, surrogate matches excluded. (#332)
+- **Labelled ranks.** OPR and rating ranks say which list they come from and out of how many teams. A team with no results yet this season says it's showing last season, with a link to switch. (#333)
+
+### Power rankings
+- **Archives stay put.** A week's stats, order and names are saved with its write-ups when it goes out, so an old week never drifts as ratings move. The page says when its stats are from, a week is tagged by the season its dates fall in, and write-ups say "week 43", never "2026-w43". (#325)
+
+### Predict and track record
+- **Side by side.** On the home page, the season replay and the logged-live figure sit side by side at the same size. The live figure says it covers all engine versions, with the current engine's figure underneath. (#333)
+- **Two odds, explained.** On an event page, the Rankings column and the Odds tab say how many simulations each ran and when, and why the two can differ. (#333)
+- **How it works.** It has one address now (the old /predict/accuracy and /predict/how-it-works links forward to it), its track record shows when it was last updated, and its match and simulation counts each say what they count. (#327)
+
+### Events
+- League meets show "#1 at this meet" to match their rankings table, and say how many of the league's teams played there. Blank prediction columns and scrimmages explain themselves, and venue lines no longer show a double comma. Compare says when it switched to the last season the teams played. (#333)
+
+### Fixes
+- Team pages exist only for real teams: FIRST's demo and test registrations and its stand-in numbers for unnumbered teams are left out of rankings, search and the sitemap, and /records forwards to /teams. (#329)
+- Security headers on every page (HSTS, frame and permissions policies, a content security policy in report mode). (#328)
+
+## 1.4.1 — 2026-10-29
+
+The weekly digest just says it comes once a week, without naming a day or time.
+
+### Highlights
+- [alerts] The weekly digest says "once a week" in Settings
+- [alerts] Turning it on says the first one comes within a week
+- [alerts] The digest's description no longer names a send day
+
+### Weekly digest
+- **No fixed time in the copy.** Settings, the switch's confirmation and the description say the digest comes once a week, instead of naming a day or time. The email itself is unchanged. (#334)
 
 ## 1.4.0 — 2026-10-29
 
@@ -81,14 +124,14 @@ The home page's headline changes every hour, one of thirteen lines about what Co
 A weekly email for the weeks you don't open the app, a Scout page that sets the event once and goes match by match, a simpler Predict in three modes, and match videos with the model's call on screen.
 
 ### Highlights
-- [alerts] A weekly digest email on Mondays, opt-in in Settings
+- [alerts] A weekly digest email, opt-in in Settings
 - [scout] Scout sets the event once, then goes match by match
 - [predict] Predict in three modes: Advancement, Scheduled and Custom matchup
 - [live] Each match has a Watch button, and the model's call shows on the video
 - [teams] Upcoming events list their registered teams before any match is played
 
 ### Weekly digest
-- **One email, Mondays at 8 AM Eastern.** Turn it on in Settings › Notifications › Email. It covers the teams you follow (your team and tracked teams), and only comes when there's something to report: no results, no calls, nothing coming up means no email.
+- **One email a week.** Turn it on in Settings › Notifications › Email. It covers the teams you follow (your team and tracked teams), and only comes when there's something to report: no results, no calls, nothing coming up means no email.
 - **Your teams' week.** Each event a followed team played last week, linked: the record, the seed, how playoffs went, and OPR against the team's previous event, with both numbers. Two events in one weekend show as two rows, never one merged record.
 - **Prediction check-in.** How many of our pre-match calls on your teams' matches were right that week and all season, counted exactly as the public track record counts them. A bad week says so.
 - **Coming up and power rankings.** Your teams' events in the next two weeks with a countdown (and whether a schedule is out yet), and where your teams moved in that week's power rankings.

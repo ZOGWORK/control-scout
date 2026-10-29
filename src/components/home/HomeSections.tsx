@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
 import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
-import { defaultEvidence, eventState, recordFor, seasonReplaySoFar, shortDay, usageView, type Evidence } from "./homeModel";
+import { defaultEvidence, eventState, recordFor, seasonReplaySoFar, shortDay, usageView, type Evidence, type RecordView } from "./homeModel";
 import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -198,6 +198,16 @@ function CalendarRow({ e }: { e: EventListItem }) {
 
 // --- The public prediction record ---------------------------------------------------
 
+/**
+ * An evidence card's accessible name: its kind, its figure (or that there's none yet) and its sample, since the
+ * card's visible parts are hidden from assistive tech to keep the name to one sentence.
+ * "Season replay, 73.8% correct winner, 41,743 scored".
+ */
+export function cardName(k: Evidence, r: RecordView | null, n: number | undefined): string {
+  const figure = !r ? "none yet" : r.noneDecided ? "No percentage yet" : `${pct(r.block.accuracy, 1)} correct winner${k === "live" && r.engines ? ", all engine versions" : ""}`;
+  return `${LEDGER_MODE[k].tab}, ${figure}${n != null ? `, ${fmt(n)} scored` : ""}`;
+}
+
 export function PredictionRecord() {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
   const [chosen, setChosen] = useState<Evidence | null>(null);
@@ -205,7 +215,8 @@ export function PredictionRecord() {
   const kind = chosen ?? (t ? defaultEvidence(t) : "backtest");
   const view = t ? recordFor(t, kind) : null;
   const soFar = t ? seasonReplaySoFar(t, view) : null;
-  const sizes = t ? { live: recordFor(t, "live")?.block.n, backtest: recordFor(t, "backtest")?.block.n } : null;
+  const figures = t ? { live: recordFor(t, "live"), backtest: recordFor(t, "backtest") } : null;
+  const sizes = figures ? { live: figures.live?.block.n, backtest: figures.backtest?.block.n } : null;
   // The replay first: it's the headline until a season's live calls reach the threshold.
   const tabs: Evidence[] = ["backtest", "live"];
   return (
@@ -216,16 +227,29 @@ export function PredictionRecord() {
         <div aria-busy="true" className="mt-4 h-52" />
       ) : (
         <>
-          {/* A choice of evidence (radio semantics, arrow keys between the two), each with its sample size, and the record it shows. */}
-          <ToggleGroup type="single" value={kind} onValueChange={(v) => v && setChosen(v as Evidence)} aria-label="Evidence" aria-controls="record-evidence"
-            className="mt-4 rounded-xl border border-line p-1">
-            {tabs.map((k) => (
-              <ToggleGroupItem key={k} value={k} size="lg" className="gap-1.5 rounded-lg px-3 text-sm max-sm:h-10"
-                aria-label={sizes?.[k] != null ? `${LEDGER_MODE[k].tab}, ${fmt(sizes[k]!)} scored` : LEDGER_MODE[k].tab}>
-                {LEDGER_MODE[k].tab}
-                {sizes?.[k] != null && <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(sizes[k]!)}</span>}
-              </ToggleGroupItem>
-            ))}
+          {/* A choice of evidence (radio semantics, arrow keys between the two). Both figures sit side by side at the
+              same size, each labelled with its kind and sample, so the live record is never smaller than the replay;
+              picking one opens its details below. */}
+          <ToggleGroup type="single" variant="cards" value={kind} onValueChange={(v) => v && setChosen(v as Evidence)} aria-label="Evidence" aria-controls="record-evidence"
+            className="mt-4 grid grid-cols-2 gap-2 overflow-x-visible">
+            {tabs.map((k) => {
+              const r = figures?.[k] ?? null;
+              return (
+                <ToggleGroupItem key={k} value={k} className="min-w-0 justify-start whitespace-normal px-3 py-2.5 max-sm:px-2.5"
+                  aria-label={cardName(k, r, sizes?.[k])}>
+                  <span className="flex w-full items-baseline justify-between gap-1.5 text-sm">
+                    <span className="truncate">{LEDGER_MODE[k].tab}</span>
+                    {sizes?.[k] != null && <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(sizes[k]!)}</span>}
+                  </span>
+                  {!r ? <span aria-hidden className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl">—</span>
+                    : r.noneDecided ? <span aria-hidden className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl">—</span>
+                    : <span aria-hidden className="font-display text-4xl font-semibold tabular-nums text-accent-text @2xl/home:text-5xl">{pct(r.block.accuracy, 1).replace("%", "")}<span className="text-2xl">%</span></span>}
+                  <span aria-hidden className="block w-full truncate text-xs font-normal text-text-muted">
+                    {!r ? "none yet" : k === "live" ? (r.engines ? "all season, all engine versions" : `${r.seasonLabel}, before each match`) : `${r.seasonLabel} replay`}
+                  </span>
+                </ToggleGroupItem>
+              );
+            })}
           </ToggleGroup>
           <div id="record-evidence" role="region" aria-live="polite" aria-label={LEDGER_MODE[kind].tab} className="mt-4">
             {!view ? (
@@ -234,7 +258,7 @@ export function PredictionRecord() {
               </p>
             ) : (
               <>
-                {/* Which mode the big number is, said before the number. */}
+                {/* Which mode the figure is, said first. */}
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
                   {view.kind === "live" ? (view.early ? "Logged live · still calibrating" : "Logged live") : "Season replay"}{view.isHeadline && " · the headline"}
                 </p>
@@ -244,12 +268,16 @@ export function PredictionRecord() {
                     <span><strong>Still calibrating this season.</strong> Early-season calls lean on ratings built from few matches, so this number moves as results arrive. It isn’t the headline until {view.seasonLabel} has {fmt(t.liveThreshold)} live calls scored ({fmt(view.block.n)} so far).</span>
                   </p>
                 )}
-                {view.noneDecided
-                  ? <p className="font-display text-6xl font-semibold text-text-muted" aria-label="No percentage yet">—</p>
-                  : <p className="font-display text-6xl font-semibold tabular-nums text-accent-text">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl">%</span></p>}
                 <p className="mt-1 text-sm text-text-muted">
-                  Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
+                  Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match${view.engines ? `, all engine versions (v${view.engines.versions.join(", v")})` : ""}` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
                 </p>
+                {view.engines?.current && view.engines.current.decided != null && (
+                  <p className="mt-1 text-sm">
+                    {view.engines.current.accuracy != null
+                      ? <><span className="font-semibold tabular-nums text-accent-text">{pct(view.engines.current.accuracy, 1)}</span><span className="text-text-muted"> from engine v{view.engines.current.engine} alone, the one serving now ({fmt(view.engines.current.n)} scored)</span></>
+                      : <span className="text-text-muted">Engine v{view.engines.current.engine}, the one serving now: no decided calls yet ({fmt(view.engines.current.n)} scored, all ties or 50:50 calls)</span>}
+                  </p>
+                )}
                 {view.split && (
                   <div className="mt-4">
                     <div className="flex h-2 overflow-hidden rounded-full bg-text-base/15" role="img" aria-label={`${fmt(view.split.correct)} correct, ${fmt(view.split.missed)} missed of ${fmt(view.split.decided)} decisive calls`}>

@@ -50,7 +50,9 @@ describe("offline team profile (same shape as /api/teams/:n)", () => {
     expect(p.events.map((e) => e.code)).toEqual(["USNJQ1", "USNJQ9"]); // by start date
     expect(p.events[0]).toEqual({
       season: 2025, code: "USNJQ1", name: "New Jersey Qualifier 1", type: "Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Newark", state: "NJ", country: "USA",
-      rank: 2, rp: 2, wins: 1, losses: 1, ties: 0, qualPlayed: 2,
+      // The record is counted from the matches (won Q1, Q2 and the playoff M1), not read from FIRST's ranking row
+      // (the fixture's says 1-1-0), with the quals alone beside it.
+      rank: 2, rp: 2, wins: 3, losses: 0, ties: 0, played: 3, qualPlayed: 2, qual: { wins: 2, losses: 0, ties: 0, played: 2 }, onField: true,
       opr: { np: 55.5, auto: 10, teleop: 30, endgame: 15.5, pen: 2 }, avg: { score: 105, np: 100, pen: 5 },
       awards: [{ type: "Winner", placement: 1, name: null }],
       alliance: { number: 1, seat: "pick1" },
