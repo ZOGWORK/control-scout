@@ -185,3 +185,16 @@ Once all four were merged, the combined main got another sweep: `npm run a11y --
 ### Also from the owner during this run: Predict's Lab buttons (#211, ff26c97, live)
 
 "Predict a matchup" was the glowing primary button next to a secondary "Odds at an event", which made one of two equal choices look recommended. Both are now the same secondary button. A regression in `PredictPage.team.test.tsx` fails on main and passes on the branch.
+
+## Launch re-audit, signed in (2026-10-29, on 1.4.2)
+
+`npm run audit` and `npm run audit:flows` on main (f2bb28a6), then the signed-in flows with local test accounts only: a local copy of the database, sessions made the way the tests make them, and a local stand-in for Control Point's internal API (one workspace: an admin, a member, a non-member). No account was made on the live site.
+
+| # | Area (§) | Finding | Fix | Re-check |
+|---|---|---|---|---|
+| L1 | Mobile (§4) | Flow "Methodology example pips" failed: the phone targets were 38.5 px, not 44 (`size-11` is 2.75rem, and phones use a 14px base). | Phone size in px (`size-[44px]`), separate PR. | Flow: phone 44×44 ×4, desktop 24×24 ×4. ✅ |
+| L2 | Tooling (§1) | Flow "Scouting" timed out: since the Scout redesign the entry list (New entry, Delete entry) lives under Data → Entries, not on `/scout`'s first tab. | The flow opens `/scout?tab=data&view=entries`. | 1/1. ✅ |
+| L3 | Tooling (§1) | Flow "Match details" failed on `/OPR here/`: the lineup label is now "OPR at this time" (dcc4ebe5). | The flow expects the current label. | 1/1. ✅ |
+| L4 | Performance (§5) | Sweep: `/scout` desktop "ready after 6.1 s", the first Scout visit on a cold dev server (as H3). | None: dev-server transform time. | `npm run audit:perf`: all budgets met. ✅ |
+
+Signed-in flows (desktop and 390 px, both roles): workspace entries, comments, shared pick list and its notes, assignments and their notifications, template edits reaching members' forms, the offline queue and its sync, consensus and the match report's workspace half, shortlist/My team/tracked merge on first sign-in, every Settings section, the weekly digest switch, the inbox, and the owner page (and its 404 for a non-owner). Privacy: signed out and as a non-member, every workspace endpoint (15 reads, the stream, 2 writes) is refused, and no note, comment, pick-list note, member name or blended number appears in any public API, page, share card or browser response; the public match report is identical for a member and a visitor.
