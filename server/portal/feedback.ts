@@ -1,7 +1,7 @@
 // The owner's feedback inbox: messages sent from the /contact page (contact_messages), each
 // open, resolved or archived. Resolving and archiving only move a message between lists; nothing
 // is deleted here.
-import { all, get } from "../db.js";
+import { all, db } from "../db.js";
 import type { FeedbackList, FeedbackMessage, FeedbackStatus } from "../../src/shared/owner.js";
 
 export const FEEDBACK_STATUSES: FeedbackStatus[] = ["open", "resolved", "archived"];
@@ -29,14 +29,15 @@ export async function listFeedback(status: FeedbackStatus | "all" = "open", limi
   return { messages: rows.slice(0, n).map(toMessage), counts, more: rows.length > n };
 }
 
-/** Which list a message is in now (null: no such message). */
-export async function feedbackStatus(id: number): Promise<FeedbackStatus | null> {
-  const r = await get<{ status: string }>("SELECT status FROM contact_messages WHERE id = ?", [id]);
-  return r ? (isFeedbackStatus(r.status) ? r.status : "open") : null;
-}
-
-/** Move a message to another list; the updated message, or null when there's no such message. */
-export async function setFeedbackStatus(id: number, status: FeedbackStatus, now = new Date()): Promise<FeedbackMessage | null> {
-  const row = await get("UPDATE contact_messages SET status = ?, status_at = ? WHERE id = ? RETURNING *", [status, now.toISOString(), id]);
-  return row ? toMessage(row) : null;
+/** Move a message to another list: the updated message and the list it was in just before (read in the same
+ *  transaction as the move), or null when there's no such message. */
+export async function setFeedbackStatus(id: number, status: FeedbackStatus, now = new Date()): Promise<{ message: FeedbackMessage; was: FeedbackStatus } | null> {
+  const [before, after] = await db().batch([
+    { sql: "SELECT status FROM contact_messages WHERE id = ?", args: [id] },
+    { sql: "UPDATE contact_messages SET status = ?, status_at = ? WHERE id = ? RETURNING *", args: [status, now.toISOString(), id] },
+  ], "write");
+  const row = after.rows[0];
+  if (!row) return null;
+  const prev = (before.rows[0] as unknown as { status: string } | undefined)?.status;
+  return { message: toMessage(row), was: isFeedbackStatus(prev) ? prev : "open" };
 }
