@@ -32,7 +32,7 @@ let failFor = new Set<string>();
 const rankings = (published = "2026-10-30"): PowerRankingsResponse => ({
   archive: [],
   week: {
-    week: "2026-w44", season: SEASON, title: "Week 44 power rankings", published, updated: null, introHtml: "", introText: "", sample: false,
+    week: "2026-w44", season: SEASON, title: "Week 44 power rankings", published, updated: null, statsAsOf: null, dataSeason: null, introHtml: "", introText: "", sample: false,
     generated: null, comparedWith: "2026-w43", previous: "2026-w43", next: null, droppedOut: [], worldRankings: "/rankings",
     entries: [
       { rank: 1, team: 100, name: "Alpha", place: null, blurbHtml: "", movement: { kind: "up", by: 2 }, stats: null, author: null },
