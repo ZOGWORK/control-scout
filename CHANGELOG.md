@@ -21,6 +21,7 @@ The Events page stops jumping while it loads.
 
 ### Highlights
 - [speed] The Events page no longer jumps as it loads, on phones and computers
+- [speed] On a day with no coin flips, the page doesn't save room for them
 - [fixes] No more security-policy warning in the browser console
 
 ### Speed
