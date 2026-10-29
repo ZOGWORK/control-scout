@@ -21,7 +21,7 @@ The weekly digest just says it comes once a week, without naming a day or time.
 
 ### Highlights
 - [alerts] The weekly digest says "once a week" in Settings
-- [alerts] Turning it on says the first one comes with next week's round-up
+- [alerts] Turning it on says the first one comes within a week
 - [alerts] The digest's description no longer names a send day
 
 ### Weekly digest
