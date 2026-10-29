@@ -139,7 +139,7 @@ const flows: Flow[] = [
   {
     name: "Scouting: create, edit, delete; offline-first; export/import round-trip",
     async run(page, ctx) {
-      await page.goto(`${BASE}/scout`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}/scout?tab=data&view=entries`, { waitUntil: "networkidle" }); // entries live under Data since the Scout redesign
       // In production the service worker precaches every font (see the venue flow);
       // this dev server has no worker, so load them first like a real first visit would.
       await page.evaluate(() => Promise.all(["400", "500", "600", "700", "800"].map((w) => document.fonts.load(`${w} 16px Inter`))));
@@ -168,7 +168,7 @@ const flows: Flow[] = [
       assert(n >= 1, "export had no entries");
       const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Export CSV/ }).click()]);
       assert((await csv.suggestedFilename()).endsWith(".csv"), "CSV export isn't a .csv");
-      await page.goto(`${BASE}/scout`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}/scout?tab=data&view=entries`, { waitUntil: "networkidle" }); // entries live under Data since the Scout redesign
       await page.getByRole("button", { name: /Delete entry/ }).first().click();
       await page.getByText("Audit entry: edited").waitFor({ state: "detached" });
       await page.goto(`${BASE}/settings#scouting`, { waitUntil: "networkidle" });
@@ -199,7 +199,7 @@ const flows: Flow[] = [
       await page.getByText("Imported 1 entry (0 new, 1 updated).").waitFor();
       await preview.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
       assert(!(await preview.isVisible()), "the import preview stayed open after Import");
-      await page.goto(`${BASE}/scout`, { waitUntil: "networkidle" });
+      await page.goto(`${BASE}/scout?tab=data&view=entries`, { waitUntil: "networkidle" }); // entries live under Data since the Scout redesign
       await page.getByText("Audit entry: edited").waitFor({ timeout: 10_000 });
       return `created offline, edited, exported (${n} entr${n === 1 ? "y" : "ies"} + CSV), deleted; import preview: Cancel wrote nothing, then "Use the file's copy" → Import 1 entry → entry back`;
     },
@@ -232,7 +232,7 @@ const flows: Flow[] = [
       const d = page.locator("#match-AUBRQ2-qual-0-3");
       await d.getByRole("region", { name: "Red alliance" }).waitFor({ timeout: 15_000 });
       const text = await d.innerText();
-      for (const want of [/Blue alliance/i, /OPR here/, /Season/, /Auto/, /TeleOp/, /Endgame/, /Fouls given away/, /Predicted|No prediction/]) assert(want.test(text), `details missing ${want}`);
+      for (const want of [/Blue alliance/i, /OPR at this time/, /Season/, /Auto/, /TeleOp/, /Endgame/, /Fouls given away/, /Predicted|No prediction/]) assert(want.test(text), `details missing ${want}`);
       assert(!(await page.getByRole("dialog").count()), "match details opened a dialog");
       // The rest of the page still works with details open: open another match too.
       await page.getByRole("button", { name: "Q4 details", exact: true }).click();
