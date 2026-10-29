@@ -89,6 +89,8 @@ describe("owner console", () => {
     expect(within(feedback).getByLabelText("3 open feedback")).toBeTruthy();
     expect(within(feedback).getByLabelText("2 error reports")).toBeTruthy();
     expect(within(section(/Accounts/)).getByLabelText("1 orphaned spaces")).toBeTruthy();
+    // Counts never push past the row: the badges don't shrink, the label gives way.
+    expect(within(feedback).getByLabelText("3 open feedback").parentElement!.className).toContain("shrink-0");
     expect(within(section(/Analytics/)).queryByText(/\d/)).toBeNull();
     // The open section is marked as the current page, and choosing another opens it.
     expect(section(/Overview/).getAttribute("aria-current")).toBe("page");

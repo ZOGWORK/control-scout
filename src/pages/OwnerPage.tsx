@@ -124,10 +124,14 @@ export default function OwnerPage() {
                     )}>
                     {on && <m.span layoutId="owner-active" className="absolute inset-0 rounded-lg bg-muted max-lg:rounded-full" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
                     <p.icon aria-hidden className={cn("relative size-4 shrink-0", on && "text-accent")} />
-                    <span className="relative whitespace-nowrap font-medium">{p.label}</span>
+                    {/* In the 220 px sidebar the label gives way (ellipsis, full name on hover) so the counts always fit. */}
+                    <span className="relative min-w-0 whitespace-nowrap font-medium lg:truncate" title={p.label}>{p.label}</span>
                     {waiting.length > 0 && (
-                      <span className="relative ml-auto flex gap-1 pl-1">
-                        {waiting.map((b) => <Badge key={b.what} variant={b.urgent ? "destructive" : "secondary"} className="tabular-nums" aria-label={`${b.n} ${b.what}`}>{b.n}</Badge>)}
+                      <span className="relative ml-auto flex shrink-0 gap-1 pl-1">
+                        {waiting.map((b) => (
+                          <Badge key={b.what} variant={b.urgent ? "destructive" : "secondary"} className="h-5 min-w-5 justify-center px-1.5 text-[11px] tabular-nums"
+                            aria-label={`${b.n} ${b.what}`}>{b.n > 99 ? "99+" : b.n}</Badge>
+                        ))}
                       </span>
                     )}
                   </button>
