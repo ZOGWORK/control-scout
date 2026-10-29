@@ -51,6 +51,23 @@ describe("canonical redirects", () => {
     expect((await get("/index.html", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/");
     expect((await get("/team/4215/", "www.controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
   });
+  it("How it works has one URL: its old Predict addresses 301 to /methodology (the track record to its section)", async () => {
+    for (const host of ["controlscout.org", "127.0.0.1", "www.controlscout.org"]) {
+      for (const [from, to] of [
+        ["/predict/how-it-works", "https://controlscout.org/methodology"],
+        ["/predict/how-it-works/", "https://controlscout.org/methodology"],
+        ["/Predict/How-It-Works", "https://controlscout.org/methodology"],
+        ["/predict/accuracy", "https://controlscout.org/methodology#accuracy"],
+        ["/predict/accuracy/?season=2025", "https://controlscout.org/methodology?season=2025#accuracy"],
+      ]) {
+        const r = await get(from, host);
+        expect(r.status, `${host}${from}`).toBe(301);
+        expect(r.headers.get("location")).toBe(to);
+      }
+    }
+    expect((await get("/methodology", "controlscout.org")).status).toBe(200);
+    expect((await get("/predict", "controlscout.org")).status).toBe(200);
+  });
   it("never redirects off the site (//host paths collapse; every redirect is absolute on the apex)", async () => {
     for (const p of ["//attacker.example/foo/", "///attacker.example/foo", "//attacker.example"]) {
       const loc = (await get(p, "controlscout.org")).headers.get("location")!;
@@ -536,6 +553,29 @@ describe("/methodology (How it works)", () => {
       if (prev === undefined) delete process.env.CS_PRERENDER_DIR; else process.env.CS_PRERENDER_DIR = prev;
       resetMethodologyHtml();
     }
+  });
+
+  it("carries the track record's headline figure with its as-of date, in the description and the accuracy section", async () => {
+    const { methodologyRecord, withRecordLine, fitDescription: fit } = await import("./seoMeta");
+    const block = { n: 41743, decided: 41405, accuracy: 30554 / 41405 };
+    const t = {
+      headline: { kind: "backtest" as const, season: 2025, accuracy: block.accuracy, n: block.n },
+      seasons: [{ season: 2025, label: "2025–26 DECODE", live: null, backtest: block }],
+      generatedAt: "2026-10-28T21:05:00Z",
+    } as unknown as Parameters<typeof methodologyRecord>[0];
+    const rec = methodologyRecord(t)!;
+    expect(rec.text).toBe("As of Oct 28, 2026: 73.8% of 41,405 decided 2025–26 matches called right in a season replay.");
+    const live = methodologyRecord({ ...t!, headline: { ...t!.headline!, kind: "live" }, seasons: [{ ...t!.seasons[0], live: block as never }] })!;
+    expect(live.text).toMatch(/called right before they were played\.$/);
+    // Fits a search snippet whole.
+    expect(fit(`How Control Scout rates robots and predicts FTC matches. ${rec.text}`).length).toBeLessThanOrEqual(160);
+    expect(fit(`How Control Scout rates robots and predicts FTC matches. ${rec.text}`)).not.toMatch(/…$/);
+    const html = withRecordLine('<section id="ratings"></section><section id="accuracy" class="x"><h2>How good</h2></section>', rec);
+    expect(html).toBe('<section id="ratings"></section><section id="accuracy" class="x"><p data-cs-record>Track record: As of <time datetime="2026-10-28T21:05:00.000Z">Oct 28, 2026</time>: 73.8% of 41,405 decided 2025–26 matches called right in a season replay.</p><h2>How good</h2></section>');
+    // No record built yet, no headline, or nothing decided: no line (the page's static description stands).
+    expect(methodologyRecord(null)).toBeNull();
+    expect(methodologyRecord({ ...t!, headline: null })).toBeNull();
+    expect(methodologyRecord({ ...t!, seasons: [{ ...t!.seasons[0], backtest: { ...block, decided: 0 } as never }] })).toBeNull();
   });
 
   it("without a build (no prerendered file) still answers with its title, description and one H1", async () => {

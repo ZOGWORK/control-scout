@@ -4,8 +4,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Info, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
-import { BRACKETS, EXCLUDED_TYPES, type Slot } from "@control-scout/predict-engine";
-import { advOddsBasis, rankingCoverage } from "../lib/eventRankingNotes";
+import { BRACKETS, type Slot } from "@control-scout/predict-engine";
+import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
 import { projectionsPath } from "../lib/projections";
 import type { ProjectionsView } from "../shared/projections";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
@@ -75,8 +75,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const nameOf = (t: number) => names.get(t) ?? "";
   // 2019–2022 are history only: no odds, no what-if lab (their predict routes 404).
   const predictable = usePredictable(e.season);
-  // Scrimmages and the like: the stats never count them, so their tables never fill.
-  const unofficial = EXCLUDED_TYPES.has(e.type ?? "");
+  // Scrimmages and the like: their event records fill as any event's do, but ratings never learn from them.
+  const unofficial = unofficialNote(e.type, e.typeLabel);
   // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
   const statsAt = useMeta()?.statsAt ?? "";
   const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
@@ -235,23 +235,22 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {predictable && <ModelVsField season={e.season} code={e.code} refreshKey={d.live?.checkedAt ?? undefined} />}
               {/* Before quals start: a simulated ranking, only on a click and loudly uncertain (components/SimulatedRankings.tsx). */}
               {predictable && !d.matches.some((m) => m.level === "qual" && m.played) && d.field.length >= 4 && <SimulatedRankings d={d} team={teamParam} />}
+              {unofficial && <UnofficialNote text={unofficial} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
                 aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} />}
-                emptyFallback={unofficial ? <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={noOfficialRecord(e.typeLabel)} />
-                  : e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
+                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
                 offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
             </>
           )}
         </TabsContent>
         <TabsContent value="insights" className="mt-5 max-sm:mt-4">
           {tab === "insights" && e.status === "live" && <StatsAsOf />}
+          {tab === "insights" && unofficial && <UnofficialNote text={unofficial} />}
           {tab === "insights" && (
             <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
               defaultCols={INSIGHT_COLS} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
-              emptyFallback={unofficial
-                ? <EmptyState icon={Swords} title="No official record" description={`A ${e.typeLabel.toLowerCase()}'s matches don't count toward OPR, ratings or the season's stats, so there are no score breakdowns or averages here. The Matches tab still lists every result.`} />
-                : <EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />}
+              emptyFallback={<EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />}
               offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
           )}
         </TabsContent>
@@ -459,13 +458,15 @@ function Matches({ d, team, live }: { d: EventDetail; team: number | null; live:
 const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
 const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
 const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
-/** A scrimmage (or another type the stats leave out) never gets records: say so instead of promising them. */
-const noOfficialRecord = (typeLabel: string) => `No official record: a ${typeLabel.toLowerCase()}'s matches don't count toward OPR, ratings or the season's stats, so there are no filters or stat columns here. The ranking as FIRST published it:`;
+/** An unofficial event (a scrimmage…): its records are real, but the ratings never learn from them. */
+function UnofficialNote({ text }: { text: string }) {
+  return <p className="mb-3 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs text-muted-foreground" data-unofficial-note><Info className="mt-0.5 size-3.5 shrink-0 text-info" aria-hidden /><span>{text}</span></p>;
+}
 /** Why an event table's column can be empty for every team (RecordsTable shows the line only when it is). */
 const EMPTY_COLUMN_NOTES: Partial<Record<string, string>> = {
   predictedWinPctAvg: "No pre-match win odds are on record for this event's qualification matches, so there is no average to show.",
   predictedScoreAvg: "No pre-match predicted scores are on record for this event's qualification matches, so there is no average to show.",
-  advancementOdds: "No pre-event advancement forecast is stored for this event; the Odds tab simulates it when you open it. Teams already qualified elsewhere, or not eligible here, are always empty.",
+  advancementOdds: "No pre-event advancement forecast is stored for this event; the Odds tab simulates it on demand. Teams already qualified elsewhere, or not eligible here, are always empty.",
 };
 
 /** The Rankings tab's notes: which teams the table lists, and what the Adv. odds column is and when it was computed. */

@@ -32,11 +32,13 @@ import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
 import { MISSING_FILE, canonicalRedirects, renderPage } from "./seo.js";
+import { CSP_REPORT_PATH, cspReportRouter, securityHeaders, setPageCsp } from "./securityHeaders.js";
 import { sitemapChunkRoute, sitemapRoute } from "./sitemap.js";
 import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { pairHistory } from "../src/shared/pairHistory.js";
+import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
@@ -180,10 +182,34 @@ function refreshMessage(o: ManualOutcome): string {
   }
 }
 
-export function createApp() {
+/**
+ * The server process's outer app (server/index.ts): /api/health and the "starting up" 503 answer before the data
+ * is ready, then everything else in createApp. It is the app that actually answers, so it carries the security
+ * headers and no X-Powered-By itself (Express sets that header from the outermost app: an inner app's
+ * disable() never reached it).
+ */
+export function createServer(app: express.Express, health: () => Record<string, unknown>, ready: () => boolean) {
+  const server = express();
+  server.disable("x-powered-by");
+  server.set("trust proxy", 1);
+  server.use(securityHeaders);
+  server.get("/api/health", (_req, res) => res.json(health()));
+  server.use("/api", (_req, res, next) => {
+    if (ready()) return next();
+    res.setHeader("Retry-After", "15");
+    res.setHeader("Cache-Control", "no-store"); // never cache "starting up"
+    res.status(503).json({ error: "Control Scout is starting up. Try again in a few seconds." });
+  });
+  server.use(app);
+  return server;
+}
+
+export function createApp(opts: { dist?: string } = {}) {
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", 1);
+  // HSTS, frame and permissions policies on every response (server/securityHeaders.ts).
+  app.use(securityHeaders);
   // Development and tests only (R2_FAKE=1, never in production): a local stand-in for the photo bucket (server/scout/fakeR2.ts).
   if (env.r2Fake) app.use("/__fake-r2", fakeR2Router());
   // Request counts and latency per route pattern, for the owner portal (server/metrics.ts).
@@ -193,16 +219,12 @@ export function createApp() {
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
   // Live streams (text/event-stream, server/scout/stream.ts) are never compressed: gzip would hold events back.
   app.use(compression({ filter: (req, res) => !/^text\/(csv|event-stream)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
-  // /api/collect reads its own tiny body (1 KB cap), and the digest's bounce webhook needs its raw body for the
-  // signature, so the 2 MB JSON parser skips both.
+  // /api/collect reads its own tiny body (1 KB cap), the digest's bounce webhook needs its raw body for the
+  // signature, and CSP reports have their own 16 KB parser that never fails (server/securityHeaders.ts), so the
+  // 2 MB JSON parser skips all three.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
-  app.use((req, res, next) => (/^\/api\/(collect|digest\/webhook)\/?$/i.test(req.path) ? next() : json(req, res, next)));
-  app.use((_req, res, next) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    next();
-  });
+  app.use((req, res, next) => (/^\/api\/(collect|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
   const api = express.Router();
   // Public FTC data (GET, not account or auth): cacheable for a minute, then
@@ -604,7 +626,7 @@ export function createApp() {
       if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
       const f = await liveForecaster(s);
       const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
-      const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
+      const fc = mode === "pre-event" ? f.preEventForecast(ev, team, FORECAST_RUNS) : f.forecast(ev, team, FORECAST_RUNS);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       const finished = d.event.status === "finished";
       // 2025+ games award bonus ranking points. The forecast says how its simulation drew them
@@ -701,6 +723,8 @@ export function createApp() {
   api.use("/owner", ownerRouter());
 
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });
+  // Content-Security-Policy violation reports (server/securityHeaders.ts), ahead of the API's own routes and 404.
+  app.use(CSP_REPORT_PATH, cspReportRouter());
   app.use("/api", api);
   app.use("/packs", packsRouter());
   // The sitemap, from the database (server/sitemap.ts).
@@ -710,7 +734,7 @@ export function createApp() {
   app.get(/^\/[A-Za-z0-9-]{8,128}\.txt$/, indexNowKeyRoute);
 
   // Built web app (production): static files with long cache for hashed assets.
-  const dist = join(process.cwd(), "dist");
+  const dist = opts.dist ?? join(process.cwd(), "dist");
   if (existsSync(join(dist, "index.html"))) {
     app.use("/assets", express.static(join(dist, "assets"), { immutable: true, maxAge: "1y" }));
     // The service worker and its file list must never be served stale.
@@ -725,6 +749,7 @@ export function createApp() {
       res.setHeader("Cache-Control", "no-cache");
       // The query names the page's view: rankings filters, a shared matchup (its card is the link preview).
       const page = await renderPage(join(dist, "index.html"), req.path, req.query as Record<string, unknown>);
+      setPageCsp(res, page.html);
       res.status(page.status).type("html").send(page.html);
     }));
   }

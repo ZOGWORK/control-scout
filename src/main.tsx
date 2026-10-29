@@ -162,7 +162,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/download" element={<DownloadPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
-                  <Route path="/predict/how-it-works" element={<MethodologyPage />} />
+                  <Route path="/predict/how-it-works" element={<Navigate to="/methodology" replace />} />
                   <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
