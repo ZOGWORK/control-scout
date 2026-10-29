@@ -88,39 +88,39 @@ export async function deleteHeroLine(id: number): Promise<HeroLineRow | null> {
 }
 
 /**
- * Put the lines in this order: `ids` must be every saved line, each once. In one transaction, which checks the
- * set of lines again (a line added or deleted meanwhile: nothing moves). Returns the order it replaced, or null.
+ * Put the lines in this order: `ids` must be every saved line, each once. One write batch: the order it
+ * replaces is read first, and each move only lands while the saved lines are still exactly `ids` (a line added
+ * or deleted meanwhile: nothing moves). Returns the order it replaced, or null.
  */
 export async function reorderHeroLines(ids: number[], at = new Date().toISOString()): Promise<number[] | null> {
-  if (new Set(ids).size !== ids.length) return null;
-  const tx = await db().transaction("write");
-  try {
-    const was = (await tx.execute("SELECT id FROM hero_lines ORDER BY position, id")).rows.map((r) => Number(r.id));
-    if (ids.length !== was.length || !ids.every((id) => was.includes(id))) { await tx.rollback(); return null; }
-    await tx.batch(ids.map((id, i) => ({ sql: "UPDATE hero_lines SET position = ?, updated_at = CASE WHEN position = ? THEN updated_at ELSE ? END WHERE id = ?", args: [i, i, at, id] })));
-    await tx.commit();
-    invalidateHeroLines();
-    return was;
-  } catch (e) {
-    await tx.rollback().catch(() => {});
-    throw e;
-  } finally { tx.close(); }
+  if (!ids.length || new Set(ids).size !== ids.length) return null;
+  const marks = ids.map(() => "?").join(",");
+  const same = `(SELECT COUNT(*) FROM hero_lines) = ? AND (SELECT COUNT(*) FROM hero_lines WHERE id IN (${marks})) = ?`;
+  const [before] = await db().batch([
+    "SELECT id FROM hero_lines ORDER BY position, id",
+    ...ids.map((id, i) => ({
+      sql: `UPDATE hero_lines SET position = ?, updated_at = CASE WHEN position = ? THEN updated_at ELSE ? END WHERE id = ? AND ${same}`,
+      args: [i, i, at, id, ids.length, ...ids, ids.length],
+    })),
+  ], "write");
+  const was = before.rows.map((r) => Number(r.id));
+  if (ids.length !== was.length || !ids.every((id) => was.includes(id))) return null;
+  invalidateHeroLines();
+  return was;
 }
 
-/** Start editing from the built-in lines: saves a copy of them (only when nothing is saved yet). */
+/** Start editing from the built-in lines: saves a copy of them (only when nothing is saved yet). One write
+ *  batch: each copy lands only while the table holds exactly the lines copied before it, so two overlapping
+ *  requests can't both copy them. */
 export async function seedHeroLines(at = new Date().toISOString()): Promise<boolean> {
-  // The check and the copy in one transaction: two overlapping requests can't both copy the lines.
-  const tx = await db().transaction("write");
-  try {
-    if (Number((await tx.execute("SELECT COUNT(*) n FROM hero_lines")).rows[0].n) > 0) { await tx.rollback(); return false; }
-    await tx.batch(DEFAULT_HERO_LINES.map(([a, b], i) => ({
-      sql: "INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)", args: [i, a, b, at, at],
-    })));
-    await tx.commit();
-  } catch (e) {
-    await tx.rollback().catch(() => {});
-    throw e;
-  } finally { tx.close(); }
+  const [before] = await db().batch([
+    "SELECT COUNT(*) n FROM hero_lines",
+    ...DEFAULT_HERO_LINES.map(([a, b], i) => ({
+      sql: "INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at) SELECT ?, ?, ?, 1, ?, ? WHERE (SELECT COUNT(*) FROM hero_lines) = ?",
+      args: [i, a, b, at, at, i],
+    })),
+  ], "write");
+  if (Number(before.rows[0].n) > 0) return false;
   invalidateHeroLines();
   return true;
 }

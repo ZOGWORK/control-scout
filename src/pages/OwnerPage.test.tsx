@@ -79,7 +79,7 @@ describe("owner console", () => {
   it("has one tab per section of the brief, and shows what's waiting on them", () => {
     mount();
     expect(screen.getAllByRole("tab").map((t) => t.textContent?.replace(/\d+/g, ""))).toEqual([
-      "Overview", "Data & sync", "Predictions & ledger", "Rankings & content", "Features", "Feedback & errors", "Analytics", "Accounts", "Photo storage", "Audit log",
+      "Overview", "Data & sync", "Packs & offline", "Predictions & ledger", "Rankings & content", "Features", "Moderation", "Feedback & errors", "Analytics", "Accounts", "Photo storage", "Audit log",
     ]);
     const feedback = screen.getByRole("tab", { name: /Feedback & errors/ });
     expect(within(feedback).getByLabelText("3 open feedback")).toBeTruthy();

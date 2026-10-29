@@ -17,6 +17,7 @@ import { warmTrackRecord } from "../api/accuracy.js";
 import { resetWeatherCache } from "../weather.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { recordAudit, setAuditResult } from "./audit.js";
+import { resetDataReport } from "./dataReport.js";
 import type { OpJob, OpName, OpsStatus } from "../../src/shared/owner.js";
 
 // The weather module is shared with Control Point as-is, so its cache is registered here.
@@ -121,7 +122,11 @@ export async function startOp(op: OpName, actor: string): Promise<StartResult> {
       Object.assign(job, { state: "failed", finishedAt: new Date().toISOString(), message: msg });
       await setAuditResult(auditId, `failed: ${msg}`).catch(() => {});
       console.warn(`[owner] ${op} failed: ${msg}`);
-    } finally { running.delete(op); }
+    } finally {
+      running.delete(op);
+      // The Data & sync report kept from before the job is out of date now: the next read computes it afresh.
+      resetDataReport();
+    }
   })();
   running.set(op, p);
   return { ok: true, job: { ...job } };

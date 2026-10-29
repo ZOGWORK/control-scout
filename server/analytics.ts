@@ -5,13 +5,15 @@
 // stored. The IP is held in memory for a minute for the rate limit only.
 // GET /api/stats/summary (STATS_TOKEN) and `npm run stats:report` read the totals.
 // GET /api/public-usage publishes two of them (page views, sessions started, per
-// day for 30 days) and nothing else, only when PUBLIC_USAGE_ENABLED is on.
+// day for 30 days) and nothing else, only when the owner publishes them (the console's Analytics tab;
+// until chosen there, PUBLIC_USAGE_ENABLED decides).
 import { timingSafeEqual } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { Client } from "@libsql/client";
 import { db } from "./db.js";
 import { env } from "./env.js";
 import { registerCache } from "./caches.js";
+import { publishUsageSetting } from "./ownerSettings.js";
 import { parsePageView, type PageView } from "../src/shared/analytics.js";
 import { PUBLIC_USAGE_DAYS, type PublicUsage } from "../src/shared/home.js";
 
@@ -107,10 +109,15 @@ export async function publicUsage(enabled: boolean, now = new Date(), c: Client 
 
 /** Public usage is read at most once a minute (shared by every visitor; it's a daily aggregate). */
 export const PUBLIC_USAGE_TTL_MS = 60_000;
+/** How long browsers and shared caches may keep a /api/public-usage answer (no stale serving): with the owner
+ *  setting's 10 s cache, hiding the figures reaches every visitor within a minute. */
+export const PUBLIC_USAGE_MAX_AGE_S = 45;
 let usageCache: { enabled: boolean; at: number; value: Promise<PublicUsage> } | null = null;
 registerCache("Public usage", () => { usageCache = null; });
 
-export function cachedPublicUsage(enabled = env.publicUsageEnabled): Promise<PublicUsage> {
+/** `enabled`: whether to publish; by default the owner's console choice (server/ownerSettings.ts), else PUBLIC_USAGE_ENABLED. */
+export async function cachedPublicUsage(enabled?: boolean): Promise<PublicUsage> {
+  enabled ??= (await publishUsageSetting()).enabled;
   const now = Date.now();
   if (usageCache && usageCache.enabled === enabled && now - usageCache.at < PUBLIC_USAGE_TTL_MS) return usageCache.value;
   const value = publicUsage(enabled);
