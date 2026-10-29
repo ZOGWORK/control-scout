@@ -313,6 +313,13 @@ describe("audit log", () => {
     await setAuditResult(id, "done: ok");
     expect(await get("SELECT actor, action, result, old_value, new_value FROM owner_audit WHERE id = ?", [id]))
       .toEqual({ actor: "owner@example.com", action: "flag.set", result: "done: ok", old_value: "true", new_value: "false" });
+    // Filled in once: a finished (or refused) result is final.
+    await expect(setAuditResult(id, "done: rewritten")).rejects.toThrow(/append-only/);
+    const job = await recordAudit("owner@example.com", "ops.packs", null, "started");
+    await setAuditResult(job, "failed: disk full");
+    await expect(setAuditResult(job, "done: fine after all")).rejects.toThrow(/append-only/);
+    const refused = await recordAudit("owner@example.com", "ops.caches", null, "refused: busy");
+    await expect(setAuditResult(refused, "done")).rejects.toThrow(/append-only/);
   });
 
   it("has no route that edits or deletes an entry", async () => {

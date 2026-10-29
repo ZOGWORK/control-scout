@@ -218,7 +218,7 @@ function HealthSection({ o, onOpen }: { o: OwnerOverview; onOpen: (id: string) =
         <StatTile tone="amber" icon={PackageOpen} label="Pack manifest" value={h.packManifest ? day(h.packManifest.builtAt) : "None"}
           hint={h.packManifest ? `Version ${h.packManifest.version} · engine v${h.packManifest.engineVersion}${h.packManifest.dataAsOf ? ` · data as of ${day(h.packManifest.dataAsOf)}` : ""}` : "No pack built on this server"} />
         <StatTile tone={e.server5xxToday ? "amber" : "emerald"} icon={AlertTriangle} label="Recent errors" value={`${int(e.server5xxToday)} server · ${int(e.reports24h)} app`}
-          hint={`Today (UTC) / last 24 h · this week: ${int(e.server5xx7d)} server errors, ${int(e.reports7d)} app error reports`}
+          hint={`Server errors today (UTC), distinct app errors in the last 24 h · this week: ${int(e.server5xx7d)} server, ${int(e.reports7d)} distinct app`}
           onClick={() => onOpen("feedback")} action="Feedback & errors" />
       </TileGrid>
     </Section>
