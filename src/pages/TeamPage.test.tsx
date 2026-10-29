@@ -45,7 +45,7 @@ describe("OprSection tiles", () => {
     // No aria-label override: the visible rank line is part of the name, the action follows it.
     expect(auto.hasAttribute("aria-label")).toBe(false);
     // The computed accessible name (not textContent): hiding the rank or the action from assistive tech would fail this.
-    expect(tile(/^Autonomous.*28\.3.*Rank #883 of 8,000.*Show event by event$/)).toBe(auto);
+    expect(tile(/^Autonomous.*28\.3.*OPR #883 of 8,000 with an OPR.*Show event by event$/)).toBe(auto);
   });
 });
 
