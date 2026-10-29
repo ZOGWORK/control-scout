@@ -207,6 +207,13 @@ describe("hero lines", () => {
     expect(log.at(-1)).toMatchObject({ action: "heroLine.edit", from: { plain: "Words", enabled: false }, to: { plain: "New words", enabled: false } });
   });
 
+  it("a refused start-from-built-in copies nothing, even when a line was added just before", async () => {
+    await owner("POST", "", { plain: "Mine", accent: "first." });
+    expect((await owner("POST", "/seed", { confirm: true })).status).toBe(409);
+    expect(await all("SELECT plain FROM hero_lines")).toEqual([{ plain: "Mine" }]);
+    expect((await audit()).map((x) => x.action)).toEqual(["heroLine.add"]);
+  });
+
   it("keeps at most the line limit", async () => {
     await owner("POST", "/seed", { confirm: true });
     for (let i = HOME_HEADLINES.length; i < 48; i++) expect((await owner("POST", "", { plain: `Line ${i}`, accent: "x." })).status).toBe(200);

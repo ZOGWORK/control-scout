@@ -5,7 +5,7 @@
 //
 // Read on every page's first paint (server/seo.ts renderPage), so the lines in use are kept in memory for
 // HERO_TTL_MS and dropped at once when the owner changes them on this server.
-import { all, db, get } from "./db.js";
+import { all, db, get, run } from "./db.js";
 import { registerCache } from "./caches.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_MAX, cleanHeroPart, type HeroLine, type HeroLineRow, type HeroLinesResponse } from "../src/shared/heroLines.js";
 
@@ -109,18 +109,17 @@ export async function reorderHeroLines(ids: number[], at = new Date().toISOStrin
   return was;
 }
 
-/** Start editing from the built-in lines: saves a copy of them (only when nothing is saved yet). One write
- *  batch: each copy lands only while the table holds exactly the lines copied before it, so two overlapping
- *  requests can't both copy them. */
+/** Start editing from the built-in lines: saves a copy of them, only when nothing is saved yet. One INSERT
+ *  of every line, guarded on the table being empty: all of them land or none do, so a line added meanwhile
+ *  means nothing is copied. */
 export async function seedHeroLines(at = new Date().toISOString()): Promise<boolean> {
-  const [before] = await db().batch([
-    "SELECT COUNT(*) n FROM hero_lines",
-    ...DEFAULT_HERO_LINES.map(([a, b], i) => ({
-      sql: "INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at) SELECT ?, ?, ?, 1, ?, ? WHERE (SELECT COUNT(*) FROM hero_lines) = ?",
-      args: [i, a, b, at, at, i],
-    })),
-  ], "write");
-  if (Number(before.rows[0].n) > 0) return false;
+  const rows = DEFAULT_HERO_LINES.map(() => "(?, ?, ?, 1, ?, ?)").join(", ");
+  const n = await run(
+    `INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at)
+     SELECT * FROM (VALUES ${rows}) WHERE NOT EXISTS (SELECT 1 FROM hero_lines)`,
+    DEFAULT_HERO_LINES.flatMap(([a, b], i) => [i, a, b, at, at]),
+  );
+  if (!n) return false;
   invalidateHeroLines();
   return true;
 }
