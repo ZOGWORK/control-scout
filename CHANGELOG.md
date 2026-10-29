@@ -22,9 +22,10 @@ The home track record is two replays again, with the big yellow number.
 ### Highlights
 - [home] Track record: last season's replay and this season's so far, as two tabs
 - [home] The big number is back, in yellow
+- [home] Live calls stay on Methodology, labelled as live
 
 ### Home
-- **Two replays, one big number.** The track record card goes back to its tab row and single big figure (now yellow): "Season replay" opens on the last full season's replay, and "This season so far" shows the season in progress's own replay. The live figure blended across engine versions is off the home card; every live call stays on Methodology.
+- **Two replays, one big number.** The track record card goes back to its tab row and single big figure (now yellow): "Season replay" opens on the last full season's replay, and "This season so far" shows the season in progress's own replay. The live figure blended across engine versions is off the home card; every live call stays on Methodology. (#344)
 
 ## 1.4.9 — 2026-10-29
 

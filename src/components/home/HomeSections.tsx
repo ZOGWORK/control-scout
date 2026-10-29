@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
 import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
-import { eventState, recordFor, replayView, seasonReplaySoFar, shortDay, usageView, type RecordView } from "./homeModel";
+import { eventState, homeReplays, shortDay, usageView, type RecordView } from "./homeModel";
 import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -207,9 +207,7 @@ export function PredictionRecord() {
   const t = state.data;
   // Both tabs are replays: the last full season's (the headline while live calls are short of the threshold) and
   // the season in progress's own, so far. Live calls stay on /methodology, where they're labelled as such.
-  const replay = t ? recordFor(t, "backtest") : null;
-  const soFarOf = t ? seasonReplaySoFar(t, replay) : null;
-  const views: Record<RecordTab, RecordView | null> = { replay, soFar: t && soFarOf ? replayView(t, soFarOf.season) : null };
+  const views: Record<RecordTab, RecordView | null> = t ? homeReplays(t) : { replay: null, soFar: null };
   const tabs = (["replay", "soFar"] as const).filter((k) => k === "replay" || views[k]);
   const tab = views[chosen] ? chosen : "replay";
   const view = views[tab];
