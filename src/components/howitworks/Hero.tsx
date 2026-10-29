@@ -125,14 +125,15 @@ function MatchCard() {
         <span className="bg-blue-alliance transition-[flex-grow] duration-700 ease-[cubic-bezier(.34,1.56,.64,1)] motion-reduce:transition-none" style={{ flex: `${((1 - p) * 100).toFixed(1)} 1 0` }} />
       </div>
       <p aria-live="polite" className="min-h-[3.6em] border-t border-border px-4 py-2.5 text-sm italic text-muted-foreground">{heroFoot(p)}</p>
-      {/* The dots stay 8px; each button around one is a full target: 44px square on a phone, 24px on a desktop
+      {/* The dots stay 8px; each button around one is a full target: 44px square on a phone (in px: the phone text base
+          is 14px, so 2.75rem would be 38.5px), 24px on a desktop
           (WCAG 2.5.8 wants 24), side by side so no two overlap. The padding keeps the first dot under the text and room
           below for the focus ring (the card clips its overflow). */}
       <div role="group" aria-label="Example matches" className="flex items-center pb-1 pl-1 pr-4 md:gap-1 md:pb-3 md:pl-4">
         {EXAMPLES.map((x, i) => (
           <button
             key={x.label} type="button" aria-label={x.label} aria-pressed={i === idx} onClick={() => pick(i)}
-            className="group grid size-11 shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-6"
+            className="group grid size-[44px] shrink-0 place-items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring md:size-6"
           >
             <span className={cn("block h-2 rounded-full transition-all duration-500", i === idx ? "w-6 bg-accent" : "w-2 bg-border group-hover:bg-muted-foreground")} />
           </button>
