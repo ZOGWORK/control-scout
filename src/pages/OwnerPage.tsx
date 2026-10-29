@@ -1,5 +1,5 @@
 // The owner console (/owner): how Control Scout is doing and the controls to run it, one tab per section
-// of the owner's brief (Overview first). Owner only: OwnerRoute draws it for the account /api/auth/me
+// of the owner's brief (Overview first), listed down the side as Settings lists its sections. Owner only: OwnerRoute draws it for the account /api/auth/me
 // marks isOwner, and every /api/owner/* call is checked on the server (403 for anyone else). One section
 // at a time (?panel=…), each loading its own data when opened; the old per-panel links still land on the
 // section that now holds that panel (PANEL_ALIASES).
@@ -12,7 +12,8 @@ import {
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
 import { Async, LoadingBlock } from "../components/states";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { m } from "../components/motion";
+import { smoothBehavior } from "../lib/pageScroll";
 import { Badge, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
@@ -45,18 +46,18 @@ import { ErrorsPanel } from "../components/owner/ErrorsPanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 
 const PANELS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "data", label: "Data & sync", icon: DatabaseZap },
-  { id: "packs", label: "Packs & offline", icon: PackageOpen },
-  { id: "predictions", label: "Predictions & ledger", icon: Target },
-  { id: "content", label: "Rankings & content", icon: Trophy },
-  { id: "features", label: "Features", icon: ToggleRight },
-  { id: "moderation", label: "Moderation", icon: ShieldAlert },
-  { id: "feedback", label: "Feedback & errors", icon: Inbox },
-  { id: "analytics", label: "Analytics", icon: Activity },
-  { id: "accounts", label: "Accounts", icon: UserRound },
-  { id: "storage", label: "Photo storage", icon: HardDrive },
-  { id: "audit", label: "Audit log", icon: ScrollText },
+  { id: "overview", label: "Overview", icon: LayoutDashboard, group: "Health" },
+  { id: "data", label: "Data & sync", icon: DatabaseZap, group: "Data" },
+  { id: "packs", label: "Packs & offline", icon: PackageOpen, group: "Data" },
+  { id: "predictions", label: "Predictions & ledger", icon: Target, group: "Product" },
+  { id: "content", label: "Rankings & content", icon: Trophy, group: "Product" },
+  { id: "features", label: "Features", icon: ToggleRight, group: "Product" },
+  { id: "moderation", label: "Moderation", icon: ShieldAlert, group: "People & trust" },
+  { id: "feedback", label: "Feedback & errors", icon: Inbox, group: "People & trust" },
+  { id: "analytics", label: "Analytics", icon: Activity, group: "People & trust" },
+  { id: "accounts", label: "Accounts", icon: UserRound, group: "People & trust" },
+  { id: "storage", label: "Photo storage", icon: HardDrive, group: "People & trust" },
+  { id: "audit", label: "Audit log", icon: ScrollText, group: "Record" },
 ] as const;
 /** Links made before the console grouped its panels into sections: each opens the section that holds it. */
 const PANEL_ALIASES: Record<string, string> = {
@@ -78,13 +79,19 @@ export default function OwnerPage() {
   const asked = sp.get("panel") ?? "";
   const panel = (PANELS.find((p) => p.id === (PANEL_ALIASES[asked] ?? asked))?.id ?? "overview") as PanelId;
   const go = (id: string) => setSp((p) => { const n = new URLSearchParams(p); if (id === "overview") n.delete("panel"); else n.set("panel", id); return n; }, { replace: true });
-  // Counts for the tabs (what's waiting), from the overview every panel shares.
+  // Counts for the sections (what's waiting), from the overview every panel shares.
   const overview = useApi<OwnerOverview>("/api/owner/overview");
   const o = overview.data;
   const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
   } : {};
+  // Phones and tablets: keep the open section's chip in view in the scrolling row.
+  const navRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const el = navRef.current?.querySelector<HTMLElement>("[aria-current=page]");
+    if (el && window.matchMedia?.("(max-width: 1023px)").matches) el.scrollIntoView?.({ block: "nearest", inline: "center", behavior: smoothBehavior() });
+  }, [panel]);
   // Refresh: every owner request on screen loads again, and the open panel starts afresh (panels that read on open).
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -99,37 +106,58 @@ export default function OwnerPage() {
       <PageHeader eyebrow="Owner" title="Owner console" description="Health, data, predictions, rankings, features, feedback and every action taken: how Control Scout is doing, and the controls to run it. Only you can see this page."
         actions={<Button variant="outline" onClick={refresh} disabled={refreshing} className="max-sm:h-10"><RefreshCw className={cn(refreshing && "animate-spin")} /> Refresh</Button>} />
       {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
-      <Tabs value={panel} onValueChange={go}>
-        <TabsList aria-label="Owner sections" className="max-w-full justify-start overflow-x-auto">
-          {PANELS.map((p) => (
-            <TabsTrigger key={p.id} value={p.id} className="shrink-0 max-sm:h-10">
-              <p.icon aria-hidden />{p.label}
-              {badges[p.id]?.filter((b) => b.n > 0).map((b) => (
-                <Badge key={b.what} variant={b.urgent ? "destructive" : "secondary"} className="ml-1 tabular-nums" aria-label={`${b.n} ${b.what}`}>{b.n}</Badge>
-              ))}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        <div key={refreshKey}>
-          <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
-          <TabsContent value="data"><DataPanel /></TabsContent>
-          <TabsContent value="packs"><PacksPanel /></TabsContent>
-          <TabsContent value="predictions"><PredictionEnginePanel /><PredictionsPanel /></TabsContent>
-          <TabsContent value="content" className="space-y-8">
-            <PowerRankingsPanel onOpenSwitches={() => go("features")} />
-            <HeroLinesPanel />
-            <StreamsPanel />
-            <WhatsNewPanel />
-          </TabsContent>
-          <TabsContent value="features"><FeaturesPanel /></TabsContent>
-          <TabsContent value="moderation"><ModerationPanel onOpenResync={() => go("data")} /></TabsContent>
-          <TabsContent value="feedback" className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></TabsContent>
-          <TabsContent value="analytics" className="space-y-8"><AnalyticsPanel /><UsagePanel /></TabsContent>
-          <TabsContent value="accounts" className="space-y-8"><UsersPanel /><OrphanedPanel /></TabsContent>
-          <TabsContent value="storage"><StoragePanel /></TabsContent>
-          <TabsContent value="audit"><AuditPanel /></TabsContent>
+      {/* Sections down the side, as Settings lays them out (a scrolling row of chips on phones and tablets). */}
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 max-sm:gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav aria-label="Owner sections" className="min-w-0 lg:sticky lg:top-[calc(var(--header-h)+1.5rem)] lg:self-start">
+          <ul ref={navRef} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:block lg:space-y-0.5 lg:overflow-visible lg:px-0 [&::-webkit-scrollbar]:hidden">
+            {PANELS.map((p, i) => {
+              const on = p.id === panel;
+              const showGroup = i === 0 || PANELS[i - 1].group !== p.group;
+              const waiting = badges[p.id]?.filter((b) => b.n > 0) ?? [];
+              return (
+                <li key={p.id} className="shrink-0">
+                  {showGroup && <p className={cn("mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground lg:block", i === 0 ? "mt-0" : "mt-5")}>{p.group}</p>}
+                  <button type="button" onClick={() => go(p.id)} aria-current={on ? "page" : undefined}
+                    className={cn(
+                      "relative flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-lg:rounded-full max-lg:border max-lg:border-border",
+                      on ? "text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                    )}>
+                    {on && <m.span layoutId="owner-active" className="absolute inset-0 rounded-lg bg-muted max-lg:rounded-full" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+                    <p.icon aria-hidden className={cn("relative size-4 shrink-0", on && "text-accent")} />
+                    <span className="relative whitespace-nowrap font-medium">{p.label}</span>
+                    {waiting.length > 0 && (
+                      <span className="relative ml-auto flex gap-1 pl-1">
+                        {waiting.map((b) => <Badge key={b.what} variant={b.urgent ? "destructive" : "secondary"} className="tabular-nums" aria-label={`${b.n} ${b.what}`}>{b.n}</Badge>)}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+        <div key={refreshKey} className="min-w-0">
+          {panel === "overview" && <OverviewPanel onOpen={go} />}
+          {panel === "data" && <DataPanel />}
+          {panel === "packs" && <PacksPanel />}
+          {panel === "predictions" && <><PredictionEnginePanel /><PredictionsPanel /></>}
+          {panel === "content" && (
+            <div className="space-y-8">
+              <PowerRankingsPanel onOpenSwitches={() => go("features")} />
+              <HeroLinesPanel />
+              <StreamsPanel />
+              <WhatsNewPanel />
+            </div>
+          )}
+          {panel === "features" && <FeaturesPanel />}
+          {panel === "moderation" && <ModerationPanel onOpenResync={() => go("data")} />}
+          {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
+          {panel === "analytics" && <div className="space-y-8"><AnalyticsPanel /><UsagePanel /></div>}
+          {panel === "accounts" && <div className="space-y-8"><UsersPanel /><OrphanedPanel /></div>}
+          {panel === "storage" && <StoragePanel />}
+          {panel === "audit" && <AuditPanel />}
         </div>
-      </Tabs>
+      </div>
     </div>
   );
 }
