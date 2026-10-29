@@ -15,6 +15,7 @@ import { localDbPath } from "../data/snapshot.js";
 import { packsDir } from "../packs/routes.js";
 import type { Manifest } from "../packs/build.js";
 import { trackRecord } from "../api/accuracy.js";
+import { flushMetrics } from "../metrics.js";
 import type { OwnerOverview } from "../../src/shared/owner.js";
 
 const STARTED_AT = new Date();
@@ -70,8 +71,10 @@ async function ledgerHeadline(): Promise<OwnerOverview["health"]["ledger"]> {
   return tr?.headline ?? null;
 }
 
-/** Error reports seen, and server errors (5xx) answered, over the last day and week. */
+/** Distinct app errors (one error_reports row per fingerprint, however often it repeats) seen over the last day
+ *  and week, and server errors (5xx) answered: counters still in memory are flushed first, as /usage does. */
 async function recentErrors(now: number): Promise<OwnerOverview["health"]["errors"]> {
+  await flushMetrics().catch(() => {});
   const since = (days: number) => new Date(now - days * 864e5).toISOString();
   const day = (days: number) => new Date(now - days * 864e5).toISOString().slice(0, 10);
   const [r1, r7, s1, s7] = await Promise.all([
