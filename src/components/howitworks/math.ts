@@ -11,7 +11,7 @@ export const CAL = FITTED_MODEL.calibration ?? { a: 1, b: 0 };
 /** Prediction Engine 2.0's measured change on the held-out 2025–26 replay (vs 1.1.0, same matches). */
 export const E2 = (FITTED_MODEL.accuracy as { engine2: {
   accuracy: number; baselineAccuracy: number; accuracyGain95: [number, number];
-  brier: number; baselineBrier: number; ece: number; baselineEce: number; matches: number;
+  brier: number; baselineBrier: number; ece: number; baselineEce: number; matches: number; nonTies: number;
 } }).engine2;
 
 /** Prediction Engine 2.1 vs 2.0, forward-only (everything fitted before each scored month). */

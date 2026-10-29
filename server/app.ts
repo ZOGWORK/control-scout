@@ -37,6 +37,7 @@ import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { pairHistory } from "../src/shared/pairHistory.js";
+import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
 import { authRouter, meRouter, authProviders } from "./auth/routes.js";
@@ -604,7 +605,7 @@ export function createApp() {
       if (d.forecastUnsupported) throw new HttpError(422, d.forecastUnsupported);
       const f = await liveForecaster(s);
       const ev = toEventInput(d.event, d.field, d.matches, d.alliances);
-      const fc = mode === "pre-event" ? f.preEventForecast(ev, team, 2000) : f.forecast(ev, team, 2000);
+      const fc = mode === "pre-event" ? f.preEventForecast(ev, team, FORECAST_RUNS) : f.forecast(ev, team, FORECAST_RUNS);
       if (!fc) throw new HttpError(503, "Ratings for this season aren't ready yet.");
       const finished = d.event.status === "finished";
       // 2025+ games award bonus ranking points. The forecast says how its simulation drew them
