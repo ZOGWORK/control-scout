@@ -4,9 +4,9 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { PRELOAD_MAX_DEP, afterFirstPaint, nonBlockingCss, renderIndex, routePreloads } from "./seo";
-import { APP_CSS_ID, HOME_HEADLINES, homeHeadlineAt } from "../src/shared/boot";
+import { APP_CSS_ID, HOME_HEADLINE_MS, HOME_HEADLINES, homeHeadlineAt } from "../src/shared/boot";
 import { BOOT_STYLE, bootShell } from "./bootShell";
 import { migrate, openDb, run, setDb } from "./db";
 import { pageModule, pageTitle } from "../src/shared/routes";
@@ -67,8 +67,12 @@ describe("static first paint", () => {
   });
 
   it("home shows the headline (the brand stays in the shell's chrome); a page with no title of its own gets the shell alone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(9 * HOME_HEADLINE_MS + 60_000); // mid-hour, so the clock can't cross the hour mid-test
     const home = root(await renderIndex(file, "/"));
-    const line = homeHeadlineAt(Date.now());
+    vi.useRealTimers();
+    const line = homeHeadlineAt(9 * HOME_HEADLINE_MS);
+    expect(line).toBe(9);
     const [a, b] = HOME_HEADLINES[line];
     expect(home).toContain(`<h1 data-line="${line}">${a} <span>${b}</span></h1>`); // this hour's line, which the app keeps
     expect(home.match(/<h1[\s>]/g)).toHaveLength(1);

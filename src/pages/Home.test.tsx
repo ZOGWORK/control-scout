@@ -60,7 +60,7 @@ vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/
 
 let path = "";
 function Where() { path = useLocation().pathname; return null; }
-const { default: Home } = await import("./Home");
+const { default: Home, readBootHeadline, startingHeadline } = await import("./Home");
 const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
 
 beforeEach(() => { phone = false; reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
@@ -68,10 +68,14 @@ afterEach(cleanup);
 
 describe("Home", () => {
   it("has the headline, search and both actions before any data arrives", () => {
-    mount();
-    const [a, b] = HOME_HEADLINES[homeHeadlineAt(Date.now())];
-    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(`${a} ${b}`);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(5 * HOME_HEADLINE_MS + 60_000); // mid-hour, so the clock can't cross the hour mid-test
+    try {
+      mount();
+      const [a, b] = HOME_HEADLINES[homeHeadlineAt(Date.now())];
+      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(`${a} ${b}`);
+    } finally { vi.useRealTimers(); }
     expect(screen.getByLabelText("Search teams, events and matches")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Predict a match/ }).getAttribute("href")).toBe("/predict");
     expect(screen.getByRole("link", { name: /Find an event/ }).getAttribute("href")).toBe("/events");
@@ -96,6 +100,23 @@ describe("Home", () => {
       act(() => { vi.advanceTimersByTime(HOME_HEADLINE_MS); });
       expect(h1().textContent).toBe(HOME_HEADLINES[0].join(" ")); // round again
     } finally { vi.useRealTimers(); }
+  });
+
+  it("starts on the server first paint's headline in the hour it loaded, then follows the clock", () => {
+    const doc = document.implementation.createHTMLDocument("");
+    doc.body.innerHTML = '<div id="cs-boot-page"><h1 data-line="7">x</h1></div>';
+    const loaded = 4 * HOME_HEADLINE_MS + 59 * 60_000; // a minute before the hour (clock's line: 4)
+    const boot = readBootHeadline(doc, loaded);
+    expect(boot).toEqual({ line: 7, hour: 4 });
+    expect(startingHeadline(boot, loaded + 30_000)).toBe(7); // same hour: the first paint's words, not the clock's
+    expect(startingHeadline(boot, loaded + 2 * 60_000)).toBe(homeHeadlineAt(loaded + 2 * 60_000)); // a later visit
+    expect(startingHeadline(null, loaded)).toBe(4);
+    for (const bad of ["", "x", "-1", String(HOME_HEADLINES.length), "1.5"]) {
+      doc.body.innerHTML = `<div id="cs-boot-page"><h1 data-line="${bad}">x</h1></div>`;
+      expect(readBootHeadline(doc, loaded)).toBeNull();
+    }
+    doc.body.innerHTML = "";
+    expect(readBootHeadline(doc, loaded)).toBeNull();
   });
 
   it("shows the season's real totals, and the atlas's selector changes the country's total and its link", async () => {

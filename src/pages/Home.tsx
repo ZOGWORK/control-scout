@@ -77,20 +77,25 @@ export default function Home() {
   );
 }
 
-/** The headline the server's first paint showed (its data-line), read before the app replaces that paint. */
-const BOOT_HEADLINE = (() => {
-  if (typeof document === "undefined") return null;
-  const line = Number(document.querySelector<HTMLElement>("#cs-boot-page h1")?.dataset.line);
-  return Number.isInteger(line) && line >= 0 && line < HOME_HEADLINES.length ? { line, hour: Math.floor(Date.now() / HOME_HEADLINE_MS) } : null;
-})();
+/** The headline a server first paint in `doc` shows (its data-line) and the hour it was read in, or null. */
+export function readBootHeadline(doc: Document, now: number): { line: number; hour: number } | null {
+  const raw = doc.querySelector<HTMLElement>("#cs-boot-page h1")?.dataset.line ?? "";
+  const line = /^\d+$/.test(raw) ? Number(raw) : -1;
+  return line >= 0 && line < HOME_HEADLINES.length ? { line, hour: Math.floor(now / HOME_HEADLINE_MS) } : null;
+}
 
-/** This hour's headline, changing on the hour while the page stays open. In the hour the page loaded it keeps
- *  the first paint's line (that HTML may have been rendered a moment earlier, or come from the offline cache). */
-export function useHomeHeadline(): { line: number; changed: boolean } {
-  const [line, setLine] = useState(() => {
-    const now = Date.now();
-    return BOOT_HEADLINE && BOOT_HEADLINE.hour === Math.floor(now / HOME_HEADLINE_MS) ? BOOT_HEADLINE.line : homeHeadlineAt(now);
-  });
+/** The first paint's headline, read before the app replaces that paint. */
+const BOOT_HEADLINE = typeof document === "undefined" ? null : readBootHeadline(document, Date.now());
+
+/** The headline to start on: in the hour the page loaded, the first paint's line (that HTML may have been
+ *  rendered a moment earlier, or come from the offline cache); after that, the clock's. */
+export function startingHeadline(boot: { line: number; hour: number } | null, now: number): number {
+  return boot && boot.hour === Math.floor(now / HOME_HEADLINE_MS) ? boot.line : homeHeadlineAt(now);
+}
+
+/** This hour's headline, changing on the hour while the page stays open. */
+export function useHomeHeadline(boot = BOOT_HEADLINE): { line: number; changed: boolean } {
+  const [line, setLine] = useState(() => startingHeadline(boot, Date.now()));
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => { setLine(homeHeadlineAt(Date.now())); setTick((n) => n + 1); }, HOME_HEADLINE_MS - (Date.now() % HOME_HEADLINE_MS) + 50);
@@ -110,7 +115,7 @@ function Headline() {
       {HOME_HEADLINES.map(([a, b], i) => (
         <span key={i} aria-hidden className="invisible [grid-area:1/1]">{a} <span className="block">{b}</span></span>
       ))}
-      <h1 key={line} className={cn("[grid-area:1/1]", changed && "cs-headline-in")}>
+      <h1 key={line} className={cn("[grid-area:1/1] font-semibold tracking-[-0.02em]", changed && "cs-headline-in")}>
         {first} <span className="block text-accent-display">{second}</span>
       </h1>
     </div>
