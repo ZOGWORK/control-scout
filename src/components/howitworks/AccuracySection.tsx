@@ -14,7 +14,7 @@ import { useApi } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
 import type { AccuracyBlock, BonusAccuracy, ReplayCoverage, TrackRecord } from "../../shared/api";
 import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, type LedgerKind } from "../../shared/ledger";
-import { pct } from "../../lib/format";
+import { ago, pct } from "../../lib/format";
 import { cn } from "../cn";
 import { Badge } from "../ui/basic";
 import { MatchList } from "../predict";
@@ -40,6 +40,19 @@ const ENG = MODEL.accuracy as EngineAccuracy;
 
 /** The 2025–26 match counts on this page, each said once with what it counts (they come from separate tests). */
 export const MATCH_COUNTS = `Match counts on this page: ${ENG.matches.count.toLocaleString("en-US")} in this held-out test; ${E2.matches.toLocaleString("en-US")} in the Prediction Engine 2.0 replay of the whole 2025–26 season, ${E2.nonTies.toLocaleString("en-US")} of them with a winner (the rest were ties). They are separate tests with their own match lists, so the counts differ slightly.`;
+
+/** "Oct 28, 2026, 3:04 PM" in the reader's own time zone ("" for a time that can't be read). */
+export const asOfDate = (iso: string) => {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+};
+
+/** When the ledger was last scored: relative, with the exact time beside it. */
+function UpdatedAt({ iso }: { iso: string }) {
+  const exact = asOfDate(iso);
+  if (!exact) return null;
+  return <span className="whitespace-nowrap">Updated {ago(iso)} (<time dateTime={iso}>{exact}</time>).</span>;
+}
 
 /** The label every engine-test figure carries. */
 export const ENGINE_TEST = "the prediction engine's held-out test (tuned on 2024–25, tested on 2025–26)";
@@ -147,7 +160,7 @@ export function AccuracySection() {
               )}
             </div>
           ),<div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="status" aria-label="Loading the track record">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div>)}
-          <p className="mt-3 text-sm text-muted-foreground">Live calls and the season replay are reported separately and never blended.{t && ` ${headlineRule(t)}`}</p>
+          <p className="mt-3 text-sm text-muted-foreground">Live calls and the season replay are reported separately and never blended.{t && ` ${headlineRule(t)}`}{t && <> <UpdatedAt iso={t.generatedAt} /></>}</p>
         </div>
       </Reveal>
 
