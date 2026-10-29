@@ -4,9 +4,9 @@
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { PRELOAD_MAX_DEP, afterFirstPaint, nonBlockingCss, renderIndex, routePreloads } from "./seo";
-import { APP_CSS_ID } from "../src/shared/boot";
+import { APP_CSS_ID, HOME_HEADLINE_MS, HOME_HEADLINES, homeHeadlineAt } from "../src/shared/boot";
 import { BOOT_STYLE, bootShell } from "./bootShell";
 import { migrate, openDb, run, setDb } from "./db";
 import { pageModule, pageTitle } from "../src/shared/routes";
@@ -26,7 +26,7 @@ describe("routes shared by the app and the server", () => {
     const cases: [string, string | null][] = [
       ["/", null], ["/teams", "RecordsPage"], ["/matches", "RecordsPage"], ["/teams/4215", "TeamPage"], ["/Teams/4215/", "TeamPage"],
       ["/events", "EventsPage"], ["/events/2025/USNJNOM3", "EventPage"], ["/predict", "PredictPage"], ["/predict/accuracy", null],
-      ["/predict/how-it-works", "MethodologyPage"], ["/methodology", "MethodologyPage"], ["/compare", "ComparePage"], ["/my-team", "MyTeamPage"],
+      ["/predict/how-it-works", null], ["/methodology", "MethodologyPage"], ["/compare", "ComparePage"], ["/my-team", "MyTeamPage"],
       ["/shortlist", "ShortlistPage"], ["/scout", "ScoutPage"], ["/download", "DownloadPage"], ["/settings", "SettingsPage"],
       ["/rankings", "RankingsPage"], ["/Rankings/", "RankingsPage"], ["/rankings/x", "NotFound"],
       ["/privacy", "PrivacyPage"], ["/terms", "TermsPage"], ["/contact", "ContactPage"], ["/nope", "NotFound"], ["/events/2025", "NotFound"], ["/teams/4215/x", "NotFound"],
@@ -67,8 +67,17 @@ describe("static first paint", () => {
   });
 
   it("home shows the headline (the brand stays in the shell's chrome); a page with no title of its own gets the shell alone", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(9 * HOME_HEADLINE_MS + 60_000); // mid-hour, so the clock can't cross the hour mid-test
     const home = root(await renderIndex(file, "/"));
-    expect(home).toContain("<h1>The whole field. <span>In your corner.</span></h1>");
+    vi.useRealTimers();
+    const line = homeHeadlineAt(9 * HOME_HEADLINE_MS);
+    expect(line).toBe(9);
+    const [a, b] = HOME_HEADLINES[line];
+    expect(home).toContain(`<h1 data-line="${line}">${a} <span>${b}</span></h1>`); // this hour's line, which the app keeps
+    expect(home.match(/<h1[\s>]/g)).toHaveLength(1);
+    // Every line holds its place, hidden from screen readers, so the app's hero is the same height.
+    for (const [x, y] of HOME_HEADLINES) expect(home).toContain(`<i aria-hidden="true">${x} <b>${y}</b></i>`);
     expect(home).toContain('<a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a>');
     expect(home).toContain('<a href="/" aria-current="page">');
     const lost = root(await renderIndex(file, "/no-such-page"));

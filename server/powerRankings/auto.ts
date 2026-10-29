@@ -18,13 +18,17 @@
 // may be taken over. A hand-written file for the week means nothing is generated for it.
 import { all, get, run } from "../db.js";
 import { isEnabled } from "../flags.js";
-import { defaultRankingsSeason, rankings } from "../api/rankings.js";
+import { rankings } from "../api/rankings.js";
+import { seasonForDate } from "../data/seasons.js";
 import { brunoAvailable, brunoPowerRankings } from "../auth/controlPoint.js";
 import { POWER_RANKINGS_SIZE, weekIdOf } from "../../src/shared/powerRankings.js";
-import { compose, type BrunoOutput, type FactPacket, type PacketTeam, type StoredPacket } from "./factCheck.js";
+import { compose, seasonText, type BrunoOutput, type FactPacket, type PacketTeam, type StoredPacket } from "./factCheck.js";
 import { getGenerated, invalidateGenerated, type GeneratedWeek } from "./generated.js";
 import { dueSlot, localDate } from "./schedule.js";
 import { fileWeeks, publishedWeeks } from "./store.js";
+
+/** The FTC season a week published on `date` ("YYYY-MM-DD") belongs to: the one its dates fall in. */
+export const weekSeason = (date: string) => seasonForDate(new Date(`${date}T12:00:00Z`));
 
 /** A run that claimed a week this long ago and never finished is presumed dead. */
 export const CLAIM_STALE_MS = 15 * 60_000;
@@ -105,7 +109,8 @@ export async function buildPacket(season: number, week: string, at = Date.now(),
   let prev: Comparison | null = compare ?? null;
   if (compare === undefined) {
     // The previous week out by the publish date (New York), of either kind.
-    const doc = (await publishedWeeks(localDate(at))).filter((w) => w.season === season && w.week < week).at(-1) ?? null;
+    // Only a week ranked on this season's numbers (a week early in a season may carry the last one's).
+    const doc = (await publishedWeeks(localDate(at))).filter((w) => w.season === season && (w.generated?.dataSeason ?? w.season) === season && w.week < week).at(-1) ?? null;
     if (doc) {
       // A generated previous week froze its ratings; a hand-written one didn't (no rating change then).
       const ratings = new Map<number, number>();
@@ -124,8 +129,11 @@ export async function buildPacket(season: number, week: string, at = Date.now(),
   ]);
   const byTeam = new Map(stats.map((s) => [Number(s.team), s]));
   const inList = new Set(teams);
+  const n = Number(week.slice(6));
   return {
     season, week, comparedWith: prev?.week ?? null,
+    // Bruno writes "week 43" and "the 2026–27 season", never the id "2026-w43" or a bare "2025 season".
+    notes: `This is week ${n} of the ${seasonText(season)} FTC season. Call it "week ${n}", never "${week}", and the season "${seasonText(season)}".`,
     droppedOut: prev ? [...prev.ranks].filter(([team]) => !inList.has(team)).sort((x, y) => x[1] - y[1]).map(([team, lastRank]) => {
       const rating = priorRating.get(team);
       return rating == null ? { team, lastRank } : { team, lastRank, rating };
@@ -190,7 +198,9 @@ export async function publishWeek(o: { week: string; published: string; at?: num
   const at = o.at ?? Date.now();
   const log = o.log ?? quiet;
   if (fileWeeks().some((d) => d.week === o.week)) return { status: "overridden", week: o.week };
-  const season = o.season ?? (await defaultRankingsSeason());
+  // The season the week's dates fall in, never the newest season with ratings: a week early in a season
+  // with no rated teams yet is "empty" (nothing goes out) rather than last season's list under this week.
+  const season = o.season ?? weekSeason(o.published);
   if (!(await claim(season, o.week, o.published, at))) return { status: "exists", season, week: o.week };
   try {
     const packet = await buildPacket(season, o.week, at);
@@ -225,7 +235,7 @@ export async function autoPowerRankingsTick(now = Date.now(), log: Log = quiet):
   const slot = dueSlot(now);
   if (!slot) return null;
   if (!(await isEnabled("autoPowerRankings"))) return { status: "off", week: slot.week };
-  const season = await defaultRankingsSeason();
+  const season = weekSeason(slot.friday);
   const done = await get<{ status: string; generated_at: string }>("SELECT status, generated_at FROM power_rankings_generated WHERE season = ? AND week = ?", [season, slot.week]);
   if (done && (done.status !== "pending" || Date.parse(done.generated_at) > now - CLAIM_STALE_MS)) return { status: "exists", season, week: slot.week };
   return publishWeek({ week: slot.week, published: slot.friday, at: now, season, log });

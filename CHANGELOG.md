@@ -15,15 +15,41 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.0 — 2026-10-29
+
+The home page's track record now shows how this season is going too, and its big number is in the accent yellow.
+
+### Highlights
+- [home] This season's replay so far, on the home track record
+- [predict] The track record's big number in yellow, like the ledger
+- [home] Live calls and replays still shown apart, each labelled
+
+### Home
+- **This season so far.** Under the track record's big number, a box shows this season's own season replay (for example "Season replay · 2026–27 BIOBUZZ so far: 68.4% of 1,065 decided matches called right"). It shows on both tabs, labelled as a replay and never mixed into the live number, and it's left out when that replay is already the big number. (#331)
+- **Yellow numbers.** The track record's percentage is in the accent yellow, the same as the ledger on How it works.
+
+## 1.3.9 — 2026-10-28
+
+The home page's headline changes every hour, one of thirteen lines about what Control Scout does.
+
+### Highlights
+- [home] A new headline on the home page every hour
+- [home] Thirteen lines take turns, the same one for everyone
+- [home] The page never jumps when the line changes
+
+### Home
+- **Thirteen headlines, one an hour.** From "Know the match before it starts." to "The field, figured out.", they take turns on the hour, the same line for everyone at the same time. An open page changes on the hour with a short fade (no motion with reduced motion turned on), and the hero keeps its height, so nothing below it moves. There is still one heading, and screen readers aren't told about the change. (#330)
+
 ## 1.3.8 — 2026-10-28
 
-A weekly email for the weeks you don't open the app: your teams' results, the prediction check-in and what's coming up, every Monday morning. Off unless you turn it on.
+A weekly email for the weeks you don't open the app, a Scout page that sets the event once and goes match by match, a simpler Predict in three modes, and match videos with the model's call on screen.
 
 ### Highlights
 - [alerts] A weekly digest email on Mondays, opt-in in Settings
-- [teams] Your followed teams' week: record, seed, playoff result and OPR trend
-- [predict] An honest prediction check-in, good week or bad
-- [alerts] Upcoming events with a countdown, and power rankings movement
+- [scout] Scout sets the event once, then goes match by match
+- [predict] Predict in three modes: Advancement, Scheduled and Custom matchup
+- [live] Each match has a Watch button, and the model's call shows on the video
+- [teams] Upcoming events list their registered teams before any match is played
 
 ### Weekly digest
 - **One email, Mondays at 8 AM Eastern.** Turn it on in Settings › Notifications › Email. It covers the teams you follow (your team and tracked teams), and only comes when there's something to report: no results, no calls, nothing coming up means no email.
@@ -31,6 +57,54 @@ A weekly email for the weeks you don't open the app: your teams' results, the pr
 - **Prediction check-in.** How many of our pre-match calls on your teams' matches were right that week and all season, counted exactly as the public track record counts them. A bad week says so.
 - **Coming up and power rankings.** Your teams' events in the next two weeks with a countdown (and whether a schedule is out yet), and where your teams moved in that week's power rankings.
 - **Easy to leave.** Every email has a one-click unsubscribe link that works without signing in, and mail apps show their own Unsubscribe button. No tracking pixels, no tracked links. A hard bounce turns the digest off by itself (#324).
+
+### Scout
+- **Set the event once.** Scouting starts by asking where you are (today's events first, then your team's) and what you watch: one robot, one alliance or all four. After that the Scout page opens on the match where scouting picks up, from the event's schedule, which stays on the phone for venues with no Wi-Fi (#289, #297, #308).
+- **A whole match per save.** The teams you watch are tabs, the form shows one phase at a time with big tap targets, and the match timer moves from Auto to TeleOp to Endgame by itself. "Save Q14 · 2 teams → Q15" saves an entry for each team and moves on. A draft survives a locked or reloaded phone, and "Undo last tap" takes back the last tap (#294, #299, #300).
+- **Quick mode for all four teams.** One short row per team (the main TeleOp count, the endgame, a few yes/no taps) for when you watch the whole match (#305).
+- **Matches and Data tabs.** Matches lists every match at the event as done, partly done, skipped or now; tap one to open it. Data holds what the old toolbar did: entries with filters and CSV export, pick list, activity, assignments, pit scouting, recordings and the template (#293, #298, #308).
+- **Assignments by slot and match range.** A captain can give "Priya: Red 1, Q1–Q30" or "Marcus: Blue alliance, Q15 on". Your assignment fills in the setup screen, and every match shows who has the other teams and whether they're done (#306, #309).
+
+### Predict
+- **Three modes, one compact header.** Predict opens on Advancement, with Scheduled and Custom matchup beside it as tabs, and the mode's controls start right under them. Old links still open the right mode with their picks (#287, #292, #307, #311, #314).
+- **Advancement picks an event by search.** The event comes first, in a search with suggestions (your team's events when a team is set), and the team is optional. An event from another season moves to that season and says so, keeping the team (#290, #296, #304).
+- **Scheduled is scheduled matches.** Pick a team or event to see its upcoming matches; advancement odds are one link away in Advancement. This week's events are a day-by-day list with a search and a Filters button (#288, #295, #302).
+- **Custom matchup swaps from the result.** Swap sides re-predicts the same four teams with the alliances swapped, no retyping, and the ratings table folds away so the odds and reasons lead (#303).
+- **Tracked events as quick picks.** Events you track show as one-tap picks in Advancement and Scheduled (#312).
+- **Predict Lab.** Once a team is chosen, only the events it's registered at are listed, city and state search works, Field rows open in place, and switching teams no longer freezes the page (#277, #278).
+
+### Events and matches
+- **Recordings, at the right second.** An event's YouTube recording plays on its page, and each played match gets a **Watch** button that jumps the player to that match. A video filter on Events finds events with recordings. One watch button, not two, and a Close video button (#268, #270, #272).
+- **The model's call on the video.** While a recording plays, a card on the player follows it: the next match's teams and the model's odds, then the result with "Called it" or "Upset". It can be switched off or moved to the top or bottom (#276).
+- **Team names in match rows.** Every match row shows team names under the numbers, and tapping a team opens a small card with its place at the event, record and season OPR, without leaving the page (#281, #319).
+- **The full score sheet.** A match's details show the score as FIRST reports it: Auto and TeleOp broken into their parts, plus foul counts (#282).
+- **League meets ranked on their own matches.** A meet's Rankings tab and its Model vs field card now use the meet's own qualification matches, not the league's running standing, so every team gets a rank. Event tables colour the numbers by where a team stands (#283, #284, #286).
+- **Simulated rankings before quals.** Before any qualification match, the Rankings tab can simulate the event: each team's likely rank and its odds of finishing first, top 4 and top 8, with a clear "Highly uncertain" note (#271).
+- **Match list in schedule order.** Matches read Q1, Q2, Q3 even when they start out of order. The next match is enlarged in place during a live event, and the row under the mouse stays enlarged while you scroll (#261, #262).
+- **Currently tracking.** The Events page lists the events you track, live first. Today's coin flips hides on a day with none (#275, #315).
+- **Events search on a phone.** The Events tab has its own search for events and places at the top (#266).
+- **Clearer buttons and labels.** Buttons, tabs and filters on event pages look tappable, and status and type look like labels (#269). The venue line opens in Google Maps (#276).
+
+### Registered teams
+- **Upcoming events show who's coming.** An event used to show 0 teams until rankings were posted. It now lists the teams registered with FIRST about a week ahead ("17 teams registered"), for every region, and shows the event's address (#322).
+- **New Jersey, even earlier.** Until FIRST publishes a New Jersey event, its page shows FTC New Jersey's registered teams and event details (host, address, times, format), clearly marked provisional; FIRST's data replaces it once it's out (#321).
+- **No team in the wrong session.** At an AM/PM event each team shows only in its own session, and waitlisted teams are kept apart from the teams list (#323).
+
+### Navigation
+- **Seven pages in view, the rest under More.** The sidebar shows Home, Events, Teams, Rankings, Predict, My team and Scout; everything else sits under More. It fits a laptop screen, folds to an icon rail under 1280 px, and spaces out on taller screens (#291, #301, #316).
+- **Your account in the sidebar.** Signed in, the sidebar's footer shows your name, sync status, Settings and Sign out; signed out, a Sign in button. The top bar no longer has the account menu (#313).
+
+### Teams and track record
+- **Confidence in plain words.** The three confidence levels now read **Rough guess**, **Fair** and **Solid** everywhere (#285).
+- **Top N%, always.** A team's OPR share reads "Top 94%" rather than "Bottom 7%" (#265).
+- **Season replay is the headline.** The home track record leads with the last full season's replay (2025–26 DECODE), and the new season's live number says it's still calibrating (#274, #318).
+
+### Fixes
+- On iPhone the app could say "You're offline" while online; it now asks the network instead of trusting the phone's flag (#260).
+- Tapping a search result on a phone opens it instead of just closing the list (#264).
+- The sign-in email shows the real logo, and its code copies as one number (#263).
+- The site is back much faster after an update: a restart takes about 2 seconds instead of over 30 (#279).
+- The home atlas's country total is in the display gold in light mode (#259).
 
 ## 1.3.7 — 2026-10-23
 

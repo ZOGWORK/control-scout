@@ -1,0 +1,32 @@
+name: Changelog
+
+# A PR that changes the app (src/ or server/, tests aside) also updates CHANGELOG.md, or says it changes
+# nothing a visitor sees: the `no-changelog` label, or "No user-visible change." in its description
+# (AGENTS.md rule 4b; .github/scripts/changelog-guard.sh). Its own workflow, not a step of CI's check job,
+# so editing the description or adding the label re-runs only this few-second check.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+concurrency:
+  group: changelog-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # The PR's merge commit and its first parent (the base it merges into): their diff is the PR's change.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: CHANGELOG.md updated, or no user-visible change
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: git diff --name-only HEAD^1 HEAD | bash .github/scripts/changelog-guard.sh

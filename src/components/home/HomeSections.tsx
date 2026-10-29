@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
 import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
-import { defaultEvidence, eventState, recordFor, shortDay, usageView, type Evidence } from "./homeModel";
+import { defaultEvidence, eventState, recordFor, seasonReplaySoFar, shortDay, usageView, type Evidence } from "./homeModel";
 import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -204,6 +204,7 @@ export function PredictionRecord() {
   const t = state.data;
   const kind = chosen ?? (t ? defaultEvidence(t) : "backtest");
   const view = t ? recordFor(t, kind) : null;
+  const soFar = t ? seasonReplaySoFar(t, view) : null;
   const sizes = t ? { live: recordFor(t, "live")?.block.n, backtest: recordFor(t, "backtest")?.block.n } : null;
   // The replay first: it's the headline until a season's live calls reach the threshold.
   const tabs: Evidence[] = ["backtest", "live"];
@@ -245,7 +246,7 @@ export function PredictionRecord() {
                 )}
                 {view.noneDecided
                   ? <p className="font-display text-6xl font-semibold text-text-muted" aria-label="No percentage yet">—</p>
-                  : <p className="font-display text-6xl font-semibold tabular-nums">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl text-text-muted">%</span></p>}
+                  : <p className="font-display text-6xl font-semibold tabular-nums text-accent-text">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl">%</span></p>}
                 <p className="mt-1 text-sm text-text-muted">
                   Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
                 </p>
@@ -265,6 +266,16 @@ export function PredictionRecord() {
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>
               </>
+            )}
+            {soFar && (
+              // This season's own replay, beside (never blended into) the number above: its own label, season and count.
+              <div className="mt-4 rounded-xl border border-line px-4 py-3 max-sm:px-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Season replay · {soFar.seasonLabel} so far</p>
+                <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-display text-3xl font-semibold tabular-nums text-accent-text">{pct(soFar.block.accuracy, 1)}</span>
+                  <span className="text-sm text-text-muted">of {fmt(soFar.block.decided)} decided matches called right ({LEDGER_MODE.backtest.detail})</span>
+                </p>
+              </div>
             )}
           </div>
           <Link to="/methodology#accuracy" className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">Every call, including the misses <ArrowUpRight className="size-4" /></Link>

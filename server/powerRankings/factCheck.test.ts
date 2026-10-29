@@ -1,6 +1,6 @@
 // The fact check Bruno's blurbs pass before publishing, and the templates that stand in.
 import { describe, expect, it } from "vitest";
-import { checkBlurb, checkIntro, compose, numbersIn, templateBlurb, templateIntro, type FactPacket, type PacketTeam } from "./factCheck";
+import { checkBlurb, checkIntro, compose, numbersIn, plainWeekText, seasonText, templateBlurb, templateIntro, type FactPacket, type PacketTeam } from "./factCheck";
 
 const team = (o: Partial<PacketTeam> = {}): PacketTeam => ({
   team: 18360, name: "Roboteers 2.0", rank: 3, priorRank: 7, movement: 4, rating: 118.4, ratingDelta: 12.3,
@@ -105,5 +105,22 @@ describe("compose", () => {
   });
   it("an intro that fails the check is the template", () => {
     expect(compose(p, { intro: "Check FTCScout for 999 more.", blurbs: [] }, "2026-10-23", true).introSource).toBe("template");
+  });
+});
+
+describe("the week and season in Bruno's words", () => {
+  it("a raw week id becomes \"week 43\" and a bare season year its label, before the check", () => {
+    expect(plainWeekText("Welcome to week 2026-w43 of the 2025 season.", { season: 2025 })).toBe("Welcome to week 43 of the 2025–26 season.");
+    expect(plainWeekText("Week 2026-w43: 2026-w43 is here.", { season: 2025 })).toBe("Week 43: week 43 is here.");
+    // Another year's season is left as written (and the check judges it).
+    expect(plainWeekText("Best since the 2019 season.", { season: 2025 })).toBe("Best since the 2019 season.");
+  });
+
+  it("compose publishes the plain wording, and it still passes the check", () => {
+    const c = compose(packet(), { intro: "Welcome to the power rankings for week 2026-w43 of the 2025 season.", blurbs: [{ team: 18360, text: "Roboteers 2.0 climb to #3 in week 2026-w43." }] }, "2026-10-23", true);
+    expect(c.intro).toBe("Welcome to the power rankings for week 43 of the 2025–26 season.");
+    expect(c.introSource).toBe("bruno");
+    expect(c.entries[0]).toMatchObject({ source: "bruno", text: "Roboteers 2.0 climb to #3 in week 43." });
+    expect(seasonText(2026)).toBe("2026–27");
   });
 });

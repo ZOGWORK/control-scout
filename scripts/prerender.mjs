@@ -16,7 +16,8 @@ const html = renderMethodology()
   // Entrance animations start from opacity 0 until the app runs them: the first paint shows the words as they end up.
   .replace(/ style="[^"]*opacity:0[^"]*"/g, "")
   // Folded details (lab notes) are open in the first paint: plain visible text, not hidden from anyone.
-  .replace(/(<div[^>]*class="hiw-expand"[^>]*?) aria-hidden="true"/g, "$1");
+  .replace(/(<div[^>]*class="hiw-expand"[^>]*?) aria-hidden="true"/g, "$1")
+  .replace(/(<div[^>]*class="hiw-expand"[^>]*?) inert=""/g, "$1");
 if (!/<h1[\s>]/.test(html) || html.length < 20000) throw new Error(`prerendered /methodology looks wrong (${html.length} bytes)`);
 mkdirSync(join(build, "prerender"), { recursive: true });
 writeFileSync(join(build, "prerender", "methodology.html"), html);
