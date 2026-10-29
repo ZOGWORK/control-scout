@@ -78,6 +78,7 @@ import { allFlags, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFl
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
 import { linkedAccountId } from "./auth/controlPoint.js";
+import { formerWorkspaces } from "./scout/orphans.js";
 import { readProjections } from "./projections/store.js";
 import { projectionStream } from "./projections/routes.js";
 import { ownerRouter } from "./portal/routes.js";
@@ -262,7 +263,12 @@ export function createApp(opts: { dist?: string } = {}) {
     const user = await currentUser(req);
     const account = user ? await linkedAccountId(user.id) : null;
     if (account == null) return { flags };
-    const ids = (await all<{ id: string }>("SELECT cp_workspace_id id FROM workspace_members WHERE account_id = ?", [account])).map((r) => String(r.id));
+    // Every workspace this account reads: its memberships, and deleted ones it still reads as a former member (Task 19).
+    const [members, former] = await Promise.all([
+      all<{ id: string }>("SELECT cp_workspace_id id FROM workspace_members WHERE account_id = ?", [account]),
+      formerWorkspaces(account),
+    ]);
+    const ids = [...new Set([...members.map((r) => String(r.id)), ...former.map((w) => w.id)])];
     const workspaces = await workspaceFlags(ids);
     return { flags: { ...flags, workspaceScouting: flags.workspaceScouting || ids.some((id) => workspaces[id].workspaceScouting) }, workspaces };
   }));
