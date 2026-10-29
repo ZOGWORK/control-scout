@@ -15,6 +15,36 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.1 — 2026-10-29
+
+Launch fixes: every team's event rows now add up to its season record, old power-rankings weeks stay as they were written, and the labels say exactly what each number is.
+
+### Highlights
+- [teams] Event rows count every match and add up to the season record
+- [rankings] Past power-rankings weeks keep their original numbers
+- [predict] Live and replay track records side by side, each labelled
+- [fixes] One address for How it works, and no more dead team links
+- [teams] Clearer ranks, odds and empty columns on team and event pages
+
+### Teams
+- **Rows that add up.** Each event on a team page now shows the team's record over every match there, playoffs included, with the quals record underneath when it differs. League meets show the meet's own record and rank instead of the league's running total, which made many teams look undefeated (one winless team showed 10-0-0). Rows for events a team never played are gone, scrimmages with matches show their record, and the season record counts qualification no-shows the way FIRST does. A tooltip says what each record counts, surrogate matches excluded. (#332)
+- **Labelled ranks.** OPR and rating ranks say which list they come from and out of how many teams. A team with no results yet this season says it's showing last season, with a link to switch. (#333)
+
+### Power rankings
+- **Archives stay put.** A week's stats, order and names are saved with its write-ups when it goes out, so an old week never drifts as ratings move. The page says when its stats are from, a week is tagged by the season its dates fall in, and write-ups say "week 43", never "2026-w43". (#325)
+
+### Predict and track record
+- **Side by side.** On the home page, the season replay and the logged-live figure sit side by side at the same size. The live figure says it covers all engine versions, with the current engine's figure underneath. (#333)
+- **Two odds, explained.** On an event page, the Rankings column and the Odds tab say how many simulations each ran and when, and why the two can differ. (#333)
+- **How it works.** It has one address now (the old /predict/accuracy and /predict/how-it-works links forward to it), its track record shows when it was last updated, and its match and simulation counts each say what they count. (#327)
+
+### Events
+- League meets show "#1 at this meet" to match their rankings table, and say how many of the league's teams played there. Blank prediction columns and scrimmages explain themselves, and venue lines no longer show a double comma. Compare says when it switched to the last season the teams played. (#333)
+
+### Fixes
+- Team pages exist only for real teams: FIRST's demo and test registrations and its stand-in numbers for unnumbered teams are left out of rankings, search and the sitemap, and /records forwards to /teams. (#329)
+- Security headers on every page (HSTS, frame and permissions policies, a content security policy in report mode). (#328)
+
 ## 1.4.0 — 2026-10-29
 
 The home page's track record now shows how this season is going too, and its big number is in the accent yellow.
