@@ -4,7 +4,7 @@
 //
 // - GET /api/scout/workspaces/:workspaceId/consensus?season=YYYY&teams=1,2,3 (up to CONSENSUS_MAX_TEAMS):
 //   members only, exactly as reading the workspace's entries (workspaceAccess: 401 signed out, 403 not a
-//   member, 503 while workspace scouting is paused; a read-only (orphaned) space still reads). One answer
+//   member, 403 feature_disabled while workspace scouting is switched off for the workspace; a read-only (orphaned) space still reads). One answer
 //   per team asked for, in that order; a team with no entries has entries 0. Never cached by a browser or
 //   proxy beyond the asking user (private, no-store).
 // - consensusFor(workspaceId, season, teams) is the same answer for server code that has already checked
@@ -148,9 +148,9 @@ export function consensusRouter(): Router {
     res.set("Cache-Control", "private, no-store");
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-    if (await workspacePaused(res)) return;
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     const season = Number(req.query.season);
     if (!isSeason(season)) { res.status(400).json({ error: "season required" }); return; }
     const teams = parseTeams(req.query.teams);

@@ -12,6 +12,7 @@ import type { BonusModelSource, RatingBookData } from "@control-scout/predict-en
 import type { LitePairs } from "../shared/litePairs";
 import type { LiteLearned } from "../shared/liteLearned";
 import { PACK_META_KEY, packStatus, type PackMeta } from "./packPolicy";
+import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 
 export { packStatus, type PackMeta } from "./packPolicy";
 
@@ -70,10 +71,12 @@ export async function fetchManifest(): Promise<PackManifest> {
       : "Can't reach the server right now — try again in a moment.");
   }
   if (r.status === 404) throw new ManifestError("none", "No packs have been published on this server yet.");
-  // Switched off for now (the offlinePacks flag): the server says so in its own words.
-  if (r.status === 503) {
-    const body = await r.json().catch(() => null) as { paused?: boolean; error?: string } | null;
-    if (body?.paused) throw new ManifestError("paused", body.error ?? "Offline packs are paused right now.");
+  // Switched off for now (the offlinePacks feature toggle): 403 feature_disabled, in the server's own words. (A 503
+  // with `paused` is how servers before the owner console's feature toggles said it.)
+  if (r.status === 403 || r.status === 503) {
+    const body = await r.json().catch(() => null) as { paused?: boolean; error?: string; message?: string } | null;
+    if (body?.error === FEATURE_DISABLED) throw new ManifestError("paused", body.message ?? featureOffMessage("offlinePacks"));
+    if (body?.paused) throw new ManifestError("paused", body.error ?? featureOffMessage("offlinePacks"));
   }
   if (!r.ok) throw new ManifestError("failed", `Couldn't read the pack list (${r.status}).`);
   return r.json();

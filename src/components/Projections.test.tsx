@@ -10,7 +10,8 @@ import type { ProjectionRun, ProjectionsView, ProjectionTeam } from "../shared/p
 import { markOffline } from "../lib/offline/saved";
 
 let view: ProjectionsView | undefined;
-vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: view, error: undefined, loading: false, reload: () => {} }), load: () => Promise.resolve() }));
+let apiError: Error | undefined;
+vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: view, error: apiError, loading: false, reload: () => {} }), load: () => Promise.resolve() }));
 let localResult: unknown = null;
 let localUnavailable: string | null = null, localError: string | null = null;
 vi.mock("../lib/localProjection/run", () => ({
@@ -129,6 +130,20 @@ describe("Projections (local estimate)", () => {
     mount(detail("live"));
     expect(screen.getByText("No projection saved for this event")).toBeTruthy();
     expect(screen.queryByText(/within a minute or two/)).toBeNull();
+  });
+
+  it("switched off by the owner (403 feature_disabled): the switched-off note, never a local estimate in its place", async () => {
+    const { ApiError } = await vi.importActual<typeof import("../lib/api")>("../lib/api");
+    can();
+    localResult = local();
+    view = undefined;
+    apiError = new ApiError(403, "Advancement odds are switched off for now.", false, "feature_disabled", "advancementOdds");
+    try {
+      mount(detail("live"));
+      expect(await screen.findByText("Switched off for now")).toBeTruthy();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(screen.queryByText(/Local estimate/)).toBeNull();
+    } finally { apiError = undefined; }
   });
 
   it("labels it as a local estimate, one tier lower, with no pre-event movement mixed in", async () => {

@@ -302,6 +302,17 @@ describe("the job", () => {
     expect(fallback.rankings!.rows.some((r) => r.team === 6980)).toBe(false);
   });
 
+  it("power rankings publishing switched off (the owner's feature toggle): no rankings section, even with the week's list handed in", async () => {
+    await setFlag("powerRankings", false, "test");
+    try {
+      const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
+      expect(d.rankings).toBeNull();
+      expect(sectionsOf(d)).not.toContain("rankings");
+    } finally { await setFlag("powerRankings", true, "test"); }
+    const on = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
+    expect(on.rankings).not.toBeNull();
+  });
+
   it("a team listed in a match it didn't show up for (on_field = 0) didn't play", async () => {
     await run("UPDATE match_teams SET on_field = 0 WHERE team = 6980");
     const d = await buildDigest({ week: WEEK, season: SEASON, followed: [6980], name: null, rankings: rankings() });

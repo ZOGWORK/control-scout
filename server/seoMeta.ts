@@ -25,6 +25,7 @@ import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
+import { isEnabled } from "./flags.js";
 import type { TrackRecord } from "../src/shared/api.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
@@ -267,6 +268,8 @@ function rankingsJsonLd(r: PowerRankingsResponse, path: string): Record<string, 
 
 /** /power-rankings (the latest week and the archive) and /power-rankings/<week>: an unknown week is a 404. */
 async function powerRankingsMeta(week: string | null): Promise<PageMeta> {
+  // Switched off by the owner (the powerRankings feature toggle): the page's plain title, none of the weeks' content.
+  if (!(await isEnabled("powerRankings"))) return { title: "FTC power rankings", description: fitDescription(POWER_DESC), type: "website", path: week === null ? "/power-rankings" : `/power-rankings/${week.toLowerCase()}`, noindex: true };
   if (week === null) {
     const r = await latestRankings();
     const bodyHtml = staticRankingsHtml(r);
@@ -341,6 +344,8 @@ async function matchupMeta(sp: URLSearchParams): Promise<PageMeta | null> {
   const raw = sp.get("season");
   const season = raw == null || raw === "" ? CURRENT_SEASON : /^\d{4}$/.test(raw) ? Number(raw) : NaN;
   if (!SEASON_NUMBERS.includes(season) || isLegacy(season)) return null;
+  // Live predictions switched off by the owner: the page's plain title, no call in the preview.
+  if (!(await isEnabled("livePredictions"))) return null;
   const { liveForecaster } = await import("./predict/engine.js");
   const f = await liveForecaster(season);
   const x = f.explain(season, red, blue);
@@ -358,6 +363,8 @@ async function matchupMeta(sp: URLSearchParams): Promise<PageMeta | null> {
 /** /events/…?match=qual:1:12: the event's page, with that match's call as its title, words and card. */
 async function eventMatchMeta(ev: PageMeta, season: number, code: string, key: string | null): Promise<PageMeta> {
   if (!key || !/^(qual|playoff):\d{1,4}:\d{1,4}$/.test(key) || isLegacy(season)) return ev;
+  // Its card is a live prediction card (/share/match.png): none while live predictions are switched off.
+  if (!(await isEnabled("livePredictions"))) return ev;
   const { matchViews } = await import("./api/matches.js");
   const m = (await matchViews({ season, code }, { predictUnplayed: true })).find((x) => x.key === key);
   const p = m?.prediction;

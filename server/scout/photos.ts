@@ -30,7 +30,7 @@
 // the soft cap (R2_SOFT_CAP_GB, 9.5), all under R2's 10 GB free tier.
 //
 // Off (404 for every photo route, UI hidden) when R2 isn't configured or the
-// owner switched the `photos` flag off. Workspace scouting paused: 503.
+// owner switched the `photos` flag off. Workspace scouting switched off for the workspace: 403 feature_disabled.
 import { randomUUID } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
@@ -474,6 +474,7 @@ async function member(req: Request, res: Response): Promise<{ user: User; m: Mem
   if (!user) { res.status(401).json({ error: "Sign in to add photos." }); return null; }
   const workspaceId = req.body?.workspaceId ?? req.query.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
+  if (await workspacePaused(res, workspaceId)) return null;
   const access = await workspaceAccess(user, workspaceId, { write: isWrite(req) });
   if (!access.ok) { res.status(access.status).json(accessError(access)); return null; }
   return { user, m: access.membership };
@@ -487,12 +488,11 @@ const answer = (res: Response, out: { ok: true } | Fail, body: () => unknown) =>
 /** /api/scout/photos */
 export function photosRouter(): Router {
   const r = express.Router();
-  // Off: as if the routes didn't exist. Then the workspace switch, like every shared read and write.
+  // Off: as if the routes didn't exist. The workspace switch (per workspace) is checked with the membership, in member().
   r.use((req, res, next) => {
     (async () => {
       res.set("Cache-Control", "no-store");
       if (!(await photosAvailable())) { res.status(404).json({ error: "Not found" }); return; }
-      if (await workspacePaused(res)) return;
       next();
     })().catch(next);
   });

@@ -14,10 +14,24 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { packStatus } from "./packPolicy";
+import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 
+/**
+ * A failed call. `code`: the answer's `error` when it's a machine code (`feature_disabled`), so callers can tell a
+ * feature the owner switched off (paused: keep what's queued, try again later) from a 403 that means no access.
+ * `feature`: which feature, for feature_disabled.
+ */
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string, readonly offline = false) { super(message); }
+  constructor(readonly status: number, message: string, readonly offline = false, readonly code?: string, readonly feature?: string) { super(message); }
 }
+
+/** A 403 feature_disabled: the owner switched this feature off (for now). Never a removal or a lost membership. */
+export const isFeatureDisabled = (e: unknown, feature?: string): boolean => {
+  const x = e as { status?: unknown; code?: unknown; feature?: unknown } | null;
+  return x?.status === 403 && x.code === FEATURE_DISABLED && (feature === undefined || x.feature === feature);
+};
+/** A 403 that means this account has no access (not a member any more): every 403 but feature_disabled. */
+export const isAccessDenied = (e: unknown): boolean => (e as { status?: unknown } | null)?.status === 403 && !isFeatureDisabled(e);
 
 /** The reads a saved season can answer (see lib/offline). */
 const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search)(\?|$)/;
@@ -168,7 +182,11 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   let body: any = null;
   let unreadable = false;
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
-  if (!res.ok) throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
+  if (!res.ok) {
+    // Switched off by the owner: the server's own words, and the code that tells it from a lost membership.
+    if (res.status === 403 && body?.error === FEATURE_DISABLED) throw new ApiError(403, typeof body.message === "string" ? body.message : featureOffMessage(String(body.feature ?? "")), false, FEATURE_DISABLED, typeof body.feature === "string" ? body.feature : undefined);
+    throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`, false, typeof body?.code === "string" ? body.code : undefined);
+  }
   // A success whose body can't be read (cut short, or a page from something in between) is a failed
   // answer, not "no data": an empty body (204) or an explicit JSON null still answer null.
   if (unreadable) throw new ApiError(res.status, "The server's answer arrived incomplete. Try again.");

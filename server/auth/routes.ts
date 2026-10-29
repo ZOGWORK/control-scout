@@ -276,9 +276,9 @@ export function meRouter(): Router {
     if (raw.length > 200) { res.status(413).json({ error: "Send at most 200 entries per request" }); return; }
     const workspaceId = req.body?.workspaceId ?? null;
     if (workspaceId !== null) {
-      // Switched off by the owner: the shared set pauses (503, nothing written); the personal set below is untouched.
-      if (await workspacePaused(res)) return;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "Invalid workspaceId" }); return; }
+      // Switched off by the owner for this workspace: the shared set pauses (403 feature_disabled, nothing written); the personal set below is untouched.
+      if (await workspacePaused(res, workspaceId)) return;
       const access = await workspaceAccess((req as any).user, workspaceId, { write: true });
       if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       return { results: await pushWorkspaceEntries((req as any).user, access.membership, raw) };

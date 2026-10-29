@@ -20,7 +20,8 @@ import { WeekEvents } from "../components/predict/WeekEvents";
 import { Section, EmptyState } from "../components/page";
 import { LatestCalls } from "../components/LatestCalls";
 import { CurrentlyTracking } from "../components/CurrentlyTracking";
-import { Async, ErrorState } from "../components/states";
+import { Async, ErrorState, FeatureOffState } from "../components/states";
+import { useFlag } from "../lib/flags";
 import { Button } from "../components/ui/button";
 import { Badge, Input } from "../components/ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
@@ -76,6 +77,16 @@ export default function PredictPage() {
   // The header's width (the content area's, not the window's): the latest-calls card needs 64 rem, the grid's own threshold.
   const headerBox = useRef<HTMLDivElement>(null);
   const wide = useWiderThan(headerBox, 64);
+  // Live predictions switched off by the owner (the livePredictions feature toggle): the page says so, deep links included.
+  const on = useFlag("livePredictions");
+  if (!on) {
+    return (
+      <div className="space-y-6">
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground max-sm:text-2xl">Predict</h1>
+        <FeatureOffState feature="livePredictions" />
+      </div>
+    );
+  }
   return (
     <Tabs value={mode} onValueChange={setMode} className="space-y-6 max-sm:space-y-4">
       <div ref={headerBox} className="@container/predict">

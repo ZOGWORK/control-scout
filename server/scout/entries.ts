@@ -36,7 +36,8 @@ import { controlPointEnabled, isWorkspaceId, linkedAccountId, MEMBERSHIP_TTL, me
 import { formerMember, orphanState } from "./orphans.js";
 import { READ_ONLY_CODE, READ_ONLY_ERROR, READ_ONLY_STATUS, type OrphanState } from "../../src/shared/orphaned.js";
 import { currentUser, type User } from "../auth/session.js";
-import { isEnabled } from "../flags.js";
+import { featureDisabled, isEnabledFor } from "../flags.js";
+import { featureOffMessage } from "../../src/shared/flags.js";
 import { publishEntries, serialized, type LiveEntry } from "./bus.js";
 import { photosByEntry } from "./photoRows.js";
 import { entryChange, logEntryWrites, type EntryBefore } from "./activityLog.js";
@@ -208,7 +209,7 @@ export async function workspaceAdminAccess(user: User, workspaceId: string, opts
 /**
  * Express guard for admin-only workspace routes: the workspace id from
  * `req.params.workspaceId`, else the query, else the body. 401 signed out,
- * 503 while workspace scouting is paused, 400 bad id, 403 not a member or not an admin, 423 a change (any method
+ * 400 bad id, 403 feature_disabled while workspace scouting is switched off for the workspace, 403 not a member or not an admin, 423 a change (any method
  * but GET/HEAD) in a read-only space; otherwise the membership is on `res.locals.membership` for the handler.
  */
 export function requireWorkspaceAdmin() {
@@ -216,9 +217,9 @@ export function requireWorkspaceAdmin() {
     (async () => {
       const user = await currentUser(req);
       if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-      if (await workspacePaused(res)) return; // workspace scouting switched off in the owner portal: 503
       const workspaceId = req.params?.workspaceId ?? req.query?.workspaceId ?? req.body?.workspaceId;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+      if (await workspacePaused(res, workspaceId)) return; // switched off by the owner for this workspace: 403 feature_disabled
       const access = await workspaceAdminAccess(user, workspaceId, { write: isWrite(req) });
       if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       res.locals.user = user;
@@ -376,13 +377,17 @@ const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Reque
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
 };
 
-/** Workspace scouting switched off in the owner portal (the workspaceScouting flag): shared pushes and pulls answer this
- *  (503, nothing read or written, the device keeps its queue for later); personal scouting carries on. */
-export const WORKSPACE_PAUSED = "Workspace scouting is paused right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.";
-export async function workspacePaused(res: Response): Promise<boolean> {
-  if (await isEnabled("workspaceScouting")) return false;
-  res.set("Cache-Control", "no-store");
-  res.status(503).json({ error: WORKSPACE_PAUSED, paused: true });
+/** What a workspace scouting route says while it's switched off (the body's `message`). */
+export const WORKSPACE_PAUSED = featureOffMessage("workspaceScouting");
+/**
+ * Workspace scouting switched off by the owner for this workspace (the workspaceScouting flag: its override for the
+ * workspace, else the global switch): every shared read and write answers 403 {error: "feature_disabled", feature}
+ * (nothing read or written; the app keeps its queue on the device and says it's paused, never "removed"). Personal
+ * scouting carries on. Call it once the workspace id is known to be well formed.
+ */
+export async function workspacePaused(res: Response, workspaceId: string): Promise<boolean> {
+  if (await isEnabledFor("workspaceScouting", workspaceId)) return false;
+  featureDisabled(res, "workspaceScouting");
   return true;
 }
 
@@ -392,9 +397,9 @@ export function scoutRouter(): Router {
   r.get("/sync", h(async (req, res) => {
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in to sync this across devices." }); return; }
-    if (await workspacePaused(res)) return;
     const workspaceId = req.query.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     const since = req.query.since === undefined ? 0 : Number(req.query.since);
     if (!Number.isSafeInteger(since) || since < 0) { res.status(400).json({ error: "since must be a cursor from an earlier pull" }); return; }
     const access = await workspaceAccess(user, workspaceId);

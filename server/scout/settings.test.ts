@@ -236,12 +236,12 @@ describe("workspace settings", () => {
     expect(JSON.stringify(feed.json)).toContain("settings.changed");
   });
 
-  it("workspace scouting paused in the owner portal: reads and saves answer 503", async () => {
+  it("workspace scouting paused in the owner portal: reads and saves answer 403 feature_disabled", async () => {
     const { admin } = await team("509");
     await setFlag("workspaceScouting", false, "owner@test");
     try {
-      expect((await admin("GET", url("509"))).status).toBe(503);
-      expect((await put(admin, "509", { defaults: { season: 2025 }, baseVersion: 0 })).status).toBe(503);
+      expect((await admin("GET", url("509"))).status).toBe(403);
+      expect((await put(admin, "509", { defaults: { season: 2025 }, baseVersion: 0 })).status).toBe(403);
     } finally { await setFlag("workspaceScouting", true, "owner@test"); }
   });
 });

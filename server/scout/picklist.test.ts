@@ -294,7 +294,7 @@ describe("shared pick list", () => {
     expect((await priya("GET", "/api/inbox")).json.items.filter((i: any) => i.category === "picklist" && i.workspaceId === "1108")).toEqual([]);
   });
 
-  it("refuses: outsiders 403, signed out 401, not JSON 415, bad bodies and unknown teams 400; paused 503", async () => {
+  it("refuses: outsiders 403, signed out 401, not JSON 415, bad bodies and unknown teams 400; paused 403 feature_disabled", async () => {
     const { priya, olly } = await team("1109");
     expect((await olly("GET", `${url("1109")}?season=${S}`)).status).toBe(403);
     expect((await op(olly, "1109", { op: "add", team: 101 })).status).toBe(403);
@@ -311,8 +311,8 @@ describe("shared pick list", () => {
     expect(await get("SELECT 1 FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = '1109'")).toBeUndefined();
     await setFlag("workspaceScouting", false, "owner@test");
     try {
-      expect((await priya("GET", `${url("1109")}?season=${S}`)).status).toBe(503);
-      expect((await op(priya, "1109", { op: "add", team: 101 })).status).toBe(503);
+      expect((await priya("GET", `${url("1109")}?season=${S}`)).status).toBe(403);
+      expect((await op(priya, "1109", { op: "add", team: 101 })).status).toBe(403);
     } finally { await setFlag("workspaceScouting", true, "owner@test"); }
   });
 

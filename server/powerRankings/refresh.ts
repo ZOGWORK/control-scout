@@ -196,7 +196,7 @@ export async function refreshWeek(g: GeneratedWeek, day: string, at: number, log
  */
 export async function dailyRefreshTick(now = Date.now(), log: Log = quiet): Promise<RefreshResult> {
   const { day } = dueRefresh(now);
-  if (!(await isEnabled("autoPowerRankings")) || !(await isEnabled("dailyPowerRankings"))) return { status: "off", day };
+  if (!(await isEnabled("autoPowerRankings")) || !(await isEnabled("dailyPowerRankings")) || !(await isEnabled("powerRankings"))) return { status: "off", day };
   const g = await currentGeneratedWeek(now);
   if (!g || g.published >= day) return { status: "none", day };
   const base = { season: g.season, week: g.week, day };

@@ -188,7 +188,7 @@ describe("comments: who may do what", () => {
     expect(items.filter((i) => i.type === "comment.deleted").map((i) => [i.actor.name, i.details.authorName, i.details.commentId])).toEqual([["Coach", "Marcus", marcus]]);
   });
 
-  it("members only (403), signed in (401), paused (503), JSON only (415), a bad id (400), an entry not on the server (404)", async () => {
+  it("members only (403), signed in (401), paused (403 feature_disabled), JSON only (415), a bad id (400), an entry not on the server (404)", async () => {
     const { admin, outsider, first } = await team("1504");
     expect((await outsider("GET", thread("1504", first.uuid))).status).toBe(403);
     expect((await post(outsider, "1504", first.uuid, "hello")).status).toBe(403);
@@ -205,8 +205,8 @@ describe("comments: who may do what", () => {
       await admin("PATCH", `${thread("1504", first.uuid)}/${id}`, { body: "y" }), await admin("DELETE", `${thread("1504", first.uuid)}/${id}`),
       await admin("GET", "/api/scout/workspaces/1504/comment-counts"),
     ]) {
-      expect(r.status).toBe(503);
-      expect(r.json.paused).toBe(true);
+      expect(r.status).toBe(403);
+      expect(r.json).toMatchObject({ error: "feature_disabled", feature: "workspaceScouting" });
     }
   });
 

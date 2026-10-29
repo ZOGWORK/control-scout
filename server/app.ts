@@ -76,7 +76,11 @@ import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
-import { allFlags, isEnabled } from "./flags.js";
+import { allFlags, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
+import type { FlagsAnswer } from "../src/shared/flags.js";
+import { currentUser } from "./auth/session.js";
+import { linkedAccountId } from "./auth/controlPoint.js";
+import { formerWorkspaces } from "./scout/orphans.js";
 import { readProjections } from "./projections/store.js";
 import { projectionStream } from "./projections/routes.js";
 import { ownerRouter } from "./portal/routes.js";
@@ -250,11 +254,27 @@ export function createApp(opts: { dist?: string } = {}) {
 
   // Feature flags the app reads to hide switched-off features (server/flags.ts). Short-lived, so a
   // switch flipped in the owner portal reaches open pages within a minute.
-  api.get("/flags", h(async (_req, res) => {
-    res.setHeader("Cache-Control", "public, max-age=15");
+  api.get("/flags", h(async (req, res): Promise<FlagsAnswer> => {
     // Photos also need R2 configured on this server: without it the app hides them as if switched off.
-    const flags = await allFlags();
-    return { flags: { ...flags, photos: flags.photos && !!r2(), push: flags.push && vapidReady() } };
+    const g = await allFlags();
+    const flags = { ...g, photos: g.photos && !!r2(), push: g.push && vapidReady() };
+    // No per-workspace overrides anywhere (the usual case): one answer for everyone, as before.
+    if (!(await hasWorkspaceOverrides())) { res.setHeader("Cache-Control", "public, max-age=15"); return { flags }; }
+    // Some workspace has its own setting: the answer depends on who asks, so it's private. A signed-in account gets
+    // its workspaces' resolved workspace flags, and workspace scouting counts as on when it's on in any of them
+    // (the server still refuses it per workspace: 403 feature_disabled, which the app shows as paused).
+    res.setHeader("Cache-Control", "private, max-age=15");
+    const user = await currentUser(req);
+    const account = user ? await linkedAccountId(user.id) : null;
+    if (account == null) return { flags };
+    // Every workspace this account reads: its memberships, and deleted ones it still reads as a former member (Task 19).
+    const [members, former] = await Promise.all([
+      all<{ id: string }>("SELECT cp_workspace_id id FROM workspace_members WHERE account_id = ?", [account]),
+      formerWorkspaces(account),
+    ]);
+    const ids = [...new Set([...members.map((r) => String(r.id)), ...former.map((w) => w.id)])];
+    const workspaces = await workspaceFlags(ids);
+    return { flags: { ...flags, workspaceScouting: flags.workspaceScouting || ids.some((id) => workspaces[id].workspaceScouting) }, workspaces };
   }));
 
   api.get("/meta", h(async (): Promise<Meta> => {
@@ -291,7 +311,7 @@ export function createApp(opts: { dist?: string } = {}) {
   // Revalidated every time, by browsers and shared caches alike: the open page polls it each minute and rows
   // drop at each venue's midnight, so a cached copy must never be served without asking. The ETag (the stored
   // radar and the venue dates still today) keeps that a cheap 304.
-  api.get("/home/coin-flips", h(async (req, res) => {
+  api.get("/home/coin-flips", requireFeature("coinFlips"), h(async (req, res) => {
     const r = await coinFlips();
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("ETag", radarEtag(r));
@@ -327,8 +347,9 @@ export function createApp(opts: { dist?: string } = {}) {
   }));
 
   // Power rankings (server/powerRankings/): the latest published week, or one week, each with the archive.
-  api.get("/power-rankings", h(async () => latestRankings()));
-  api.get("/power-rankings/:week", h(async (req) => {
+  // Behind the powerRankings feature toggle (off: 403 feature_disabled; every week stays stored, the console still reads them).
+  api.get("/power-rankings", requireFeature("powerRankings"), h(async () => latestRankings()));
+  api.get("/power-rankings/:week", requireFeature("powerRankings"), h(async (req) => {
     const id = String(req.params.week).toLowerCase();
     const r = isWeekId(id) ? await rankingsWeek(id) : null;
     if (!r) throw new HttpError(404, `No power rankings published for ${id.slice(0, 20)}`);
@@ -566,7 +587,10 @@ export function createApp(opts: { dist?: string } = {}) {
 
   // --- Predictions ---------------------------------------------------------
 
-  api.get("/predict/match", h(async (req): Promise<MatchExplanationView> => {
+  // Live predictions (the livePredictions feature toggle): match, upcoming, event forecast, partners and the match
+  // share card answer 403 feature_disabled while it's off. The track record (/predict/accuracy) is not a prediction call.
+  const predictions = requireFeature("livePredictions");
+  api.get("/predict/match", predictions, h(async (req): Promise<MatchExplanationView> => {
     const s = predictSeason(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
@@ -591,7 +615,7 @@ export function createApp(opts: { dist?: string } = {}) {
 
   /** A matchup's prediction as a PNG: 1200×630 (link previews) or ?format=square 1080×1080. */
   const shareLimit = limiter(30);
-  api.get("/share/match.png", h(async (req, res) => {
+  api.get("/share/match.png", predictions, h(async (req, res) => {
     const s = predictSeason(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
@@ -621,7 +645,7 @@ export function createApp(opts: { dist?: string } = {}) {
     return undefined;
   }));
 
-  api.get("/predict/upcoming", h(async (req) => {
+  api.get("/predict/upcoming", predictions, h(async (req) => {
     const s = predictSeason(req.query.season);
     const days = boundedCount(req.query.days, "days", 7, 1, 14);
     const today = new Date().toISOString().slice(0, 10);
@@ -660,13 +684,13 @@ export function createApp(opts: { dist?: string } = {}) {
     return v!;
   };
 
-  api.get("/predict/event", limiter(30), h(async (req) => {
+  api.get("/predict/event", predictions, limiter(30), h(async (req) => {
     const s = predictSeason(req.query.season), c = code(req.query.code);
     const team = req.query.team ? int(req.query.team, "team", { min: 1, max: 999999 }) : null;
     return forecastFor(s, c, team, req.query.mode === "pre-event" ? "pre-event" : "current");
   }));
 
-  api.get("/predict/partners", limiter(10), h(async (req) => {
+  api.get("/predict/partners", predictions, limiter(10), h(async (req) => {
     const s = predictSeason(req.query.season), c = code(req.query.code), team = int(req.query.team, "team", { min: 1, max: 999999 });
     // mode=pre-event: the scenarios from the ratings and event as they stood the day before (no hindsight).
     const pre = req.query.mode === "pre-event";
@@ -687,13 +711,15 @@ export function createApp(opts: { dist?: string } = {}) {
   api.get("/predict/accuracy", h(async () => trackRecord()));
 
   // Monte Carlo projections (server/projections): stored by the background job, only read here.
-  api.get("/projections/:season/:code", h(async (req, res) => {
+  // Advancement odds (the advancementOdds feature toggle): the odds and their live stream answer 403 feature_disabled while it's off.
+  const odds = requireFeature("advancementOdds");
+  api.get("/projections/:season/:code", odds, h(async (req, res) => {
     const v = await readProjections(predictSeason(req.params.season), code(req.params.code));
     // A new run can land any minute while the event is on: revalidate every time (the ETag keeps it a 304).
     res.setHeader("Cache-Control", "no-cache");
     return v;
   }));
-  api.get("/projections/:season/:code/stream", h(async (req, res) => {
+  api.get("/projections/:season/:code/stream", odds, h(async (req, res) => {
     const s = predictSeason(req.params.season), c = code(req.params.code);
     if (!(await isEnabled("realtime"))) { res.setHeader("Cache-Control", "no-store"); throw new HttpError(503, "Live updates are switched off; the page refreshes on its own instead."); }
     projectionStream(s, c, req, res);
@@ -720,9 +746,9 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/scout", consensusRouter());
   // The pre-match report's workspace half (v1.6 Task 2): consensus, pick list and assignments; members only.
   api.use("/scout", matchReportRouter());
-  // The owner portal's switches: with realtime off the stream answers 503 and the app polls instead; with
-  // workspace scouting off it answers 503 too, since a stream's catch-up reads shared entries like a pull.
-  api.use("/scout", streamRouter({ enabled: async () => (await isEnabled("realtime")) && (await isEnabled("workspaceScouting")) }));
+  // The owner's switches: with realtime off the stream answers 503 and the app polls instead; with workspace
+  // scouting off for the workspace it answers 403 feature_disabled (stream.ts), since its catch-up reads shared entries like a pull.
+  api.use("/scout", streamRouter({ enabled: () => isEnabled("realtime") }));
   // The notification inbox (docs/inbox.md): per account, across workspaces. Its stream follows the realtime switch only
   // (owner alerts aren't workspace scouting); while it's off the app polls the unread count.
   api.use("/inbox", inboxRouter({ streamEnabled: () => isEnabled("realtime") }));

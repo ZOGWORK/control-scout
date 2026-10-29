@@ -15,7 +15,8 @@ import { RecordsTable } from "../components/records/RecordsTable";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventRefreshResult, FieldRow, MatchView } from "../shared/api";
 import { EmptyState } from "../components/page";
-import { Async } from "../components/states";
+import { Async, FeatureOffState } from "../components/states";
+import { useFlag } from "../lib/flags";
 import { Reveal } from "../components/motion";
 import { Badge, Input } from "../components/ui/basic";
 import { ResultChanges } from "../components/ResultChanges";
@@ -105,6 +106,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const target = useLiveTarget(d, liveMode);
   const livePanel = useRef<HTMLDivElement>(null);
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
+  const oddsOn = useFlag("advancementOdds");
   const oddsOpen = predictable && !d.forecastUnsupported;
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
@@ -266,8 +268,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           {/* Every event with a schedule gets match predictions; advancement odds only where teams advance. */}
           <TeamPicker field={d.field} value={teamParam} onChange={setTeam} />
           {/* Offline: the simulator needs a connection, but a saved pack carries the event's stored projections. */}
-          {d.forecastUnsupported === OFFLINE_FORECAST && <div className="mb-6 max-sm:mb-4"><Projections d={d} team={teamParam} /></div>}
-          {d.forecastUnsupported ? (
+          {/* Advancement odds switched off by the owner (the advancementOdds feature toggle): said in their place; match odds stay. */}
+          {!oddsOn && <FeatureOffState feature="advancementOdds" className="mb-6 max-sm:mb-4" />}
+          {oddsOn && d.forecastUnsupported === OFFLINE_FORECAST && <div className="mb-6 max-sm:mb-4"><Projections d={d} team={teamParam} /></div>}
+          {!oddsOn ? null : d.forecastUnsupported ? (
             <p className="mb-6 max-sm:mb-4 flex items-start gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
               <Trophy className="mt-0.5 size-4 shrink-0" />
               <span>{d.forecastUnsupported} Every scheduled match below still gets win odds and a predicted score.</span>
