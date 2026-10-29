@@ -21,6 +21,7 @@ import { BonusOdds } from "./BonusOdds";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
+import { hasTeamPage } from "../shared/teamPages";
 
 type Side = "red" | "blue";
 const SIDES: Side[] = ["red", "blue"];
@@ -112,7 +113,9 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
           return (
             <li key={t.number} className={cn("py-2", !t.onField && "opacity-60")}>
               <div className="flex flex-wrap items-baseline gap-x-2">
-                <Link to={`/teams/${t.number}?season=${m.season}`} className="font-mono text-sm font-semibold hover:underline">{t.number}</Link>
+                {hasTeamPage(t.number, info?.name)
+                  ? <Link to={`/teams/${t.number}?season=${m.season}`} className="font-mono text-sm font-semibold hover:underline">{t.number}</Link>
+                  : <span className="font-mono text-sm font-semibold">{t.number}</span>}
                 <span className="min-w-0 truncate text-sm">{info?.name ?? ""}</span>
                 {d.stations[t.number] && <span className="text-[11px] text-text-muted">Station {d.stations[t.number]}</span>}
                 {t.surrogate && <span className="rounded bg-muted px-1 text-[10px]">Surrogate</span>}
