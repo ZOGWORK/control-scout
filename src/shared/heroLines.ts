@@ -1,4 +1,4 @@
-// The home page's hero lines (the headline that changes on the hour): what the owner console edits
+// The home page's hero lines (the headline that changes every 10 minutes): what the owner console edits
 // (server/heroLines.ts, table hero_lines) and what the home page and its server first paint show.
 // Each line has two parts: the plain words, then the words in the accent colour on their own line.
 // With no line saved, or none switched on, or the database out of reach, the built-in HOME_HEADLINES show.
@@ -9,7 +9,7 @@ export type HeroLine = readonly [string, string];
 
 /** Longest part, in characters: the longest built-in part is 25, and the hero is sized to its longest line. */
 export const HERO_PART_MAX = 40;
-/** Most lines kept (one an hour: two days' worth). */
+/** Most lines kept (one every 10 minutes: eight hours' worth). */
 export const HERO_LINES_MAX = 48;
 
 /** The built-in lines, used whenever no saved line is switched on. */
@@ -32,7 +32,7 @@ export interface HeroLinesResponse { lines: HeroLine[]; custom: boolean }
 export interface OwnerHeroLines {
   /** Every saved line in order, on or off (empty: the built-in lines are in use). */
   rows: HeroLineRow[];
-  /** What the home page shows now, and which of those lines is up this hour. */
+  /** What the home page shows now, and which of those lines is up now. */
   live: HeroLinesResponse & { index: number };
   defaults: HeroLine[];
 }
