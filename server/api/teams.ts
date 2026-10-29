@@ -212,7 +212,7 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
     all<any>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${ph})`, numbers),
     all<any>(`SELECT * FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
-      `SELECT et.team, e.code, e.name, e.type, e.start, e.end, e.remote, et.rank, et.wins, et.losses, et.ties, r.rank meet_rank
+      `SELECT et.team, e.code, e.name, e.type, e.start, e.end, e.remote, et.rank, r.rank meet_rank
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
        LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team AND e.type = 'LeagueMeet'
        WHERE et.season = ? AND et.team IN (${ph}) ORDER BY e.start DESC`, [season, ...numbers]),
@@ -230,14 +230,11 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
     const r = rel.find((x) => Number(x.team) === n);
     const last = evs.find((e) => (e.start ?? "") <= today) ?? null;
     const next = [...evs].reverse().find((e) => (e.start ?? "") > today) ?? null;
-    // The record there: its matches (playoffs included), as the team page counts it; FIRST's row only for a remote event.
+    // The record there: its matches (playoffs included), as the team page counts it.
     const ev = (e: any) => {
       if (!e) return null;
       const rec = recs.get(`${n}|${e.code}`);
-      return {
-        code: e.code, name: e.name, start: e.start, end: e.end, rank: e.type === "LeagueMeet" ? e.meet_rank ?? null : e.rank,
-        record: rec ? wltText(rec) : Number(e.remote) === 1 && e.wins != null ? `${e.wins}-${e.losses}-${e.ties}` : null,
-      };
+      return { code: e.code, name: e.name, start: e.start, end: e.end, rank: e.type === "LeagueMeet" ? e.meet_rank ?? null : e.rank, record: rec ? wltText(rec) : null };
     };
     return {
       team: n, name: i?.name ?? null, place: [i?.city, i?.state, i?.country].filter(Boolean).join(", "),

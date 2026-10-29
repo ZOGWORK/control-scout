@@ -408,7 +408,9 @@ function RankMedal({ rank }: { rank: number | null }) {
 function RowRecord({ e }: { e: TeamEventRow }) {
   if (e.wins == null) {
     const over = (e.end ?? e.start ?? "9999") < new Date().toISOString().slice(0, 10);
-    return <p className="text-xs text-muted-foreground">{over ? "No scored matches" : "Not played yet"}</p>;
+    // A remote event (one robot a match) has no win-loss record, only matches played.
+    const text = e.qualPlayed ? `${e.qualPlayed} remote ${e.qualPlayed === 1 ? "match" : "matches"}` : over ? "No scored matches" : "Not played yet";
+    return <p className="text-xs text-muted-foreground">{text}</p>;
   }
   const q = e.qual;
   return (

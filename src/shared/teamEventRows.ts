@@ -1,6 +1,7 @@
 // The team page's event rows, built the same way on the server (server/api/teams.ts) and from a saved season pack
 // (src/lib/offline/readers.ts). Each row's record is counted from the matches (src/shared/eventRecord.ts), so the
-// rows add up to the season record; FIRST's ranking row only fills in where we hold no matches (a remote event).
+// rows add up to the season record. FIRST's ranking row gives only the rank (and, for a remote event, which has no
+// win-loss record, the number of matches played).
 import type { TeamEventRow } from "./api.js";
 import type { EventRecord } from "./eventRecord.js";
 
@@ -34,7 +35,7 @@ const num = (x: unknown) => (x == null ? null : Number(x));
  * The rows, from teamEventsQuery's rows and the team's records (recordsFromRows, keyed "team|code"). Kept:
  *  - an event with a match on the team's record;
  *  - one where it was on the field (a surrogate's only matches: on the field, not on its record);
- *  - a remote event (no alliance matches: FIRST's ranking row is the record);
+ *  - a remote event (2020–2023: one robot a "match", so no win-loss record, only FIRST's count of matches played);
  *  - an event with no results yet that hasn't ended (upcoming, or under way), and a finished event that published
  *    no scores (an unplayed scrimmage: the row says so). Not a league meet with no results once it's over: a league
  *    lists every league team at every meet, so there's no telling whether the team was there.
@@ -53,20 +54,15 @@ export function teamEventRows(
       || (!Number(r.has_results) && (!ended || r.type !== "LeagueMeet"));
     if (!keep) continue;
     const meet = r.type === "LeagueMeet";
-    // Where we hold none of its matches, FIRST's row stands in only for a remote event (one robot per "alliance").
-    const first = remote && r.wins != null;
     const al = alliances.find((a) => a.code === r.code);
     const seat: Seat | null = al ? (Number(al.captain) === team ? "captain" : Number(al.pick1) === team ? "pick1" : Number(al.pick2) === team ? "pick2" : "backup") : null;
     out.push({
       season, code: r.code, name: r.name, type: r.type, start: r.start, end: r.end, city: r.city, state: r.state, country: r.country,
       rank: meet ? num(r.meet_rank) : num(r.rank), rp: meet ? num(r.meet_rp) : num(r.rp),
-      wins: rec ? rec.wins : first ? num(r.wins) : null,
-      losses: rec ? rec.losses : first ? num(r.losses) : null,
-      ties: rec ? rec.ties : first ? num(r.ties) : null,
-      played: rec ? rec.played : first ? num(r.qual_played) : null,
-      qualPlayed: rec ? rec.qual.played : first ? num(r.qual_played) : null,
+      wins: rec ? rec.wins : null, losses: rec ? rec.losses : null, ties: rec ? rec.ties : null, played: rec ? rec.played : null,
+      qualPlayed: rec ? rec.qual.played : remote ? num(r.qual_played) : null,
       qual: rec ? rec.qual : null,
-      onField: remote || !!Number(r.on_field), // a remote event's record is FIRST's: no lineups to tell
+      onField: remote || !!Number(r.on_field), // a remote event has no lineups to tell
       opr: { np: r.opr_np, auto: r.opr_auto, teleop: r.opr_teleop, endgame: r.opr_endgame, pen: r.opr_pen },
       avg: { score: r.avg_score, np: r.avg_np, pen: r.avg_pen },
       awards: awards.filter((a) => a.code === r.code).map((a) => ({ type: a.type, placement: Number(a.placement), name: a.name })),

@@ -150,8 +150,8 @@ async function teamMeta(n: number): Promise<PageMeta> {
       "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties, matches FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]),
     get<{ n: number }>("SELECT COUNT(DISTINCT season) n FROM team_season_stats WHERE team = ? AND matches > 0", [n]),
     // Not a finished league meet with no results: a league lists every league team at every meet (the team page's rule).
-    all<{ season: number; code: string; name: string; start: string | null; type: string | null; remote: number | null; rank: number | null; meet_rank: number | null; wins: number | null; losses: number | null; ties: number | null }>(
-      `SELECT e.season, e.code, e.name, e.start, e.type, e.remote, et.rank, r.rank meet_rank, et.wins, et.losses, et.ties
+    all<{ season: number; code: string; name: string; start: string | null; type: string | null; rank: number | null; meet_rank: number | null; wins: number | null; losses: number | null; ties: number | null }>(
+      `SELECT e.season, e.code, e.name, e.start, e.type, et.rank, r.rank meet_rank, et.wins, et.losses, et.ties
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
        LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team AND e.type = 'LeagueMeet'
        WHERE et.team = ? AND ${ATTENDED} AND NOT (e.type = 'LeagueMeet' AND COALESCE(e.end, e.start) < ?
@@ -163,9 +163,7 @@ async function teamMeta(n: number): Promise<PageMeta> {
   const recs = new Map(recRows.map((r) => [`${r.season}|${r.code}`, recordOf(r)]));
   const events = listed.map((e) => {
     const rec = recs.get(`${e.season}|${e.code}`);
-    const meet = e.type === "LeagueMeet";
-    const first = Number(e.remote) === 1;
-    return { ...e, rank: meet ? e.meet_rank : e.rank, wins: rec ? rec.wins : first ? e.wins : null, losses: rec ? rec.losses : first ? e.losses : null, ties: rec ? rec.ties : first ? e.ties : null };
+    return { ...e, rank: e.type === "LeagueMeet" ? e.meet_rank : e.rank, wins: rec?.wins ?? null, losses: rec?.losses ?? null, ties: rec?.ties ?? null };
   });
   const name = t?.name?.trim() || null;
   const heading = teamHeading(n, name);
