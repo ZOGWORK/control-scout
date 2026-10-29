@@ -462,7 +462,7 @@ export interface TrackRecord {
      *  no-show (or a one-robot alliance) is skipped; a live call, logged from the schedule beforehand, isn't. */
     replay?: ReplayCoverage;
     /** Live calls split by the engine version that made them (versions are never compared on mixed cohorts). */
-    liveByEngine?: { engine: string; n: number; accuracy: number; brier: number; logLoss: number }[];
+    liveByEngine?: { engine: string; n: number; /** Calls that could be right or wrong (not ties or 50:50 calls); absent in older responses. */ decided?: number; accuracy: number; brier: number; logLoss: number }[];
     /** Side by side on the same live calls: the served model vs the shadow (previous) model,
      *  both computed from the same ratings at the same moment. Paired, so it compares models,
      *  not match difficulty. One entry per served/shadow model pair. */
