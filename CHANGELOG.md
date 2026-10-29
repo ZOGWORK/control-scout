@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.1 — 2026-10-29
+
+The weekly digest just says it comes once a week, without naming a day or time.
+
+### Highlights
+- [alerts] The weekly digest says "once a week" in Settings
+- [alerts] Turning it on says the first one comes with next week's round-up
+- [alerts] The digest's description no longer names a send day
+
+### Weekly digest
+- **No fixed time in the copy.** Settings, the switch's confirmation and the description say the digest comes once a week, instead of "Mondays at 8 AM Eastern". The email itself is unchanged.
+
 ## 1.4.0 — 2026-10-29
 
 The home page's track record now shows how this season is going too, and its big number is in the accent yellow.
