@@ -44,8 +44,18 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
   const pick = (t.headline?.kind === kind ? t.seasons.find((s) => s.season === t.headline!.season && s[kind]) : null)
     ?? (kind === "backtest" ? newest.find((s) => s.season !== loggingLive) : undefined)
     ?? newest[0];
-  const block = pick?.[kind];
-  if (!pick || !block) return null;
+  return pick ? viewOf(t, pick, kind) : null;
+}
+
+/** One season's replay as a view (the home card's "this season so far" tab); null when it has none. */
+export function replayView(t: TrackRecord, season: number): RecordView | null {
+  const s = t.seasons.find((x) => x.season === season);
+  return s ? viewOf(t, s, "backtest") : null;
+}
+
+function viewOf(t: TrackRecord, pick: TrackRecord["seasons"][number], kind: Evidence): RecordView | null {
+  const block = pick[kind];
+  if (!block) return null;
   return {
     kind, season: pick.season, seasonLabel: pick.label, block,
     split: ledgerSplit(block),

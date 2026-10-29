@@ -3,7 +3,7 @@
 // Each one loads, fails and empties on its own; none of them holds up search.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, CalendarDays, Hourglass, Info, MapPin, Radio, RefreshCw, Search, Star } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, Info, MapPin, Radio, RefreshCw, Search, Star } from "lucide-react";
 import { qs, useApi, type ApiState } from "../../lib/api";
 import { dateRange, matchTime, oddsPct, pct, place, seasonLabel, ago } from "../../lib/format";
 import type { EventListItem, MatchView, TeamSummary, TrackRecord } from "../../shared/api";
@@ -14,7 +14,7 @@ import { ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { ErrorState } from "../states";
 import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
-import { defaultEvidence, eventState, recordFor, seasonReplaySoFar, shortDay, usageView, type Evidence, type RecordView } from "./homeModel";
+import { eventState, recordFor, replayView, seasonReplaySoFar, shortDay, usageView, type RecordView } from "./homeModel";
 import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
 
 const fmt = (n: number) => n.toLocaleString();
@@ -198,27 +198,21 @@ function CalendarRow({ e }: { e: EventListItem }) {
 
 // --- The public prediction record ---------------------------------------------------
 
-/**
- * An evidence card's accessible name: its kind, its figure (or that there's none yet) and its sample, since the
- * card's visible parts are hidden from assistive tech to keep the name to one sentence.
- * "Season replay, 73.8% correct winner, 41,743 scored".
- */
-export function cardName(k: Evidence, r: RecordView | null, n: number | undefined): string {
-  const figure = !r ? "none yet" : r.noneDecided ? "No percentage yet" : `${pct(r.block.accuracy, 1)} correct winner${k === "live" && r.engines ? ", all engine versions" : ""}`;
-  return `${LEDGER_MODE[k].tab}, ${figure}${n != null ? `, ${fmt(n)} scored` : ""}`;
-}
+type RecordTab = "replay" | "soFar";
+const RECORD_TAB: Record<RecordTab, string> = { replay: "Season replay", soFar: "This season so far" };
 
 export function PredictionRecord() {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
-  const [chosen, setChosen] = useState<Evidence | null>(null);
+  const [chosen, setChosen] = useState<RecordTab>("replay");
   const t = state.data;
-  const kind = chosen ?? (t ? defaultEvidence(t) : "backtest");
-  const view = t ? recordFor(t, kind) : null;
-  const soFar = t ? seasonReplaySoFar(t, view) : null;
-  const figures = t ? { live: recordFor(t, "live"), backtest: recordFor(t, "backtest") } : null;
-  const sizes = figures ? { live: figures.live?.block.n, backtest: figures.backtest?.block.n } : null;
-  // The replay first: it's the headline until a season's live calls reach the threshold.
-  const tabs: Evidence[] = ["backtest", "live"];
+  // Both tabs are replays: the last full season's (the headline while live calls are short of the threshold) and
+  // the season in progress's own, so far. Live calls stay on /methodology, where they're labelled as such.
+  const replay = t ? recordFor(t, "backtest") : null;
+  const soFarOf = t ? seasonReplaySoFar(t, replay) : null;
+  const views: Record<RecordTab, RecordView | null> = { replay, soFar: t && soFarOf ? replayView(t, soFarOf.season) : null };
+  const tabs = (["replay", "soFar"] as const).filter((k) => k === "replay" || views[k]);
+  const tab = views[chosen] ? chosen : "replay";
+  const view = views[tab];
   return (
     <section aria-labelledby="record-title" className="min-w-0 rounded-2xl border border-line bg-card p-5 max-sm:p-4 @2xl/home:p-6">
       <Kicker>The public track record</Kicker>
@@ -227,57 +221,32 @@ export function PredictionRecord() {
         <div aria-busy="true" className="mt-4 h-52" />
       ) : (
         <>
-          {/* A choice of evidence (radio semantics, arrow keys between the two). Both figures sit side by side at the
-              same size, each labelled with its kind and sample, so the live record is never smaller than the replay;
-              picking one opens its details below. */}
-          <ToggleGroup type="single" variant="cards" value={kind} onValueChange={(v) => v && setChosen(v as Evidence)} aria-label="Evidence" aria-controls="record-evidence"
-            className="mt-4 grid grid-cols-2 gap-2 overflow-x-visible">
-            {tabs.map((k) => {
-              const r = figures?.[k] ?? null;
-              return (
-                <ToggleGroupItem key={k} value={k} className="min-w-0 justify-start whitespace-normal px-3 py-2.5 max-sm:px-2.5"
-                  aria-label={cardName(k, r, sizes?.[k])}>
-                  <span className="flex w-full items-baseline justify-between gap-1.5 text-sm">
-                    <span className="truncate">{LEDGER_MODE[k].tab}</span>
-                    {sizes?.[k] != null && <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(sizes[k]!)}</span>}
-                  </span>
-                  {!r ? <span aria-hidden className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl">—</span>
-                    : r.noneDecided ? <span aria-hidden className="font-display text-4xl font-semibold text-text-muted @2xl/home:text-5xl">—</span>
-                    : <span aria-hidden className="font-display text-4xl font-semibold tabular-nums text-accent-text @2xl/home:text-5xl">{pct(r.block.accuracy, 1).replace("%", "")}<span className="text-2xl">%</span></span>}
-                  <span aria-hidden className="block w-full truncate text-xs font-normal text-text-muted">
-                    {!r ? "none yet" : k === "live" ? (r.engines ? "all season, all engine versions" : `${r.seasonLabel}, before each match`) : `${r.seasonLabel} replay`}
-                  </span>
+          {/* A choice of replay (radio semantics, arrow keys between the two), each with its sample size, and the record it shows. */}
+          {tabs.length > 1 && (
+            <ToggleGroup type="single" value={tab} onValueChange={(v) => v && setChosen(v as RecordTab)} aria-label="Evidence" aria-controls="record-evidence"
+              className="mt-4 rounded-xl border border-line p-1">
+              {tabs.map((k) => (
+                <ToggleGroupItem key={k} value={k} size="lg" className="gap-1.5 rounded-lg px-3 text-sm max-sm:h-10 aria-checked:bg-accent/10 aria-checked:text-accent-text aria-checked:ring-1 aria-checked:ring-inset aria-checked:ring-accent/50 dark:aria-checked:bg-accent/10"
+                  aria-label={`${RECORD_TAB[k]}, ${fmt(views[k]!.block.n)} scored`}>
+                  {RECORD_TAB[k]}
+                  <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(views[k]!.block.n)}</span>
                 </ToggleGroupItem>
-              );
-            })}
-          </ToggleGroup>
-          <div id="record-evidence" role="region" aria-live="polite" aria-label={LEDGER_MODE[kind].tab} className="mt-4">
+              ))}
+            </ToggleGroup>
+          )}
+          <div id="record-evidence" role="region" aria-live="polite" aria-label={RECORD_TAB[tab]} className="mt-4">
             {!view ? (
-              <p className="rounded-xl border border-dashed border-line px-4 py-6 max-sm:py-4 text-sm text-text-muted">
-                {kind === "live" ? "No live calls have been scored yet: every match prediction is logged before the match and scored after it." : "No replayed season is on record yet."}
-              </p>
+              <p className="rounded-xl border border-dashed border-line px-4 py-6 max-sm:py-4 text-sm text-text-muted">No replayed season is on record yet.</p>
             ) : (
               <>
-                {/* Which mode the figure is, said first. */}
+                {/* Which season the big number is, said before the number. */}
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
-                  {view.kind === "live" ? (view.early ? "Logged live · still calibrating" : "Logged live") : "Season replay"}{view.isHeadline && " · the headline"}
+                  {tab === "soFar" ? `Season replay · ${view.seasonLabel} so far` : "Season replay"}{view.isHeadline && " · the headline"}
                 </p>
-                {view.early && (
-                  <p role="note" className="mt-2 mb-3 flex items-start gap-2 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2.5 text-sm">
-                    <Hourglass className="mt-0.5 size-4 shrink-0 text-accent-text" aria-hidden />
-                    <span><strong>Still calibrating this season.</strong> Early-season calls lean on ratings built from few matches, so this number moves as results arrive. It isn’t the headline until {view.seasonLabel} has {fmt(t.liveThreshold)} live calls scored ({fmt(view.block.n)} so far).</span>
-                  </p>
-                )}
-                <p className="mt-1 text-sm text-text-muted">
-                  Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match${view.engines ? `, all engine versions (v${view.engines.versions.join(", v")})` : ""}` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
-                </p>
-                {view.engines?.current && view.engines.current.decided != null && (
-                  <p className="mt-1 text-sm">
-                    {view.engines.current.accuracy != null
-                      ? <><span className="font-semibold tabular-nums text-accent-text">{pct(view.engines.current.accuracy, 1)}</span><span className="text-text-muted"> from engine v{view.engines.current.engine} alone, the one serving now ({fmt(view.engines.current.n)} scored)</span></>
-                      : <span className="text-text-muted">Engine v{view.engines.current.engine}, the one serving now: no decided calls yet ({fmt(view.engines.current.n)} scored, all ties or 50:50 calls)</span>}
-                  </p>
-                )}
+                {view.noneDecided
+                  ? <p className="font-display text-6xl font-semibold text-text-muted" aria-label="No percentage yet">—</p>
+                  : <p className="font-display text-6xl font-semibold tabular-nums text-accent-text">{pct(view.block.accuracy, 1).replace("%", "")}<span className="text-3xl">%</span></p>}
+                <p className="mt-1 text-sm text-text-muted">Correct winner · {view.seasonLabel}, {LEDGER_MODE.backtest.detail}</p>
                 {view.split && (
                   <div className="mt-4">
                     <div className="flex h-2 overflow-hidden rounded-full bg-text-base/15" role="img" aria-label={`${fmt(view.split.correct)} correct, ${fmt(view.split.missed)} missed of ${fmt(view.split.decided)} decisive calls`}>
@@ -294,16 +263,6 @@ export function PredictionRecord() {
                   {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
                 </p>
               </>
-            )}
-            {soFar && (
-              // This season's own replay, beside (never blended into) the number above: its own label, season and count.
-              <div className="mt-4 rounded-xl border border-line px-4 py-3 max-sm:px-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Season replay · {soFar.seasonLabel} so far</p>
-                <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                  <span className="font-display text-3xl font-semibold tabular-nums text-accent-text">{pct(soFar.block.accuracy, 1)}</span>
-                  <span className="text-sm text-text-muted">of {fmt(soFar.block.decided)} decided matches called right ({LEDGER_MODE.backtest.detail})</span>
-                </p>
-              </div>
             )}
           </div>
           <Link to="/methodology#accuracy" className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-accent-text hover:underline">Every call, including the misses <ArrowUpRight className="size-4" /></Link>
