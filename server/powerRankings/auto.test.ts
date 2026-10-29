@@ -17,11 +17,11 @@ import { resetSitemapCache, sitemapEntries } from "../sitemap";
 import { useContentDir } from "./store";
 import { editGenerated, getGenerated, invalidateGenerated, setGeneratedStatus, toDoc } from "./generated";
 import { dailyRefreshTick } from "./refresh";
-import { autoPowerRankingsTick, buildPacket, publishNow } from "./auto";
+import { autoPowerRankingsTick, buildPacket, publishNow, weekSeason } from "./auto";
 import type { FactPacket } from "./factCheck";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings";
 
-const S = 2025;
+const S = 2026;
 const TEAMS = Array.from({ length: 30 }, (_, i) => 7000 + i);
 const KEY = "cs-test-internal-key-0123456789abcdef";
 const FRI = Date.parse("2026-10-23T04:00:00Z"); // Friday 00:00 EDT, week 43
@@ -146,6 +146,9 @@ beforeEach(async () => {
   invalidateGenerated();
   invalidateFlags();
   resetSitemapCache();
+  // Undo what the frozen-week tests change: last season's ratings and a renamed team.
+  await run("DELETE FROM team_season_stats WHERE season <> ?", [S]);
+  await run("UPDATE teams SET name = 'Bots ' || number");
   await rate();
 });
 
@@ -343,6 +346,81 @@ describe("serving", () => {
     w43 = (await api("/api/power-rankings/2026-w43")).week!;
     expect(w43.comparedWith).toBe("2026-w42");
     expect(w43.entries[3].movement).toEqual({ kind: "down", by: 3 });
+  });
+});
+
+describe("a week is frozen with its text", () => {
+  const lines = (w: PowerRankingsResponse["week"]) => w!.entries.map((e) => ({ team: e.team, rank: e.rank, name: e.name, stats: e.stats }));
+
+  it("an archived week never changes after the stats move, the teams are renamed and the next week goes out", async () => {
+    await autoPowerRankingsTick(FRI);
+    const before = (await api("/api/power-rankings/2026-w43")).week!;
+    // Its lines are the packet its blurbs were written from: 7004 "sits at #5 with a rating of 460.0", and the line says 460.
+    expect(before.entries[4]).toMatchObject({ team: 7004, name: "Bots 7004", stats: { rating: 460, ratingRank: 5, opr: 280.3, wins: 9, losses: 1, ties: 0 } });
+    expect(before.entries[4].blurbHtml).toContain("460.0");
+    expect(before.statsAsOf).toBe("2026-10-23");
+    // A week later: every rating, OPR and record moves, a team is renamed, and week 44 goes out.
+    await rate([...TEAMS].reverse());
+    await run("UPDATE team_season_stats SET wins = 20, losses = 5, opr_np = opr_np + 40 WHERE season = ?", [S]);
+    await run("UPDATE teams SET name = 'Renamed Bots' WHERE number = 7020");
+    await kvSet("data:version", `v${++version}`);
+    expect(await autoPowerRankingsTick(NEXT_FRI)).toMatchObject({ status: "published", week: "2026-w44" });
+    invalidateGenerated();
+    const after = (await api("/api/power-rankings/2026-w43")).week!;
+    expect(lines(after)).toEqual(lines(before));
+    expect(after.entries.map((e) => e.blurbHtml)).toEqual(before.entries.map((e) => e.blurbHtml));
+    expect(after.statsAsOf).toBe("2026-10-23");
+    // The new week has the new numbers and name.
+    const w44 = (await api("/api/power-rankings/2026-w44")).week!;
+    expect(w44.entries[0]).toMatchObject({ team: 7029, stats: { wins: 20, losses: 5 } });
+    expect(w44.entries.find((e) => e.team === 7020)?.name).toBe("Renamed Bots");
+    expect(after.entries.find((e) => e.team === 7020)?.name).toBe("Bots 7020");
+    // The page says what the numbers are.
+    const page = await renderPage(index, "/power-rankings/2026-w43");
+    expect(page.html).toContain("Stats as of Oct 23, 2026.");
+  });
+
+  it("the list is in the order of the rating it shows, and each line's world rank is its place", async () => {
+    await autoPowerRankingsTick(FRI);
+    await rate([7003, 7001, 7000, ...TEAMS.filter((t) => t > 7003), 7002]); // the live order moves after it went out
+    const w = (await api("/api/power-rankings/2026-w43")).week!;
+    const ratings = w.entries.map((e) => e.stats!.rating!);
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a));
+    expect(w.entries.map((e) => e.stats!.ratingRank)).toEqual(w.entries.map((e) => e.rank));
+  });
+
+  it("a week is tagged by the season its dates fall in, and one with no rated team of that season isn't published", async () => {
+    expect(weekSeason("2026-10-16")).toBe(2026);
+    expect(weekSeason("2026-08-28")).toBe(2025);
+    expect(weekSeason("2027-03-05")).toBe(2026);
+    // Week 42 (Friday Oct 16, 2026) when only last season's teams are rated: nothing goes out under it.
+    await run("UPDATE team_season_stats SET season = 2025 WHERE season = ?", [S]);
+    await kvSet("data:version", `v${++version}`);
+    const FRI42 = Date.parse("2026-10-16T04:00:00Z");
+    expect(await autoPowerRankingsTick(FRI42)).toMatchObject({ status: "empty", season: 2026, week: "2026-w42" });
+    expect(await rows()).toEqual([]);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("a week ranked on another season's numbers says so, links that season's rankings, and isn't what the next week compares with", async () => {
+    // As week 2026-w42 went out: tagged 2026 (migration 51), its packet from 2025–26.
+    await run("UPDATE team_season_stats SET season = 2025 WHERE season = ?", [S]);
+    await kvSet("data:version", `v${++version}`);
+    const old = await buildPacket(2025, "2026-w42", Date.parse("2026-10-16T04:00:00Z"));
+    const entries = old.teams.map((t) => ({ rank: t.rank, team: t.team, text: `#${t.rank}`, source: "template" }));
+    await run("INSERT INTO power_rankings_generated (season, week, published, status, intro, intro_source, entries, packet, generated_at) VALUES (2026, '2026-w42', '2026-10-16', 'published', 'Week 42.', 'template', ?, ?, ?)",
+      [JSON.stringify(entries), JSON.stringify(old), new Date(FRI).toISOString()]);
+    invalidateGenerated();
+    const w42 = (await api("/api/power-rankings/2026-w42")).week!;
+    expect(w42).toMatchObject({ season: 2026, dataSeason: 2025, statsAsOf: "2026-10-16", worldRankings: "/rankings?season=2025" });
+    expect(w42.entries[0].stats).toMatchObject({ rating: 500, ratingRank: 1 });
+    expect((await renderPage(index, "/power-rankings/2026-w42")).html).toContain("Ratings and records are from the 2025–26 season.");
+    // This season's week 43 counts no movement against it.
+    await run("UPDATE team_season_stats SET season = ? WHERE season = 2025", [S]);
+    await kvSet("data:version", `v${++version}`);
+    const p = await buildPacket(S, "2026-w43", FRI);
+    expect(p.comparedWith).toBeNull();
+    expect(p.notes).toBe('This is week 43 of the 2026–27 FTC season. Call it "week 43", never "2026-w43", and the season "2026–27".');
   });
 });
 

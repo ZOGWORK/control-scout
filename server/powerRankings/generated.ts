@@ -6,7 +6,7 @@ import { registerCache } from "../caches.js";
 import type { BlurbAuthor } from "../../src/shared/powerRankings.js";
 import type { RankingDoc } from "./format.js";
 import type { PacketTeam, StoredPacket } from "./factCheck.js";
-import type { Movement } from "../../src/shared/powerRankings.js";
+import type { Movement, PowerRankingsStats } from "../../src/shared/powerRankings.js";
 
 export type GeneratedStatus = "pending" | "published" | "hidden";
 
@@ -76,6 +76,24 @@ function frozenMovement(t: PacketTeam | undefined, compared: boolean): Movement 
 }
 
 /**
+ * What a team's line shows, from the packet its blurb was written from (never the live numbers): the
+ * name, the rating and its world rank (the packet's rank is the team's place in the live world ranking
+ * then), the OPR and the record. The packet is rebuilt only by the current week's daily check
+ * (./refresh.ts), so a past week's lines are frozen with its text.
+ */
+export function shownOf(t: PacketTeam | undefined): { name: string | null; stats: PowerRankingsStats | null } {
+  if (!t) return { name: null, stats: null };
+  const name = t.name.trim() && t.name !== `Team ${t.team}` ? t.name : null;
+  const r = t.record;
+  return {
+    name,
+    stats: r && r.wins + r.losses + r.ties > 0
+      ? { rating: t.rating, ratingRank: t.rank, opr: t.opr, wins: r.wins, losses: r.losses, ties: r.ties }
+      : null,
+  };
+}
+
+/**
  * A published generated week as a RankingDoc (its text is plain: rendered escaped, never as markdown).
  * Its movement is the frozen one, so arrows and blurbs agree even if the earlier week changes later.
  */
@@ -88,6 +106,7 @@ export function toDoc(g: GeneratedWeek): RankingDoc {
     generated: {
       introSource: g.introSource, sources: g.entries.map((e) => e.source), rev: revOf(g), updated: g.updated,
       comparedWith: g.packet.comparedWith ?? null, droppedOut: (g.packet.droppedOut ?? []).map((d) => ({ team: d.team, lastRank: d.lastRank })),
+      dataSeason: Number(g.packet.season ?? g.season), shown: g.entries.map((e) => shownOf(byTeam.get(e.team))),
     },
   };
 }

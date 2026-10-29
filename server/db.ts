@@ -1412,6 +1412,31 @@ CREATE TABLE digest_sends (
 CREATE INDEX digest_sends_week ON digest_sends (week, status);
 CREATE INDEX digest_sends_email ON digest_sends (email_id);
 `,
+  },  {
+    version: 51,
+    name: "power rankings: week 42's season, plain week names",
+    sql: `
+-- Automatic power-rankings weeks are tagged by the season their dates fall in (server/powerRankings/auto.ts
+-- weekSeason). Week 2026-w42 (Oct 12-18, 2026) went out tagged 2025, because no 2026-27 team was rated yet
+-- and its list was ranked on 2025-26 numbers: it becomes a 2026 week. Its packet keeps season 2025 (the
+-- season its numbers come from), so the page says so and its frozen numbers, order and names stay as written.
+UPDATE power_rankings_refreshes SET season = 2026 WHERE season = 2025 AND week = '2026-w42'
+  AND NOT EXISTS (SELECT 1 FROM power_rankings_generated WHERE season = 2026 AND week = '2026-w42');
+UPDATE power_rankings_generated SET season = 2026 WHERE season = 2025 AND week = '2026-w42'
+  AND NOT EXISTS (SELECT 1 FROM power_rankings_generated WHERE season = 2026 AND week = '2026-w42');
+-- The intros named the week by its id ("week 2026-w43"): written as the page does ("week 43"), and the
+-- season as "2026–27". New weeks get this from the generator (factCheck.ts plainWeekText).
+UPDATE power_rankings_generated SET
+  intro = REPLACE(REPLACE(intro, 'week 2026-w42 of the 2025 season', 'week 42, ranked on the 2025–26 season'), 'week 2026-w42', 'week 42'),
+  entries = REPLACE(entries, 'week 2026-w42', 'week 42'),
+  rev = rev + 1
+WHERE week = '2026-w42' AND (intro LIKE '%2026-w42%' OR entries LIKE '%2026-w42%');
+UPDATE power_rankings_generated SET
+  intro = REPLACE(REPLACE(intro, 'week 2026-w43 of the season', 'week 43 of the 2026–27 season'), 'week 2026-w43', 'week 43'),
+  entries = REPLACE(entries, 'week 2026-w43', 'week 43'),
+  rev = rev + 1
+WHERE week = '2026-w43' AND (intro LIKE '%2026-w43%' OR entries LIKE '%2026-w43%');
+`,
   },
 ];
 
