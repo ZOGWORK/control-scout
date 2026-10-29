@@ -11,6 +11,7 @@ import { EmptyState } from "./page";
 import { Button } from "./ui/button";
 import { ConfidenceBadge } from "./predict";
 import { ErrorState } from "./states";
+import { isFeatureDisabled } from "../lib/api";
 import { oddsPct } from "../lib/format";
 import { bandHits, canRunLocal, localLabel, localTier, projectionSource, projectionTier, rankMovement, useLocalProjection, useProjections, type LocalProjection } from "../lib/projections";
 import { offlineSource } from "../lib/offline/saved";
@@ -87,8 +88,11 @@ export function Projections({ d, team }: { d: EventDetail; team: number | null }
   const rankNow = useMemo(() => new Map(d.field.filter((f) => f.rank != null).map((f) => [f.team, f.rank!])), [d.field]);
   const hasSchedule = d.matches.some((m) => m.level === "qual");
   // The server's stored run whenever there is one; a local estimate only when there's none to be had.
-  const source = projectionSource({ finished, hasCurrent: !!state.data?.current, loaded: !!state.data, failed: !!state.error, hasSchedule, canRunLocal: canRunLocal(e.season) });
-  const local = useLocalProjection(d, source === "local");
+  // Switched off by the owner (403 feature_disabled): never a local estimate in its place, only the switched-off note.
+  const off = isFeatureDisabled(state.error);
+  const source = projectionSource({ finished, hasCurrent: !!state.data?.current, loaded: !!state.data, failed: !!state.error, hasSchedule, canRunLocal: !off && canRunLocal(e.season) });
+  const local = useLocalProjection(d, !off && source === "local");
+  if (off) return <ErrorState error={state.error!} />;
 
   if (source === "local" && (local.status === "running" || local.status === "idle")) return <LocalProgress done={local.status === "running" ? local.done : 0} target={local.status === "running" ? local.target : 0} />;
   if (source === "local" && local.status === "done") {
