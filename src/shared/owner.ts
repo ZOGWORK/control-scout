@@ -85,7 +85,13 @@ export const TRIAGE_NEXT: Record<TriageState | "untriaged", readonly (TriageStat
   fixed: ["accepted", null],
 };
 /** The Moderation tab's queue: untriaged and accepted (not fixed yet) bug reports, data corrections and ideas. */
-export interface TriageQueue { messages: FeedbackMessage[]; counts: Record<TriageState | "untriaged", number> }
+export interface TriageQueue {
+  /** Which list: not triaged yet, or accepted and waiting for a fix. */
+  state: "untriaged" | "accepted";
+  messages: FeedbackMessage[]; counts: Record<TriageState | "untriaged", number>;
+  /** The list holds more than shown (the oldest are left out). */
+  more: boolean;
+}
 
 export type AbuseKind = "rate_limited" | "bot_ua" | "burst";
 export interface OwnerModeration {

@@ -49,7 +49,8 @@ function DailySignals({ daily }: { daily: OwnerModeration["abuse"]["daily"] }) {
 
 export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void }) {
   const [days, setDays] = useState(14);
-  const state = useApi<OwnerModeration>(`/api/owner/moderation?days=${days}`);
+  const [queue, setQueue] = useState<"untriaged" | "accepted">("untriaged");
+  const state = useApi<OwnerModeration>(`/api/owner/moderation?days=${days}&triage=${queue}`);
   return (
     <>
       <div className="mb-4 flex items-center justify-end gap-1" role="group" aria-label="Period">
@@ -89,10 +90,15 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
                 </div>
               ) : <EmptyState icon={ShieldAlert} title="All quiet" description="No request was rate-limited or looked automated in this period." />}
             </Section>
-            <Section title="Triage queue" description="Bug reports, data corrections and ideas from the contact form, newest first: not triaged yet, then accepted and waiting for a fix. A data correction is fixed by a re-sync from FIRST, never by editing a match.">
-              <div className="mb-3 flex flex-wrap gap-2 text-xs">
-                <Badge variant="outline">{int(t.counts.untriaged)} not triaged</Badge>
-                <Badge variant="info">{int(t.counts.accepted)} accepted</Badge>
+            <Section title="Triage queue" description="Bug reports, data corrections and ideas from the contact form, newest first: not triaged yet, or accepted and waiting for a fix. A data correction is fixed by a re-sync from FIRST, never by editing a match.">
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                <div className="flex flex-wrap gap-1" role="group" aria-label="Show">
+                  {(["untriaged", "accepted"] as const).map((k) => (
+                    <Button key={k} size="sm" variant={k === queue ? "default" : "outline"} aria-pressed={k === queue} onClick={() => setQueue(k)}>
+                      {k === "untriaged" ? "Not triaged" : "Accepted"}<span className="tabular-nums opacity-70">{int(t.counts[k])}</span>
+                    </Button>
+                  ))}
+                </div>
                 <Badge variant="success">{int(t.counts.fixed)} fixed</Badge>
                 <Badge variant="secondary">{int(t.counts.rejected)} rejected</Badge>
               </div>
@@ -102,7 +108,10 @@ export function ModerationPanel({ onOpenResync }: { onOpenResync?: () => void })
                     <MessageCard key={m.id} m={m}><div className="mt-3"><TriageActions m={m} onOpenResync={onOpenResync} /></div></MessageCard>
                   ))}
                 </ul>
-              ) : <EmptyState icon={ClipboardCheck} title="Nothing to triage" description="Every bug report, data correction and idea has been decided." />}
+              ) : t.state === "accepted"
+                ? <EmptyState icon={ClipboardCheck} title="Nothing waiting for a fix" description="Every accepted report has been marked fixed." />
+                : <EmptyState icon={ClipboardCheck} title="Nothing to triage" description="Every bug report, data correction and idea has been decided." />}
+              {t.more && <p className="mt-3 text-xs text-muted-foreground">The newest {int(t.messages.length)} are shown; the older ones are in the feedback inbox.</p>}
             </Section>
           </>
         )}

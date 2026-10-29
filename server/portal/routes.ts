@@ -141,7 +141,7 @@ export function ownerRouter(): Router {
   r.get("/moderation", h(async (req) => {
     // Today's numbers so far: what's still in memory goes in first.
     await flushAbuse().catch(() => {});
-    const [abuse, triage] = await Promise.all([abuseSummary(num(req.query.days, 14, 1, 90)), triageQueue()]);
+    const [abuse, triage] = await Promise.all([abuseSummary(num(req.query.days, 14, 1, 90)), triageQueue(req.query.triage === "accepted" ? "accepted" : "untriaged")]);
     return { abuse, triage };
   }));
   // Triage a bug report, data correction or idea: accepted | rejected | fixed, or null to undo. Never edits
