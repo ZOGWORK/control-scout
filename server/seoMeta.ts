@@ -226,7 +226,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
-const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and live rating, OPR and record.";
+const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and its rating, OPR and record that week.";
 
 /** The top of a week's list, for a description: "#1 4215 Hypnotic Robotics, #2 …". */
 const topLine = (r: PowerRankingsResponse, n: number) =>
