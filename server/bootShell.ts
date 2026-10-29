@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../src/shared/boot.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -71,14 +71,15 @@ export const BOOT_STYLE = `<style>
       .csb-home{padding-top:8px}
       .csb .csb-home h1{margin:0;font:600 40px/1.05 "Space Grotesk",sans-serif;letter-spacing:-.02em;color:var(--b-fg)}
       .csb-home h1 span{display:block;color:var(--b-acc)}
+      .csb-hl{display:grid;font:600 40px/1.05 "Space Grotesk",sans-serif;letter-spacing:-.02em}.csb-hl>*{grid-area:1/1}.csb-hl>i{visibility:hidden;font-style:normal}.csb-hl b{display:block;font-weight:inherit}
       .csb-home>p{margin:16px 0 0;max-width:30rem;font-size:16px;line-height:1.5}
-      .csb-home>div{max-width:36rem;height:52px;margin:24px 0 0;border:1px solid var(--b-line);border-radius:12px}
+      .csb-home>div:not(.csb-hl){max-width:36rem;height:52px;margin:24px 0 0;border:1px solid var(--b-line);border-radius:12px}
       .csb .csb-home>p.csb-about{margin:72px 0 0;font-size:14px;line-height:20px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
       .csb .csb-tabs>*{display:flex;flex:1;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
-      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1{font-size:56px}}
+      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1,.csb-hl{font-size:56px}}
       @media (min-width:768px){.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:20rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
       @media (min-width:1024px){.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}.csb-search span{max-width:24rem}}
       @media (max-width:1279px){${rail("")}}
@@ -153,9 +154,12 @@ export function bootShell(path: string, meta: PageMeta): string {
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
     + `<details class="csb-more"${MORE.some((it) => active(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
     + `<script>if(document.documentElement.classList.contains('cs-nav-more'))document.querySelector('.csb-more').open=true</script>`;
+  // Home's headline for this hour; the app reads data-line and keeps it, so its copy matches this paint. Every
+  // line sits invisibly in the same cell (as in the app), so the hero is the app's height from the first frame.
+  const line = homeHeadlineAt(Date.now());
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><h1>${esc(HOME_HEADLINE[0])} <span>${esc(HOME_HEADLINE[1])}</span></h1><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${HOME_HEADLINES.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(HOME_HEADLINES[line][0])} <span>${esc(HOME_HEADLINES[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).
       // A page whose own markup has its H1 (How it works, prerendered) keeps that one: one H1 per page.
