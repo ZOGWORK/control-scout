@@ -41,7 +41,7 @@ for (const season of seasons) {
     const [stats, rows] = await Promise.all([seasonStats(season, team), teamEvents(season, team)]);
     const head: Wlt = stats ? { wins: Number(stats.record.wins), losses: Number(stats.record.losses), ties: Number(stats.record.ties), matches: Number(stats.record.matches) } : { wins: 0, losses: 0, ties: 0, matches: 0 };
     // `played` is the rows' match count; before it existed, FIRST's qualPlayed was the closest a row came.
-    const sum = rows.reduce<Wlt>((a, e: any) => ({ wins: a.wins + (e.wins ?? 0), losses: a.losses + (e.losses ?? 0), ties: a.ties + (e.ties ?? 0), matches: a.matches + (e.played ?? e.qualPlayed ?? 0) }), { wins: 0, losses: 0, ties: 0, matches: 0 });
+    const sum = rows.reduce<Wlt>((a, e: any) => ({ wins: a.wins + (e.wins ?? 0), losses: a.losses + (e.losses ?? 0), ties: a.ties + (e.ties ?? 0), matches: a.matches + (("played" in e ? e.played : e.qualPlayed) ?? 0) }), { wins: 0, losses: 0, ties: 0, matches: 0 });
     const all_ = fromMatches.get(team) ?? { wins: 0, losses: 0, ties: 0, matches: 0 };
     if (!same(sum, head)) { sRows++; if (badRows.length < show) badRows.push(`${team}: rows ${text(sum)} vs season ${text(head)}`); }
     if (!same(head, all_)) { sHead++; if (badHead.length < show) badHead.push(`${team}: season ${text(head)} vs matches ${text(all_)}`); }
