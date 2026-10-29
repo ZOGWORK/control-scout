@@ -25,11 +25,12 @@ const c = createClient({ url: `file:${tmp.replace(/\\/g, "/")}` });
 // A database from before a private table's migration simply doesn't have it: nothing to clear.
 const present = new Set((await c.execute("SELECT name FROM sqlite_master WHERE type = 'table'")).rows.map((r) => String(r.name)));
 // owner_audit is append-only (migration 52's triggers, copied by VACUUM INTO): in this copy only, drop them to
-// clear the table, then put them back so a database restored from the snapshot keeps the guarantee.
-await c.execute("DROP TRIGGER IF EXISTS owner_audit_no_delete");
-await c.execute("DROP TRIGGER IF EXISTS owner_audit_no_edit");
+// clear the table, then put back exactly the ones it had, so a database restored from the snapshot keeps the
+// guarantee. A source from before migration 52 had none and gets none: that migration adds them when it runs.
+const triggers = new Set((await c.execute("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'owner_audit'")).rows.map((r) => String(r.name)));
+for (const name of triggers) await c.execute(`DROP TRIGGER ${name}`);
 for (const t of PRIVATE) if (present.has(t)) await c.execute(`DELETE FROM ${t}`);
-if (present.has("owner_audit")) for (const sql of OWNER_AUDIT_TRIGGERS) await c.execute(sql);
+for (const sql of OWNER_AUDIT_TRIGGERS) if (triggers.has(sql.split(" ")[2])) await c.execute(sql);
 await c.execute("DELETE FROM kv WHERE key LIKE 'packs:%'"); // packs aren't shipped
 await c.execute("PRAGMA journal_mode = DELETE");
 await c.execute("VACUUM");
