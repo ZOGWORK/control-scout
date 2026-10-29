@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.4.4 — 2026-10-29
+## 1.4.8 — 2026-10-29
 
 The owner can switch seven features off and back on from the console, for everyone or (workspace scouting) for one workspace, without anything being deleted.
 
@@ -32,6 +32,69 @@ The owner can switch seven features off and back on from the console, for everyo
 - **Off is never "removed".** A workspace paused by the owner answers the app with `feature_disabled`, which the app shows as "Paused by the owner": queued entries, pick list changes and comments stay on the device and go up once it's back, and nothing is ever moved to Personal.
 - **Friendly when off.** Predict, an event's Odds tab, Home's coin flips and the Power rankings page say the feature is switched off for now, links straight to them included.
 - **Every flip in the audit log.** Global and per-workspace changes record the old and new value ("on → off", "off → follows global"). (#340)
+## 1.4.7 — 2026-10-29
+
+The owner console now shows the engine in production with live and replay side by side, and lets the owner write the home page's headline lines.
+
+### Highlights
+- [home] Write, reorder and switch off the home headline's lines
+- [predict] The engine in production, live against replay, shadow read-only
+- [predict] Calibration by confidence tier in the owner console
+- [rankings] The current power-rankings week and its dates at a glance
+
+### Owner console
+- **Home headline editor.** Rankings & content has the lines the home page's headline goes through, one an hour: add a line (a plain part and a coloured part) with a preview drawn like the home page, edit it, move it up or down, switch it off, or delete it; start from the built-in lines, or go back to them. Lines are kept on the server, so everyone sees the same line in the same hour, and every page's first paint carries them, so the hero still never moves. With no line switched on, or the database out of reach, the built-in lines show. Every change is in the audit log with its old and new words.
+- **Engine in production.** Predictions & ledger opens on the champion engine version, the probability model serving live calls and the shadow model scored beside it, and the public headline. Each season shows live calls and the replay side by side (never added together), live calls by the engine version that made them, and the served model against the shadow model on the same calls. All read-only: the console never changes the engine or promotes a shadow model.
+- **Simulation settings, as values.** How many simulations sit behind event projections, advancement forecasts, simulated rankings and the on-device estimate.
+- **Calibration by confidence tier.** The ledger groups its calls by the tier each one shows publicly, with how sure the favourite was against how often it won.
+- **Power rankings at a glance.** The current week, when it was published and last updated, and when the next one goes out. Regenerate still asks first, and now says plainly that Bruno writes from the week's frozen snapshot, the same facts its stat lines show; if the daily check updates the week while Bruno writes, the regeneration is refused rather than mixing the two. Edits, hides and regenerations record what they replaced in the audit log.
+- **What's new, managed from CHANGELOG.md.** The releases with their dates, highlights and PRs, a check of what the newest entry still needs, and the four steps to publish one. (#339)
+
+## 1.4.6 — 2026-10-29
+
+The owner console gains a Moderation tab, triage for bug reports and data corrections, notes on error reports, and an Analytics tab that decides whether the home page shows how much Control Scout is used.
+
+### Highlights
+- [report] Rate limits and scraper traffic counted per network range, not address
+- [report] Bug reports, data fixes and ideas get accepted, rejected or marked fixed
+- [report] Error reports show their GitHub issue's state and take your own notes
+- [report] Page views, sessions, prediction calls and the ledger in one tab
+- [home] The home page's "in use" section shows only when the owner chooses
+
+### Owner console
+- **Moderation.** Requests answered 429, calls from crawlers and scripts, and minutes where one range sent over 600 requests are counted per UTC day and network range (IPv4 /16, IPv6 /32). An address is cut down to its range before it's counted; no full address, user agent or account is kept, and days older than 90 are dropped.
+- **Triage, in the one inbox.** Bug reports, data corrections and feature ideas from the contact form are accepted, rejected or marked fixed (and can be taken back), from the Moderation tab's queue or the feedback inbox. Fixed and rejected messages move to Resolved. An accepted data correction says how it's fixed: from FIRST through a re-sync, with a button to Data & sync. Match records are never edited by hand.
+- **Error reports.** Each shows its GitHub issue with the issue's state (open, closed, not planned), and takes a note of your own, kept on the server and never sent to GitHub.
+- **Analytics.** Page views and sessions (from visitors who opted in), prediction calls by route, and the prediction ledger's live calls logged and scored, all time and in the period, beside the existing request and latency numbers.
+- **"In use" on the home page.** A console switch, behind a confirmation, publishes or hides the home page's page views and sessions; until it's used, the server setting decides as before.
+- Every triage decision, note and publish choice is in the audit log with its old and new value. (#338)
+
+## 1.4.5 — 2026-10-29
+
+On a phone, the example-match dots on How it works are full-size touch targets again.
+
+### Highlights
+- [fixes] How it works: the example-match dots are 44px touch targets on a phone
+- [fixes] Their size no longer shrinks with the phone's smaller text base
+- [fixes] Desktop keeps its 24px dots, side by side with no overlap
+
+### Fixes
+- **Example-match dots, phone size.** The four dots under How it works' example match are 44px touch targets on a phone, as intended. Since phones moved to a smaller text base they had shrunk to about 38px; their size is now fixed in pixels, so text size doesn't change it. Desktop keeps 24px targets. (#341)
+
+## 1.4.4 — 2026-10-29
+
+The owner console's Data & sync section shows when each season last synced and lists data-quality checks for triage, and a new Packs & offline section shows the offline pack manifest file by file.
+
+### Highlights
+- [report] When each season last synced, at a glance
+- [report] Data-quality flags to triage, never auto-fixed
+- [offline] The offline pack manifest with every file's size and SHA-256
+- [fixes] Re-sync and rebuild ask first; nothing here deletes a pack
+
+### Owner console
+- **Data & sync.** When data last synced, stats were rebuilt, live results ran and packs were built; then every season's last sync, whether it completed, when FIRST's team list was last read, events with results out of all events (and how many came from the fallback source), played matches and what the last run fetched and failed. Re-sync and Clear caches sit below, each behind its confirmation.
+- **Data-quality flags, for triage only.** Five read-only checks, each with a count and its first rows linked: events the last sync couldn't fetch, events that ended over two days ago with no played match, season records whose wins, losses and ties don't add up to the match count, season totals smaller than their events' qualification matches, and sitemap URLs the app would answer with its not-found page. Nothing on this screen changes match data; wrong results come in right with a re-sync. "Check again" runs them now (they're otherwise kept five minutes).
+- **Packs & offline.** A new tab with the manifest (version, built, data as of, engine), the releases kept on the server, and every file with its season, kind, size and full SHA-256 (wrapping on a phone, with a copy button); a file the manifest lists but the disk lacks is marked. Rebuild asks first. There is no delete: packs saved on devices stay until each device updates them. (#337)
 
 ## 1.4.3 — 2026-10-29
 

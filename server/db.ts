@@ -1460,6 +1460,57 @@ ${OWNER_AUDIT_TRIGGERS.join("\n")}
 `,
   },
   {
+    version: 56,
+    name: "owner console: abuse counts, feedback triage, error notes, owner settings",
+    sql: `
+-- Abuse signals per UTC day and coarse network range (server/moderation.ts): IPv4 /16 or IPv6 /32, never a
+-- full address. kind: rate_limited (answered 429) | bot_ua (crawler or script user agent) | burst (a minute
+-- over the per-range request ceiling). Rows older than 90 days are removed as the counters are flushed.
+CREATE TABLE abuse_daily (
+  day TEXT NOT NULL,
+  ip_range TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, ip_range, kind)
+) WITHOUT ROWID;
+-- Triage of contact-form bug reports, data corrections and feature ideas (server/portal/feedback.ts):
+-- NULL (not triaged yet) | accepted | rejected | fixed. A data correction is fixed by a re-sync from FIRST,
+-- never by editing match records.
+ALTER TABLE contact_messages ADD COLUMN triage TEXT;
+ALTER TABLE contact_messages ADD COLUMN triage_at TEXT;
+-- The owner's own note on an error report (server/errorReports.ts), shown in the console only.
+ALTER TABLE error_reports ADD COLUMN owner_note TEXT;
+ALTER TABLE error_reports ADD COLUMN owner_note_at TEXT;
+-- Owner console settings (server/ownerSettings.ts): one JSON value per key, e.g. publicUsage (publish the
+-- home page's "in use" section). A key with no row takes its default (for publicUsage, PUBLIC_USAGE_ENABLED).
+CREATE TABLE owner_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+`,
+  },
+  {
+    version: 55,
+    name: "home hero lines",
+    sql: `
+-- The home page's hero lines, set by the owner in the console (server/heroLines.ts): in order (position),
+-- a plain part and a part in the accent colour, each on or off. No row switched on: the built-in lines show.
+-- Who changed what is in owner_audit, with the old and new values.
+CREATE TABLE hero_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  position INTEGER NOT NULL,
+  plain TEXT NOT NULL,
+  accent TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX hero_lines_order ON hero_lines (position, id);
+`,
+  },
+  {
     version: 53,
     name: "feature toggles: per-workspace overrides",
     sql: `

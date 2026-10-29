@@ -6,15 +6,19 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { ownerOf } from "../owner.js";
 import type { User } from "../auth/session.js";
-import { listErrorReports } from "../errorReports.js";
+import { listErrorReports, OWNER_NOTE_MAX, setErrorNote } from "../errorReports.js";
+import { abuseSummary, flushAbuse } from "../moderation.js";
+import { publishUsageSetting, setPublishUsage } from "../ownerSettings.js";
+import { ownerAnalytics } from "./ownerAnalytics.js";
 import { featureOwnerRoutes } from "./features.js";
 import { flushMetrics, usageSummary } from "../metrics.js";
 import { liveConnections } from "../liveConnections.js";
 import { statsSummary } from "../analytics.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
 import { listAudit, recordAudit } from "./audit.js";
-import { isFeedbackStatus, listFeedback, setFeedbackStatus } from "./feedback.js";
+import { isFeedbackStatus, isTriageState, listFeedback, setFeedbackStatus, setTriage, TriageError, triageQueue } from "./feedback.js";
 import { isOp, opsStatus, startOp } from "./ops.js";
+import { dataReport, packsReport } from "./dataReport.js";
 import { ownerOverview } from "./overview.js";
 import { listUsers, listWorkspaces, userDetail } from "./people.js";
 import { predictionHealth } from "./predictionHealth.js";
@@ -22,6 +26,8 @@ import { ownerStorage, purgeEvent, runPhotoMaintenance } from "../scout/photos.j
 import { r2 } from "../scout/r2.js";
 import { listOrphaned } from "../scout/orphans.js";
 import { powerRankingsOwnerRoutes } from "../powerRankings/ownerRoutes.js";
+import { heroLinesOwnerRoutes } from "./heroLinesRoutes.js";
+import { predictionEngine } from "./predictionEngine.js";
 import { StreamError, listStreams, setEventStream } from "./streams.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -77,6 +83,9 @@ export function ownerRouter(): Router {
     return predictionHealth(kind, season);
   }));
 
+  // The engine in production, live vs replay, the shadow model and the simulation settings: read-only (./predictionEngine.ts).
+  r.get("/predictions/engine", h(async () => predictionEngine()));
+
   // Feature toggles and kill switches (server/portal/features.ts).
   featureOwnerRoutes(r, h, actor);
 
@@ -113,6 +122,60 @@ export function ownerRouter(): Router {
   }));
 
   r.get("/errors", h(async (req) => ({ reports: await listErrorReports(num(req.query.limit, 50, 1, 200)) })));
+  // The owner's note on an error report (an empty note clears it). Console only: never sent to GitHub.
+  r.put("/errors/:fingerprint/note", h(async (req, res) => {
+    const fp = String(req.params.fingerprint);
+    if (!/^[0-9a-f]{8,64}$/.test(fp)) { res.status(404).json({ error: "No such report" }); return; }
+    const note = req.body?.note;
+    if (typeof note !== "string" || note.length > OWNER_NOTE_MAX) { res.status(400).json({ error: `Send {"note": "…"} (up to ${OWNER_NOTE_MAX} characters; empty to clear)` }); return; }
+    const out = await setErrorNote(fp, note);
+    if (!out) { res.status(404).json({ error: "No such report" }); return; }
+    await recordAudit(actor(req), "error.note", { fingerprint: fp }, null, { from: out.was, to: out.report.ownerNote });
+    return { report: out.report };
+  }));
+
+  // Moderation: abuse signals per coarse network range (server/moderation.ts) and the triage queue.
+  r.get("/moderation", h(async (req) => {
+    // Today's numbers so far: what's still in memory goes in first.
+    await flushAbuse().catch(() => {});
+    const [abuse, triage] = await Promise.all([abuseSummary(num(req.query.days, 14, 1, 90)), triageQueue(req.query.triage === "accepted" ? "accepted" : "untriaged")]);
+    return { abuse, triage };
+  }));
+  // Triage a bug report, data correction or idea: accepted | rejected | fixed, or null to undo. Never edits
+  // match records: an accepted data correction is fixed by a re-sync from FIRST (Data & sync).
+  r.patch("/feedback/:id/triage", h(async (req, res) => {
+    const id = num(req.params.id, 0, 0, Number.MAX_SAFE_INTEGER);
+    const to = req.body?.triage;
+    if (!(to === null || isTriageState(to))) { res.status(400).json({ error: "triage must be accepted, rejected, fixed or null" }); return; }
+    try {
+      const { before, after } = await setTriage(id, to);
+      // The change is the triage decision; the inbox list it moved the message between goes in the details.
+      await recordAudit(actor(req), "feedback.triage", { id, topic: before.topic, triage: after.triage, statusFrom: before.status, statusTo: after.status }, null,
+        { from: before.triage, to: after.triage });
+      return { message: after };
+    } catch (e) {
+      if (e instanceof TriageError) { res.status(e.status).json({ error: e.message }); return; }
+      throw e;
+    }
+  }));
+
+  // Analytics: page views, sessions, prediction calls and ledger counts, and the home page's "in use" choice.
+  r.get("/analytics", h(async (req) => {
+    await flushMetrics().catch(() => {});
+    return ownerAnalytics(num(req.query.days, 14, 1, 90));
+  }));
+  r.put("/settings/public-usage", h(async (req, res) => {
+    if (req.body?.confirm !== true) { res.status(400).json({ error: "Confirm with {\"confirm\": true}" }); return; }
+    if (typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false, \"confirm\": true}" }); return; }
+    const was = await setPublishUsage(req.body.enabled, actor(req));
+    await recordAudit(actor(req), "settings.publicUsage", { source: was.source }, null, { from: was.was, to: req.body.enabled });
+    return { publishUsage: await publishUsageSetting() };
+  }));
+
+  // Data & sync and Packs & offline (server/portal/dataReport.ts): read-only reports. The actions they offer are
+  // the confirm-gated ops below; nothing here edits match data.
+  r.get("/data", h(async (req) => dataReport(req.query.fresh === "1")));
+  r.get("/packs", h(async () => packsReport()));
 
   r.get("/ops", h(async () => opsStatus()));
   r.post("/ops/:op", h(async (req, res) => {
@@ -152,6 +215,8 @@ export function ownerRouter(): Router {
 
   // Automatic power rankings (server/powerRankings/auto.ts): the generated weeks and their controls.
   powerRankingsOwnerRoutes(r, h, actor);
+  // The home page's hero lines (./heroLinesRoutes.ts).
+  heroLinesOwnerRoutes(r, h, actor);
 
   r.get("/audit", h(async (req) => ({ entries: await listAudit(num(req.query.limit, 100, 1, 500)) })));
   return r;

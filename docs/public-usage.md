@@ -16,8 +16,12 @@ real zero.
 
 ## Publishing
 
-Off by default. Set `PUBLIC_USAGE_ENABLED=1` (or `true`) in the server's
-environment (`shared/.env` on the VM; see [deploy.md](deploy.md)) and restart.
+Off by default. The owner turns it on or off from the owner console (Analytics →
+"Publish the 'in use' section on the homepage", behind a confirmation and recorded
+in the audit log with the old and new value); it takes effect within a minute, no
+restart. Until that switch is first used, `PUBLIC_USAGE_ENABLED=1` (or `true`) in the
+server's environment (`shared/.env` on the VM; see [deploy.md](deploy.md)) decides,
+as it did before; after that, the console's choice wins.
 
 | State | Response | Panel |
 | --- | --- | --- |

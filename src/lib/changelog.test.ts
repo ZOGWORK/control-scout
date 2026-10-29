@@ -2,7 +2,7 @@
 // app's own version), plus inline pieces and the seen rule.
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { currentRelease, fromOldNumbering, hasUnseenRelease, HIGHLIGHT_TAGS, inlines, markReleaseSeen, nextRelease, parseChangelog, seenRelease } from "./changelog";
+import { currentRelease, fromOldNumbering, hasUnseenRelease, HIGHLIGHT_TAGS, inlines, markReleaseSeen, nextRelease, parseChangelog, releasePrs, releaseProblems, seenRelease } from "./changelog";
 
 const md = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string };
@@ -119,5 +119,19 @@ describe("seen rule", () => {
     markReleaseSeen("1.3.7");
     expect(seenRelease()).toBe("1.3.7");
     vi.unstubAllGlobals();
+  });
+});
+
+describe("what a release still needs (the owner console's What's new check)", () => {
+  it("the newest release in CHANGELOG.md is ready: summary, 3 to 5 tagged highlights, a PR", () => {
+    const [newest] = parseChangelog(md);
+    expect(releaseProblems(newest)).toEqual([]);
+    expect(releasePrs(newest).length).toBeGreaterThan(0);
+  });
+
+  it("names each thing missing", () => {
+    const [e] = parseChangelog("## 9.9.9 — 2026-01-01\n\n### Highlights\n- [nope] One\n- Two\n\n### Notes\n- Control Point #12 only\n");
+    expect(releasePrs(e)).toEqual([]);
+    expect(releaseProblems(e)).toEqual(["No one-line summary under the version heading", "2 highlights (3 to 5 wanted)", "2 highlights have no known [tag]", "No PR linked, e.g. (#335)"]);
   });
 });

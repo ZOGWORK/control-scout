@@ -62,9 +62,11 @@ import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
-import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
+import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
+import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
+import { liveHeroLines } from "./heroLines.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
@@ -218,6 +220,8 @@ export function createApp(opts: { dist?: string } = {}) {
   if (env.r2Fake) app.use("/__fake-r2", fakeR2Router());
   // Request counts and latency per route pattern, for the owner portal (server/metrics.ts).
   app.use(requestMetrics());
+  // Abuse signals (429s, scraper user agents, bursts) per coarse network range, never a full address (server/moderation.ts).
+  app.use(abuseMonitor());
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
@@ -296,6 +300,13 @@ export function createApp(opts: { dist?: string } = {}) {
     return o;
   }));
 
+  // The home hero's lines (server/heroLines.ts): the owner's from the console, else the built-in ones. Every page's
+  // HTML already carries them; this is for a copy of the app without that first paint (development, tests).
+  api.get("/home/headlines", h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return liveHeroLines();
+  }));
+
   // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).
   // Revalidated every time, by browsers and shared caches alike: the open page polls it each minute and rows
   // drop at each venue's midnight, so a cached copy must never be served without asking. The ETag (the stored
@@ -308,11 +319,14 @@ export function createApp(opts: { dist?: string } = {}) {
     return r;
   }));
 
-  // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (PUBLIC_USAGE_ENABLED).
+  // Opt-in page views and sessions started, last 30 days: only when the owner publishes them (the console's
+  // Analytics tab, server/ownerSettings.ts; PUBLIC_USAGE_ENABLED until chosen there).
   api.get("/public-usage", h(async (_req, res) => {
     const u = await cachedPublicUsage();
+    // Hiding the figures in the console must reach visitors within a minute: the owner setting is read at most
+    // SETTINGS_TTL_MS (10 s) old, so browsers and shared caches keep an answer 45 s and never serve it stale.
     // An unreadable feed answers 200 with its reason (the panel says so), but isn't kept by caches.
-    if (u.reason === "error") res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", u.reason === "error" ? "no-store" : `public, max-age=${PUBLIC_USAGE_MAX_AGE_S}, must-revalidate`);
     return u;
   }));
 

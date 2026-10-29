@@ -67,7 +67,7 @@ export interface HomeOverview {
 
 /** Why public usage isn't shown. */
 export type PublicUsageUnavailable =
-  /** The owner hasn't turned publishing on (PUBLIC_USAGE_ENABLED). */
+  /** The owner hasn't turned publishing on (owner console, else PUBLIC_USAGE_ENABLED). */
   | "not-published"
   /** Publishing is on but nothing has been collected yet. */
   | "no-data"

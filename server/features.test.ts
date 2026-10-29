@@ -191,9 +191,9 @@ describe("gated routes", () => {
     expect((await dailyRefreshTick(Date.parse("2026-10-24T05:00:00Z"))).status).toBe("off");
   });
 
-  it("the track record and public team and event data are never gated", async () => {
+  it("the track record, public team and event data and the home headlines are never gated", async () => {
     await allOff();
-    for (const p of ["/api/predict/accuracy", "/api/teams/1", "/api/events/2025/USNJQ1", "/api/events?season=2025", "/api/search?q=a", "/api/rankings", "/api/meta"]) {
+    for (const p of ["/api/predict/accuracy", "/api/teams/1", "/api/events/2025/USNJQ1", "/api/events?season=2025", "/api/search?q=a", "/api/rankings", "/api/meta", "/api/home/headlines", "/api/home/overview"]) {
       const r = await call("GET", p);
       expect(r.json?.error, p).not.toBe("feature_disabled");
       expect(r.status, p).not.toBe(403);

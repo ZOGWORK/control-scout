@@ -167,7 +167,8 @@ https://controlscout.org.
 - **Public usage on the home page** ([public-usage.md](public-usage.md)): off by default. To publish
   the opt-in page views and sessions started for the last 30 days, add `PUBLIC_USAGE_ENABLED=1` to
   `shared/.env` and restart (`sudo systemctl restart control-scout`). Remove it (or set `0`) and
-  restart to stop publishing; the home page then says the figures aren't published.
+  restart to stop publishing; the home page then says the figures aren't published. The owner
+  console's Analytics tab has a switch for the same thing (no restart); once used, it wins over the env.
 - **Logs:** `journalctl -u control-scout -f`
 - **Restarts without errors:** the port belongs to the `control-scout.socket` unit, not to
   the server. systemd keeps it open through every restart and hands it to each new server,
