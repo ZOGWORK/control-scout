@@ -51,6 +51,23 @@ describe("canonical redirects", () => {
     expect((await get("/index.html", "controlscout.org")).headers.get("location")).toBe("https://controlscout.org/");
     expect((await get("/team/4215/", "www.controlscout.org")).headers.get("location")).toBe("https://controlscout.org/teams/4215");
   });
+  it("How it works has one URL: its old Predict addresses 301 to /methodology (the track record to its section)", async () => {
+    for (const host of ["controlscout.org", "127.0.0.1", "www.controlscout.org"]) {
+      for (const [from, to] of [
+        ["/predict/how-it-works", "https://controlscout.org/methodology"],
+        ["/predict/how-it-works/", "https://controlscout.org/methodology"],
+        ["/Predict/How-It-Works", "https://controlscout.org/methodology"],
+        ["/predict/accuracy", "https://controlscout.org/methodology#accuracy"],
+        ["/predict/accuracy/?season=2025", "https://controlscout.org/methodology?season=2025#accuracy"],
+      ]) {
+        const r = await get(from, host);
+        expect(r.status, `${host}${from}`).toBe(301);
+        expect(r.headers.get("location")).toBe(to);
+      }
+    }
+    expect((await get("/methodology", "controlscout.org")).status).toBe(200);
+    expect((await get("/predict", "controlscout.org")).status).toBe(200);
+  });
   it("never redirects off the site (//host paths collapse; every redirect is absolute on the apex)", async () => {
     for (const p of ["//attacker.example/foo/", "///attacker.example/foo", "//attacker.example"]) {
       const loc = (await get(p, "controlscout.org")).headers.get("location")!;
