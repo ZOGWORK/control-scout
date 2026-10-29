@@ -171,14 +171,21 @@ describe("Content-Security-Policy", () => {
       for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     }
   });
-  it("never puts an R2_ACCOUNT_ID that isn't an account id in the policy (a token pasted in by mistake)", () => {
-    const saved = process.env.R2_ACCOUNT_ID;
-    process.env.R2_ACCOUNT_ID = "cfat_notAnAccountId123";
+  it("never puts an R2_ACCOUNT_ID or R2_ENDPOINT that isn't one in the policy (a token pasted in by mistake)", () => {
+    const saved = { R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID, R2_ENDPOINT: process.env.R2_ENDPOINT };
     try {
+      process.env.R2_ACCOUNT_ID = "cfat_notAnAccountId123";
       expect(buildCsp([])).not.toContain("cfat_");
       expect(buildCsp([])).not.toContain("r2.cloudflarestorage.com");
+      // The endpoint wins over the account id, so it gets the same check.
+      process.env.R2_ACCOUNT_ID = ACCT;
+      process.env.R2_ENDPOINT = "https://cfat_notAnAccountId123.r2.cloudflarestorage.com";
+      expect(buildCsp([])).not.toContain("cfat_");
+      expect(buildCsp([])).toContain(`https://${ACCT}.r2.cloudflarestorage.com`);
+      process.env.R2_ENDPOINT = "https://abc-1.example.com/";
+      expect(buildCsp([])).toContain("https://abc-1.example.com");
     } finally {
-      if (saved === undefined) delete process.env.R2_ACCOUNT_ID; else process.env.R2_ACCOUNT_ID = saved;
+      for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     }
   });
 });
