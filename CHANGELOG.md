@@ -20,10 +20,10 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 The owner console now shows the engine in production with live and replay side by side, and lets the owner write the home page's headline lines.
 
 ### Highlights
-- [home] The home page's headline lines can be written, reordered and switched off from the console
-- [predict] The console shows the engine in production, live against replay, and the shadow model, read-only
-- [predict] Calibration by confidence tier: how honest rough guesses, fair and solid calls each are
-- [rankings] Power rankings show the current week's published and updated dates at a glance
+- [home] Write, reorder and switch off the home headline's lines
+- [predict] The engine in production, live against replay, shadow read-only
+- [predict] Calibration by confidence tier in the owner console
+- [rankings] The current power-rankings week and its dates at a glance
 
 ### Owner console
 - **Home headline editor.** Rankings & content has the lines the home page's headline goes through, one an hour: add a line (a plain part and a coloured part) with a preview drawn like the home page, edit it, move it up or down, switch it off, or delete it; start from the built-in lines, or go back to them. Lines are kept on the server, so everyone sees the same line in the same hour, and every page's first paint carries them, so the hero still never moves. With no line switched on, or the database out of reach, the built-in lines show. Every change is in the audit log with its old and new words.
