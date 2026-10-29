@@ -1,6 +1,6 @@
 // The home page's hero lines, as the owner sets them in the console (Rankings & content): table
 // hero_lines (migration 55), in order, each on or off. The home page rotates through the lines that are
-// on, one an hour by the clock (src/shared/boot.ts homeHeadlineAt), the same line for everyone. With no
+// on, one every 10 minutes by the clock (src/shared/boot.ts homeHeadlineAt), the same line for everyone. With no
 // saved line switched on, or the database out of reach, it shows the built-in lines (DEFAULT_HERO_LINES).
 //
 // Read on every page's first paint (server/seo.ts renderPage), so the lines in use are kept in memory for

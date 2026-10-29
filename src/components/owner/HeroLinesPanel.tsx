@@ -1,7 +1,7 @@
-// The owner console's hero-line editor (Rankings & content): the home page's headline, which changes on the
-// hour through a list of lines. Add, edit, reorder, switch on or off and preview lines (a plain part and a part
+// The owner console's hero-line editor (Rankings & content): the home page's headline, which changes every
+// 10 minutes through a list of lines. Add, edit, reorder, switch on or off and preview lines (a plain part and a part
 // in the accent colour), start from the built-in lines, or go back to them. Saved on the server (hero_lines),
-// so every visitor gets the same line in the same hour; each change is in the audit log with its old and new value.
+// so every visitor gets the same line at the same time; each change is in the audit log with its old and new value.
 import { useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Clock, Eye, Megaphone, Pencil, Plus, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Section } from "../page";
@@ -159,7 +159,7 @@ export function HeroLinesPanel() {
     try { saved((await apiFetch<{ panel: OwnerHeroLines }>(`${PATH}/order`, { method: "PUT", json: { ids } })).panel); } catch (e) { toast.error((e as ApiError).message); }
   };
   return (
-    <Section title="Home headline" description="The big line at the top of the home page. It changes on the hour, going through the lines that are on in this order, and everyone sees the same line in the same hour. The home page keeps room for the longest line, so nothing below it moves when it changes.">
+    <Section title="Home headline" description="The big line at the top of the home page. It changes every 10 minutes, going through the lines that are on in this order, and everyone sees the same line at the same time. The home page keeps room for the longest line, so nothing below it moves when it changes.">
       <Async state={state}>
         {(p) => {
           const now = p.live.lines[p.live.index] ?? p.live.lines[0];
