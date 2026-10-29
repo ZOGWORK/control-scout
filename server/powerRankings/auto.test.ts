@@ -380,6 +380,17 @@ describe("a week is frozen with its text", () => {
     expect(page.html).toContain("Stats as of Oct 23, 2026.");
   });
 
+  it("a team with no name when the week went out stays nameless in that week, on its page and in the archive", async () => {
+    await run("UPDATE teams SET name = NULL WHERE number = 7000");
+    await autoPowerRankingsTick(FRI);
+    await run("UPDATE teams SET name = 'Named Later' WHERE number = 7000");
+    invalidateGenerated();
+    const w = (await api("/api/power-rankings/2026-w43")).week!;
+    expect(w.entries.find((e) => e.team === 7000)?.name).toBeNull();
+    const archive = await api("/api/power-rankings");
+    expect(JSON.stringify(archive)).not.toContain("Named Later");
+  });
+
   it("the list is in the order of the rating it shows, and each line's world rank is its place", async () => {
     await autoPowerRankingsTick(FRI);
     await rate([7003, 7001, 7000, ...TEAMS.filter((t) => t > 7003), 7002]); // the live order moves after it went out
