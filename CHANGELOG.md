@@ -25,7 +25,7 @@ The home page's headline changes every hour, one of thirteen lines about what Co
 - [home] The page never jumps when the line changes
 
 ### Home
-- **Thirteen headlines, one an hour.** From "Know the match before it starts." to "The field, figured out.", they take turns on the hour, the same line for everyone at the same time. An open page changes on the hour with a short fade (no motion with reduced motion turned on), and the hero keeps its height, so nothing below it moves. There is still one heading, and screen readers aren't told about the change.
+- **Thirteen headlines, one an hour.** From "Know the match before it starts." to "The field, figured out.", they take turns on the hour, the same line for everyone at the same time. An open page changes on the hour with a short fade (no motion with reduced motion turned on), and the hero keeps its height, so nothing below it moves. There is still one heading, and screen readers aren't told about the change. (#330)
 
 ## 1.3.8 — 2026-10-28
 
