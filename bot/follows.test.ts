@@ -3,6 +3,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { all, kvSet, migrate, openDb, run, setDb } from "../server/db";
 import { clearAllCaches } from "../server/caches";
+import { setFlag } from "../server/flags";
 import { CURRENT_SEASON as S } from "../server/data/seasons";
 import type { MatchView } from "../src/shared/api";
 import { MAX_FAILURES, REMIND_MS, addFollow, dueNow, listFollows, notifyTick, postEmbed, removeFollow, type Follow } from "./follows";
@@ -89,6 +90,18 @@ describe("follows and the tick, on a database", () => {
     expect(channel).toBe("c1");
     expect(embed.title).toBe("Austin Qualifier · Q7");
     expect(embed.description).toMatch(/^\*\*18360\*\* & \*\*4215\*\* play/);
+  });
+
+  it("turned off by the owner (the discordBot toggle): nothing is posted and every follow is kept; back on, the post goes", async () => {
+    await addFollow("g", "c1", 18360, "u", NOW - 864e5);
+    const send = vi.fn(async () => "ok" as const);
+    await setFlag("discordBot", false, "owner@example.com");
+    try {
+      expect(await notifyTick(send, "s", () => {}, NOW)).toBe(0);
+      expect(send).not.toHaveBeenCalled();
+      expect(await listFollows("g")).toEqual([{ team: 18360, channel_id: "c1", name: "Gear Grinders" }]);
+    } finally { await setFlag("discordBot", true, "owner@example.com"); }
+    expect(await notifyTick(send, "s", () => {}, NOW)).toBe(1);
   });
 
   it("a passing failure is tried again next tick; a channel that's gone is dropped after repeated failures", async () => {

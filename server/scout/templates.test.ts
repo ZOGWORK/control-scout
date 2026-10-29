@@ -250,12 +250,12 @@ describe("workspace templates", () => {
     } finally { ac.abort(); }
   });
 
-  it("workspace scouting paused in the owner portal: reads and saves answer 503", async () => {
+  it("workspace scouting paused in the owner portal: reads and saves answer 403 feature_disabled", async () => {
     const { admin } = await team("413");
     await setFlag("workspaceScouting", false, "owner@test");
     try {
-      expect((await admin("GET", url("413"))).status).toBe(503);
-      expect((await put(admin, "413", { season: 2025, match: [field()] })).status).toBe(503);
+      expect((await admin("GET", url("413"))).status).toBe(403);
+      expect((await put(admin, "413", { season: 2025, match: [field()] })).status).toBe(403);
     } finally { await setFlag("workspaceScouting", true, "owner@test"); }
   });
 });

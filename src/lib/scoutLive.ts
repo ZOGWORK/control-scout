@@ -27,6 +27,7 @@ import { announceMatchAssignments } from "./slotAssignments";
 import type { AssignmentNotice, MatchAssignmentNotice } from "../shared/assignments";
 import { announceComment, announceCommentsResync } from "./scoutComments";
 import { isCommentEvent } from "../shared/comments";
+import { isAccessDenied } from "./api";
 
 /** off: Personal, signed out or hidden · connecting · live · polling (the fallback) · revoked: the server ended it (no access). */
 export type LiveMode = "off" | "connecting" | "live" | "polling" | "revoked";
@@ -64,7 +65,7 @@ export function followWorkspace(space: string, onMode: (m: LiveMode) => void, de
   // A pull that worked: open comment threads and the card counts refetch too (scoutComments.ts).
   const poll = () => {
     pull(space).then(() => { if (!stopped) announceCommentsResync(space); })
-      .catch((e: unknown) => { if ((e as { status?: unknown } | null)?.status === 403) revoked(); });
+      .catch((e: unknown) => { if (isAccessDenied(e)) revoked(); }); // 403 feature_disabled (paused by the owner): keep polling
   };
   const startPolling = () => {
     setMode("polling");

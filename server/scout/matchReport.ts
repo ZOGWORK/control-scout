@@ -4,7 +4,7 @@
 //
 // GET /api/scout/workspaces/:workspaceId/match-report?season=YYYY&event=CODE&teams=1,2,3,4
 //   Members only, checked exactly as reading the workspace's entries (workspaceAccess: 401 signed out,
-//   403 not a member or not linked, 503 while workspace scouting is paused). Never cached beyond the asker
+//   403 not a member or not linked, 403 feature_disabled while workspace scouting is switched off for the workspace). Never cached beyond the asker
 //   (private, no-store). consensusFor reads this workspace only, after that check.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { isWorkspaceId } from "../auth/controlPoint.js";
@@ -28,9 +28,9 @@ export function matchReportRouter(): Router {
     res.set("Cache-Control", "private, no-store");
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-    if (await workspacePaused(res)) return;
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     const season = Number(req.query.season);
     if (!isSeason(season)) { res.status(400).json({ error: "season required" }); return; }
     const event = normalEventCode(req.query.event);

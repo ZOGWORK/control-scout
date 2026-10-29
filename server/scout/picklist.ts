@@ -3,8 +3,8 @@
 // remove from, reorder and annotate.
 //
 // - Reads and writes need the signed-in user's linked Control Point account to be a member of the
-//   workspace right now (workspaceAccess, as entries): 403 otherwise, 401 signed out, 503 while
-//   workspace scouting is paused in the owner portal. Writes are JSON only (CSRF).
+//   workspace right now (workspaceAccess, as entries): 403 otherwise, 401 signed out, 403 feature_disabled while
+//   workspace scouting is switched off for the workspace. Writes are JSON only (CSRF).
 // - Ordering (src/shared/picklist.ts): changes to one workspace's lists are applied one at a time, in the
 //   order they arrive (serialized), each as an operation that names teams ("move 18360 to just before
 //   7393"), never positions. Two members reordering at once both get their move, in arrival order; one
@@ -240,9 +240,9 @@ async function member(req: Request, res: Response, write = false): Promise<{ use
   res.set("Cache-Control", "no-store");
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Sign in first." }); return null; }
-  if (await workspacePaused(res)) return null;
   const workspaceId = req.params.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
+  if (await workspacePaused(res, workspaceId)) return null;
   const access = await workspaceAccess(user, workspaceId, { write });
   if (!access.ok) { res.status(access.status).json(accessError(access)); return null; }
   return { user, m: access.membership };

@@ -102,4 +102,16 @@ describe("fetchManifest and navigator.onLine", () => {
     expect(err).toBeInstanceOf(ManifestError);
     expect(err.message).toMatch(/You're offline/);
   });
+
+  it("reads 403 feature_disabled (the owner's offline packs toggle) as paused, in the server's words; an older server's 503 too", async () => {
+    const { fetchManifest, ManifestError } = await import("./packs");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "feature_disabled", feature: "offlinePacks", paused: true, message: "Offline packs are paused right now." }), { status: 403 })));
+    const off = await fetchManifest().catch((e) => e);
+    expect(off).toBeInstanceOf(ManifestError);
+    expect(off).toMatchObject({ reason: "paused", message: "Offline packs are paused right now." });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Paused for now.", paused: true }), { status: 503 })));
+    expect(await fetchManifest().catch((e) => e)).toMatchObject({ reason: "paused", message: "Paused for now." });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "nope" }), { status: 403 })));
+    expect(await fetchManifest().catch((e) => e)).toMatchObject({ reason: "failed" });
+  });
 });

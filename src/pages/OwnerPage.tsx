@@ -15,7 +15,6 @@ import { Async, LoadingBlock } from "../components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Badge, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
-import { Switch } from "../components/ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { cn } from "../components/cn";
@@ -24,10 +23,10 @@ import { useMediaQuery, useTitle } from "../lib/meta";
 import { ExpandableText } from "../components/ExpandableText";
 import { ago, int, pct, seasonLabel } from "../lib/format";
 import { fmtBytes } from "../lib/recordings";
-import { refreshFlags } from "../lib/flags";
+import { FeaturesPanel } from "../components/owner/FeaturesPanel";
 import { FLAG_INFO } from "../shared/flags";
 import type {
-  AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, FlagRow, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
+  AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
 } from "../shared/owner";
 import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
@@ -112,7 +111,7 @@ export default function OwnerPage() {
             <StreamsPanel />
             <WhatsNewPanel />
           </TabsContent>
-          <TabsContent value="features"><FlagsPanel /></TabsContent>
+          <TabsContent value="features"><FeaturesPanel /></TabsContent>
           <TabsContent value="feedback" className="space-y-8"><FeedbackPanel /><ErrorsPanel /></TabsContent>
           <TabsContent value="analytics"><UsagePanel /></TabsContent>
           <TabsContent value="accounts" className="space-y-8"><UsersPanel /><OrphanedPanel /></TabsContent>
@@ -701,52 +700,6 @@ function WeeklyChart({ weeks }: { weeks: PredictionHealth["weekly"] }) {
   );
 }
 
-// --- Feature flags ----------------------------------------------------------------------------
-
-function FlagsPanel() {
-  const state = useApi<{ flags: FlagRow[] }>("/api/owner/flags");
-  const [busy, setBusy] = useState<Flag | null>(null);
-  const toggle = async (f: FlagRow, enabled: boolean) => {
-    setBusy(f.name);
-    try {
-      const r = await apiFetch<{ flags: FlagRow[] }>(`/api/owner/flags/${f.name}`, { method: "PUT", json: { enabled } });
-      prime("/api/owner/flags", r);
-      void refreshFlags();
-      toast.success(`${FLAG_INFO[f.name].label} ${enabled ? "on" : "off"}. It takes effect within a few seconds.`);
-    } catch (e) {
-      toast.error((e as ApiError).message);
-    } finally { setBusy(null); }
-  };
-  return (
-    <Section title="Switches" description="Turn a feature off without a deploy, and back on again. Every server picks a change up within a few seconds; open pages within a few minutes.">
-      <Async state={state}>
-        {({ flags }) => (
-          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
-            {flags.map((f) => {
-              const info = FLAG_INFO[f.name];
-              const id = `flag-${f.name}`;
-              return (
-                <li key={f.name} className="flex items-start gap-4 p-4">
-                  <div className="min-w-0 flex-1">
-                    <label htmlFor={id} className="flex flex-wrap items-center gap-2 font-medium text-foreground">
-                      {info.label}
-                      <Badge variant={f.enabled ? "success" : "destructive"}>{f.enabled ? "On" : "Off"}</Badge>
-                    </label>
-                    <p className="mt-1 text-sm text-muted-foreground">{f.enabled ? info.on : info.off}</p>
-                    {info.pending && <p className="mt-1 text-xs text-muted-foreground/80">{info.pending}</p>}
-                    <p className="mt-1 text-xs text-muted-foreground/80">{f.updatedAt ? `Changed ${ago(f.updatedAt)} by ${f.updatedBy}` : "Never changed: on by default"}</p>
-                  </div>
-                  <Switch id={id} className="mt-1" checked={f.enabled} disabled={busy === f.name} onCheckedChange={(v) => void toggle(f, v)} aria-label={`${info.label}: ${f.enabled ? "on" : "off"}`} />
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Async>
-    </Section>
-  );
-}
-
 // --- Feedback inbox ---------------------------------------------------------------------------
 
 const TOPIC: Record<string, string> = { bug: "Bug", data: "Wrong data", feature: "Idea", other: "Other" };
@@ -1026,6 +979,7 @@ function describe(e: AuditEntry): string {
   const d = e.details ?? {};
   switch (e.action) {
     case "flag.set": return `Turned ${FLAG_INFO[d.flag as Flag]?.label ?? String(d.flag)} ${d.enabled ? "on" : "off"}`;
+    case "flag.workspace": return `${FLAG_INFO[d.flag as Flag]?.label ?? String(d.flag)} for ${String(d.workspace || "a workspace")}: ${d.enabled === null ? "follows the global switch" : d.enabled ? "on" : "off"}`;
     case "stream.set": return `Set the live stream of ${String(d.code ?? "")} (${d.season})`;
     case "stream.remove": return `Removed the live stream of ${String(d.code ?? "")} (${d.season})`;
     case "feedback.status": return `${d.status === "open" ? "Reopened" : d.status === "resolved" ? "Resolved" : "Archived"} feedback #${d.id}`;

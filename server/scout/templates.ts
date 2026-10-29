@@ -168,9 +168,9 @@ export function templateRouter(): Router {
   r.get("/workspaces/:workspaceId/template", h(async (req, res) => {
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-    if (await workspacePaused(res)) return;
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     const season = Number(req.query.season);
     if (!isSeason(season)) { res.status(400).json({ error: "season required" }); return; }
     const access = await workspaceAccess(user, workspaceId);

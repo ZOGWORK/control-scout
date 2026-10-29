@@ -164,7 +164,7 @@ describe("owner console", () => {
     // A change shows its old and new value.
     expect(within(list).getAllByTestId("audit-change").map((c) => c.textContent)).toEqual(["Changed on → off"]);
     // Short ones get no toggle.
-    expect(short.textContent).toContain("Turned Offline packs off");
+    expect(short.textContent).toContain("Turned Offline pack auto-updates off");
     expect(within(short).queryByRole("button")).toBeNull();
     const last = within(list).getAllByTestId("audit-entry")[2];
     expect(last.textContent).toContain("Clear caches");

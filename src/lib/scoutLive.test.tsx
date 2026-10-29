@@ -135,6 +135,20 @@ describe("followWorkspace", () => {
     expect(pull).toHaveBeenCalledTimes(2);
   });
 
+  it("polling and the pull answers 403 feature_disabled (paused by the owner): never revoked, it keeps polling and picks up again", async () => {
+    let paused = true;
+    const pull = vi.fn(async () => { if (paused) throw Object.assign(new Error("paused"), { status: 403, code: "feature_disabled", feature: "workspaceScouting" }); });
+    const { modes, stop } = follow({ EventSource: undefined, pull });
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS * 3); });
+    expect(modes).not.toContain("revoked");
+    expect(modes.at(-1)).toBe("polling");
+    const calls = pull.mock.calls.length;
+    paused = false;
+    await act(async () => { await vi.advanceTimersByTimeAsync(POLL_MS); });
+    expect(pull.mock.calls.length).toBeGreaterThan(calls);
+    stop();
+  });
+
   it("polling and the pull is refused (403: no longer a member): revoked for good; other failures keep polling", async () => {
     let status = 500;
     const pull = vi.fn(async () => { throw Object.assign(new Error("no"), { status }); });

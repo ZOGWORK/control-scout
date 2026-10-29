@@ -5,10 +5,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "../env.js";
 import type { Manifest } from "./build.js";
-import { isEnabled } from "../flags.js";
+import { featureDisabled, isEnabled } from "../flags.js";
+import { featureOffMessage } from "../../src/shared/flags.js";
 
-/** Offline packs switched off in the owner portal: every pack URL says so (503), nothing is served. */
-export const PACKS_PAUSED = "Offline packs are paused right now. Predictions and pages still work online.";
+/** Offline packs switched off by the owner (the offlinePacks feature toggle): every pack URL answers 403
+ *  {error: "feature_disabled", feature: "offlinePacks", paused: true}, nothing is served. The files stay on disk. */
+export const PACKS_PAUSED = featureOffMessage("offlinePacks");
 
 export const packsDir = () => join(env.dataDir, "packs");
 
@@ -31,8 +33,7 @@ export function packsRouter(): Router {
   r.use((_req: Request, res: Response, next: NextFunction) => {
     isEnabled("offlinePacks").then((on) => {
       if (on) return next();
-      res.setHeader("Cache-Control", "no-store");
-      res.status(503).json({ error: PACKS_PAUSED, paused: true });
+      featureDisabled(res, "offlinePacks", { paused: true });
     }, next);
   });
   r.get("/latest.json", (_req, res) => {

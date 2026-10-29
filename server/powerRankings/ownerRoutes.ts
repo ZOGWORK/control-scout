@@ -4,7 +4,7 @@
 // Every change needs {"confirm": true} (the panel's confirmation dialog sends it) and is audited.
 import type { Request, Response, Router } from "express";
 import { all } from "../db.js";
-import { isEnabled } from "../flags.js";
+import { featureDisabled, isEnabled } from "../flags.js";
 import { recordAudit } from "../portal/audit.js";
 import { brunoAvailable } from "../auth/controlPoint.js";
 import { isWeekId } from "../../src/shared/powerRankings.js";
@@ -82,9 +82,14 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
     return false;
   };
 
+  // The console's own read is never gated: with power rankings publishing switched off the owner still sees every week.
   r.get("/power-rankings", h(async () => ownerPowerRankings()));
 
+  // Publishing (now, or Bruno writing a week again) is: 403 feature_disabled while the powerRankings toggle is off.
+  const publishing = async (res: Response) => { if (await isEnabled("powerRankings")) return true; featureDisabled(res, "powerRankings"); return false; };
+
   r.post("/power-rankings/publish-now", h(async (req, res) => {
+    if (!(await publishing(res))) return;
     if (!confirmed(req, res)) return;
     const out = await publishNow(Date.now(), (m) => console.log(`[owner] ${m}`));
     const result = out.status === "published" ? `published: ${out.bruno} by Bruno, ${out.template} from the template`
@@ -99,6 +104,7 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
   r.post("/power-rankings/:season/:week/regenerate", h(async (req, res) => {
     const t = target(req);
     if (!t) { res.status(404).json({ error: "No such week" }); return; }
+    if (!(await publishing(res))) return;
     if (!confirmed(req, res)) return;
     const out = await regenerateWeek(t.season, t.week, (m) => console.log(`[owner] ${m}`));
     if (out === null) { res.status(404).json({ error: "No such week" }); return; }

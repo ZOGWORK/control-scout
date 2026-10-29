@@ -1452,6 +1452,23 @@ CREATE TRIGGER owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT R
 CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
 `,
   },
+  {
+    version: 53,
+    name: "feature toggles: per-workspace overrides",
+    sql: `
+-- The owner console's feature toggles (server/flags.ts): a workspace-scoped feature (workspace scouting) can be
+-- switched on or off for one Control Point workspace, whatever the global switch says. No row: the workspace
+-- follows the global switch. Removing a row is how an override is cleared; the feature's data is never touched.
+CREATE TABLE workspace_flag_overrides (
+  cp_workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  PRIMARY KEY (cp_workspace_id, name)
+);
+`,
+  },
 ];
 
 export type Db = Client;

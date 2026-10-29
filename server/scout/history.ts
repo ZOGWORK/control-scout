@@ -12,7 +12,7 @@
 //   kept on the loser's device); the activity feed logs it as entry.version_restored.
 //
 // GET /api/scout/workspaces/:workspaceId/entries/:uuid/history: the versions, newest first, for members
-// (401 signed out, 503 paused, 400 bad id, 403 not a member, 404 no such entry).
+// (401 signed out, 403 feature_disabled while paused, 400 bad id, 403 not a member, 404 no such entry).
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
 import { all } from "../db.js";
@@ -97,9 +97,9 @@ export function historyRouter(): Router {
     res.set("Cache-Control", "no-store");
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-    if (await workspacePaused(res)) return;
     const { workspaceId, uuid } = req.params;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(uuid)) { res.status(400).json({ error: "Invalid entry id" }); return; }
     const access = await workspaceAccess(user, workspaceId);
     if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }

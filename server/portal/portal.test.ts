@@ -146,7 +146,10 @@ describe("feature flags", () => {
   it("are all on by default, for the app too", async () => {
     const r = await call("GET", "/api/flags");
     // photos and push: on, yet false for the app here: they also need R2 and VAPID keys, which this server doesn't have.
-    expect(r.json.flags).toEqual({ realtime: true, workspaceScouting: true, errorReporting: true, offlinePacks: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true });
+    expect(r.json.flags).toEqual({
+      livePredictions: true, advancementOdds: true, powerRankings: true, coinFlips: true, offlinePacks: true, discordBot: true, workspaceScouting: true,
+      realtime: true, errorReporting: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true,
+    });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });
 
@@ -166,16 +169,17 @@ describe("feature flags", () => {
     expect(Number((await get<{ n: number }>("SELECT COUNT(*) n FROM error_reports"))!.n)).toBe(before + 1);
   });
 
-  it("switching offline packs off makes every pack URL say so", async () => {
-    await call("PUT", "/api/owner/flags/offlinePacks", { cookie: ownerCookie, body: { enabled: false } });
+  it("switching offline packs off makes every pack URL say so (403 feature_disabled, still marked paused)", async () => {
+    await call("PUT", "/api/owner/flags/offlinePacks", { cookie: ownerCookie, body: { enabled: false, confirm: true } });
     for (const p of ["/packs/latest.json", "/packs/scout-pack-2026-10-15-1-lite.json.gz"]) {
       const r = await call("GET", p);
-      expect(r.status, p).toBe(503);
-      expect(r.json).toMatchObject({ paused: true });
-      expect(r.json.error).toMatch(/paused/);
+      expect(r.status, p).toBe(403);
+      expect(r.json).toMatchObject({ error: "feature_disabled", feature: "offlinePacks", paused: true });
+      expect(r.json.message).toMatch(/paused/);
+      expect(r.headers.get("cache-control")).toBe("no-store");
     }
-    await call("PUT", "/api/owner/flags/offlinePacks", { cookie: ownerCookie, body: { enabled: true } });
-    expect((await call("GET", "/packs/latest.json")).status).not.toBe(503);
+    await call("PUT", "/api/owner/flags/offlinePacks", { cookie: ownerCookie, body: { enabled: true, confirm: true } });
+    expect((await call("GET", "/packs/latest.json")).status).not.toBe(403);
   });
 
   it("a change made by another process shows here within the cache's lifetime, no restart", async () => {

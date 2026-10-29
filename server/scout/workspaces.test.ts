@@ -293,7 +293,7 @@ describe("workspace scout entries", () => {
 });
 
 describe("the workspaceScouting switch (owner portal)", () => {
-  it("off: shared pushes and pulls answer 503 paused and write nothing; personal scouting is unaffected; back on: works again", async () => {
+  it("off: shared pushes and pulls answer 403 feature_disabled and write nothing; personal scouting is unaffected; back on: works again", async () => {
     const a = accountFor("paused@example.com");
     a.workspaces = [{ id: "141", name: "Paused Robotics", role: "member" }];
     const call = await signIn("paused@example.com");
@@ -301,9 +301,9 @@ describe("the workspaceScouting switch (owner portal)", () => {
     try {
       const before = { ws: await count("workspaces"), entries: await count("workspace_scout_entries") };
       const p = await push(call, "141", [entry()]);
-      expect(p.status).toBe(503);
-      expect(p.json).toMatchObject({ paused: true, error: WORKSPACE_PAUSED });
-      expect((await pull(call, "141")).status).toBe(503);
+      expect(p.status).toBe(403);
+      expect(p.json).toMatchObject({ error: "feature_disabled", feature: "workspaceScouting", message: WORKSPACE_PAUSED });
+      expect((await pull(call, "141")).status).toBe(403);
       expect({ ws: await count("workspaces"), entries: await count("workspace_scout_entries") }).toEqual(before);
       // Personal scouting syncs as usual.
       const personal = await push(call, null, [entry()]);
@@ -314,5 +314,59 @@ describe("the workspaceScouting switch (owner portal)", () => {
     } finally { await setFlag("workspaceScouting", true, "owner@example.com"); }
     expect((await push(call, "141", [entry()])).status).toBe(200);
     expect((await pull(call, "141")).json.entries).toHaveLength(1);
+  });
+});
+
+describe("workspace scouting per workspace (the owner console's feature toggle)", () => {
+  it("an override pauses one workspace only (reads and writes, 403 feature_disabled), keeps its entries, and follows the global switch again when cleared", async () => {
+    const a = accountFor("two-spaces@example.com");
+    a.workspaces = [{ id: "161", name: "Paused One", role: "member" }, { id: "162", name: "Still On", role: "member" }];
+    const call = await signIn("two-spaces@example.com");
+    process.env.OWNER_EMAILS = "boss@example.com";
+    const owner = await signIn("boss@example.com");
+    try {
+      expect((await push(call, "161", [entry({ notes: "kept" })])).status).toBe(200);
+      expect((await push(call, "162", [entry()])).status).toBe(200);
+      const of161 = () => all("SELECT e.* FROM workspace_scout_entries e JOIN workspaces w ON w.id = e.workspace_id WHERE w.cp_workspace_id = '161' ORDER BY e.seq");
+      const kept = await of161();
+
+      // Off for 161 only: applied at once (no confirmation), the other workspace and personal scouting carry on.
+      expect((await owner("PUT", "/api/owner/flags/workspaceScouting/workspaces/161", { enabled: false })).status).toBe(200);
+      const p = await push(call, "161", [entry()]);
+      expect(p.status).toBe(403);
+      expect(p.json).toMatchObject({ error: "feature_disabled", feature: "workspaceScouting" });
+      const r = await pull(call, "161");
+      expect(r.status).toBe(403);
+      expect(r.json.error).toBe("feature_disabled");
+      expect((await call("GET", "/api/scout/workspaces/161/settings")).json.error).toBe("feature_disabled");
+      expect((await call("GET", "/api/scout/workspaces/161/members")).json.error).toBe("feature_disabled");
+      expect((await push(call, "162", [entry()])).status).toBe(200);
+      expect((await push(call, null, [entry()])).status).toBe(200);
+      // The app learns which of its workspaces is paused (a private answer: it depends on who asks).
+      const flags = await call("GET", "/api/flags");
+      expect(flags.json.workspaces).toEqual({ "161": { workspaceScouting: false }, "162": { workspaceScouting: true } });
+      expect(flags.json.flags.workspaceScouting).toBe(true);
+
+      // Global off, with 162 kept on by its own setting: 162 still works, 161 (its own setting: off) doesn't.
+      expect((await owner("PUT", "/api/owner/flags/workspaceScouting", { enabled: false, confirm: true })).status).toBe(200);
+      expect((await owner("PUT", "/api/owner/flags/workspaceScouting/workspaces/162", { enabled: true })).status).toBe(200);
+      expect((await push(call, "162", [entry()])).status).toBe(200);
+      expect((await pull(call, "161")).status).toBe(403);
+      expect((await call("GET", "/api/flags")).json.flags.workspaceScouting).toBe(true); // on in one of this account's workspaces
+
+      // Back: both overrides cleared and the global switch on. 161's entries are exactly as they were.
+      await owner("PUT", "/api/owner/flags/workspaceScouting/workspaces/161", { enabled: null });
+      await owner("PUT", "/api/owner/flags/workspaceScouting/workspaces/162", { enabled: null });
+      await owner("PUT", "/api/owner/flags/workspaceScouting", { enabled: true, confirm: true });
+      const back = await pull(call, "161");
+      expect(back.status).toBe(200);
+      expect(back.json.entries.map((e: { notes: string }) => e.notes)).toEqual(["kept"]);
+      expect(await of161()).toEqual(kept);
+      expect(await all("SELECT * FROM workspace_flag_overrides")).toEqual([]);
+    } finally {
+      delete process.env.OWNER_EMAILS;
+      await setFlag("workspaceScouting", true, "owner@example.com");
+      await run("DELETE FROM workspace_flag_overrides");
+    }
   });
 });

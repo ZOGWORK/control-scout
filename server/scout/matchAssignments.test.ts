@@ -195,7 +195,7 @@ describe("match assignments: edit and delete", () => {
 });
 
 describe("match assignments: access", () => {
-  it("members read but can't create, edit or delete; outsiders 403; signed out 401; paused 503; bad ids 400", async () => {
+  it("members read but can't create, edit or delete; outsiders 403; signed out 401; paused 403 feature_disabled; bad ids 400", async () => {
     const { admin, member, outsider, priya } = await team("3021");
     const a = (await create(admin, "3021", priya)).json.matchAssignment as MatchAssignment;
     expect((await create(member, "3021", priya)).status).toBe(403);
@@ -209,8 +209,8 @@ describe("match assignments: access", () => {
     const other = await team("3022");
     expect((await other.admin("DELETE", path("3022", `/${a.id}`))).status).toBe(404);
     await setFlag("workspaceScouting", false, "test");
-    expect((await admin("GET", path("3021"))).status).toBe(503);
-    expect((await create(admin, "3021", priya)).status).toBe(503);
+    expect((await admin("GET", path("3021"))).status).toBe(403);
+    expect((await create(admin, "3021", priya)).status).toBe(403);
   });
 });
 

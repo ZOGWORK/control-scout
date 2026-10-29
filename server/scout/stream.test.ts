@@ -351,11 +351,11 @@ describe("GET /api/scout/stream", () => {
       expect((await off.res.json()).error).toMatch(/paused/);
       expect(activeStreamCount()).toBe(0);
     } finally { await setFlag("realtime", true, "owner@example.com"); }
-    // Workspace scouting paused: no catch-up download through the stream either.
+    // Workspace scouting paused: no catch-up download through the stream either (403 feature_disabled).
     await setFlag("workspaceScouting", false, "owner@example.com");
     try {
       const paused = await stream(B, "workspaceId=293&since=0");
-      expect(paused.res.status).toBe(503);
+      expect(paused.res.status).toBe(403);
       expect(activeStreamCount()).toBe(0);
     } finally { await setFlag("workspaceScouting", true, "owner@example.com"); }
     const on = await stream(B, "workspaceId=293");

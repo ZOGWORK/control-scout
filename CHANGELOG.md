@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.2 — 2026-10-29
+
+The owner can switch seven features off and back on from the console, for everyone or (workspace scouting) for one workspace, without anything being deleted.
+
+### Highlights
+- [report] Seven feature toggles in the owner console, with their scope
+- [workspace] Workspace scouting can be paused for just one workspace
+- [scout] A paused workspace keeps your entries here until it's back
+- [fixes] A switched-off feature says so calmly, links included
+
+### Feature toggles
+- **Seven toggles.** Live predictions, advancement odds, power rankings publishing, coin flips, offline pack auto-updates, the Discord bot and workspace scouting, each a colourful card with its state and scope. The other switches (live updates, error reports, photos, push, automatic and daily power rankings, the weekly digest) sit below as kill switches.
+- **Asks before it flips.** Turning a toggle on or off for everyone opens a confirmation that says exactly what turns off and that nothing is deleted. A workspace's own setting (on, off, or follow the global switch) applies at once, with a note.
+- **The server enforces it.** While a feature is off, every route behind it refuses reads and writes with `403 feature_disabled` (never cached), and its live channels refuse to open: predictions, share cards, event odds and their live stream, coin flips, published power rankings (and publishing them, by hand or on schedule), offline pack files, the Discord bot's commands and posts, and every shared workspace read and write. Team and event pages, the track record and the owner console itself are never behind a toggle.
+- **Off is never "removed".** A workspace paused by the owner answers the app with `feature_disabled`, which the app shows as "Paused by the owner": queued entries, pick list changes and comments stay on the device and go up once it's back, and nothing is ever moved to Personal.
+- **Friendly when off.** Predict, an event's Odds tab, Home's coin flips and the Power rankings page say the feature is switched off for now, links straight to them included.
+- **Every flip in the audit log.** Global and per-workspace changes record the old and new value ("on → off", "off → follows global").
+
 ## 1.4.1 — 2026-10-29
 
 The owner console is now organised the way it's run: health first, then data, predictions, rankings, features, feedback and analytics, with an audit log that records every change's old and new value and can't be edited.

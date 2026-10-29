@@ -1,6 +1,6 @@
 // GET /api/scout/workspaces/:workspaceId/activity?before=<id>&limit=50: a
 // workspace's activity feed (activityLog.ts), newest first, for its members.
-// 401 signed out, 503 while workspace scouting is paused, 400 a bad id or
+// 401 signed out, 403 feature_disabled while workspace scouting is switched off for the workspace, 400 a bad id or
 // cursor, 403 not a member. `before`: the id of the oldest item already shown
 // (the next page holds older ones); `more`: whether there are any.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
@@ -25,9 +25,9 @@ export function activityRouter(): Router {
     res.set("Cache-Control", "no-store");
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-    if (await workspacePaused(res)) return;
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     const before = cursor(req.query.before);
     if (before === undefined) { res.status(400).json({ error: "before must be an activity id" }); return; }
     const limit = req.query.limit === undefined ? PAGE_LIMIT : Number(req.query.limit);

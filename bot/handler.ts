@@ -8,6 +8,8 @@ import { FOOTER, Friendly, VOLT, errorEmbed, unavailableEmbed } from "./views.js
 import { addFollow, followingEmbed, listFollows, removeFollow } from "./follows.js";
 import { BOT_COMMANDS } from "../src/shared/discord.js";
 import { eventChoices, eventLookup, predictLookup, rankChoices, rankingsLookup, teamLookup } from "./lookups.js";
+import { isEnabled } from "../server/flags.js";
+import { featureOffMessage } from "../src/shared/flags.js";
 
 export type Log = (m: string) => void;
 
@@ -20,6 +22,8 @@ export interface Lookups {
   follow: (guild: string, channel: string, team: number, by: string) => Promise<"added" | "already">;
   unfollow: (guild: string, team: number, channel?: string | null) => Promise<number>;
   following: (guild: string) => Promise<APIEmbed>;
+  /** The owner's feature toggles the bot follows (server/flags.ts); absent: always on. */
+  enabled?: (flag: "discordBot" | "livePredictions") => Promise<boolean>;
 }
 
 export const realLookups: Lookups = {
@@ -31,7 +35,11 @@ export const realLookups: Lookups = {
   follow: addFollow,
   unfollow: removeFollow,
   following: async (guild) => followingEmbed(await listFollows(guild)),
+  enabled: (flag) => isEnabled(flag),
 };
+
+/** What every command answers while the owner has the bot switched off (the discordBot feature toggle). */
+export const BOT_OFF_TITLE = "Turned off for now";
 
 /** /help: every command, from the same list the site shows (src/shared/discord.ts). */
 export function helpEmbed(): APIEmbed {
@@ -69,13 +77,19 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
     const key = describe(i);
     switch (i.commandName) {
       case "team": return cache.get(key, () => lookups.team(i.options.getInteger("number", true)));
-      case "predict": return cache.get(key, () => lookups.predict(i.options.getString("event", true), i.options.getInteger("match", true)));
+      case "predict": return predict(i, key);
       case "event": return cache.get(key, () => lookups.event(i.options.getString("code", true)));
       case "rankings": return cache.get(key, () => lookups.rankings());
       case "help": return Promise.resolve(helpEmbed());
       case "follow": case "unfollow": case "following": return manage(i);
       default: return Promise.reject(new Friendly("Unknown command", "This command isn't one Control Scout knows. Try /help for the list."));
     }
+  }
+
+  /** /predict, unless the owner switched live predictions off (the livePredictions feature toggle). */
+  async function predict(i: ChatInputCommandInteraction, key: string): Promise<APIEmbed> {
+    if (lookups.enabled && !(await lookups.enabled("livePredictions"))) throw new Friendly("Predictions are off", featureOffMessage("livePredictions"));
+    return cache.get(key, () => lookups.predict(i.options.getString("event", true), i.options.getInteger("match", true)));
   }
 
   /** The server's follows: never cached (they change), and only inside a server. */
@@ -103,6 +117,11 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   }
 
   async function command(i: ChatInputCommandInteraction): Promise<void> {
+    // Switched off by the owner: a short, private note for whoever asked, and nothing else runs (follows are kept).
+    if (lookups.enabled && !(await lookups.enabled("discordBot"))) {
+      await i.reply({ embeds: [errorEmbed(BOT_OFF_TITLE, "Control Scout's Discord bot is turned off by the owner right now. Everything on controlscout.org still works, and this server's follows are kept for when it's back.")], flags: MessageFlags.Ephemeral });
+      return;
+    }
     const wait = cooldown.take(i.user.id);
     if (wait > 0) {
       await i.reply({ embeds: [errorEmbed("Slow down", `One command every 3 seconds. Try again in ${Math.ceil(wait / 1000)} s.`)], flags: MessageFlags.Ephemeral });
@@ -125,6 +144,7 @@ export function createHandler(log: Log, lookups: Lookups = realLookups, opts: { 
   async function autocomplete(i: AutocompleteInteraction): Promise<void> {
     let list: { name: string; value: string }[] = [];
     try {
+      if (lookups.enabled && !(await lookups.enabled("discordBot"))) { await i.respond([]); return; }
       list = await lookups.choices(String(i.options.getFocused() ?? ""));
     } catch (e) {
       log(`autocomplete /${i.commandName} failed: ${(e as Error)?.message ?? String(e)}`);

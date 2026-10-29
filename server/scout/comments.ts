@@ -7,7 +7,7 @@
 //   DELETE /api/scout/workspaces/:workspaceId/entries/:uuid/comments/:id    → CommentEvent (action "deleted")
 //   GET    /api/scout/workspaces/:workspaceId/comment-counts                { counts: { <uuid>: n } }, entries with any
 //
-// Every route: 401 signed out, 503 while workspace scouting is paused, 400 a bad id, 403 not a member
+// Every route: 401 signed out, 403 feature_disabled while workspace scouting is switched off for the workspace, 400 a bad id, 403 not a member
 // (workspaceAccess: membership comes from Control Point). Writes are JSON only (CSRF: the session
 // cookie is SameSite=Lax and a cross-site form can't send application/json; a DELETE can't be sent
 // cross-site at all without a preflight this server never answers).
@@ -309,9 +309,9 @@ async function member(req: Request, res: Response, needEntry = true): Promise<{ 
   res.set("Cache-Control", "no-store");
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Sign in first." }); return null; }
-  if (await workspacePaused(res)) return null;
   const workspaceId = req.params.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
+  if (await workspacePaused(res, workspaceId)) return null;
   const uuid = String(req.params.uuid ?? "");
   if (needEntry && !UUID.test(uuid)) { res.status(400).json({ error: "No such entry." }); return null; }
   const access = await workspaceAccess(user, workspaceId, { write: isWrite(req) });

@@ -3,7 +3,7 @@
 // can only fail, and logs a console error on the venue/offline flows), and asks
 // again once back online.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { flagOn, refreshFlags } from "./flags";
+import { flagOn, refreshFlags, workspaceFlagOn } from "./flags";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
@@ -24,5 +24,19 @@ describe("refreshFlags", () => {
     await refreshFlags();
     expect(fetchSpy).toHaveBeenCalledWith("/api/flags", { credentials: "same-origin" });
     expect(flagOn("photos")).toBe(false);
+  });
+
+  it("keeps the signed-in account's own workspace settings: a workspace's value, else the flag's", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ flags: { workspaceScouting: true }, workspaces: { a: { workspaceScouting: false }, b: { workspaceScouting: true }, c: "nonsense" } }), { status: 200 })));
+    await refreshFlags();
+    expect(workspaceFlagOn("workspaceScouting", "a")).toBe(false);
+    expect(workspaceFlagOn("workspaceScouting", "b")).toBe(true);
+    expect(workspaceFlagOn("workspaceScouting", "c")).toBe(true); // unreadable: the flag's value
+    expect(workspaceFlagOn("workspaceScouting", "elsewhere")).toBe(true);
+    expect(workspaceFlagOn("workspaceScouting", null)).toBe(true);
+    // An answer without them (no overrides any more) forgets them.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ flags: { workspaceScouting: true } }), { status: 200 })));
+    await refreshFlags();
+    expect(workspaceFlagOn("workspaceScouting", "a")).toBe(true);
   });
 });
