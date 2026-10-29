@@ -22,7 +22,7 @@ while IFS= read -r f; do
   esac
   # Tests and their fixtures change nothing a visitor sees.
   case $f in
-    *.test.ts | *.test.tsx | *.test.js | *.test.mjs | *.spec.ts | *.spec.tsx | */__tests__/* | */__snapshots__/* | src/test/* | server/test/*) continue ;;
+    *.test.ts | *.test.tsx | *.test.js | *.test.mjs | *.spec.ts | *.spec.tsx | *.fixture.ts | */__tests__/* | */__snapshots__/* | */__fixtures__/* | */fixtures/* | src/test/* | server/test/*) continue ;;
   esac
   app+=("$f")
 done

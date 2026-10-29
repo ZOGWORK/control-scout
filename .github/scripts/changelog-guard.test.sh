@@ -22,6 +22,9 @@ check "app change without a changelog fails" 1 "src/pages/Home.tsx"
 check "server change without a changelog fails" 1 "server/api/events.ts"
 check "app change with the changelog passes" 0 $'src/pages/Home.tsx\nCHANGELOG.md'
 check "tests only pass" 0 $'src/lib/format.test.ts\nserver/api/scoreSheet.test.ts\nsrc/components/Foo.test.tsx'
+check "test fixtures only pass" 0 $'server/sources/fixtures/first-legacy.json
+server/projections/__fixtures__/event.json
+server/listen.fixture.ts'
 check "CI and docs only pass" 0 $'.github/workflows/ci.yml\nAGENTS.md\ndocs/notes.md\nscripts/perf.ts'
 check "engine changes are rule 4's, not this guard's" 0 "packages/predict-engine/src/index.ts"
 check "a test plus app code still fails" 1 $'src/lib/format.test.ts\nsrc/lib/format.ts'
