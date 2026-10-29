@@ -31,7 +31,7 @@ The owner console now shows the engine in production with live and replay side b
 - **Simulation settings, as values.** How many simulations sit behind event projections, advancement forecasts, simulated rankings and the on-device estimate.
 - **Calibration by confidence tier.** The ledger groups its calls by the tier each one shows publicly, with how sure the favourite was against how often it won.
 - **Power rankings at a glance.** The current week, when it was published and last updated, and when the next one goes out. Regenerate still asks first, and now says plainly that Bruno writes from the week's frozen snapshot, the same facts its stat lines show; if the daily check updates the week while Bruno writes, the regeneration is refused rather than mixing the two. Edits, hides and regenerations record what they replaced in the audit log.
-- **What's new, managed from CHANGELOG.md.** The releases with their dates, highlights and PRs, a check of what the newest entry still needs, and the four steps to publish one. (#000)
+- **What's new, managed from CHANGELOG.md.** The releases with their dates, highlights and PRs, a check of what the newest entry still needs, and the four steps to publish one. (#339)
 
 ## 1.4.1 — 2026-10-29
 
