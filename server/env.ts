@@ -15,6 +15,16 @@ const str = (k: string) => {
 
 /** A Cloudflare account id: 32 hex characters. */
 const R2_ACCOUNT_ID_RE = /^[0-9a-f]{32}$/i;
+/** An http(s) URL whose hostname is DNS labels (the URL parser lets an underscore through; browsers' CSP doesn't),
+ *  or an IPv6 literal such as a local fake bucket's [::1] (server/scout/r2.ts; never put in the CSP). */
+const validEndpoint = (v: string) => {
+  try {
+    const u = new URL(v);
+    return (u.protocol === "https:" || u.protocol === "http:") && /^([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])$/i.test(u.hostname);
+  } catch {
+    return false;
+  }
+};
 const warned = new Set<string>();
 /** A setting's problem, said once per process (never its value). */
 const warnOnce = (msg: string) => { if (!warned.has(msg)) { warned.add(msg); console.warn(`env: ${msg}`); } };
@@ -71,7 +81,13 @@ export const env = {
   get r2SecretAccessKey() { return str("R2_SECRET_ACCESS_KEY"); },
   get r2Bucket() { return str("R2_BUCKET"); },
   /** The S3 API endpoint, https://<account id>.r2.cloudflarestorage.com (derived from R2_ACCOUNT_ID when unset). */
-  get r2Endpoint() { return str("R2_ENDPOINT"); },
+  /** Only an http(s) URL with a real hostname (letters, digits, hyphens, dots, or an IPv6 literal): anything else (an API token put in
+   *  the host, say) would reach the page's CSP header, so it reads as unset, as R2_ACCOUNT_ID does. */
+  get r2Endpoint() {
+    const v = str("R2_ENDPOINT");
+    if (v && !validEndpoint(v)) { warnOnce("R2_ENDPOINT isn't an http(s) URL with a valid hostname; ignored"); return null; }
+    return v;
+  },
   /** Read for completeness only: the bucket is private, so photos are always served through short-lived signed URLs. */
   get r2PublicUrl() { return str("R2_PUBLIC_URL"); },
   /** New uploads stop at this many GB (10^9 bytes) stored, under R2's 10 GB free tier. Default 9.5. */
