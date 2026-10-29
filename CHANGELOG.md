@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.2 — 2026-10-29
+
+The owner console now shows the engine in production with live and replay side by side, and lets the owner write the home page's headline lines.
+
+### Highlights
+- [home] The home page's headline lines can be written, reordered and switched off from the console
+- [predict] The console shows the engine in production, live against replay, and the shadow model, read-only
+- [predict] Calibration by confidence tier: how honest rough guesses, fair and solid calls each are
+- [rankings] Power rankings show the current week's published and updated dates at a glance
+
+### Owner console
+- **Home headline editor.** Rankings & content has the lines the home page's headline goes through, one an hour: add a line (a plain part and a coloured part) with a preview drawn like the home page, edit it, move it up or down, switch it off, or delete it; start from the built-in lines, or go back to them. Lines are kept on the server, so everyone sees the same line in the same hour, and every page's first paint carries them, so the hero still never moves. With no line switched on, or the database out of reach, the built-in lines show. Every change is in the audit log with its old and new words.
+- **Engine in production.** Predictions & ledger opens on the champion engine version, the probability model serving live calls and the shadow model scored beside it, and the public headline. Each season shows live calls and the replay side by side (never added together), live calls by the engine version that made them, and the served model against the shadow model on the same calls. All read-only: the console never changes the engine or promotes a shadow model.
+- **Simulation settings, as values.** How many simulations sit behind event projections, advancement forecasts, simulated rankings and the on-device estimate.
+- **Calibration by confidence tier.** The ledger groups its calls by the tier each one shows publicly, with how sure the favourite was against how often it won.
+- **Power rankings at a glance.** The current week, when it was published and last updated, and when the next one goes out. Regenerate still asks first, and now says plainly that Bruno writes from the week's frozen snapshot, the same facts its stat lines show; if the daily check updates the week while Bruno writes, the regeneration is refused rather than mixing the two. Edits, hides and regenerations record what they replaced in the audit log.
+- **What's new, managed from CHANGELOG.md.** The releases with their dates, highlights and PRs, a check of what the newest entry still needs, and the four steps to publish one. (#000)
+
 ## 1.4.1 — 2026-10-29
 
 The owner console is now organised the way it's run: health first, then data, predictions, rankings, features, feedback and analytics, with an audit log that records every change's old and new value and can't be edited.

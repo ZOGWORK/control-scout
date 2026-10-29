@@ -1452,6 +1452,25 @@ CREATE TRIGGER owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT R
 CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
 `,
   },
+  {
+    version: 55,
+    name: "home hero lines",
+    sql: `
+-- The home page's hero lines, set by the owner in the console (server/heroLines.ts): in order (position),
+-- a plain part and a part in the accent colour, each on or off. No row switched on: the built-in lines show.
+-- Who changed what is in owner_audit, with the old and new values.
+CREATE TABLE hero_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  position INTEGER NOT NULL,
+  plain TEXT NOT NULL,
+  accent TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX hero_lines_order ON hero_lines (position, id);
+`,
+  },
 ];
 
 export type Db = Client;

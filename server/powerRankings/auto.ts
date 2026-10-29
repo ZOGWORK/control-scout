@@ -253,7 +253,7 @@ export async function publishNow(now = Date.now(), log: Log = quiet): Promise<Pu
  * The owner's "Regenerate": Bruno writes the week again from its frozen packet (the same facts),
  * fact-checked as before. Owner edits are replaced. Null when the week doesn't exist or is mid-run;
  * "unavailable" when Bruno couldn't answer (the week is left as it was); "conflict" when the week was
- * edited while Bruno was writing (that edit is kept).
+ * edited or refreshed while Bruno was writing (that version is kept: words and numbers always come from one snapshot).
  */
 export async function regenerateWeek(season: number, week: string, log: Log = quiet): Promise<GeneratedWeek | "unavailable" | "conflict" | null> {
   const g = await getGenerated(season, week);

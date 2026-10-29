@@ -23,6 +23,8 @@ import { ownerStorage, purgeEvent, runPhotoMaintenance } from "../scout/photos.j
 import { r2 } from "../scout/r2.js";
 import { listOrphaned } from "../scout/orphans.js";
 import { powerRankingsOwnerRoutes } from "../powerRankings/ownerRoutes.js";
+import { heroLinesOwnerRoutes } from "./heroLinesRoutes.js";
+import { predictionEngine } from "./predictionEngine.js";
 import { StreamError, listStreams, setEventStream } from "./streams.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -77,6 +79,9 @@ export function ownerRouter(): Router {
     const season = req.query.season ? num(req.query.season, 0, 2000, 2100) : null;
     return predictionHealth(kind, season);
   }));
+
+  // The engine in production, live vs replay, the shadow model and the simulation settings: read-only (./predictionEngine.ts).
+  r.get("/predictions/engine", h(async () => predictionEngine()));
 
   r.get("/flags", h(async () => ({ flags: await flagDetails() })));
   r.put("/flags/:name", h(async (req, res) => {
@@ -163,6 +168,8 @@ export function ownerRouter(): Router {
 
   // Automatic power rankings (server/powerRankings/auto.ts): the generated weeks and their controls.
   powerRankingsOwnerRoutes(r, h, actor);
+  // The home page's hero lines (./heroLinesRoutes.ts).
+  heroLinesOwnerRoutes(r, h, actor);
 
   r.get("/audit", h(async (req) => ({ entries: await listAudit(num(req.query.limit, 100, 1, 500)) })));
   return r;

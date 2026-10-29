@@ -65,6 +65,7 @@ import { packsRouter } from "./packs/routes.js";
 import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
+import { liveHeroLines } from "./heroLines.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
@@ -274,6 +275,13 @@ export function createApp(opts: { dist?: string } = {}) {
     const o = await homeOverview(season(req.query.season));
     noStoreWhileBehind(res, o.readiness.state);
     return o;
+  }));
+
+  // The home hero's lines (server/heroLines.ts): the owner's from the console, else the built-in ones. Every page's
+  // HTML already carries them; this is for a copy of the app without that first paint (development, tests).
+  api.get("/home/headlines", h(async (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return liveHeroLines();
   }));
 
   // Today's coin flips: the closest calls on today's schedules, every event at its own venue date (server/api/coinFlips.ts).
