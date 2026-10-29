@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.9 — 2026-10-29
+
+The owner console lists its sections down the side, the way Settings does.
+
+### Highlights
+- [report] Owner console sections down the side, grouped like Settings
+- [report] What's waiting counted beside each section
+- [report] A scrolling row of chips on phones and tablets
+
+### Owner console
+- **Sections down the side.** Overview, Data & sync, Packs & offline, Predictions & ledger, Rankings & content, Features, Moderation, Feedback & errors, Analytics, Accounts, Photo storage and Audit log sit in a list on the left, grouped (Health, Data, Product, People & trust, Record), with what's waiting counted beside each. On phones and tablets they're a row of chips that keeps the open one in view, as in Settings. (#343)
+
 ## 1.4.8 — 2026-10-29
 
 The owner can switch seven features off and back on from the console, for everyone or (workspace scouting) for one workspace, without anything being deleted.

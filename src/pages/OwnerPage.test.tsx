@@ -76,16 +76,27 @@ describe("owner console", () => {
     expect(stale).toHaveBeenCalledWith("/api/owner/");
   });
 
-  it("has one tab per section of the brief, and shows what's waiting on them", () => {
+  it("lists one section per part of the brief down the side, as Settings does, and shows what's waiting on them", () => {
     mount();
-    expect(screen.getAllByRole("tab").map((t) => t.textContent?.replace(/\d+/g, ""))).toEqual([
+    const nav = screen.getByRole("navigation", { name: "Owner sections" });
+    expect(screen.queryAllByRole("tab")).toEqual([]);
+    expect(within(nav).getAllByText(/^(Health|Data|Product|People & trust|Record)$/).map((g) => g.textContent)).toEqual(["Health", "Data", "Product", "People & trust", "Record"]);
+    expect(within(nav).getAllByRole("button").map((t) => t.textContent?.replace(/\d+/g, ""))).toEqual([
       "Overview", "Data & sync", "Packs & offline", "Predictions & ledger", "Rankings & content", "Features", "Moderation", "Feedback & errors", "Analytics", "Accounts", "Photo storage", "Audit log",
     ]);
-    const feedback = screen.getByRole("tab", { name: /Feedback & errors/ });
+    const section = (name: RegExp) => within(nav).getByRole("button", { name });
+    const feedback = section(/Feedback & errors/);
     expect(within(feedback).getByLabelText("3 open feedback")).toBeTruthy();
     expect(within(feedback).getByLabelText("2 error reports")).toBeTruthy();
-    expect(within(screen.getByRole("tab", { name: /Accounts/ })).getByLabelText("1 orphaned spaces")).toBeTruthy();
-    expect(within(screen.getByRole("tab", { name: /Analytics/ })).queryByText(/\d/)).toBeNull();
+    expect(within(section(/Accounts/)).getByLabelText("1 orphaned spaces")).toBeTruthy();
+    // Counts never push past the row: the badges don't shrink, the label gives way.
+    expect(within(feedback).getByLabelText("3 open feedback").parentElement!.className).toContain("shrink-0");
+    expect(within(section(/Analytics/)).queryByText(/\d/)).toBeNull();
+    // The open section is marked as the current page, and choosing another opens it.
+    expect(section(/Overview/).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(section(/Audit log/));
+    expect(section(/Audit log/).getAttribute("aria-current")).toBe("page");
+    expect(section(/Overview/).getAttribute("aria-current")).toBeNull();
   });
 
   it("opens on Overview with Health first: site, sync, engine, ledger, packs and errors", () => {
@@ -103,10 +114,10 @@ describe("owner console", () => {
 
   it("old per-panel links open the section that holds the panel now", () => {
     mount("/owner?panel=flags");
-    expect(screen.getByRole("tab", { name: /Features/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Features/ }).getAttribute("aria-current")).toBe("page");
     cleanup();
     mount("/owner?panel=nonsense");
-    expect(screen.getByRole("tab", { name: /Overview/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: /^Overview/ }).getAttribute("aria-current")).toBe("page");
   });
 
   it("lists the Scout workspaces on Overview", () => {
