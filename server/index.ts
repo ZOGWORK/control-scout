@@ -12,9 +12,8 @@ import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
 import { startLiveSync } from "./data/live.js";
 import { REFRESH_EVERY_MS, refreshCoinFlips } from "./api/coinFlips.js";
-import express from "express";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
-import { createApp } from "./app.js";
+import { createApp, createServer } from "./app.js";
 import { RELEASE } from "./release.js";
 import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
@@ -53,16 +52,8 @@ process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closePro
 // Queued inbox fan-outs (activity already written) finish before the process exits.
 drainOnSigterm(() => http, log, 10_000, inboxSettled);
 let ready = false;
-const server = express();
-server.get("/api/health", (_req, res) => res.json({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }));
-server.use("/api", (_req, res, next) => {
-  if (ready) return next();
-  res.setHeader("Retry-After", "15");
-  res.setHeader("Cache-Control", "no-store"); // never cache "starting up"
-  res.status(503).json({ error: "Control Scout is starting up. Try again in a few seconds." });
-});
 const app = createApp();
-server.use(app);
+const server = createServer(app, () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }), () => ready);
 const listening = (where: string) => () => log(`Control Scout listening on ${where}${env.production ? "" : " (dev)"}`);
 if (!socket) http = server.listen(env.port, listening(`:${env.port}`));
 log(`data: ${await restoreSnapshotIfEmpty().catch((e) => `snapshot restore failed: ${(e as Error).message}`)}`);
