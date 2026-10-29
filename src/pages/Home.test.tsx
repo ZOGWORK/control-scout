@@ -243,7 +243,7 @@ describe("Home", () => {
       byTier: { provisional: { n, accuracy, brier: 0.2 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
       byLevel: { qual: { n, accuracy }, playoff: { n: 0, accuracy: 0 } },
     });
-    const e = (engine: string, n: number, accuracy: number) => ({ engine, n, accuracy, brier: 0.2, logLoss: 0.6 });
+    const e = (engine: string, n: number, accuracy: number, decided = n) => ({ engine, n, decided, accuracy, brier: 0.2, logLoss: 0.6 });
     const seasons = [
       { season: 2026, label: "2026–27 BIOBUZZ", live: blk(706, 698, 415 / 698, 283), backtest: blk(1087, 1070, 0.68, 340), liveByEngine: [e("2.1.1", 59, 0.49), e("2.6.0", 15, 0.73), e("3.2.0", 632, 0.601)] },
       { season: 2025, label: "2025–26 DECODE", live: null, backtest: blk(41743, 41405, 30554 / 41405, 10851) },
@@ -263,6 +263,25 @@ describe("Home", () => {
     fireEvent.click(live);
     expect(screen.getByText(/all engine versions \(v2\.1\.1, v2\.6\.0, v3\.2\.0\)/)).toBeTruthy();
     expect(screen.getByText(/from engine v3\.2\.0 alone, the one serving now \(632 scored\)/)).toBeTruthy();
+  });
+
+  it("never shows 0% for a serving engine whose calls were all ties or 50:50 calls", () => {
+    const blk = (n: number, decided: number, accuracy: number, upsets: number) => ({
+      n, decided, accuracy, upsets, brier: 0.2, logLoss: 0.6, baselineBrier: 0.25, reliability: [], weekly: [],
+      byTier: { provisional: { n, accuracy, brier: 0.2 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
+      byLevel: { qual: { n, accuracy }, playoff: { n: 0, accuracy: 0 } },
+    });
+    const e = (engine: string, n: number, accuracy: number, decided: number) => ({ engine, n, decided, accuracy, brier: 0.2, logLoss: 0.6 });
+    const seasons = [
+      { season: 2026, label: "2026–27 BIOBUZZ", live: blk(704, 696, 415 / 696, 281), backtest: null, liveByEngine: [e("3.2.0", 700, 0.6, 696), e("3.3.0", 4, 0, 0)] },
+      { season: 2025, label: "2025–26 DECODE", live: null, backtest: blk(41743, 41405, 30554 / 41405, 10851) },
+    ];
+    data = { "/api/predict/accuracy": { seasons, engineVersion: "3.3.0", liveThreshold: LIVE_THRESHOLD, headline: pickHeadline(seasons), recentCalls: [], generatedAt: new Date().toISOString() } };
+    mount();
+    fireEvent.click(screen.getAllByRole("radio")[1]);
+    expect(screen.getByText("Engine v3.3.0, the one serving now: no decided calls yet (4 scored, all ties or 50:50 calls)")).toBeTruthy();
+    expect(screen.queryByText(/^0(\.0)?%$/)).toBeNull();
+    expect(screen.queryByText(/from engine v3\.3\.0 alone/)).toBeNull();
   });
 
   it("opens on the same headline as the methodology ledger and shows how much of the season the replay covers", () => {

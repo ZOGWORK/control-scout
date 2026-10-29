@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigationType, useParams, useSearchParams } from
 import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Info, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
-import { projectionsPath } from "../lib/projections";
+import { useProjections } from "../lib/projections";
 import type { ProjectionsView } from "../shared/projections";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
@@ -239,7 +239,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {unofficial && <UnofficialNote text={unofficial} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
-                aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} />}
+                aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} refreshKey={recordsKey} />}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
                 offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
             </>
@@ -470,19 +470,24 @@ const EMPTY_COLUMN_NOTES: Partial<Record<string, string>> = {
   advancementOdds: "No pre-event advancement forecast is stored for this event; the Odds tab simulates it on demand. Teams already qualified elsewhere, or not eligible here, are always empty.",
 };
 
-/** The Rankings tab's notes: which teams the table lists, and what the Adv. odds column is and when it was computed. */
-function RankingNotes({ d, advOdds }: { d: EventDetail; advOdds: boolean }) {
+/** The Rankings tab's notes: which teams the table lists, and what the Adv. odds column is and when it was computed.
+ *  `refreshKey` is the records table's own: when it reloads the column, the projection behind the note is read again. */
+function RankingNotes({ d, advOdds, refreshKey }: { d: EventDetail; advOdds: boolean; refreshKey: string }) {
   const coverage = rankingCoverage(d.field);
-  const proj = useApi<ProjectionsView>(advOdds ? projectionsPath(d.event.season, d.event.code) : null);
-  const statsAt = useMeta()?.statsAt ?? null;
-  const basis = advOdds && (proj.data || proj.error) ? advOddsBasis(proj.data?.current ?? null, statsAt) : null;
-  if (!coverage && !basis) return null;
+  if (!coverage && !advOdds) return null;
   return (
     <ul className="mb-3 space-y-1.5 text-xs text-muted-foreground" data-ranking-notes>
       {coverage && <li className="flex items-start gap-2"><Users className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{coverage}</span></li>}
-      {basis && <li className="flex items-start gap-2"><Trophy className="mt-0.5 size-3.5 shrink-0 text-amber-500" aria-hidden /><span>{basis}</span></li>}
+      {advOdds && <AdvOddsBasis season={d.event.season} code={d.event.code} refreshKey={refreshKey} />}
     </ul>
   );
+}
+
+function AdvOddsBasis({ season, code, refreshKey }: { season: number; code: string; refreshKey: string }) {
+  const proj = useProjections(season, code, { live: false, refreshKey });
+  const statsAt = useMeta()?.statsAt ?? null;
+  if (!proj.data && !proj.error) return null;
+  return <li className="flex items-start gap-2"><Trophy className="mt-0.5 size-3.5 shrink-0 text-amber-500" aria-hidden /><span>{advOddsBasis(proj.data?.current ?? null, statsAt)}</span></li>;
 }
 /** Insights tab: where the points come from. */
 const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "autoPointsAvg", "dcPointsAvg", "endgamePointsAvg", "totalPointsNpMax", "predictedScoreAvg"];

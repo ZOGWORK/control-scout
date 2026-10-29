@@ -264,7 +264,7 @@ async function computeTrackRecord(): Promise<TrackRecord> {
       .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r) }));
     // Prospective evidence per engine version: each version's own calls only.
     const engines = [...new Set(rows.filter((r) => r.kind === "live" && Number(r.season) === s.season).map((r) => String(r.engine)))].sort();
-    const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
+    const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, decided: b.decided, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });
     // Paired: the same live calls scored for the served and the shadow model.
     const paired = new Map<string, { y: number; p: number; ps: number }[]>();
     for (const r of rows) {
