@@ -268,13 +268,13 @@ describe("scout consensus", () => {
     expect((await priya("GET", "/api/scout/workspaces/2108/consensus?teams=101")).status).toBe(400);
   });
 
-  it("paused workspace scouting answers 503 and reads nothing", async () => {
+  it("paused workspace scouting answers 403 feature_disabled and reads nothing", async () => {
     const { priya } = await team("2109", "2909");
     await setFlag("workspaceScouting", false, "owner@test");
     try {
       const r = await consensus(priya, "2109");
-      expect(r.status).toBe(503);
-      expect(r.json.paused).toBe(true);
+      expect(r.status).toBe(403);
+      expect(r.json).toMatchObject({ error: "feature_disabled", feature: "workspaceScouting" });
     } finally { await setFlag("workspaceScouting", true, "owner@test"); }
   });
 

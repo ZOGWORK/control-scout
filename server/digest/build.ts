@@ -7,6 +7,7 @@
 import { all, get } from "../db.js";
 import { decidedCall, rightCall } from "../api/accuracy.js";
 import { latestRankings } from "../powerRankings/store.js";
+import { isEnabled } from "../flags.js";
 import type { Movement, PowerRankingsResponse } from "../../src/shared/powerRankings.js";
 
 const DAY = 86_400_000;
@@ -191,13 +192,14 @@ export async function buildDigest(i: BuildInput): Promise<DigestData> {
     teamWeeks(i.followed, from, to, i.week),
     callRecords(i.followed, i.season, from, to),
     upcomingEvents(i.followed, i.week),
-    i.rankings ? Promise.resolve(i.rankings) : latestRankings(i.week),
+    // Power rankings switched off by the owner (the powerRankings feature toggle): none in the digest.
+    i.rankings ? Promise.resolve(i.rankings) : isEnabled("powerRankings").then((on) => (on ? latestRankings(i.week) : null)),
   ]);
   return {
     week: i.week, from, to, name: i.name, followed: i.followed,
     results: weeks,
     predictions,
     upcoming: upcoming.slice(0, MAX_UPCOMING), moreUpcoming: Math.max(0, upcoming.length - MAX_UPCOMING),
-    rankings: rankingMoves(rankings, i.followed, from, i.week),
+    rankings: rankings ? rankingMoves(rankings, i.followed, from, i.week) : null,
   };
 }

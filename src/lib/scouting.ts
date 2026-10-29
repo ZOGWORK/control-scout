@@ -8,7 +8,7 @@
 // belongs to. Each space has its own entries, dirty queue and sync; a
 // workspace's entries are pulled by the server's cursor.
 import { useCallback, useEffect, useState } from "react";
-import { apiFetch } from "./api";
+import { apiFetch, isAccessDenied, isFeatureDisabled } from "./api";
 import type { EntryPhoto } from "../shared/photos";
 import { dropRestored, exportLostEdits, LOST_PREFIX, lostBackupFailed, mergeLostLists, recordLostEdit, SCOUT_OVERWRITTEN } from "./lostEdits";
 import { READ_ONLY_STATUS } from "../shared/orphaned";
@@ -92,7 +92,8 @@ export const PUSH_DEBOUNCE_MS = 300;
 
 /**
  * A workspace refused this device outright (403 on a push or a pull: the account isn't a member any
- * more, as far as the server can tell). detail: the workspace id. The page leaves that space
+ * more, as far as the server can tell). Never for 403 feature_disabled: that's the owner pausing workspace
+ * scouting (everything stays queued on the device and goes up once it's back on). detail: the workspace id. The page leaves that space
  * (scoutSpace.ts) and the app checks the account again; queued entries are never dropped here.
  */
 export const SCOUT_DENIED = "cs-scout-denied";
@@ -109,7 +110,7 @@ export const SCOUT_READ_ONLY = "cs-scout-read-only";
 export const ACCOUNT_STALE = "cs-account-stale";
 const deniedBy = (space: ScoutSpace, e: unknown) => {
   const status = (e as { status?: unknown } | null)?.status;
-  if (space != null && status === 403) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
+  if (space != null && isAccessDenied(e)) window.dispatchEvent(new CustomEvent<string>(SCOUT_DENIED, { detail: space }));
   if (space != null && status === READ_ONLY_STATUS) window.dispatchEvent(new CustomEvent<string>(SCOUT_READ_ONLY, { detail: space }));
 };
 
@@ -519,11 +520,15 @@ const pushing = new Map<string, Promise<unknown>>();
 // keeps one copy), or refused. A push that goes through clears it.
 
 /** Why a workspace's queued entries haven't gone up. */
-export interface ScoutSyncProblem { kind: "offline" | "unconfirmed" | "failed"; message: string }
+/** `paused`: the owner switched workspace scouting off for this workspace (403 feature_disabled): kept, it goes up once it's back. */
+export interface ScoutSyncProblem { kind: "offline" | "paused" | "unconfirmed" | "failed"; message: string }
+/** What a queued workspace entry says while workspace scouting is paused by the owner. */
+export const SCOUT_PAUSED_MESSAGE = "Paused by the owner. Kept on this device; it goes up by itself once workspace scouting is back on.";
 const syncProblems = new Map<string, ScoutSyncProblem>();
 const problemOf = (e: unknown, offlineBefore: boolean): ScoutSyncProblem => {
   const err = e as { offline?: boolean; message?: string } | null;
   if (offlineBefore || (err?.offline && knownOffline())) return { kind: "offline", message: "Waiting for a connection. Kept on this device; it goes up by itself." };
+  if (isFeatureDisabled(e)) return { kind: "paused", message: SCOUT_PAUSED_MESSAGE };
   if (outcomeUnknown(e, offlineBefore)) return { kind: "unconfirmed", message: "Couldn't confirm it reached the workspace. It's kept on this device and goes again by itself (sending it twice is safe)." };
   return { kind: "failed", message: `Not synced: ${err?.message || "the workspace refused it"}. It's kept on this device.` };
 };

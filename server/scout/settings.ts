@@ -108,9 +108,9 @@ export function settingsRouter(): Router {
   r.get("/workspaces/:workspaceId/settings", h(async (req, res) => {
     const user = await currentUser(req);
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-    if (await workspacePaused(res)) return;
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+    if (await workspacePaused(res, workspaceId)) return;
     const access = await workspaceAccess(user, workspaceId);
     if (!access.ok) { res.status(access.status).json({ error: access.error }); return; }
     const s = await currentSettings(workspaceId);

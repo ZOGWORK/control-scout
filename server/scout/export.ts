@@ -2,7 +2,7 @@
 // Filters: src/shared/scoutExport.ts. Docs: docs/shared-accounts.md, "Exporting entries (CSV)".
 //
 // - Any member of the workspace may export (workspaceAccess); anyone else gets 403, signed out 401,
-//   and 503 while workspace scouting is paused. The server applies the filters itself: a client never
+//   and 403 feature_disabled while workspace scouting is switched off for the workspace. The server applies the filters itself: a client never
 //   sends a list of entries. Deleted entries are never in it.
 // - Columns: Entry ID, Team, Event, Match, Kind, Author, Updated at, Notes, then one column per field
 //   of the workspace's *current* template for the season (the built-in default for a kind the workspace
@@ -175,9 +175,9 @@ export function exportRouter(limit: RequestHandler = (_req, _res, next) => next(
     (async () => {
       const user = await currentUser(req);
       if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-      if (await workspacePaused(res)) return;
       const workspaceId = req.params.workspaceId;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+      if (await workspacePaused(res, workspaceId)) return;
       const parsed = parseExportFilters(req.query as Record<string, unknown>);
       if (!parsed.ok) { res.status(400).json({ error: parsed.error }); return; }
       const access = await workspaceAccess(user, workspaceId);

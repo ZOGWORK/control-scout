@@ -3,8 +3,10 @@
 // reads at a glance; then the ones already decided, with their results. Each opens its match page.
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, Coins } from "lucide-react";
-import { useApi } from "../../lib/api";
+import { ArrowUpRight, Coins, PowerOff } from "lucide-react";
+import { isFeatureDisabled, useApi } from "../../lib/api";
+import { useFlag } from "../../lib/flags";
+import { featureOffMessage } from "../../shared/flags";
 import { useMediaQuery } from "../../lib/meta";
 import { ago } from "../../lib/format";
 import { coinFlipHref, type CoinFlipRadar, type CoinFlipRow } from "../../shared/coinFlips";
@@ -180,7 +182,9 @@ function useRadarRefresh(reload: () => void) {
  *  failed refresh); the skeleton holds the place while loading. `className` (the page's spacing) goes on the
  *  section, so a hidden section leaves no gap. */
 export function CoinFlipRadarSection({ className }: { className?: string }) {
-  const state = useApi<CoinFlipRadar>("/api/home/coin-flips");
+  // Switched off by the owner (the coinFlips feature toggle): not asked for, and a short note in its place.
+  const on = useFlag("coinFlips");
+  const state = useApi<CoinFlipRadar>(on ? "/api/home/coin-flips" : null);
   useRadarRefresh(state.reload);
   const [allUp, setAllUp] = useState(false);
   const [allDone, setAllDone] = useState(false);
@@ -189,6 +193,13 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
   const closest = useMemo(() => (r ? closestKey(r.upcoming) : null), [r]);
   const up = r ? (allUp ? r.upcoming : r.upcoming.slice(0, first)) : [];
   const done = r ? (allDone ? r.decided : r.decided.slice(0, FIRST_DECIDED)) : [];
+  if (!on || isFeatureDisabled(state.error)) {
+    return (
+      <p role="status" className={cn("flex items-center gap-2 text-sm text-text-muted", className)}>
+        <PowerOff className="size-4 shrink-0" aria-hidden /> {featureOffMessage("coinFlips")}
+      </p>
+    );
+  }
   if ((state.error && !r) || (r && !hasFlips(r))) return null;
   return (
     <section aria-labelledby="radar-title" className={cn("@container/radar min-w-0", className)}>

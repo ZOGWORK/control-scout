@@ -4,7 +4,7 @@
 // none while workspace scouting is off), and the pending counts follow saves and syncs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, renderHook } from "@testing-library/react";
-import { ACCOUNT_STALE, localScoutEntries, moveQueuedToPersonal, personalCopy, pendingScoutCounts, saveScoutEntry, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
+import { ACCOUNT_STALE, localScoutEntries, moveQueuedToPersonal, personalCopy, pendingScoutCounts, saveScoutEntry, SCOUT_PAUSED_MESSAGE, scoutSyncProblem, syncQueuedScouting, syncScouting, usePendingScoutCounts, type ScoutEntry } from "./scouting";
 import { resetFlags } from "./flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { AccountUser } from "./personal";
@@ -242,6 +242,53 @@ describe("ScoutQueueSync (the app-wide reconnect trigger)", () => {
     render(<ScoutQueueSync />);
     await vi.waitFor(() => expect(refreshUser).toHaveBeenCalled());
     expect(pendingScoutCounts().workspaces).toEqual({ 41: 1 }); // still listed: kept queued, not moved
+  });
+
+  // The owner switched workspace scouting off (403 feature_disabled): paused, never "removed from the workspace".
+  const paused = () => {
+    const calls: (string | null)[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_path: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      calls.push(body.workspaceId ?? null);
+      if (body.workspaceId) return new Response(JSON.stringify({ error: "feature_disabled", feature: "workspaceScouting", message: "Workspace scouting is paused by the owner right now." }), { status: 403, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ results: (body.entries ?? []).map((e: { uuid: string }) => ({ uuid: e.uuid, ok: true })) }), { headers: { "Content-Type": "application/json" } });
+    }));
+    return calls;
+  };
+
+  it("403 feature_disabled on a workspace the account left: nothing moves to Personal, no SCOUT_DENIED, the queue waits", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, team: 2222, notes: "slow lift", workspaceId: "42" });
+    const denied = vi.fn();
+    window.addEventListener("cs-scout-denied", denied);
+    const refreshUser = vi.fn(async () => undefined);
+    const calls = paused();
+    h.personal = { user: user(["41"]), syncReady: true, refreshUser }; // 42 isn't listed: a rescue is tried
+    render(<ScoutQueueSync />);
+    await vi.waitFor(() => expect(calls).toContain("42"));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(pendingScoutCounts().workspaces).toEqual({ 42: 1 });
+    expect(localScoutEntries(null)).toEqual([]);
+    expect(localScoutEntries("42").map((e) => e.notes)).toEqual(["slow lift"]);
+    expect(h.toasts).toEqual([]);
+    expect(denied).not.toHaveBeenCalled();
+    expect(refreshUser).not.toHaveBeenCalled();
+    window.removeEventListener("cs-scout-denied", denied);
+  });
+
+  it("403 feature_disabled on a workspace the account is in: kept queued with a paused note (not a failure), and it goes once it's back on", async () => {
+    saveScoutEntry({ uuid: "wwwwwwwwwww1", ...base, workspaceId: "41" });
+    const denied = vi.fn();
+    window.addEventListener("cs-scout-denied", denied);
+    paused();
+    await expect(syncScouting("41")).rejects.toMatchObject({ status: 403, code: "feature_disabled", feature: "workspaceScouting" });
+    expect(denied).not.toHaveBeenCalled();
+    expect(scoutSyncProblem("41")).toEqual({ kind: "paused", message: SCOUT_PAUSED_MESSAGE });
+    expect(pendingScoutCounts().workspaces).toEqual({ 41: 1 });
+    const s = server(); // switched back on
+    await syncScouting("41");
+    expect(s.calls.map((c) => c.workspaceId)).toEqual(["41"]);
+    expect(pendingScoutCounts().workspaces).toEqual({});
+    window.removeEventListener("cs-scout-denied", denied);
   });
 
   // Task 19: a space that went read-only (deleted in Control Point, or no admin left).

@@ -251,17 +251,17 @@ describe("assignments: done, reopen, delete", () => {
 });
 
 describe("assignments: access", () => {
-  it("signed out 401, outsider 403, paused 503", async () => {
+  it("signed out 401, outsider 403, paused 403 feature_disabled", async () => {
     const { admin, outsider, priya } = await team("2021");
     expect((await client()("GET", path("2021"))).status).toBe(401);
     expect((await outsider("GET", path("2021"))).status).toBe(403);
     expect((await outsider("POST", path("2021"), { season: S, eventCode: EV, teams: [1234], assigneeAccountIds: [priya] })).status).toBe(403);
     expect((await outsider("PATCH", path("2021", "/1"), { status: "done" })).status).toBe(403);
     await setFlag("workspaceScouting", false, "test");
-    expect((await admin("GET", path("2021"))).status).toBe(503);
-    expect((await create(admin, "2021", [1234], [priya])).status).toBe(503);
-    expect((await admin("PATCH", path("2021", "/1"), { status: "done" })).status).toBe(503);
-    expect((await admin("DELETE", path("2021", "/1"))).status).toBe(503);
+    expect((await admin("GET", path("2021"))).status).toBe(403);
+    expect((await create(admin, "2021", [1234], [priya])).status).toBe(403);
+    expect((await admin("PATCH", path("2021", "/1"), { status: "done" })).status).toBe(403);
+    expect((await admin("DELETE", path("2021", "/1"))).status).toBe(403);
   });
 
   it("filters by season and event; bad filters are 400", async () => {

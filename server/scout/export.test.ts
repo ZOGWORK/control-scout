@@ -287,7 +287,7 @@ describe("workspace CSV export", () => {
     expect(csvCell(-3)).toBe("-3"); // a number is a number, not a formula
   });
 
-  it("members and admins export; someone outside the workspace gets 403, signed out 401; paused is 503", async () => {
+  it("members and admins export; someone outside the workspace gets 403, signed out 401; paused is 403 feature_disabled", async () => {
     const { admin, member, outsider } = await team("506");
     await push(member, "506", [entry()]);
     expect((await exportOf(member, "506", "season=2025")).status).toBe(200);
@@ -298,7 +298,7 @@ describe("workspace CSV export", () => {
     expect((await client()("GET", "/api/scout/workspaces/506/export.csv?season=2025")).status).toBe(401);
     await setFlag("workspaceScouting", false, "owner@test");
     try {
-      expect((await member("GET", "/api/scout/workspaces/506/export.csv?season=2025")).status).toBe(503);
+      expect((await member("GET", "/api/scout/workspaces/506/export.csv?season=2025")).status).toBe(403);
     } finally { await setFlag("workspaceScouting", true, "owner@test"); }
   });
 

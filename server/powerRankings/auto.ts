@@ -234,7 +234,8 @@ export async function publishWeek(o: { week: string; published: string; at?: num
 export async function autoPowerRankingsTick(now = Date.now(), log: Log = quiet): Promise<PublishResult | null> {
   const slot = dueSlot(now);
   if (!slot) return null;
-  if (!(await isEnabled("autoPowerRankings"))) return { status: "off", week: slot.week };
+  // Off with its own kill switch, or with power rankings publishing switched off (the powerRankings feature toggle).
+  if (!(await isEnabled("autoPowerRankings")) || !(await isEnabled("powerRankings"))) return { status: "off", week: slot.week };
   const season = weekSeason(slot.friday);
   const done = await get<{ status: string; generated_at: string }>("SELECT status, generated_at FROM power_rankings_generated WHERE season = ? AND week = ?", [season, slot.week]);
   if (done && (done.status !== "pending" || Date.parse(done.generated_at) > now - CLAIM_STALE_MS)) return { status: "exists", season, week: slot.week };
@@ -245,7 +246,7 @@ export async function autoPowerRankingsTick(now = Date.now(), log: Log = quiet):
 export async function publishNow(now = Date.now(), log: Log = quiet): Promise<PublishResult> {
   const today = localDate(now);
   const week = weekIdOf(new Date(`${today}T12:00:00Z`));
-  if (!(await isEnabled("autoPowerRankings"))) return { status: "off", week };
+  if (!(await isEnabled("autoPowerRankings")) || !(await isEnabled("powerRankings"))) return { status: "off", week };
   return publishWeek({ week, published: today, at: now, log });
 }
 

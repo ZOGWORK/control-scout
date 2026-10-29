@@ -36,7 +36,7 @@
 // - A kept record that isn't well-formed (picklistOps.ts: damaged storage) is never retried, sent or compared: it is
 //   listed on its own as damaged, with only Discard, which removes that one record (audit V4-PRIVATE-001).
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { apiFetch, ApiError } from "./api";
+import { apiFetch, ApiError, isFeatureDisabled } from "./api";
 import type { LiveMode } from "./scoutLive";
 import { applyPickOp, cleanNote, isPickList, MAX_OP_QUERY, NOTE_CHANGED, WRONG_ACCOUNT, type Pick, type PickList, type PickOp, type PickPerson } from "../shared/picklist";
 import { deleteDamagedOp, deleteKeptOp, KEPT_OPS_CHANGED, keptOps, newPageForTests, putKeptOp, readKeptOps, TAB_ID, type DamagedPickOp, type KeptPickOp } from "./picklistOps";
@@ -300,6 +300,8 @@ let signedInAccount: number | null | undefined;
 export function setPicklistAccount(account: number | null | undefined) { signedInAccount = account; }
 
 const STATUS_BLOCK: Record<number, FailedChange["blocked"]> = { 401: "account", 403: "revoked", 404: "revoked", 423: "readonly" };
+/** Why a refused change can't be sent (none: it can be retried). A 403 feature_disabled is the owner pausing workspace scouting: kept and retried, never "revoked". */
+const blockOf = (err: ApiError): FailedChange["blocked"] | undefined => (isFeatureDisabled(err) ? undefined : STATUS_BLOCK[err.status]);
 export const BLOCKED_MESSAGE: Record<NonNullable<FailedChange["blocked"]>, string> = {
   account: "Made by an account that isn't signed in here, so it isn't sent. Sign in as that account to send it, or discard it.",
   revoked: "This account can't reach that workspace any more (removed from it, or it was deleted), so nothing is sent. It's kept on this device until you discard it.",
@@ -361,7 +363,7 @@ export async function retryFailedChange(id: number, opts: { force?: boolean } = 
     if (message != null) updateFailed(id, { busy: false, message, uncertain: false, conflict: undefined, blocked: undefined, ...more });
   };
   const blockedBy = (err: ApiError) => {
-    const b = STATUS_BLOCK[err.status] ?? (err.status === 409 && err.message === WRONG_ACCOUNT ? "account" : undefined);
+    const b = blockOf(err) ?? (err.status === 409 && err.message === WRONG_ACCOUNT ? "account" : undefined);
     if (b) settle(BLOCKED_MESSAGE[b], { blocked: b });
     return !!b;
   };
@@ -476,7 +478,7 @@ async function syncKept(account: number, reconcile: boolean): Promise<void> {
         const chunk = rs.slice(i, i + MAX_OP_QUERY);
         const check = await checkList(chunk[0].space, chunk[0].season, chunk.map((r) => r.opId));
         if ("error" in check) {
-          const b = STATUS_BLOCK[check.error.status];
+          const b = blockOf(check.error);
           const still = new Set((await keptOps(account)).map((x) => x.opId));
           chunk.filter((r) => still.has(r.opId)).forEach((r) => add(r, b ? { blocked: b, message: BLOCKED_MESSAGE[b] } : {}));
           continue;
@@ -737,7 +739,7 @@ export function usePickList(space: string | null, season: number, live: LiveMode
             if (keyRef.current === k) refused.current(err.message);
           } else {
             // Not refused: kept for the member (the pick list's notice, the recoverable view), never dropped without a word.
-            const blocked = STATUS_BLOCK[err.status] ?? (err.status === 409 ? "account" : undefined);
+            const blocked = blockOf(err) ?? (err.status === 409 ? "account" : undefined);
             const message = blocked ? BLOCKED_MESSAGE[blocked] : uncertain ? CHANGE_UNCONFIRMED : `Not saved: ${err.message}`;
             keepFailed({ op, space: p.space, season: p.season, account: p.account, message, uncertain, opId: p.opId, base: p.base, baseVersion: p.baseVersion, at: p.at,
               ...(blocked ? { blocked } : {}) });

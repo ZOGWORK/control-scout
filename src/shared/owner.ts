@@ -1,5 +1,5 @@
 // The owner portal's API (/api/owner/*): response shapes shared by the server and the /owner page.
-import type { Flag } from "./flags.js";
+import type { Flag, FlagGroup, FlagScope } from "./flags.js";
 import type { BlurbAuthor } from "./powerRankings.js";
 
 export interface OwnerOverview {
@@ -63,6 +63,13 @@ export interface PredictionHealth {
 }
 
 export interface FlagRow { name: Flag; enabled: boolean; updatedAt: string | null; updatedBy: string | null }
+
+/** One feature toggle or kill switch in GET /api/owner/flags: its group, scope and global value. */
+export interface OwnerFlag extends FlagRow { group: FlagGroup; scope: FlagScope }
+/** A workspace's own setting of a workspace-scoped flag (no row: it follows the global switch). */
+export interface FlagOverrideRow { workspaceId: string; flag: Flag; enabled: boolean; updatedAt: string; updatedBy: string }
+/** GET /api/owner/flags: every flag, the per-workspace overrides, and the workspaces that can take one (names and ids only). */
+export interface OwnerFlags { flags: OwnerFlag[]; overrides: FlagOverrideRow[]; workspaces: { id: string; name: string }[] }
 
 export type FeedbackStatus = "open" | "resolved" | "archived";
 export interface FeedbackMessage {

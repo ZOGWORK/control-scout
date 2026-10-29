@@ -1,11 +1,12 @@
 // Loading / error / empty states — every page uses these, so no page ever
 // shows a blank screen or a raw error.
 import type { ReactNode } from "react";
-import { AlertTriangle, RefreshCw, Search, SearchX, WifiOff } from "lucide-react";
+import { AlertTriangle, PowerOff, RefreshCw, Search, SearchX, WifiOff } from "lucide-react";
 import { useSearch } from "./layout/Search";
 import { Button } from "./ui/button";
 import { EmptyState } from "./page";
-import type { ApiError, ApiState } from "../lib/api";
+import { isFeatureDisabled, type ApiError, type ApiState } from "../lib/api";
+import { featureOffMessage, type Flag } from "../shared/flags";
 import { cn } from "./cn";
 
 export function Skeleton({ className }: { className?: string }) {
@@ -23,7 +24,27 @@ export function LoadingBlock({ rows = 4, label = "Loading" }: { rows?: number; l
   );
 }
 
+/**
+ * A feature the owner switched off (a feature toggle, server/flags.ts): a calm "switched off for now", never an error
+ * and never a retry button. Shown for a 403 feature_disabled, and by pages that already know the flag is off.
+ */
+export function FeatureOffState({ feature, message, className }: { feature: Flag | string; message?: string; className?: string }) {
+  return (
+    <EmptyState
+      className={className}
+      icon={PowerOff}
+      title="Switched off for now"
+      description={message ?? featureOffMessage(feature)}
+    />
+  );
+}
+
 export function ErrorState({ error, onRetry, className }: { error: ApiError | Error; onRetry?: () => void; className?: string }) {
+  if (isFeatureDisabled(error)) return <FeatureOffState feature={(error as ApiError).feature ?? ""} message={error.message} className={className} />;
+  return <FetchErrorState error={error} onRetry={onRetry} className={className} />;
+}
+
+function FetchErrorState({ error, onRetry, className }: { error: ApiError | Error; onRetry?: () => void; className?: string }) {
   const offline = (error as ApiError).offline;
   const status = (error as ApiError).status;
   const search = useSearch();
