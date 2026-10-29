@@ -237,16 +237,25 @@ describe("page head in the first HTML", () => {
     const file = join(dir, "index.html");
     writeFileSync(file, '<html><head></head><body><div id="root"></div></body></html>');
     await run("UPDATE teams SET rookie_year = 2008, website = 'www.hypnoticrobotics.org', school = 'Bergen County & Co' WHERE number = 4215");
-    await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (2025, 'USNJNOM3', 4215, 3, 5, 1, 0)");
+    // FIRST's row for a league meet is the league's running standing (rank 1, 10-0-0 here): the meet's own rank
+    // (team_event_records) and its record from the matches (one scored win) show instead.
+    await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (2025, 'USNJNOM3', 4215, 1, 10, 0, 0)");
+    await run("INSERT INTO team_event_records (season, code, team, rank) VALUES (2025, 'USNJNOM3', 4215, 3)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJNOM3', 'qual', 0, 2, 'Q2', 1, 100, 100, 50, 50, 'test')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'USNJNOM3', 'qual', 0, 2, 4215, 'red')");
     // On a league meet's roster with results in, but never on the field: not one of its events.
     await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'NOSHOW', 'Skipped Meet', '2026-01-10', '2026-01-10', 0, 0, 'test')");
     await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NOSHOW', 4215)");
     await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'NOSHOW', 'qual', 0, 1, 'Q1', 1, 'test')");
+    // A finished event with no type on record and no results yet: still one of its events (only a league meet is dropped).
+    await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'NOTYPE', 'Untyped Scrimmage', '2025-10-04', '2025-10-04', 0, 0, 'test')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NOTYPE', 4215)");
     const html = await renderIndex(file, "/teams/4215");
+    expect(html).toContain('<a href="/events/2025/NOTYPE">Untyped Scrimmage</a>');
     expect(html.match(/<h1>/g)).toHaveLength(1);
     expect(html).toContain("<h1>4215 Hypnotic Robotics</h1>");
     expect(html).toContain("FTC team 4215 Hypnotic Robotics from Oradell, NJ (Bergen County &amp; Co), rookie year 2008. 2025–26: record 26-6-0, OPR 101.6 (#616 of 8,375).");
-    expect(html).toContain('<a href="/events/2025/USNJNOM3">P1-4 PM Northern League Meet</a> <small>2025–26 · Nov 8, 2025 · ranked 3 · 5-1-0</small>');
+    expect(html).toContain('<a href="/events/2025/USNJNOM3">P1-4 PM Northern League Meet</a> <small>2025–26 · Nov 8, 2025 · ranked 3 · 1-0-0</small>');
     expect(html).not.toContain("Skipped Meet");
     const desc = /<meta name="description" content="([^"]*)"/.exec(html)![1];
     expect(desc).toContain("rookie year 2008");
