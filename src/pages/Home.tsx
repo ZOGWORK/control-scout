@@ -3,7 +3,7 @@
 // season's teams; then today's coin flips (the closest calls at every event on today), what's on the calendar, the public prediction record and Control Scout's own
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Radio, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -20,7 +20,8 @@ import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
 import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
-import { HOME_ABOUT, HOME_HEADLINE, HOME_LEAD } from "../shared/boot";
+import { HOME_ABOUT, HOME_HEADLINE_MS, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../shared/boot";
+import { cn } from "../components/cn";
 import { dateRange, place } from "../lib/format";
 
 /** The member's home team: their Control Point team (admin teams first), else the team they follow. */
@@ -76,6 +77,46 @@ export default function Home() {
   );
 }
 
+/** The headline the server's first paint showed (its data-line), read before the app replaces that paint. */
+const BOOT_HEADLINE = (() => {
+  if (typeof document === "undefined") return null;
+  const line = Number(document.querySelector<HTMLElement>("#cs-boot-page h1")?.dataset.line);
+  return Number.isInteger(line) && line >= 0 && line < HOME_HEADLINES.length ? { line, hour: Math.floor(Date.now() / HOME_HEADLINE_MS) } : null;
+})();
+
+/** This hour's headline, changing on the hour while the page stays open. In the hour the page loaded it keeps
+ *  the first paint's line (that HTML may have been rendered a moment earlier, or come from the offline cache). */
+export function useHomeHeadline(): { line: number; changed: boolean } {
+  const [line, setLine] = useState(() => {
+    const now = Date.now();
+    return BOOT_HEADLINE && BOOT_HEADLINE.hour === Math.floor(now / HOME_HEADLINE_MS) ? BOOT_HEADLINE.line : homeHeadlineAt(now);
+  });
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => { setLine(homeHeadlineAt(Date.now())); setTick((n) => n + 1); }, HOME_HEADLINE_MS - (Date.now() % HOME_HEADLINE_MS) + 50);
+    return () => clearTimeout(t);
+  }, [tick]);
+  return { line, changed: tick > 0 };
+}
+
+/** The hero's headline: one H1 with this hour's line. Every line sits invisibly in the same grid cell, so the
+ *  hero is always as tall as the longest line and the hourly change never moves the page. A change fades in
+ *  (no motion under reduced motion); it isn't announced, as nothing new happened on the page. */
+function Headline() {
+  const { line, changed } = useHomeHeadline();
+  const [first, second] = HOME_HEADLINES[line];
+  return (
+    <div className="grid font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
+      {HOME_HEADLINES.map(([a, b], i) => (
+        <span key={i} aria-hidden className="invisible [grid-area:1/1]">{a} <span className="block">{b}</span></span>
+      ))}
+      <h1 key={line} className={cn("[grid-area:1/1]", changed && "cs-headline-in")}>
+        {first} <span className="block text-accent-display">{second}</span>
+      </h1>
+    </div>
+  );
+}
+
 function Hero({ query }: { query?: string }) {
   // Home's search IS the page's search: the top-bar field steps aside here.
   const searchRef = usePageSearch();
@@ -83,9 +124,7 @@ function Hero({ query }: { query?: string }) {
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
     <Reveal fade={false} className="pt-2 @4xl/home:pt-8">
-      <h1 className="font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
-        {HOME_HEADLINE[0]} <span className="block text-accent-display">{HOME_HEADLINE[1]}</span>
-      </h1>
+      <Headline />
       <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
       <SearchBox
         size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search" initialQuery={query}
