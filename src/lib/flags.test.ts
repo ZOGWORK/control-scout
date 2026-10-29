@@ -33,6 +33,26 @@ describe("refreshFlags", () => {
     await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/flags", { credentials: "same-origin", cache: "no-cache" }));
   });
 
+  it("drops an answer to a request that started before the account changed (it may be the signed-out one)", async () => {
+    let answerOld!: (r: Response) => void;
+    const old = new Promise<Response>((r) => { answerOld = r; });
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn((_p: string, init: RequestInit) => {
+      calls.push(init.cache ?? "default");
+      return init.cache === "no-cache"
+        ? Promise.resolve(new Response(JSON.stringify({ flags: { workspaceScouting: true }, workspaces: { a: { workspaceScouting: true } } }), { status: 200 }))
+        : old;
+    }));
+    const stale = refreshFlags(); // signed out, on its way
+    flagsAccountChanged(); // signed in: asked again
+    await vi.waitFor(() => expect(workspaceFlagOn("workspaceScouting", "a")).toBe(true));
+    answerOld(new Response(JSON.stringify({ flags: { workspaceScouting: false } }), { status: 200 }));
+    await stale;
+    expect(flagOn("workspaceScouting")).toBe(true);
+    expect(workspaceFlagOn("workspaceScouting", "a")).toBe(true);
+    expect(calls).toEqual(["default", "no-cache"]);
+  });
+
   it("keeps the signed-in account's own workspace settings: a workspace's value, else the flag's", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ flags: { workspaceScouting: true }, workspaces: { a: { workspaceScouting: false }, b: { workspaceScouting: true }, c: "nonsense" } }), { status: 200 })));
     await refreshFlags();

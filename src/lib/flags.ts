@@ -30,12 +30,14 @@ function set(next: FlagSet, ws: Record<string, Partial<FlagSet>> = byWorkspace) 
 export async function refreshFlags(o: { fresh?: boolean } = {}): Promise<FlagSet> {
   // Asked whatever navigator.onLine says (iOS can report offline while online); a failure keeps the last flags.
   // `fresh`: past the browser's cache (the account just changed, and the answer can depend on who asks).
+  const gen = accountGen;
   try {
     const r = await fetch("/api/flags", o.fresh ? { credentials: "same-origin", cache: "no-cache" } : { credentials: "same-origin" });
-    if (r.ok) {
+    if (r.ok && gen === accountGen) {
       const body = (await r.json()) as Partial<FlagsAnswer> & { flags?: Partial<FlagSet> };
       const next = { ...DEFAULT_FLAGS };
       for (const k of Object.keys(next) as Flag[]) if (typeof body.flags?.[k] === "boolean") next[k] = body.flags[k]!;
+      if (gen !== accountGen) return flags; // the account changed while the body was on its way
       const ws: Record<string, Partial<FlagSet>> = {};
       if (body.workspaces && typeof body.workspaces === "object") {
         for (const [id, v] of Object.entries(body.workspaces)) {
@@ -81,6 +83,10 @@ export const useWorkspaceFlag = (name: Flag, workspaceId: string | null | undefi
  */
 export const useServerFlag = (name: Flag) => useSyncExternalStore(subscribe, () => confirmed && flags[name], () => false);
 
+/** Bumped by every account change: an answer to a request started before the latest one is dropped (it may be
+ *  another account's, or the signed-out one). */
+let accountGen = 0;
+
 let started = false;
 /** Load the flags now and keep them fresh (once per page load). */
 export function startFlags(): void {
@@ -98,6 +104,7 @@ export function startFlags(): void {
  */
 export function flagsAccountChanged(): void {
   if (typeof window === "undefined") return;
+  accountGen++;
   void refreshFlags({ fresh: true });
 }
 
