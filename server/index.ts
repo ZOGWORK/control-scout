@@ -10,6 +10,7 @@ import { packsDir } from "./packs/routes.js";
 import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
+import { flushAbuse } from "./moderation.js";
 import { startLiveSync } from "./data/live.js";
 import { REFRESH_EVERY_MS, refreshCoinFlips } from "./api/coinFlips.js";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
@@ -95,7 +96,10 @@ function indexNow() {
 }
 
 // Request metrics for the owner portal: the counters held in memory go to the database every minute.
-setInterval(() => { flushMetrics().catch((e) => log(`metrics: ${(e as Error).message}`)); }, 60_000).unref();
+setInterval(() => {
+  flushMetrics().catch((e) => log(`metrics: ${(e as Error).message}`));
+  flushAbuse().catch((e) => log(`moderation: ${(e as Error).message}`));
+}, 60_000).unref();
 
 /** Is any event running today ±1 day? (event days sync often; other days daily) */
 async function eventDay(): Promise<boolean> {

@@ -3,7 +3,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { all, get, migrate, openDb, run, setDb } from "../db";
+import { all, get, migrate, openDb, OWNER_AUDIT_TRIGGERS, run, setDb } from "../db";
 import { createApp } from "../app";
 import { sha256 } from "../auth/session";
 import { FLAG_TTL_MS, allFlags, invalidateFlags, isEnabled } from "../flags";
@@ -39,7 +39,7 @@ async function call(method: string, path: string, opts: { cookie?: string; body?
   return { status: res.status, json, headers: res.headers };
 }
 
-const OWNER_GETS = ["/api/owner/overview", "/api/owner/users", "/api/owner/users/1", "/api/owner/workspaces", "/api/owner/usage", "/api/owner/predictions", "/api/owner/predictions/engine", "/api/owner/flags", "/api/owner/feedback", "/api/owner/errors", "/api/owner/ops", "/api/owner/hero-lines", "/api/owner/audit"];
+const OWNER_GETS = ["/api/owner/overview", "/api/owner/users", "/api/owner/users/1", "/api/owner/workspaces", "/api/owner/usage", "/api/owner/predictions", "/api/owner/predictions/engine", "/api/owner/flags", "/api/owner/feedback", "/api/owner/errors", "/api/owner/ops", "/api/owner/data", "/api/owner/packs", "/api/owner/hero-lines", "/api/owner/audit"];
 const OWNER_WRITES: [string, string, unknown][] = [
   ["PUT", "/api/owner/flags/offlinePacks", { enabled: false }],
   ["PATCH", "/api/owner/feedback/1", { status: "resolved" }],
@@ -320,6 +320,21 @@ describe("audit log", () => {
     await expect(setAuditResult(job, "done: fine after all")).rejects.toThrow(/append-only/);
     const refused = await recordAudit("owner@example.com", "ops.caches", null, "refused: busy");
     await expect(setAuditResult(refused, "done")).rejects.toThrow(/append-only/);
+  });
+
+  it("a copy can still be cleared for the public snapshot the way scripts/snapshot.ts does, and stays append-only", async () => {
+    const copy = openDb(":memory:");
+    await migrate(copy);
+    await copy.execute("INSERT INTO owner_audit (at, actor, action) VALUES ('2026-10-29', 'owner@example.com', 'flag.set')");
+    await expect(copy.execute("DELETE FROM owner_audit")).rejects.toThrow(/append-only/);
+    await copy.execute("DROP TRIGGER IF EXISTS owner_audit_no_delete");
+    await copy.execute("DROP TRIGGER IF EXISTS owner_audit_no_edit");
+    await copy.execute("DELETE FROM owner_audit");
+    for (const sql of OWNER_AUDIT_TRIGGERS) await copy.execute(sql);
+    expect((await copy.execute("SELECT COUNT(*) n FROM owner_audit")).rows[0].n).toBe(0);
+    await copy.execute("INSERT INTO owner_audit (at, actor, action) VALUES ('2026-10-29', 'owner@example.com', 'flag.set')");
+    await expect(copy.execute("DELETE FROM owner_audit")).rejects.toThrow(/append-only/);
+    await expect(copy.execute("UPDATE owner_audit SET actor = 'x'")).rejects.toThrow(/append-only/);
   });
 
   it("has no route that edits or deletes an entry", async () => {
