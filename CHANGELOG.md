@@ -25,7 +25,7 @@ The home page's track record now shows how this season is going too, and its big
 - [home] Live calls and replays still shown apart, each labelled
 
 ### Home
-- **This season so far.** Under the track record's big number, a box shows this season's own season replay (for example "Season replay · 2026–27 BIOBUZZ so far: 68.4% of 1,065 decided matches called right"). It shows on both tabs, labelled as a replay and never mixed into the live number, and it's left out when that replay is already the big number.
+- **This season so far.** Under the track record's big number, a box shows this season's own season replay (for example "Season replay · 2026–27 BIOBUZZ so far: 68.4% of 1,065 decided matches called right"). It shows on both tabs, labelled as a replay and never mixed into the live number, and it's left out when that replay is already the big number. (#331)
 - **Yellow numbers.** The track record's percentage is in the accent yellow, the same as the ledger on How it works.
 
 ## 1.3.9 — 2026-10-28
