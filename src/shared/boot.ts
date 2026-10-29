@@ -7,7 +7,7 @@ export const BOOT_CONSENT_ID = "cs-boot-consent";
  *  store (src/lib/consent.ts) adopts it as this page view's unsaved choice. */
 export const BOOT_CHOICE_GLOBAL = "__csConsent";
 
-/** The home page's headlines (two parts each, the second in the accent colour), one an hour, and the line
+/** The home page's headlines (two parts each, the second in the accent colour), one every 10 minutes, and the line
  *  under them, in the static first paint and in the app: the same words at the same size, so the app's copy
  *  doesn't count as a new, later "largest paint". The brand itself stays in the app's chrome (sidebar and top bar). */
 export const HOME_HEADLINES = [
@@ -25,9 +25,9 @@ export const HOME_HEADLINES = [
   ["Smarter calls,", "every match."],
   ["The field,", "figured out."],
 ] as const;
-/** How long each headline stays: the line changes on the hour. */
-export const HOME_HEADLINE_MS = 3_600_000;
-/** Which headline shows at this time (the same on the server and in every browser, by the clock's hour), out of
+/** How long each headline stays: the line changes every 10 minutes, on the clock's :00, :10, :20 … */
+export const HOME_HEADLINE_MS = 600_000;
+/** Which headline shows at this time (the same on the server and in every browser, by the clock's 10-minute slot), out of
  *  `count` lines (the owner's own lines from the console, src/shared/heroLines.ts; the built-in ones by default). */
 export function homeHeadlineAt(now: number, count: number = HOME_HEADLINES.length): number {
   return Math.floor(now / HOME_HEADLINE_MS) % Math.max(1, count);
