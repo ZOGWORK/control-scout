@@ -25,10 +25,10 @@ The Events page stops jumping while it loads.
 - [fixes] No more security-policy warning in the browser console
 
 ### Speed
-- **Events holds still.** On a day with no coin flips, the page used to save room for them while it loaded, then take that room away, pulling the filters and the list up the screen. The page now knows from its first load whether today has any. On a phone, the footer used to sit in view until the list arrived, then get pushed down; the loading placeholder now fills the screen, so nothing visible moves. Layout shift on /events (a measure of how much the page jumps; under 0.1 is good) fell from 0.44 to 0.01 on a throttled phone and from 0.15 to under 0.01 on a computer.
+- **Events holds still.** On a day with no coin flips, the page used to save room for them while it loaded, then take that room away, pulling the filters and the list up the screen. The page now knows from its first load whether today has any. On a phone, the footer used to sit in view until the list arrived, then get pushed down; the loading placeholder now fills the screen, so nothing visible moves. Layout shift on /events (a measure of how much the page jumps; under 0.1 is good) fell from 0.44 to 0.01 on a throttled phone and from 0.15 to under 0.01 on a computer. (#346)
 
 ### Fixes
-- **Security policy.** A photo-storage setting that wasn't a Cloudflare account ID was being written into the page's security policy, which browsers reported as an error. A setting that isn't an account ID is now ignored.
+- **Security policy.** A photo-storage setting that wasn't a Cloudflare account ID was being written into the page's security policy, which browsers reported as an error. A setting that isn't an account ID is now ignored. (#346)
 
 ## 1.4.9 — 2026-10-29
 
