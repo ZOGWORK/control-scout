@@ -13,6 +13,7 @@ import { all } from "../db.js";
 import { PREDICT_SEASONS } from "../data/seasons.js";
 import { block, isoWeek } from "../api/accuracy.js";
 import type { DriftAlert, LedgerKind, PredictionHealth } from "../../src/shared/owner.js";
+import { TIER_ORDER, type TierCalibration } from "../../src/shared/ownerPredictions.js";
 
 export const DRIFT_BRIER = 0.03;
 export const DRIFT_ACCURACY = 0.05;
@@ -30,6 +31,16 @@ function accuracy(xs: Call[]): number {
 }
 /** How sure the favourite was, on average. */
 const expected = (xs: Call[]) => xs.reduce((s, r) => s + Math.max(r.p, 1 - r.p), 0) / Math.max(1, xs.length);
+
+/** Calibration by confidence tier (the tier each call shows publicly): how sure the favourite was against how
+ *  often it won, per tier, over the same calls (ties and 50:50 calls left out of both). Tiers with none are left out. */
+export function tierCalibration(xs: Call[]): TierCalibration[] {
+  return TIER_ORDER.map((tier) => {
+    // Both sides from the same calls: those with a favourite and a winner (no 50:50 call, no tie).
+    const cs = xs.filter((c) => c.tier === tier && c.y !== 0.5 && c.p !== 0.5);
+    return { tier, n: cs.length, predicted: expected(cs), actual: accuracy(cs), brier: brier(cs) };
+  }).filter((t) => t.n > 0);
+}
 
 /** Flag the weeks (oldest first in, newest first out) that fell away from the season so far. */
 export function driftAlerts(weeks: { week: string; calls: Call[] }[]): DriftAlert[] {
@@ -55,7 +66,7 @@ export async function predictionHealth(kind: LedgerKind, season?: number | null)
     .map((r) => ({ kind: r.kind as LedgerKind, season: Number(r.season), n: Number(r.n) }));
   const s = season && available.some((a) => a.kind === kind && a.season === season) ? season : available.find((a) => a.kind === kind)?.season ?? null;
   const thresholds = { brier: DRIFT_BRIER, accuracy: DRIFT_ACCURACY, minWeek: MIN_WEEK, rollingWindow: ROLLING };
-  if (s == null) return { kind, season: null, available, summary: null, reliability: [], weekly: [], rolling: null, alerts: [], thresholds };
+  if (s == null) return { kind, season: null, available, summary: null, reliability: [], byTier: [], weekly: [], rolling: null, alerts: [], thresholds };
 
   const calls = (await all<{ p: number; y: number; tier: ConfidenceTier; level: string; time: string | null }>(
     "SELECT p_red p, outcome y, tier, level, match_time time FROM predictions WHERE kind = ? AND season = ? AND outcome IS NOT NULL ORDER BY match_time, id",
@@ -77,6 +88,7 @@ export async function predictionHealth(kind: LedgerKind, season?: number | null)
     kind, season: s, available,
     summary: b && { n: b.n, accuracy: b.accuracy, brier: b.brier, baselineBrier: b.baselineBrier, logLoss: b.logLoss },
     reliability: b?.reliability ?? [],
+    byTier: tierCalibration(calls),
     weekly: weeks.map(({ week, calls: cs }) => ({ week, n: cs.length, expected: expected(cs), actual: accuracy(cs), brier: brier(cs) })),
     rolling,
     alerts: driftAlerts(weeks).slice(0, 12),

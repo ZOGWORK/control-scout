@@ -1,7 +1,7 @@
 // The automatically published weeks (table power_rankings_generated, written by ./auto.ts), read back
 // as the same RankingDoc shape a markdown file parses to, so the pages, archive, SEO, sitemap and
 // boot-shell HTML serve both alike (./store.ts merges them; a hand-written file for the week wins).
-import { all, get, run } from "../db.js";
+import { all, db, get, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import type { BlurbAuthor } from "../../src/shared/powerRankings.js";
 import type { RankingDoc } from "./format.js";
@@ -153,9 +153,16 @@ export async function editGenerated(season: number, week: string, change: { intr
   return n ? getGenerated(season, week) : "conflict";
 }
 
-/** Owner: hide a published week, or show a hidden one again. */
-export async function setGeneratedStatus(season: number, week: string, status: "published" | "hidden", at = new Date().toISOString()): Promise<GeneratedWeek | null> {
-  const n = await run("UPDATE power_rankings_generated SET status = ?, edited_by = 'owner', edited_at = ?, rev = rev + 1 WHERE season = ? AND week = ? AND status IN ('published', 'hidden')", [status, at, season, week]);
+/** Owner: hide a published week, or show a hidden one again. The week as it was (`was`, its status before) and
+ *  as it is are read in the same transaction as the change, so the audit log records exactly what this one did. */
+export async function setGeneratedStatus(season: number, week: string, status: "published" | "hidden", at = new Date().toISOString()): Promise<(GeneratedWeek & { was: GeneratedStatus }) | null> {
+  const read = { sql: "SELECT * FROM power_rankings_generated WHERE season = ? AND week = ?", args: [season, week] };
+  const [before, upd, after] = await db().batch([
+    read,
+    { sql: "UPDATE power_rankings_generated SET status = ?, edited_by = 'owner', edited_at = ?, rev = rev + 1 WHERE season = ? AND week = ? AND status IN ('published', 'hidden')", args: [status, at, season, week] },
+    read,
+  ], "write");
   invalidateGenerated();
-  return n ? getGenerated(season, week) : null;
+  if (!upd.rowsAffected || !before.rows[0] || !after.rows[0]) return null;
+  return { ...fromRow(after.rows[0] as unknown as Row), was: fromRow(before.rows[0] as unknown as Row).status };
 }

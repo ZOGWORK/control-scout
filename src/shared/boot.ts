@@ -27,9 +27,10 @@ export const HOME_HEADLINES = [
 ] as const;
 /** How long each headline stays: the line changes on the hour. */
 export const HOME_HEADLINE_MS = 3_600_000;
-/** Which headline shows at this time (the same on the server and in every browser, by the clock's hour). */
-export function homeHeadlineAt(now: number): number {
-  return Math.floor(now / HOME_HEADLINE_MS) % HOME_HEADLINES.length;
+/** Which headline shows at this time (the same on the server and in every browser, by the clock's hour), out of
+ *  `count` lines (the owner's own lines from the console, src/shared/heroLines.ts; the built-in ones by default). */
+export function homeHeadlineAt(now: number, count: number = HOME_HEADLINES.length): number {
+  return Math.floor(now / HOME_HEADLINE_MS) % Math.max(1, count);
 }
 export const HOME_LEAD = "Find your team. Follow the competition. Make your next call with the full picture.";
 /** What the site is, in plain words, under the hero's buttons: in the static first paint too, so a crawler

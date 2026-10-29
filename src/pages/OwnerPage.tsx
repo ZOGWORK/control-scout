@@ -3,11 +3,11 @@
 // marks isOwner, and every /api/owner/* call is checked on the server (403 for anyone else). One section
 // at a time (?panel=…), each loading its own data when opened; the old per-panel links still land on the
 // section that now holds that panel (PANEL_ALIASES).
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, Mail, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, RotateCcw, ScrollText, Search, ServerCog, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
+  Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
+  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -15,7 +15,7 @@ import { Async, LoadingBlock } from "../components/states";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Badge, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { cn } from "../components/cn";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../lib/api";
@@ -26,24 +26,32 @@ import { fmtBytes } from "../lib/recordings";
 import { FeaturesPanel } from "../components/owner/FeaturesPanel";
 import { FLAG_INFO } from "../shared/flags";
 import type {
-  AuditEntry, FeedbackList, FeedbackMessage, FeedbackStatus, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
+  AuditEntry, LedgerKind, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
 } from "../shared/owner";
 import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
 import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
 import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
-import { currentRelease } from "../lib/changelog";
 
 import { StreamsPanel } from "../components/owner/StreamsPanel";
-
-const WhatsNewContent = lazy(() => import("../components/WhatsNewContent"));
+import { PredictionEnginePanel, TierCalibrationList } from "../components/owner/PredictionEnginePanel";
+import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
+import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
+import { DataPanel } from "../components/owner/DataPanel";
+import { PacksPanel } from "../components/owner/PacksPanel";
+import { ModerationPanel } from "../components/owner/ModerationPanel";
+import { FeedbackPanel } from "../components/owner/FeedbackPanel";
+import { ErrorsPanel } from "../components/owner/ErrorsPanel";
+import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "data", label: "Data & sync", icon: DatabaseZap },
+  { id: "packs", label: "Packs & offline", icon: PackageOpen },
   { id: "predictions", label: "Predictions & ledger", icon: Target },
   { id: "content", label: "Rankings & content", icon: Trophy },
   { id: "features", label: "Features", icon: ToggleRight },
+  { id: "moderation", label: "Moderation", icon: ShieldAlert },
   { id: "feedback", label: "Feedback & errors", icon: Inbox },
   { id: "analytics", label: "Analytics", icon: Activity },
   { id: "accounts", label: "Accounts", icon: UserRound },
@@ -104,16 +112,19 @@ export default function OwnerPage() {
         </TabsList>
         <div key={refreshKey}>
           <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
-          <TabsContent value="data"><OpsPanel /></TabsContent>
-          <TabsContent value="predictions"><PredictionsPanel /></TabsContent>
+          <TabsContent value="data"><DataPanel /></TabsContent>
+          <TabsContent value="packs"><PacksPanel /></TabsContent>
+          <TabsContent value="predictions"><PredictionEnginePanel /><PredictionsPanel /></TabsContent>
           <TabsContent value="content" className="space-y-8">
             <PowerRankingsPanel onOpenSwitches={() => go("features")} />
+            <HeroLinesPanel />
             <StreamsPanel />
             <WhatsNewPanel />
           </TabsContent>
           <TabsContent value="features"><FeaturesPanel /></TabsContent>
-          <TabsContent value="feedback" className="space-y-8"><FeedbackPanel /><ErrorsPanel /></TabsContent>
-          <TabsContent value="analytics"><UsagePanel /></TabsContent>
+          <TabsContent value="moderation"><ModerationPanel onOpenResync={() => go("data")} /></TabsContent>
+          <TabsContent value="feedback" className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></TabsContent>
+          <TabsContent value="analytics" className="space-y-8"><AnalyticsPanel /><UsagePanel /></TabsContent>
           <TabsContent value="accounts" className="space-y-8"><UsersPanel /><OrphanedPanel /></TabsContent>
           <TabsContent value="storage"><StoragePanel /></TabsContent>
           <TabsContent value="audit"><AuditPanel /></TabsContent>
@@ -372,17 +383,6 @@ function WorkspacesSection() {
 }
 
 /** The releases visitors see in What's new (Scout's own, from CHANGELOG.md), and how to publish one. */
-function WhatsNewPanel() {
-  const v = currentRelease();
-  return (
-    <Section title="What's new" description={<>The releases every visitor sees under What's new{v ? <>, currently <span className="font-mono">v{v}</span></> : null}. They come from <span className="font-mono">CHANGELOG.md</span>: a new <span className="font-mono">## x.y.z — date</span> entry (with the app's version in <span className="font-mono">package.json</span> bumped to match), opening with a <span className="font-mono">### Highlights</span> block of 3 to 5 one-line <span className="font-mono">- [tag] …</span> bullets, goes live with its PR, and visitors see the dot until they open it.</>}>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <Suspense fallback={<LoadingBlock rows={4} label="Loading releases" />}><WhatsNewContent /></Suspense>
-      </div>
-    </Section>
-  );
-}
-
 function uptime(s: number): string {
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min`;
   if (s < 86400 * 2) return `${Math.round(s / 3600)} h`;
@@ -584,6 +584,9 @@ function PredictionsPanel() {
                 <Weekly weeks={p.weekly.filter((w) => w.n >= 10)} />
               </Section>
             </div>
+            <Section title="Calibration by confidence tier" description="The same calls grouped by the tier each one shows publicly (rough guess, fair, solid): how sure the favourite was on average against how often it won. A solid call should be both surer and as honest as a rough guess.">
+              <TierCalibrationList tiers={p.byTier} />
+            </Section>
             <Section title="Drift alerts" description={`A week is flagged when its Brier score is ${p.thresholds.brier.toFixed(2)} worse, or its accuracy ${Math.round(p.thresholds.accuracy * 100)} points lower, than the season before it (weeks with ${p.thresholds.minWeek}+ calls).`}>
               {p.alerts.length ? (
                 <ul className="space-y-2">
@@ -700,240 +703,6 @@ function WeeklyChart({ weeks }: { weeks: PredictionHealth["weekly"] }) {
   );
 }
 
-// --- Feedback inbox ---------------------------------------------------------------------------
-
-const TOPIC: Record<string, string> = { bug: "Bug", data: "Wrong data", feature: "Idea", other: "Other" };
-
-function FeedbackPanel() {
-  const [status, setStatus] = useState<FeedbackStatus | "all">("open");
-  const path = `/api/owner/feedback?status=${status}`;
-  const state = useApi<FeedbackList>(path);
-  const [busy, setBusy] = useState<number | null>(null);
-  // Older pages ("Show older"), for the list they were loaded for; the first page is the cached one above.
-  const [older, setOlder] = useState<{ status: FeedbackStatus | "all"; messages: FeedbackMessage[]; more: boolean } | null>(null);
-  const [loadingOlder, setLoadingOlder] = useState(false);
-  const extra = older?.status === status ? older : null;
-  // Bumped by every move: a page asked for before it is out of date and dropped when it arrives.
-  const olderGen = useRef(0);
-  const loadOlder = async (first: FeedbackList) => {
-    const last = (extra?.messages.at(-1) ?? first.messages.at(-1))?.id;
-    if (!last) return;
-    const gen = olderGen.current;
-    setLoadingOlder(true);
-    try {
-      const page = await apiFetch<FeedbackList>(`${path}&before=${last}`);
-      if (gen !== olderGen.current) return;
-      setOlder({ status, messages: [...(extra?.messages ?? []), ...page.messages], more: page.more });
-    } catch (e) { toast.error((e as ApiError).message); } finally { setLoadingOlder(false); }
-  };
-  const move = async (m: FeedbackMessage, to: FeedbackStatus) => {
-    setBusy(m.id);
-    try {
-      await apiFetch(`/api/owner/feedback/${m.id}`, { method: "PATCH", json: { status: to } });
-      // Older pages may hold the moved message: they load again on request, and one still on its way is dropped.
-      olderGen.current++;
-      setOlder(null);
-      // Every list (and the overview's open count) is out of date now, not just this one.
-      // Marked stale rather than dropped: what's on screen reloads in place, the rest when next shown.
-      markStale("/api/owner/feedback");
-      markStale("/api/owner/overview");
-      toast.success(to === "open" ? "Moved back to open" : to === "resolved" ? "Marked resolved" : "Archived");
-    } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(null); }
-  };
-  const counts = state.data?.counts;
-  const tabs: [FeedbackStatus | "all", string][] = [["open", "Open"], ["resolved", "Resolved"], ["archived", "Archived"], ["all", "All"]];
-  return (
-    <Section title="Feedback inbox" description="Messages from the contact form. Resolving or archiving only files them away; nothing is deleted.">
-      <div className="mb-4 flex flex-wrap gap-1" role="group" aria-label="Show">
-        {tabs.map(([k, label]) => (
-          <Button key={k} size="sm" variant={k === status ? "default" : "outline"} aria-pressed={k === status} onClick={() => setStatus(k)}>
-            {label}{counts && k !== "all" ? <span className="tabular-nums opacity-70">{counts[k]}</span> : null}
-          </Button>
-        ))}
-      </div>
-      <Async state={state} empty={(d) => !d.messages.length && <EmptyState icon={Inbox} title={status === "open" ? "Inbox zero" : "Nothing here"} description={status === "open" ? "Every message has been dealt with." : undefined} />}>
-        {(d) => (
-          <>
-          <ul className="space-y-3">
-            {[...d.messages, ...(extra?.messages ?? []).filter((m) => !d.messages.some((x) => x.id === m.id))].map((m) => (
-              <li key={m.id} className="rounded-xl border border-border bg-card p-4">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <Badge variant={m.topic === "bug" ? "destructive" : m.topic === "data" ? "soft" : m.topic === "feature" ? "beta" : "secondary"}>{TOPIC[m.topic] ?? m.topic}</Badge>
-                  <span className="font-medium text-foreground">{m.name ?? "No name given"}</span>
-                  <a className="inline-flex min-w-0 items-center gap-1 truncate text-accent-text underline-offset-4 hover:underline" href={`mailto:${m.email}`}><Mail className="size-3.5 shrink-0" aria-hidden />{m.email}</a>
-                  <span className="ml-auto text-xs text-muted-foreground" title={when(m.createdAt)}>#{m.id} · {ago(m.createdAt)}</span>
-                </div>
-                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-foreground">{m.message}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {m.status !== "resolved" && <Button size="sm" variant="secondary" className="max-sm:h-10" disabled={busy === m.id} onClick={() => void move(m, "resolved")}><CheckCircle2 /> Resolve</Button>}
-                  {m.status !== "archived" && <Button size="sm" variant="outline" className="max-sm:h-10" disabled={busy === m.id} onClick={() => void move(m, "archived")}><Archive /> Archive</Button>}
-                  {m.status !== "open" && <Button size="sm" variant="ghost" className="max-sm:h-10" disabled={busy === m.id} onClick={() => void move(m, "open")}><RotateCcw /> Reopen</Button>}
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {m.status !== "open" && m.statusAt ? `${m.status === "resolved" ? "Resolved" : "Archived"} ${ago(m.statusAt)}` : m.emailed ? "Also emailed to you" : "Stored here only"}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-          {(extra ? extra.more : d.more) && (
-            <div className="mt-4 flex justify-center">
-              <Button variant="outline" disabled={loadingOlder} onClick={() => void loadOlder(d)}>{loadingOlder ? "Loading…" : "Show older messages"}</Button>
-            </div>
-          )}
-          </>
-        )}
-      </Async>
-    </Section>
-  );
-}
-
-// --- Error reports ----------------------------------------------------------------------------
-
-interface ErrorReportRow {
-  fingerprint: string; message: string; count: number; firstSeen: string; lastSeen: string;
-  issueNumber: number | null; issueUrl: string | null; issueState: string | null;
-  sample: { route: string; appVersion: string; stack: string; userAgent: string };
-}
-
-function ErrorsPanel() {
-  const state = useApi<{ reports: ErrorReportRow[] }>("/api/owner/errors?limit=100");
-  return (
-    <Section title="Error reports" description="Crashes people chose to report, grouped by what broke. Each is filed as a GitHub issue when the server has a token for it.">
-      <Async state={state} empty={(d) => !d.reports.length && <EmptyState icon={Bug} title="No error reports" description="Nobody has reported a crash." />}>
-        {({ reports }) => (
-          <ul className="space-y-3">
-            {reports.map((r) => (
-              <li key={r.fingerprint} className="rounded-xl border border-border bg-card p-4">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-danger/15 font-display text-sm font-semibold tabular-nums text-danger" title={`${r.count} reports`}>{r.count > 99 ? "99+" : r.count}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words font-mono text-sm text-foreground">{r.message}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {r.count} report{r.count === 1 ? "" : "s"} · last {ago(r.lastSeen)} · first {ago(r.firstSeen)} · on <span className="font-mono">{r.sample.route}</span> · v{r.sample.appVersion}
-                    </p>
-                  </div>
-                  {r.issueUrl ? (
-                    <Button size="sm" variant="outline" className="shrink-0 max-sm:h-10" asChild>
-                      <a href={r.issueUrl} target="_blank" rel="noreferrer noopener">#{r.issueNumber}{r.issueState && r.issueState !== "open" ? ` · ${r.issueState.replace("_", " ")}` : ""} <ExternalLink /></a>
-                    </Button>
-                  ) : <Badge variant="secondary" className="shrink-0">Not filed</Badge>}
-                </div>
-                {r.sample.stack && (
-                  <details className="mt-3 text-xs">
-                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Latest stack</summary>
-                    <pre className="custom-scrollbar mt-2 max-h-64 overflow-auto rounded-lg bg-muted p-3 font-mono text-[11px] leading-relaxed text-foreground">{r.sample.stack}</pre>
-                  </details>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Async>
-    </Section>
-  );
-}
-
-// --- Data jobs --------------------------------------------------------------------------------
-
-const OPS: { op: OpName; title: string; icon: typeof RefreshCw; does: string; confirm: string; tone: string }[] = [
-  { op: "resync", title: "Re-sync now", icon: RefreshCw, tone: "bg-accent/15 text-accent-text",
-    does: "Fetches the current season from FIRST, then rebuilds stats, ratings and the prediction ledger. Takes a few minutes.",
-    confirm: "Live results for events on today wait until it finishes. The scheduled sync won't start while it runs." },
-  { op: "packs", title: "Rebuild offline packs", icon: PackageOpen, tone: "bg-info/15 text-info",
-    does: "Builds fresh offline packs from the current data. Devices pick them up on their next visit.",
-    confirm: "Building packs takes a few minutes, and live results for today's events pause until it's done." },
-  { op: "caches", title: "Clear caches", icon: Trash2, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-    does: "Empties the server's in-memory caches (ratings, track record, forecasts, search, weather, flags) and rebuilds the costly ones.",
-    confirm: "Pages may be slower for a minute while ratings rebuild. Nothing stored is touched." },
-];
-
-function OpsPanel() {
-  const state = useApi<OpsStatus>("/api/owner/ops");
-  const [asking, setAsking] = useState<OpName | null>(null);
-  const [sending, setSending] = useState(false);
-  const running = !!state.data && Object.values(state.data.jobs).some((j) => j?.state === "running");
-  // While a job runs, check on it every 2 seconds.
-  const { reload } = state;
-  useEffect(() => {
-    if (!running) return;
-    const t = window.setInterval(reload, 2000);
-    return () => window.clearInterval(t);
-  }, [running, reload]);
-  const start = async (op: OpName) => {
-    setSending(true);
-    try {
-      const r = await apiFetch<{ status: OpsStatus }>(`/api/owner/ops/${op}`, { method: "POST", json: { confirm: true } });
-      prime("/api/owner/ops", r.status);
-      toast.success("Started. Progress shows on its card.");
-      setAsking(null);
-    } catch (e) {
-      toast.error((e as ApiError).message);
-      reload();
-    } finally { setSending(false); }
-  };
-  const chosen = OPS.find((o) => o.op === asking);
-  return (
-    <Section title="Data jobs" description="Each runs in the background and never alongside a scheduled sync or the live results lane: if one of those is busy, the job says so instead of starting.">
-      <Async state={state}>
-        {(s) => (
-          <>
-            <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <span className={cn("size-2 rounded-full", s.writer || s.cycle ? "bg-warning" : "bg-success")} aria-hidden />
-              {s.cycle ? `A data update (${s.cycle.reason}) is running on this server.` : s.writer ? `The data writer is busy: ${s.writer.what}.` : "The data writer is free."}
-            </p>
-            <div className="grid gap-3 lg:grid-cols-3">
-              {OPS.map((o) => {
-                const job = s.jobs[o.op];
-                const off = s.unavailable[o.op];
-                return (
-                  <div key={o.op} className="flex flex-col rounded-xl border border-border bg-card p-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className={cn("grid size-8 place-items-center rounded-lg", o.tone)}><o.icon className="size-4" aria-hidden /></span>
-                      <h3 className="font-medium text-foreground">{o.title}</h3>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{o.does}</p>
-                    {job && (
-                      <div role="status" className={cn("mt-3 rounded-lg border px-3 py-2 text-xs",
-                        job.state === "running" ? "border-info/40 bg-info/[0.06]" : job.state === "done" ? "border-success/40 bg-success/[0.06]" : "border-danger/40 bg-danger/[0.06]")}>
-                        <p className="font-medium text-foreground">
-                          {job.state === "running" ? `Running since ${ago(job.startedAt)}` : job.state === "done" ? `Finished ${ago(job.finishedAt)}` : `Failed ${ago(job.finishedAt)}`}
-                        </p>
-                        {job.message && <p className="mt-0.5 break-words text-muted-foreground">{job.message}</p>}
-                      </div>
-                    )}
-                    {off && <p className="mt-3 text-xs text-muted-foreground">{off}</p>}
-                    <div className="mt-auto pt-4">
-                      <Button variant="secondary" className="w-full" disabled={!!off || job?.state === "running"} onClick={() => setAsking(o.op)}>
-                        <o.icon /> {job?.state === "running" ? "Running…" : o.title}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </Async>
-      <Dialog open={!!chosen} onOpenChange={(v) => { if (!v && !sending) setAsking(null); }}>
-        <DialogContent>
-          {chosen && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{chosen.title}?</DialogTitle>
-                <DialogDescription>{chosen.does} {chosen.confirm}</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAsking(null)} disabled={sending}>Cancel</Button>
-                <Button onClick={() => void start(chosen.op)} disabled={sending}><chosen.icon /> {sending ? "Starting…" : `Yes, ${chosen.title.toLowerCase()}`}</Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-    </Section>
-  );
-}
-
 // --- Orphaned spaces (Task 19) ----------------------------------------------------------------
 
 const REASON: Record<OrphanReason, string> = { deleted: "Deleted in Control Point", no_admin: "No admin left" };
@@ -983,6 +752,9 @@ function describe(e: AuditEntry): string {
     case "stream.set": return `Set the live stream of ${String(d.code ?? "")} (${d.season})`;
     case "stream.remove": return `Removed the live stream of ${String(d.code ?? "")} (${d.season})`;
     case "feedback.status": return `${d.status === "open" ? "Reopened" : d.status === "resolved" ? "Resolved" : "Archived"} feedback #${d.id}`;
+    case "feedback.triage": return d.triage ? `Triaged feedback #${d.id} as ${String(d.triage)}` : `Took back the triage of feedback #${d.id}`;
+    case "error.note": return "Wrote a note on an error report";
+    case "settings.publicUsage": return "Changed whether the home page shows the \"in use\" section";
     case "ops.resync": return "Re-sync now";
     case "ops.packs": return "Rebuild offline packs";
     case "ops.caches": return "Clear caches";

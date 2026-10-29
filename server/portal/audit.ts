@@ -12,7 +12,13 @@ const DETAILS_MAX = 2000;
 /** What a change replaced and what it set (any JSON value; null for "nothing"). */
 export interface AuditChange { from: unknown; to: unknown }
 
-const valueJson = (v: unknown) => JSON.stringify(v ?? null).slice(0, DETAILS_MAX);
+/** Room for any value the console sets whole (a 2,000-character note with every character escaped). */
+export const VALUE_MAX = 16_000;
+/** Always valid JSON: a value too long to keep is kept as its first VALUE_MAX characters, marked as cut. */
+const valueJson = (v: unknown) => {
+  const s = JSON.stringify(v ?? null);
+  return s.length <= VALUE_MAX ? s : JSON.stringify({ truncated: s.slice(0, VALUE_MAX) });
+};
 const parse = (s: string | null): unknown => {
   if (s == null) return null;
   try { return JSON.parse(s); } catch { return s; }
