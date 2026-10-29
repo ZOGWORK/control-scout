@@ -16,6 +16,8 @@ const str = (k: string) => {
 export const env = {
   get port() { return Number(str("PORT") ?? 3000); },
   get production() { return process.env.NODE_ENV === "production"; },
+  /** CSP_ENFORCE=1: the HTML's Content-Security-Policy is enforced; otherwise it is report-only (server/securityHeaders.ts). */
+  get cspEnforce() { return str("CSP_ENFORCE") === "1"; },
   get appUrl() { return str("APP_URL") ?? "http://localhost:5173"; },
   /** The one public origin search engines should index (canonical, OG, sitemap URLs). In production it's
    *  controlscout.org even on a backup host whose APP_URL is its own address (Render). */

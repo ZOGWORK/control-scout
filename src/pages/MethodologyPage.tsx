@@ -20,17 +20,18 @@ import { CarryOver, GainChart, LearnSim, RatingChips, WorkedUpdate } from "../co
 import { BellFigure, Playground } from "../components/howitworks/MatchFigures";
 import { PointsChart, QualifierSim, RunFlow } from "../components/howitworks/EventFigures";
 import { AccuracySection } from "../components/howitworks/AccuracySection";
-import { BreakChart, Verdicts } from "../components/howitworks/LabNotes";
+import { BreakChart, Verdicts, repoUrl } from "../components/howitworks/LabNotes";
 import { ENGINE_VERSIONS } from "../components/howitworks/versions";
 import { SLICE_FACTS, SLICE_REPORT } from "../components/howitworks/sliceFacts";
 
 const pct1 = (x: number) => `${(100 * x).toFixed(1)}%`;
 import { CleanList, Prose, Reveal, SectionHead, TipLayer, useReduced } from "../components/howitworks/ui";
 import { CAL, E2, E21, MODEL, NOISE, RATING } from "../components/howitworks/math";
-import { LOCAL_RUNS, LOCAL_STOP_MS, PROJECTION_FLOOR, PROJECTION_RUNS } from "../shared/projections";
+import { FORECAST_RUNS, LOCAL_RUNS, LOCAL_STOP_MS, PROJECTION_FLOOR, PROJECTION_RUNS } from "../shared/projections";
 
-/** Event simulations per forecast (server/app.ts → forecast(…, 2000)). */
-const SIM_RUNS = 2000;
+/** Event simulations per forecast (server/app.ts forecastFor). */
+const SIM_RUNS = FORECAST_RUNS;
+const n0 = (x: number) => x.toLocaleString("en-US");
 
 export default function MethodologyPage() {
   useTitle("How it works");
@@ -107,7 +108,7 @@ export default function MethodologyPage() {
           <Prose>
             <h3>Prediction Engine 2.0: reading the match, not just the score gap</h3>
             <p>Two curves only see the expected score gap. Since <strong>Prediction Engine 2.0</strong>, a small learned correction adjusts that probability using what the gap leaves out: where each side's points come from (auto, endgame, penalties), how lopsided each alliance is, how many matches each robot has played and how long since its last one, how sure the ratings are, whether it's a playoff, and three track-record signals per robot (does it beat or miss expectations, how much its alliances swing, how often they collapse). Those signals come from alliance scores, so they can't say which partner had the bad match; they're hints, not verdicts. Predicted scores and their ranges don't change.</p>
-            <p>It was fitted on 2023–24 and 2024–25 matches, chosen and calibrated on early-2025 data, then frozen before it saw 2025–26. Replayed over the whole 2025–26 season (37,414 matches it never trained on, each predicted only from earlier results), it picked the winner {(100 * E2.accuracy).toFixed(2)}% of the time against {(100 * E2.baselineAccuracy).toFixed(2)}% before: <strong>+{(100 * (E2.accuracy - E2.baselineAccuracy)).toFixed(2)} points</strong> (95% range {(100 * E2.accuracyGain95[0]).toFixed(2)} to {(100 * E2.accuracyGain95[1]).toFixed(2)}). The Brier score fell from {E2.baselineBrier.toFixed(4)} to {E2.brier.toFixed(4)}. Not everything improved: one calibration measure got a little worse ({(100 * E2.baselineEce).toFixed(2)}% to {(100 * E2.ece).toFixed(2)}%), and a few late-season months lost a little accuracy. That's a replay of a past season, not a promise about this one, and the live track record keeps each engine version's calls apart.</p>
+            <p>It was fitted on 2023–24 and 2024–25 matches, chosen and calibrated on early-2025 data, then frozen before it saw 2025–26. Replayed over the whole 2025–26 season ({n0(E2.matches)} matches it never trained on, {n0(E2.nonTies)} of them with a winner, each predicted only from earlier results), it picked the winner {(100 * E2.accuracy).toFixed(2)}% of the time against {(100 * E2.baselineAccuracy).toFixed(2)}% before: <strong>+{(100 * (E2.accuracy - E2.baselineAccuracy)).toFixed(2)} points</strong> (95% range {(100 * E2.accuracyGain95[0]).toFixed(2)} to {(100 * E2.accuracyGain95[1]).toFixed(2)}). The Brier score fell from {E2.baselineBrier.toFixed(4)} to {E2.brier.toFixed(4)}. Not everything improved: one calibration measure got a little worse ({(100 * E2.baselineEce).toFixed(2)}% to {(100 * E2.ece).toFixed(2)}%), and a few late-season months lost a little accuracy. That's a replay of a past season, not a promise about this one, and the live track record keeps each engine version's calls apart.</p>
             <p><strong>Prediction Engine 2.1</strong> adds three more track-record signals: how a robot is doing <em>at this event so far</em>, whether its last few matches beat its usual level (momentum), and how recently its alliance collapsed. Tested month by month, with every setting fitted only on earlier matches, its probabilities scored better than 2.0's in both seasons tried (Brier {E21.season2024.baselineBrier.toFixed(4)} → {E21.season2024.brier.toFixed(4)} on later 2024–25 matches). Whether it picks more winners isn't settled: accuracy moved {(100 * (E21.season2024.accuracy - E21.season2024.baselineAccuracy)).toFixed(2)} and {(100 * (E21.season2025reused.accuracy - E21.season2025reused.baselineAccuracy)).toFixed(2)} points, within the noise. Both versions are now logged side by side on every live match, so the difference will be measured on the same games.</p>
             <h3>A final calibration touch</h3>
             <p>Even good models are a little over- or under-confident, so every probability gets a final two-number <strong>calibration</strong> step that gently pulls it toward 50% and keeps calls in the same order. It just makes "70%" mean 70%. When a device has ratings from before engine 2.0 (an old offline pack), it uses the original score-gap probability with its own correction (multiply the log-odds by {CAL.a.toFixed(3)}, nudge by {CAL.b.toFixed(3)}) until fresh ratings arrive. Probabilities are never shown as 0% or 100% unless the match is already decided.</p>
@@ -171,6 +172,7 @@ export default function MethodologyPage() {
               <><strong>Checked on real events.</strong> Replaying 40 finished 2025–26 events from their midpoint, 86.8% of teams (953 of 1,098) finished inside their projected 80% range.</>,
               <><strong>Local estimate, only as a fallback.</strong> When the stored projection can't be had (no signal, or none made yet) and this season is saved for offline use, the page simulates the event on your device instead: {LOCAL_RUNS.toLocaleString("en-US")} runs of the same engine with the same method and seed, in the background, stopping after {LOCAL_STOP_MS / 1000} seconds on a slow phone. It's labelled "Local estimate" with the real count, sits one confidence tier lower, is kept on the device only, and gives way to the stored projection as soon as that can be read.</>,
             ]} />
+            <p id="simulation-counts"><strong>Why three simulation counts.</strong> It's one simulator with three time budgets: the advancement forecast (with awards and "what if" pairings) runs {n0(SIM_RUNS)} times when a page first asks for it and is then reused; the stored projection runs {n0(PROJECTION_RUNS)} in the background ({n0(PROJECTION_FLOOR)} for a very large event); the offline local estimate runs up to {n0(LOCAL_RUNS)} on your device.</p>
           </Prose>
         </section>
 
@@ -191,7 +193,7 @@ export default function MethodologyPage() {
         <section id="limits" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="07" eyebrow="Fine print" title="What the predictions can't know" />
           <Prose>
-            <p>Where the predictions are weakest is measured, not guessed: every engine version is replayed over past seasons and its errors are broken down by situation (the slice report, <code>{SLICE_REPORT}</code>). The biggest weak spot, by far, is <strong>thin data</strong>.</p>
+            <p>Where the predictions are weakest is measured, not guessed: every engine version is replayed over past seasons and its errors are broken down by situation (the slice report, <a href={repoUrl(`docs/engine/slices/${SLICE_REPORT}.md`)} target="_blank" rel="noopener noreferrer" className="underline decoration-border underline-offset-2 hover:decoration-current"><code>{SLICE_REPORT}</code></a>). The biggest weak spot, by far, is <strong>thin data</strong>.</p>
             <CleanList items={[
               <><strong>Early matches, little data.</strong> In {SLICE_FACTS.season}, matches whose four robots had played few rated matches between them were {Math.round(SLICE_FACTS.thin.shareMatches * 100)}% of matches but {Math.round(SLICE_FACTS.thin.shareBrier * 100)}% of the prediction error, and the favourite won {pct1(SLICE_FACTS.thin.accuracy)} of the time against {pct1(SLICE_FACTS.dense.accuracy)} when every robot was well known. The first ten qualification matches of an event are similar: {Math.round(SLICE_FACTS.firstTenQuals.shareMatches * 100)}% of matches, {Math.round(SLICE_FACTS.firstTenQuals.shareBrier * 100)}% of the error, {pct1(SLICE_FACTS.firstTenQuals.accuracy)} right against {pct1(SLICE_FACTS.lateQuals.accuracy)} from match 26 on. Regional starting points, form at the event and alliance overlap all help here, but no model can know much about a robot it has barely seen.</>,
               <><strong>A new robot until it plays.</strong> If you rebuilt over the break, the engine still thinks you're the old robot until your first match.</>,
@@ -270,7 +272,7 @@ function SettingsTable() {
     ["Final stretch (2.8)", `× ${(MODEL.contextual!.recalibration?.slope ?? 1).toFixed(3)} log-odds`, "Pushes probabilities slightly away from 50%; never changes the favourite"],
     ["Calibration (fallback)", `a ${CAL.a.toFixed(3)} · b ${CAL.b.toFixed(3)}`, "Platt scaling, used when ratings carry no 2.0 track-record state"],
     ["Captain's pick", `τ ${MODEL.pick.tau} · rank ${MODEL.pick.rankWeight}`, "How much strength vs. rank drives picks"],
-    ["Simulations", SIM_RUNS.toLocaleString("en-US"), "Runs per event forecast"],
+    ["Simulations", `${n0(SIM_RUNS)} / ${n0(PROJECTION_RUNS)} / ${n0(LOCAL_RUNS)}`, "Runs per advancement forecast / stored projection / local estimate on a device"],
     ["OPR", "least squares", "Standard least squares over qualification matches"],
   ];
   return (

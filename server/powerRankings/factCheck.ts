@@ -205,6 +205,19 @@ export function templateIntro(p: FactPacket, friday: string, compared: boolean):
   return out.join(" ");
 }
 
+/** "2026–27" for season 2026. */
+export const seasonText = (season: number) => `${season}–${String((season + 1) % 100).padStart(2, "0")}`;
+
+/**
+ * Bruno's text in the page's words: a raw week id ("week 2026-w43", or a bare "2026-w43") becomes
+ * "week 43", and "the 2026 season" becomes "the 2026–27 season". Applied before the fact check.
+ */
+export function plainWeekText(text: string, p: Pick<FactPacket, "season">): string {
+  return text
+    .replace(/\b(week\s+)?\d{4}-w(\d{2})\b/gi, (_all, w: string | undefined, n: string) => `${w ?? "week "}${Number(n)}`)
+    .replace(/\b(\d{4})(\s+season)\b/g, (all, y: string, rest: string) => (Number(y) === p.season ? `${seasonText(p.season)}${rest}` : all));
+}
+
 export interface Composed {
   intro: string;
   introSource: "bruno" | "template";
@@ -218,7 +231,7 @@ export interface Composed {
  */
 export function compose(packet: FactPacket, bruno: BrunoOutput | null, friday: string, compared: boolean): Composed {
   const byTeam = new Map<number, string>();
-  for (const b of bruno?.blurbs ?? []) if (typeof b?.text === "string" && Number.isInteger(b?.team) && !byTeam.has(b.team)) byTeam.set(b.team, b.text.replace(/\s+/g, " ").trim());
+  for (const b of bruno?.blurbs ?? []) if (typeof b?.text === "string" && Number.isInteger(b?.team) && !byTeam.has(b.team)) byTeam.set(b.team, plainWeekText(b.text.replace(/\s+/g, " ").trim(), packet));
   const entries = packet.teams.map((t) => {
     const text = byTeam.get(t.team);
     if (text) {
@@ -228,7 +241,7 @@ export function compose(packet: FactPacket, bruno: BrunoOutput | null, friday: s
     }
     return { rank: t.rank, team: t.team, text: templateBlurb(t, compared), source: "template" as const, ...(bruno ? { rejected: ["no blurb"] } : {}) };
   });
-  const introText = typeof bruno?.intro === "string" ? bruno.intro.replace(/\s+/g, " ").trim() : "";
+  const introText = typeof bruno?.intro === "string" ? plainWeekText(bruno.intro.replace(/\s+/g, " ").trim(), packet) : "";
   const introOk = !!introText && checkIntro(introText, packet, friday).ok;
   return { intro: introOk ? introText : templateIntro(packet, friday, compared), introSource: introOk ? "bruno" : "template", entries };
 }

@@ -23,6 +23,8 @@ import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, 
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
+import { trackRecordIfReady } from "./api/accuracy.js";
+import type { TrackRecord } from "../src/shared/api.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -107,7 +109,6 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/predict": { title: "Predict an FTC match", description: "Pick any four FTC teams and get win odds, a predicted score and the three biggest reasons why, from the same engine that powers every Control Scout prediction." },
   "/compare": { title: "Compare FTC teams", description: "Put FTC teams side by side: OPR by game phase, prediction ratings, records and event-by-event trends for up to four teams at once." },
   "/methodology": { title: "How the predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
-  "/predict/how-it-works": { title: "How the predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
   "/download": { title: "Download FTC data", description: "Download full FTC seasons as SQLite files: every event, team, match, score breakdown, ranking and award. Offline predictions are saved automatically." },
   "/privacy": { title: "Privacy policy", description: "How Control Scout handles your data: no account needed, only essential sign-in cookies, no ads or third-party trackers, anonymous stats only if you allow them." },
   "/terms": { title: "Terms of use", description: "The terms for using Control Scout: free, predictions are estimates, FTC data can be wrong, rate limits instead of scraping, and your scouting notes stay yours." },
@@ -239,7 +240,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
 }
 
-const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and live rating, OPR and record.";
+const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and its rating, OPR and record that week.";
 
 /** The top of a week's list, for a description: "#1 4215 Hypnotic Robotics, #2 …". */
 const topLine = (r: PowerRankingsResponse, n: number) =>
@@ -459,9 +460,13 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   }
   // How it works: the whole page in the first paint, prerendered from the real page component at build time
   // (scripts/prerender.mjs), so crawlers read every section without running JavaScript.
+  // Its live figure and as-of date are added from the track record already built (never built for this request).
   if (p === "/methodology") {
     const s = STATIC[p], body = methodologyHtml();
-    return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
+    const rec = methodologyRecord(trackRecordIfReady());
+    const description = rec ? bestFit([`How Control Scout rates robots and predicts FTC matches. ${rec.text}`, s.description]) : fitDescription(s.description);
+    const html = body && rec ? withRecordLine(body, rec) : body;
+    return { title: s.title, description, type: "website", ...(html ? { bodyHtml: html } : {}) };
   }
   // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).
   if (p === "/faq") return { title: STATIC["/faq"].title, description: fitDescription(STATIC["/faq"].description), type: "website", jsonLd: [faqJsonLd(canonicalOrigin())], bodyHtml: faqHtml() };
@@ -520,6 +525,26 @@ export function methodologyHtml(): string | null {
   }
   return methodologyCache;
 }
+/** The track record's headline in one sentence with its as-of date (UTC day), for How it works' first HTML; null with no headline. */
+export function methodologyRecord(t: Pick<TrackRecord, "headline" | "seasons" | "generatedAt"> | null): { text: string; iso: string; date: string } | null {
+  const h = t?.headline;
+  const at = t ? Date.parse(t.generatedAt) : NaN;
+  if (!t || !h || !Number.isFinite(at)) return null;
+  const season = t.seasons.find((x) => x.season === h.season);
+  const block = season?.[h.kind];
+  if (!season || !block || block.decided <= 0) return null;
+  const date = dateLong(new Date(at).toISOString().slice(0, 10));
+  const how = h.kind === "live" ? "called right before they were played" : "called right in a season replay";
+  const text = `As of ${date}: ${(100 * block.accuracy).toFixed(1)}% of ${block.decided.toLocaleString("en-US")} decided ${season.label.split(" ")[0]} matches ${how}.`;
+  return { text, iso: new Date(at).toISOString(), date };
+}
+
+/** The prerendered page with the track record's line at the top of its accuracy section (the app's own takes over once it loads). */
+export function withRecordLine(body: string, rec: { text: string; iso: string; date: string }): string {
+  const line = `<p data-cs-record>Track record: ${esc(rec.text).replace(esc(rec.date), () => `<time datetime="${esc(rec.iso)}">${esc(rec.date)}</time>`)}</p>`;
+  return body.replace(/<section id="accuracy"[^>]*>/, (open) => `${open}${line}`);
+}
+
 /** Tests: forget the cached page. */
 export function resetMethodologyHtml(): void { methodologyCache = undefined; }
 

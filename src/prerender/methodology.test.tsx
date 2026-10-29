@@ -14,4 +14,14 @@ describe("How it works prerender", () => {
       expect(html, text).toContain(text);
     }
   });
+
+  it("folded lab notes render closed as aria-hidden + inert, in the form scripts/prerender.mjs opens for the first paint", () => {
+    const html = renderMethodology();
+    const panels = html.match(/<div[^>]*class="hiw-expand"[^>]*>/g)!.filter((d) => !d.includes("hiw-pipe-detail"));
+    expect(panels.length).toBeGreaterThan(5);
+    for (const d of panels) expect(d).toMatch(/ aria-hidden="true" inert=""/);
+    // The build's own replacements leave every panel open and focusable.
+    const opened = html.replace(/(<div[^>]*class="hiw-expand"[^>]*?) aria-hidden="true"/g, "$1").replace(/(<div[^>]*class="hiw-expand"[^>]*?) inert=""/g, "$1");
+    expect(opened).not.toMatch(/class="hiw-expand"[^>]*(aria-hidden|inert)/);
+  });
 });

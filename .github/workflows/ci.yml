@@ -38,6 +38,8 @@ jobs:
       - run: npm test
       - name: Uptime script tests (fake curl and gh, no network)
         run: bash .github/scripts/uptime.test.sh
+      - name: Changelog guard tests
+        run: bash .github/scripts/changelog-guard.test.sh
       - run: npm run build
       # The VM starts the server from this bundle (scripts/build-server.mjs): a bundle that can't start fails here,
       # not on the live site. It must answer ready, and quickly (it restores the shipped snapshot first here).
