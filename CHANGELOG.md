@@ -25,7 +25,7 @@ The weekly digest just says it comes once a week, without naming a day or time.
 - [alerts] The digest's description no longer names a send day
 
 ### Weekly digest
-- **No fixed time in the copy.** Settings, the switch's confirmation and the description say the digest comes once a week, instead of "Mondays at 8 AM Eastern". The email itself is unchanged. (#334)
+- **No fixed time in the copy.** Settings, the switch's confirmation and the description say the digest comes once a week, instead of naming a day or time. The email itself is unchanged. (#334)
 
 ## 1.4.0 — 2026-10-29
 
