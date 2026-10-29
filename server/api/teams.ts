@@ -5,6 +5,8 @@ import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamRepor
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
 import { reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
+import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecord.js";
+import { teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -84,33 +86,19 @@ export const ATTENDED = `(NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = e
                          ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
                        WHERE x.season = et.season AND x.code = et.code AND x.team = et.team AND x.on_field = 1 AND m.played = 1))`;
 
+/**
+ * A season's event rows for the team page: every event the team is on the roster of or played a match at, each with
+ * its record counted from the matches (src/shared/teamEventRows.ts). Events the team never played are left out.
+ */
 export async function teamEvents(season: number, team: number): Promise<TeamEventRow[]> {
-  const rows = await all<any>(
-    `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country,
-            et.rank, et.rp, et.wins, et.losses, et.ties, et.qual_played,
-            s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen, s.avg_score, s.avg_np, s.avg_pen
-     FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-     LEFT JOIN team_event_stats s ON s.season = et.season AND s.code = et.code AND s.team = et.team
-     WHERE et.season = ? AND et.team = ? AND ${ATTENDED}
-     ORDER BY e.start, e.code`,
-    [season, team],
-  );
-  const [awards, alliances] = await Promise.all([
+  const q = teamEventsQuery(season, team, { meetRanks: true });
+  const [rows, recs, awards, alliances] = await Promise.all([
+    all<any>(q.sql, q.args),
+    all<any>(recordSql("mt.season = ? AND mt.team = ?"), [season, team]),
     all<any>("SELECT code, type, placement, name FROM awards WHERE season = ? AND team = ?", [season, team]),
     all<any>("SELECT code, number, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND (captain = ? OR pick1 = ? OR pick2 = ? OR backup = ?)", [season, team, team, team, team]),
   ]);
-  return rows.map((r) => {
-    const al = alliances.find((a) => a.code === r.code);
-    const seat = al ? (al.captain === team ? "captain" : al.pick1 === team ? "pick1" : al.pick2 === team ? "pick2" : "backup") : null;
-    return {
-      season, code: r.code, name: r.name, type: r.type, start: r.start, end: r.end, city: r.city, state: r.state, country: r.country,
-      rank: r.rank, rp: r.rp, wins: r.wins, losses: r.losses, ties: r.ties, qualPlayed: r.qual_played,
-      opr: { np: r.opr_np, auto: r.opr_auto, teleop: r.opr_teleop, endgame: r.opr_endgame, pen: r.opr_pen },
-      avg: { score: r.avg_score, np: r.avg_np, pen: r.avg_pen },
-      awards: awards.filter((a) => a.code === r.code).map((a) => ({ type: a.type, placement: a.placement, name: a.name })),
-      alliance: al && seat ? { number: al.number, seat } : null,
-    };
-  });
+  return teamEventRows(season, team, rows, recordsFromRows(recs), awards, alliances, new Date().toISOString().slice(0, 10));
 }
 
 const nOrNull = (x: unknown) => (x == null ? null : Number(x));
@@ -220,23 +208,37 @@ export async function compareTeams(numbers: number[], season: number): Promise<C
 export async function teamSummaries(numbers: number[], season: number): Promise<TeamSummary[]> {
   if (!numbers.length) return [];
   const ph = numbers.map(() => "?").join(",");
-  const [infos, stats, lastEv, rel] = await Promise.all([
+  const [infos, stats, lastEv, recRows, rel] = await Promise.all([
     all<any>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${ph})`, numbers),
     all<any>(`SELECT * FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
-      `SELECT et.team, e.code, e.name, e.start, e.end, et.rank, et.wins, et.losses, et.ties FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+      `SELECT et.team, e.code, e.name, e.type, e.start, e.end, e.remote, et.rank, et.wins, et.losses, et.ties, r.rank meet_rank
+       FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+       LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team AND e.type = 'LeagueMeet'
        WHERE et.season = ? AND et.team IN (${ph}) ORDER BY e.start DESC`, [season, ...numbers]),
+    all<any>(recordSql(`mt.season = ? AND mt.team IN (${ph})`), [season, ...numbers]),
     all<any>(`SELECT team, idx, matches FROM team_reliability WHERE season = ? AND code = '' AND team IN (${ph})`, [season, ...numbers]),
   ]);
+  const recs = recordsFromRows(recRows);
   const today = new Date().toISOString().slice(0, 10);
   return numbers.map((n) => {
     const i = infos.find((x) => Number(x.number) === n);
     const s = stats.find((x) => Number(x.team) === n);
-    const evs = lastEv.filter((x) => Number(x.team) === n);
+    // Events it played (a match on its record), or that haven't ended: a league lists every league team at every
+    // meet, so a finished meet the team has no match at isn't its last event (as the team page's rows).
+    const evs = lastEv.filter((x) => Number(x.team) === n && (recs.has(`${n}|${x.code}`) || Number(x.remote) === 1 || (x.end ?? x.start ?? "9999") >= today));
     const r = rel.find((x) => Number(x.team) === n);
     const last = evs.find((e) => (e.start ?? "") <= today) ?? null;
     const next = [...evs].reverse().find((e) => (e.start ?? "") > today) ?? null;
-    const ev = (e: any) => e && { code: e.code, name: e.name, start: e.start, end: e.end, rank: e.rank, record: e.wins == null ? null : `${e.wins}-${e.losses}-${e.ties}` };
+    // The record there: its matches (playoffs included), as the team page counts it; FIRST's row only for a remote event.
+    const ev = (e: any) => {
+      if (!e) return null;
+      const rec = recs.get(`${n}|${e.code}`);
+      return {
+        code: e.code, name: e.name, start: e.start, end: e.end, rank: e.type === "LeagueMeet" ? e.meet_rank ?? null : e.rank,
+        record: rec ? wltText(rec) : Number(e.remote) === 1 && e.wins != null ? `${e.wins}-${e.losses}-${e.ties}` : null,
+      };
+    };
     return {
       team: n, name: i?.name ?? null, place: [i?.city, i?.state, i?.country].filter(Boolean).join(", "),
       opr: s?.opr_np ?? null, oprRank: s?.rank_np ?? null, of: s?.ranked_teams ?? null,

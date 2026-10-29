@@ -16,6 +16,7 @@ import { oprRows, solveOpr } from "./opr.js";
 import { normalize } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
+import { onRecord } from "../../src/shared/eventRecord.js";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
@@ -46,7 +47,9 @@ export function rankBy(vals: [number, number][], min = -Infinity): Map<number, n
 }
 
 type Best = { np: number; auto: number; teleop: number; endgame: number; pen: number };
-type SeasonAcc = Acc & { events: Set<string> };
+/** Averages (`np`, `score`, `pen` over `matches`) are over the matches the robot was on the field for; the record
+ *  (`rec`) is every match on the team's record (src/shared/eventRecord.ts), as the team page's event rows count it. */
+type SeasonAcc = Acc & { events: Set<string>; rec: { matches: number; w: number; l: number; t: number } };
 
 const TES_SQL = "INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, avg_score, avg_np, avg_pen, matches, wins, losses, ties) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 const TSS_COLS = `season, team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams,
@@ -74,14 +77,21 @@ function tallyEvents(season: number, events: DbEvent[]): { eventRows: Map<string
       if (!m.played || !m.redScore || !m.blueScore) continue;
       for (const [side, own, opp] of [[m.red, m.redScore, m.blueScore], [m.blue, m.blueScore, m.redScore]] as const) {
         for (const t of side) {
+          const counts = onRecord(m.level, t);
+          if (!counts && !t.onField) continue;
+          let s = seasonAcc.get(t.team); if (!s) { s = { ...acc(), events: new Set(), rec: { matches: 0, w: 0, l: 0, t: 0 } }; seasonAcc.set(t.team, s); }
+          if (counts) {
+            // The season record: every match on the team's record, a qualification no-show's included (FIRST counts them too).
+            s.rec.matches++;
+            if (own.total > opp.total) s.rec.w++; else if (own.total < opp.total) s.rec.l++; else s.rec.t++;
+          }
+          s.events.add(e.code);
           if (!t.onField) continue;
           if (m.level === "qual" && !t.surrogate) {
             let a = perTeam.get(t.team); if (!a) { a = acc(); perTeam.set(t.team, a); }
             tally(a, own, opp);
           }
-          let s = seasonAcc.get(t.team); if (!s) { s = { ...acc(), events: new Set() }; seasonAcc.set(t.team, s); }
-          if (!(m.level === "qual" && t.surrogate)) tally(s, own, opp);
-          s.events.add(e.code);
+          if (counts) tally(s, own, opp);
         }
       }
     }
@@ -130,7 +140,7 @@ function seasonRowArgs(season: number, team: number, a: SeasonAcc, o: Best | und
     k.np ?? null, k.auto ?? null, k.teleop ?? null, k.endgame ?? null, k.of ?? null,
     r ? r1(r.auto + r.teleop + r.endgame) : null, r ? r1(r.auto) : null, r ? r1(r.teleop) : null, r ? r1(r.endgame) : null, r ? r1(r.pen) : null,
     r ? r1(Math.sqrt(r.uncertainty)) : null, r?.n ?? null, k.rating ?? null,
-    a.events.size, a.matches, a.w, a.l, a.t, a.matches ? r1(a.np / a.matches) : null, a.matches ? r1(a.score / a.matches) : null, a.matches ? r1(a.pen / a.matches) : null];
+    a.events.size, a.rec.matches, a.rec.w, a.rec.l, a.rec.t, a.matches ? r1(a.np / a.matches) : null, a.matches ? r1(a.score / a.matches) : null, a.matches ? r1(a.pen / a.matches) : null];
 }
 
 export async function computeSeasonStats(season: number, events: DbEvent[], log: Log = () => {}): Promise<void> {
@@ -436,8 +446,9 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  * 2: hybrid events counted (they were skipped, leaving events without stats).
  * 3: OPR computed exactly like FTC Scout (least squares, all listed teams, TeleOp as FIRST reports it).
  * 4: records tables (team_event_records, team_season_records) for /api/records.
+ * 5: league meets ranked on their own matches (src/shared/meetStandings.ts).
  */
-export const STATS_RULES = 5; // 5: league meets ranked on their own matches (src/shared/meetStandings.ts)
+export const STATS_RULES = 6; // 6: the season record counts qualification no-shows as FIRST does (src/shared/eventRecord.ts)
 
 /** True when past seasons were computed under older rules, or haven't all been
  *  recomputed by this engine version yet (a new engine rewrites every season's
