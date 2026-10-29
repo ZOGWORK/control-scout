@@ -26,6 +26,25 @@ describe("prediction record", () => {
     headline: { kind: "backtest", season: 2025, accuracy: 30554 / 41405, n: 41743 },
   });
 
+  it("says when a live figure blends engine versions, with the serving engine's own figure beside it", () => {
+    const e = (engine: string, n: number, accuracy: number, decided: number | undefined = n) => ({ engine, n, decided, accuracy, brier: 0.2, logLoss: 0.6 });
+    const mixed = record({ engineVersion: "3.2.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 632, 0.601), e("2.1.1", 59, 0.49), e("2.6.0", 15, 0.73)] }, t.seasons[1]] });
+    expect(recordFor(mixed, "live")!.engines).toEqual({ versions: ["2.1.1", "2.6.0", "3.2.0"], current: { engine: "3.2.0", n: 632, decided: 632, accuracy: 0.601 } });
+    // One engine: nothing blended, so no label. The replay never carries engine splits.
+    const single = record({ engineVersion: "3.2.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 40, 0.75)] }, t.seasons[1]] });
+    expect(recordFor(single, "live")!.engines).toBeNull();
+    expect(recordFor(mixed, "backtest")!.engines).toBeNull();
+    // Blended, but the serving engine hasn't made a call yet: the versions, no current figure.
+    const none = record({ engineVersion: "3.3.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 30, 0.6), e("2.1.1", 10, 0.5)] }] });
+    expect(recordFor(none, "live")!.engines).toEqual({ versions: ["2.1.1", "3.2.0"], current: null });
+    // The serving engine has only ties or 50:50 calls: the API's accuracy is a stand-in 0, so there's no percentage.
+    const ties = record({ engineVersion: "3.3.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 30, 0.6), e("3.3.0", 4, 0, 0)] }] });
+    expect(recordFor(ties, "live")!.engines!.current).toEqual({ engine: "3.3.0", n: 4, decided: 0, accuracy: null });
+    // An older response without the decided count: no percentage either, never a guess.
+    const old = record({ engineVersion: "3.3.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 30, 0.6), { engine: "3.3.0", n: 4, accuracy: 0.5, brier: 0.2, logLoss: 0.6 }] }] });
+    expect(recordFor(old, "live")!.engines!.current).toEqual({ engine: "3.3.0", n: 4, decided: null, accuracy: null });
+  });
+
   it("keeps live calls and replays apart, each with its own season", () => {
     expect(recordFor(t, "live")).toMatchObject({ kind: "live", season: 2026, early: true });
     expect(recordFor(t, "backtest")).toMatchObject({ kind: "backtest", season: 2025, early: false });
