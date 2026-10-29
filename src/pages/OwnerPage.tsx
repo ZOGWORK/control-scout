@@ -3,7 +3,7 @@
 // marks isOwner, and every /api/owner/* call is checked on the server (403 for anyone else). One section
 // at a time (?panel=…), each loading its own data when opened; the old per-panel links still land on the
 // section that now holds that panel (PANEL_ALIASES).
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Archive, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, ExternalLink, Gauge, HardDrive, HardDriveDownload,
@@ -33,11 +33,11 @@ import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
 import { StorageBanner, StoragePanel } from "../components/owner/StoragePanel";
 import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
-import { currentRelease } from "../lib/changelog";
 
 import { StreamsPanel } from "../components/owner/StreamsPanel";
-
-const WhatsNewContent = lazy(() => import("../components/WhatsNewContent"));
+import { PredictionEnginePanel, TierCalibrationList } from "../components/owner/PredictionEnginePanel";
+import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
+import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -106,9 +106,10 @@ export default function OwnerPage() {
         <div key={refreshKey}>
           <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
           <TabsContent value="data"><OpsPanel /></TabsContent>
-          <TabsContent value="predictions"><PredictionsPanel /></TabsContent>
+          <TabsContent value="predictions"><PredictionEnginePanel /><PredictionsPanel /></TabsContent>
           <TabsContent value="content" className="space-y-8">
             <PowerRankingsPanel onOpenSwitches={() => go("features")} />
+            <HeroLinesPanel />
             <StreamsPanel />
             <WhatsNewPanel />
           </TabsContent>
@@ -373,17 +374,6 @@ function WorkspacesSection() {
 }
 
 /** The releases visitors see in What's new (Scout's own, from CHANGELOG.md), and how to publish one. */
-function WhatsNewPanel() {
-  const v = currentRelease();
-  return (
-    <Section title="What's new" description={<>The releases every visitor sees under What's new{v ? <>, currently <span className="font-mono">v{v}</span></> : null}. They come from <span className="font-mono">CHANGELOG.md</span>: a new <span className="font-mono">## x.y.z — date</span> entry (with the app's version in <span className="font-mono">package.json</span> bumped to match), opening with a <span className="font-mono">### Highlights</span> block of 3 to 5 one-line <span className="font-mono">- [tag] …</span> bullets, goes live with its PR, and visitors see the dot until they open it.</>}>
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <Suspense fallback={<LoadingBlock rows={4} label="Loading releases" />}><WhatsNewContent /></Suspense>
-      </div>
-    </Section>
-  );
-}
-
 function uptime(s: number): string {
   if (s < 3600) return `${Math.max(1, Math.round(s / 60))} min`;
   if (s < 86400 * 2) return `${Math.round(s / 3600)} h`;
@@ -585,6 +575,9 @@ function PredictionsPanel() {
                 <Weekly weeks={p.weekly.filter((w) => w.n >= 10)} />
               </Section>
             </div>
+            <Section title="Calibration by confidence tier" description="The same calls grouped by the tier each one shows publicly (rough guess, fair, solid): how sure the favourite was on average against how often it won. A solid call should be both surer and as honest as a rough guess.">
+              <TierCalibrationList tiers={p.byTier} />
+            </Section>
             <Section title="Drift alerts" description={`A week is flagged when its Brier score is ${p.thresholds.brier.toFixed(2)} worse, or its accuracy ${Math.round(p.thresholds.accuracy * 100)} points lower, than the season before it (weeks with ${p.thresholds.minWeek}+ calls).`}>
               {p.alerts.length ? (
                 <ul className="space-y-2">

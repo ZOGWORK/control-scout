@@ -93,6 +93,22 @@ export function inlines(line: string): Inline[] {
   return out;
 }
 
+/** The PR numbers a release links ("(#335)"), Control Point's left out. */
+export const releasePrs = (e: ChangelogEntry): number[] =>
+  [...new Set([e.summary, ...e.highlights.map((h) => h.text), ...e.groups.flatMap((g) => g.items)]
+    .flatMap((l) => inlines(l).flatMap((p) => (p.kind === "pr" ? [p.number] : []))))];
+
+/** What a release still needs before it reads well in What's new (the rules CHANGELOG.md sets out); empty when none. */
+export function releaseProblems(e: ChangelogEntry): string[] {
+  const out: string[] = [];
+  if (!e.summary) out.push("No one-line summary under the version heading");
+  if (e.highlights.length < 3 || e.highlights.length > 5) out.push(`${e.highlights.length} highlights (3 to 5 wanted)`);
+  const untagged = e.highlights.filter((h) => !h.tag || !(HIGHLIGHT_TAGS as readonly string[]).includes(h.tag)).length;
+  if (untagged) out.push(`${untagged} ${untagged === 1 ? "highlight has" : "highlights have"} no known [tag]`);
+  if (!releasePrs(e).length) out.push("No PR linked, e.g. (#335)");
+  return out;
+}
+
 /** The running app's release ("1.7.0" from "1.7.0+abc1234"); null in development without a version. */
 export const currentRelease = (v: string = APP_VERSION): string | null => (/^\d+\.\d+\.\d+/.exec(v)?.[0] ?? null);
 

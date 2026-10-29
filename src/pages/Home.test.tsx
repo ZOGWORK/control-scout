@@ -61,6 +61,7 @@ vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/
 let path = "";
 function Where() { path = useLocation().pathname; return null; }
 const { default: Home, readBootHeadline, startingHeadline } = await import("./Home");
+const { readBootLines } = await import("../lib/heroLines");
 const mount = () => render(<MemoryRouter initialEntries={["/"]}><Home /><Where /></MemoryRouter>);
 
 beforeEach(() => { phone = false; reduced = false; data = {}; personal = { user: null, state: st(null) }; sessionStorage.clear(); });
@@ -100,6 +101,37 @@ describe("Home", () => {
       act(() => { vi.advanceTimersByTime(HOME_HEADLINE_MS); });
       expect(h1().textContent).toBe(HOME_HEADLINES[0].join(" ")); // round again
     } finally { vi.useRealTimers(); }
+  });
+
+  it("shows the owner's lines from the console: same rotation by the hour, every line holding its place", () => {
+    const lines = [["Custom one,", "in colour."], ["Custom two,", "also."], ["Custom three,", "too."]];
+    data = { "/api/home/headlines": { lines, custom: true } };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(7 * HOME_HEADLINE_MS + 60_000); // hour 7: line 7 % 3 = 1
+      mount();
+      const h1 = screen.getByRole("heading", { level: 1 });
+      expect(h1.textContent).toBe("Custom two, also.");
+      expect(h1.querySelector("span")!.className).toContain("text-accent-display");
+      expect(h1.parentElement!.querySelectorAll("[aria-hidden]")).toHaveLength(3);
+      expect(screen.queryByText(/Know the match/)).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("reads the owner's lines from the first paint, and ignores a block that isn't a list of lines", () => {
+    const doc = document.implementation.createHTMLDocument("");
+    expect(readBootLines(doc)).toBeNull(); // none: the built-in lines
+    doc.body.innerHTML = '<script type="application/json" id="cs-hero">[["A,","b."],["C,","d."]]</script>';
+    expect(readBootLines(doc)).toEqual([["A,", "b."], ["C,", "d."]]);
+    for (const bad of ["{", "[]", '[["only one"]]', '[["", "x"]]', `[["${"x".repeat(41)}", "y"]]`]) {
+      doc.body.innerHTML = `<script type="application/json" id="cs-hero">${bad}</script>`;
+      expect(readBootLines(doc), bad).toBeNull();
+    }
+    // The first paint's line counts against those lines, not the built-in ones.
+    doc.body.innerHTML = '<div id="cs-boot-page"><h1 data-line="1">x</h1></div>';
+    expect(readBootHeadline(doc, 0, 2)).toEqual({ line: 1, hour: 0 });
+    expect(readBootHeadline(doc, 0, 1)).toBeNull();
+    expect(startingHeadline({ line: 5, hour: 0 }, 1000, 3)).toBe(0); // out of range for 3 lines: the clock's
   });
 
   it("starts on the server first paint's headline in the hour it loaded, then follows the clock", () => {

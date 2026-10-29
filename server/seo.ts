@@ -13,6 +13,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { env } from "./env.js";
 import { BOOT_STYLE, bootConsent, bootShell } from "./bootShell.js";
+import { liveHeroLines } from "./heroLines.js";
 import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
 
@@ -144,13 +145,14 @@ export function routePreloads(indexFile: string, path: string): string {
  */
 export async function renderPage(file: string, path: string, query: Record<string, unknown> = {}): Promise<{ status: 200 | 404; html: string }> {
   const { pageMeta, headTags } = await import("./seoMeta.js");
-  const meta = await pageMeta(path, query);
+  // The home page's hero lines too (the owner's, or the built-in ones): every page carries them (server/bootShell.ts).
+  const [meta, hero] = await Promise.all([pageMeta(path, query), liveHeroLines()]);
   const head = [headTags(path, meta), routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = afterFirstPaint(nonBlockingCss(indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   return { status: meta.notFound ? 404 : 200, html };
 }
 
