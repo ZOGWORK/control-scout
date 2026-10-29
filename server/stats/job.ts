@@ -22,6 +22,8 @@ import { partnershipPrefix } from "../predict/partnerships.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
 import { refreshReportCards } from "./reportCards.js";
 import { computeReliability } from "./reliability.js";
+import { teamPageTest } from "../teamPages.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -138,11 +140,14 @@ export async function computeSeasonStats(season: number, events: DbEvent[], log:
   await writeBatch([{ sql: "DELETE FROM team_event_stats WHERE season = ?", args: [season] }, ...[...eventRows.values()].flat()]);
 
   const rating = await ratingReader(season);
-  const b = [...best];
+  // Season ranks are among teams with a page: a placeholder ("Off-Season Demo Team", src/shared/teamPages.ts) keeps
+  // its OPR and rating (its matches count for everyone it played) but takes no rank, and isn't in "of".
+  const paged = await teamPageTest();
+  const b = [...best].filter(([t]) => paged(t));
   // OPR ranks count every finite value, negatives included (as FTC Scout ranks them).
   const ranks = { np: rankBy(b.map(([t, x]) => [t, x.np])), auto: rankBy(b.map(([t, x]) => [t, x.auto])), teleop: rankBy(b.map(([t, x]) => [t, x.teleop])), endgame: rankBy(b.map(([t, x]) => [t, x.endgame])) };
   const ratingVals: [number, number][] = [];
-  for (const t of seasonAcc.keys()) { const r = rating(t); if (r && r.n >= 3) ratingVals.push([t, r.auto + r.teleop + r.endgame]); }
+  for (const t of seasonAcc.keys()) { const r = rating(t); if (r && r.n >= 3 && paged(t)) ratingVals.push([t, r.auto + r.teleop + r.endgame]); }
   const ratingRank = rankBy(ratingVals, 0); // ratings keep their floor
   const ss: InStatement[] = [{ sql: "DELETE FROM team_season_stats WHERE season = ?", args: [season] }];
   for (const [team, a] of seasonAcc) {
@@ -401,7 +406,9 @@ export async function scoreLivePredictions(log: Log = () => {}): Promise<number>
 // ---------------------------------------------------------------------------
 
 export async function rebuildSearch(log: Log = () => {}): Promise<void> {
-  const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number GROUP BY t.number`);
+  // Only teams with a page (src/shared/teamPages.ts): a hit must lead somewhere.
+  const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number
+    WHERE ${teamPageSql("t.number", "t.name")} GROUP BY t.number`);
   const events = await all<any>("SELECT season, code, name, city, state, country, start, type FROM events");
   const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }, { sql: "DELETE FROM search_fuzzy", args: [] }];
   for (const t of teams) {

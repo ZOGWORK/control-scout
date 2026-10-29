@@ -15,6 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
+import { hasTeamPage } from "../src/shared/teamPages.js";
 import { teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
@@ -139,11 +140,12 @@ const TEAM_EVENTS = 8;
 const record = (w: number | null, l: number | null, t: number | null) => (w == null || l == null ? "" : `${w}-${l}-${t ?? 0}`);
 
 async function teamMeta(n: number): Promise<PageMeta> {
-  if (n < 1 || n > 999_999) return NOT_FOUND;
+  if (!hasTeamPage(n)) return NOT_FOUND;
   const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null; school: string | null; rookie_year: number | null; website: string | null }>(
     "SELECT name, city, state, country, school, rookie_year, website FROM teams WHERE number = ?", [n]);
   // The team API's test (teamProfile): a team we've never seen is a 404 there and here.
   if (!t && !(await teamKnown(n))) return NOT_FOUND;
+  if (!hasTeamPage(n, t?.name)) return NOT_FOUND; // a placeholder (src/shared/teamPages.ts): the API answers 404 too
   const [s, seasons, events] = await Promise.all([
     get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number; losses: number; ties: number; matches: number }>(
       "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties, matches FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]),
