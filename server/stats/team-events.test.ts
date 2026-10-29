@@ -38,7 +38,21 @@ beforeAll(async () => {
   // NOSHOW: 106 was scheduled into a match but never took the field.
   await event("NOSHOW", "2025-11-22", 0, TEAMS, [101, 102, 103, 104, 105]);
   await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'NOSHOW', 'qual', 0, 1, 106, 'red', 0)", [S]);
+  // 105 is FIRST's off-season placeholder: its matches count, but it takes no season rank (src/shared/teamPages.ts).
+  await run("INSERT INTO teams (number, name) VALUES (105, 'Off-Season Demo Team')");
   await computeSeasonStats(S, await loadSeason(S));
+});
+
+describe("season ranks", () => {
+  it("rank every team with a page, never a placeholder, and count only them", async () => {
+    const rows = await all<{ team: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null }>("SELECT team, opr_np, rank_np, ranked_teams FROM team_season_stats WHERE season = ? ORDER BY team", [S]);
+    const demo = rows.find((r) => r.team === 105)!;
+    expect(demo.opr_np).not.toBeNull(); // still has its numbers
+    expect(demo.rank_np).toBeNull();
+    const ranked = rows.filter((r) => r.team !== 105);
+    expect(ranked.map((r) => r.rank_np).sort()).toEqual([1, 2, 3, 4, 5]);
+    expect(new Set(ranked.map((r) => r.ranked_teams))).toEqual(new Set([5]));
+  });
 });
 
 describe("per-event team stats", () => {

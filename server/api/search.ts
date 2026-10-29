@@ -10,6 +10,7 @@ import { fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.
 import { kvGet } from "../db.js";
 import { findRegions } from "../../src/shared/regions.js";
 import { registerCache } from "../caches.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -74,7 +75,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     const rows = await all<any>(
       `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last
        FROM teams t LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
-       WHERE ${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}
+       WHERE (${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}) AND ${teamPageSql("t.number", "t.name")}
        ORDER BY t.number = ? DESC, t.number IN (${preferred.map(() => "?").join(",") || "NULL"}) DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
       [CURRENT_SEASON, ...ranges.flat(), p, ...preferred, query.length >= 4 ? Math.ceil(limit / 2) : limit],
     );

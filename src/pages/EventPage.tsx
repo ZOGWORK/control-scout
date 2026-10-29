@@ -46,6 +46,7 @@ import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from 
 import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
+import { hasTeamPage } from "../shared/teamPages";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -538,7 +539,7 @@ function RankingTable({ field, season, team, code }: { field: FieldRow[]; season
   const rec = (r: FieldRow): (number | null)[] => (meet ? (r.meet ? [r.meet.wins, r.meet.losses, r.meet.ties] : [null, null, null]) : [r.wins, r.losses, r.ties]);
   const cols: Col<FieldRow>[] = [
     { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => rank(r) ?? "—" },
-    { key: "team", label: "Team", value: (r) => r.team, render: (r) => <Link to={`/teams/${r.team}?season=${season}`} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></Link> },
+    { key: "team", label: "Team", value: (r) => r.team, render: (r) => <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
     { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), heat: true },
     { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => { const [w, l, t] = rec(r); return `${w ?? "–"}-${l ?? "–"}-${t ?? "–"}`; }, heat: true },
     ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
@@ -590,7 +591,7 @@ function TeamsGrid({ field, season, team, predictable, registered }: { field: Fi
         <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {list.map((t) => (
             <li key={t.team}>
-              <Link to={`/teams/${t.team}?season=${season}`} className={cn("lift flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
+              <TeamPageLink team={t.team} name={t.name} season={season} className={cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", hasTeamPage(t.team, t.name) && "lift", t.team === team && "border-accent/60 bg-accent/[0.06]")}>
                 {/* Registrations have no rank yet: no empty rank box. */}
                 {!registered && (
                   <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
@@ -607,13 +608,21 @@ function TeamsGrid({ field, season, team, predictable, registered }: { field: Fi
                     {predictable && t.rating && <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent-text">Rating {num(t.rating.np)} ±{num(t.rating.sd, 0)}</span>}
                   </span>
                 </span>
-              </Link>
+              </TeamPageLink>
             </li>
           ))}
         </ul>
       )}
     </div>
   );
+}
+
+/** A link to a team's page, or the same content as plain text for a team without one (src/shared/teamPages.ts:
+ *  an "Off-Season Demo Team" placeholder or a stand-in number still shows in the event's results, unlinked). */
+function TeamPageLink({ team, name, season, className, children }: { team: number; name?: string | null; season: number; className?: string; children: ReactNode }) {
+  return hasTeamPage(team, name)
+    ? <Link to={`/teams/${team}?season=${season}`} className={className}>{children}</Link>
+    : <span className={cn(className, "hover:no-underline")}>{children}</span>;
 }
 
 function slotLabel(s: Slot): string {
@@ -641,7 +650,7 @@ function Playoffs({ d }: { d: EventDetail }) {
             <p className="text-xs text-muted-foreground">Alliance {a.number}</p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {[a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null).map((t, i) => (
-                <Link key={t} to={`/teams/${t}?season=${d.event.season}`} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink" : "bg-muted")}>{t}</Link>
+                <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink" : "bg-muted")}>{t}</TeamPageLink>
               ))}
             </div>
           </div>
@@ -686,7 +695,7 @@ function Awards({ d, nameOf }: { d: EventDetail; nameOf: (t: number) => string }
           {d.awards.map((a) => (
             <li key={`${a.type}${a.placement}${a.team}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
               <Award className="size-5 shrink-0 text-accent" />
-              <div className="min-w-0"><p className="text-sm font-medium">{a.name ?? awardLabel(a.type, a.placement)}</p><Link to={`/teams/${a.team}?season=${s}`} className="text-sm text-muted-foreground hover:underline"><span className="font-mono">{a.team}</span> {nameOf(a.team)}</Link></div>
+              <div className="min-w-0"><p className="text-sm font-medium">{a.name ?? awardLabel(a.type, a.placement)}</p><TeamPageLink team={a.team} name={nameOf(a.team)} season={s} className="text-sm text-muted-foreground hover:underline"><span className="font-mono">{a.team}</span> {nameOf(a.team)}</TeamPageLink></div>
             </li>
           ))}
         </ul>

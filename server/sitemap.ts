@@ -6,8 +6,11 @@ import type { Request, Response } from "express";
 import { all } from "./db.js";
 import { canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
+import { teamPageSql } from "../src/shared/teamPages.js";
 
-const STATIC_PAGES = ["/", "/events", "/rankings", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact", "/faq"];
+// /teams is the team directory and stats tables, /matches the match records (both RecordsPage). /records only
+// redirects to /teams, so it's left out.
+const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact", "/faq"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }
@@ -34,6 +37,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
            WHERE e.start <= ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
        SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
        FROM teams t LEFT JOIN took k ON k.team = t.number LEFT JOIN events e ON e.season = k.season AND e.code = k.code
+       WHERE ${teamPageSql("t.number", "t.name")}
        GROUP BY t.number ORDER BY t.number`, [today, today, today]),
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);

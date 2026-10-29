@@ -12,6 +12,7 @@ import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "
 import { eventStatus } from "../../src/shared/eventDay.js";
 import { toEventInput } from "../../src/shared/eventInput.js";
 import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
+import { hasTeamPage } from "../../src/shared/teamPages.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -165,7 +166,7 @@ async function provisional(season: number, code: string): Promise<ProvisionalInf
     nickname: p.nickname, hosts: p.hosts, venue: p.venue, address: p.address, capacity: p.capacity, schedule: p.schedule, notes: p.notes, closed: p.closed,
     teams: p.teams.map((t) => {
       const k = by.get(t.team);
-      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session, known: !!k || paged.has(t.team) };
+      return { team: t.team, name: k?.name ?? t.name, city: k?.city ?? null, state: k?.state ?? null, status: t.status, session: t.session, known: hasTeamPage(t.team, k?.name) && (!!k || paged.has(t.team)) };
     }),
     sessionUnknown: p.sessionUnknown,
   };

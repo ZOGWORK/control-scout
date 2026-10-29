@@ -10,6 +10,7 @@ import { NO_MATCH_TYPES } from "./events.js";
 import { readinessKey, seasonReadiness } from "./readiness.js";
 import { countryOf } from "../../src/shared/countries.js";
 import type { CountryTotal, HomeOverview, UnmappedTotal } from "../../src/shared/home.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 
 /** Group per-label counts by normalised country; labels no country fits stay apart, as reported. */
 export function groupByCountry(rows: { label: string | null; listings: number; withResults: number }[]): Pick<HomeOverview, "countries" | "unmapped"> {
@@ -44,8 +45,9 @@ export async function buildOverview(season: number, now = new Date()): Promise<H
        FROM team_seasons ts
        LEFT JOIN teams t ON t.number = ts.team
        LEFT JOIN team_season_records r ON r.season = ts.season AND r.team = ts.team
-       WHERE ts.season = ? GROUP BY t.country`, [season]),
-    get<{ n: number }>("SELECT COUNT(*) n FROM team_seasons WHERE season = ?", [season]),
+       WHERE ts.season = ? AND ${teamPageSql("ts.team", "t.name")} GROUP BY t.country`, [season]),
+    // Teams with a page only (src/shared/teamPages.ts), as the directory lists them.
+    get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons ts WHERE ts.season = ? AND ${teamPageSql("ts.team")}`, [season]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM events WHERE season = ? AND type NOT IN (${NO_MATCH_TYPES.map(() => "?").join(",")})`, [season, ...NO_MATCH_TYPES]),
     get<{ n: number }>("SELECT COUNT(*) n FROM matches WHERE season = ? AND played = 1", [season]),
     kvGet<{ at: string }>("sync:last"),
