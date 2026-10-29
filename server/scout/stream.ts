@@ -67,7 +67,8 @@ import { formerMember } from "./orphans.js";
 import type { OrphanState } from "../../src/shared/orphaned.js";
 import { openLiveConnection } from "../liveConnections.js";
 import type { AssignmentNotice, MatchAssignmentNotice } from "../../src/shared/assignments.js";
-import { pullWorkspaceLive, workspaceAccess, type WorkspaceEntryOut } from "./entries.js";
+import { pullWorkspaceLive, workspaceAccess, workspacePaused, type WorkspaceEntryOut } from "./entries.js";
+import { isEnabledFor } from "../flags.js";
 import type { CommentEvent } from "../../src/shared/comments.js";
 
 /**
@@ -126,6 +127,9 @@ export async function sweep(): Promise<void> {
     // Due before the next tick: the account's answer would be recheckMs old by then.
     const due = Math.max(0, LIMITS.recheckMs - LIMITS.sweepMs);
     const byAccount = new Map<number, Stream[]>();
+    // Workspace scouting switched off for a workspace (by the owner, globally or for it): its streams end (never
+    // membership_revoked: nothing was taken away). The reconnect is refused with 403 feature_disabled and the app polls.
+    for (const s of [...streams]) if (!(await isEnabledFor("workspaceScouting", s.workspaceId))) s.end();
     for (const s of streams) {
       const list = byAccount.get(s.accountId);
       if (list) list.push(s); else byAccount.set(s.accountId, [s]);
@@ -195,7 +199,8 @@ const drained = (res: Response) => new Promise<void>((resolve) => {
   res.on("drain", done); res.on("close", done);
 });
 
-/** /api/scout/stream. `enabled`: a kill switch (off: 503, and the client falls back to polling). */
+/** /api/scout/stream. `enabled`: the realtime kill switch (off: 503, and the client falls back to polling). Workspace
+ *  scouting switched off for the workspace: 403 feature_disabled, like every workspace read. */
 export function streamRouter(opts: { enabled?: () => Promise<boolean> } = {}): Router {
   const r = express.Router();
   r.get("/stream", (req, res, next) => { open(req, res, opts).catch(next); });
@@ -209,6 +214,7 @@ async function open(req: Request, res: Response, opts: { enabled?: () => Promise
   if (!user) { res.status(401).json({ error: "Sign in to see your workspace's entries live." }); return; }
   const workspaceId = req.query.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+  if (await workspacePaused(res, workspaceId)) return; // switched off for this workspace: 403 feature_disabled, before anything opens
   const since = cursorFrom(req);
   if (since == null) { res.status(400).json({ error: "since must be a cursor from an earlier pull" }); return; }
   const access = await workspaceAccess(user, workspaceId);

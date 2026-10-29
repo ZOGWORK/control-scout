@@ -34,6 +34,8 @@ export const PRIVATE_TABLES = [
   "hero_lines",
   // The owner console (migration 56): abuse counts per network range, and the owner's settings.
   "abuse_daily", "owner_settings",
+  // The owner's per-workspace feature toggles (migration 53): workspace ids and the owner's email.
+  "workspace_flag_overrides",
 ];
 
 /**

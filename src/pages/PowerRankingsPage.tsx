@@ -11,7 +11,8 @@ import { useTitle } from "../lib/meta";
 import { copyLink } from "../lib/clipboard";
 import { num, seasonLabel } from "../lib/format";
 import { EmptyState, Page, PageHeader, Section } from "../components/page";
-import { Async } from "../components/states";
+import { Async, FeatureOffState } from "../components/states";
+import { useFlag } from "../lib/flags";
 import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
@@ -182,11 +183,21 @@ export default function PowerRankingsPage() {
   const { week } = useParams();
   const id = week?.toLowerCase() ?? null;
   const valid = id === null || isWeekId(id);
-  const state = useApi<PowerRankingsResponse>(valid ? (id ? `/api/power-rankings/${id}` : "/api/power-rankings") : null);
+  // Switched off by the owner (the powerRankings feature toggle): nothing asked for, the page says so (a deep link too).
+  const on = useFlag("powerRankings");
+  const state = useApi<PowerRankingsResponse>(valid && on ? (id ? `/api/power-rankings/${id}` : "/api/power-rankings") : null);
   const onLink = useInAppLinks();
   const w = state.data?.week ?? null;
   useTitle(!valid || (state.error as ApiError | undefined)?.status === 404 ? "Page not found" : w ? (id ? `${w.title} (${seasonLabel(w.season)})` : "FTC power rankings") : "FTC power rankings");
 
+  if (!on) {
+    return (
+      <Page>
+        <PageHeader title="FTC power rankings" description="A weekly top 25 of FTC teams, each with a short written take and the team's live numbers." />
+        <FeatureOffState feature="powerRankings" />
+      </Page>
+    );
+  }
   const missing = !valid || (state.error as ApiError | undefined)?.status === 404;
   if (missing) {
     return (

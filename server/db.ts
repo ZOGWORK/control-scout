@@ -1510,6 +1510,23 @@ CREATE TABLE hero_lines (
 CREATE INDEX hero_lines_order ON hero_lines (position, id);
 `,
   },
+  {
+    version: 53,
+    name: "feature toggles: per-workspace overrides",
+    sql: `
+-- The owner console's feature toggles (server/flags.ts): a workspace-scoped feature (workspace scouting) can be
+-- switched on or off for one Control Point workspace, whatever the global switch says. No row: the workspace
+-- follows the global switch. Removing a row is how an override is cleared; the feature's data is never touched.
+CREATE TABLE workspace_flag_overrides (
+  cp_workspace_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  PRIMARY KEY (cp_workspace_id, name)
+);
+`,
+  },
 ];
 
 export type Db = Client;

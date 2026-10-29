@@ -3,13 +3,15 @@
 // your account when signed in and online.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, Loader2, Lock, MessageSquare, Plus, Save, SearchX, Trash2, X } from "lucide-react";
+import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, Loader2, Lock, MessageSquare, Pause, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, isScoutQueued, scoutSyncProblem, localScoutEntries, newScoutId, personalCopy, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
 import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
+import { useWorkspaceFlag } from "../lib/flags";
+import { featureOffMessage } from "../shared/flags";
 import { normalizeMatchLabel, type Watching } from "../shared/scoutMatch";
 import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
@@ -71,6 +73,9 @@ export default function ScoutPage() {
   // Read-only (Task 19): the workspace was deleted in Control Point, or has no admin left. Everything reads
   // and exports; nothing can be added, edited, deleted or commented on (the server refuses it too, 423).
   const readOnly = workspace?.orphaned ?? null;
+  // Paused by the owner for this workspace (the workspaceScouting feature toggle): the server refuses its reads and
+  // writes (403 feature_disabled) and what's queued waits on this device; the page says so instead of "removed".
+  const scoutingOn = useWorkspaceFlag("workspaceScouting", space);
   // The workspace's shared settings (Tier 2, docs/settings.md): its default season and event for this space.
   // A season in the URL wins; Personal is unchanged (the current season, no event).
   const wss = useWorkspaceSettings(space);
@@ -272,6 +277,12 @@ export default function ScoutPage() {
           </div>
         )}
         {readOnly && !spaces.resolving && <ReadOnlyBanner state={readOnly} />}
+        {space != null && !scoutingOn && !spaces.resolving && (
+          <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+            <Pause className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+            <p className="min-w-0 flex-1">{featureOffMessage("workspaceScouting")}</p>
+          </div>
+        )}
       </ScoutTopBar>
       {formOpen && !spaces.resolving && (
         <EntryForm key={editEntry?.uuid ?? `new-${formKind}-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} initialKind={formKind} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
@@ -402,8 +413,8 @@ export function EntrySyncState({ e }: { e: ScoutEntry }) {
   if (e.workspaceId == null) return null;
   const queued = isScoutQueued(e);
   const problem = queued ? scoutSyncProblem(e.workspaceId) : null;
-  const state = !queued ? null : problem?.kind === "offline" ? "draft" : problem ? "attention" : "saving";
-  const text = state === "draft" ? "Waiting to sync" : state === "saving" ? "Syncing…" : state === "attention" ? (problem?.kind === "unconfirmed" ? "Not confirmed yet" : "Not synced") : undefined;
+  const state = !queued ? null : problem?.kind === "offline" || problem?.kind === "paused" ? "draft" : problem ? "attention" : "saving";
+  const text = problem?.kind === "paused" && queued ? "Paused by the owner" : state === "draft" ? "Waiting to sync" : state === "saving" ? "Syncing…" : state === "attention" ? (problem?.kind === "unconfirmed" ? "Not confirmed yet" : "Not synced") : undefined;
   return <SaveStatus state={state} text={text} what={`Entry ${e.team} ${e.kind === "pit" ? "pit" : `match ${e.matchLabel ?? ""}`}`.trim()} className="shrink-0" />;
 }
 

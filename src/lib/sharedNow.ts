@@ -3,7 +3,7 @@
 //
 // The destination may be gone (the team was taken off the pick list, the entry was deleted) or out of reach
 // (the member was removed from the workspace, signed out): each says so plainly instead of comparing with nothing.
-import { apiFetch, ApiError } from "./api";
+import { apiFetch, ApiError, isFeatureDisabled } from "./api";
 import { isPickList, type PickList } from "../shared/picklist";
 import { isEntryComment } from "../shared/comments";
 
@@ -62,6 +62,7 @@ export async function readSharedNow(t: ReviewTarget, signal?: AbortSignal): Prom
     if (signal?.aborted) throw e;
     if (!(e instanceof ApiError)) return { state: "unavailable", message: UNREACHABLE };
     if (e.status === 401) return { state: "denied", message: SIGNED_OUT };
+    if (isFeatureDisabled(e)) return { state: "unavailable", message: e.message };
     if (e.status === 403) return { state: "denied", message: NO_ACCESS };
     if (e.status === 404 || e.status === 410) {
       return { state: "gone", message: t.kind === "comment" ? "The entry this comment is on isn't in the workspace: it hasn't synced yet, or it was removed." : "This workspace's pick list isn't there any more." };

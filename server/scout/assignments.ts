@@ -9,7 +9,7 @@
 //   reopen   admins only
 //   delete   admins only
 //   read     every member: the whole workspace's list, so badges show who holds which team
-// Every route: 401 signed out, 503 while workspace scouting is paused, 400 a bad id, 403 not a member (or,
+// Every route: 401 signed out, 403 feature_disabled while workspace scouting is switched off for the workspace, 400 a bad id, 403 not a member (or,
 // where it's admin only, not an admin).
 //
 // Assignees: members of the workspace in Scout's membership cache (workspace_members). Only members who have
@@ -25,7 +25,7 @@
 //
 // Match scouting (the Scout redesign; workspace_match_assignments, migration 46): a member watches a slot, an
 // alliance or all four teams for a run of quals ("Priya: Red 1, Q1–Q30"). Admins create, edit and delete; every
-// member reads. Same 401/503/400/403 as above. The assignee must be a cached member and the event a synced one;
+// member reads. Same 401/400/403 as above. The assignee must be a cached member and the event a synced one;
 // the range is quals only, either end open. Another assignment watching the same slot in the same matches is a
 // warning in the answer (overlaps), never a refusal. Logged as assignment.match_created / _updated / _deleted
 // (subject match-assignment:<id>; the inbox tells the assignee, both of them when an edit moves it to someone else)
@@ -378,9 +378,9 @@ function requireWorkspaceMember() {
     (async () => {
       const user = await currentUser(req);
       if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
-      if (await workspacePaused(res)) return;
       const workspaceId = req.params.workspaceId;
       if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
+      if (await workspacePaused(res, workspaceId)) return;
       const access = await workspaceAccess(user, workspaceId, { write: isWrite(req) });
       if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
       res.locals.user = user;

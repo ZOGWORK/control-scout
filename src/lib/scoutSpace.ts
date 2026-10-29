@@ -17,6 +17,7 @@ import { useFlag } from "./flags";
 import { usePersonal, type AccountUser } from "./personal";
 import { ACCOUNT_STALE, moveQueuedToPersonal, pendingScoutCounts, pullScouting, SCOUT_DENIED, SCOUT_READ_ONLY, syncQueuedScouting, syncScouting, type ScoutSpace } from "./scouting";
 import { toast } from "../components/ui/sonner";
+import { isAccessDenied } from "./api";
 import { isOrphanReason, READ_ONLY_STATUS, type OrphanState } from "../shared/orphaned";
 
 /** `orphaned`: the space is read-only (Task 19): deleted in Control Point, or no admin left. Reads and export still work. */
@@ -166,7 +167,9 @@ async function rescueQueued(space: string, name: string | undefined, alive: () =
   const owner = deviceOwner();
   try { await syncScouting(space); }
   catch (e) {
-    if ((e as { status?: unknown } | null)?.status !== (readOnly ? READ_ONLY_STATUS : 403) || !alive() || deviceOwner() !== owner) return;
+    // Only a refusal that means "no access" (403, never feature_disabled: that's the owner pausing workspace scouting,
+    // and the queue waits on the device) or "read-only" (423) moves anything.
+    if (!(readOnly ? (e as { status?: unknown } | null)?.status === READ_ONLY_STATUS : isAccessDenied(e)) || !alive() || deviceOwner() !== owner) return;
     const n = moveQueuedToPersonal(space);
     // Still readable here (read-only): the server's copies of what was queued (refused edits and deletes) come back.
     if (readOnly) void pullScouting(space).catch(() => undefined);

@@ -6,6 +6,7 @@
 // before it's sent, so a restart, a second bot tick or two followed teams in one match never post twice.
 import type { APIEmbed } from "discord.js";
 import { all, get, run } from "../server/db.js";
+import { isEnabled } from "../server/flags.js";
 import { CURRENT_SEASON } from "../server/data/seasons.js";
 import { cachedEventDetail } from "../server/api/events.js";
 import { seasonStats, teamKnown } from "../server/api/teams.js";
@@ -128,6 +129,8 @@ export type Send = (channel: string, embed: APIEmbed) => Promise<"ok" | "gone" |
  * before, the schedule, the day's recap; bot/eventAlerts.ts).
  */
 export async function notifyTick(send: Send, site: string, log: (m: string) => void, now = Date.now()): Promise<number> {
+  // Switched off by the owner (the discordBot feature toggle): nothing is posted, every follow is kept.
+  if (!(await isEnabled("discordBot"))) return 0;
   const follows = (await all<any>("SELECT guild_id, channel_id, team, created_at, failures FROM discord_follows"))
     .map((r) => ({ guild_id: String(r.guild_id), channel_id: String(r.channel_id), team: Number(r.team), created_at: String(r.created_at), failures: Number(r.failures) }));
   if (!follows.length) return 0;

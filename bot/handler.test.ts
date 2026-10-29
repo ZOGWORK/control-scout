@@ -59,6 +59,40 @@ describe("commands", () => {
     expect(l.predict).toHaveBeenCalledTimes(1);
   });
 
+  it("turned off by the owner (the discordBot toggle): every command gets a private note, and nothing is looked up or followed", async () => {
+    const l = lookups({ enabled: async (f) => f !== "discordBot" });
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    for (const [name, opts] of [["team", { number: 1 }], ["predict", { event: "X", match: 1 }], ["follow", { team: 1 }], ["help", {}]] as [string, Record<string, string | number>][]) {
+      const { i, calls } = command(name, opts);
+      await h(i);
+      expect(calls).toHaveLength(1);
+      expect(calls[0].kind).toBe("reply");
+      expect(calls[0].payload.embeds[0].title).toBe("Turned off for now");
+      expect(calls[0].payload.embeds[0].description).toMatch(/turned off by the owner/);
+      expect(calls[0].payload.flags).toBe(64); // ephemeral
+    }
+    expect(l.team).not.toHaveBeenCalled();
+    expect(l.predict).not.toHaveBeenCalled();
+    expect(l.follow).not.toHaveBeenCalled();
+    // Autocomplete answers nothing either.
+    const sent: unknown[] = [];
+    await h({ commandName: "predict", isChatInputCommand: () => false, isAutocomplete: () => true, options: { getFocused: () => "a" }, respond: async (x: unknown) => { sent.push(x); } } as any);
+    expect(sent).toEqual([[]]);
+    expect(l.choices).not.toHaveBeenCalled();
+  });
+
+  it("live predictions switched off: /predict says so, the other commands still answer", async () => {
+    const l = lookups({ enabled: async (f) => f !== "livePredictions" });
+    const h = createHandler(() => {}, l, { cooldownMs: 0 });
+    const p = command("predict", { event: "X", match: 1 });
+    await h(p.i);
+    expect(p.calls[1].payload.embeds[0].title).toBe("Predictions are off");
+    expect(l.predict).not.toHaveBeenCalled();
+    const t = command("team", { number: 1 });
+    await h(t.i);
+    expect(t.calls[1].payload.embeds[0].title).toBe("team 1");
+  });
+
   it("one command per person every 3 seconds: the second gets a private 'slow down'", async () => {
     const l = lookups();
     const h = createHandler(() => {}, l);

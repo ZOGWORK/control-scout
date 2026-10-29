@@ -84,7 +84,7 @@ export function RecoverableChanges({ account, workspaces, className }: { account
       const what = e.deleted ? `Delete entry ${e.team}` : `Entry ${e.team} · ${e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`.trim()}`;
       return [{
         key, account, kind: "entry", workspaceId: space, season: e.season, team: e.team, label: what,
-        status: problem.kind === "offline" ? "waiting" : "attention", message: problem.message,
+        status: problem.kind === "offline" || problem.kind === "paused" ? "waiting" : "attention", message: problem.message,
         retry: () => {
           setRow(key, { busy: true });
           void syncScouting(space).then(() => pullScouting(space)).catch(() => undefined).finally(() => setRow(key, null));

@@ -10,11 +10,10 @@ import { listErrorReports, OWNER_NOTE_MAX, setErrorNote } from "../errorReports.
 import { abuseSummary, flushAbuse } from "../moderation.js";
 import { publishUsageSetting, setPublishUsage } from "../ownerSettings.js";
 import { ownerAnalytics } from "./ownerAnalytics.js";
-import { flagDetails, setFlag } from "../flags.js";
+import { featureOwnerRoutes } from "./features.js";
 import { flushMetrics, usageSummary } from "../metrics.js";
 import { liveConnections } from "../liveConnections.js";
 import { statsSummary } from "../analytics.js";
-import { isFlag } from "../../src/shared/flags.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
 import { listAudit, recordAudit } from "./audit.js";
 import { isFeedbackStatus, isTriageState, listFeedback, setFeedbackStatus, setTriage, TriageError, triageQueue } from "./feedback.js";
@@ -87,16 +86,8 @@ export function ownerRouter(): Router {
   // The engine in production, live vs replay, the shadow model and the simulation settings: read-only (./predictionEngine.ts).
   r.get("/predictions/engine", h(async () => predictionEngine()));
 
-  r.get("/flags", h(async () => ({ flags: await flagDetails() })));
-  r.put("/flags/:name", h(async (req, res) => {
-    const name = req.params.name;
-    if (!isFlag(name)) { res.status(404).json({ error: "No such flag" }); return; }
-    if (typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false}" }); return; }
-    // The value replaced is read in the same transaction as the write: two flips at once each log what they changed.
-    const was = await setFlag(name, req.body.enabled, actor(req));
-    await recordAudit(actor(req), "flag.set", { flag: name, enabled: req.body.enabled }, null, { from: was, to: req.body.enabled });
-    return { flags: await flagDetails() };
-  }));
+  // Feature toggles and kill switches (server/portal/features.ts).
+  featureOwnerRoutes(r, h, actor);
 
   // Event live streams (server/portal/streams.ts): the list, and set / remove one (an empty url removes it).
   r.get("/streams", h(async () => ({ streams: await listStreams() })));

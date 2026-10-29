@@ -3,9 +3,12 @@
 // first answer, and whenever it can't be had (offline), every flag is on: the server still
 // enforces its own switches, so a stale "on" here only means a feature that politely refuses.
 import { useSyncExternalStore } from "react";
-import { DEFAULT_FLAGS, type Flag, type FlagSet } from "../shared/flags";
+import { DEFAULT_FLAGS, type Flag, type FlagSet, type FlagsAnswer } from "../shared/flags";
 
 let flags: FlagSet = { ...DEFAULT_FLAGS };
+/** The signed-in account's workspaces' own values of workspace-scoped flags (only when some workspace has an override). */
+let byWorkspace: Record<string, Partial<FlagSet>> = {};
+let byWorkspaceKey = "{}";
 /** Has the server answered at least once on this page? */
 let confirmed = false;
 const subs = new Set<() => void>();
@@ -13,25 +16,40 @@ const listeners = new Set<(f: FlagSet) => void>();
 
 const REFRESH_MS = 3 * 60_000;
 
-function set(next: FlagSet) {
-  if ((Object.keys(next) as Flag[]).every((k) => next[k] === flags[k])) return;
+function set(next: FlagSet, ws: Record<string, Partial<FlagSet>> = byWorkspace) {
+  const key = JSON.stringify(ws);
+  if ((Object.keys(next) as Flag[]).every((k) => next[k] === flags[k]) && key === byWorkspaceKey) return;
   flags = next;
+  byWorkspace = ws;
+  byWorkspaceKey = key;
   for (const f of subs) f();
   for (const f of listeners) { try { f(flags); } catch { /* a listener's failure stays its own */ } }
 }
 
 /** Ask the server for the current flags (quietly keeps the last known ones on any failure). */
-export async function refreshFlags(): Promise<FlagSet> {
+export async function refreshFlags(o: { fresh?: boolean } = {}): Promise<FlagSet> {
   // Asked whatever navigator.onLine says (iOS can report offline while online); a failure keeps the last flags.
+  // `fresh`: past the browser's cache (the account just changed, and the answer can depend on who asks).
+  const gen = accountGen;
   try {
-    const r = await fetch("/api/flags", { credentials: "same-origin" });
-    if (r.ok) {
-      const body = (await r.json()) as { flags?: Partial<FlagSet> };
+    const r = await fetch("/api/flags", o.fresh ? { credentials: "same-origin", cache: "no-cache" } : { credentials: "same-origin" });
+    if (r.ok && gen === accountGen) {
+      const body = (await r.json()) as Partial<FlagsAnswer> & { flags?: Partial<FlagSet> };
       const next = { ...DEFAULT_FLAGS };
       for (const k of Object.keys(next) as Flag[]) if (typeof body.flags?.[k] === "boolean") next[k] = body.flags[k]!;
+      if (gen !== accountGen) return flags; // the account changed while the body was on its way
+      const ws: Record<string, Partial<FlagSet>> = {};
+      if (body.workspaces && typeof body.workspaces === "object") {
+        for (const [id, v] of Object.entries(body.workspaces)) {
+          if (!v || typeof v !== "object") continue;
+          const o: Partial<FlagSet> = {};
+          for (const k of Object.keys(DEFAULT_FLAGS) as Flag[]) if (typeof v[k] === "boolean") o[k] = v[k];
+          ws[id] = o;
+        }
+      }
       const first = !confirmed;
       confirmed = true;
-      set(next);
+      set(next, ws);
       if (first) for (const f of subs) f();
     }
   } catch { /* offline: keep what we have */ }
@@ -40,6 +58,10 @@ export async function refreshFlags(): Promise<FlagSet> {
 
 /** The flag's last known value (on until the server says otherwise). */
 export const flagOn = (name: Flag) => flags[name];
+
+/** A workspace-scoped flag for one workspace: its own setting when the server sent one, else the flag's value. */
+export const workspaceFlagOn = (name: Flag, workspaceId: string | null | undefined) =>
+  (workspaceId != null ? byWorkspace[workspaceId]?.[name] : undefined) ?? flags[name];
 
 /** Call `fn` with the flags now and whenever they change; returns an unsubscribe. */
 export function onFlags(fn: (f: FlagSet) => void): () => void {
@@ -51,12 +73,19 @@ export function onFlags(fn: (f: FlagSet) => void): () => void {
 const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f); }; };
 /** A flag, re-rendering when it changes. */
 export const useFlag = (name: Flag) => useSyncExternalStore(subscribe, () => flags[name], () => DEFAULT_FLAGS[name]);
+/** A workspace-scoped flag for one workspace (workspaceFlagOn), re-rendering when it changes. */
+export const useWorkspaceFlag = (name: Flag, workspaceId: string | null | undefined) =>
+  useSyncExternalStore(subscribe, () => workspaceFlagOn(name, workspaceId), () => DEFAULT_FLAGS[name]);
 
 /**
  * A flag that's off until the server says it's on: for features that also need something only the
  * server knows (photos need R2 configured), so their UI never flashes in and out on a server without it.
  */
 export const useServerFlag = (name: Flag) => useSyncExternalStore(subscribe, () => confirmed && flags[name], () => false);
+
+/** Bumped by every account change: an answer to a request started before the latest one is dropped (it may be
+ *  another account's, or the signed-out one). */
+let accountGen = 0;
 
 let started = false;
 /** Load the flags now and keep them fresh (once per page load). */
@@ -69,9 +98,19 @@ export function startFlags(): void {
   window.addEventListener("online", () => { void refreshFlags(); });
 }
 
+/**
+ * The signed-in account changed (sign-in, sign-out, another account, its workspaces): GET /api/flags answers per
+ * account once any workspace has its own setting, so ask again now, past the browser's cache.
+ */
+export function flagsAccountChanged(): void {
+  if (typeof window === "undefined") return;
+  accountGen++;
+  void refreshFlags({ fresh: true });
+}
+
 /** Tests: back to every flag on. */
-export function resetFlags(next: FlagSet = { ...DEFAULT_FLAGS }, serverAnswered = false): void {
+export function resetFlags(next: FlagSet = { ...DEFAULT_FLAGS }, serverAnswered = false, workspaces: Record<string, Partial<FlagSet>> = {}): void {
   confirmed = serverAnswered;
-  set(next);
+  set(next, workspaces);
   for (const f of subs) f();
 }
