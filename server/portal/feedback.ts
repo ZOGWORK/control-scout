@@ -1,15 +1,29 @@
 // The owner's feedback inbox: messages sent from the /contact page (contact_messages), each
 // open, resolved or archived. Resolving and archiving only move a message between lists; nothing
 // is deleted here.
-import { all, db } from "../db.js";
-import type { FeedbackList, FeedbackMessage, FeedbackStatus } from "../../src/shared/owner.js";
+//
+// Triage (migration 56): a bug report, data correction or feature idea is also accepted, rejected or
+// marked fixed. Triage files the message with it (fixed or rejected: resolved; accepted or undone: open),
+// so the inbox and the Moderation tab's queue are one list seen two ways, never a second inbox. Accepting a
+// data correction changes no match record: the fix comes from FIRST through a re-sync.
+import { all, db, get } from "../db.js";
+import { TRIAGE_NEXT, TRIAGE_TOPICS, type FeedbackList, type FeedbackMessage, type FeedbackStatus, type TriageQueue, type TriageState } from "../../src/shared/owner.js";
 
 export const FEEDBACK_STATUSES: FeedbackStatus[] = ["open", "resolved", "archived"];
 export const isFeedbackStatus = (x: unknown): x is FeedbackStatus => typeof x === "string" && (FEEDBACK_STATUSES as string[]).includes(x);
+export const TRIAGE_STATES: TriageState[] = ["accepted", "rejected", "fixed"];
+export const isTriageState = (x: unknown): x is TriageState => typeof x === "string" && (TRIAGE_STATES as string[]).includes(x);
+export const isTriageTopic = (topic: string) => TRIAGE_TOPICS.includes(topic);
+
+/** Is this move allowed (TRIAGE_NEXT, shared with the console)? */
+export const canTriage = (from: TriageState | null, to: TriageState | null) => TRIAGE_NEXT[from ?? "untriaged"].includes(to);
+/** The inbox list a triage decision files the message under. */
+export const statusForTriage = (t: TriageState | null): FeedbackStatus => (t === "fixed" || t === "rejected" ? "resolved" : "open");
 
 const toMessage = (r: any): FeedbackMessage => ({
   id: Number(r.id), createdAt: r.created_at, topic: r.topic, name: r.name ?? null, email: r.email, message: r.message,
   emailed: Number(r.emailed) === 1, status: isFeedbackStatus(r.status) ? r.status : "open", statusAt: r.status_at ?? null,
+  triage: isTriageState(r.triage) ? r.triage : null, triageAt: r.triage_at ?? null,
 });
 
 /**
@@ -29,6 +43,33 @@ export async function listFeedback(status: FeedbackStatus | "all" = "open", limi
   return { messages: rows.slice(0, n).map(toMessage), counts, more: rows.length > n };
 }
 
+const TOPIC_SQL = `topic IN (${TRIAGE_TOPICS.map(() => "?").join(", ")})`;
+
+/**
+ * The triage queue, one list at a time: bug reports, data corrections and ideas not decided yet
+ * ("untriaged") or accepted and waiting for a fix ("accepted"), newest first, plus counts per state.
+ * `more`: the list holds more than `limit` messages (the oldest are left out).
+ */
+export async function triageQueue(state: "untriaged" | "accepted" = "untriaged", limit = 100): Promise<TriageQueue> {
+  const n = Math.min(500, Math.max(1, Math.floor(limit) || 100));
+  const rows = await all(
+    `SELECT * FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' AND ${state === "accepted" ? "triage = 'accepted'" : "triage IS NULL"}
+     ORDER BY id DESC LIMIT ?`, [...TRIAGE_TOPICS, n + 1]);
+  const counts: TriageQueue["counts"] = { untriaged: 0, accepted: 0, rejected: 0, fixed: 0 };
+  for (const r of await all<{ triage: string | null; n: number }>(
+    `SELECT triage, COUNT(*) n FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' GROUP BY triage`, [...TRIAGE_TOPICS])) {
+    if (r.triage == null) counts.untriaged += Number(r.n);
+    else if (isTriageState(r.triage)) counts[r.triage] += Number(r.n);
+  }
+  return { state, messages: rows.slice(0, n).map(toMessage), counts, more: rows.length > n };
+}
+
+/** One message (null: no such message). */
+export async function feedbackMessage(id: number): Promise<FeedbackMessage | null> {
+  const r = await get("SELECT * FROM contact_messages WHERE id = ?", [id]);
+  return r ? toMessage(r) : null;
+}
+
 /** Move a message to another list: the updated message and the list it was in just before (read in the same
  *  transaction as the move), or null when there's no such message. */
 export async function setFeedbackStatus(id: number, status: FeedbackStatus, now = new Date()): Promise<{ message: FeedbackMessage; was: FeedbackStatus } | null> {
@@ -40,4 +81,30 @@ export async function setFeedbackStatus(id: number, status: FeedbackStatus, now 
   if (!row) return null;
   const prev = (before.rows[0] as unknown as { status: string } | undefined)?.status;
   return { message: toMessage(row), was: isFeedbackStatus(prev) ? prev : "open" };
+}
+
+export class TriageError extends Error {
+  constructor(readonly status: 400 | 404 | 409, message: string) { super(message); }
+}
+
+/**
+ * Triage one message: `to` is accepted, rejected, fixed, or null to undo. Refused (TriageError) for an
+ * unknown message, a topic that isn't triaged, or a move TRIAGE_NEXT doesn't allow. Returns the message
+ * before and after, for the audit log.
+ */
+export async function setTriage(id: number, to: TriageState | null, now = new Date()): Promise<{ before: FeedbackMessage; after: FeedbackMessage }> {
+  const before = await feedbackMessage(id);
+  if (!before) throw new TriageError(404, "No such message");
+  if (!isTriageTopic(before.topic)) throw new TriageError(400, "Only bug reports, data corrections and feature ideas are triaged");
+  if (!canTriage(before.triage, to)) throw new TriageError(409, `Can't go from ${before.triage ?? "not triaged"} to ${to ?? "not triaged"}`);
+  const status = statusForTriage(to);
+  const at = now.toISOString();
+  // Guarded on the state just read: two decisions sent at once can't both land.
+  const row = await get(
+    `UPDATE contact_messages SET triage = ?, triage_at = ?, status = ?, status_at = CASE WHEN status = ? THEN status_at ELSE ? END
+     WHERE id = ? AND triage IS ? RETURNING *`,
+    [to, to ? at : null, status, status, at, id, before.triage],
+  );
+  if (!row) throw new TriageError(409, "This message was triaged a moment ago. Reload to see where it is now.");
+  return { before, after: toMessage(row) };
 }

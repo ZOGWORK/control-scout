@@ -1459,6 +1459,38 @@ ALTER TABLE owner_audit ADD COLUMN new_value TEXT;
 ${OWNER_AUDIT_TRIGGERS.join("\n")}
 `,
   },
+  {
+    version: 56,
+    name: "owner console: abuse counts, feedback triage, error notes, owner settings",
+    sql: `
+-- Abuse signals per UTC day and coarse network range (server/moderation.ts): IPv4 /16 or IPv6 /32, never a
+-- full address. kind: rate_limited (answered 429) | bot_ua (crawler or script user agent) | burst (a minute
+-- over the per-range request ceiling). Rows older than 90 days are removed as the counters are flushed.
+CREATE TABLE abuse_daily (
+  day TEXT NOT NULL,
+  ip_range TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, ip_range, kind)
+) WITHOUT ROWID;
+-- Triage of contact-form bug reports, data corrections and feature ideas (server/portal/feedback.ts):
+-- NULL (not triaged yet) | accepted | rejected | fixed. A data correction is fixed by a re-sync from FIRST,
+-- never by editing match records.
+ALTER TABLE contact_messages ADD COLUMN triage TEXT;
+ALTER TABLE contact_messages ADD COLUMN triage_at TEXT;
+-- The owner's own note on an error report (server/errorReports.ts), shown in the console only.
+ALTER TABLE error_reports ADD COLUMN owner_note TEXT;
+ALTER TABLE error_reports ADD COLUMN owner_note_at TEXT;
+-- Owner console settings (server/ownerSettings.ts): one JSON value per key, e.g. publicUsage (publish the
+-- home page's "in use" section). A key with no row takes its default (for publicUsage, PUBLIC_USAGE_ENABLED).
+CREATE TABLE owner_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+`,
+  },
 ];
 
 export type Db = Client;

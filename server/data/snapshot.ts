@@ -30,6 +30,8 @@ export const PRIVATE_TABLES = [
   "discord_follows", "discord_posts",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
+  // The owner console (migration 56): abuse counts per network range, and the owner's settings.
+  "abuse_daily", "owner_settings",
 ];
 
 /**
