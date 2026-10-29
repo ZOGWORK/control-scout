@@ -9,7 +9,7 @@ import { useFlag } from "../../lib/flags";
 import { featureOffMessage } from "../../shared/flags";
 import { useMediaQuery } from "../../lib/meta";
 import { ago } from "../../lib/format";
-import { coinFlipHref, type CoinFlipRadar, type CoinFlipRow } from "../../shared/coinFlips";
+import { COIN_FLIPS_META, coinFlipHref, hasFlips, type CoinFlipRadar, type CoinFlipRow } from "../../shared/coinFlips";
 import { Button } from "../ui/button";
 import { TierMark } from "../predict";
 import { cn } from "../cn";
@@ -56,9 +56,12 @@ export function closestKey(rows: CoinFlipRow[]): string | null {
   return best ? `${best.code}|${best.key}` : null;
 }
 
-/** Whether today has any coin flip to show, still to play or decided. With none (no event on today, or no
- *  call in the band) the section stays out of the page rather than saying so. */
-export const hasFlips = (r: CoinFlipRadar) => r.upcoming.length > 0 || r.decided.length > 0;
+export { hasFlips };
+
+/** What the page's first HTML said about today: false when it had no coin flips (server/seo.ts), else true (it had
+ *  some, or it didn't say: another page loaded first, a slow answer, the dev server). */
+export const flipsExpected = () => typeof document === "undefined"
+  || document.querySelector<HTMLMetaElement>(`meta[name="${COIN_FLIPS_META}"]`)?.content !== "0";
 
 const pctBand = (r: CoinFlipRadar) => `${Math.round(r.band.lo * 100)}% and ${Math.round(r.band.hi * 100)}%`;
 
@@ -179,7 +182,7 @@ function useRadarRefresh(reload: () => void) {
 }
 
 /** Nothing renders on a day with no coin flips, or when they couldn't load (a stale radar stays up through a
- *  failed refresh); the skeleton holds the place while loading. `className` (the page's spacing) goes on the
+ *  failed refresh); the skeleton holds the place while loading, unless the page's HTML said today has none. `className` (the page's spacing) goes on the
  *  section, so a hidden section leaves no gap. */
 export function CoinFlipRadarSection({ className }: { className?: string }) {
   // Switched off by the owner (the coinFlips feature toggle): not asked for, and a short note in its place.
@@ -201,6 +204,8 @@ export function CoinFlipRadarSection({ className }: { className?: string }) {
     );
   }
   if ((state.error && !r) || (r && !hasFlips(r))) return null;
+  // A day the page already knows has none: no placeholder while it loads, so the page below doesn't jump up after.
+  if (!r && !flipsExpected()) return null;
   return (
     <section aria-labelledby="radar-title" className={cn("@container/radar min-w-0", className)}>
       <div className="flex flex-wrap items-end justify-between gap-3">

@@ -94,6 +94,26 @@ describe("a day with no coin flips", () => {
     expect(document.querySelector("[aria-busy=true]")).toBeTruthy();
   });
 
+  it("holds no place while loading when the page's HTML said today has none (no layout shift), and still shows ones that turn up", () => {
+    const tag = Object.assign(document.createElement("meta"), { name: "cs-coin-flips", content: "0" });
+    document.head.append(tag);
+    try {
+      expect(show().container.innerHTML).toBe("");
+      cleanup();
+      data = radar({ events: 1, calls: 9, upcoming: [row(1)] });
+      show();
+      expect(screen.getByText("1 to play")).toBeTruthy();
+      cleanup();
+      // "1": today has some, so the skeleton holds their place as before.
+      data = undefined;
+      tag.content = "1";
+      show();
+      expect(document.querySelector("[aria-busy=true]")).toBeTruthy();
+    } finally {
+      tag.remove();
+    }
+  });
+
   it("leaves the section out when it couldn't load, and keeps the last radar through a failed refresh", () => {
     error = new Error("down");
     expect(show().container.innerHTML).toBe("");

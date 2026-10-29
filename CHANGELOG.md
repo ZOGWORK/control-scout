@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.0 — 2026-10-29
+
+The Events page stops jumping while it loads.
+
+### Highlights
+- [speed] The Events page no longer jumps as it loads, on phones and computers
+- [fixes] No more security-policy warning in the browser console
+
+### Speed
+- **Events holds still.** On a day with no coin flips, the page used to save room for them while it loaded, then take that room away, pulling the filters and the list up the screen. The page now knows from its first load whether today has any. On a phone, the footer used to sit in view until the list arrived, then get pushed down; the loading placeholder now fills the screen, so nothing visible moves. Layout shift on /events (a measure of how much the page jumps; under 0.1 is good) fell from 0.44 to 0.01 on a throttled phone and from 0.15 to under 0.01 on a computer.
+
+### Fixes
+- **Security policy.** A photo-storage setting that wasn't a Cloudflare account ID was being written into the page's security policy, which browsers reported as an error. A setting that isn't an account ID is now ignored.
+
 ## 1.4.9 — 2026-10-29
 
 The owner console lists its sections down the side, the way Settings does.

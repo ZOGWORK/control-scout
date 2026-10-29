@@ -8,9 +8,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
-import { canonicalRedirects, canonicalUrl, renderIndex, renderPage } from "./seo";
+import { canonicalRedirects, canonicalUrl, coinFlipsHint, renderIndex, renderPage } from "./seo";
+import { KV_KEY as RADAR_KEY } from "./api/coinFlips";
+import { localDate } from "../src/shared/eventDay";
 import { fitDescription } from "./seoMeta";
-import { migrate, openDb, run, setDb } from "./db";
+import { kvSet, migrate, openDb, run, setDb } from "./db";
 import { BOOT_CONSENT_ID } from "../src/shared/boot";
 import { clearAllCaches } from "./caches";
 
@@ -105,6 +107,20 @@ describe("page head in the first HTML", () => {
     await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'USNJNOM3', 'P1-4 PM Northern League Meet', 'LeagueMeet', 'Don Bosco Prep', 'Ramsey', 'NJ', 'USA', '2025-11-08', '2025-11-08', 0, 0, 'test')");
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, hybrid, source) VALUES (2025, 'REMOTE1', 'Remote League', 'LeagueMeet', 'Columbus', 'OH', 'USA', '2025-11-08', '2025-11-08', 1, 0, 'test')");
     await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'USNJNOM3', 'qual', 0, 1, 'Q1', 0, 'test')");
+  });
+
+  it("/events says whether today has coin flips (so the radar holds no place it would give up again); no other page asks", async () => {
+    const zone = "America/New_York";
+    const flip = { season: 2025, code: "USNJNOM3", key: "qual:0:1", label: "Q1", eventName: "P1-4 PM Northern League Meet", place: "Ramsey, NJ", timezone: zone,
+      day: localDate(Date.now(), zone)!, time: null, startsAt: null, red: [1, 2], blue: [3, 4], pRed: 0.5, tier: "moderate" as const, kind: "now" as const, played: false, result: null };
+    const stored = (upcoming: typeof flip[]) => kvSet(RADAR_KEY, { generatedAt: new Date().toISOString(), band: { lo: 0.45, hi: 0.55 }, events: 1, calls: 1, thin: 0, tallies: [], upcoming, decided: [] });
+    await stored([]);
+    expect(await coinFlipsHint("/events")).toBe('<meta name="cs-coin-flips" content="0" />');
+    await stored([flip]);
+    const file = join(mkdtempSync(join(tmpdir(), "cs-seo-")), "index.html");
+    writeFileSync(file, "<html><head><title>FTC Control Scout</title>\n</head><body></body></html>");
+    expect((await renderPage(file, "/events")).html).toContain('<meta name="cs-coin-flips" content="1" />');
+    for (const p of ["/", "/teams", "/events/2025/USNJNOM3"]) expect(await coinFlipsHint(p)).toBe("");
   });
 
   it("team and event pages get their own title, description (120–160), canonical, OG and Twitter tags", async () => {
