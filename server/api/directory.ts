@@ -14,6 +14,7 @@ import { countryLabels } from "./records.js";
 import { cachedReadiness } from "./readiness.js";
 import { homeOverview } from "./home.js";
 import { countryByCode } from "../../src/shared/countries.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 import { DIRECTORY_MAX_PAGE_SIZE, DIRECTORY_PAGE_SIZE, DIRECTORY_SORTS, directorySearchProblem, directorySearchWords, type DirectoryPage, type DirectorySort } from "../../src/shared/directory.js";
 
 export class DirectoryQueryError extends Error {}
@@ -98,7 +99,8 @@ function orderBy(sort: DirectorySort, dir: "asc" | "desc"): string {
 }
 
 export async function listDirectory(season: number, q: DirectoryQuery): Promise<DirectoryPage> {
-  const where = ["ts.season = ?"];
+  // Teams with a page only (src/shared/teamPages.ts), as the home page's atlas counts them.
+  const where = ["ts.season = ?", teamPageSql("ts.team", "t.name")];
   const args: (string | number)[] = [season];
   if (q.country) {
     const labels = await countryLabels(q.country);
