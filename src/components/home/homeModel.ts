@@ -47,10 +47,15 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
   return pick ? viewOf(t, pick, kind) : null;
 }
 
-/** One season's replay as a view (the home card's "this season so far" tab); null when it has none. */
-export function replayView(t: TrackRecord, season: number): RecordView | null {
-  const s = t.seasons.find((x) => x.season === season);
-  return s ? viewOf(t, s, "backtest") : null;
+/**
+ * The home card's two replays: the newest season's own replay so far, and the newest replay before it. Picked by
+ * season, not by the headline rule, so a season in progress that becomes the headline never hides last season's.
+ * With one replayed season there's no "so far": it's the one replay.
+ */
+export function homeReplays(t: TrackRecord): { replay: RecordView | null; soFar: RecordView | null } {
+  const replayed = [...t.seasons].filter((s) => s.backtest && s.backtest.n > 0).sort((a, b) => b.season - a.season);
+  if (replayed.length < 2 || !replayed[0].backtest!.decided) return { replay: recordFor(t, "backtest"), soFar: null };
+  return { replay: viewOf(t, replayed[1], "backtest"), soFar: viewOf(t, replayed[0], "backtest") };
 }
 
 function viewOf(t: TrackRecord, pick: TrackRecord["seasons"][number], kind: Evidence): RecordView | null {
@@ -78,18 +83,6 @@ function enginesOf(rows: TrackRecord["seasons"][number]["liveByEngine"], serving
   // An older response without the decided count gets none either, rather than a guess.
   const decided = cur?.decided ?? null;
   return { versions: used.map((r) => r.engine).sort(byVersion), current: cur ? { engine: cur.engine, n: cur.n, decided, accuracy: decided ? cur.accuracy : null } : null };
-}
-
-/**
- * The season in progress's own replay (the newest season with a replayed, decided call), shown beside the big
- * number when that number is another season's replay or live calls: how this season reads so far, kept apart.
- * Null when it's already the big number, or there's no decided replay yet.
- */
-export function seasonReplaySoFar(t: TrackRecord, shown: RecordView | null): { season: number; seasonLabel: string; block: AccuracyBlock } | null {
-  const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => x.backtest && x.backtest.decided > 0);
-  if (!s || !s.backtest) return null;
-  if (shown && shown.kind === "backtest" && shown.season === s.season) return null;
-  return { season: s.season, seasonLabel: s.label, block: s.backtest };
 }
 
 /** Which evidence opens first: the same rule as every ledger card (the replay until a season has LIVE_THRESHOLD live calls). */
