@@ -194,6 +194,31 @@ describe("Home", () => {
     expect(screen.getByRole("note").textContent).toMatch(/^Still calibrating this season\..*until 2026–27 BIOBUZZ has 10,000 live calls scored \(681 so far\)\.$/);
   });
 
+  it("shows the live figure beside the replay at the same size, labelled as all engine versions when it blends them", () => {
+    const blk = (n: number, decided: number, accuracy: number, upsets: number) => ({
+      n, decided, accuracy, upsets, brier: 0.2, logLoss: 0.6, baselineBrier: 0.25, reliability: [], weekly: [],
+      byTier: { provisional: { n, accuracy, brier: 0.2 }, moderate: { n: 0, accuracy: 0, brier: 0 }, confident: { n: 0, accuracy: 0, brier: 0 } },
+      byLevel: { qual: { n, accuracy }, playoff: { n: 0, accuracy: 0 } },
+    });
+    const e = (engine: string, n: number, accuracy: number) => ({ engine, n, accuracy, brier: 0.2, logLoss: 0.6 });
+    const seasons = [
+      { season: 2026, label: "2026–27 BIOBUZZ", live: blk(706, 698, 415 / 698, 283), backtest: blk(1087, 1070, 0.68, 340), liveByEngine: [e("2.1.1", 59, 0.49), e("2.6.0", 15, 0.73), e("3.2.0", 632, 0.601)] },
+      { season: 2025, label: "2025–26 DECODE", live: null, backtest: blk(41743, 41405, 30554 / 41405, 10851) },
+    ];
+    data = { "/api/predict/accuracy": { seasons, engineVersion: "3.2.0", liveThreshold: LIVE_THRESHOLD, headline: pickHeadline(seasons), recentCalls: [], generatedAt: new Date().toISOString() } };
+    mount();
+    const [replay, live] = screen.getAllByRole("radio");
+    expect(replay.textContent).toMatch(/73\.8%/);
+    expect(live.textContent).toMatch(/59\.5%/);
+    expect(live.textContent).toMatch(/all season, all engine versions/);
+    // Both figures share one size class.
+    const size = (r: HTMLElement) => [...r.querySelectorAll("span")].find((s) => s.className.includes("font-display"))!.className;
+    expect(size(live)).toBe(size(replay));
+    fireEvent.click(live);
+    expect(screen.getByText(/all engine versions \(v2\.1\.1, v2\.6\.0, v3\.2\.0\)/)).toBeTruthy();
+    expect(screen.getByText(/from engine v3\.2\.0 alone, the one serving now \(632 scored\)/)).toBeTruthy();
+  });
+
   it("opens on the same headline as the methodology ledger and shows how much of the season the replay covers", () => {
     const blk = (n: number, decided: number, accuracy: number, upsets: number) => ({
       n, decided, accuracy, upsets, brier: 0.2, logLoss: 0.6, baselineBrier: 0.25, reliability: [], weekly: [],

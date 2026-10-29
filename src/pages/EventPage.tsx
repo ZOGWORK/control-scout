@@ -4,7 +4,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
 import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Info, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
-import { BRACKETS, type Slot } from "@control-scout/predict-engine";
+import { BRACKETS, EXCLUDED_TYPES, type Slot } from "@control-scout/predict-engine";
+import { advOddsBasis, rankingCoverage } from "../lib/eventRankingNotes";
+import { projectionsPath } from "../lib/projections";
+import type { ProjectionsView } from "../shared/projections";
 import { ApiError, apiFetch, load, prime, useApi } from "../lib/api";
 import { useMeta, usePredictable, useTitle } from "../lib/meta";
 import { TABLE_PARAMS } from "../lib/records/urlState";
@@ -72,6 +75,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const nameOf = (t: number) => names.get(t) ?? "";
   // 2019–2022 are history only: no odds, no what-if lab (their predict routes 404).
   const predictable = usePredictable(e.season);
+  // Scrimmages and the like: the stats never count them, so their tables never fill.
+  const unofficial = EXCLUDED_TYPES.has(e.type ?? "");
   // The records tables follow the live results: fetched again whenever the event's results are checked or the stats are rebuilt.
   const statsAt = useMeta()?.statsAt ?? "";
   const recordsKey = `${d.live?.checkedAt ?? ""}|${statsAt}`;
@@ -231,8 +236,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {/* Before quals start: a simulated ranking, only on a click and loudly uncertain (components/SimulatedRankings.tsx). */}
               {predictable && !d.matches.some((m) => m.level === "qual" && m.played) && d.field.length >= 4 && <SimulatedRankings d={d} team={teamParam} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
-                defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam}
-                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
+                defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
+                aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} />}
+                emptyFallback={unofficial ? <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={noOfficialRecord(e.typeLabel)} />
+                  : e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
                 offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
             </>
           )}
@@ -241,8 +248,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           {tab === "insights" && e.status === "live" && <StatsAsOf />}
           {tab === "insights" && (
             <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="totalPointsNpOpr" storageKey="event-insights" noun="teams"
-              defaultCols={INSIGHT_COLS} selectable highlightTeam={teamParam}
-              emptyFallback={<EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />}
+              defaultCols={INSIGHT_COLS} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
+              emptyFallback={unofficial
+                ? <EmptyState icon={Swords} title="No official record" description={`A ${e.typeLabel.toLowerCase()}'s matches don't count toward OPR, ratings or the season's stats, so there are no score breakdowns or averages here. The Matches tab still lists every result.`} />
+                : <EmptyState icon={Swords} title="No match stats yet" description="Score breakdowns, OPR and averages appear here once qualification matches have been played and the stats have been updated." />}
               offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
           )}
         </TabsContent>
@@ -450,6 +459,29 @@ function Matches({ d, team, live }: { d: EventDetail; team: number | null; live:
 const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
 const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
 const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
+/** A scrimmage (or another type the stats leave out) never gets records: say so instead of promising them. */
+const noOfficialRecord = (typeLabel: string) => `No official record: a ${typeLabel.toLowerCase()}'s matches don't count toward OPR, ratings or the season's stats, so there are no filters or stat columns here. The ranking as FIRST published it:`;
+/** Why an event table's column can be empty for every team (RecordsTable shows the line only when it is). */
+const EMPTY_COLUMN_NOTES: Partial<Record<string, string>> = {
+  predictedWinPctAvg: "No pre-match win odds are on record for this event's qualification matches, so there is no average to show.",
+  predictedScoreAvg: "No pre-match predicted scores are on record for this event's qualification matches, so there is no average to show.",
+  advancementOdds: "No pre-event advancement forecast is stored for this event; the Odds tab simulates it when you open it. Teams already qualified elsewhere, or not eligible here, are always empty.",
+};
+
+/** The Rankings tab's notes: which teams the table lists, and what the Adv. odds column is and when it was computed. */
+function RankingNotes({ d, advOdds }: { d: EventDetail; advOdds: boolean }) {
+  const coverage = rankingCoverage(d.field);
+  const proj = useApi<ProjectionsView>(advOdds ? projectionsPath(d.event.season, d.event.code) : null);
+  const statsAt = useMeta()?.statsAt ?? null;
+  const basis = advOdds && (proj.data || proj.error) ? advOddsBasis(proj.data?.current ?? null, statsAt) : null;
+  if (!coverage && !basis) return null;
+  return (
+    <ul className="mb-3 space-y-1.5 text-xs text-muted-foreground" data-ranking-notes>
+      {coverage && <li className="flex items-start gap-2"><Users className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{coverage}</span></li>}
+      {basis && <li className="flex items-start gap-2"><Trophy className="mt-0.5 size-3.5 shrink-0 text-amber-500" aria-hidden /><span>{basis}</span></li>}
+    </ul>
+  );
+}
 /** Insights tab: where the points come from. */
 const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endgamePointsOpr", "penaltyPointsCommittedOpr", "autoPointsAvg", "dcPointsAvg", "endgamePointsAvg", "totalPointsNpMax", "predictedScoreAvg"];
 
