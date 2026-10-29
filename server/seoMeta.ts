@@ -106,7 +106,6 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/predict": { title: "Predict an FTC match", description: "Pick any four FTC teams and get win odds, a predicted score and the three biggest reasons why, from the same engine that powers every Control Scout prediction." },
   "/compare": { title: "Compare FTC teams", description: "Put FTC teams side by side: OPR by game phase, prediction ratings, records and event-by-event trends for up to four teams at once." },
   "/methodology": { title: "How the predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
-  "/predict/how-it-works": { title: "How the predictions work", description: "How Control Scout computes OPR, rates robots and predicts matches, with a public record of how often the predictions come true." },
   "/download": { title: "Download FTC data", description: "Download full FTC seasons as SQLite files: every event, team, match, score breakdown, ranking and award. Offline predictions are saved automatically." },
   "/privacy": { title: "Privacy policy", description: "How Control Scout handles your data: no account needed, only essential sign-in cookies, no ads or third-party trackers, anonymous stats only if you allow them." },
   "/terms": { title: "Terms of use", description: "The terms for using Control Scout: free, predictions are estimates, FTC data can be wrong, rate limits instead of scraping, and your scouting notes stay yours." },

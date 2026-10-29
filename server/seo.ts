@@ -21,6 +21,13 @@ export const canonicalOrigin = () => new URL(env.canonicalUrl).origin;
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
+/** Pages that moved for good: [old path (matched without case), new path, fragment]. The app's own routes
+ *  redirect the same way (src/main.tsx), for in-app links and offline use. */
+export const MOVED_PAGES: [RegExp, string, string][] = [
+  [/^\/predict\/how-it-works$/i, "/methodology", ""],
+  [/^\/predict\/accuracy$/i, "/methodology", "#accuracy"],
+];
+
 /** 301 to the canonical host, path policy and route aliases. Never for /api (clients keep their origin). */
 export function canonicalRedirects(req: Request, res: Response, next: NextFunction) {
   if (req.method !== "GET" && req.method !== "HEAD") return next();
@@ -38,11 +45,16 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
   path = path.replace(/^(\/events\/[^/]+\/[^/]+)\/overlay\/?$/i, "$1");
   // No trailing slash (one URL per page).
   if (path.length > 1 && path.endsWith("/")) path = path.replace(/\/+$/, "") || "/";
+  // How it works has one URL: its old addresses (the Predict section's) 301 there, the track record to its section.
+  // The fragment goes last, after any query; crawlers drop it, browsers scroll to it.
+  const moved = MOVED_PAGES.find(([re]) => re.test(path));
+  const hash = moved?.[2] ?? "";
+  if (moved) path = moved[1];
   const otherHost = env.production && host && !LOOPBACK.has(host) && host !== home.hostname;
-  if (otherHost || path !== req.path) {
+  if (otherHost || path !== req.path || moved) {
     res.setHeader("Cache-Control", "public, max-age=3600");
     // Always absolute, on the canonical origin: a redirect can never leave the site.
-    return res.redirect(301, `${home.origin}${path}${qs}`);
+    return res.redirect(301, `${home.origin}${path}${qs}${hash}`);
   }
   // A backup host serving the app under its own name (Render): usable, but never indexed as a second copy.
   if (env.production && host && !LOOPBACK.has(host) && host !== new URL(env.canonicalUrl).hostname) res.setHeader("X-Robots-Tag", "noindex");
