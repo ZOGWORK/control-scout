@@ -26,6 +26,19 @@ describe("prediction record", () => {
     headline: { kind: "backtest", season: 2025, accuracy: 30554 / 41405, n: 41743 },
   });
 
+  it("says when a live figure blends engine versions, with the serving engine's own figure beside it", () => {
+    const e = (engine: string, n: number, accuracy: number) => ({ engine, n, accuracy, brier: 0.2, logLoss: 0.6 });
+    const mixed = record({ engineVersion: "3.2.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 632, 0.601), e("2.1.1", 59, 0.49), e("2.6.0", 15, 0.73)] }, t.seasons[1]] });
+    expect(recordFor(mixed, "live")!.engines).toEqual({ versions: ["2.1.1", "2.6.0", "3.2.0"], current: { engine: "3.2.0", n: 632, accuracy: 0.601 } });
+    // One engine: nothing blended, so no label. The replay never carries engine splits.
+    const single = record({ engineVersion: "3.2.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 40, 0.75)] }, t.seasons[1]] });
+    expect(recordFor(single, "live")!.engines).toBeNull();
+    expect(recordFor(mixed, "backtest")!.engines).toBeNull();
+    // Blended, but the serving engine hasn't made a call yet: the versions, no current figure.
+    const none = record({ engineVersion: "3.3.0", seasons: [{ ...t.seasons[0], liveByEngine: [e("3.2.0", 30, 0.6), e("2.1.1", 10, 0.5)] }] });
+    expect(recordFor(none, "live")!.engines).toEqual({ versions: ["2.1.1", "3.2.0"], current: null });
+  });
+
   it("keeps live calls and replays apart, each with its own season", () => {
     expect(recordFor(t, "live")).toMatchObject({ kind: "live", season: 2026, early: true });
     expect(recordFor(t, "backtest")).toMatchObject({ kind: "backtest", season: 2025, early: false });

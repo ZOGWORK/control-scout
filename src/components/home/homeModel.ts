@@ -22,6 +22,12 @@ export interface RecordView {
   isHeadline: boolean;
   /** For a replay: how many of the season's scored matches it covers (absent in older responses). */
   coverage: ReplayCoverage | null;
+  /**
+   * Live only, when the season's calls came from more than one engine version: the versions in the figure
+   * (oldest first), and the serving engine's own share of them when it made any. The big number is the
+   * blend of all of them, so it says so; the serving engine's figure is the secondary line.
+   */
+  engines: { versions: string[]; current: { engine: string; n: number; accuracy: number } | null } | null;
 }
 
 /**
@@ -47,7 +53,18 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
     noneDecided: block.decided === 0,
     isHeadline: t.headline?.kind === kind && t.headline.season === pick.season,
     coverage: kind === "backtest" ? pick.replay ?? null : null,
+    engines: kind === "live" ? enginesOf(pick.liveByEngine, t.engineVersion) : null,
   };
+}
+
+const semver = (v: string) => v.split(".").map(Number);
+const byVersion = (a: string, b: string) => { const x = semver(a), y = semver(b); for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0); return 0; };
+
+function enginesOf(rows: TrackRecord["seasons"][number]["liveByEngine"], serving: string): RecordView["engines"] {
+  const used = (rows ?? []).filter((r) => r.n > 0);
+  if (used.length < 2) return null;
+  const cur = used.find((r) => r.engine === serving);
+  return { versions: used.map((r) => r.engine).sort(byVersion), current: cur ? { engine: cur.engine, n: cur.n, accuracy: cur.accuracy } : null };
 }
 
 /** Which evidence opens first: the same rule as every ledger card (the replay until a season has LIVE_THRESHOLD live calls). */
