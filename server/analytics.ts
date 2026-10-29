@@ -109,6 +109,9 @@ export async function publicUsage(enabled: boolean, now = new Date(), c: Client 
 
 /** Public usage is read at most once a minute (shared by every visitor; it's a daily aggregate). */
 export const PUBLIC_USAGE_TTL_MS = 60_000;
+/** How long browsers and shared caches may keep a /api/public-usage answer (no stale serving): with the owner
+ *  setting's 10 s cache, hiding the figures reaches every visitor within a minute. */
+export const PUBLIC_USAGE_MAX_AGE_S = 45;
 let usageCache: { enabled: boolean; at: number; value: Promise<PublicUsage> } | null = null;
 registerCache("Public usage", () => { usageCache = null; });
 

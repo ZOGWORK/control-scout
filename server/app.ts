@@ -62,7 +62,7 @@ import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
-import { cachedPublicUsage, collectRouter, statsRouter } from "./analytics.js";
+import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
@@ -295,8 +295,10 @@ export function createApp(opts: { dist?: string } = {}) {
   // Analytics tab, server/ownerSettings.ts; PUBLIC_USAGE_ENABLED until chosen there).
   api.get("/public-usage", h(async (_req, res) => {
     const u = await cachedPublicUsage();
+    // Hiding the figures in the console must reach visitors within a minute: the owner setting is read at most
+    // SETTINGS_TTL_MS (10 s) old, so browsers and shared caches keep an answer 45 s and never serve it stale.
     // An unreadable feed answers 200 with its reason (the panel says so), but isn't kept by caches.
-    if (u.reason === "error") res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", u.reason === "error" ? "no-store" : `public, max-age=${PUBLIC_USAGE_MAX_AGE_S}, must-revalidate`);
     return u;
   }));
 
