@@ -273,6 +273,26 @@ describe("orphaned workspaces: detection", () => {
     offState(); offRevoked();
   });
 
+  it("(a) GET /api/flags gives a former member the deleted workspace's own setting (global off, its override on)", async () => {
+    const w = await workspace();
+    teams.delete(w.id);
+    await stale();
+    await expectReads(w.ada, w); // detected; Ada's cached row goes, she reads it as a former member
+    expect(await get("SELECT 1 x FROM workspace_members WHERE account_id = ? AND cp_workspace_id = ?", [w.adaId, w.id])).toBeUndefined();
+    await setFlag("workspaceScouting", false, "owner@example.com");
+    await run("INSERT INTO workspace_flag_overrides (cp_workspace_id, name, enabled, updated_at, updated_by) VALUES (?, 'workspaceScouting', 1, ?, 'owner@example.com')", [w.id, new Date().toISOString()]);
+    invalidateFlags();
+    try {
+      const f = (await w.ada("GET", "/api/flags")).json;
+      expect(f.workspaces[w.id]).toEqual({ workspaceScouting: true });
+      expect(f.flags.workspaceScouting).toBe(true);
+      expect((await pull(w.ada, w.id)).status).toBe(200);
+    } finally {
+      await run("DELETE FROM workspace_flag_overrides");
+      await setFlag("workspaceScouting", true, "owner@example.com");
+    }
+  });
+
   it("(a) every write type is refused with 423 workspace_read_only (never 403), for admins and members", async () => {
     const w = await workspace();
     teams.delete(w.id);
