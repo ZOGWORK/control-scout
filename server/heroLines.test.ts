@@ -195,6 +195,18 @@ describe("hero lines", () => {
     expect(log[1]).toMatchObject({ action: "heroLine.delete", details: { reset: true }, from: { plain: HOME_HEADLINES[0][0], accent: HOME_HEADLINES[0][1], enabled: true }, to: null });
   });
 
+  it("a save writes only what it changes, so overlapping saves never undo each other", async () => {
+    const l = (await owner("POST", "", { plain: "Words", accent: "here." })).json.line;
+    // Another save switches the line off after this editor opened it (the editor still shows it on).
+    await run("UPDATE hero_lines SET enabled = 0 WHERE id = ?", [l.id]);
+    const edit = await owner("PATCH", `/${l.id}`, { plain: "New words" });
+    expect(edit.json.line).toMatchObject({ plain: "New words", accent: "here.", enabled: false }); // still off
+    expect((await call("GET", "/api/home/headlines")).json.custom).toBe(false);
+    // The audit row's old value is the line as it really was when the edit landed.
+    const log = await audit();
+    expect(log.at(-1)).toMatchObject({ action: "heroLine.edit", from: { plain: "Words", enabled: false }, to: { plain: "New words", enabled: false } });
+  });
+
   it("keeps at most the line limit", async () => {
     await owner("POST", "/seed", { confirm: true });
     for (let i = HOME_HEADLINES.length; i < 48; i++) expect((await owner("POST", "", { plain: `Line ${i}`, accent: "x." })).status).toBe(200);

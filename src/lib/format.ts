@@ -33,7 +33,10 @@ export function dateRange(start: string | null | undefined, end?: string | null)
   return `${md(start)} – ${md(end)}, ${end.slice(0, 4)}`;
 }
 
-export const place = (...xs: (string | null | undefined)[]) => xs.filter(Boolean).join(", ");
+/** "Venue, City, State": each part trimmed of stray commas and spaces first (FIRST's data has venues like
+ *  "Livingston High School,"), so the joined line never shows ",,". Empty parts drop out. */
+export const place = (...xs: (string | null | undefined)[]) =>
+  xs.map((x) => (x ?? "").replace(/^[\s,]+|[\s,]+$/g, "")).filter(Boolean).join(", ");
 
 /** Match time (FIRST: event-local, no zone) → "Sat 10:42". */
 export function matchTime(t: string | null | undefined): string {

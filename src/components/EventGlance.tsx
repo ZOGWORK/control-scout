@@ -14,6 +14,7 @@ import { Button } from "./ui/button";
 import { Meter, TONES, type Tone } from "./StatTile";
 import { TierMark } from "./predict";
 import { cn } from "./cn";
+import { topSeed } from "../lib/eventRankingNotes";
 import { hasTeamPage } from "../shared/teamPages";
 
 const PHASE: Record<Phase, string> = { upcoming: "Not started", quals: "Qualification", playoffs: "Playoffs", done: "Complete" };
@@ -51,7 +52,8 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   const s: GlanceStats = glanceStats(d);
   const season = e.season;
   const names = new Map(d.field.map((f) => [f.team, f.name]));
-  const seed1 =d.field.find((f) => f.rank === 1) ?? null;
+  // At a league meet, this meet's own #1 (as the Rankings tab ranks it), not FIRST's league standing.
+  const seed1 = topSeed(d.field);
   const topOpr = [...d.field].filter((f) => f.opr.np != null).sort((a, b) => b.opr.np! - a.opr.np!)[0] ?? null;
   // inline-block with padding offset by negative margin: a 24px-tall target (WCAG 2.5.8) in the same line box.
   const reportLink = (key: string, children: ReactNode) => <Link to={matchReportHref({ season, code: e.code, key })} className="-my-1 inline-block py-1 hover:text-accent-text">{children}</Link>;
@@ -99,7 +101,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
     {s.winners.teams.map((t, i) => <span key={t}>{i > 0 && <span className="font-normal text-muted-foreground"> · </span>}<TeamNo team={t} name={names.get(t)} season={season} /></span>)}
   </Cell>);
   if (s.inspire) lead.push(<Cell key="inspire" testId="inspire" label="Inspire" hint={s.inspire.name}><TeamNo team={s.inspire.team} name={names.get(s.inspire.team)} season={season} /></Cell>);
-  if (seed1) lead.push(<Cell key="seed" testId="seed" label="#1 seed" hint={seed1.name}><TeamNo team={seed1.team} name={names.get(seed1.team)} season={season} /></Cell>);
+  if (seed1) lead.push(<Cell key="seed" testId="seed" label={seed1.label} hint={seed1.row.name}><TeamNo team={seed1.row.team} name={seed1.row.name} season={season} /></Cell>);
   if (topOpr) lead.push(<Cell key="opr" testId="top-opr" label="Top OPR"><TeamNo team={topOpr.team} name={names.get(topOpr.team)} season={season} /> <span className="font-normal text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></Cell>);
   cells.splice(next ? 1 : 0, 0, ...lead); // after the next match (live), before the scoring stats
   if (d.advancement?.slots) cells.push(<Cell key="adv" testId="advancing" label="Advancing" wide>

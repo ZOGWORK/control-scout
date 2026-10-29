@@ -98,6 +98,18 @@ describe("calibration by confidence tier", () => {
     expect(t[0]).toMatchObject({ n: 1, actual: 0 });
   });
 
+  it("compares the same calls on both sides: ties and 50:50 calls are left out of both", () => {
+    const t = tierCalibration([
+      { p: 0.5, y: 1, tier: "provisional", level: "qual", time: null }, // a coin flip: no favourite
+      { p: 0.7, y: 0.5, tier: "provisional", level: "qual", time: null }, // a tie: no winner
+      { p: 0.8, y: 1, tier: "moderate", level: "qual", time: null },
+      { p: 0.6, y: 0.5, tier: "moderate", level: "qual", time: null },
+    ]);
+    expect(t.map((x) => x.tier)).toEqual(["moderate"]); // a tier of only coin flips and ties shows nothing
+    expect(t[0]).toMatchObject({ n: 1, actual: 1 });
+    expect(t[0].predicted).toBeCloseTo(0.8, 10);
+  });
+
   it("comes with the ledger, for live calls and the replay separately", async () => {
     const live = (await getJson<PredictionHealth>(`/api/owner/predictions?kind=live&season=${S}`)).json;
     expect(live.byTier.map((x) => [x.tier, x.n])).toEqual([["provisional", 1], ["moderate", 1], ["confident", 2]]);
