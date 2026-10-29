@@ -1,7 +1,7 @@
 // /power-rankings (the latest week, with the archive) and /power-rankings/:week (one week).
 // A weekly top 25: hand-written (content/power-rankings/*.md) or published automatically every Friday
-// with blurbs by Bruno, Control Point's AI (docs/power-rankings.md), each team with its live rating,
-// OPR and record and its move since the previous week.
+// with blurbs by Bruno, Control Point's AI (docs/power-rankings.md), each team with its rating,
+// OPR and record (an automatic week's frozen with its text; a hand-written week's live) and its move since the previous week.
 // Blurbs and the intro arrive as sanitized HTML from the server (server/powerRankings/markdown.ts).
 import type { MouseEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -16,7 +16,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import {
-  generatedNote, isWeekId, publishedLine, weekLabel,
+  generatedNote, isWeekId, publishedLine, statsLine, weekLabel,
   type Movement, type PowerRankingsEntry, type PowerRankingsResponse, type PowerRankingsSummary, type PowerRankingsWeek,
 } from "../shared/powerRankings";
 
@@ -141,7 +141,7 @@ function Week({ w, archive, onLink }: { w: PowerRankingsWeek; archive: PowerRank
       <PageHeader
         eyebrow={`${weekLabel(w.week)} · ${seasonLabel(w.season)}`}
         title={w.title}
-        description={`${publishedLine(w)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."}`}
+        description={`${publishedLine(w)}${w.comparedWith ? `. Moves are since week ${Number(w.comparedWith.slice(6))}.` : "."} ${statsLine(w)}`}
         actions={<Button variant="secondary" onClick={() => void share(w)}><Share2 /> Share</Button>}
       />
       {w.sample && (

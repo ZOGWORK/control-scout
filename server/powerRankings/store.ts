@@ -1,6 +1,8 @@
 // The published power-rankings weeks (content/power-rankings/*.md, format: ./format.ts) and the
-// views the API, the page head and the sitemap build from them: each entry with the team's live
-// numbers and its movement against the previous week.
+// views the API, the page head and the sitemap build from them: each entry with the team's numbers
+// and its movement against the previous week. An automatic week shows the numbers frozen with its
+// text (its packet: ./generated.ts shownOf), so an archived week never changes; a hand-written file
+// has no frozen numbers and shows the live ones (the page says so: statsAsOf null).
 //
 // Files are read when they change (a deploy adds one): the directory is checked on use, and a
 // file that doesn't validate is left out with its errors logged (CI's test refuses it first:
@@ -154,29 +156,35 @@ registerCache("Power rankings", () => { cache = null; viewCache.clear(); });
 
 async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
   const i = weeks.indexOf(doc);
-  const compared = weeks.slice(0, i).reverse().find((w) => w.season === doc.season) ?? null;
+  // Only a week ranked on the same season's numbers (week 2026-w42 is a 2026 week ranked on 2025–26).
+  const compared = weeks.slice(0, i).reverse().find((w) => w.season === doc.season && dataSeasonOf(w) === dataSeasonOf(doc)) ?? null;
   // A generated week keeps the comparison it was written against (its blurbs say "up 4"): its frozen
   // movement, compared week and dropped teams, even if that earlier week is later hidden or replaced.
   const frozen = doc.generated;
   const moves = frozen ? doc.entries.map((e) => e.movement) : movements(doc, compared);
   const dropped = frozen ? frozen.droppedOut : droppedOut(doc, compared);
   const comparedWith = frozen ? frozen.comparedWith : compared?.week ?? null;
-  const [info, snapshots] = await Promise.all([teamInfo(doc.season, [...doc.entries.map((e) => e.team), ...dropped.map((d) => d.team)]), snapshotWeeks(doc.season)]);
+  const dataSeason = dataSeasonOf(doc);
+  const [info, snapshots] = await Promise.all([teamInfo(dataSeason, [...doc.entries.map((e) => e.team), ...dropped.map((d) => d.team)]), snapshotWeeks(dataSeason)]);
   // The world rankings as they stood that week (its weekly snapshot, keyed by the Monday), else the season's live list.
   const monday = weekStart(doc.week);
-  const worldRankings = snapshots.includes(monday) ? `/rankings?season=${doc.season}&week=${monday}` : `/rankings?season=${doc.season}`;
+  const worldRankings = snapshots.includes(monday) ? `/rankings?season=${dataSeason}&week=${monday}` : `/rankings?season=${dataSeason}`;
   const g = doc.generated;
   const entries: PowerRankingsEntry[] = doc.entries.map((e, k) => {
     const t = info.get(e.team);
+    // An automatic week: the name and numbers its blurb was written from (frozen); a file: the live ones.
+    const shown = g?.shown[k];
     return {
-      rank: e.rank, team: e.team, name: t?.name ?? null, place: t?.place ?? null, blurbHtml: g ? plainHtml(e.blurb) : renderMarkdown(e.blurb),
-      movement: moves[k], stats: t?.stats ?? null, author: g ? g.sources[k] ?? "template" : null,
+      rank: e.rank, team: e.team, name: g ? shown?.name ?? t?.name ?? null : t?.name ?? null, place: t?.place ?? null, blurbHtml: g ? plainHtml(e.blurb) : renderMarkdown(e.blurb),
+      movement: moves[k], stats: g ? shown?.stats ?? null : t?.stats ?? null, author: g ? g.sources[k] ?? "template" : null,
     };
   });
   const count = (a: string) => (g ? g.sources.filter((x) => x === a).length : 0);
   return {
     week: doc.week, season: doc.season, title: doc.title, published: doc.published,
     updated: g?.updated && g.updated !== doc.published ? g.updated : null,
+    statsAsOf: g ? g.updated ?? doc.published : null,
+    dataSeason: dataSeason !== doc.season ? dataSeason : null,
     introHtml: g ? plainHtml(doc.intro) : renderMarkdown(doc.intro), introText: g ? doc.intro.trim() : markdownText(doc.intro), sample: doc.sample,
     generated: g ? { bruno: count("bruno"), template: count("template"), owner: count("owner"), intro: g.introSource } : null,
     entries,
@@ -185,6 +193,9 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
     worldRankings,
   };
 }
+
+/** The season a week's numbers come from: an automatic week's packet season, else the week's own. */
+const dataSeasonOf = (d: RankingDoc) => d.generated?.dataSeason ?? d.season;
 
 function weekView(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRankingsWeek> {
   const key = `${weeks.map((w) => `${w.week}${w.generated ? `@${w.generated.rev}:${w.generated.updated ?? ""}` : ""}`).join(",")}|${doc.week}`;
@@ -208,7 +219,7 @@ async function archive(weeks: RankingDoc[]): Promise<PowerRankingsSummary[]> {
   }
   return [...weeks].reverse().map((w) => ({
     week: w.week, season: w.season, title: w.title, published: w.published,
-    top: w.entries.slice(0, 3).map((e) => ({ team: e.team, name: names.get(e.team) ?? null })),
+    top: w.entries.slice(0, 3).map((e, k) => ({ team: e.team, name: w.generated?.shown[k]?.name ?? names.get(e.team) ?? null })),
   }));
 }
 
