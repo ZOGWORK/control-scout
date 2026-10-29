@@ -8,6 +8,7 @@ import { env, hasFirst } from "../env.js";
 import type { AdvancementRow, AllianceRow, AwardRow, EntryRow, EventBundle, EventRow, MatchRow, MatchTeam, TeamRow } from "../data/bundle.js";
 import { matchKey, matchLabel } from "../data/bundle.js";
 import { normalizeAwardName, normalizeEventType, ownScorePenalties, scoreDetail, splitFirstScore, type ScoreSplit } from "../data/seasons.js";
+import { isTeamNumber } from "../../src/shared/teamPages.js";
 
 const BASE = "https://ftc-api.firstinspires.org/v2.0";
 
@@ -152,9 +153,12 @@ async function teamPages(season: number, query: string, o: { onPage?: (page: num
   return out;
 }
 
-/** Every registered team of a season (paged). */
+/** Every registered team of a season (paged) that has a real team number. FIRST's 2023 list also holds
+ *  registrations still waiting for one, under a stand-in like 202300005 (the season and a sequence): no
+ *  FTC team number has more than six digits, so those never become team rows (src/shared/teamPages.ts).
+ *  Their matches, where they played under the stand-in, are kept as FIRST reports them. */
 export async function firstTeams(season: number, onPage?: (page: number, of: number) => void): Promise<TeamRow[]> {
-  return (await teamPages(season, "", { onPage })) ?? [];
+  return ((await teamPages(season, "", { onPage })) ?? []).filter((t) => isTeamNumber(t.number));
 }
 
 /** The teams registered for one event: FIRST lists them about a week ahead, before rankings or a schedule.
