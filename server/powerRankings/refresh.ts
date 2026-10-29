@@ -128,7 +128,7 @@ async function finish(season: number, week: string, day: string, status: "unchan
 export async function refreshWeek(g: GeneratedWeek, day: string, at: number, log: Log = quiet): Promise<RefreshResult> {
   const base = { season: g.season, week: g.week, day };
   // Against the comparison the week went out with (recovered from its packet), never whichever earlier week is visible now.
-  const fresh = await buildPacket(g.season, g.week, at, storedComparison(g.packet));
+  const fresh = await buildPacket(g.packet.season ?? g.season, g.week, at, storedComparison(g.packet));
   if (!fresh.teams.length || samePacket(g.packet, fresh)) {
     // Nothing shown changed (or no rated teams to rebuild from: the week stands as it was).
     await run("UPDATE power_rankings_generated SET updated = ? WHERE season = ? AND week = ? AND status = 'published'", [day, g.season, g.week]);
