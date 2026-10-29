@@ -16,6 +16,7 @@ import type { OwnerUsage } from "../../src/shared/owner.js";
 import { listAudit, recordAudit } from "./audit.js";
 import { isFeedbackStatus, listFeedback, setFeedbackStatus } from "./feedback.js";
 import { isOp, opsStatus, startOp } from "./ops.js";
+import { dataReport, packsReport } from "./dataReport.js";
 import { ownerOverview } from "./overview.js";
 import { listUsers, listWorkspaces, userDetail } from "./people.js";
 import { predictionHealth } from "./predictionHealth.js";
@@ -121,6 +122,11 @@ export function ownerRouter(): Router {
   }));
 
   r.get("/errors", h(async (req) => ({ reports: await listErrorReports(num(req.query.limit, 50, 1, 200)) })));
+
+  // Data & sync and Packs & offline (server/portal/dataReport.ts): read-only reports. The actions they offer are
+  // the confirm-gated ops below; nothing here edits match data.
+  r.get("/data", h(async (req) => dataReport(req.query.fresh === "1")));
+  r.get("/packs", h(async () => packsReport()));
 
   r.get("/ops", h(async () => opsStatus()));
   r.post("/ops/:op", h(async (req, res) => {
