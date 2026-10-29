@@ -7,6 +7,7 @@ import { REPORT_PRIOR } from "../stats/reportCards.js";
 import { reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
 import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecord.js";
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
+import { hasTeamPage } from "../../src/shared/teamPages.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -133,6 +134,8 @@ export async function teamReportCards(season: number, team: number): Promise<Tea
 
 export async function teamProfile(number: number, season?: number): Promise<TeamProfile | null> {
   const team = await teamInfo(number);
+  // A placeholder (src/shared/teamPages.ts) has no page, whatever we hold for it.
+  if (!hasTeamPage(number, team?.name)) return null;
   if (!team && !(await teamKnown(number))) return null;
   const seasons = await teamSeasons(number);
   // Default: the newest season the team has results in (fall back to registered).

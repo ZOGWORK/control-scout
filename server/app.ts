@@ -730,6 +730,11 @@ export function createApp(opts: { dist?: string } = {}) {
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));
   app.get("/sitemap-:n.xml", h(sitemapChunkRoute));
+  // /records was never a page: the records tables live at /teams (and /matches). Old links land there, query and all.
+  app.get("/records", (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/teams${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
   // IndexNow's key file, /<key>.txt (server/indexNow.ts): any other name goes on to the 404.
   app.get(/^\/[A-Za-z0-9-]{8,128}\.txt$/, indexNowKeyRoute);
 
