@@ -22,6 +22,7 @@ import type { DbEvent, DbMatch } from "./load.js";
 import { foldText } from "../../src/shared/filterDsl.js";
 import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
 import { AGGREGATES, SCORE_STATS, type Aggregate, type ScoreStatBase } from "../../src/shared/statCatalog.js";
+import { PRE_EVENT_ADVANCEMENT_RUNS } from "../../src/shared/projections.js";
 
 type Log = (m: string) => void;
 
@@ -209,8 +210,8 @@ export async function fillRecordPredictions(season: number, log: Log = () => {})
   log(`${season}: predicted win % and score for ${ev.length} team-events`);
 }
 
-/** Simulation runs per event for the records' advancement odds (the event page's forecast uses 2000). */
-export const ADVANCEMENT_RUNS = 500;
+/** Simulation runs per event for the records' advancement odds (the event page's forecast uses FORECAST_RUNS). */
+export const ADVANCEMENT_RUNS = PRE_EVENT_ADVANCEMENT_RUNS;
 
 /**
  * Pre-event advancement odds for every team at every event that advances

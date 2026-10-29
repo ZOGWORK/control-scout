@@ -38,11 +38,11 @@ export interface BriefSentence {
 }
 
 type Phase = "np" | "auto" | "teleop" | "endgame";
-const PHASES: { key: Phase; topic: BriefTopic; what: string }[] = [
-  { key: "np", topic: "Overall", what: "points" },
-  { key: "auto", topic: "Auto", what: "auto points" },
-  { key: "teleop", topic: "TeleOp", what: "TeleOp points" },
-  { key: "endgame", topic: "Endgame", what: "endgame points" },
+const PHASES: { key: Phase; topic: BriefTopic; what: string; one: string }[] = [
+  { key: "np", topic: "Overall", what: "points", one: "point" },
+  { key: "auto", topic: "Auto", what: "auto points", one: "auto point" },
+  { key: "teleop", topic: "TeleOp", what: "TeleOp points", one: "TeleOp point" },
+  { key: "endgame", topic: "Endgame", what: "endgame points", one: "endgame point" },
 ];
 
 /** A value as the page shows it (one decimal, trailing ".0" dropped), and as a number for differences. */
@@ -134,7 +134,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
       const g = gap(v(a), v(b));
       text = g < BRIEF.levelPoints
         ? `${n(a)} and ${n(b)} are level, within ${plural(BRIEF.levelPoints, "point")} (best-event OPR ${shown(v(a))} vs ${shown(v(b))}; ${matches(a)} vs ${matches(b)} matches).`
-        : `${n(a)} adds an estimated ${shown(g)} more ${p.what} per match than ${n(b)} (best-event OPR ${shown(v(a))} vs ${shown(v(b))}; ${matches(a)} vs ${matches(b)} matches).`;
+        : `${n(a)} adds an estimated ${shown(g)} more ${g === 1 ? p.one : p.what} per match than ${n(b)} (best-event OPR ${shown(v(a))} vs ${shown(v(b))}; ${matches(a)} vs ${matches(b)} matches).`;
     } else {
       const top = ranked.filter((x) => gap(v(ranked[0]), v(x)) < BRIEF.levelPoints);
       const values = `best-event OPR ${list(ranked.map((x) => `${n(x)} ${shown(v(x))} (${plural(matches(x), "match", "matches")})`))}`;
@@ -143,7 +143,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
         const next = ranked[top.length];
         const g = gap(v(ranked[top.length - 1]), v(next));
         text = top.length === 1
-          ? `${n(top[0])} is highest, an estimated ${shown(g)} more ${p.what} per match than ${n(next)}: ${values}.`
+          ? `${n(top[0])} is highest, an estimated ${shown(g)} more ${g === 1 ? p.one : p.what} per match than ${n(next)}: ${values}.`
           : `${list(top.map(n))} are level at the top, ${shown(g)} or more ${p.what} per match ahead of ${n(next)}: ${values}.`;
       }
     }
