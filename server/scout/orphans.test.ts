@@ -517,14 +517,16 @@ describe("orphaned workspaces: owner portal", () => {
     const row = r.json.workspaces.find((x: any) => x.workspaceId === w.id);
     expect(row).toEqual({
       workspaceId: w.id, name: w.t.name, orphanedAt: expect.any(String), reason: "deleted", entries: 2,
-      members: expect.arrayContaining([{ accountId: w.adaId, name: "Ada", role: "admin" }, { accountId: w.maxId, name: "Max", role: "member" }]),
+      // Counts only: the console never names a workspace's members.
+      members: { total: 2, admins: 1 },
     });
+    expect(JSON.stringify(r.json)).not.toMatch(/Ada|Max|example\.com/);
     const o = await owner("GET", "/api/owner/overview");
     expect(o.json.orphanedWorkspaces).toBeGreaterThanOrEqual(1);
-    // Not an owner (a member of the very workspace, too): the same 404 as any unknown path.
+    // Not an owner (a member of the very workspace, too): 403, as for every owner route.
     for (const call of [w.max, client()]) {
       const x = await call("GET", "/api/owner/orphaned-workspaces");
-      expect(x.status).toBe(404);
+      expect(x.status).toBe(403);
       expect(JSON.stringify(x.json)).not.toContain(w.t.name);
     }
   });

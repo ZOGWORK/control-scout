@@ -1,5 +1,5 @@
 // The owner portal's "Power rankings" panel (/api/owner/power-rankings…, mounted inside the owner
-// router: server/portal/routes.ts, so non-owners get its 404). Lists the generated weeks; edits an
+// router: server/portal/routes.ts, so non-owners get its 403). Lists the generated weeks; edits an
 // intro or blurbs, regenerates a week with Bruno, hides or shows one, and publishes this week now.
 // Every change needs {"confirm": true} (the panel's confirmation dialog sends it) and is audited.
 import type { Request, Response, Router } from "express";

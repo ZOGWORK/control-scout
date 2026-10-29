@@ -1438,6 +1438,20 @@ UPDATE power_rankings_generated SET
 WHERE week = '2026-w43' AND (intro LIKE '%2026-w43%' OR entries LIKE '%2026-w43%');
 `,
   },
+  {
+    version: 52,
+    name: "owner audit: old and new values, append-only",
+    sql: `
+-- The owner console's audit log (server/portal/audit.ts) records what a change replaced and what it set:
+-- old_value and new_value (JSON; NULL for actions that start something rather than change a value).
+ALTER TABLE owner_audit ADD COLUMN old_value TEXT;
+ALTER TABLE owner_audit ADD COLUMN new_value TEXT;
+-- Append-only, enforced here and not just by the console having no edit button: a row can't be deleted,
+-- and the only change a row takes is its result, filled in once when a background job finishes.
+CREATE TRIGGER owner_audit_no_delete BEFORE DELETE ON owner_audit BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
+CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;
+`,
+  },
 ];
 
 export type Db = Client;
