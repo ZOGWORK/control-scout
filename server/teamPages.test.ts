@@ -18,7 +18,7 @@ import { all, kvSet } from "./db";
 import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { STATS_RULES, statsRulesStale } from "./stats/job";
 import { WEEK_MS, weekOf } from "../src/shared/rankings";
-import { hasTeamPage, isPlaceholderTeamName, teamPageSql } from "../src/shared/teamPages";
+import { hasTeamPage, isPlaceholderTeamName, placeholderNameSql, teamPageSql } from "../src/shared/teamPages";
 
 let server: Server;
 let base = "";
@@ -26,7 +26,7 @@ const S = CURRENT_SEASON;
 const W1 = weekOf(Date.now() - WEEK_MS);
 // 4215 and 18360 are real teams; 99999 / 100000 are FIRST's off-season placeholders, 34320 its test "Demo Team",
 // 202300005 a 2023 registration still waiting for its number.
-const REAL = [4215, 18360], HIDDEN = [99999, 100000, 34320, 202300005];
+const REAL = [4215, 18360], HIDDEN = [99999, 100000, 34320, 202300005, 21795];
 
 beforeAll(async () => {
   process.env.APP_URL = "https://controlscout.org";
@@ -34,7 +34,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   await run(`INSERT INTO teams (number, name, rookie_year, country) VALUES (4215, 'Hypnotic Robotics', 2010, 'USA'), (18360, 'Zeta', 2020, 'USA'),
-    (99999, 'Off-Season Demo Team', 1992, NULL), (100000, '  off-season demo team ', 1992, NULL), (34320, 'Demo Team', 2025, 'Moldova'), (202300005, 'Ammon Brick Heads', 2023, 'USA')`);
+    (99999, 'Off-Season Demo Team', 1992, NULL), (100000, '  off-season demo team ', 1992, NULL), (34320, 'Demo Team', 2025, 'Moldova'), (202300005, 'Ammon Brick Heads', 2023, 'USA'), (21795, 'FIRSTIL TEST TEAM', 2018, 'Israel')`);
   for (const t of [...REAL, ...HIDDEN]) await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [S, t]);
   // An off-season event where 99999 played (and topped the field), with 4215 and 18360.
   await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (?, 'OFFS', 'Off-season', '2026-09-01', '2026-09-01', 0, 0, 't')", [S]);
@@ -68,9 +68,29 @@ describe("the rule", () => {
     expect(hasTeamPage(0)).toBe(false);
     expect(hasTeamPage(99999, "Off-Season Demo Team")).toBe(false);
     expect(hasTeamPage(34320, " DEMO TEAM ")).toBe(false);
-    // Only the exact placeholder names: a team that merely has "demo" in its name is a team.
+    // A team that merely has "demo" in its name is a team.
     expect(isPlaceholderTeamName("Demolition Crew")).toBe(false);
-    expect(isPlaceholderTeamName("Demo Team 2")).toBe(false);
+    expect(isPlaceholderTeamName("Demo Team Robotics")).toBe(false);
+  });
+
+  // Every "test team"-shaped name in the local database (2026-10-29), and the names next to them that are teams.
+  const TEST_TEAMS = ["2024 FTC Pitsco Test Team", "BioBots test team", "Dans Test Team2", "Dave's test team", "Doolittle Test Team 1",
+    "FIRSTIL TEST TEAM", "FiMO Test Team", "TEST Team", "Test Team", "Test Team 1", "Test Team 3", "Test team 4", "test team 271",
+    "TestTeam", "Test_Team", "Testteam", " test team "];
+  const TEAMS = ["Test Pilots", "Contest Crew", "Greatest Team", "Test Team Tech", "Testing Team", "Testing is Optional", "Beta Testers",
+    "Crash Test Dummies", "Testudines", "team test", "COMPLETE TEST TEAM FOR FTC", "Test team i dont understand", "Hypnotic Robotics", "4215", ""];
+
+  it("hides test-team registrations by name, ending in \"test team\" (a number after it allowed), and nothing like them", () => {
+    for (const n of TEST_TEAMS) expect(isPlaceholderTeamName(n), n).toBe(true);
+    for (const n of TEAMS) expect(isPlaceholderTeamName(n), n).toBe(false);
+    expect(isPlaceholderTeamName(null)).toBe(false);
+  });
+
+  it("the SQL name test agrees with the TypeScript one on every one of those names", async () => {
+    for (const n of [...TEST_TEAMS, ...TEAMS, "Off-Season Demo Team", "Demo Team", "Demo Team 2"]) {
+      const r = await all<{ p: number }>(`SELECT ${placeholderNameSql("x")} p FROM (SELECT ? x)`, [n]);
+      expect(Boolean(r[0].p), n).toBe(isPlaceholderTeamName(n));
+    }
   });
 
   it("the SQL says what hasTeamPage says, with or without a joined name, for every row", async () => {
@@ -106,7 +126,7 @@ describe("pages and lists", () => {
   });
 
   it("search never offers them (pickers search too)", async () => {
-    for (const q of ["99999", "100000", "34320", "2023"]) {
+    for (const q of ["99999", "100000", "34320", "2023", "21795", "test team", "firstil"]) {
       const hits = (await (await fetch(`${base}/api/search?q=${q}`)).json()).hits as { kind: string; ref: string }[];
       expect(hits.filter((h) => h.kind === "team" && HIDDEN.map(String).includes(h.ref)), q).toEqual([]);
     }
