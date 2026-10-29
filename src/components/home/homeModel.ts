@@ -44,8 +44,25 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
   const pick = (t.headline?.kind === kind ? t.seasons.find((s) => s.season === t.headline!.season && s[kind]) : null)
     ?? (kind === "backtest" ? newest.find((s) => s.season !== loggingLive) : undefined)
     ?? newest[0];
-  const block = pick?.[kind];
-  if (!pick || !block) return null;
+  return pick ? viewOf(t, pick, kind) : null;
+}
+
+/**
+ * The home card's two replays: the newest season's own replay so far, and the newest replay before it. Picked by
+ * season, not by the headline rule, so a season in progress that becomes the headline never hides last season's.
+ * With one replayed season there's no "so far": it's the one replay.
+ */
+export function homeReplays(t: TrackRecord): { replay: RecordView | null; soFar: RecordView | null } {
+  const current = Math.max(...t.seasons.map((s) => s.season));
+  const replayed = [...t.seasons].filter((s) => s.backtest && s.backtest.n > 0).sort((a, b) => b.season - a.season);
+  // "So far" is only ever the newest season's own replay: a finished season never fills in before the current one has one.
+  if (replayed.length < 2 || replayed[0].season !== current || !replayed[0].backtest!.decided) return { replay: recordFor(t, "backtest"), soFar: null };
+  return { replay: viewOf(t, replayed[1], "backtest"), soFar: viewOf(t, replayed[0], "backtest") };
+}
+
+function viewOf(t: TrackRecord, pick: TrackRecord["seasons"][number], kind: Evidence): RecordView | null {
+  const block = pick[kind];
+  if (!block) return null;
   return {
     kind, season: pick.season, seasonLabel: pick.label, block,
     split: ledgerSplit(block),
@@ -68,18 +85,6 @@ function enginesOf(rows: TrackRecord["seasons"][number]["liveByEngine"], serving
   // An older response without the decided count gets none either, rather than a guess.
   const decided = cur?.decided ?? null;
   return { versions: used.map((r) => r.engine).sort(byVersion), current: cur ? { engine: cur.engine, n: cur.n, decided, accuracy: decided ? cur.accuracy : null } : null };
-}
-
-/**
- * The season in progress's own replay (the newest season with a replayed, decided call), shown beside the big
- * number when that number is another season's replay or live calls: how this season reads so far, kept apart.
- * Null when it's already the big number, or there's no decided replay yet.
- */
-export function seasonReplaySoFar(t: TrackRecord, shown: RecordView | null): { season: number; seasonLabel: string; block: AccuracyBlock } | null {
-  const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => x.backtest && x.backtest.decided > 0);
-  if (!s || !s.backtest) return null;
-  if (shown && shown.kind === "backtest" && shown.season === s.season) return null;
-  return { season: s.season, seasonLabel: s.label, block: s.backtest };
 }
 
 /** Which evidence opens first: the same rule as every ledger card (the replay until a season has LIVE_THRESHOLD live calls). */
