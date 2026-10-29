@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.5 — 2026-10-29
+
+On a phone, the example-match dots on How it works are full-size touch targets again.
+
+### Highlights
+- [fixes] How it works: the example-match dots are 44px touch targets on a phone
+- [fixes] Their size no longer shrinks with the phone's smaller text base
+- [fixes] Desktop keeps its 24px dots, side by side with no overlap
+
+### Fixes
+- **Example-match dots, phone size.** The four dots under How it works' example match are 44px touch targets on a phone, as intended. Since phones moved to a smaller text base they had shrunk to about 38px; their size is now fixed in pixels, so text size doesn't change it. Desktop keeps 24px targets. (#341)
+
 ## 1.4.4 — 2026-10-29
 
 The owner console's Data & sync section shows when each season last synced and lists data-quality checks for triage, and a new Packs & offline section shows the offline pack manifest file by file.
