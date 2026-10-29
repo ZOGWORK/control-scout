@@ -14,7 +14,7 @@ import { statsSummary } from "../analytics.js";
 import { isFlag } from "../../src/shared/flags.js";
 import type { OwnerUsage } from "../../src/shared/owner.js";
 import { listAudit, recordAudit } from "./audit.js";
-import { feedbackStatus, isFeedbackStatus, listFeedback, setFeedbackStatus } from "./feedback.js";
+import { isFeedbackStatus, listFeedback, setFeedbackStatus } from "./feedback.js";
 import { isOp, opsStatus, startOp } from "./ops.js";
 import { dataReport, packsReport } from "./dataReport.js";
 import { ownerOverview } from "./overview.js";
@@ -84,8 +84,7 @@ export function ownerRouter(): Router {
     const name = req.params.name;
     if (!isFlag(name)) { res.status(404).json({ error: "No such flag" }); return; }
     if (typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false}" }); return; }
-    const was = (await flagDetails()).find((f) => f.name === name)!.enabled;
-    await setFlag(name, req.body.enabled, actor(req));
+    const was = await setFlag(name, req.body.enabled, actor(req));
     await recordAudit(actor(req), "flag.set", { flag: name, enabled: req.body.enabled }, null, { from: was, to: req.body.enabled });
     return { flags: await flagDetails() };
   }));
@@ -98,8 +97,7 @@ export function ownerRouter(): Router {
     if (!/^[A-Z0-9_-]{1,40}$/.test(code)) { res.status(400).json({ error: "Not an event code" }); return; }
     if (typeof req.body?.url !== "string") { res.status(400).json({ error: "Send {\"url\": \"https://youtube.com/…\"} (empty to remove)" }); return; }
     try {
-      const was = (await listStreams()).find((s) => s.season === season && s.code === code)?.videoId ?? null;
-      const stream = await setEventStream(season, code, req.body.url, actor(req));
+      const { stream, was } = await setEventStream(season, code, req.body.url, actor(req));
       await recordAudit(actor(req), stream ? "stream.set" : "stream.remove", { season, code, ...(stream ? { videoId: stream.videoId } : {}) }, null, { from: was, to: stream?.videoId ?? null });
       return { stream, streams: await listStreams() };
     } catch (e) {
@@ -117,11 +115,10 @@ export function ownerRouter(): Router {
     const id = num(req.params.id, 0, 0, Number.MAX_SAFE_INTEGER);
     const status = req.body?.status;
     if (!isFeedbackStatus(status)) { res.status(400).json({ error: "status must be open, resolved or archived" }); return; }
-    const was = await feedbackStatus(id);
-    const m = await setFeedbackStatus(id, status);
-    if (!m) { res.status(404).json({ error: "No such message" }); return; }
-    await recordAudit(actor(req), "feedback.status", { id, status }, null, { from: was, to: status });
-    return { message: m };
+    const out = await setFeedbackStatus(id, status);
+    if (!out) { res.status(404).json({ error: "No such message" }); return; }
+    await recordAudit(actor(req), "feedback.status", { id, status }, null, { from: out.was, to: status });
+    return { message: out.message };
   }));
 
   r.get("/errors", h(async (req) => ({ reports: await listErrorReports(num(req.query.limit, 50, 1, 200)) })));

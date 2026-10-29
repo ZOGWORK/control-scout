@@ -30,6 +30,7 @@ import { pageTop } from "../../lib/pageScroll";
 import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome";
 import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
+import { emptyColumns } from "../../lib/eventRankingNotes";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -58,6 +59,11 @@ export interface RecordsTableProps {
   offlineFallback?: ReactNode;
   /** When this changes (e.g. a live event's results were checked again), the rows are fetched again. */
   refreshKey?: string;
+  /** Why a column can be empty: shown as a legend under the table when a column has no value in any row of the
+   *  whole, unfiltered table (an event's tables), so a column of dashes is never left unexplained. */
+  emptyColumnNotes?: Partial<Record<string, string>>;
+  /** Notes about the rows, shown above them only when the table has rows (not over a fallback or an empty state). */
+  aboveRows?: ReactNode;
 }
 
 /** Compare shows at most this many teams side by side. */
@@ -437,6 +443,7 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : (
         <div className={cn("relative transition-opacity", refreshing && "opacity-60")}>
           {refreshing && <div className="absolute inset-x-0 top-0 z-20 h-0.5 overflow-hidden rounded-full bg-accent/20"><div className="h-full w-1/3 cs-progress bg-accent" /></div>}
+          {p.aboveRows}
           {phoneSummary && !compact && (
             <div className="mb-3 space-y-2">
               <LayoutToggle layout={layout} onChange={setLayout} />
@@ -446,6 +453,9 @@ export function RecordsTable(p: RecordsTableProps) {
           {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
             <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam}
               selectable={selectable} selected={selected} onSelect={toggleTeam} pageSelection={pageSelection} onSelectAll={toggleAll} />
+          )}
+          {p.emptyColumnNotes && !filtered && data.total === data.rows.length && (
+            <EmptyColumnsLegend rows={data.rows as { stats: Record<string, unknown> }[]} cols={cols} notes={p.emptyColumnNotes} />
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2 px-1 text-sm text-text-muted">
             <span className="tabular-nums">{((state.page - 1) * data.pageSize + 1).toLocaleString()}–{Math.min(total, state.page * data.pageSize).toLocaleString()} of {total.toLocaleString()}</span>
@@ -476,6 +486,22 @@ export function RecordsTable(p: RecordsTableProps) {
           onPick={(k) => setCols(cols.includes(k) ? cols.filter((x) => x !== k) : [...cols, k])} />
       </Panel>
     </div>
+  );
+}
+
+/** "Pred. win %, Adv. odds: — for every team. Why…", one line per reason, for the columns with no value in any row. */
+function EmptyColumnsLegend({ rows, cols, notes }: { rows: { stats: Record<string, unknown> }[]; cols: string[]; notes: Partial<Record<string, string>> }) {
+  const empty = emptyColumns(rows, cols).filter((k) => notes[k]);
+  if (!empty.length) return null;
+  // Columns sharing a reason share a line.
+  const byNote = new Map<string, string[]>();
+  for (const k of empty) byNote.set(notes[k]!, [...(byNote.get(notes[k]!) ?? []), STAT_BY_KEY.get(k)?.short ?? STAT_BY_KEY.get(k)?.label ?? k]);
+  return (
+    <ul className="mt-3 space-y-1 px-1 text-xs text-text-muted" data-empty-columns>
+      {[...byNote].map(([note, names]) => (
+        <li key={note} className="flex items-start gap-1.5"><Info className="mt-0.5 size-3.5 shrink-0" aria-hidden /><span><span className="font-medium text-text-base">{names.join(", ")}</span>: — for every team here. {note}</span></li>
+      ))}
+    </ul>
   );
 }
 

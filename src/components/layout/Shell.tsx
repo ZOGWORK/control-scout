@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, ShieldCheck, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -54,13 +54,8 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
   ] },
 ];
 
-/** The owner portal's item: only for the owner (/api/auth/me says isOwner), never rendered for anyone else. */
-const OWNER_ITEM: NavItem = { to: "/owner", label: "Owner", icon: ShieldCheck };
-function useSections() {
-  const { user } = usePersonal();
-  if (!user?.isOwner) return SECTIONS;
-  return SECTIONS.map((s, i) => (i === SECTIONS.length - 1 ? { ...s, items: [...s.items, OWNER_ITEM] } : s));
-}
+/** The navigation's sections. (The owner console's link sits above the owner's name instead: AccountFooter.) */
+const useSections = () => SECTIONS;
 
 export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
