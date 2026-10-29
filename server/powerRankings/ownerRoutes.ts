@@ -11,7 +11,7 @@ import { isWeekId } from "../../src/shared/powerRankings.js";
 import type { OwnerPowerRankings, OwnerPowerRankingsRefresh, OwnerPowerRankingsWeek } from "../../src/shared/owner.js";
 import { publishNow, regenerateWeek } from "./auto.js";
 import { editGenerated, getGenerated, listGenerated, revOf, setGeneratedStatus, type GeneratedWeek } from "./generated.js";
-import { isCurrentWeek, localDate, nextRefresh, nextSlot } from "./schedule.js";
+import { isCurrentWeek, nextRefresh, nextSlot } from "./schedule.js";
 import { fileWeeks, publishedWeeks } from "./store.js";
 import { BLURB_MAX, INTRO_MAX } from "./format.js";
 
@@ -59,8 +59,9 @@ export async function ownerPowerRankings(now = Date.now()): Promise<OwnerPowerRa
   const n = await names(weeks);
   const files = new Set(fileWeeks().map((d) => d.week));
   const runs = await refreshes();
-  // The week the public page leads with: the newest published one, hand-written or automatic.
-  const last = (await publishedWeeks(localDate(now))).at(-1) ?? null;
+  // The week the public page leads with: the newest published one, hand-written or automatic, by the same
+  // date cutoff the public page uses (the UTC date).
+  const last = (await publishedWeeks(new Date(now).toISOString().slice(0, 10))).at(-1) ?? null;
   return {
     enabled: await isEnabled("autoPowerRankings"),
     controlPoint: brunoAvailable(),
@@ -113,7 +114,6 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
     const t = target(req);
     if (!t) { res.status(404).json({ error: "No such week" }); return; }
     if (!confirmed(req, res)) return;
-    const before = await getGenerated(t.season, t.week);
     const out = await regenerateWeek(t.season, t.week, (m) => console.log(`[owner] ${m}`));
     if (out === null) { res.status(404).json({ error: "No such week" }); return; }
     if (out === "conflict") {
@@ -128,7 +128,7 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
     }
     const bruno = out.entries.filter((e) => e.source === "bruno").length;
     await recordAudit(actor(req), "powerRankings.regenerate", t, `${bruno} by Bruno, ${out.entries.length - bruno} from the template`,
-      { from: before && authorship(before), to: authorship(out) });
+      { from: authorship(out.replaced), to: authorship(out) });
     return { panel: await ownerPowerRankings() };
   }));
 
@@ -138,10 +138,9 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
     if (!confirmed(req, res)) return;
     const status = req.body?.status;
     if (status !== "published" && status !== "hidden") { res.status(400).json({ error: "status must be published or hidden" }); return; }
-    const was = (await getGenerated(t.season, t.week))?.status ?? null;
     const out = await setGeneratedStatus(t.season, t.week, status);
     if (!out) { res.status(404).json({ error: "No such week" }); return; }
-    await recordAudit(actor(req), status === "hidden" ? "powerRankings.hide" : "powerRankings.unhide", t, null, { from: was, to: out.status });
+    await recordAudit(actor(req), status === "hidden" ? "powerRankings.hide" : "powerRankings.unhide", t, null, { from: out.was, to: out.status });
     return { panel: await ownerPowerRankings() };
   }));
 
@@ -177,12 +176,16 @@ export function powerRankingsOwnerRoutes(r: Router, h: (fn: Handler) => (req: Re
       res.status(409).json({ error: "This week changed since you opened it (another save or a regeneration). Reload it and make your edit again." });
       return;
     }
-    // Old and new text of what was edited (the intro, each blurb by team).
+    // Old and new text of what was edited (the intro, each blurb by team). The save only lands on the version
+    // the editor opened (rev), so a read of that same version is exactly what it replaced; the new text is the
+    // change itself, not a later read another write could reach first.
     const textOf = (g: GeneratedWeek | null) => ({
       ...(change.intro !== undefined ? { intro: g?.intro ?? null } : {}),
       ...(change.blurbs?.length ? { blurbs: Object.fromEntries(change.blurbs.map((x) => [x.team, g?.entries.find((e) => e.team === x.team)?.text ?? null])) } : {}),
     });
-    await recordAudit(actor(req), "powerRankings.edit", { ...t, intro: change.intro !== undefined, teams: change.blurbs?.map((x) => x.team) ?? [] }, null, { from: textOf(before), to: textOf(out) });
+    const from = before && revOf(before) === b.rev ? textOf(before) : null;
+    const to = { ...(change.intro !== undefined ? { intro: change.intro } : {}), ...(change.blurbs?.length ? { blurbs: Object.fromEntries(change.blurbs.map((x) => [x.team, x.text])) } : {}) };
+    await recordAudit(actor(req), "powerRankings.edit", { ...t, intro: change.intro !== undefined, teams: change.blurbs?.map((x) => x.team) ?? [] }, null, { from, to });
     return { panel: await ownerPowerRankings() };
   }));
 }
