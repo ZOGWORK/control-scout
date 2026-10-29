@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.4.4 — 2026-10-29
+## 1.4.5 — 2026-10-29
 
 The owner console gains a Moderation tab, triage for bug reports and data corrections, notes on error reports, and an Analytics tab that decides whether the home page shows how much Control Scout is used.
 
@@ -33,6 +33,21 @@ The owner console gains a Moderation tab, triage for bug reports and data correc
 - **Analytics.** Page views and sessions (from visitors who opted in), prediction calls by route, and the prediction ledger's live calls logged and scored, all time and in the period, beside the existing request and latency numbers.
 - **"In use" on the home page.** A console switch, behind a confirmation, publishes or hides the home page's page views and sessions; until it's used, the server setting decides as before.
 - Every triage decision, note and publish choice is in the audit log with its old and new value. (#338)
+
+## 1.4.4 — 2026-10-29
+
+The owner console's Data & sync section shows when each season last synced and lists data-quality checks for triage, and a new Packs & offline section shows the offline pack manifest file by file.
+
+### Highlights
+- [report] When each season last synced, at a glance
+- [report] Data-quality flags to triage, never auto-fixed
+- [offline] The offline pack manifest with every file's size and SHA-256
+- [fixes] Re-sync and rebuild ask first; nothing here deletes a pack
+
+### Owner console
+- **Data & sync.** When data last synced, stats were rebuilt, live results ran and packs were built; then every season's last sync, whether it completed, when FIRST's team list was last read, events with results out of all events (and how many came from the fallback source), played matches and what the last run fetched and failed. Re-sync and Clear caches sit below, each behind its confirmation.
+- **Data-quality flags, for triage only.** Five read-only checks, each with a count and its first rows linked: events the last sync couldn't fetch, events that ended over two days ago with no played match, season records whose wins, losses and ties don't add up to the match count, season totals smaller than their events' qualification matches, and sitemap URLs the app would answer with its not-found page. Nothing on this screen changes match data; wrong results come in right with a re-sync. "Check again" runs them now (they're otherwise kept five minutes).
+- **Packs & offline.** A new tab with the manifest (version, built, data as of, engine), the releases kept on the server, and every file with its season, kind, size and full SHA-256 (wrapping on a phone, with a copy button); a file the manifest lists but the disk lacks is marked. Rebuild asks first. There is no delete: packs saved on devices stay until each device updates them. (#337)
 
 ## 1.4.3 — 2026-10-29
 

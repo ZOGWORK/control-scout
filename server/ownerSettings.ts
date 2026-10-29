@@ -5,7 +5,7 @@
 // Reads go through a short cache (SETTINGS_TTL_MS) from the primary database, like the feature flags: a
 // choice made on one host counts on another within seconds. A database that can't be read keeps the last
 // known value (or the env default).
-import { primaryDb, readThenWrite } from "./db.js";
+import { db, primaryDb } from "./db.js";
 import { env } from "./env.js";
 import { registerCache } from "./caches.js";
 import type { PublishUsageSetting } from "../src/shared/owner.js";
@@ -41,12 +41,16 @@ export async function publishUsageSetting(now = Date.now()): Promise<PublishUsag
  * replaced, read in the same transaction (the env default when the console had never set it).
  */
 export async function setPublishUsage(enabled: boolean, by: string, now = new Date()): Promise<{ was: boolean; source: "owner" | "env" }> {
-  const { before } = await readThenWrite<{ value: string }>({ sql: "SELECT value FROM owner_settings WHERE key = 'publicUsage'", args: [] }, [{
-    sql: `INSERT INTO owner_settings (key, value, updated_at, updated_by) VALUES ('publicUsage', ?, ?, ?)
+  const [read] = await db().batch([
+    { sql: "SELECT value FROM owner_settings WHERE key = 'publicUsage'", args: [] },
+    {
+      sql: `INSERT INTO owner_settings (key, value, updated_at, updated_by) VALUES ('publicUsage', ?, ?, ?)
      ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    args: [JSON.stringify(enabled), now.toISOString(), by.slice(0, 200)],
-  }]);
+      args: [JSON.stringify(enabled), now.toISOString(), by.slice(0, 200)],
+    },
+  ], "write");
   cached = null;
+  const before = read.rows[0] as unknown as { value: string } | undefined;
   if (!before) return { was: env.publicUsageEnabled, source: "env" };
   let was = env.publicUsageEnabled;
   try { was = JSON.parse(String(before.value)) === true; } catch { /* unreadable: the env default stood */ }
