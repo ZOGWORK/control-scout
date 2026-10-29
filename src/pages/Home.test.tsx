@@ -84,10 +84,11 @@ describe("Home", () => {
     expect(screen.queryByText("23")).toBeNull();
   });
 
-  it("changes the headline on the hour, still one H1, without moving the hero", () => {
+  it("changes the headline every 10 minutes, still one H1, without moving the hero", () => {
+    expect(HOME_HEADLINE_MS).toBe(10 * 60_000);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     try {
-      vi.setSystemTime(HOME_HEADLINES.length * HOME_HEADLINE_MS - HOME_HEADLINE_MS - 1000); // a second before the last line's hour
+      vi.setSystemTime(HOME_HEADLINES.length * HOME_HEADLINE_MS - HOME_HEADLINE_MS - 1000); // a second before the last line's turn
       mount();
       const h1 = () => screen.getByRole("heading", { level: 1 });
       expect(h1().textContent).toBe(HOME_HEADLINES[HOME_HEADLINES.length - 2].join(" "));
@@ -137,10 +138,10 @@ describe("Home", () => {
   it("starts on the server first paint's headline in the hour it loaded, then follows the clock", () => {
     const doc = document.implementation.createHTMLDocument("");
     doc.body.innerHTML = '<div id="cs-boot-page"><h1 data-line="7">x</h1></div>';
-    const loaded = 4 * HOME_HEADLINE_MS + 59 * 60_000; // a minute before the hour (clock's line: 4)
+    const loaded = 5 * HOME_HEADLINE_MS - 60_000; // a minute before the next change (clock's line: 4)
     const boot = readBootHeadline(doc, loaded);
     expect(boot).toEqual({ line: 7, hour: 4 });
-    expect(startingHeadline(boot, loaded + 30_000)).toBe(7); // same hour: the first paint's words, not the clock's
+    expect(startingHeadline(boot, loaded + 30_000)).toBe(7); // same 10 minutes: the first paint's words, not the clock's
     expect(startingHeadline(boot, loaded + 2 * 60_000)).toBe(homeHeadlineAt(loaded + 2 * 60_000)); // a later visit
     expect(startingHeadline(null, loaded)).toBe(4);
     for (const bad of ["", "x", "-1", String(HOME_HEADLINES.length), "1.5"]) {

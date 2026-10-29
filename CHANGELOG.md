@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.5.0 — 2026-10-29
+## 1.5.1 — 2026-10-29
 
 The home track record is two replays again, with the big yellow number.
 
@@ -26,6 +26,18 @@ The home track record is two replays again, with the big yellow number.
 
 ### Home
 - **Two replays, one big number.** The track record card goes back to its tab row and single big figure (now yellow): "Season replay" opens on the last full season's replay, and "This season so far" shows the season in progress's own replay. The live figure blended across engine versions is off the home card; every live call stays on Methodology. (#344)
+
+## 1.5.0 — 2026-10-29
+
+The home page's headline now changes every 10 minutes instead of every hour.
+
+### Highlights
+- [home] A new home headline every 10 minutes
+- [home] Still the same line for everyone at the same time
+- [home] The owner console says the new timing too
+
+### Home
+- **Every 10 minutes.** The headline moves to the next line on the clock's :00, :10, :20 and so on, the same line for everyone at the same time, with the same short fade and no jump in the page. The owner console's Home headline section says so too. (#345)
 
 ## 1.4.9 — 2026-10-29
 
