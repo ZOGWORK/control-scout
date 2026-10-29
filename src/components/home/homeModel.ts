@@ -50,6 +50,18 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
   };
 }
 
+/**
+ * The season in progress's own replay (the newest season with a replayed, decided call), shown beside the big
+ * number when that number is another season's replay or live calls: how this season reads so far, kept apart.
+ * Null when it's already the big number, or there's no decided replay yet.
+ */
+export function seasonReplaySoFar(t: TrackRecord, shown: RecordView | null): { season: number; seasonLabel: string; block: AccuracyBlock } | null {
+  const s = [...t.seasons].sort((a, b) => b.season - a.season).find((x) => x.backtest && x.backtest.decided > 0);
+  if (!s || !s.backtest) return null;
+  if (shown && shown.kind === "backtest" && shown.season === s.season) return null;
+  return { season: s.season, seasonLabel: s.label, block: s.backtest };
+}
+
 /** Which evidence opens first: the same rule as every ledger card (the replay until a season has LIVE_THRESHOLD live calls). */
 export const defaultEvidence = (t: TrackRecord): Evidence => ledgerDefault(t)?.kind ?? "backtest";
 
