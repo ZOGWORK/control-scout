@@ -64,12 +64,21 @@ export interface TeamEventRow {
   city: string | null;
   state: string | null;
   country: string | null;
+  /** At a league meet, the meet's own rank and ranking score (FIRST's are the league's running standing). */
   rank: number | null;
   rp: number | null;
+  /** Every match at the event on the team's record, playoffs included (src/shared/eventRecord.ts): the rows add up to
+   *  the season record. Null when we hold no scored match for it (not played yet, or no scores published). */
   wins: number | null;
   losses: number | null;
   ties: number | null;
+  /** Matches counted in wins + losses + ties. */
+  played: number | null;
   qualPlayed: number | null;
+  /** The qualification matches alone (what FIRST's ranking shows); null when there's no record. */
+  qual: { wins: number; losses: number; ties: number; played: number } | null;
+  /** On the field in a played match there. False with a record: listed for matches it didn't take the field for. */
+  onField: boolean;
   opr: { np: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null };
   avg: { score: number | null; np: number | null; pen: number | null };
   awards: { type: string; placement: number; name: string | null }[];
