@@ -1,6 +1,7 @@
 // The owner portal's API (/api/owner/*): response shapes shared by the server and the /owner page.
 import type { Flag } from "./flags.js";
 import type { BlurbAuthor } from "./powerRankings.js";
+import type { TierCalibration } from "./ownerPredictions.js";
 
 export interface OwnerOverview {
   accounts: { total: number; active30d: number; new7d: number };
@@ -54,6 +55,8 @@ export interface PredictionHealth {
   summary: { n: number; accuracy: number; brier: number; baselineBrier: number; logLoss: number } | null;
   /** 10 probability bins (red's win chance): mean predicted vs how often red won. */
   reliability: { lo: number; hi: number; n: number; predicted: number; actual: number }[];
+  /** The same calls by confidence tier (provisional, moderate, confident: the tier shown with every call). */
+  byTier: TierCalibration[];
   /** Week by week: how sure the favourite was on average (expected) vs how often it won (actual). */
   weekly: { week: string; n: number; expected: number; actual: number; brier: number }[];
   /** The latest window of calls vs the whole season. */
@@ -201,6 +204,9 @@ export interface OwnerPowerRankings {
   nextRun: string;
   /** The daily refresh of the current week: its switch (dailyPowerRankings) and next check (00:00 America/New_York), ISO. */
   daily: { enabled: boolean; nextRun: string };
+  /** The week the public page leads with now (the newest published, hand-written or automatic): its dates, whether
+   *  it was generated, and whether it's this week's (false: the next one is due). Null before the first week. */
+  current: { season: number; week: string; title: string; published: string; updated: string | null; generated: boolean; thisWeek: boolean } | null;
   /** Newest first. */
   weeks: OwnerPowerRankingsWeek[];
 }

@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Bot, CalendarCheck, CalendarClock, ExternalLink, Eye, EyeOff, FileText, Pencil, RefreshCw, Send, Sparkles, Trophy } from "lucide-react";
 import { Section, EmptyState } from "../page";
+import { StatTile } from "../StatTile";
 import { Async } from "../states";
 import { Badge, Textarea } from "../ui/basic";
 import { Button } from "../ui/button";
@@ -114,7 +115,7 @@ function Week({ w, onAsk }: { w: OwnerPowerRankingsWeek; onAsk: (a: Ask) => void
   });
   const regenerate = () => onAsk({
     title: `Regenerate ${label} with Bruno?`,
-    body: "Bruno writes every blurb and the intro again from the same frozen facts, and each is fact-checked again. Your edits to this week are replaced. If Bruno can't be reached, nothing changes.",
+    body: "Bruno writes every blurb and the intro again from the week's frozen snapshot: the same facts its stat lines show, so words and numbers always agree. Each is fact-checked again. Your edits to this week are replaced. If Bruno can't be reached, or the daily check updates the week meanwhile, nothing changes.",
     confirm: "Regenerate",
     run: async () => { applied(await apiFetch<{ panel: OwnerPowerRankings }>(`${base}/regenerate`, { method: "POST", json: { confirm: true } })); toast.success("Regenerated."); },
   });
@@ -240,6 +241,15 @@ export function PowerRankingsPanel({ onOpenSwitches }: { onOpenSwitches: () => v
       <Async state={state}>
         {(p) => (
           <>
+            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatTile tone={p.current?.thisWeek ? "emerald" : "amber"} icon={Trophy} label="Current week"
+                value={p.current ? weekLabel(p.current.week) : "None yet"}
+                hint={p.current ? `${seasonLabel(p.current.season)} · ${p.current.generated ? "automatic" : "hand-written"}${p.current.thisWeek ? "" : " · the next one is due"}` : "The first goes out on the next run"} />
+              <StatTile tone="accent" icon={CalendarCheck} label="Published" value={p.current ? publishedLabel(p.current.published) : "—"} hint="The day it went live" />
+              <StatTile tone="sky" icon={RefreshCw} label="Updated" value={p.current?.updated ? publishedLabel(p.current.updated) : "Not since"}
+                hint={p.current?.generated ? "The last daily check that changed the date" : "Hand-written weeks aren't checked"} />
+              <StatTile tone="violet" icon={CalendarClock} label="Next week" value={nextRun(p.nextRun)} hint={p.enabled ? "Friday, 00:00 New York time" : "Automatic weeks are off"} />
+            </div>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
               <ul className="grid gap-1.5 text-sm">
                 <li className="flex items-center gap-2">

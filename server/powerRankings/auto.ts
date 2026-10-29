@@ -253,9 +253,9 @@ export async function publishNow(now = Date.now(), log: Log = quiet): Promise<Pu
  * The owner's "Regenerate": Bruno writes the week again from its frozen packet (the same facts),
  * fact-checked as before. Owner edits are replaced. Null when the week doesn't exist or is mid-run;
  * "unavailable" when Bruno couldn't answer (the week is left as it was); "conflict" when the week was
- * edited while Bruno was writing (that edit is kept).
+ * edited or refreshed while Bruno was writing (that version is kept: words and numbers always come from one snapshot).
  */
-export async function regenerateWeek(season: number, week: string, log: Log = quiet): Promise<GeneratedWeek | "unavailable" | "conflict" | null> {
+export async function regenerateWeek(season: number, week: string, log: Log = quiet): Promise<(GeneratedWeek & { replaced: GeneratedWeek }) | "unavailable" | "conflict" | null> {
   const g = await getGenerated(season, week);
   if (!g || g.status === "pending") return null;
   const packet = g.packet as StoredPacket;
@@ -263,9 +263,12 @@ export async function regenerateWeek(season: number, week: string, log: Log = qu
   if (!bruno) return "unavailable";
   const c = compose(packet, bruno, g.published, !!packet.comparedWith);
   // Owner edits are replaced, including any parked for teams that left the list.
+  const at = new Date().toISOString();
   const n = await run(`UPDATE power_rankings_generated SET intro = ?, intro_source = ?, entries = ?, parked = '[]', generated_at = ?, edited_by = NULL, edited_at = NULL, rev = rev + 1
      WHERE season = ? AND week = ? AND rev = ?`,
-    [c.intro, c.introSource, JSON.stringify(c.entries), new Date().toISOString(), season, week, g.rev]);
+    [c.intro, c.introSource, JSON.stringify(c.entries), at, season, week, g.rev]);
   invalidateGenerated();
-  return n ? getGenerated(season, week) : "conflict";
+  // Written only over the version it started from (rev), so that version is exactly what it replaced, and the
+  // week now is that version with the new text: no second read that another write could slip in front of.
+  return n ? { ...g, intro: c.intro, introSource: c.introSource, entries: c.entries, parked: [], generatedAt: at, editedBy: null, editedAt: null, rev: g.rev + 1, replaced: g } : "conflict";
 }
