@@ -15,10 +15,7 @@ export function teamEventsQuery(season: number, team: number, o: { meetRanks: bo
             et.rank, et.rp, et.wins, et.losses, et.ties, et.qual_played,
             ${o.meetRanks ? "r.rank meet_rank, r.rp meet_rp," : "NULL meet_rank, NULL meet_rp,"}
             s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen, s.avg_score, s.avg_np, s.avg_pen,
-            EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) has_results,
-            EXISTS (SELECT 1 FROM match_teams x JOIN matches m
-                      ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
-                    WHERE x.season = e.season AND x.code = e.code AND x.team = ? AND x.on_field = 1 AND m.played = 1) on_field
+            ${KEEP_COLUMNS}
      FROM events e
      LEFT JOIN event_teams et ON et.season = e.season AND et.code = e.code AND et.team = ?
      LEFT JOIN team_event_stats s ON s.season = e.season AND s.code = e.code AND s.team = ?
@@ -42,6 +39,23 @@ const num = (x: unknown) => (x == null ? null : Number(x));
  * Left out: an event with results the team has no match in (a league roster entry for a meet it skipped).
  * A league meet's rank and ranking score are the meet's own (FIRST's are the league's running standing).
  */
+/**
+ * Whether an event is one of the team's (the rule above). `r` needs remote, type, start, end, has_results (any played
+ * match there) and on_field (the team on the field in one); `rec` is its record there, if any. Also what picks a
+ * team's last and next event in its summary (server/api/teams.ts teamSummaries).
+ */
+export function keepEvent(r: any, rec: EventRecord | undefined, today: string): boolean {
+  const ended = (r.end ?? r.start ?? "9999") < today;
+  return (!!rec && rec.played > 0) || !!Number(r.on_field) || !!Number(r.remote ?? 0)
+    || (!Number(r.has_results) && (!ended || r.type !== "LeagueMeet"));
+}
+
+/** SQL columns keepEvent reads from the match tables, for events `e` and the team `?` (one arg). */
+export const KEEP_COLUMNS = `EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) has_results,
+            EXISTS (SELECT 1 FROM match_teams x JOIN matches m
+                      ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+                    WHERE x.season = e.season AND x.code = e.code AND x.team = ? AND x.on_field = 1 AND m.played = 1) on_field`;
+
 export function teamEventRows(
   season: number, team: number, rows: any[], recs: Map<string, EventRecord>, awards: any[], alliances: any[], today: string,
 ): TeamEventRow[] {
@@ -49,10 +63,7 @@ export function teamEventRows(
   for (const r of rows) {
     const rec = recs.get(`${team}|${r.code}`);
     const remote = !!Number(r.remote ?? 0);
-    const ended = (r.end ?? r.start ?? "9999") < today;
-    const keep = (rec && rec.played > 0) || !!Number(r.on_field) || remote
-      || (!Number(r.has_results) && (!ended || r.type !== "LeagueMeet"));
-    if (!keep) continue;
+    if (!keepEvent(r, rec, today)) continue;
     const meet = r.type === "LeagueMeet";
     const al = alliances.find((a) => a.code === r.code);
     const seat: Seat | null = al ? (Number(al.captain) === team ? "captain" : Number(al.pick1) === team ? "pick1" : Number(al.pick2) === team ? "pick2" : "backup") : null;
@@ -62,7 +73,7 @@ export function teamEventRows(
       wins: rec ? rec.wins : null, losses: rec ? rec.losses : null, ties: rec ? rec.ties : null, played: rec ? rec.played : null,
       qualPlayed: rec ? rec.qual.played : remote ? num(r.qual_played) : null,
       qual: rec ? rec.qual : null,
-      onField: remote || !!Number(r.on_field), // a remote event has no lineups to tell
+      onField: !!Number(r.on_field),
       opr: { np: r.opr_np, auto: r.opr_auto, teleop: r.opr_teleop, endgame: r.opr_endgame, pen: r.opr_pen },
       avg: { score: r.avg_score, np: r.avg_np, pen: r.avg_pen },
       awards: awards.filter((a) => a.code === r.code).map((a) => ({ type: a.type, placement: Number(a.placement), name: a.name })),

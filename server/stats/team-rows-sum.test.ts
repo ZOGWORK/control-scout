@@ -14,7 +14,7 @@ import { seasonStats, teamEvents, teamSummaries } from "../api/teams";
 import type { TeamEventRow } from "../../src/shared/api";
 
 const S = 2025;
-const A = 11, B = 12, C = 13, D = 14, E = 15, F = 16;
+const A = 11, B = 12, C = 13, D = 14, E = 15, F = 16, G = 17, H = 18;
 let n = 0;
 
 async function event(code: string, type: string, start: string) {
@@ -62,6 +62,16 @@ beforeAll(async () => {
   await match("QUAL", "playoff", [A, B, { team: E, onField: false }], [C, D], 120, 100);
   await match("QUAL", "playoff", [A, B], [C, D], 90, 110);
   await match("QUAL", "playoff", [A, B], [C, D], 130, 100);
+  // G only ever played as a surrogate, at SUR: on the field, nothing on its record.
+  await event("SUR", "Qualifier", "2026-02-07");
+  await ranking("SUR", G, null, null, null, null);
+  await match("SUR", "qual", [{ team: G, surrogate: true }, E], [B, C], 60, 40);
+  // H's latest event published no scores (and has no type on record); an earlier one it played.
+  await event("OLDQ", "Qualifier", "2025-12-13");
+  await ranking("OLDQ", H, 1, 1, 0, 1);
+  await match("OLDQ", "qual", [H, E], [B, C], 70, 20);
+  await run("INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source) VALUES (?, 'NOSCORE', 'NOSCORE', NULL, '2026-03-14', '2026-03-14', 0, 0, 'test')", [S]);
+  await ranking("NOSCORE", H, null, null, null, null);
   // A scrimmage with played matches and no ranking row at all.
   await event("SCRIM", "Scrimmage", "2025-10-04");
   await match("SCRIM", "qual", [A, B], [C, D], 20, 10);
@@ -77,7 +87,7 @@ const sum = (rows: TeamEventRow[]) => rows.reduce((a, r) => ({ wins: a.wins + (r
 
 describe("team event rows", () => {
   it("add up to the season record, for every team", async () => {
-    for (const t of [A, B, C, D, E, F]) {
+    for (const t of [A, B, C, D, E, F, G, H]) {
       const rec = (await seasonStats(S, t))?.record;
       const { wins, losses, ties, matches } = sum(await teamEvents(S, t));
       expect({ team: t, wins, losses, ties, matches }).toEqual({ team: t, wins: rec?.wins ?? 0, losses: rec?.losses ?? 0, ties: rec?.ties ?? 0, matches: rec?.matches ?? 0 });
@@ -107,12 +117,28 @@ describe("team event rows", () => {
     const f = await teamEvents(S, F);
     expect(f.map((e) => [e.code, e.wins, e.losses, e.played, e.onField])).toEqual([["QUAL", 1, 0, 1, true]]);
     expect((await seasonStats(S, F))!.record).toMatchObject({ wins: 1, losses: 0, matches: 1 });
-    expect((await teamEvents(S, E)).map((e) => e.code)).toEqual([]);
-    expect(await seasonStats(S, E)).toBeNull();
+    // E sat out QUAL's playoff match (not its match); SUR and OLDQ are its only events.
+    expect((await teamEvents(S, E)).map((e) => e.code)).toEqual(["OLDQ", "SUR"]);
+    expect((await seasonStats(S, E))!.record).toMatchObject({ wins: 2, losses: 0, matches: 2 });
   });
 
   it("team summaries give the last event's own record, not a ghost meet", async () => {
+    // A later meet A is on the roster of but that has no results: not its last event.
+    await event("MEET9B", "LeagueMeet", "2026-04-04");
+    await ranking("MEET9B", A, 1, 10, 0, 24);
     const [s] = await teamSummaries([A], S);
     expect(s.lastEvent).toMatchObject({ code: "QUAL", record: "3-2-0" });
+  });
+
+  it("keep an event the team only played at as a surrogate: on the field, nothing on its record", async () => {
+    const rows = await teamEvents(S, G);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ code: "SUR", wins: null, played: null, onField: true });
+    expect((await teamSummaries([G], S))[0].lastEvent).toMatchObject({ code: "SUR", record: null });
+  });
+
+  it("team summaries keep a finished event that published no scores as the last event, as the team page does", async () => {
+    expect((await teamEvents(S, H)).map((e) => e.code)).toEqual(["OLDQ", "NOSCORE"]);
+    expect((await teamSummaries([H], S))[0].lastEvent).toMatchObject({ code: "NOSCORE", record: null });
   });
 });

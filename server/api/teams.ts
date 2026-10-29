@@ -6,7 +6,7 @@ import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
 import { reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
 import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecord.js";
-import { teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
+import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -212,7 +212,8 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
     all<any>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${ph})`, numbers),
     all<any>(`SELECT * FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
-      `SELECT et.team, e.code, e.name, e.type, e.start, e.end, e.remote, et.rank, r.rank meet_rank
+      `SELECT et.team, e.code, e.name, e.type, e.start, e.end, e.remote, et.rank, r.rank meet_rank,
+            ${KEEP_COLUMNS.replace("x.team = ?", "x.team = et.team")}
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
        LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team AND e.type = 'LeagueMeet'
        WHERE et.season = ? AND et.team IN (${ph}) ORDER BY e.start DESC`, [season, ...numbers]),
@@ -224,9 +225,8 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
   return numbers.map((n) => {
     const i = infos.find((x) => Number(x.number) === n);
     const s = stats.find((x) => Number(x.team) === n);
-    // Events it played (a match on its record), or that haven't ended: a league lists every league team at every
-    // meet, so a finished meet the team has no match at isn't its last event (as the team page's rows).
-    const evs = lastEv.filter((x) => Number(x.team) === n && (recs.has(`${n}|${x.code}`) || Number(x.remote) === 1 || (x.end ?? x.start ?? "9999") >= today));
+    // Its events as the team page lists them (keepEvent): not a league meet it skipped, which a league's roster lists.
+    const evs = lastEv.filter((x) => Number(x.team) === n && keepEvent(x, recs.get(`${n}|${x.code}`), today));
     const r = rel.find((x) => Number(x.team) === n);
     const last = evs.find((e) => (e.start ?? "") <= today) ?? null;
     const next = [...evs].reverse().find((e) => (e.start ?? "") > today) ?? null;
