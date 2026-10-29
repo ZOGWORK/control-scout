@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.1 — 2026-10-29
+
+The weekly digest just says it comes once a week, without naming a day or time.
+
+### Highlights
+- [alerts] The weekly digest says "once a week" in Settings
+- [alerts] Turning it on says the first one comes within a week
+- [alerts] The digest's description no longer names a send day
+
+### Weekly digest
+- **No fixed time in the copy.** Settings, the switch's confirmation and the description say the digest comes once a week, instead of naming a day or time. The email itself is unchanged. (#334)
+
 ## 1.4.0 — 2026-10-29
 
 The home page's track record now shows how this season is going too, and its big number is in the accent yellow.
@@ -45,14 +57,14 @@ The home page's headline changes every hour, one of thirteen lines about what Co
 A weekly email for the weeks you don't open the app, a Scout page that sets the event once and goes match by match, a simpler Predict in three modes, and match videos with the model's call on screen.
 
 ### Highlights
-- [alerts] A weekly digest email on Mondays, opt-in in Settings
+- [alerts] A weekly digest email, opt-in in Settings
 - [scout] Scout sets the event once, then goes match by match
 - [predict] Predict in three modes: Advancement, Scheduled and Custom matchup
 - [live] Each match has a Watch button, and the model's call shows on the video
 - [teams] Upcoming events list their registered teams before any match is played
 
 ### Weekly digest
-- **One email, Mondays at 8 AM Eastern.** Turn it on in Settings › Notifications › Email. It covers the teams you follow (your team and tracked teams), and only comes when there's something to report: no results, no calls, nothing coming up means no email.
+- **One email a week.** Turn it on in Settings › Notifications › Email. It covers the teams you follow (your team and tracked teams), and only comes when there's something to report: no results, no calls, nothing coming up means no email.
 - **Your teams' week.** Each event a followed team played last week, linked: the record, the seed, how playoffs went, and OPR against the team's previous event, with both numbers. Two events in one weekend show as two rows, never one merged record.
 - **Prediction check-in.** How many of our pre-match calls on your teams' matches were right that week and all season, counted exactly as the public track record counts them. A bad week says so.
 - **Coming up and power rankings.** Your teams' events in the next two weeks with a countdown (and whether a schedule is out yet), and where your teams moved in that week's power rankings.
