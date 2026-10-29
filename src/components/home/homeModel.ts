@@ -53,8 +53,10 @@ export function recordFor(t: TrackRecord, kind: Evidence): RecordView | null {
  * With one replayed season there's no "so far": it's the one replay.
  */
 export function homeReplays(t: TrackRecord): { replay: RecordView | null; soFar: RecordView | null } {
+  const current = Math.max(...t.seasons.map((s) => s.season));
   const replayed = [...t.seasons].filter((s) => s.backtest && s.backtest.n > 0).sort((a, b) => b.season - a.season);
-  if (replayed.length < 2 || !replayed[0].backtest!.decided) return { replay: recordFor(t, "backtest"), soFar: null };
+  // "So far" is only ever the newest season's own replay: a finished season never fills in before the current one has one.
+  if (replayed.length < 2 || replayed[0].season !== current || !replayed[0].backtest!.decided) return { replay: recordFor(t, "backtest"), soFar: null };
   return { replay: viewOf(t, replayed[1], "backtest"), soFar: viewOf(t, replayed[0], "backtest") };
 }
 

@@ -84,6 +84,15 @@ describe("prediction record", () => {
     // One replayed season: it's the only replay, with no "so far" beside it.
     const one = record({ seasons: [{ season: 2025, label: "x", live: null, backtest: block({ n: 5, decided: 5, accuracy: 0.6 }) }] });
     expect(homeReplays(one)).toMatchObject({ replay: { season: 2025 }, soFar: null });
+    // The current season has no replay yet: last season's is the one replay, never filed as "so far".
+    const early = record({
+      seasons: [
+        { season: 2026, label: "2026–27", live: block({ n: 4, decided: 4, accuracy: 0.5 }), backtest: null },
+        { season: 2025, label: "2025–26", live: null, backtest: block({ n: 400, decided: 390, accuracy: 0.7 }) },
+        { season: 2024, label: "2024–25", live: null, backtest: block({ n: 300, decided: 290, accuracy: 0.69 }) },
+      ],
+    });
+    expect(homeReplays(early)).toMatchObject({ replay: { season: 2025 }, soFar: null });
   });
 
   it("shows the last full season's replay, not the partial replay of the season being logged live", () => {
