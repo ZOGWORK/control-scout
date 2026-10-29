@@ -1,7 +1,7 @@
 // Settings › Notifications › Email: the weekly digest switch (docs/digest.md). Off until turned on; signed in only
 // (it's emailed to the account's address). The switch is stored on the server, not in the synced settings, so the
 // email's unsubscribe link and a bounce change it everywhere at once. Turning it on sends nothing: the toast and the
-// line under the switch confirm it, and the first digest comes the next Monday.
+// line under the switch confirm it, and the first digest comes within a week (no send day or time is named to members).
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
@@ -33,7 +33,7 @@ export function DigestSetting() {
     setBusy(true);
     try {
       setStatus(await apiFetch<DigestStatus>("/api/digest", { method: "PUT", json: { enabled: on } }));
-      toast(on ? "Weekly digest on. The first one arrives Monday morning." : "Weekly digest off. Nothing more will be sent.");
+      toast(on ? "Weekly digest on. You'll get the first one within a week." : "Weekly digest off. Nothing more will be sent.");
     } catch (e) {
       setStatus(before);
       toast.error(`Couldn't change the weekly digest: ${(e as Error).message}`);
@@ -46,7 +46,7 @@ export function DigestSetting() {
   else if (status && !status.available && !status.enabled) note = "Email isn't available on this server right now.";
   else if (status?.bounced) note = "Your last digest bounced, so we turned it off. Turn it back on to try again.";
   else if (status?.enabled) note = follows
-    ? <>On. It goes to <span className="font-medium text-foreground">{status.email}</span> on Mondays at 8 AM Eastern.</>
+    ? <>On. It goes to <span className="font-medium text-foreground">{status.email}</span> once a week.</>
     : <>On, but you don't follow any teams yet, so there's nothing to send. Pick <Link to="/my-team" className="underline">your team</Link> or track teams from their pages.</>;
 
   return (
