@@ -48,7 +48,8 @@ const origin = (url: string | null | undefined): string | null => {
 function photoOrigins(): string[] {
   if (env.r2Fake) return []; // same origin (/__fake-r2)
   const endpoint = env.r2Endpoint ?? (env.r2AccountId ? `https://${env.r2AccountId}.r2.cloudflarestorage.com` : null);
-  return [origin(endpoint), origin(env.r2PublicUrl)].filter((o): o is string => !!o);
+  // An IPv6 literal (a local bucket at [::1]) can't be written in a CSP source, so it's left out.
+  return [origin(endpoint), origin(env.r2PublicUrl)].filter((o): o is string => !!o && !o.includes("["));
 }
 
 export const CSP_REPORT_PATH = "/api/csp-report";

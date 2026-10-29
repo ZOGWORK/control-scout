@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
 import { createApp, createServer } from "./app";
+import { env } from "./env";
 import { migrate, openDb, setDb } from "./db";
 import {
   CSS_SWITCH_HANDLER, HSTS, PERMISSIONS_POLICY, buildCsp, cspReportCounts, inlineScriptHashes, resetCspReports, summarizeCspReports,
@@ -184,6 +185,10 @@ describe("Content-Security-Policy", () => {
       expect(buildCsp([])).toContain(`https://${ACCT}.r2.cloudflarestorage.com`);
       process.env.R2_ENDPOINT = "https://abc-1.example.com/";
       expect(buildCsp([])).toContain("https://abc-1.example.com");
+      // An IPv6 literal is a valid endpoint (a local bucket), but no CSP source can name it.
+      process.env.R2_ENDPOINT = "http://[::1]:9000/__fake-r2";
+      expect(env.r2Endpoint).toBe("http://[::1]:9000/__fake-r2");
+      expect(buildCsp([])).not.toContain("[::1]");
     } finally {
       for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     }
