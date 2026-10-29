@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.6 — 2026-10-29
+
+The owner console gains a Moderation tab, triage for bug reports and data corrections, notes on error reports, and an Analytics tab that decides whether the home page shows how much Control Scout is used.
+
+### Highlights
+- [report] Rate limits and scraper traffic counted per network range, not address
+- [report] Bug reports, data fixes and ideas get accepted, rejected or marked fixed
+- [report] Error reports show their GitHub issue's state and take your own notes
+- [report] Page views, sessions, prediction calls and the ledger in one tab
+- [home] The home page's "in use" section shows only when the owner chooses
+
+### Owner console
+- **Moderation.** Requests answered 429, calls from crawlers and scripts, and minutes where one range sent over 600 requests are counted per UTC day and network range (IPv4 /16, IPv6 /32). An address is cut down to its range before it's counted; no full address, user agent or account is kept, and days older than 90 are dropped.
+- **Triage, in the one inbox.** Bug reports, data corrections and feature ideas from the contact form are accepted, rejected or marked fixed (and can be taken back), from the Moderation tab's queue or the feedback inbox. Fixed and rejected messages move to Resolved. An accepted data correction says how it's fixed: from FIRST through a re-sync, with a button to Data & sync. Match records are never edited by hand.
+- **Error reports.** Each shows its GitHub issue with the issue's state (open, closed, not planned), and takes a note of your own, kept on the server and never sent to GitHub.
+- **Analytics.** Page views and sessions (from visitors who opted in), prediction calls by route, and the prediction ledger's live calls logged and scored, all time and in the period, beside the existing request and latency numbers.
+- **"In use" on the home page.** A console switch, behind a confirmation, publishes or hides the home page's page views and sessions; until it's used, the server setting decides as before.
+- Every triage decision, note and publish choice is in the audit log with its old and new value. (#338)
+
 ## 1.4.5 — 2026-10-29
 
 On a phone, the example-match dots on How it works are full-size touch targets again.
