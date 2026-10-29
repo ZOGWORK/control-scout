@@ -39,15 +39,19 @@ export function OpsCards({ ops, title = "Data jobs", description, onDone }: { op
     const t = window.setInterval(reload, 2000);
     return () => window.clearInterval(t);
   }, [running, reload]);
-  // A job that was running here and has now ended: the reports it changed load again.
+  // A job seen running (started here, or already running when these cards mounted, e.g. after a tab switch)
+  // that has now ended: the reports it changed load again.
   const [watching, setWatching] = useState<OpName[]>([]);
   useEffect(() => {
     if (!state.data) return;
-    const ended = watching.filter((op) => state.data!.jobs[op]?.state !== "running");
+    const jobs = state.data.jobs;
+    const seen = ops.filter((op) => jobs[op]?.state === "running" && !watching.includes(op));
+    if (seen.length) { setWatching((w) => [...w, ...seen.filter((op) => !w.includes(op))]); return; }
+    const ended = watching.filter((op) => jobs[op]?.state !== "running");
     if (!ended.length) return;
     setWatching((w) => w.filter((op) => !ended.includes(op)));
     for (const op of ended) onDone?.(op);
-  }, [state.data, watching, onDone]);
+  }, [state.data, watching, onDone, ops]);
   const start = async (op: OpName) => {
     setSending(true);
     try {
