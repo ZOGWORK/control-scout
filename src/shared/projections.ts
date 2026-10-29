@@ -12,6 +12,10 @@ export const PROJECTION_FLOOR = 5_000;
 export const LOCAL_RUNS = 1_500;
 export const LOCAL_STOP_MS = 2_000;
 
+/** Simulations in an event forecast (the advancement tab's odds, awards and "what if" pairings included), run when a
+ *  page first asks for one and then reused (server/app.ts forecastFor). */
+export const FORECAST_RUNS = 2_000;
+
 /** The one label advancement odds carry wherever they show. */
 export const ADVANCE_LABEL = "performance-based — awards can also advance teams";
 
