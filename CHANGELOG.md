@@ -30,7 +30,7 @@ The owner console is now organised the way it's run: health first, then data, pr
 - **Health first.** Overview opens on whether the site is up, when data last synced (amber once it's more than six hours old), the engine version in production, the live ledger's headline, the offline pack manifest's date and version, and the error reports and server errors of the last day and week.
 - **An audit log that keeps its word.** Every switch flip, inbox move and stream change records the value it replaced and the value it set, shown as "on → off". The database refuses to delete a row or rewrite one; the only thing a row ever takes later is a data job's result.
 - **403 for everyone else.** Every owner route, read or write, known or not, answers 403 to anyone who isn't a signed-in owner, before any handler runs.
-- **Less personal data on screen.** An account shows how many devices are signed in, not which browsers; a read-only workspace shows how many members and admins can read it, not their names.
+- **Less personal data on screen.** An account shows how many devices are signed in, not which browsers; a read-only workspace shows how many members and admins can read it, not their names. (#335)
 
 ## 1.4.0 — 2026-10-29
 
