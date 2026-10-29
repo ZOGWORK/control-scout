@@ -21,7 +21,7 @@ A weekly email for the weeks you don't open the app, a Scout page that sets the 
 
 ### Highlights
 - [alerts] A weekly digest email on Mondays, opt-in in Settings
-- [scout] Scout sets the event once, then goes match by match, several teams at a time
+- [scout] Scout sets the event once, then goes match by match
 - [predict] Predict in three modes: Advancement, Scheduled and Custom matchup
 - [live] Each match has a Watch button, and the model's call shows on the video
 - [teams] Upcoming events list their registered teams before any match is played
