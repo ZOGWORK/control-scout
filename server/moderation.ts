@@ -76,11 +76,15 @@ function recordRangeSignal(range: string, status: number, userAgent: string | un
   if (day !== rangesDay) { rangesDay = day; rangesSeen = new Set(); }
   const m = Math.floor(now / 60_000);
   if (m !== minute) { minute = m; perMinute = new Map(); }
-  const n = (perMinute.get(range) ?? 0) + 1;
-  if (perMinute.size < MAX_RANGES || perMinute.has(range)) perMinute.set(range, n);
+  // Once this minute holds MAX_RANGES ranges, any further range counts in one shared overflow bucket, so a
+  // burst from it is still seen (as "(other)") rather than lost.
+  const counted = perMinute.has(range) || perMinute.size < MAX_RANGES ? range : OTHER_RANGE;
+  const n = (perMinute.get(counted) ?? 0) + 1;
+  perMinute.set(counted, n);
   const burst = n === BURST_PER_MINUTE + 1;
   const flagged = status === 429 || isBot(userAgent) || burst;
   if (!flagged) return;
+  if (burst && counted === OTHER_RANGE) range = OTHER_RANGE;
   if (!rangesSeen.has(range)) {
     if (rangesSeen.size >= MAX_RANGES) range = OTHER_RANGE;
     else rangesSeen.add(range);

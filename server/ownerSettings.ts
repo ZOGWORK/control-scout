@@ -5,7 +5,7 @@
 // Reads go through a short cache (SETTINGS_TTL_MS) from the primary database, like the feature flags: a
 // choice made on one host counts on another within seconds. A database that can't be read keeps the last
 // known value (or the env default).
-import { primaryDb, run } from "./db.js";
+import { primaryDb, readThenWrite } from "./db.js";
 import { env } from "./env.js";
 import { registerCache } from "./caches.js";
 import type { PublishUsageSetting } from "../src/shared/owner.js";
@@ -36,14 +36,21 @@ export async function publishUsageSetting(now = Date.now()): Promise<PublishUsag
   return { enabled, source: "owner", envDefault, updatedAt: row.updated_at, updatedBy: row.updated_by };
 }
 
-/** Publish (or stop publishing) the "in use" section; this process sees it at once. */
-export async function setPublishUsage(enabled: boolean, by: string, now = new Date()): Promise<void> {
-  await run(
-    `INSERT INTO owner_settings (key, value, updated_at, updated_by) VALUES ('publicUsage', ?, ?, ?)
+/**
+ * Publish (or stop publishing) the "in use" section; this process sees it at once. Returns the value it
+ * replaced, read in the same transaction (the env default when the console had never set it).
+ */
+export async function setPublishUsage(enabled: boolean, by: string, now = new Date()): Promise<{ was: boolean; source: "owner" | "env" }> {
+  const { before } = await readThenWrite<{ value: string }>({ sql: "SELECT value FROM owner_settings WHERE key = 'publicUsage'", args: [] }, [{
+    sql: `INSERT INTO owner_settings (key, value, updated_at, updated_by) VALUES ('publicUsage', ?, ?, ?)
      ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [JSON.stringify(enabled), now.toISOString(), by.slice(0, 200)],
-  );
+    args: [JSON.stringify(enabled), now.toISOString(), by.slice(0, 200)],
+  }]);
   cached = null;
+  if (!before) return { was: env.publicUsageEnabled, source: "env" };
+  let was = env.publicUsageEnabled;
+  try { was = JSON.parse(String(before.value)) === true; } catch { /* unreadable: the env default stood */ }
+  return { was, source: "owner" };
 }
 
 /** Drop the cache (tests, and the console's "clear caches"). */

@@ -94,6 +94,12 @@ describe("counting", () => {
     expect(ranges.has(OTHER_RANGE)).toBe(true);
   });
 
+  it("still sees a burst from a range that arrives once the minute already holds the most ranges it keeps", () => {
+    for (let i = 0; i < MAX_RANGES; i++) recordAbuseSignal(`${1 + Math.floor(i / 256)}.${i % 256}.0.1`, 200, BROWSER, NOW);
+    for (let i = 0; i <= BURST_PER_MINUTE; i++) recordAbuseSignal("250.250.0.1", 200, BROWSER, NOW);
+    expect(pendingAbuseKeys().map((k) => k.split("\u0000").slice(1))).toEqual([[OTHER_RANGE, "burst"]]);
+  });
+
   it("sums per day for the summary, and drops days past retention when it flushes", async () => {
     await run("INSERT INTO abuse_daily (day, ip_range, kind, count) VALUES ('2026-01-01', '203.0.0.0/16', 'rate_limited', 9)");
     recordAbuseSignal("203.0.113.1", 429, BROWSER, NOW);

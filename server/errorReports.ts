@@ -21,7 +21,7 @@
 // GET /api/reports/errors lists the stored reports for the owner portal (OWNER_EMAILS); 404 for anyone else.
 import { createHash } from "node:crypto";
 import express, { type Request, type Response, type Router } from "express";
-import { all, get, run } from "./db.js";
+import { all, get, readThenWrite, run } from "./db.js";
 import { env } from "./env.js";
 import { RELEASE } from "./release.js";
 import { currentUser } from "./auth/session.js";
@@ -348,11 +348,11 @@ export const OWNER_NOTE_MAX = 2000;
  * updated report, or null when there's no such report.
  */
 export async function setErrorNote(fingerprint: string, note: string, now = new Date()): Promise<{ was: string | null; report: ErrorReportSummary } | null> {
-  const before = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fingerprint]);
-  if (!before) return null;
   const text = note.trim().slice(0, OWNER_NOTE_MAX) || null;
-  const row = await get<Row>("UPDATE error_reports SET owner_note = ?, owner_note_at = ? WHERE fingerprint = ? RETURNING *", [text, text ? now.toISOString() : null, fingerprint]);
-  return row ? { was: before.owner_note ?? null, report: toSummary(row) } : null;
+  // The note replaced is read in the same transaction as the write, so the audit log's old value is the real one.
+  const { before, last } = await readThenWrite<Row, Row>({ sql: "SELECT * FROM error_reports WHERE fingerprint = ?", args: [fingerprint] },
+    [{ sql: "UPDATE error_reports SET owner_note = ?, owner_note_at = ? WHERE fingerprint = ? RETURNING *", args: [text, text ? now.toISOString() : null, fingerprint] }]);
+  return before && last[0] ? { was: before.owner_note ?? null, report: toSummary(last[0]) } : null;
 }
 
 // --- Routes ---------------------------------------------------------------------------------------

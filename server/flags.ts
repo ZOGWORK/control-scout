@@ -8,7 +8,7 @@
 // For other features:  if (!(await isEnabled("realtime"))) { …refuse politely… }
 // A database that can't be read never turns a feature off: the last known value
 // (or the default, on) stands.
-import { primaryDb, run } from "./db.js";
+import { primaryDb, readThenWrite } from "./db.js";
 import { registerCache } from "./caches.js";
 import { DEFAULT_FLAGS, FLAGS, isFlag, type Flag, type FlagSet } from "../src/shared/flags.js";
 
@@ -52,14 +52,15 @@ export async function isEnabled(flag: Flag): Promise<boolean> {
   return (await allFlags())[flag];
 }
 
-/** Turn a flag on or off; this process sees it at once. */
-export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise<void> {
-  await run(
-    `INSERT INTO feature_flags (name, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?)
+/** Turn a flag on or off; this process sees it at once. Returns the value it replaced (read in the same transaction). */
+export async function setFlag(flag: Flag, enabled: boolean, by: string): Promise<boolean> {
+  const { before } = await readThenWrite<{ enabled: number }>({ sql: "SELECT enabled FROM feature_flags WHERE name = ?", args: [flag] }, [{
+    sql: `INSERT INTO feature_flags (name, enabled, updated_at, updated_by) VALUES (?, ?, ?, ?)
      ON CONFLICT (name) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
-    [flag, enabled ? 1 : 0, new Date().toISOString(), by],
-  );
+    args: [flag, enabled ? 1 : 0, new Date().toISOString(), by],
+  }]);
   invalidateFlags();
+  return before ? Number(before.enabled) === 1 : DEFAULT_FLAGS[flag];
 }
 
 /** The flags with who changed each last, for the owner portal. */
