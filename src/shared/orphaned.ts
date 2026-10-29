@@ -36,6 +36,7 @@ export interface OrphanedWorkspace {
   reason: OrphanReason;
   /** Live (not deleted) shared entries. */
   entries: number;
-  /** Who can still read it: the former members ("deleted") or the members Scout knows ("no_admin"). */
-  members: { accountId: number; name: string; role: "admin" | "member" }[];
+  /** How many can still read it (the former members for "deleted", the members Scout knows for "no_admin"), and
+   *  how many of them are admins. Counts only: the owner console never names a workspace's members. */
+  members: { total: number; admins: number };
 }

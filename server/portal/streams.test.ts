@@ -78,9 +78,9 @@ describe("event streams", () => {
     expect((await row()).stream).toBeUndefined();
   });
 
-  it("an unknown event is a 404; anyone but the owner gets the portal's 404", async () => {
+  it("an unknown event is a 404; anyone but the owner gets the console's 403", async () => {
     expect((await call("PUT", `/api/owner/streams/${S}/NOPE`, owner, { url: `https://youtu.be/${ID}` })).status).toBe(404);
-    expect((await call("PUT", `/api/owner/streams/${S}/USCAQ1`, other, { url: `https://youtu.be/${ID}` })).status).toBe(404);
-    expect((await call("GET", "/api/owner/streams")).status).toBe(404);
+    expect((await call("PUT", `/api/owner/streams/${S}/USCAQ1`, other, { url: `https://youtu.be/${ID}` })).status).toBe(403);
+    expect((await call("GET", "/api/owner/streams")).status).toBe(403);
   });
 });

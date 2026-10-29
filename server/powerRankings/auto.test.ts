@@ -34,6 +34,8 @@ const SUN0 = Date.parse("2026-10-25T04:00:00Z");
 // --- The stand-in for Control Point -------------------------------------------------------------
 type Mode = "good" | "adversarial" | "error" | "malformed";
 let mode: Mode = "good";
+// owner_audit is append-only (migration 52): each test reads the rows written since it started.
+let auditFrom = 0;
 const calls: { key: string | undefined; packet: FactPacket }[] = [];
 let cp: Server;
 
@@ -140,7 +142,8 @@ beforeEach(async () => {
   process.env.APP_URL = "https://controlscout.org";
   mode = "good";
   calls.length = 0;
-  for (const t of ["power_rankings_generated", "power_rankings_refreshes", "owner_audit", "feature_flags"]) await run(`DELETE FROM ${t}`);
+  for (const t of ["power_rankings_generated", "power_rankings_refreshes", "feature_flags"]) await run(`DELETE FROM ${t}`);
+  auditFrom = Number((await get<{ n: number }>("SELECT COALESCE(MAX(id), 0) n FROM owner_audit"))!.n);
   for (const f of ["2026-w42.md", "2026-w43.md", "2026-w44.md"]) rmSync(join(dir, f), { force: true });
   useContentDir(dir);
   invalidateGenerated();
@@ -436,11 +439,11 @@ describe("a week is frozen with its text", () => {
 });
 
 describe("the owner panel", () => {
-  it("is a 404 for anyone but the owner, read or write", async () => {
+  it("is a 403 for anyone but the owner, read or write", async () => {
     for (const cookie of [undefined, otherCookie]) {
-      expect((await call("GET", "/api/owner/power-rankings", { cookie })).status).toBe(404);
-      expect((await call("POST", "/api/owner/power-rankings/publish-now", { cookie, body: { confirm: true } })).status).toBe(404);
-      expect((await call("PATCH", `/api/owner/power-rankings/${S}/2026-w43`, { cookie, body: { confirm: true, intro: "x" } })).status).toBe(404);
+      expect((await call("GET", "/api/owner/power-rankings", { cookie })).status).toBe(403);
+      expect((await call("POST", "/api/owner/power-rankings/publish-now", { cookie, body: { confirm: true } })).status).toBe(403);
+      expect((await call("PATCH", `/api/owner/power-rankings/${S}/2026-w43`, { cookie, body: { confirm: true, intro: "x" } })).status).toBe(403);
     }
     expect(calls).toHaveLength(0);
   });
@@ -500,7 +503,7 @@ describe("the owner panel", () => {
     expect((await call("POST", `${path}/regenerate`, { cookie: ownerCookie, body: { confirm: true } })).status).toBe(502);
     expect(JSON.parse((await rows())[0].entries).every((e: any) => e.source === "bruno")).toBe(true);
 
-    const audit = await all<{ actor: string; action: string; details: string; result: string | null }>("SELECT * FROM owner_audit ORDER BY id");
+    const audit = await all<{ actor: string; action: string; details: string; result: string | null }>("SELECT * FROM owner_audit WHERE id > ? ORDER BY id", [auditFrom]);
     expect(audit.map((a) => a.action)).toEqual(["powerRankings.edit", "powerRankings.hide", "powerRankings.unhide", "powerRankings.regenerate", "powerRankings.regenerate"]);
     expect(audit.every((a) => a.actor === "owner@example.com")).toBe(true);
     expect(JSON.parse(audit[0].details)).toEqual({ season: S, week: "2026-w43", intro: true, teams: [7001] });
@@ -516,7 +519,7 @@ describe("the owner panel", () => {
     expect(again.status).toBe(409);
     expect(again.json.error).toMatch(/already published/);
     expect(calls).toHaveLength(1);
-    const audit = await all<{ action: string; result: string }>("SELECT action, result FROM owner_audit ORDER BY id");
+    const audit = await all<{ action: string; result: string }>("SELECT action, result FROM owner_audit WHERE id > ? ORDER BY id", [auditFrom]);
     expect(audit.map((a) => a.action)).toEqual(["powerRankings.publishNow", "powerRankings.publishNow"]);
     expect(audit[1].result).toMatch(/^refused/);
   });
