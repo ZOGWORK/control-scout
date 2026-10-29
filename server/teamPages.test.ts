@@ -14,7 +14,9 @@ import { listDirectory, directoryQuery } from "./api/directory";
 import { resetSitemapCache, sitemapEntries } from "./sitemap";
 import { teamPageTest } from "./teamPages";
 import { pageMeta } from "./seoMeta";
-import { all } from "./db";
+import { all, kvSet } from "./db";
+import { ENGINE_VERSION } from "@control-scout/predict-engine";
+import { STATS_RULES, statsRulesStale } from "./stats/job";
 import { WEEK_MS, weekOf } from "../src/shared/rankings";
 import { hasTeamPage, isPlaceholderTeamName, teamPageSql } from "../src/shared/teamPages";
 
@@ -142,6 +144,32 @@ describe("sitemap", () => {
       expect(hasTeamPage(Number(n))).toBe(true);
       expect((await fetch(`${base}/api/teams/${n}`)).status, `team ${n}`).toBe(200);
     }
+  });
+});
+
+describe("after a sync", () => {
+  it("a team renamed to a placeholder leaves last week's numbering too, so nobody shows a false climb", async () => {
+    await kvSet("data:version", "v1");
+    const before = await rankings({ season: S, week: null, places: [], page: 1 }); // caches last week under v1
+    expect(before.rows.map((r) => [r.team, r.move])).toEqual([[4215, 0], [18360, 0]]);
+    // A sync renames 4215 and bumps the data version (no cache is cleared by hand).
+    await run("UPDATE teams SET name = 'Off-Season Demo Team' WHERE number = 4215");
+    await kvSet("data:version", "v2");
+    try {
+      const after = await rankings({ season: S, week: null, places: [], page: 1 });
+      // 18360 is 1st now and was 1st last week once 4215 is out of both lists: no movement.
+      expect(after.rows.map((r) => [r.rank, r.team, r.move])).toEqual([[1, 18360, 0]]);
+    } finally {
+      await run("UPDATE teams SET name = 'Hypnotic Robotics' WHERE number = 4215");
+      await kvSet("data:version", "v3");
+    }
+  });
+
+  it("the stats rules moved past 5, so every host rebuilds past seasons' ranks once", async () => {
+    await kvSet("stats:rules", 5);
+    await kvSet("stats:engine", ENGINE_VERSION);
+    expect(STATS_RULES).toBeGreaterThan(5);
+    expect(await statsRulesStale()).toBe(true);
   });
 });
 
