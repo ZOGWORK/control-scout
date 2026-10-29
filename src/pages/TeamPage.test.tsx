@@ -2,8 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { OprSection } from "./TeamPage";
-import type { TeamProfile } from "../shared/api";
+import { OprSection, RowRecord } from "./TeamPage";
+import type { TeamEventRow, TeamProfile } from "../shared/api";
 
 afterEach(cleanup);
 
@@ -46,5 +46,25 @@ describe("OprSection tiles", () => {
     expect(auto.hasAttribute("aria-label")).toBe(false);
     // The computed accessible name (not textContent): hiding the rank or the action from assistive tech would fail this.
     expect(tile(/^Autonomous.*28\.3.*OPR #883 of 8,000 with an OPR.*Show event by event$/)).toBe(auto);
+  });
+});
+
+describe("an event row's record", () => {
+  const row = (x: Partial<TeamEventRow>) => ({
+    end: "2025-11-01", start: "2025-11-01", wins: null, losses: null, ties: null, played: null, qualPlayed: null, qual: null, onField: false, ...x,
+  }) as TeamEventRow;
+  const shows = (x: Partial<TeamEventRow>) => { cleanup(); return render(<RowRecord e={row(x)} />).container.textContent; };
+
+  it("says why there's no record: surrogate only, no scores, not played yet, a remote event", () => {
+    expect(shows({ onField: true })).toBe("Surrogate only"); // played, but only as a surrogate (not on its record)
+    expect(shows({})).toBe("No scored matches");
+    expect(shows({ end: "2099-01-01" })).toBe("Not played yet");
+    expect(shows({ qualPlayed: 6 })).toBe("6 remote matches");
+  });
+
+  it("shows every match, the quals alone under it when playoffs make it differ, and a no-show", () => {
+    expect(shows({ wins: 4, losses: 4, ties: 0, played: 8, qual: { wins: 3, losses: 2, ties: 0, played: 5 }, onField: true })).toBe("4-4-0Quals 3-2-0");
+    expect(shows({ wins: 5, losses: 1, ties: 0, played: 6, qual: { wins: 5, losses: 1, ties: 0, played: 6 }, onField: true })).toBe("5-1-0");
+    expect(shows({ wins: 0, losses: 1, ties: 0, played: 1, qual: { wins: 0, losses: 1, ties: 0, played: 1 }, onField: false })).toBe("0-1-0No-show");
   });
 });
