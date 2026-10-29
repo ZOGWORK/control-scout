@@ -27,7 +27,7 @@ beforeAll(async () => {
   await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (2026, 'USTXCAP', 'Capitol Qualifier', 'Austin', 'TX', 'USA', '2026-12-05', 'first')");
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'AUSYQ1', 'qual', 0, 12, 'Q12', 1, 'first')");
   // FIRST's placeholders (src/shared/teamPages.ts): never a hit, by name or number.
-  await run("INSERT INTO teams (number, name, city) VALUES (99999, 'Off-Season Demo Team', NULL), (34320, 'Demo Team', 'Chisinau')");
+  await run("INSERT INTO teams (number, name, city) VALUES (99999, 'Off-Season Demo Team', NULL), (34320, 'Demo Team', 'Chisinau'), (21795, 'FIRSTIL TEST TEAM', 'Tel Aviv')");
   await rebuildSearch();
 });
 
@@ -35,8 +35,8 @@ const titles = async (q: string) => (await search(q, 5)).map((h) => h.title);
 
 describe("search", () => {
   it("never offers a placeholder team, by name, number or typo", async () => {
-    for (const q of ["off-season demo team", "demo team", "demo tem", "99999", "34320", "9999", "3432"]) {
-      expect((await search(q, 12)).filter((h) => h.kind === "team" && (h.ref === "99999" || h.ref === "34320")), q).toEqual([]);
+    for (const q of ["off-season demo team", "demo team", "demo tem", "99999", "34320", "9999", "3432", "firstil test team", "test team", "21795", "tel aviv"]) {
+      expect((await search(q, 12)).filter((h) => h.kind === "team" && ["99999", "34320", "21795"].includes(h.ref)), q).toEqual([]);
     }
   });
   it("finds places by full state name, not just the code (New Jersey → NJ)", async () => {
