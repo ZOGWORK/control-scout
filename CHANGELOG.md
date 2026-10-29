@@ -32,7 +32,7 @@ The owner console gains a Moderation tab, triage for bug reports and data correc
 - **Error reports.** Each shows its GitHub issue with the issue's state (open, closed, not planned), and takes a note of your own, kept on the server and never sent to GitHub.
 - **Analytics.** Page views and sessions (from visitors who opted in), prediction calls by route, and the prediction ledger's live calls logged and scored, all time and in the period, beside the existing request and latency numbers.
 - **"In use" on the home page.** A console switch, behind a confirmation, publishes or hides the home page's page views and sessions; until it's used, the server setting decides as before.
-- Every triage decision, note and publish choice is in the audit log with its old and new value. (#NNN)
+- Every triage decision, note and publish choice is in the audit log with its old and new value. (#338)
 
 ## 1.4.1 — 2026-10-29
 
