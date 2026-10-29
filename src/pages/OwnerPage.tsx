@@ -7,7 +7,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, 
 import { useSearchParams } from "react-router-dom";
 import {
   Activity, AlertTriangle, Bug, Building2, CheckCircle2, ClipboardList, Database, DatabaseZap, Gauge, HardDrive, HardDriveDownload,
-  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trash2, Trophy, Unlink, UserRound, Users,
+  Inbox, LayoutDashboard, Link2, MonitorPlay, PackageOpen, Radio, Megaphone, RefreshCw, ScrollText, Search, ServerCog, ShieldAlert, Target, Timer, ToggleRight, Trophy, Unlink, UserRound, Users,
 } from "lucide-react";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { StatTile, Meter } from "../components/StatTile";
@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
 import { Badge, Input, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/controls";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../components/ui/overlay";
 import { toast } from "../components/ui/sonner";
 import { cn } from "../components/cn";
 import { apiFetch, ApiError, markStale, prime, useApi } from "../lib/api";
@@ -27,7 +27,7 @@ import { fmtBytes } from "../lib/recordings";
 import { refreshFlags } from "../lib/flags";
 import { FLAG_INFO } from "../shared/flags";
 import type {
-  AuditEntry, FlagRow, LedgerKind, OpName, OpsStatus, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
+  AuditEntry, FlagRow, LedgerKind, OwnerOverview, OwnerUsage, OwnerUser, OwnerUserDetail, OwnerWorkspace, PredictionHealth, RouteStats,
 } from "../shared/owner";
 import type { Flag } from "../shared/flags";
 import type { OrphanedWorkspace, OrphanReason } from "../shared/orphaned";
@@ -36,6 +36,8 @@ import { PowerRankingsPanel } from "../components/owner/PowerRankingsPanel";
 import { currentRelease } from "../lib/changelog";
 
 import { StreamsPanel } from "../components/owner/StreamsPanel";
+import { DataPanel } from "../components/owner/DataPanel";
+import { PacksPanel } from "../components/owner/PacksPanel";
 import { ModerationPanel } from "../components/owner/ModerationPanel";
 import { FeedbackPanel } from "../components/owner/FeedbackPanel";
 import { ErrorsPanel } from "../components/owner/ErrorsPanel";
@@ -46,6 +48,7 @@ const WhatsNewContent = lazy(() => import("../components/WhatsNewContent"));
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "data", label: "Data & sync", icon: DatabaseZap },
+  { id: "packs", label: "Packs & offline", icon: PackageOpen },
   { id: "predictions", label: "Predictions & ledger", icon: Target },
   { id: "content", label: "Rankings & content", icon: Trophy },
   { id: "features", label: "Features", icon: ToggleRight },
@@ -110,7 +113,8 @@ export default function OwnerPage() {
         </TabsList>
         <div key={refreshKey}>
           <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
-          <TabsContent value="data"><OpsPanel /></TabsContent>
+          <TabsContent value="data"><DataPanel /></TabsContent>
+          <TabsContent value="packs"><PacksPanel /></TabsContent>
           <TabsContent value="predictions"><PredictionsPanel /></TabsContent>
           <TabsContent value="content" className="space-y-8">
             <PowerRankingsPanel onOpenSwitches={() => go("features")} />
@@ -749,107 +753,6 @@ function FlagsPanel() {
           </ul>
         )}
       </Async>
-    </Section>
-  );
-}
-
-// --- Data jobs --------------------------------------------------------------------------------
-
-const OPS: { op: OpName; title: string; icon: typeof RefreshCw; does: string; confirm: string; tone: string }[] = [
-  { op: "resync", title: "Re-sync now", icon: RefreshCw, tone: "bg-accent/15 text-accent-text",
-    does: "Fetches the current season from FIRST, then rebuilds stats, ratings and the prediction ledger. Takes a few minutes.",
-    confirm: "Live results for events on today wait until it finishes. The scheduled sync won't start while it runs." },
-  { op: "packs", title: "Rebuild offline packs", icon: PackageOpen, tone: "bg-info/15 text-info",
-    does: "Builds fresh offline packs from the current data. Devices pick them up on their next visit.",
-    confirm: "Building packs takes a few minutes, and live results for today's events pause until it's done." },
-  { op: "caches", title: "Clear caches", icon: Trash2, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-400",
-    does: "Empties the server's in-memory caches (ratings, track record, forecasts, search, weather, flags) and rebuilds the costly ones.",
-    confirm: "Pages may be slower for a minute while ratings rebuild. Nothing stored is touched." },
-];
-
-function OpsPanel() {
-  const state = useApi<OpsStatus>("/api/owner/ops");
-  const [asking, setAsking] = useState<OpName | null>(null);
-  const [sending, setSending] = useState(false);
-  const running = !!state.data && Object.values(state.data.jobs).some((j) => j?.state === "running");
-  // While a job runs, check on it every 2 seconds.
-  const { reload } = state;
-  useEffect(() => {
-    if (!running) return;
-    const t = window.setInterval(reload, 2000);
-    return () => window.clearInterval(t);
-  }, [running, reload]);
-  const start = async (op: OpName) => {
-    setSending(true);
-    try {
-      const r = await apiFetch<{ status: OpsStatus }>(`/api/owner/ops/${op}`, { method: "POST", json: { confirm: true } });
-      prime("/api/owner/ops", r.status);
-      toast.success("Started. Progress shows on its card.");
-      setAsking(null);
-    } catch (e) {
-      toast.error((e as ApiError).message);
-      reload();
-    } finally { setSending(false); }
-  };
-  const chosen = OPS.find((o) => o.op === asking);
-  return (
-    <Section title="Data jobs" description="Each runs in the background and never alongside a scheduled sync or the live results lane: if one of those is busy, the job says so instead of starting.">
-      <Async state={state}>
-        {(s) => (
-          <>
-            <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-              <span className={cn("size-2 rounded-full", s.writer || s.cycle ? "bg-warning" : "bg-success")} aria-hidden />
-              {s.cycle ? `A data update (${s.cycle.reason}) is running on this server.` : s.writer ? `The data writer is busy: ${s.writer.what}.` : "The data writer is free."}
-            </p>
-            <div className="grid gap-3 lg:grid-cols-3">
-              {OPS.map((o) => {
-                const job = s.jobs[o.op];
-                const off = s.unavailable[o.op];
-                return (
-                  <div key={o.op} className="flex flex-col rounded-xl border border-border bg-card p-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className={cn("grid size-8 place-items-center rounded-lg", o.tone)}><o.icon className="size-4" aria-hidden /></span>
-                      <h3 className="font-medium text-foreground">{o.title}</h3>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">{o.does}</p>
-                    {job && (
-                      <div role="status" className={cn("mt-3 rounded-lg border px-3 py-2 text-xs",
-                        job.state === "running" ? "border-info/40 bg-info/[0.06]" : job.state === "done" ? "border-success/40 bg-success/[0.06]" : "border-danger/40 bg-danger/[0.06]")}>
-                        <p className="font-medium text-foreground">
-                          {job.state === "running" ? `Running since ${ago(job.startedAt)}` : job.state === "done" ? `Finished ${ago(job.finishedAt)}` : `Failed ${ago(job.finishedAt)}`}
-                        </p>
-                        {job.message && <p className="mt-0.5 break-words text-muted-foreground">{job.message}</p>}
-                      </div>
-                    )}
-                    {off && <p className="mt-3 text-xs text-muted-foreground">{off}</p>}
-                    <div className="mt-auto pt-4">
-                      <Button variant="secondary" className="w-full" disabled={!!off || job?.state === "running"} onClick={() => setAsking(o.op)}>
-                        <o.icon /> {job?.state === "running" ? "Running…" : o.title}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </Async>
-      <Dialog open={!!chosen} onOpenChange={(v) => { if (!v && !sending) setAsking(null); }}>
-        <DialogContent>
-          {chosen && (
-            <>
-              <DialogHeader>
-                <DialogTitle>{chosen.title}?</DialogTitle>
-                <DialogDescription>{chosen.does} {chosen.confirm}</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAsking(null)} disabled={sending}>Cancel</Button>
-                <Button onClick={() => void start(chosen.op)} disabled={sending}><chosen.icon /> {sending ? "Starting…" : `Yes, ${chosen.title.toLowerCase()}`}</Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </Section>
   );
 }

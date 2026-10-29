@@ -193,6 +193,6 @@ export async function syncAll(o: SyncOptions = {}): Promise<SyncReport[]> {
       out.push({ season: s, listed: 0, detailed: 0, failed: [{ code: "*", error: msg }], fallback: 0, teams: 0 });
     }
   }
-  await kvSet("sync:last", { at: new Date().toISOString(), reports: out.map((r) => ({ ...r, failed: r.failed.slice(0, 20) })) });
+  await kvSet("sync:last", { at: new Date().toISOString(), reports: out.map((r) => ({ ...r, failed: r.failed.slice(0, 20), failedCount: r.failed.length })) });
   return out;
 }

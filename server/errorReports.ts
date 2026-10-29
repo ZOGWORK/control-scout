@@ -21,7 +21,7 @@
 // GET /api/reports/errors lists the stored reports for the owner portal (OWNER_EMAILS); 404 for anyone else.
 import { createHash } from "node:crypto";
 import express, { type Request, type Response, type Router } from "express";
-import { all, get, readThenWrite, run } from "./db.js";
+import { all, db, get, run } from "./db.js";
 import { env } from "./env.js";
 import { RELEASE } from "./release.js";
 import { currentUser } from "./auth/session.js";
@@ -350,9 +350,14 @@ export const OWNER_NOTE_MAX = 2000;
 export async function setErrorNote(fingerprint: string, note: string, now = new Date()): Promise<{ was: string | null; report: ErrorReportSummary } | null> {
   const text = note.trim().slice(0, OWNER_NOTE_MAX) || null;
   // The note replaced is read in the same transaction as the write, so the audit log's old value is the real one.
-  const { before, last } = await readThenWrite<Row, Row>({ sql: "SELECT * FROM error_reports WHERE fingerprint = ?", args: [fingerprint] },
-    [{ sql: "UPDATE error_reports SET owner_note = ?, owner_note_at = ? WHERE fingerprint = ? RETURNING *", args: [text, text ? now.toISOString() : null, fingerprint] }]);
-  return before && last[0] ? { was: before.owner_note ?? null, report: toSummary(last[0]) } : null;
+  const [before, after] = await db().batch([
+    { sql: "SELECT owner_note FROM error_reports WHERE fingerprint = ?", args: [fingerprint] },
+    { sql: "UPDATE error_reports SET owner_note = ?, owner_note_at = ? WHERE fingerprint = ? RETURNING *", args: [text, text ? now.toISOString() : null, fingerprint] },
+  ], "write");
+  const row = after.rows[0] as unknown as Row | undefined;
+  if (!row) return null;
+  const was = (before.rows[0] as unknown as { owner_note: string | null } | undefined)?.owner_note ?? null;
+  return { was, report: toSummary(row) };
 }
 
 // --- Routes ---------------------------------------------------------------------------------------
