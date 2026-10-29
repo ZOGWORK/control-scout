@@ -10,7 +10,8 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, homeHeadlineAt } from "../src/shared/boot.js";
+import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -147,8 +148,9 @@ const active = (path: string, it: Item) => {
 const link = (path: string, it: Item) =>
   `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
 
-/** The static first paint for a page path (see the top of this file). `path` is the request path. */
-export function bootShell(path: string, meta: PageMeta): string {
+/** The static first paint for a page path (see the top of this file). `path` is the request path; `hero`: the
+ *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default. */
+export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse = { lines: [...DEFAULT_HERO_LINES], custom: false }): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
@@ -156,14 +158,18 @@ export function bootShell(path: string, meta: PageMeta): string {
     + `<script>if(document.documentElement.classList.contains('cs-nav-more'))document.querySelector('.csb-more').open=true</script>`;
   // Home's headline for this hour; the app reads data-line and keeps it, so its copy matches this paint. Every
   // line sits invisibly in the same cell (as in the app), so the hero is the app's height from the first frame.
-  const line = homeHeadlineAt(Date.now());
+  const lines = hero.lines.length ? hero.lines : DEFAULT_HERO_LINES;
+  const line = homeHeadlineAt(Date.now(), lines.length);
   // A page with no title of its own (not found) gets the shell alone.
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${HOME_HEADLINES.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(HOME_HEADLINES[line][0])} <span>${esc(HOME_HEADLINES[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).
       // A page whose own markup has its H1 (How it works, prerendered) keeps that one: one H1 per page.
       ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}">${meta.bodyHtml && /<h1[\s>]/.test(meta.bodyHtml) ? "" : `<h1>${esc(meta.heading ?? meta.title)}</h1>`}${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}</div>` : "";
+  // The owner's own hero lines (not the built-in ones the app already has), on every page: the app reads them
+  // before its first render (src/lib/heroLines.ts), so Home draws the same lines whichever page it opens from.
+  const heroJson = hero.custom ? `<script type="application/json" id="${HERO_LINES_ID}">${JSON.stringify(lines).replace(/</g, "\\u003c")}</script>` : "";
   // The page block is hidden when the service worker served this HTML (made for "/") for another page offline.
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [
@@ -171,7 +177,7 @@ export function bootShell(path: string, meta: PageMeta): string {
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
     `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
-    `<main class="csb-main${meta.bodyHtml && page ? " csb-scroll" : ""}">${page}${guard}</main></div>`,
+    `<main class="csb-main${meta.bodyHtml && page ? " csb-scroll" : ""}">${page}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,
     `</div>`,
   ].join("");

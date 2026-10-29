@@ -3,7 +3,7 @@
 // season's teams; then today's coin flips (the closest calls at every event on today), what's on the calendar, the public prediction record and Control Scout's own
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Radio, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
@@ -22,6 +22,7 @@ import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAt
 import { FindYourTeam, OnTheCalendar, PredictionRecord, PublicUsagePanel, SeasonCoverage, YourTeam } from "../components/home/HomeSections";
 import { HOME_ABOUT, HOME_HEADLINE_MS, HOME_HEADLINES, HOME_LEAD, homeHeadlineAt } from "../shared/boot";
 import { cn } from "../components/cn";
+import { readBootLines, useHeroLines } from "../lib/heroLines";
 import { dateRange, place } from "../lib/format";
 
 /** The member's home team: their Control Point team (admin teams first), else the team they follow. */
@@ -77,42 +78,46 @@ export default function Home() {
   );
 }
 
-/** The headline a server first paint in `doc` shows (its data-line) and the hour it was read in, or null. */
-export function readBootHeadline(doc: Document, now: number): { line: number; hour: number } | null {
+/** The headline a server first paint in `doc` shows (its data-line, out of `count` lines) and the hour it was read in, or null. */
+export function readBootHeadline(doc: Document, now: number, count: number = HOME_HEADLINES.length): { line: number; hour: number } | null {
   const raw = doc.querySelector<HTMLElement>("#cs-boot-page h1")?.dataset.line ?? "";
   const line = /^\d+$/.test(raw) ? Number(raw) : -1;
-  return line >= 0 && line < HOME_HEADLINES.length ? { line, hour: Math.floor(now / HOME_HEADLINE_MS) } : null;
+  return line >= 0 && line < count ? { line, hour: Math.floor(now / HOME_HEADLINE_MS) } : null;
 }
 
-/** The first paint's headline, read before the app replaces that paint. */
-const BOOT_HEADLINE = typeof document === "undefined" ? null : readBootHeadline(document, Date.now());
+/** The first paint's headline, read before the app replaces that paint (out of the lines that paint carried). */
+const BOOT_HEADLINE = typeof document === "undefined" ? null : readBootHeadline(document, Date.now(), readBootLines(document)?.length);
 
-/** The headline to start on: in the hour the page loaded, the first paint's line (that HTML may have been
- *  rendered a moment earlier, or come from the offline cache); after that, the clock's. */
-export function startingHeadline(boot: { line: number; hour: number } | null, now: number): number {
-  return boot && boot.hour === Math.floor(now / HOME_HEADLINE_MS) ? boot.line : homeHeadlineAt(now);
+/** The headline to start on, out of `count` lines: in the hour the page loaded, the first paint's line (that HTML
+ *  may have been rendered a moment earlier, or come from the offline cache); after that, the clock's. */
+export function startingHeadline(boot: { line: number; hour: number } | null, now: number, count: number = HOME_HEADLINES.length): number {
+  return boot && boot.line < count && boot.hour === Math.floor(now / HOME_HEADLINE_MS) ? boot.line : homeHeadlineAt(now, count);
 }
 
-/** This hour's headline, changing on the hour while the page stays open. */
-export function useHomeHeadline(boot = BOOT_HEADLINE): { line: number; changed: boolean } {
-  const [line, setLine] = useState(() => startingHeadline(boot, Date.now()));
+/** This hour's headline out of `count` lines, changing on the hour while the page stays open. When the lines
+ *  themselves change (only without a first paint: they arrive from the API), it's the clock's line among the new ones. */
+export function useHomeHeadline(count: number = HOME_HEADLINES.length, boot = BOOT_HEADLINE): { line: number; changed: boolean } {
+  const [at, setAt] = useState(() => ({ count, line: startingHeadline(boot, Date.now(), count) }));
   const [tick, setTick] = useState(0);
+  const countRef = useRef(count);
+  countRef.current = count;
   useEffect(() => {
-    const t = setTimeout(() => { setLine(homeHeadlineAt(Date.now())); setTick((n) => n + 1); }, HOME_HEADLINE_MS - (Date.now() % HOME_HEADLINE_MS) + 50);
+    const t = setTimeout(() => { setAt({ count: countRef.current, line: homeHeadlineAt(Date.now(), countRef.current) }); setTick((n) => n + 1); }, HOME_HEADLINE_MS - (Date.now() % HOME_HEADLINE_MS) + 50);
     return () => clearTimeout(t);
   }, [tick]);
-  return { line, changed: tick > 0 };
+  return { line: at.count === count ? at.line : homeHeadlineAt(Date.now(), count), changed: tick > 0 };
 }
 
 /** The hero's headline: one H1 with this hour's line. Every line sits invisibly in the same grid cell, so the
  *  hero is always as tall as the longest line and the hourly change never moves the page. A change fades in
  *  (no motion under reduced motion); it isn't announced, as nothing new happened on the page. */
 function Headline() {
-  const { line, changed } = useHomeHeadline();
-  const [first, second] = HOME_HEADLINES[line];
+  const lines = useHeroLines();
+  const { line, changed } = useHomeHeadline(lines.length);
+  const [first, second] = lines[line];
   return (
     <div className="grid font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
-      {HOME_HEADLINES.map(([a, b], i) => (
+      {lines.map(([a, b], i) => (
         <span key={i} aria-hidden className="invisible [grid-area:1/1]">{a} <span className="block">{b}</span></span>
       ))}
       <h1 key={line} className={cn("[grid-area:1/1] font-semibold tracking-[-0.02em]", changed && "cs-headline-in")}>

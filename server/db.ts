@@ -1491,6 +1491,25 @@ CREATE TABLE owner_settings (
 );
 `,
   },
+  {
+    version: 55,
+    name: "home hero lines",
+    sql: `
+-- The home page's hero lines, set by the owner in the console (server/heroLines.ts): in order (position),
+-- a plain part and a part in the accent colour, each on or off. No row switched on: the built-in lines show.
+-- Who changed what is in owner_audit, with the old and new values.
+CREATE TABLE hero_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  position INTEGER NOT NULL,
+  plain TEXT NOT NULL,
+  accent TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX hero_lines_order ON hero_lines (position, id);
+`,
+  },
 ];
 
 export type Db = Client;

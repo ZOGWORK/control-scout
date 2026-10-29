@@ -38,6 +38,7 @@ let mode: Mode = "good";
 let auditFrom = 0;
 const calls: { key: string | undefined; packet: FactPacket }[] = [];
 let cp: Server;
+let whileWriting: (() => Promise<unknown>) | null = null;
 
 function answer(p: FactPacket) {
   const blurbs = p.teams.map((t) => ({ team: t.team, text: `${t.name} sits at #${t.rank} with a rating of ${t.rating.toFixed(1)}.` }));
@@ -98,9 +99,13 @@ beforeAll(async () => {
   cp = createServer((req, res) => {
     let body = "";
     req.on("data", (c) => { body += c; });
-    req.on("end", () => {
+    req.on("end", async () => {
       const packet = JSON.parse(body || "{}");
       calls.push({ key: req.headers["x-internal-key"] as string | undefined, packet });
+      // Something that happens while Bruno is writing (once): e.g. the daily refresh updating the week.
+      const d = whileWriting;
+      whileWriting = null;
+      if (d) await d();
       if (req.url !== "/internal/bruno/power-rankings") { res.writeHead(404).end("{}"); return; }
       if (mode === "error") { res.writeHead(502, { "Content-Type": "application/json" }).end('{"error":"ai_failed"}'); return; }
       if (mode === "malformed") { res.writeHead(200, { "Content-Type": "application/json" }).end('{"intro": 5, "blurbs": "nope"}'); return; }
@@ -141,6 +146,7 @@ beforeEach(async () => {
   process.env.OWNER_EMAILS = "owner@example.com";
   process.env.APP_URL = "https://controlscout.org";
   mode = "good";
+  whileWriting = null;
   calls.length = 0;
   for (const t of ["power_rankings_generated", "power_rankings_refreshes", "feature_flags"]) await run(`DELETE FROM ${t}`);
   auditFrom = Number((await get<{ n: number }>("SELECT COALESCE(MAX(id), 0) n FROM owner_audit"))!.n);
@@ -748,5 +754,53 @@ describe("the daily refresh", () => {
     expect((await call("GET", "/api/owner/power-rankings", { cookie: ownerCookie })).json.daily.enabled).toBe(false);
     expect((await call("PUT", "/api/owner/flags/dailyPowerRankings", { cookie: ownerCookie, body: { enabled: true } })).status).toBe(200);
     expect((await call("GET", "/api/owner/power-rankings", { cookie: ownerCookie })).json.daily.enabled).toBe(true);
+  });
+});
+
+describe("Regenerate: the words and the numbers come from one snapshot", () => {
+  const path = `/api/owner/power-rankings/${S}/2026-w43`;
+  const regen = () => call("POST", `${path}/regenerate`, { cookie: ownerCookie, body: { confirm: true } });
+  /** Each blurb's rating ("… a rating of 470.0.") against the rating its own stat line shows on the page. */
+  const agree = async () => {
+    const w = (await api("/api/power-rankings/2026-w43")).week!;
+    for (const e of w.entries) {
+      const said = /rating of (-?\d+(?:\.\d+)?)/.exec(e.blurbHtml)?.[1];
+      expect(Number(said), `team ${e.team}`).toBeCloseTo(e.stats!.rating!, 1);
+    }
+    return w;
+  };
+
+  it("after the live numbers move, Regenerate writes from the frozen snapshot and the page keeps that snapshot's numbers", async () => {
+    await autoPowerRankingsTick(FRI);
+    const before = (await getGenerated(S, "2026-w43"))!;
+    await rate([...TEAMS].reverse()); // the live ranking turns upside down after the week went out
+    expect((await regen()).status).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[1].packet).toEqual(calls[0].packet); // Bruno got the stored facts, not today's
+    const after = (await getGenerated(S, "2026-w43"))!;
+    expect(after.packet).toEqual(before.packet); // the snapshot itself is untouched
+    expect(after.rev).toBe(before.rev + 1);
+    const w = await agree();
+    expect(w.entries.map((e) => e.team)).toEqual(TEAMS.slice(0, 25)); // the snapshot's order, not today's
+    // The audit row says what the regeneration replaced and what it set.
+    const row = (await all<{ old_value: string; new_value: string }>("SELECT old_value, new_value FROM owner_audit WHERE id > ? AND action = 'powerRankings.regenerate'", [auditFrom]))[0];
+    expect(JSON.parse(row.old_value)).toMatchObject({ rev: String(before.rev), bruno: 25 });
+    expect(JSON.parse(row.new_value)).toMatchObject({ rev: String(after.rev), bruno: 25 });
+  });
+
+  it("a daily refresh that lands while Bruno is writing wins: the regeneration is refused, never old words over new numbers", async () => {
+    await autoPowerRankingsTick(FRI);
+    await rate([...TEAMS.slice(0, 3), 7004, 7003, ...TEAMS.slice(5)]); // 7003 and 7004 swap places
+    whileWriting = () => dailyRefreshTick(SAT0 + 60_000);
+    const r = await regen();
+    expect(r.status).toBe(409);
+    const g = (await getGenerated(S, "2026-w43"))!;
+    // The refresh's snapshot and its blurbs, together.
+    expect(g.updated).toBe("2026-10-24");
+    expect(g.packet.teams.slice(3, 5).map((t) => t.team)).toEqual([7004, 7003]);
+    expect(g.entries.slice(3, 5).map((e) => e.team)).toEqual([7004, 7003]);
+    await agree();
+    const audit = await all<{ action: string; result: string }>("SELECT action, result FROM owner_audit WHERE id > ? ORDER BY id", [auditFrom]);
+    expect(audit).toEqual([{ action: "powerRankings.regenerate", result: "refused: the week changed while Bruno was writing (an edit or the daily check); that version was kept" }]);
   });
 });

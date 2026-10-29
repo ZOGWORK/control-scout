@@ -30,6 +30,8 @@ export const PRIVATE_TABLES = [
   "discord_follows", "discord_posts",
   // The weekly email digest (migration 50): who turned it on, their unsubscribe link, and the per-week send log.
   "digest_prefs", "digest_sends",
+  // The home page's hero lines (migration 55): owner settings, like feature_flags; who changed them is in owner_audit.
+  "hero_lines",
   // The owner console (migration 56): abuse counts per network range, and the owner's settings.
   "abuse_daily", "owner_settings",
 ];
