@@ -66,6 +66,14 @@ export interface CoinFlipRadar {
   decided: CoinFlipRow[];
 }
 
+/** Whether today has any coin flip to show, still to play or decided. With none (no event on today, or no
+ *  call in the band) the section stays out of the page rather than saying so. */
+export const hasFlips = (r: Pick<CoinFlipRadar, "upcoming" | "decided">) => r.upcoming.length > 0 || r.decided.length > 0;
+
+/** The meta tag /events' first HTML carries (server/seo.ts): "1" when today has coin flips, "0" when it has none.
+ *  Read once at load, so the radar holds no place on a day it would only take away again (a layout shift). */
+export const COIN_FLIPS_META = "cs-coin-flips";
+
 export const inBand = (p: number) => p >= COIN_FLIP_BAND.lo && p <= COIN_FLIP_BAND.hi;
 
 /** The venue's calendar date a match is on: an event-local wall time's own date, else its instant read in the zone. */

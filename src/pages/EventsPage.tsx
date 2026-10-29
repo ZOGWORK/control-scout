@@ -9,7 +9,7 @@ import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import type { EventListItem } from "../shared/api";
 import { PageHeader, EmptyState } from "../components/page";
-import { Async } from "../components/states";
+import { Async, LoadingBlock } from "../components/states";
 import { Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overlay";
@@ -92,7 +92,9 @@ export default function EventsPage() {
       {season === current && <CoinFlipRadarSection className="mb-8" />}
       {/* The filter bar stays up while loading or on an error, so another season can always be picked. */}
       <FilterBar season={season} onSeason={(s) => set({ season: String(s), from: null, to: null }, false)} events={state.data?.events ?? []} {...{ region, type, status, from, to, q, video, listQ, onQ, set, active }} onClear={clear} />
-      <Async state={state} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
+      {/* The placeholder is a screen tall, so the footer starts below the fold: the list arriving pushes nothing
+          a reader can see (it used to shove a footer in view down the screen, the page's layout shift on a phone). */}
+      <Async state={state} loading={<div className="min-h-[100svh]"><LoadingBlock rows={8} label="Loading events" /></div>} empty={(d) => !d.events.length && <EmptyState icon={CalendarDays} title={`No events listed for ${seasonLabel(season)} yet`} />}>
         {(d) => <Weeks events={d.events} {...{ region, type, status, from, to, video }} q={listQ} onClear={clear} />}
       </Async>
     </div>
