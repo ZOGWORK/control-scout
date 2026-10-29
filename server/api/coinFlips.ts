@@ -164,6 +164,13 @@ export function radarEtag(r: CoinFlipRadar): string {
   return `"cf-${createHash("sha1").update(`${r.generatedAt}|${days.join(",")}`).digest("base64url").slice(0, 20)}"`;
 }
 
+/** The stored radar as it stands now, or null when there's none fresh: never gathers (a page's first HTML asks,
+ *  server/seo.ts coinFlipsHint, and mustn't start the gathering work for a hint). */
+export async function storedCoinFlips(now = Date.now()): Promise<CoinFlipRadar | null> {
+  const stored = await kvGet<CoinFlipRadar>(KV_KEY).catch(() => null);
+  return stored && now - Date.parse(stored.generatedAt) < STALE_MS ? current(stored, now) : null;
+}
+
 /** What GET /api/home/coin-flips answers. */
 export async function coinFlips(now = Date.now()): Promise<CoinFlipRadar> {
   const fresh = (r: CoinFlipRadar | null): r is CoinFlipRadar => !!r && now - Date.parse(r.generatedAt) < STALE_MS;

@@ -114,6 +114,8 @@ describe("page head in the first HTML", () => {
     const flip = { season: 2025, code: "USNJNOM3", key: "qual:0:1", label: "Q1", eventName: "P1-4 PM Northern League Meet", place: "Ramsey, NJ", timezone: zone,
       day: localDate(Date.now(), zone)!, time: null, startsAt: null, red: [1, 2], blue: [3, 4], pRed: 0.5, tier: "moderate" as const, kind: "now" as const, played: false, result: null };
     const stored = (upcoming: typeof flip[]) => kvSet(RADAR_KEY, { generatedAt: new Date().toISOString(), band: { lo: 0.45, hi: 0.55 }, events: 1, calls: 1, thin: 0, tallies: [], upcoming, decided: [] });
+    // No radar stored yet: no tag (a page load never starts gathering one).
+    expect(await coinFlipsHint("/events")).toBe("");
     await stored([]);
     expect(await coinFlipsHint("/events")).toBe('<meta name="cs-coin-flips" content="0" />');
     await stored([flip]);
