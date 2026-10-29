@@ -1,9 +1,12 @@
 // Section 06: lab notes. What was tried on the shared engine, and what made the cut.
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "../cn";
 import { HBars } from "./charts";
+import { E2 } from "./math";
 import { Figure, Reveal, ScrollX } from "./ui";
+
+const n0 = (x: number) => x.toLocaleString("en-US");
 
 type Verdict = "ship" | "no" | "off";
 const TAG: Record<Verdict, { text: string; cls: string }> = {
@@ -76,7 +79,7 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   {
     v: "ship", wide: true, title: "Prediction Engine 2.0: a learned win-probability correction",
     body: "A small logistic model that adjusts the score-gap probability for match context (where points come from, lopsided alliances, experience, time away, playoffs) and three track-record signals per robot. Replayed over 2025–26, which it never trained on, winner accuracy went from 72.68% to 74.65%.",
-    more: "Fitted on 2023–24 and 2024–25, chosen on Jan–Feb 2025, calibrated on Mar–May 2025, frozen before 2025–26 was scored. On 37,140 decided 2025–26 matches: +1.98 points (95% range +1.62 to +2.32), Brier 0.1789 → 0.1684, log loss 0.537 → 0.510. Predicted scores are untouched. Costs: 10-bin calibration error rose from 1.02% to 1.26%, May 2026 lost 0.99 points on 810 matches and July 1.71 points on 234, and the gain is smallest for strong favourites (+0.22 points). The track-record signals add only +0.10 points of the gain on their own; most of it comes from the match context.",
+    more: `Fitted on 2023–24 and 2024–25, chosen on Jan–Feb 2025, calibrated on Mar–May 2025, frozen before 2025–26 was scored. On ${n0(E2.nonTies)} decided 2025–26 matches (the ${n0(E2.matches)} replayed, less ${n0(E2.matches - E2.nonTies)} ties): +1.98 points (95% range +1.62 to +2.32), Brier 0.1789 → 0.1684, log loss 0.537 → 0.510. Predicted scores are untouched. Costs: 10-bin calibration error rose from 1.02% to 1.26%, May 2026 lost 0.99 points on 810 matches and July 1.71 points on 234, and the gain is smallest for strong favourites (+0.22 points). The track-record signals add only +0.10 points of the gain on their own; most of it comes from the match context.`,
   },
   {
     v: "ship", title: "Order-free population baseline",
@@ -120,6 +123,30 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
   },
 ];
 
+/** The public repository the lab notes' reports live in. */
+export const REPO_URL = "https://github.com/ZOGWORK/control-scout";
+/** A report path the notes cite (docs/…), without the sentence's closing full stop. */
+const DOC_PATH = /\bdocs\/[A-Za-z0-9_./-]*[A-Za-z0-9_/-]/g;
+
+/** The repository's page for a cited path: a file (with an extension) opens as a file, a folder as a folder. */
+export function repoUrl(path: string): string {
+  const p = path.replace(/\/+$/, "");
+  return `${REPO_URL}/${/\.[A-Za-z0-9]+$/.test(p) ? "blob" : "tree"}/main/${p}`;
+}
+
+/** Text with every cited docs/ path as a link to it in the public repository. */
+export function RepoLinks({ text }: { text: string }) {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(DOC_PATH)) {
+    out.push(text.slice(last, m.index));
+    out.push(<a key={m.index} href={repoUrl(m[0])} target="_blank" rel="noopener noreferrer" className="font-mono text-foreground underline decoration-border underline-offset-2 hover:decoration-current">{m[0]}</a>);
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return <>{out}</>;
+}
+
 export function Verdicts() {
   return (
     <div className="mx-auto my-8 grid max-w-5xl gap-3 md:grid-cols-2">
@@ -142,8 +169,8 @@ function Card({ note, delay }: { note: (typeof NOTES)[number]; delay: number }) 
           className="inline-flex min-h-9 w-fit items-center gap-1 rounded-lg border border-border bg-muted/60 px-3 font-mono text-xs font-semibold text-foreground transition-colors hover:bg-muted">
           {open ? "Hide details" : "Details"} <ChevronRight className={cn("size-3.5 transition-transform duration-300", open && "rotate-90")} />
         </button>
-        <div id={id} className="hiw-expand" data-open={open ? "" : undefined} aria-hidden={!open}>
-          <div><p className="pt-1 text-[0.8438rem] leading-relaxed text-muted-foreground">{note.more}</p></div>
+        <div id={id} className="hiw-expand" data-open={open ? "" : undefined} aria-hidden={!open} inert={!open}>
+          <div><p className="pt-1 text-[0.8438rem] leading-relaxed text-muted-foreground"><RepoLinks text={note.more} /></p></div>
         </div>
       </article>
     </Reveal>

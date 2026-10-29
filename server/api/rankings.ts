@@ -11,6 +11,7 @@ import {
   RANKED_MIN_MATCHES, RANKINGS_PAGE_SIZE, WEEK_MS, inPlaces, movementOf, placeKey, rankTeams, weekStartMs,
   type PlaceFilter, type RankingPlaces, type RankingRow, type RankingsResponse,
 } from "../../src/shared/rankings.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 
 interface TeamRow { rank: number; team: number; rating: number; name: string | null; state: string | null; country: string | null }
 
@@ -37,24 +38,31 @@ registerCache("World rankings", () => { listMemo.clear(); snapMemo.clear(); page
 
 const teamCols = "t.name, t.state, t.country";
 
+// Teams without a public page (src/shared/teamPages.ts: placeholders like "Off-Season Demo Team") are never
+// ranked: the live list leaves them out before ranking, and a stored week is renumbered without them (in its
+// stored order), so the teams below move up a place and no rank is skipped.
+const ranked = teamPageSql("s.team", "t.name"), rankedNoJoin = teamPageSql("s.team");
+
 /** The live ranking: every team with a rating from 3+ rated matches this season (team_season_stats). */
 async function liveList(season: number): Promise<TeamRow[]> {
   return listMemo(`${await dataVersion()}|live|${season}`, async () => rankTeams(await all<TeamRow>(
     `SELECT s.team, s.rating_np rating, ${teamCols} FROM team_season_stats s LEFT JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.rating_np IS NOT NULL AND s.rating_matches >= ?`, [season, RANKED_MIN_MATCHES])));
+     WHERE s.season = ? AND s.rating_np IS NOT NULL AND s.rating_matches >= ? AND ${ranked}`, [season, RANKED_MIN_MATCHES])));
 }
 
-/** A snapshot week's ranking, with team names (as stored then: rank and rating; names as now). */
+/** A snapshot week's ranking, with team names (as stored then: order and rating; names as now). */
 async function weekList(season: number, week: string): Promise<TeamRow[]> {
   return listMemo(`${await dataVersion()}|week|${season}|${week}`, async () => (await all<TeamRow>(
-    `SELECT r.team, r.rank, r.rating, ${teamCols} FROM ranking_snapshots r LEFT JOIN teams t ON t.number = r.team
-     WHERE r.season = ? AND r.week = ? ORDER BY r.rank`, [season, week])).map((r) => ({ ...r, rank: Number(r.rank), team: Number(r.team), rating: Number(r.rating) })));
+    `SELECT s.team, s.rating, ${teamCols} FROM ranking_snapshots s LEFT JOIN teams t ON t.number = s.team
+     WHERE s.season = ? AND s.week = ? AND ${ranked} ORDER BY s.rank`, [season, week])).map((r, i) => ({ ...r, rank: i + 1, team: Number(r.team), rating: Number(r.rating) })));
 }
 
-/** A week's ranks and ratings by team (a written week never changes). */
-function snapshot(season: number, week: string) {
-  return snapMemo(`${season}|${week}`, async () => new Map((await all<{ team: number; rank: number; rating: number }>(
-    "SELECT team, rank, rating FROM ranking_snapshots WHERE season = ? AND week = ?", [season, week])).map((r) => [Number(r.team), { rank: Number(r.rank), rating: Number(r.rating) }])));
+/** A week's ranks and ratings by team, numbered as weekList numbers them. A written week's rows never change, but
+ *  which teams count does (a team renamed to a placeholder by a sync), so the key carries the data version as the
+ *  live list's does: both always agree on who is ranked. */
+async function snapshot(season: number, week: string) {
+  return snapMemo(`${await dataVersion()}|${season}|${week}`, async () => new Map((await all<{ team: number; rating: number }>(
+    `SELECT s.team, s.rating FROM ranking_snapshots s WHERE s.season = ? AND s.week = ? AND ${rankedNoJoin} ORDER BY s.rank`, [season, week])).map((r, i) => [Number(r.team), { rank: i + 1, rating: Number(r.rating) }])));
 }
 
 /** The season's snapshot weeks, newest first. */
