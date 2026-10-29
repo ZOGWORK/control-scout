@@ -15,6 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
+import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
@@ -148,14 +149,26 @@ async function teamMeta(n: number): Promise<PageMeta> {
   // The team API's test (teamProfile): a team we've never seen is a 404 there and here.
   if (!t && !(await teamKnown(n))) return NOT_FOUND;
   if (!hasTeamPage(n, t?.name)) return NOT_FOUND; // a placeholder (src/shared/teamPages.ts): the API answers 404 too
-  const [s, seasons, events] = await Promise.all([
+  const [s, seasons, listed, recRows] = await Promise.all([
     get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number; losses: number; ties: number; matches: number }>(
       "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties, matches FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]),
     get<{ n: number }>("SELECT COUNT(DISTINCT season) n FROM team_season_stats WHERE team = ? AND matches > 0", [n]),
-    all<{ season: number; code: string; name: string; start: string | null; rank: number | null; wins: number | null; losses: number | null; ties: number | null }>(
-      `SELECT e.season, e.code, e.name, e.start, et.rank, et.wins, et.losses, et.ties FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-       WHERE et.team = ? AND ${ATTENDED} ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n]),
+    // Not a finished league meet with no results: a league lists every league team at every meet (the team page's rule).
+    all<{ season: number; code: string; name: string; start: string | null; type: string | null; rank: number | null; meet_rank: number | null; wins: number | null; losses: number | null; ties: number | null }>(
+      `SELECT e.season, e.code, e.name, e.start, e.type, et.rank, r.rank meet_rank, et.wins, et.losses, et.ties
+       FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
+       LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team AND e.type = 'LeagueMeet'
+       WHERE et.team = ? AND ${ATTENDED} AND NOT (COALESCE(e.type, '') = 'LeagueMeet' AND COALESCE(e.end, e.start, '9999') < ?
+         AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
+       ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n, new Date().toISOString().slice(0, 10)]),
+    // Each event's record from its matches, playoffs included (src/shared/eventRecord.ts), as the team page shows it.
+    all<any>(recordSql("mt.team = ?"), [n]),
   ]);
+  const recs = new Map(recRows.map((r) => [`${r.season}|${r.code}`, recordOf(r)]));
+  const events = listed.map((e) => {
+    const rec = recs.get(`${e.season}|${e.code}`);
+    return { ...e, rank: e.type === "LeagueMeet" ? e.meet_rank : e.rank, wins: rec?.wins ?? null, losses: rec?.losses ?? null, ties: rec?.ties ?? null };
+  });
   const name = t?.name?.trim() || null;
   const heading = teamHeading(n, name);
   const where = place(t?.city, t?.state, t?.country === "USA" ? null : t?.country);

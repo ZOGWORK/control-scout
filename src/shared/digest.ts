@@ -2,7 +2,7 @@
 // the server. The email itself is built on the server only (server/digest/).
 
 /** The one line under the Settings switch. */
-export const DIGEST_DESCRIPTION = "One email on Mondays with your followed teams' results, prediction check-in, and upcoming events. No email if there's nothing to report.";
+export const DIGEST_DESCRIPTION = "One email a week with your followed teams' results, prediction check-in, and upcoming events. No email if there's nothing to report.";
 
 /** GET /api/digest (signed in). */
 export interface DigestStatus {

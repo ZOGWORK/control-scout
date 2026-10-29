@@ -84,7 +84,7 @@ describe("compareBrief: ties", () => {
   });
   it("a gap of exactly the threshold is a lead", () => {
     const s = compareBrief(view([team(1, 10, [ev("E1", "2026-01-01", 51)]), team(2, 10, [ev("E2", "2026-01-01", 50)])]));
-    expect(one(s, "Overall").text).toMatch(/^1 adds an estimated 1 more points/);
+    expect(one(s, "Overall").text).toMatch(/^1 adds an estimated 1 more point per match/);
   });
   it("names every team level at the top of three, and all level", () => {
     const s = compareBrief(view([team(1, 10, [ev("E", "2026-01-01", 60)]), team(2, 10, [ev("E", "2026-01-01", 59.5)]), team(3, 10, [ev("E", "2026-01-01", 40)])]));
