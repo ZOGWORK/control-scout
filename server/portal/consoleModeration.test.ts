@@ -248,6 +248,12 @@ describe("analytics and the \"in use\" choice", () => {
     const pub = await call("GET", "/api/public-usage");
     expect(pub.json).toMatchObject({ status: "available", totals: { pageViews: 1, sessionStarts: 1 } });
 
+    // Browsers and shared caches may keep an answer under a minute and never serve it stale, so hiding reaches everyone in time.
+    const cc = (await fetch(`${base}/api/public-usage`)).headers.get("cache-control") ?? "";
+    expect(cc).toMatch(/must-revalidate/);
+    expect(cc).not.toMatch(/stale-while-revalidate/);
+    expect(Number(/max-age=(\d+)/.exec(cc)?.[1]) + 10).toBeLessThanOrEqual(60);
+
     await call("PUT", "/api/owner/settings/public-usage", { cookie: ownerCookie, body: { enabled: false, confirm: true } });
     expect((await call("GET", "/api/public-usage")).json.reason).toBe("not-published");
     a = await call("GET", "/api/owner/analytics", { cookie: ownerCookie });
