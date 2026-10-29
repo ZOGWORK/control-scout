@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.4.3 — 2026-10-29
+
+The owner console is now organised the way it's run: health first, then data, predictions, rankings, features, feedback and analytics, with an audit log that records every change's old and new value and can't be edited.
+
+### Highlights
+- [report] The owner console opens on the site's health at a glance
+- [report] Every switch flip and data action is logged with its old and new value
+- [report] The audit log can't be edited or deleted, not even from the console
+- [fixes] The console shows counts, never your devices or workspace members' names
+
+### Owner console
+- **One click away.** The owner's own sidebar has an Owner console button right above their name (an icon in the collapsed rail); nobody else ever sees it. It replaces the Owner row in the menu.
+- **One tab per job.** Overview, Data & sync, Predictions & ledger, Rankings & content, Features, Feedback & errors, Analytics, Accounts, Photo storage and Audit log. Links to the old tabs (`?panel=users`, `?panel=flags` …) open the section that holds them now.
+- **Health first.** Overview opens on whether the site is up, when data last synced (amber once it's more than six hours old), the engine version in production, the live ledger's headline, the offline pack manifest's date and version, and the error reports and server errors of the last day and week.
+- **An audit log that keeps its word.** Every switch flip, inbox move and stream change records the value it replaced and the value it set, shown as "on → off". The database refuses to delete a row or rewrite one; the only thing a row ever takes later is a data job's result.
+- **403 for everyone else.** Every owner route, read or write, known or not, answers 403 to anyone who isn't a signed-in owner, before any handler runs.
+- **Less personal data on screen.** An account shows how many devices are signed in, not which browsers; a read-only workspace shows how many members and admins can read it, not their names. (#335)
+
 ## 1.4.2 — 2026-10-29
 
 Launch fixes: every team's event rows now add up to its season record, old power-rankings weeks stay as they were written, and the labels say exactly what each number is.

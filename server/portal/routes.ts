@@ -1,6 +1,6 @@
-// /api/owner/*: the owner portal's API (the /owner page). Only for a signed-in account whose email is
-// in OWNER_EMAILS (server/owner.ts); everyone else gets the same 404 as any unknown API path, so the
-// portal's existence isn't revealed. Changes need JSON bodies (CSRF: the session cookie is SameSite=Lax
+// /api/owner/*: the owner console's API (the /owner page). Only for a signed-in account whose email is
+// in OWNER_EMAILS (server/owner.ts); everyone else, signed in or not, gets 403 on every path under it
+// (known or not), before any handler runs. Changes need JSON bodies (CSRF: the session cookie is SameSite=Lax
 // and a cross-site form can't send JSON without a preflight we never allow), and every change is
 // written to the audit log.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
@@ -37,10 +37,12 @@ const num = (x: unknown, fallback: number, min: number, max: number) => {
 
 export function ownerRouter(): Router {
   const r = express.Router();
-  // The gate: 404 (as for any unknown path) unless the signed-in account is an owner.
+  // The gate: 403 for anyone who isn't a signed-in owner, on every path (the owner's brief: a non-owner
+  // gets 403, direct URL or not). The feature toggles never apply here, so switching a feature off can't
+  // lock the owner out of the console.
   r.use((req, res, next) => {
     ownerOf(req).then((u) => {
-      if (!u) { res.status(404).json({ error: "Not found" }); return; }
+      if (!u) { res.status(403).json({ error: "forbidden" }); return; }
       (req as Request & { owner: User }).owner = u;
       next();
     }, next);
@@ -81,8 +83,8 @@ export function ownerRouter(): Router {
     const name = req.params.name;
     if (!isFlag(name)) { res.status(404).json({ error: "No such flag" }); return; }
     if (typeof req.body?.enabled !== "boolean") { res.status(400).json({ error: "Send {\"enabled\": true | false}" }); return; }
-    await setFlag(name, req.body.enabled, actor(req));
-    await recordAudit(actor(req), "flag.set", { flag: name, enabled: req.body.enabled });
+    const was = await setFlag(name, req.body.enabled, actor(req));
+    await recordAudit(actor(req), "flag.set", { flag: name, enabled: req.body.enabled }, null, { from: was, to: req.body.enabled });
     return { flags: await flagDetails() };
   }));
 
@@ -94,8 +96,8 @@ export function ownerRouter(): Router {
     if (!/^[A-Z0-9_-]{1,40}$/.test(code)) { res.status(400).json({ error: "Not an event code" }); return; }
     if (typeof req.body?.url !== "string") { res.status(400).json({ error: "Send {\"url\": \"https://youtube.com/…\"} (empty to remove)" }); return; }
     try {
-      const stream = await setEventStream(season, code, req.body.url, actor(req));
-      await recordAudit(actor(req), stream ? "stream.set" : "stream.remove", { season, code, ...(stream ? { videoId: stream.videoId } : {}) });
+      const { stream, was } = await setEventStream(season, code, req.body.url, actor(req));
+      await recordAudit(actor(req), stream ? "stream.set" : "stream.remove", { season, code, ...(stream ? { videoId: stream.videoId } : {}) }, null, { from: was, to: stream?.videoId ?? null });
       return { stream, streams: await listStreams() };
     } catch (e) {
       if (e instanceof StreamError) { res.status(e.message.startsWith("No event") ? 404 : 400).json({ error: e.message }); return; }
@@ -112,10 +114,10 @@ export function ownerRouter(): Router {
     const id = num(req.params.id, 0, 0, Number.MAX_SAFE_INTEGER);
     const status = req.body?.status;
     if (!isFeedbackStatus(status)) { res.status(400).json({ error: "status must be open, resolved or archived" }); return; }
-    const m = await setFeedbackStatus(id, status);
-    if (!m) { res.status(404).json({ error: "No such message" }); return; }
-    await recordAudit(actor(req), "feedback.status", { id, status });
-    return { message: m };
+    const out = await setFeedbackStatus(id, status);
+    if (!out) { res.status(404).json({ error: "No such message" }); return; }
+    await recordAudit(actor(req), "feedback.status", { id, status }, null, { from: out.was, to: status });
+    return { message: out.message };
   }));
 
   r.get("/errors", h(async (req) => ({ reports: await listErrorReports(num(req.query.limit, 50, 1, 200)) })));

@@ -1,7 +1,8 @@
-// The owner portal (/owner): how Control Scout is doing and the switches to run it. Owner only:
-// OwnerRoute draws it for the account /api/auth/me marks isOwner, and every /api/owner/* call is
-// checked on the server (404 for anyone else). One panel at a time (?panel=…), each loading its
-// own data when opened.
+// The owner console (/owner): how Control Scout is doing and the controls to run it, one tab per section
+// of the owner's brief (Overview first). Owner only: OwnerRoute draws it for the account /api/auth/me
+// marks isOwner, and every /api/owner/* call is checked on the server (403 for anyone else). One section
+// at a time (?panel=…), each loading its own data when opened; the old per-panel links still land on the
+// section that now holds that panel (PANEL_ALIASES).
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -40,20 +41,21 @@ const WhatsNewContent = lazy(() => import("../components/WhatsNewContent"));
 
 const PANELS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "users", label: "Users", icon: UserRound },
-  { id: "usage", label: "Usage", icon: Activity },
-  { id: "predictions", label: "Predictions", icon: Target },
-  { id: "flags", label: "Switches", icon: ToggleRight },
-  { id: "feedback", label: "Feedback", icon: Inbox },
-  { id: "errors", label: "Errors", icon: Bug },
-  { id: "ops", label: "Data jobs", icon: DatabaseZap },
-  { id: "storage", label: "Storage", icon: HardDrive },
-  { id: "powerRankings", label: "Power rankings", icon: Trophy },
-  { id: "streams", label: "Streams", icon: MonitorPlay },
-  { id: "orphaned", label: "Orphaned spaces", icon: Unlink },
+  { id: "data", label: "Data & sync", icon: DatabaseZap },
+  { id: "predictions", label: "Predictions & ledger", icon: Target },
+  { id: "content", label: "Rankings & content", icon: Trophy },
+  { id: "features", label: "Features", icon: ToggleRight },
+  { id: "feedback", label: "Feedback & errors", icon: Inbox },
+  { id: "analytics", label: "Analytics", icon: Activity },
+  { id: "accounts", label: "Accounts", icon: UserRound },
+  { id: "storage", label: "Photo storage", icon: HardDrive },
   { id: "audit", label: "Audit log", icon: ScrollText },
-  { id: "whatsNew", label: "What's new", icon: Megaphone },
 ] as const;
+/** Links made before the console grouped its panels into sections: each opens the section that holds it. */
+const PANEL_ALIASES: Record<string, string> = {
+  ops: "data", users: "accounts", orphaned: "accounts", usage: "analytics", flags: "features", errors: "feedback",
+  powerRankings: "content", streams: "content", whatsNew: "content",
+};
 type PanelId = (typeof PANELS)[number]["id"];
 
 /** Chart colours, validated as a pair for each theme (gold, then blue). */
@@ -66,12 +68,16 @@ const bytes = (b: number | null | undefined) => (b == null ? "—" : fmtBytes(b)
 export default function OwnerPage() {
   useTitle("Owner");
   const [sp, setSp] = useSearchParams();
-  const panel = (PANELS.find((p) => p.id === sp.get("panel"))?.id ?? "overview") as PanelId;
+  const asked = sp.get("panel") ?? "";
+  const panel = (PANELS.find((p) => p.id === (PANEL_ALIASES[asked] ?? asked))?.id ?? "overview") as PanelId;
   const go = (id: string) => setSp((p) => { const n = new URLSearchParams(p); if (id === "overview") n.delete("panel"); else n.set("panel", id); return n; }, { replace: true });
   // Counts for the tabs (what's waiting), from the overview every panel shares.
   const overview = useApi<OwnerOverview>("/api/owner/overview");
   const o = overview.data;
-  const badge: Partial<Record<PanelId, number>> = o ? { feedback: o.inbox.openFeedback, errors: o.inbox.errorReports, orphaned: o.orphanedWorkspaces ?? 0 } : {};
+  const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
+    feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
+    accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
+  } : {};
   // Refresh: every owner request on screen loads again, and the open panel starts afresh (panels that read on open).
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,7 +89,7 @@ export default function OwnerPage() {
   };
   return (
     <div className={CHART_VARS}>
-      <PageHeader eyebrow="Owner" title="Owner console" description="Every account, workspace, switch and report: how Control Scout is doing, and the controls to run it. Only you can see this page."
+      <PageHeader eyebrow="Owner" title="Owner console" description="Health, data, predictions, rankings, features, feedback and every action taken: how Control Scout is doing, and the controls to run it. Only you can see this page."
         actions={<Button variant="outline" onClick={refresh} disabled={refreshing} className="max-sm:h-10"><RefreshCw className={cn(refreshing && "animate-spin")} /> Refresh</Button>} />
       {panel !== "storage" && <StorageBanner onOpen={() => go("storage")} />}
       <Tabs value={panel} onValueChange={go}>
@@ -91,25 +97,27 @@ export default function OwnerPage() {
           {PANELS.map((p) => (
             <TabsTrigger key={p.id} value={p.id} className="shrink-0 max-sm:h-10">
               <p.icon aria-hidden />{p.label}
-              {!!badge[p.id] && <Badge variant={p.id === "errors" ? "destructive" : "secondary"} className="ml-1 tabular-nums" aria-label={`${badge[p.id]} waiting`}>{badge[p.id]}</Badge>}
+              {badges[p.id]?.filter((b) => b.n > 0).map((b) => (
+                <Badge key={b.what} variant={b.urgent ? "destructive" : "secondary"} className="ml-1 tabular-nums" aria-label={`${b.n} ${b.what}`}>{b.n}</Badge>
+              ))}
             </TabsTrigger>
           ))}
         </TabsList>
         <div key={refreshKey}>
           <TabsContent value="overview"><OverviewPanel onOpen={go} /></TabsContent>
-          <TabsContent value="users"><UsersPanel /></TabsContent>
-          <TabsContent value="usage"><UsagePanel /></TabsContent>
+          <TabsContent value="data"><OpsPanel /></TabsContent>
           <TabsContent value="predictions"><PredictionsPanel /></TabsContent>
-          <TabsContent value="flags"><FlagsPanel /></TabsContent>
-          <TabsContent value="feedback"><FeedbackPanel /></TabsContent>
-          <TabsContent value="errors"><ErrorsPanel /></TabsContent>
-          <TabsContent value="ops"><OpsPanel /></TabsContent>
+          <TabsContent value="content" className="space-y-8">
+            <PowerRankingsPanel onOpenSwitches={() => go("features")} />
+            <StreamsPanel />
+            <WhatsNewPanel />
+          </TabsContent>
+          <TabsContent value="features"><FlagsPanel /></TabsContent>
+          <TabsContent value="feedback" className="space-y-8"><FeedbackPanel /><ErrorsPanel /></TabsContent>
+          <TabsContent value="analytics"><UsagePanel /></TabsContent>
+          <TabsContent value="accounts" className="space-y-8"><UsersPanel /><OrphanedPanel /></TabsContent>
           <TabsContent value="storage"><StoragePanel /></TabsContent>
-          <TabsContent value="powerRankings"><PowerRankingsPanel onOpenSwitches={() => go("flags")} /></TabsContent>
-          <TabsContent value="streams"><StreamsPanel /></TabsContent>
-          <TabsContent value="orphaned"><OrphanedPanel /></TabsContent>
           <TabsContent value="audit"><AuditPanel /></TabsContent>
-          <TabsContent value="whatsNew"><WhatsNewPanel /></TabsContent>
         </div>
       </Tabs>
     </div>
@@ -142,10 +150,11 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
     <Async state={state}>
       {(o) => (
         <>
+          <HealthSection o={o} onOpen={onOpen} />
           <Section title="People and data">
             <TileGrid cols={3}>
               <StatTile tone="accent" icon={Users} label="Accounts" value={int(o.accounts.total)} hint={`${int(o.accounts.active30d)} active in the last 30 days · ${int(o.accounts.new7d)} new this week`}
-                onClick={() => onOpen("users")} action="Show them" />
+                onClick={() => onOpen("accounts")} action="Show them" />
               <StatTile tone="violet" icon={Link2} label="Linked to Control Point" value={int(o.controlPointLinked)}
                 hint={o.accounts.total ? `${pct(o.controlPointLinked / o.accounts.total)} of accounts` : "No accounts yet"}
                 bar={o.accounts.total ? <Meter parts={[{ pc: (o.controlPointLinked / o.accounts.total) * 100, cls: "bg-violet-500" }]} /> : undefined} />
@@ -159,15 +168,14 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
             </TileGrid>
           </Section>
           <Section title="Waiting for you">
-            <TileGrid cols={o.orphanedWorkspaces != null ? 4 : 3}>
+            <TileGrid cols={3}>
               <StatTile tone="accent" icon={Inbox} label="Open feedback" value={int(o.inbox.openFeedback)} hint="Messages from the contact form" onClick={() => onOpen("feedback")} action="Show the inbox" />
-              <StatTile tone="amber" icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("errors")} action="Show them" />
+              <StatTile tone="amber" icon={Bug} label="Error reports" value={int(o.inbox.errorReports)} hint={o.inbox.unfiledErrors ? `${int(o.inbox.unfiledErrors)} not on GitHub yet` : "All filed on GitHub"} onClick={() => onOpen("feedback")} action="Show them" />
               {o.orphanedWorkspaces != null && (
                 <StatTile tone="violet" icon={Unlink} label="Orphaned spaces" value={int(o.orphanedWorkspaces)}
                   hint={o.orphanedWorkspaces ? "Read-only: deleted in Control Point, or no admin left" : "Every scout space has its workspace"}
-                  onClick={() => onOpen("orphaned")} action="Show them" />
+                  onClick={() => onOpen("accounts")} action="Show them" />
               )}
-              <StatTile tone="emerald" icon={ServerCog} label="Up for" value={uptime(o.health.uptimeSeconds)} hint={`Since ${when(o.health.startedAt)}`} />
             </TileGrid>
           </Section>
           {o.workspaces != null && <WorkspacesSection />}
@@ -184,6 +192,36 @@ function OverviewPanel({ onOpen }: { onOpen: (id: string) => void }) {
         </>
       )}
     </Async>
+  );
+}
+
+/** Hours after which the last data sync reads as late (the data cycle runs far more often). */
+const SYNC_LATE_HOURS = 6;
+
+/** The site's health at a glance: the first thing the console shows. Read-only. */
+function HealthSection({ o, onOpen }: { o: OwnerOverview; onOpen: (id: string) => void }) {
+  const h = o.health;
+  const syncLate = !h.dataAsOf || Date.now() - new Date(h.dataAsOf).getTime() > SYNC_LATE_HOURS * 3600e3;
+  const e = h.errors;
+  return (
+    <Section title="Health" description="Is the site up, is the data fresh, and what's in production right now.">
+      <TileGrid cols={3}>
+        <StatTile tone="emerald" icon={ServerCog} label="Site" value="Up" hint={`Answering for ${uptime(h.uptimeSeconds)} · release ${h.release ? h.release.slice(0, 7) : "development"}`} />
+        <StatTile tone={syncLate ? "amber" : "sky"} icon={RefreshCw} label="Last data sync" value={h.dataAsOf ? ago(h.dataAsOf) : "Never"}
+          hint={h.dataAsOf ? `${when(h.dataAsOf)}${syncLate ? ` · later than ${SYNC_LATE_HOURS} hours` : ""}` : "No sync has finished on this database"}
+          onClick={() => onOpen("data")} action="Data & sync" />
+        <StatTile tone="violet" icon={Gauge} label="Engine in production" value={`v${h.engineVersion}`} hint="The champion: what every prediction is served from" onClick={() => onOpen("predictions")} action="Predictions & ledger" />
+        <StatTile tone="accent" icon={Target} label={h.ledger?.kind === "backtest" ? "Ledger (replay until enough live calls)" : "Live ledger"}
+          value={h.ledger ? pct(h.ledger.accuracy) : "—"}
+          hint={h.ledger ? `${int(h.ledger.n)} ${h.ledger.kind === "live" ? "live calls" : "replayed matches"} · ${seasonLabel(h.ledger.season)}` : "The track record isn't built yet"}
+          onClick={() => onOpen("predictions")} action="Predictions & ledger" />
+        <StatTile tone="amber" icon={PackageOpen} label="Pack manifest" value={h.packManifest ? day(h.packManifest.builtAt) : "None"}
+          hint={h.packManifest ? `Version ${h.packManifest.version} · engine v${h.packManifest.engineVersion}${h.packManifest.dataAsOf ? ` · data as of ${day(h.packManifest.dataAsOf)}` : ""}` : "No pack built on this server"} />
+        <StatTile tone={e.server5xxToday ? "amber" : "emerald"} icon={AlertTriangle} label="Recent errors" value={`${int(e.server5xxToday)} server · ${int(e.reports24h)} app`}
+          hint={`Server errors today (UTC), distinct app errors in the last 24 h · this week: ${int(e.server5xx7d)} server, ${int(e.reports7d)} distinct app`}
+          onClick={() => onOpen("feedback")} action="Feedback & errors" />
+      </TileGrid>
+    </Section>
   );
 }
 
@@ -261,14 +299,8 @@ function UserSheet({ id, onClose }: { id: number | null; onClose: () => void }) 
                   ["Signs in with", d.signIns.length ? d.signIns.map(signInLabel).join(", ") : "—"],
                   ["Control Point account", d.controlPointAccount == null ? "Not linked" : <span className="font-mono">#{d.controlPointAccount}</span>],
                 ]} />
-                <div>
-                  <h3 className="mb-2 font-medium">Signed in on {d.sessions.length} {d.sessions.length === 1 ? "device" : "devices"}</h3>
-                  {d.sessions.length ? (
-                    <ul className="divide-y divide-border rounded-xl border border-border">
-                      {d.sessions.map((x, i) => <li key={i} className="px-3 py-2"><p className="truncate text-xs" title={x.device ?? undefined}>{x.device ?? "Unknown browser"}</p><p className="text-xs text-muted-foreground">Since {when(x.createdAt)} · until {day(x.expiresAt)}</p></li>)}
-                    </ul>
-                  ) : <p className="text-xs text-muted-foreground">No device is signed in right now.</p>}
-                </div>
+                <p className="text-sm"><span className="font-medium">Signed in on {int(d.sessions)} {d.sessions === 1 ? "device" : "devices"}</span>
+                  <span className="block text-xs text-muted-foreground">A count only: which browsers and devices isn't shown here.</span></p>
                 <div>
                   <h3 className="mb-2 font-medium">Saved to the account</h3>
                   {d.saved.length ? <p className="flex flex-wrap gap-1">{d.saved.map((x) => <Badge key={x.key} variant="outline" className="font-mono text-[11px]" title={`Changed ${when(new Date(x.updatedAt).toISOString())}`}>{x.key}</Badge>)}</p>
@@ -977,16 +1009,8 @@ function OrphanedPanel() {
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                   <div><dt className="text-xs text-muted-foreground">Entries kept</dt><dd className="font-medium tabular-nums text-foreground">{int(w.entries)}</dd></div>
-                  <div><dt className="text-xs text-muted-foreground">{w.reason === "deleted" ? "Former members" : "Members"}</dt><dd className="font-medium tabular-nums text-foreground">{int(w.members.length)}</dd></div>
+                  <div><dt className="text-xs text-muted-foreground">{w.reason === "deleted" ? "Former members" : "Members"}</dt><dd className="font-medium tabular-nums text-foreground">{int(w.members.total)}{w.members.admins ? ` (${int(w.members.admins)} admin${w.members.admins === 1 ? "" : "s"})` : ""}</dd></div>
                 </dl>
-                {w.members.length > 0 && (
-                  <ul className="mt-3 flex flex-wrap gap-1.5" aria-label={`Who can read ${w.name || "it"}`}>
-                    {w.members.slice(0, 12).map((m) => (
-                      <li key={m.accountId}><Badge variant="secondary">{m.name}{m.role === "admin" ? " · admin" : ""}</Badge></li>
-                    ))}
-                    {w.members.length > 12 && <li><Badge variant="secondary">+{w.members.length - 12} more</Badge></li>}
-                  </ul>
-                )}
               </li>
             ))}
           </ul>
@@ -1002,6 +1026,8 @@ function describe(e: AuditEntry): string {
   const d = e.details ?? {};
   switch (e.action) {
     case "flag.set": return `Turned ${FLAG_INFO[d.flag as Flag]?.label ?? String(d.flag)} ${d.enabled ? "on" : "off"}`;
+    case "stream.set": return `Set the live stream of ${String(d.code ?? "")} (${d.season})`;
+    case "stream.remove": return `Removed the live stream of ${String(d.code ?? "")} (${d.season})`;
     case "feedback.status": return `${d.status === "open" ? "Reopened" : d.status === "resolved" ? "Resolved" : "Archived"} feedback #${d.id}`;
     case "ops.resync": return "Re-sync now";
     case "ops.packs": return "Rebuild offline packs";
@@ -1036,18 +1062,25 @@ function describe(e: AuditEntry): string {
 
 const failed = (r?: string | null) => !!r && (r.startsWith("failed") || r.startsWith("refused"));
 
+/** One side of a change, readably: switches as on / off, nothing as "none". */
+const changeValue = (v: unknown): string =>
+  v == null ? "none" : typeof v === "boolean" ? (v ? "on" : "off") : typeof v === "string" ? v : JSON.stringify(v);
+/** "off → on", or null for an action that changed no value. */
+const changeText = (e: AuditEntry): string | null => (e.change ? `${changeValue(e.change.from)} → ${changeValue(e.change.to)}` : null);
+
 function AuditPanel() {
   const state = useApi<{ entries: AuditEntry[] }>("/api/owner/audit?limit=200");
   // A phone gets one card per entry: the table's four columns leave What a narrow, very tall column there.
   const phone = useMediaQuery("(max-width: 639px)");
   return (
-    <Section title="Audit log" description="Everything done from this page: who, what and when. Kept for good; nothing here can be edited.">
+    <Section title="Audit log" description="Every switch flip and data action: who, what, the old and new value, and when. Kept for good: the database refuses edits and deletions, and this page has no way to make one.">
       <Async state={state} empty={(d) => !d.entries.length && <EmptyState icon={ScrollText} title="Nothing yet" description="Switches, inbox changes and data jobs are recorded here." />}>
         {({ entries }) => phone ? (
           <ol aria-label="Audit log entries" className="divide-y divide-border rounded-xl border border-border bg-card">
             {entries.map((e) => (
               <li key={e.id} className="space-y-1 px-4 py-3" data-testid="audit-entry">
                 <ExpandableText text={describe(e)} what="summary" className="text-sm font-medium" />
+                {changeText(e) && <p className="font-mono text-xs [overflow-wrap:anywhere]" data-testid="audit-change"><span className="sr-only">Changed </span>{changeText(e)}</p>}
                 <ExpandableText text={e.result ?? "Done"} what="result" className={cn("text-xs", failed(e.result) ? "text-danger" : "text-muted-foreground")} />
                 <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                   <span className="sr-only">By </span>{e.actor} · <time dateTime={e.at} title={e.at}>{when(e.at)}</time>
@@ -1058,12 +1091,13 @@ function AuditPanel() {
         ) : (
           <div className="rounded-xl border border-border bg-card">
             <Table>
-              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>What</TableHead><TableHead>Result</TableHead><TableHead>Who</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>When</TableHead><TableHead>What</TableHead><TableHead>Old → new</TableHead><TableHead>Result</TableHead><TableHead>Who</TableHead></TableRow></TableHeader>
               <TableBody>
                 {entries.map((e) => (
                   <TableRow key={e.id}>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground" title={e.at}>{when(e.at)}</TableCell>
                     <TableCell className="min-w-[10rem] font-medium">{describe(e)}</TableCell>
+                    <TableCell className="min-w-[7rem] font-mono text-xs [overflow-wrap:anywhere]">{changeText(e) ?? <span className="text-muted-foreground">—</span>}</TableCell>
                     <TableCell className={cn("min-w-[10rem] text-xs", failed(e.result) ? "text-danger" : "text-muted-foreground")}>{e.result ?? "Done"}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{e.actor}</TableCell>
                   </TableRow>

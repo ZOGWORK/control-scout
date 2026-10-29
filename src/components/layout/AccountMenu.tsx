@@ -14,7 +14,7 @@ import { createContext, useContext, useEffect, useId, useRef, useState, type Dis
 import { AnimatePresence } from "motion/react";
 import { m } from "../motion";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, UserRound } from "lucide-react";
+import { CheckCircle2, ExternalLink, KeyRound, LogIn, LogOut, Mail, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { SIGNED_IN, usePersonal, type AccountUser, type SyncStatus } from "../../lib/personal";
 import { OtpInput } from "../arc/otp-input/otp-input";
@@ -164,11 +164,24 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
       <Link to="/settings" onClick={leave} aria-label="Settings" className={iconButton}><Settings className="size-[18px]" /></Link>
     </Tip>
   );
+  // The owner console, right above the owner's name: only for the account /api/auth/me marks isOwner (the
+  // server checks every /api/owner/* call itself), never rendered for anyone else.
+  const ownerConsole = user?.isOwner ? (rail ? (
+    <Tip on label="Owner console">
+      <Link to="/owner" onClick={leave} aria-label="Owner console" data-owner-console className={cn(iconButton, "text-accent-text")}><ShieldCheck className="size-[18px]" /></Link>
+    </Tip>
+  ) : (
+    <Link to="/owner" onClick={leave} data-owner-console
+      className="mb-1.5 flex h-9 items-center gap-2 rounded-lg border border-accent/40 bg-accent/[0.08] px-2.5 text-sm font-semibold text-accent-text outline-none hover:border-accent/70 hover:bg-accent/[0.14] focus-visible:ring-2 focus-visible:ring-ring/60">
+      <ShieldCheck className="size-4" aria-hidden /> Owner console
+    </Link>
+  )) : null;
   return (
     // While the panel is open it owns Escape, so the menu sheet around it stays open (src/components/ui/overlay.tsx).
     <div data-account-box data-slot="account-panel" data-esc-owner={open ? "" : undefined} className="relative">
       {rail ? (
         <div className="flex flex-col items-center gap-1">
+          {ownerConsole}
           {settings}
           <Tip on label={user ? `${name}: ${status.label}` : "Sign in"}>
             <button type="button" {...toggle} aria-label={user ? `Account: ${name}` : "Sign in"}
@@ -179,6 +192,8 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
         </div>
       ) : (
         // The same height signed in or out, so nothing moves when you sign in.
+        <>
+        {ownerConsole}
         <div className="flex h-11 items-center gap-1">
           {user ? (
             <button type="button" {...toggle} aria-label={`Account: ${name}`}
@@ -195,6 +210,7 @@ export function AccountFooter({ place, onNavigate }: { place: "sidebar" | "rail"
           {settings}
           {user && <button type="button" onClick={signOutNow} aria-label="Sign out" className={iconButton}><LogOut className="size-[18px]" /></button>}
         </div>
+        </>
       )}
       <AnimatePresence>
       {open && (

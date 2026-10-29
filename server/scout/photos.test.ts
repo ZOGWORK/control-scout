@@ -505,7 +505,7 @@ describe("entry photos: storage guardrails", () => {
 
   it("the storage panel is the owner's alone", async () => {
     const t = await team();
-    expect((await t.ada.call("GET", "/api/owner/storage")).status).toBe(404);
-    expect((await t.ada.call("POST", "/api/owner/storage/purge", { season: 2025, eventCode: "X", confirm: true })).status).toBe(404);
+    expect((await t.ada.call("GET", "/api/owner/storage")).status).toBe(403);
+    expect((await t.ada.call("POST", "/api/owner/storage/purge", { season: 2025, eventCode: "X", confirm: true })).status).toBe(403);
   });
 });
