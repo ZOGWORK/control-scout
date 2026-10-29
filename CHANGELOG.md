@@ -25,7 +25,7 @@ On a phone, the example-match dots on How it works are full-size touch targets a
 - [fixes] Desktop keeps its 24px dots, side by side with no overlap
 
 ### Fixes
-- **Example-match dots, phone size.** The four dots under How it works' example match are 44px touch targets on a phone, as intended. Since phones moved to a smaller text base they had shrunk to about 38px; their size is now fixed in pixels, so text size doesn't change it. Desktop keeps 24px targets. (#338)
+- **Example-match dots, phone size.** The four dots under How it works' example match are 44px touch targets on a phone, as intended. Since phones moved to a smaller text base they had shrunk to about 38px; their size is now fixed in pixels, so text size doesn't change it. Desktop keeps 24px targets. (#341)
 
 ## 1.4.4 — 2026-10-29
 
