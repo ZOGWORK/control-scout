@@ -31,7 +31,7 @@ The owner can switch seven features off and back on from the console, for everyo
 - **The server enforces it.** While a feature is off, every route behind it refuses reads and writes with `403 feature_disabled` (never cached), and its live channels refuse to open: predictions, share cards, event odds and their live stream, coin flips, published power rankings (and publishing them, by hand or on schedule), offline pack files, the Discord bot's commands and posts, and every shared workspace read and write. Team and event pages, the track record and the owner console itself are never behind a toggle.
 - **Off is never "removed".** A workspace paused by the owner answers the app with `feature_disabled`, which the app shows as "Paused by the owner": queued entries, pick list changes and comments stay on the device and go up once it's back, and nothing is ever moved to Personal.
 - **Friendly when off.** Predict, an event's Odds tab, Home's coin flips and the Power rankings page say the feature is switched off for now, links straight to them included.
-- **Every flip in the audit log.** Global and per-workspace changes record the old and new value ("on → off", "off → follows global").
+- **Every flip in the audit log.** Global and per-workspace changes record the old and new value ("on → off", "off → follows global"). (#340)
 
 ## 1.4.1 — 2026-10-29
 
