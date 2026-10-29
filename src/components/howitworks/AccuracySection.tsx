@@ -51,7 +51,7 @@ export const asOfDate = (iso: string) => {
 function UpdatedAt({ iso }: { iso: string }) {
   const exact = asOfDate(iso);
   if (!exact) return null;
-  return <span className="whitespace-nowrap">Updated {ago(iso)} (<time dateTime={iso}>{exact}</time>).</span>;
+  return <span>Updated {ago(iso)} <span className="whitespace-nowrap">(<time dateTime={iso}>{exact}</time>).</span></span>;
 }
 
 /** The label every engine-test figure carries. */
