@@ -129,19 +129,27 @@ export const resetCspReports = () => seen.clear();
 /** The owner's view of what the policy would block, by directive and blocked origin (in memory, since the server started). */
 export const cspReportCounts = () => new Map(seen);
 
-/** One browser violation report (the legacy `csp-report` body or the Reporting API's), as "directive blocked-origin". */
-export function summarizeCspReport(body: unknown): string | null {
-  const b = body as Record<string, any> | null;
-  const r = b?.["csp-report"] ?? (Array.isArray(b) ? b[0]?.body : b?.body) ?? null;
+/** One browser violation report (the legacy `csp-report` body's, or one Reporting API entry's), as "directive blocked-origin". */
+export function summarizeCspReport(r: unknown): string | null {
   if (!r || typeof r !== "object") return null;
-  const directive = String(r["effective-directive"] ?? r.effectiveDirective ?? r["violated-directive"] ?? r.violatedDirective ?? "").split(" ")[0].slice(0, 40);
+  const x = r as Record<string, unknown>;
+  const directive = String(x["effective-directive"] ?? x.effectiveDirective ?? x["violated-directive"] ?? x.violatedDirective ?? "").split(" ")[0].slice(0, 40);
   if (!/^[a-z-]+$/.test(directive)) return null;
-  const blocked = String(r["blocked-uri"] ?? r.blockedURL ?? "");
+  const blocked = String(x["blocked-uri"] ?? x.blockedURL ?? "");
   // Origin only: never a path or query, which might carry someone's data.
   let what = /^[a-z-]+$/i.test(blocked) ? blocked : "(other)";
   try { if (/^https?:/i.test(blocked)) what = new URL(blocked).origin; } catch { /* keep the keyword */ }
   if (/^(data|blob|wss?):/i.test(blocked)) what = blocked.split(":")[0] + ":";
   return `${directive} ${what || "(none)"}`;
+}
+
+/** Every violation in one request: the legacy body holds one; the Reporting API sends a batch (at most 50 read). */
+export function summarizeCspReports(body: unknown): string[] {
+  const b = body as Record<string, any> | null;
+  const entries: unknown[] = Array.isArray(b)
+    ? b.slice(0, 50).filter((e) => !e?.type || e.type === "csp-violation").map((e) => e?.body)
+    : [b?.["csp-report"] ?? b?.body];
+  return entries.map(summarizeCspReport).filter((k): k is string => !!k);
 }
 
 /**
@@ -151,8 +159,7 @@ export function summarizeCspReport(body: unknown): string | null {
 export function cspReportRouter(log: (m: string) => void = (m) => console.log(m)): Router {
   const r = express.Router();
   r.post("/", express.json({ type: ["application/csp-report", "application/reports+json", "application/json"], limit: "16kb" }), (req, res) => {
-    const kind = summarizeCspReport(req.body);
-    if (kind) {
+    for (const kind of summarizeCspReports(req.body)) {
       const n = seen.get(kind);
       if (n !== undefined) seen.set(kind, n + 1);
       else if (seen.size < SEEN_CAP) { seen.set(kind, 1); log(`[csp] would block: ${kind}`); }
