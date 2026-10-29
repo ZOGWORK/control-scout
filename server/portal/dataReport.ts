@@ -22,7 +22,9 @@ const RESULTS_GRACE_DAYS = 2;
 const daysAgo = (n: number, now = Date.now()) => new Date(now - n * 864e5).toISOString().slice(0, 10);
 const num = (x: unknown) => Number(x ?? 0);
 
-interface SyncLast { at: string; reports?: { season: number; listed: number; detailed: number; failed: { code: string; error: string }[]; fallback: number; teams: number }[] }
+interface SyncLast { at: string; reports?: { season: number; listed: number; detailed: number; failed: { code: string; error: string }[]; fallback: number; teams: number; failedCount?: number }[] }
+/** How many events a season's run failed: the full count (the saved list keeps 20), or the list's length in a report saved before the count was. */
+const failedCount = (r: { failed: unknown[]; failedCount?: number }) => r.failedCount ?? r.failed.length;
 
 async function seasonSync(last: SyncLast | null): Promise<SeasonSync[]> {
   const [rows, events, matches, teamsAt] = await Promise.all([
@@ -44,7 +46,7 @@ async function seasonSync(last: SyncLast | null): Promise<SeasonSync[]> {
       teamsAt: t.get(x.season) ?? null,
       events: num(ev?.n), eventsDetailed: num(ev?.detailed), fallbackEvents: num(ev?.fallback),
       matchesPlayed: num(m.get(x.season)?.n),
-      lastRun: rep ? { listed: rep.listed, detailed: rep.detailed, failed: rep.failed.length, fallback: rep.fallback, teams: rep.teams } : null,
+      lastRun: rep ? { listed: rep.listed, detailed: rep.detailed, failed: failedCount(rep), fallback: rep.fallback, teams: rep.teams } : null,
     };
   });
 }
@@ -63,7 +65,7 @@ function syncFailures(last: SyncLast | null): Promise<DataFlag> {
     async () => {
       const failed = (last?.reports ?? []).flatMap((r) => r.failed.map((f) => ({ season: r.season, ...f })));
       return {
-        count: failed.length,
+        count: (last?.reports ?? []).reduce((n, r) => n + failedCount(r), 0),
         examples: failed.slice(0, N).map((f) => ({
           label: f.code === "*" ? `${f.season}: the whole season` : `${f.season} ${f.code}`,
           detail: f.error, href: f.code === "*" ? null : eventHref(f.season, f.code),

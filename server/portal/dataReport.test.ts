@@ -13,6 +13,7 @@ import { sha256 } from "../auth/session";
 import { invalidateFlags, setFlag } from "../flags";
 import { canonicalUrl } from "../seo";
 import { CURRENT_SEASON } from "../data/seasons";
+import { resetOps, setOpRunner, settleOps } from "./ops";
 import { endedNoMatches, recordMismatch, resetDataReport, seasonBelowEvents, sitemap404, sitemapMiss } from "./dataReport";
 
 let server: Server;
@@ -30,6 +31,11 @@ async function signIn(email: string): Promise<string> {
 async function call(path: string, cookie?: string) {
   const res = await fetch(`${base}${path}`, { headers: cookie ? { Cookie: cookie } : {} });
   return { status: res.status, json: await res.json().catch(() => null) };
+}
+
+async function postJson(path: string, body: unknown) {
+  const res = await fetch(`${base}${path}`, { method: "POST", headers: { Cookie: ownerCookie, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return { status: res.status };
 }
 
 const day = (n: number) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
@@ -57,7 +63,7 @@ async function fixture() {
     (?, 'PLAYED', 4216, 12), (?, 'PLAYED', 4217, 4)`, [S, S, S, S]);
   await run("INSERT INTO teams (number, name) VALUES (4215, 'Overclocked'), (4216, 'Gears')");
   await run("INSERT INTO seasons (season, name, last_sync, last_complete) VALUES (?, 'x', ?, NULL) ON CONFLICT(season) DO UPDATE SET last_sync = excluded.last_sync, last_complete = NULL", [S, new Date().toISOString()]);
-  await kvSet("sync:last", { at: new Date().toISOString(), reports: [{ season: S, listed: 7, detailed: 4, failed: [{ code: "BROKEN", error: "FIRST 500" }], fallback: 1, teams: 0 }] });
+  await kvSet("sync:last", { at: new Date().toISOString(), reports: [{ season: S, listed: 7, detailed: 4, failed: [{ code: "BROKEN", error: "FIRST 500" }], failedCount: 25, fallback: 1, teams: 0 }] });
   await kvSet(`sync:teams:${S}`, new Date().toISOString());
 }
 
@@ -156,13 +162,13 @@ describe("GET /api/owner/data", () => {
     expect(r.status).toBe(200);
     const cur = r.json.seasons.find((s: any) => s.season === S);
     expect(cur).toMatchObject({ current: true, frozen: false, events: 7, eventsDetailed: 6, matchesPlayed: 1, lastComplete: null,
-      lastRun: { listed: 7, detailed: 4, failed: 1, fallback: 1, teams: 0 } });
+      lastRun: { listed: 7, detailed: 4, failed: 25, fallback: 1, teams: 0 } }); // the full count: the saved list keeps 20 at most
     expect(cur.lastSync).toBeTruthy();
     expect(cur.teamsAt).toBeTruthy();
     expect(r.json.seasons[0].season).toBe(S); // newest first
     expect(r.json.timestamps.syncAt).toBeTruthy();
     expect(Object.fromEntries(r.json.flags.map((f: any) => [f.id, f.count]))).toEqual({
-      "sync-failures": 1, "ended-no-matches": 3, "record-mismatch": 1, "season-below-events": 2, "sitemap-404": 0,
+      "sync-failures": 25, "ended-no-matches": 3, "record-mismatch": 1, "season-below-events": 2, "sitemap-404": 0,
     });
     expect(r.json.flags[0].examples[0]).toEqual({ label: `${S} BROKEN`, detail: "FIRST 500", href: `/events/${S}/BROKEN` });
   });
@@ -174,6 +180,19 @@ describe("GET /api/owner/data", () => {
     expect(kept.json.computedAt).toBe(a.json.computedAt);
     const fresh = await call("/api/owner/data?fresh=1", ownerCookie);
     expect(fresh.json.flags.find((f: any) => f.id === "record-mismatch").count).toBe(0);
+  });
+
+  it("computes it again once a data job finishes, so a re-sync's results show at once", async () => {
+    const a = await call("/api/owner/data", ownerCookie);
+    await run("DELETE FROM team_season_stats");
+    setOpRunner("resync", async () => "Data updated.");
+    try {
+      expect((await postJson("/api/owner/ops/resync", { confirm: true })).status).toBe(202);
+      await settleOps();
+    } finally { setOpRunner("resync", null); resetOps(); }
+    const after = await call("/api/owner/data", ownerCookie);
+    expect(a.json.flags.find((f: any) => f.id === "record-mismatch").count).toBe(1);
+    expect(after.json.flags.find((f: any) => f.id === "record-mismatch").count).toBe(0);
   });
 
   it("never writes match data: every results table is the same after both reports", async () => {
