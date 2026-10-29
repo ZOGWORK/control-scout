@@ -34,6 +34,10 @@ describe("rankingCoverage", () => {
   it("counts teams that haven't played yet elsewhere", () => {
     expect(rankingCoverage([row(1, 1, 3), row(2, 2, 3), row(3, null, 0)])).toBe("2 of 3 teams have played a qualification match. The other 1 hasn't played yet, so it isn't listed.");
   });
+  it("leaves placeholder teams out of both counts, as the records table does", () => {
+    const demo = { ...row(99950, 3, 3), name: "Off-Season Demo Team" } as FieldRow;
+    expect(rankingCoverage([row(1, 1, 3), row(2, 2, 3), demo, row(3, null, 0)])).toBe("2 of 3 teams have played a qualification match. The other 1 hasn't played yet, so it isn't listed.");
+  });
   it("says nothing when every team (or nobody) has played", () => {
     expect(rankingCoverage([row(1, 1, 3), row(2, 2, 3)])).toBeNull();
     expect(rankingCoverage([row(1, null, 0), row(2, null, null)])).toBeNull();

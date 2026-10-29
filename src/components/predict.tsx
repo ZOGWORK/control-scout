@@ -22,6 +22,7 @@ import { usePredictable } from "../lib/meta";
 import { TIER_WORD, tierPhrase } from "../shared/tierWords";
 import { factorLabel } from "../lib/factorLabel";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
+import { hasTeamPage } from "../shared/teamPages";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: TIER_WORD.provisional, cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -175,6 +176,8 @@ function TeamChip({ t, side, season, highlight }: { t: AllianceScore["teams"][nu
     </>
   );
   const title = sub ? `${n} (surrogate or didn't play)` : t.name;
+  // A placeholder ("Off-Season Demo Team", a stand-in number): no page and no card, so plain text.
+  if (!hasTeamPage(n, t.name)) return <span title={title} className={cls}>{body}</span>;
   return snack
     ? <button type="button" onClick={() => snack.toggle(n)} aria-pressed={picked} aria-label={`${n}${t.name ? ` ${t.name}` : ""}${sub ? " (surrogate)" : ""}: show team card`} title={title} className={cls}>{body}</button>
     : <Link to={`/teams/${n}?season=${season}`} title={title} className={cn(cls, "still-hover:underline")}>{body}</Link>;

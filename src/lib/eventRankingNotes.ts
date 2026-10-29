@@ -3,6 +3,7 @@
 // a column is empty for everyone. Pure, so the wording is pinned by tests.
 import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
 import type { FieldRow } from "../shared/api";
+import { hasTeamPage } from "../shared/teamPages";
 import { FORECAST_RUNS, PRE_EVENT_ADVANCEMENT_RUNS, throughText, type ProjectionRun } from "../shared/projections";
 import { ago } from "./format";
 
@@ -36,8 +37,10 @@ export function oddsTabBasis(hasProjection: boolean, mode: "current" | "pre-even
  * here. At a league meet that's this meet's own matches (FieldRow.meet), so the league's other teams, who
  * play at its other meets, aren't in it. Null when every team is listed (or nobody has played yet).
  */
-export function rankingCoverage(field: FieldRow[]): string | null {
-  const league = field.some((r) => "meet" in r);
+export function rankingCoverage(all: FieldRow[]): string | null {
+  // The records table lists teams with a page only (src/shared/teamPages.ts): placeholders count on neither side.
+  const field = all.filter((r) => hasTeamPage(r.team, r.name));
+  const league = all.some((r) => "meet" in r);
   const played = field.filter((r) => (league ? (r.meet?.played ?? 0) > 0 : (r.qualPlayed ?? 0) > 0)).length;
   const rest = field.length - played;
   if (!played || !rest) return null;
