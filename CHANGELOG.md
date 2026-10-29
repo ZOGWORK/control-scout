@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.4.5 — 2026-10-29
+## 1.4.6 — 2026-10-29
 
 The owner console gains a Moderation tab, triage for bug reports and data corrections, notes on error reports, and an Analytics tab that decides whether the home page shows how much Control Scout is used.
 
@@ -33,6 +33,18 @@ The owner console gains a Moderation tab, triage for bug reports and data correc
 - **Analytics.** Page views and sessions (from visitors who opted in), prediction calls by route, and the prediction ledger's live calls logged and scored, all time and in the period, beside the existing request and latency numbers.
 - **"In use" on the home page.** A console switch, behind a confirmation, publishes or hides the home page's page views and sessions; until it's used, the server setting decides as before.
 - Every triage decision, note and publish choice is in the audit log with its old and new value. (#338)
+
+## 1.4.5 — 2026-10-29
+
+On a phone, the example-match dots on How it works are full-size touch targets again.
+
+### Highlights
+- [fixes] How it works: the example-match dots are 44px touch targets on a phone
+- [fixes] Their size no longer shrinks with the phone's smaller text base
+- [fixes] Desktop keeps its 24px dots, side by side with no overlap
+
+### Fixes
+- **Example-match dots, phone size.** The four dots under How it works' example match are 44px touch targets on a phone, as intended. Since phones moved to a smaller text base they had shrunk to about 38px; their size is now fixed in pixels, so text size doesn't change it. Desktop keeps 24px targets. (#341)
 
 ## 1.4.4 — 2026-10-29
 
