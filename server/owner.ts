@@ -1,6 +1,6 @@
 // Who counts as an owner of this Control Scout install: a signed-in account whose
-// email is in OWNER_EMAILS. Owner-only endpoints answer 404 to everyone else, so
-// they don't even reveal that they exist.
+// email is in OWNER_EMAILS. Owner-only endpoints answer everyone else with 403
+// (server/portal/routes.ts).
 import type { Request } from "express";
 import { env } from "./env.js";
 import { currentUser, type User } from "./auth/session.js";

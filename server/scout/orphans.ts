@@ -145,30 +145,26 @@ export async function orphanedCount(): Promise<number> {
   return Number((await get<{ n: number }>("SELECT COUNT(*) n FROM workspaces WHERE orphaned_at IS NOT NULL"))?.n ?? 0);
 }
 
-/** Every read-only scout space, newest first, with its entry count and who can still read it (the owner portal). */
+/** Every read-only scout space, newest first, with its entry count and how many can still read it (the owner
+ *  console). Counts only: the console never names a workspace's members (the owner's privacy rule). */
 export async function listOrphaned(): Promise<OrphanedWorkspace[]> {
   const rows = await all<{ id: number; cp_workspace_id: string; name: string; orphaned_at: string; orphan_reason: string; entries: number }>(
     `SELECT ws.id, ws.cp_workspace_id, ws.name, ws.orphaned_at, ws.orphan_reason,
             (SELECT COUNT(*) FROM workspace_scout_entries e WHERE e.workspace_id = ws.id AND e.deleted = 0) entries
        FROM workspaces ws WHERE ws.orphaned_at IS NOT NULL ORDER BY ws.orphaned_at DESC, ws.id DESC LIMIT 200`);
   if (!rows.length) return [];
-  // Named as cachedWorkspaceMembers does: the Scout profile's name, else the email before the @.
-  const people = await all<{ workspace_id: number; account_id: number; role: string; display_name: string | null; email: string | null }>(
-    `SELECT m.workspace_id, m.account_id, m.role, u.display_name, u.email FROM (
+  const people = await all<{ workspace_id: number; role: string; n: number }>(
+    `SELECT m.workspace_id, m.role, COUNT(DISTINCT m.account_id) n FROM (
         SELECT f.workspace_id, f.account_id, f.role FROM workspace_former_members f JOIN workspaces ws ON ws.id = f.workspace_id WHERE ws.orphan_reason = 'deleted'
         UNION ALL
         SELECT ws.id, wm.account_id, wm.role FROM workspace_members wm JOIN workspaces ws ON ws.cp_workspace_id = wm.cp_workspace_id WHERE ws.orphan_reason = 'no_admin'
-      ) m
-      LEFT JOIN users u ON u.id = (SELECT i.user_id FROM identities i WHERE i.provider = ? AND i.subject = CAST(m.account_id AS TEXT) ORDER BY i.user_id LIMIT 1)
-      ORDER BY m.role, m.account_id`, [CP_PROVIDER]);
+      ) m GROUP BY m.workspace_id, m.role`);
   return rows.flatMap((r) => {
     const st = stateOf(r);
     if (!st) return [];
-    const members = people.filter((p) => Number(p.workspace_id) === Number(r.id)).map((p) => ({
-      accountId: Number(p.account_id),
-      name: (p.display_name?.trim() || p.email?.split("@")[0] || "A member").slice(0, 60),
-      role: p.role === "admin" ? "admin" as const : "member" as const,
-    }));
+    const mine = people.filter((p) => Number(p.workspace_id) === Number(r.id));
+    const admins = mine.filter((p) => p.role === "admin").reduce((t, p) => t + Number(p.n), 0);
+    const members = { total: mine.reduce((t, p) => t + Number(p.n), 0), admins };
     return [{ workspaceId: String(r.cp_workspace_id), name: String(r.name ?? ""), orphanedAt: st.at, reason: st.reason, entries: Number(r.entries ?? 0), members }];
   });
 }

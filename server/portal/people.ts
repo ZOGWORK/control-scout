@@ -49,14 +49,14 @@ export async function listUsers(q: string | null, limit = 300): Promise<{ users:
   };
 }
 
-/** One account in full: sign-in methods, sessions, what's saved for it, and its workspaces. */
+/** One account in full: sign-in methods, how many devices are signed in (a count, no device strings), what's saved for it, and its workspaces. */
 export async function userDetail(id: number, now = Date.now()): Promise<OwnerUserDetail | null> {
   const u = await get<any>("SELECT id, email, display_name, created_at, last_seen FROM users WHERE id = ?", [id]);
   if (!u) return null;
   const tables = await tablesPresent();
   const [ids, sessions, state, entries] = await Promise.all([
     all<any>("SELECT provider, subject FROM identities WHERE user_id = ? ORDER BY provider", [id]),
-    all<any>("SELECT created_at, expires_at, user_agent FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY created_at DESC", [id, new Date(now).toISOString()]),
+    get<any>("SELECT COUNT(*) c FROM sessions WHERE user_id = ? AND expires_at > ?", [id, new Date(now).toISOString()]),
     all<any>("SELECT key, updated_at FROM user_state WHERE user_id = ? ORDER BY key", [id]),
     get<any>("SELECT COUNT(*) c, MAX(updated_at) last FROM scout_entries WHERE user_id = ? AND deleted = 0", [id]),
   ]);
@@ -79,7 +79,7 @@ export async function userDetail(id: number, now = Date.now()): Promise<OwnerUse
     id: n(u.id), email: u.email ?? null, displayName: u.display_name ?? null, createdAt: u.created_at, lastSeen: u.last_seen ?? null,
     signIns: ids.map((i) => i.provider),
     controlPointAccount: account,
-    sessions: sessions.map((s) => ({ createdAt: s.created_at, expiresAt: s.expires_at, device: (s.user_agent ?? "").slice(0, 160) || null })),
+    sessions: n(sessions?.c),
     saved: state.map((s) => ({ key: s.key, updatedAt: n(s.updated_at) })),
     personalEntries: { count: n(entries?.c), lastUpdated: entries?.last == null ? null : n(entries.last) },
     workspaces: workspaces.map((w) => ({ id: String(w.cp_workspace_id), name: w.name ?? "", role: w.role, orphaned: !!w.orphaned_at, authoredEntries: w.authored == null ? null : n(w.authored) })),

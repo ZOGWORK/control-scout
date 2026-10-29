@@ -29,6 +29,12 @@ export async function listFeedback(status: FeedbackStatus | "all" = "open", limi
   return { messages: rows.slice(0, n).map(toMessage), counts, more: rows.length > n };
 }
 
+/** Which list a message is in now (null: no such message). */
+export async function feedbackStatus(id: number): Promise<FeedbackStatus | null> {
+  const r = await get<{ status: string }>("SELECT status FROM contact_messages WHERE id = ?", [id]);
+  return r ? (isFeedbackStatus(r.status) ? r.status : "open") : null;
+}
+
 /** Move a message to another list; the updated message, or null when there's no such message. */
 export async function setFeedbackStatus(id: number, status: FeedbackStatus, now = new Date()): Promise<FeedbackMessage | null> {
   const row = await get("UPDATE contact_messages SET status = ?, status_at = ? WHERE id = ? RETURNING *", [status, now.toISOString(), id]);

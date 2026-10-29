@@ -18,6 +18,13 @@ export interface OwnerOverview {
     dataAsOf: string | null; statsAt: string | null; packsAt: string | null;
     /** Who holds the data writer lease right now (a sync, the live lane, an owner job). */
     writer: { what: string; until: string } | null;
+    /** The live ledger's headline, as the public track record shows it (live once there are enough live calls,
+     *  else the replay, said as such). Null while the track record can't be built. */
+    ledger: { kind: "live" | "backtest"; season: number; accuracy: number; n: number } | null;
+    /** The offline pack manifest (packs/latest.json); null when no pack was built on this server. */
+    packManifest: { version: string; builtAt: string; dataAsOf: string | null; engineVersion: string } | null;
+    /** Error reports seen in the last 24 hours / 7 days, and server errors (5xx) today (UTC) / the last 7 days. */
+    errors: { reports24h: number; reports7d: number; server5xxToday: number; server5xx7d: number };
   };
 }
 
@@ -81,7 +88,11 @@ export interface OpsStatus {
   unavailable: Partial<Record<OpName, string>>;
 }
 
-export interface AuditEntry { id: number; at: string; actor: string; action: string; details: Record<string, unknown> | null; result: string | null }
+export interface AuditEntry {
+  id: number; at: string; actor: string; action: string; details: Record<string, unknown> | null; result: string | null;
+  /** For a change: the value it replaced and the value it set. Null for an action that starts something (a data job). */
+  change: { from: unknown; to: unknown } | null;
+}
 
 /** One daily check of the current power-rankings week (server/powerRankings/refresh.ts). */
 export interface OwnerPowerRankingsRefresh {
@@ -152,8 +163,9 @@ export interface OwnerUserDetail {
   id: number; email: string | null; displayName: string | null; createdAt: string; lastSeen: string | null;
   signIns: string[];
   controlPointAccount: number | null;
-  /** Signed-in devices right now (unexpired sessions), newest first. */
-  sessions: { createdAt: string; expiresAt: string; device: string | null }[];
+  /** How many devices are signed in right now (unexpired sessions). A count only: no browser or device strings
+   *  (the console shows account administration's minimum). */
+  sessions: number;
   /** Personal data synced to the account: which keys, last changed (ms). */
   saved: { key: string; updatedAt: number }[];
   personalEntries: { count: number; lastUpdated: number | null };

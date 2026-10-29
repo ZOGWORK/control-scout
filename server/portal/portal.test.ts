@@ -9,6 +9,8 @@ import { sha256 } from "../auth/session";
 import { FLAG_TTL_MS, allFlags, invalidateFlags, isEnabled } from "../flags";
 import { tryAcquire, release } from "../data/lock";
 import { resetOps, setOpRunner, settleOps } from "./ops";
+import { ownerRouter } from "./routes";
+import { recordAudit, setAuditResult } from "./audit";
 import { pageModule, pageTitle } from "../../src/shared/routes";
 import { PRIVATE_TABLES } from "../data/snapshot";
 import { openLiveConnection, resetLiveConnections } from "../liveConnections";
@@ -43,7 +45,14 @@ const OWNER_WRITES: [string, string, unknown][] = [
   ["PATCH", "/api/owner/feedback/1", { status: "resolved" }],
   ["POST", "/api/owner/ops/caches", { confirm: true }],
 ];
-const audit = () => all<{ actor: string; action: string; details: string | null; result: string | null }>("SELECT * FROM owner_audit ORDER BY id");
+// owner_audit is append-only (migration 52), so a test reads only the rows written since it started.
+let auditFrom = 0;
+const audit = () => all<{ actor: string; action: string; details: string | null; result: string | null; old_value: string | null; new_value: string | null }>(
+  "SELECT * FROM owner_audit WHERE id > ? ORDER BY id", [auditFrom]);
+/** Every route the owner router serves, as [method, path] with its parameters filled in. */
+const ownerRoutes = (): [string, string][] => (ownerRouter().stack as any[])
+  .filter((l) => l.route)
+  .flatMap((l) => Object.keys(l.route.methods).map((m): [string, string] => [m.toUpperCase(), `/api/owner${String(l.route.path).replace(/:[A-Za-z]+/g, (k) => (k === ":season" ? "2025" : "1"))}`]));
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -61,7 +70,8 @@ afterAll(() => {
 });
 beforeEach(async () => {
   process.env.OWNER_EMAILS = "Owner@Example.com";
-  for (const t of ["owner_audit", "feature_flags", "contact_messages", "request_metrics_daily"]) await run(`DELETE FROM ${t}`);
+  for (const t of ["feature_flags", "contact_messages", "request_metrics_daily"]) await run(`DELETE FROM ${t}`);
+  auditFrom = Number((await get<{ n: number }>("SELECT COALESCE(MAX(id), 0) n FROM owner_audit"))!.n);
   await run("DELETE FROM kv WHERE key = 'lock:data-writer'");
   invalidateFlags();
   resetOps();
@@ -70,30 +80,41 @@ beforeEach(async () => {
 });
 
 describe("who gets in", () => {
-  it("answers 404 to signed-out visitors and to accounts that aren't owners, on every owner API", async () => {
+  it("answers 403 to signed-out visitors and to accounts that aren't owners, on every owner API", async () => {
     for (const cookie of [undefined, otherCookie]) {
       for (const p of OWNER_GETS) {
         const r = await call("GET", p, { cookie });
-        expect(r.status, `${p} ${cookie ? "signed in" : "anonymous"}`).toBe(404);
-        expect(r.json).toEqual({ error: "Not found" });
+        expect(r.status, `${p} ${cookie ? "signed in" : "anonymous"}`).toBe(403);
+        expect(r.json).toEqual({ error: "forbidden" });
       }
-      for (const [m, p, body] of OWNER_WRITES) expect((await call(m, p, { cookie, body })).status).toBe(404);
+      for (const [m, p, body] of OWNER_WRITES) expect((await call(m, p, { cookie, body })).status).toBe(403);
     }
     // Nothing was done on their behalf.
     expect(await audit()).toEqual([]);
     expect(await all("SELECT * FROM feature_flags")).toEqual([]);
   });
 
-  it("answers 404 to everyone when no OWNER_EMAILS is set, owner included", async () => {
-    delete process.env.OWNER_EMAILS;
-    expect((await call("GET", "/api/owner/overview", { cookie: ownerCookie })).status).toBe(404);
+  it("answers 403 on every route the owner router serves, reads and writes, by direct URL and for unknown paths under it", async () => {
+    const routes = ownerRoutes();
+    // The whole console: a route added later is covered without editing this list.
+    expect(routes.length).toBeGreaterThan(20);
+    for (const [m, p] of [...routes, ["GET", "/api/owner/no-such-thing"] as [string, string], ["DELETE", "/api/owner/audit"] as [string, string]]) {
+      for (const cookie of [undefined, otherCookie]) {
+        const r = await call(m, p, { cookie, body: m === "GET" ? undefined : { confirm: true, enabled: false } });
+        expect(r.status, `${m} ${p} ${cookie ? "signed in" : "anonymous"}`).toBe(403);
+        expect(r.json).toEqual({ error: "forbidden" });
+      }
+    }
+    expect(await audit()).toEqual([]);
   });
 
-  it("looks exactly like an unknown API path, so the portal's existence isn't revealed", async () => {
-    const unknown = await call("GET", "/api/nothing-here", { cookie: otherCookie });
+  it("answers 403 to everyone when no OWNER_EMAILS is set, owner included", async () => {
+    delete process.env.OWNER_EMAILS;
+    expect((await call("GET", "/api/owner/overview", { cookie: ownerCookie })).status).toBe(403);
+  });
+
+  it("never caches the refusal", async () => {
     const gated = await call("GET", "/api/owner/overview", { cookie: otherCookie });
-    expect(gated.status).toBe(unknown.status);
-    expect(gated.json).toEqual(unknown.json);
     expect(gated.headers.get("cache-control")).toBe("no-store");
   });
 
@@ -162,6 +183,17 @@ describe("feature flags", () => {
     await run("INSERT INTO feature_flags (name, enabled, updated_at, updated_by) VALUES ('realtime', 0, ?, 'elsewhere')", [new Date().toISOString()]);
     expect((await allFlags()).realtime).toBe(true); // still the cached value
     expect((await allFlags(Date.now() + FLAG_TTL_MS + 1)).realtime).toBe(false);
+  });
+
+  it("records every flip in the audit log with who, the old value and the new one", async () => {
+    await call("PUT", "/api/owner/flags/push", { cookie: ownerCookie, body: { enabled: false } });
+    await call("PUT", "/api/owner/flags/push", { cookie: ownerCookie, body: { enabled: true } });
+    expect((await audit()).map((r) => ({ actor: r.actor, action: r.action, old: r.old_value, new: r.new_value }))).toEqual([
+      { actor: "owner@example.com", action: "flag.set", old: "true", new: "false" },
+      { actor: "owner@example.com", action: "flag.set", old: "false", new: "true" },
+    ]);
+    const shown = (await call("GET", "/api/owner/audit", { cookie: ownerCookie })).json.entries;
+    expect(shown[0]).toMatchObject({ action: "flag.set", change: { from: false, to: true } });
   });
 
   it("rejects unknown flags and non-boolean values", async () => {
@@ -271,6 +303,26 @@ describe("data ops", () => {
 });
 
 describe("audit log", () => {
+  it("is append-only in the database: no row can be deleted or rewritten, only a job's result filled in", async () => {
+    const id = await recordAudit("owner@example.com", "flag.set", { flag: "push", enabled: false }, null, { from: true, to: false });
+    await expect(run("DELETE FROM owner_audit WHERE id = ?", [id])).rejects.toThrow(/append-only/);
+    await expect(run("DELETE FROM owner_audit")).rejects.toThrow(/append-only/);
+    for (const col of ["actor", "action", "details", "at", "old_value", "new_value"]) {
+      await expect(run(`UPDATE owner_audit SET ${col} = 'x' WHERE id = ?`, [id]), col).rejects.toThrow(/append-only/);
+    }
+    await setAuditResult(id, "done: ok");
+    expect(await get("SELECT actor, action, result, old_value, new_value FROM owner_audit WHERE id = ?", [id]))
+      .toEqual({ actor: "owner@example.com", action: "flag.set", result: "done: ok", old_value: "true", new_value: "false" });
+  });
+
+  it("has no route that edits or deletes an entry", async () => {
+    const writes = ownerRoutes().filter(([m, p]) => m !== "GET" && p.startsWith("/api/owner/audit"));
+    expect(writes).toEqual([]);
+    const before = (await audit()).length;
+    for (const m of ["DELETE", "PUT", "PATCH", "POST"]) expect((await call(m, "/api/owner/audit", { cookie: ownerCookie, body: {} })).status).toBe(404);
+    expect((await audit()).length).toBe(before);
+  });
+
   it("records every owner action: who, what, when, details, and how jobs ended (refusals too)", async () => {
     const id = Number((await get<{ id: number }>("INSERT INTO contact_messages (created_at, topic, email, message) VALUES (?, 'data', 'a@example.com', 'Wrong score in Q12 here') RETURNING id", [new Date().toISOString()]))!.id);
     setOpRunner("packs", async () => "Packs built.");
@@ -292,7 +344,8 @@ describe("audit log", () => {
     expect(rows[2].result).toBe("done: Packs built.");
     expect(rows[3].result).toMatch(/^refused: The data writer is busy \(live\)/);
     const shown = await call("GET", "/api/owner/audit", { cookie: ownerCookie });
-    expect(shown.json.entries.map((e: any) => e.action)).toEqual(["ops.caches", "ops.packs", "feedback.status", "flag.set"]);
+    expect(shown.json.entries.slice(0, 4).map((e: any) => e.action)).toEqual(["ops.caches", "ops.packs", "feedback.status", "flag.set"]);
+    expect(shown.json.entries[2].change).toEqual({ from: "open", to: "archived" });
     expect(shown.json.entries[0].at).toBeTruthy();
   });
 

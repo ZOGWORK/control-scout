@@ -46,8 +46,8 @@ beforeAll(async () => {
 afterAll(() => { server?.close(); if (saved === undefined) delete process.env.OWNER_EMAILS; else process.env.OWNER_EMAILS = saved; });
 
 describe("owner users and workspaces", () => {
-  it("are the owner's only (404 for anyone else)", async () => {
-    for (const p of ["/api/owner/users", `/api/owner/users/${scoutId}`, "/api/owner/workspaces"]) expect((await call(p, otherCookie)).status).toBe(404);
+  it("are the owner's only (403 for anyone else)", async () => {
+    for (const p of ["/api/owner/users", `/api/owner/users/${scoutId}`, "/api/owner/workspaces"]) expect((await call(p, otherCookie)).status).toBe(403);
   });
 
   it("lists accounts, most recently seen first, with sign-ins, entries and workspaces", async () => {
@@ -68,7 +68,9 @@ describe("owner users and workspaces", () => {
     expect(status).toBe(200);
     expect(json.signIns).toEqual(["control-point", "email"]);
     expect(json.controlPointAccount).toBe(9001);
-    expect(json.sessions).toEqual([{ createdAt: "2026-10-17T00:00:00Z", expiresAt: expect.any(String), device: "Mozilla/5.0 Test" }]);
+    // A count only: the console never shows which browser or device (no user agent strings).
+    expect(json.sessions).toBe(1);
+    expect(JSON.stringify(json)).not.toContain("Mozilla");
     expect(json.saved).toEqual([{ key: "bookmarks", updatedAt: 5 }, { key: "teamColors", updatedAt: 7 }]);
     expect(json.personalEntries).toEqual({ count: 2, lastUpdated: 100 });
     // A workspace deleted in Control Point stays on the account while it can still read it.
