@@ -172,10 +172,10 @@ async function buildWeek(doc: RankingDoc, weeks: RankingDoc[]): Promise<PowerRan
   const g = doc.generated;
   const entries: PowerRankingsEntry[] = doc.entries.map((e, k) => {
     const t = info.get(e.team);
-    // An automatic week: the name and numbers its blurb was written from (frozen); a file: the live ones.
+    // An automatic week: the name and numbers its blurb was written from (frozen, even a missing name); a file: the live ones.
     const shown = g?.shown[k];
     return {
-      rank: e.rank, team: e.team, name: g ? shown?.name ?? t?.name ?? null : t?.name ?? null, place: t?.place ?? null, blurbHtml: g ? plainHtml(e.blurb) : renderMarkdown(e.blurb),
+      rank: e.rank, team: e.team, name: shown ? shown.name : t?.name ?? null, place: t?.place ?? null, blurbHtml: g ? plainHtml(e.blurb) : renderMarkdown(e.blurb),
       movement: moves[k], stats: g ? shown?.stats ?? null : t?.stats ?? null, author: g ? g.sources[k] ?? "template" : null,
     };
   });
@@ -219,7 +219,7 @@ async function archive(weeks: RankingDoc[]): Promise<PowerRankingsSummary[]> {
   }
   return [...weeks].reverse().map((w) => ({
     week: w.week, season: w.season, title: w.title, published: w.published,
-    top: w.entries.slice(0, 3).map((e, k) => ({ team: e.team, name: w.generated?.shown[k]?.name ?? names.get(e.team) ?? null })),
+    top: w.entries.slice(0, 3).map((e, k) => ({ team: e.team, name: (w.generated?.shown[k] ? w.generated.shown[k].name : names.get(e.team)) ?? null })),
   }));
 }
 
