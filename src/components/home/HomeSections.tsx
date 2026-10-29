@@ -271,10 +271,11 @@ export function PredictionRecord() {
                 <p className="mt-1 text-sm text-text-muted">
                   Correct winner · {view.kind === "live" ? `${view.seasonLabel}, called before each match${view.engines ? `, all engine versions (v${view.engines.versions.join(", v")})` : ""}` : `${view.seasonLabel}, replayed from recorded matches (not calls made in advance)`}
                 </p>
-                {view.engines?.current && (
+                {view.engines?.current && view.engines.current.decided != null && (
                   <p className="mt-1 text-sm">
-                    <span className="font-semibold tabular-nums text-accent-text">{pct(view.engines.current.accuracy, 1)}</span>
-                    <span className="text-text-muted"> from engine v{view.engines.current.engine} alone, the one serving now ({fmt(view.engines.current.n)} scored)</span>
+                    {view.engines.current.accuracy != null
+                      ? <><span className="font-semibold tabular-nums text-accent-text">{pct(view.engines.current.accuracy, 1)}</span><span className="text-text-muted"> from engine v{view.engines.current.engine} alone, the one serving now ({fmt(view.engines.current.n)} scored)</span></>
+                      : <span className="text-text-muted">Engine v{view.engines.current.engine}, the one serving now: no decided calls yet ({fmt(view.engines.current.n)} scored, all ties or 50:50 calls)</span>}
                   </p>
                 )}
                 {view.split && (

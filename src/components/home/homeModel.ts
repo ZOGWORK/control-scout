@@ -27,7 +27,7 @@ export interface RecordView {
    * (oldest first), and the serving engine's own share of them when it made any. The big number is the
    * blend of all of them, so it says so; the serving engine's figure is the secondary line.
    */
-  engines: { versions: string[]; current: { engine: string; n: number; accuracy: number } | null } | null;
+  engines: { versions: string[]; current: { engine: string; n: number; decided: number | null; accuracy: number | null } | null } | null;
 }
 
 /**
@@ -64,7 +64,10 @@ function enginesOf(rows: TrackRecord["seasons"][number]["liveByEngine"], serving
   const used = (rows ?? []).filter((r) => r.n > 0);
   if (used.length < 2) return null;
   const cur = used.find((r) => r.engine === serving);
-  return { versions: used.map((r) => r.engine).sort(byVersion), current: cur ? { engine: cur.engine, n: cur.n, accuracy: cur.accuracy } : null };
+  // Accuracy is a stand-in 0 when no call was decided (all ties or 50:50 calls): no percentage then, never "0%".
+  // An older response without the decided count gets none either, rather than a guess.
+  const decided = cur?.decided ?? null;
+  return { versions: used.map((r) => r.engine).sort(byVersion), current: cur ? { engine: cur.engine, n: cur.n, decided, accuracy: decided ? cur.accuracy : null } : null };
 }
 
 /**
