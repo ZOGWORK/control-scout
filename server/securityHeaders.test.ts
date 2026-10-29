@@ -153,20 +153,32 @@ describe("Content-Security-Policy", () => {
     expect(inlineScriptHashes("<script>a\r\nb</script><script src=/x.js></script><script type=\"application/ld+json\">{}</script>"))
       .toEqual([h("a\nb"), h("{}")]);
   });
+  /** A Cloudflare account id's shape: 32 hex characters. */
+  const ACCT = "0123456789abcdef0123456789abcdef";
   it("allows the YouTube player, its thumbnails, sql.js's WebAssembly and the photo bucket", () => {
     const saved = { R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID, R2_PUBLIC_URL: process.env.R2_PUBLIC_URL };
-    process.env.R2_ACCOUNT_ID = "acct";
+    process.env.R2_ACCOUNT_ID = ACCT;
     process.env.R2_PUBLIC_URL = "https://photos.example.org/some/path";
     try {
       const csp = buildCsp([]);
       expect(csp).toContain("frame-src https://www.youtube-nocookie.com");
       expect(csp).toMatch(/img-src [^;]*https:\/\/i\.ytimg\.com/);
       expect(csp).toMatch(/script-src [^;]*'wasm-unsafe-eval'/);
-      expect(csp).toMatch(/connect-src [^;]*https:\/\/acct\.r2\.cloudflarestorage\.com/);
+      expect(csp).toMatch(new RegExp(`connect-src [^;]*https://${ACCT}\\.r2\\.cloudflarestorage\\.com`));
       expect(csp).toMatch(/img-src [^;]*https:\/\/photos\.example\.org(;|\s)/);
       expect(csp).toMatch(/worker-src 'self' blob:/);
     } finally {
       for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    }
+  });
+  it("never puts an R2_ACCOUNT_ID that isn't an account id in the policy (a token pasted in by mistake)", () => {
+    const saved = process.env.R2_ACCOUNT_ID;
+    process.env.R2_ACCOUNT_ID = "cfat_notAnAccountId123";
+    try {
+      expect(buildCsp([])).not.toContain("cfat_");
+      expect(buildCsp([])).not.toContain("r2.cloudflarestorage.com");
+    } finally {
+      if (saved === undefined) delete process.env.R2_ACCOUNT_ID; else process.env.R2_ACCOUNT_ID = saved;
     }
   });
 });
