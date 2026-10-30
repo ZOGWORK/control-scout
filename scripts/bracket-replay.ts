@@ -19,7 +19,7 @@ import { textSeed } from "../src/shared/projectionCore.js";
 await migrate();
 const args = process.argv.slice(2);
 const flag = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
-const seasons = args.filter((a) => /^\d{4}$/.test(a)).map(Number);
+const seasons = args.filter((a, i) => /^\d{4}$/.test(a) && !args[i - 1]?.startsWith("--")).map(Number);
 if (!seasons.length) seasons.push(2023, 2024, 2025);
 const runs = Number(flag("--runs") ?? 2000);
 const maxEvents = Number(flag("--events") ?? Infinity);

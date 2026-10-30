@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.5 — 2026-10-30
+
+The Playoffs tab now predicts the bracket: a call for every series, each alliance's odds of winning the event, and the match most likely to knock it out.
+
+### Highlights
+- [predict] Championship odds for every alliance once alliances are posted
+- [predict] Every playoff series shows its favourite and how likely it is to win
+- [predict] A danger match per alliance: the series it's most likely to lose
+- [live] The odds update after every playoff result
+
+### Playoffs
+- **Bracket predictor.** Each series card names the favourite and its chance, with the series score for best-of-3s. A series whose alliances aren't known yet shows who's likely to fill each side. Each alliance shows its odds of winning the event and reaching the final, and its danger match. Every number comes from the engine's own playoff-match predictions, run through the event's real bracket and the results posted so far.
+- **Any format.** 2-alliance finals, 2023–24 semifinals and finals, and 4-, 6- and 8-alliance double-elimination brackets, read from what the event posted. For a format we can't map, each series still gets its own call.
+- **Measured.** Replayed on 10,598 past playoff series with only what was known before each one, the favourite won 77.9% (the higher seed: 71.8%), Brier 0.151, and the championship odds come out calibrated (docs/bracket-predictor.md).
+- **Clean states.** Before alliance selection, the tab says so. With alliances posted but no playoff schedule yet, a banner says the odds come from the alliances alone.
+
 ## 1.5.4 — 2026-10-30
 
 Turning on the email digest now sends a short welcome email, so you know what's coming.
