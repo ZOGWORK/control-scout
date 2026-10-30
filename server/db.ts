@@ -1536,6 +1536,47 @@ CREATE TABLE workspace_flag_overrides (
 ALTER TABLE digest_prefs ADD COLUMN welcomed_at TEXT;
 `,
   },
+  {
+    version: 58,
+    name: "scouting commons",
+    sql: `
+-- The scouting commons (server/scout/commons.ts, docs/scouting-commons.md): pit entries a workspace chooses to share
+-- with every signed-in Scout user at an event, credited to the workspace. Match entries are never shared.
+-- Launched per event: the owner switches the commons on for one event at a time. No row: off.
+CREATE TABLE commons_events (
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  PRIMARY KEY (season, event_code)
+) WITHOUT ROWID;
+-- A workspace's opt-in, set by its admins. No row (or opted_in 0): it shares nothing, whatever its entries say.
+CREATE TABLE commons_workspaces (
+  workspace_id INTEGER PRIMARY KEY REFERENCES workspaces (id),
+  opted_in INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+-- The per-entry publish flag, keyed by event + team for reading. The entry itself stays in workspace_scout_entries
+-- (read live, so an edit shows at once); season, event_code and team follow the entry when it's edited.
+-- status: published | withdrawn (unpublished by the workspace, or it opted out). An edit never republishes.
+CREATE TABLE commons_entries (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  entry_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  published_at INTEGER NOT NULL,
+  published_by_account_id INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, entry_uuid)
+);
+CREATE INDEX commons_entries_event_team ON commons_entries (season, event_code, team, status);
+CREATE INDEX commons_entries_team ON commons_entries (season, team, status);
+`,
+  },
 ];
 
 export type Db = Client;
