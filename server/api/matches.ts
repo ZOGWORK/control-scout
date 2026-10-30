@@ -15,6 +15,7 @@ import { bonusLabels, detailSheet, isLegacy } from "../data/seasons.js";
 import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
+import { compactSheet, parseSheet, type FactorSheet } from "../../src/shared/factorSheet.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -120,7 +121,7 @@ export async function matchDetail(season: number, code: string, key: string, eve
   const d = event !== undefined ? event : await eventDetail(season, code);
   const i = d?.matches.findIndex((m) => m.key === key) ?? -1;
   if (!d || i < 0) return null;
-  const match = d.matches[i];
+  const match = await withSheet(season, code, d.matches[i]);
   const numbers = [...match.red.teams, ...match.blue.teams].map((t) => t.number);
   const ph = numbers.map(() => "?").join(",") || "NULL";
   const [row, lineup, seasonStats, teamRows] = await Promise.all([
@@ -159,6 +160,27 @@ export async function matchDetail(season: number, code: string, key: string, eve
     prev: near(d.matches[i - 1]),
     next: near(d.matches[i + 1]),
   };
+}
+
+/**
+ * The full why breakdown for one match's call (engine 3.3), added only where one match is shown (the match page,
+ * Know your match): a list of matches never carries it. A live call keeps the sheet logged with it; a call from
+ * today's ratings gets the same explanation it was made from; a backtest call, or a live one logged before 3.3, has none.
+ */
+async function withSheet(season: number, code: string, m: MatchView): Promise<MatchView> {
+  const p = m.prediction;
+  if (!p || p.kind === "backtest") return m;
+  let sheet: FactorSheet | null = null;
+  if (p.kind === "live") {
+    const row = await get<any>("SELECT factor_sheet FROM predictions WHERE kind = 'live' AND season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, m.level, m.series, m.number]);
+    sheet = parseSheet(row?.factor_sheet);
+  } else {
+    const red = m.red.teams.filter((t) => t.onField).map((t) => t.number), blue = m.blue.teams.filter((t) => t.onField).map((t) => t.number);
+    const f = await liveForecaster(season).catch(() => null);
+    const x = f && red.length === 2 && blue.length === 2 ? f.explain(season, red, blue, m.level === "playoff" ? "playoff" : "qual", code) : null;
+    sheet = x ? compactSheet(x.factorSheet) : null;
+  }
+  return sheet ? { ...m, prediction: { ...p, sheet } } : m;
 }
 
 /** A played match's score sheet, row by row, from both alliances' stored details (null: none stored). A row

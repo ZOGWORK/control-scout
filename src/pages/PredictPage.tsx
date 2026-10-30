@@ -15,6 +15,7 @@ import { callTally } from "../lib/seasonSoFar";
 import { usePersonal } from "../lib/personal";
 import type { EventDetail, EventSummary, EventListItem, MatchExplanationView, MatchView, TeamProfile } from "../shared/api";
 import { pairHistory } from "../shared/pairHistory";
+import { compactSheet } from "../shared/factorSheet";
 import { EventSearchPicker } from "../components/predict/EventSearchPicker";
 import { WeekEvents } from "../components/predict/WeekEvents";
 import { Section, EmptyState } from "../components/page";
@@ -452,7 +453,7 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
         loading: false, asOf: x.asOf,
         data: {
           season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-          rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
+          rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, factorSheet: compactSheet(x.factorSheet), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
           teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
         },
       });
