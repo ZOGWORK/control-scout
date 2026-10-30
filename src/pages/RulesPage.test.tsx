@@ -43,6 +43,16 @@ describe("Rules page", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("a Q&A link to a ruling the search hides clears the search and shows it", () => {
+    mount();
+    const box = screen.getByLabelText("Search the rules") as HTMLInputElement;
+    fireEvent.change(box, { target: { value: "possession" } });
+    expect(document.getElementById("qa-2")).toBeNull();
+    fireEvent.click(within(document.getElementById("G407")!).getByRole("link", { name: "Q2" }));
+    expect(box.value).toBe("");
+    expect(document.getElementById("qa-2")).toBeTruthy();
+  });
+
   it("says when nothing matches and offers the official manual", () => {
     mount();
     fireEvent.change(screen.getByLabelText("Search the rules"), { target: { value: "zzqx" } });

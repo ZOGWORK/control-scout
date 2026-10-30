@@ -2,7 +2,7 @@
 // summarised (src/shared/rules), with a search that runs in the browser over the copy built into the app, so it
 // answers with no signal at the venue. A section browser jumps through the manual's order; every rule has its
 // own link (/rules#G421). The revision stamp and the "unofficial, check the manual" note are always on screen.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { AlertTriangle, BookOpen, ExternalLink, FileCheck2, MessagesSquare, Search, WifiOff, X } from "lucide-react";
 import { useTitle } from "../lib/meta";
@@ -36,8 +36,10 @@ function penaltyTone(entry: RuleEntry): string {
 /** The anchor for a rule or a ruling. */
 const ruleAnchor = (id: string) => id;
 const qaAnchor = (n: number) => `qa-${n}`;
+/** Follows a link to another entry on the page (RulesPage.follow). */
+type Follow = (id: string) => (e: MouseEvent) => void;
 
-function RuleCard({ entry, sectionLabel, tone, rulings, flash }: { entry: RuleEntry; sectionLabel?: string; tone: string; rulings: QaRuling[]; flash: boolean }) {
+function RuleCard({ entry, sectionLabel, tone, rulings, flash, follow }: { entry: RuleEntry; sectionLabel?: string; tone: string; rulings: QaRuling[]; flash: boolean; follow: Follow }) {
   return (
     <li id={ruleAnchor(entry.id)} className={cn("scroll-mt-bar-20 px-5 py-4 max-sm:px-4", flash && "bg-accent/[0.08]")}>
       <div className="flex flex-wrap items-center gap-2">
@@ -54,14 +56,14 @@ function RuleCard({ entry, sectionLabel, tone, rulings, flash }: { entry: RuleEn
       {rulings.length > 0 && (
         <p className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
           <MessagesSquare className="size-3.5" aria-hidden /> Q&A on this rule:
-          {rulings.map((q) => <a key={q.n} href={`#${qaAnchor(q.n)}`} className="rounded-md bg-info/10 px-1.5 py-0.5 font-medium text-info hover:bg-info/20">Q{q.n}</a>)}
+          {rulings.map((q) => <a key={q.n} href={`#${qaAnchor(q.n)}`} onClick={follow(qaAnchor(q.n))} className="rounded-md bg-info/10 px-1.5 py-0.5 font-medium text-info hover:bg-info/20">Q{q.n}</a>)}
         </p>
       )}
     </li>
   );
 }
 
-function RulingCard({ q, ruleIds, flash }: { q: QaRuling; ruleIds: Set<string>; flash: boolean }) {
+function RulingCard({ q, ruleIds, flash, follow }: { q: QaRuling; ruleIds: Set<string>; flash: boolean; follow: Follow }) {
   return (
     <li id={qaAnchor(q.n)} className={cn("scroll-mt-bar-20 px-5 py-4 max-sm:px-4", flash && "bg-accent/[0.08]")}>
       <div className="flex flex-wrap items-center gap-2">
@@ -72,7 +74,7 @@ function RulingCard({ q, ruleIds, flash }: { q: QaRuling; ruleIds: Set<string>; 
         <Badge variant="info">Unofficial guidance</Badge>
         <span>Answered {stampDate(q.answered)}</span>
         {q.rules.map((r) => ruleIds.has(r)
-          ? <a key={r} href={`#${ruleAnchor(r)}`} className="font-mono font-medium text-accent-text hover:underline">{r}</a>
+          ? <a key={r} href={`#${ruleAnchor(r)}`} onClick={follow(ruleAnchor(r))} className="font-mono font-medium text-accent-text hover:underline">{r}</a>
           : <span key={r} className="font-mono">{r}</span>)}
       </p>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{q.summary}</p>
@@ -135,18 +137,26 @@ export default function RulesPage() {
   const grouped = useMemo(() => ref.sections.map((s) => ({ s, items: ref.rules.filter((r) => r.section === s.id) })).filter((g) => g.items.length), [ref]);
   const parts = useMemo(() => [...new Set(grouped.map((g) => g.s.part))], [grouped]);
 
-  // Arriving on /rules#G421 (or a Q&A chip) brings that entry into view and marks it briefly.
+  // Going to a rule or ruling (/rules#G421, a Q&A chip, a rule number on a ruling) brings it into view and marks it
+  // briefly. One the search has hidden clears the search first, then is shown once the full list is back.
+  const [target, setTarget] = useState<{ id: string } | null>(null);
+  const go = (id: string) => { if (!document.getElementById(id)) setQuery(""); setTarget({ id }); };
   useEffect(() => {
     let id: string;
     try { id = decodeURIComponent(hash.slice(1)); } catch { return; }
-    if (!id) return;
-    const el = document.getElementById(id);
-    if (!el) return;
+    if (id) go(id);
+  }, [hash]);
+  useEffect(() => {
+    if (!target) return;
+    const el = document.getElementById(target.id);
+    if (!el) return; // waiting for the search to clear (or not an entry at all)
     requestAnimationFrame(() => scrollToElement(el));
-    setFlash(id);
+    setFlash(target.id);
     const t = setTimeout(() => setFlash(null), 2000);
     return () => clearTimeout(t);
-  }, [hash, searching]);
+  }, [target, query]);
+  /** A link to an entry on this page: kept as a real #link, followed here so a hidden one is revealed. */
+  const follow = (id: string) => (e: MouseEvent) => { e.preventDefault(); history.replaceState(history.state, "", `#${id}`); go(id); };
 
   const jump = (id: string) => { const el = document.getElementById(id); if (el) scrollToElement(el); };
   const sectionLabel = (r: RuleEntry) => { const s = sectionOf.get(r.section); return s ? `${s.id} ${s.title}` : r.section; };
@@ -222,7 +232,7 @@ export default function RulesPage() {
                 {found.rules.length > 0 && (
                   <section aria-label="Matching rules">
                     <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-                      {found.rules.map((r) => <RuleCard key={r.id} entry={r} sectionLabel={sectionLabel(r)} tone={partTone(sectionOf.get(r.section)?.part)} rulings={rulingsFor(ref, r.id)} flash={flash === r.id} />)}
+                      {found.rules.map((r) => <RuleCard key={r.id} entry={r} sectionLabel={sectionLabel(r)} tone={partTone(sectionOf.get(r.section)?.part)} rulings={rulingsFor(ref, r.id)} flash={flash === r.id} follow={follow} />)}
                     </ul>
                   </section>
                 )}
@@ -230,7 +240,7 @@ export default function RulesPage() {
                   <section aria-labelledby="qa">
                     <SectionHeading id="qa" tone="text-info">Q&A rulings</SectionHeading>
                     <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-                      {found.rulings.map((q) => <RulingCard key={q.n} q={q} ruleIds={ruleIds} flash={flash === qaAnchor(q.n)} />)}
+                      {found.rulings.map((q) => <RulingCard key={q.n} q={q} ruleIds={ruleIds} flash={flash === qaAnchor(q.n)} follow={follow} />)}
                     </ul>
                   </section>
                 )}
@@ -242,7 +252,7 @@ export default function RulesPage() {
                 <section key={g.s.id} aria-labelledby={`section-${g.s.id}`}>
                   <SectionHeading id={`section-${g.s.id}`} tone={partTone(g.s.part).split(" ")[0]}><span className="font-mono text-base text-muted-foreground">{g.s.id}</span>{g.s.title}</SectionHeading>
                   <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-                    {g.items.map((r) => <RuleCard key={r.id} entry={r} tone={partTone(g.s.part)} rulings={rulingsFor(ref, r.id)} flash={flash === r.id} />)}
+                    {g.items.map((r) => <RuleCard key={r.id} entry={r} tone={partTone(g.s.part)} rulings={rulingsFor(ref, r.id)} flash={flash === r.id} follow={follow} />)}
                   </ul>
                 </section>
               ))}
@@ -250,7 +260,7 @@ export default function RulesPage() {
                 <SectionHeading id="qa" tone="text-info">Q&A rulings</SectionHeading>
                 <p className="mb-3 text-sm text-muted-foreground">Answers FIRST has published on its Q&A board, summarised. Each is unofficial guidance here: read the full answer on the <a href={ref.qa.url} target="_blank" rel="noreferrer noopener" className="font-medium text-accent-text underline-offset-4 hover:underline">official Q&A</a>.</p>
                 <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-                  {ref.rulings.map((q) => <RulingCard key={q.n} q={q} ruleIds={ruleIds} flash={flash === qaAnchor(q.n)} />)}
+                  {ref.rulings.map((q) => <RulingCard key={q.n} q={q} ruleIds={ruleIds} flash={flash === qaAnchor(q.n)} follow={follow} />)}
                 </ul>
               </section>
             </>
