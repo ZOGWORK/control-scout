@@ -1527,6 +1527,15 @@ CREATE TABLE workspace_flag_overrides (
 );
 `,
   },
+  {
+    version: 57,
+    name: "email digest welcome",
+    sql: `
+-- When the account's welcome email went out (server/digest/welcome.ts): once, the first time it turns the email digest on.
+-- Null: never sent (a failed send is cleared back to null, so the next turn-on tries again).
+ALTER TABLE digest_prefs ADD COLUMN welcomed_at TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

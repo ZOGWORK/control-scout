@@ -38,6 +38,7 @@ import { StreamsPanel } from "../components/owner/StreamsPanel";
 import { PredictionEnginePanel, TierCalibrationList } from "../components/owner/PredictionEnginePanel";
 import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
 import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
+import { DigestPanel } from "../components/owner/DigestPanel";
 import { DataPanel } from "../components/owner/DataPanel";
 import { PacksPanel } from "../components/owner/PacksPanel";
 import { ModerationPanel } from "../components/owner/ModerationPanel";
@@ -150,6 +151,7 @@ export default function OwnerPage() {
               <PowerRankingsPanel onOpenSwitches={() => go("features")} />
               <HeroLinesPanel />
               <StreamsPanel />
+              <DigestPanel />
               <WhatsNewPanel />
             </div>
           )}

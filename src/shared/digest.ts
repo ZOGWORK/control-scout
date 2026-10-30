@@ -13,8 +13,32 @@ export interface DigestStatus {
   email: string | null;
   /** The last digest bounced for good, which turned the switch off; turning it back on clears this. */
   bounced: boolean;
+  /** PUT only: a welcome email is on its way (the first time the account turned it on). */
+  welcomeSent?: boolean;
   /** The teams it would cover (my team plus tracked teams). */
   followedTeams: number[];
+}
+
+/** GET /api/owner/digest: the owner console's Email digest card. */
+export interface OwnerDigest {
+  /** Email set up (RESEND_API_KEY) and the owner's switch on. */
+  available: boolean;
+  /** Accounts with the digest on (and not bounced). */
+  subscribers: number;
+  /** The next scheduled send, ISO (owner only: members are never told a time). */
+  nextSend: string;
+  /** The owner's own account: is the digest on for it, and how many teams it follows. */
+  mine: { enabled: boolean; followed: number };
+  /** The latest send in the log: its key (New York time) and what happened, per status. */
+  lastSend: { key: string; counts: Record<string, number> } | null;
+}
+
+/** POST /api/owner/digest/send: what happened to the owner's own test send. */
+export interface OwnerDigestSendResult {
+  kind: "digest" | "welcome";
+  outcome: "sent" | "nothing" | "failed" | "skipped";
+  /** A sentence for the console. */
+  message: string;
 }
 
 /** Where the unsubscribe link lands: /digest/unsubscribed?status=… */

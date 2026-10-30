@@ -92,6 +92,26 @@ same with images blocked. No tracking pixel, no UTM tags: every link is the
 plain page it names. `List-Unsubscribe` and `List-Unsubscribe-Post` headers give
 mail apps a one-click Unsubscribe button (RFC 8058).
 
+## The welcome email
+
+`welcome.ts`: the first time an account turns the digest on, one email says what
+each digest holds, how often it comes ("a few times a week", never a day or
+time) and which teams it follows, with the same unsubscribe link and headers.
+Once per account (`digest_prefs.welcomed_at`, migration 57): off and on again
+sends nothing more; a failed send clears the mark so the next turn-on retries.
+It goes out after the switch's answer, never holding it up. (The original brief
+said not to announce emails with an email; the owner asked for a welcome on
+2026-10-30.)
+
+## Owner console
+
+Rankings & content › Email digest (`ownerRoutes.ts`, `DigestPanel.tsx`): the
+number of subscribers, the next scheduled send (shown to the owner only), what
+the last send did, and two test sends that only ever go to the owner's own
+account: **Send me a digest now** (built, logged and covered exactly like a
+scheduled send, so the next one doesn't repeat it; works with the
+`weeklyDigest` switch off) and **Send me the welcome email**. Both are audited.
+
 ## Unsubscribing
 
 Each account has a random 256-bit token (`digest_prefs.token`). The link
