@@ -7,7 +7,9 @@
 // a fixture.
 import { reliabilityFromRow, type Reliability } from "../../shared/reliability";
 import type { Database, SqlValue } from "sql.js";
-import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats } from "../../shared/api";
+import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats } from "../../shared/api";
+import { SCHEDULE_TABLE } from "../../shared/packSchema";
+import { scheduleFromRows } from "../../shared/scheduleDifficulty";
 import { eventTypeLabel } from "../../shared/labels";
 import { localToUtcMs } from "../../shared/time";
 import { eventStatus } from "../../shared/eventDay";
@@ -123,6 +125,7 @@ export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number
   if (!s) s = entered ? newest!.season : seasons.find((x) => x !== newest?.season) ?? seasons[0] ?? newest?.season;
   const at = saved.find((x) => x.season === s);
   if (!at || s == null) return null;
+  const events = teamEvents(at.db, s, number);
   // Awards across every saved season, newest first (each pack's own events give the names).
   const awardsAllTime = mine.flatMap((x) => x.db.all(
     "SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY e.start DESC",
@@ -130,7 +133,7 @@ export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number
   ));
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
-    season: s, seasons, stats: seasonStats(at.db, s, number), events: teamEvents(at.db, s, number),
+    season: s, seasons, stats: seasonStats(at.db, s, number), events, schedule: teamSchedules(at.db, s, number, events),
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
   };
 }
@@ -206,6 +209,24 @@ export function readProjections(sdb: SeasonDb, code: string): ProjectionsView {
   return projectionsViewFromRows(sdb.season, code, rows);
 }
 
+/** Schedule difficulty rows from a pack (packSchema.ts SCHEDULE_TABLE); packs built before it have none. */
+function packSchedule(db: Db, season: number, where: { code: string } | { team: number }): Record<string, unknown>[] {
+  if (!one(db, `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '${SCHEDULE_TABLE.name}'`)) return [];
+  return "code" in where
+    ? db.all(`SELECT * FROM ${SCHEDULE_TABLE.name} WHERE season = ? AND code = ?`, [season, where.code])
+    : db.all(`SELECT * FROM ${SCHEDULE_TABLE.name} WHERE season = ? AND team = ?`, [season, where.team]);
+}
+
+/** A team's schedule difficulty at each event of `events` that has a figure, in that order. */
+function teamSchedules(db: Db, season: number, team: number, events: TeamEventRow[]): TeamSchedule[] {
+  const by = new Map(packSchedule(db, season, { team }).map((r) => [String(r.code), r]));
+  return events.flatMap((e) => {
+    const r = by.get(e.code);
+    const t = r && scheduleFromRows([r])?.teams[0];
+    return r && t ? [{ ...t, code: e.code, scheduled: Number(r.scheduled), played: Number(r.played) }] : [];
+  });
+}
+
 export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}): EventDetail | null {
   const { season, db } = sdb;
   const r = one(db, `${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
@@ -238,6 +259,8 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
     advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
     live: null, // a saved season: no live checks, no Refresh results (that needs the server)
     forecastUnsupported: OFFLINE_FORECAST,
+    // As of when the pack was built.
+    scheduleDifficulty: scheduleFromRows(packSchedule(db, season, { code })),
   };
 }
 

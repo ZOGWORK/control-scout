@@ -1,5 +1,6 @@
 // API contract shared by the server and the web app (types only).
 import type { Reliability } from "./reliability";
+import type { ScheduleDifficulty, ScheduleDifficultyTeam } from "./scheduleDifficulty";
 import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
@@ -155,6 +156,17 @@ export interface TeamProfile {
   events: TeamEventRow[];
   /** Awards across all seasons we hold (newest first). */
   awardsAllTime: { season: number; code: string; event: string; type: string; placement: number; name: string | null }[];
+  /** The team's schedule difficulty at each of the season's events with a posted schedule (in `events` order).
+   *  Absent from older servers and packs. */
+  schedule?: TeamSchedule[];
+}
+
+/** One event's schedule difficulty for one team (src/shared/scheduleDifficulty.ts). */
+export interface TeamSchedule extends ScheduleDifficultyTeam {
+  code: string;
+  /** Qualification matches on the event's schedule, and how many have a result. */
+  scheduled: number;
+  played: number;
 }
 
 export interface AllianceScore {
@@ -301,6 +313,9 @@ export interface EventDetail {
   /** This event is one session of an AM/PM pair and FIRST lists the pair's registrations together, with no word on
    *  who plays which session: never this session's `field`. Null otherwise. Absent from older servers and saved packs. */
   sharedSessions?: SharedSessions | null;
+  /** Each team's qualification schedule next to the field's (src/shared/scheduleDifficulty.ts): the full schedule, and
+   *  what's left once quals are under way. Null without a posted schedule or ratings; absent from older servers and packs. */
+  scheduleDifficulty?: ScheduleDifficulty | null;
 }
 
 /** FIRST's registered teams for both sessions of an AM/PM event (server/data/registrations.ts markSharedSessions). */

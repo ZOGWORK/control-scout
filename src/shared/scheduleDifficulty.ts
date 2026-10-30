@@ -19,6 +19,8 @@
 // Two views: `full` over every qualification match, and `remaining` over the unplayed ones once quals are
 // under way (null before the first result and after the last). Pure: the server (event detail, team pages,
 // offline packs), the device and later features (disagreements, "matches that matter") all call this.
+import type { EventInput, Forecaster } from "@control-scout/predict-engine";
+import { rankingInput } from "./projectionInput.js";
 
 export interface ScheduleMatch {
   red: number[];
@@ -133,7 +135,7 @@ export function scheduleDifficulty(rating: Map<number, number>, quals: ScheduleM
   };
 }
 
-const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : "±"}${Math.abs(Math.round(x))}`;
+const signed = (x: number) => { const r = Math.round(x); return `${r > 0 ? "+" : r < 0 ? "−" : "±"}${Math.abs(r)}`; };
 const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`; };
 
 /** "3rd-hardest of 24" / "easiest of 24" / "hardest of 24": where a schedule sits in its field. */
@@ -155,4 +157,49 @@ export function scheduleLine(s: Pick<ScheduleSide, "opponents" | "partners">, wh
   const o = who ? `${who[0].toUpperCase()}${who.slice(1)} opponents` : "Opponents";
   const p = who ? `${who} partners` : "partners";
   return `${o} average ${signed(s.opponents)} over the field's, ${p} ${signed(s.partners)}.`;
+}
+
+/**
+ * An event's schedule difficulty from the engine, read exactly as the Monte Carlo projections read it
+ * (projectionInput.ts rankingInput): the field's ratings with the event's fresh results folded in (a team with
+ * none this season on its last-season prior) and the posted qualification schedule. Null without a posted
+ * schedule (the simulator's random stand-in schedule is never rated), without ratings, or for a field too small.
+ */
+export function eventScheduleDifficulty(f: Forecaster, ev: EventInput): ScheduleDifficulty | null {
+  const quals = ev.matches.filter((m) => m.level === "qual");
+  if (!quals.length || !quals.every((m) => m.red.teams.length && m.blue.teams.length)) return null;
+  const input = rankingInput(f, ev);
+  if (!input || input.quals.length !== quals.length) return null;
+  const rating = new Map([...input.ratings].map(([t, r]) => [t, r.auto + r.teleop + r.endgame]));
+  return scheduleDifficulty(rating, input.quals.map((q, i) => ({ red: q.red, blue: q.blue, played: quals[i].played, ...(q.noRank?.length ? { noRank: q.noRank } : {}) })));
+}
+
+// --- Offline packs ---------------------------------------------------------------------------------------
+// A season pack carries every event's figures as a team stat (one row per event and team; packSchema.ts
+// SCHEDULE_TABLE), so a saved event or team page shows them with no connection.
+
+const SIDE_COLS = ["opponents", "partners", "difficulty", "matches", "rank", "of", "z"] as const;
+/** Pack columns after (season, code, team), in order. */
+export const SCHEDULE_COLUMNS = ["field_mean", "scheduled", "played", ...SIDE_COLS.map((c) => `full_${c}`), ...SIDE_COLS.map((c) => `rem_${c}`)] as const;
+
+/** One event's figures as pack rows: [team, …SCHEDULE_COLUMNS]. */
+export function scheduleRows(sd: ScheduleDifficulty): (number | null)[][] {
+  const side = (s: ScheduleSide | null) => SIDE_COLS.map((c) => (s ? s[c] : null));
+  return sd.teams.map((t) => [t.team, sd.fieldMean, sd.scheduled, sd.played, ...side(t.full), ...side(t.remaining)]);
+}
+
+/** An event's figures back from its pack rows (objects keyed team + SCHEDULE_COLUMNS); null with none. */
+export function scheduleFromRows(rows: Record<string, unknown>[]): ScheduleDifficulty | null {
+  if (!rows.length) return null;
+  const num = (v: unknown) => (v == null ? null : Number(v));
+  const side = (r: Record<string, unknown>, p: "full" | "rem"): ScheduleSide | null => {
+    if (r[`${p}_rank`] == null) return null;
+    return Object.fromEntries(SIDE_COLS.map((c) => [c, Number(r[`${p}_${c}`])])) as unknown as ScheduleSide;
+  };
+  const r0 = rows[0];
+  return {
+    fieldMean: num(r0.field_mean) ?? 0, scheduled: num(r0.scheduled) ?? 0, played: num(r0.played) ?? 0,
+    teams: rows.map((r) => ({ team: Number(r.team), full: side(r, "full"), remaining: side(r, "rem") }))
+      .sort((a, b) => (a.full?.rank ?? 1e9) - (b.full?.rank ?? 1e9) || a.team - b.team),
+  };
 }
