@@ -358,7 +358,8 @@ export async function reportEntry(user: User, entryId: unknown, reason: unknown,
 export async function reportQueue(): Promise<CommonsReportGroup[]> {
   const rows = await all<any>(
     `SELECT r.id, r.workspace_id, r.entry_uuid, r.season, r.event_code, r.team, r.reason, r.note, r.created_at, ws.name ws_name, ws.cp_workspace_id,
-            w.notes, w.data, w.updated_at, w.deleted, w.kind, w.template_id, w.template_version, c.status
+            w.notes, w.data, w.updated_at, w.deleted, w.kind, w.template_id, w.template_version, c.status,
+            w.season w_season, w.team w_team, w.event_code w_event_code
        FROM commons_reports r JOIN workspaces ws ON ws.id = r.workspace_id
        LEFT JOIN workspace_scout_entries w ON w.workspace_id = r.workspace_id AND w.uuid = r.entry_uuid
        LEFT JOIN commons_entries c ON c.workspace_id = r.workspace_id AND c.entry_uuid = r.entry_uuid
@@ -383,7 +384,9 @@ export async function reportQueue(): Promise<CommonsReportGroup[]> {
       }
       g = {
         entryId: key, source: { id: Number(r.workspace_id), name: String(r.ws_name || "A workspace") },
-        season: Number(r.season), eventCode: String(r.event_code), team: Number(r.team),
+        // Where the entry is now (an edit can move it to another team or event), so its content is labelled with the
+        // robot it describes; once it's gone, where it was when reported.
+        season: Number(live ? r.w_season : r.season), eventCode: String(live ? String(r.w_event_code ?? "").toUpperCase() : r.event_code), team: Number(live ? r.w_team : r.team),
         notes: live ? String(r.notes ?? "") : null, scoutedAt: live ? Number(r.updated_at) : null, status: (r.status ?? null) as CommonsStatus | null,
         data, fields, photos: live ? photos.get(key) ?? [] : [], reports: [],
       };

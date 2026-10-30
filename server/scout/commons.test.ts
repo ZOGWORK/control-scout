@@ -533,6 +533,13 @@ describe("scouting commons: moderation edges", () => {
     await gone("PUT", `/api/scout/commons/mutes/${ws}`, { muted: true });
     const q = (await owner("GET", "/api/owner/commons/reports")).json.reports[0];
     expect(q.data).toMatchObject({ drivetrain: "Mecanum" });
+    // Moved to another team since the report: the queue labels it with the robot it describes now.
+    {
+      const { adminA } = await cast();
+      const row = (await all<any>("SELECT uuid, season, event_code, data, notes, updated_at FROM workspace_scout_entries WHERE uuid = ?", [id.split(":")[1]]))[0];
+      await push(adminA, A, [{ uuid: row.uuid, season: Number(row.season), team: 101, eventCode: row.event_code, matchLabel: null, kind: "pit", data: JSON.parse(row.data), notes: row.notes, updatedAt: Number(row.updated_at) + 500 }]);
+      expect((await owner("GET", "/api/owner/commons/reports")).json.reports[0].team).toBe(101);
+    }
     expect(q.fields.map((f: { id: string }) => f.id)).toContain("drivetrain");
     const uid = (await all<{ id: number }>("SELECT id FROM users WHERE email = 'cm-gone@example.com'"))[0].id;
     // Edited into match scouting since: its answers and notes stay inside the workspace, even in the queue.
