@@ -118,14 +118,16 @@ function collect(field: number[], matches: ScheduleMatch[], rating: Map<number, 
  * Schedule difficulty for every team of an event.
  * `rating`: each field team's rating (non-penalty points per robot), priors included; the field is its keys.
  * Null when there's nothing to rank: no qualification schedule, or a field under MIN_SCHEDULE_TEAMS.
+ * `over`: the event has ended, so there's no remaining view whatever is left unplayed.
  */
-export function scheduleDifficulty(rating: Map<number, number>, quals: ScheduleMatch[]): ScheduleDifficulty | null {
+export function scheduleDifficulty(rating: Map<number, number>, quals: ScheduleMatch[], opts: { over?: boolean } = {}): ScheduleDifficulty | null {
   const field = [...rating.keys()];
   if (!quals.length || field.length < MIN_SCHEDULE_TEAMS) return null;
   const total = [...rating.values()].reduce((a, b) => a + b, 0), n = field.length;
   const played = quals.filter((m) => m.played).length;
   const full = sides(collect(field, quals, rating), rating, total, n);
-  const open = played > 0 && played < quals.length;
+  // An event that's over never plays its unplayed matches (cancelled, or results never posted): no "still to play".
+  const open = !opts.over && played > 0 && played < quals.length;
   const remaining = open ? sides(collect(field, quals.filter((m) => !m.played), rating), rating, total, n) : new Map<number, ScheduleSide>();
   if (!full.size) return null;
   return {
@@ -165,13 +167,13 @@ export function scheduleLine(s: Pick<ScheduleSide, "opponents" | "partners">, wh
  * none this season on its last-season prior) and the posted qualification schedule. Null without a posted
  * schedule (the simulator's random stand-in schedule is never rated), without ratings, or for a field too small.
  */
-export function eventScheduleDifficulty(f: Forecaster, ev: EventInput): ScheduleDifficulty | null {
+export function eventScheduleDifficulty(f: Forecaster, ev: EventInput, today = new Date().toISOString().slice(0, 10)): ScheduleDifficulty | null {
   const quals = ev.matches.filter((m) => m.level === "qual");
   if (!quals.length || !quals.every((m) => m.red.teams.length && m.blue.teams.length)) return null;
   const input = rankingInput(f, ev);
   if (!input || input.quals.length !== quals.length) return null;
   const rating = new Map([...input.ratings].map(([t, r]) => [t, r.auto + r.teleop + r.endgame]));
-  return scheduleDifficulty(rating, input.quals.map((q, i) => ({ red: q.red, blue: q.blue, played: quals[i].played, ...(q.noRank?.length ? { noRank: q.noRank } : {}) })));
+  return scheduleDifficulty(rating, input.quals.map((q, i) => ({ red: q.red, blue: q.blue, played: quals[i].played, ...(q.noRank?.length ? { noRank: q.noRank } : {}) })), { over: (ev.end ?? ev.start ?? today) < today });
 }
 
 // --- Offline packs ---------------------------------------------------------------------------------------

@@ -42,6 +42,8 @@ describe("scheduleDifficulty", () => {
     // Before the first result and after the last there's no separate remaining view.
     expect(scheduleDifficulty(rating, quals.map((q) => ({ ...q, played: false })))!.teams.every((t) => t.remaining === null)).toBe(true);
     expect(scheduleDifficulty(rating, quals.map((q) => ({ ...q, played: true })))!.teams.every((t) => t.remaining === null)).toBe(true);
+    // Nor once the event is over with matches never played.
+    expect(scheduleDifficulty(rating, quals, { over: true })!.teams.every((t) => t.remaining === null && t.full)).toBe(true);
   });
 
   it("leaves a surrogate appearance out of that team's own schedule", () => {
