@@ -27,6 +27,18 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
   const id = useId();
   if (e.kind !== "pit" || !e.workspaceId || !c?.optedIn) return null;
   const on = isShared(c, e.uuid);
+  const removed = c.shares.find((s) => s.uuid === e.uuid && s.status === "removed");
+  if (removed || c.suspended) {
+    return (
+      <div role="status" className={`rounded-xl border border-danger/40 bg-danger/[0.06] p-4 text-sm ${className ?? ""}`}>
+        <p className="flex items-center gap-1.5 font-medium"><Globe2 className="size-4 text-danger" aria-hidden />{removed ? "Taken down from the scouting commons" : "Your workspace is suspended from the scouting commons"}</p>
+        <p className="mt-0.5 text-muted-foreground">
+          {removed ? <>Control Scout took this entry down{removed.removedReason ? ` (${removed.removedReason})` : ""}, so it can't be shared again. It stays in your workspace as it is.</>
+            : <>Nothing your workspace shared is shown{c.suspended!.reason ? ` (${c.suspended!.reason})` : ""}. Your own scouting is untouched. Contact Control Scout if you think that's a mistake.</>}
+        </p>
+      </div>
+    );
+  }
   const toggle = async (publish: boolean) => {
     setBusy(true); setErr(null);
     try { await setShare(e.workspaceId!, e.uuid, publish); } catch (x) { setErr((x as ApiError).message); } finally { setBusy(false); }

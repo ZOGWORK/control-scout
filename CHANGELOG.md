@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.6 — 2026-10-30
+
+Something wrong in the scouting commons? Report it, or mute a workspace you don't want to see.
+
+### Highlights
+- [scout] Report a shared pit entry from its menu on a team page
+- [scout] Mute a workspace's shares, just for you, and unmute any time
+- [workspace] Taken-down entries and suspensions are explained in the entry itself
+
+### Scouting commons
+- **Report.** Every shared entry has a menu with "Report this entry": pick what's wrong (wrong about the robot, out of date, inappropriate, something else) and add a note. The workspace isn't told who reported it (#PRNUM).
+- **Mute.** "Mute" hides a workspace's shares for you alone. Muted workspaces are listed under the entries, each with an Unmute button.
+- **Reviewed by Control Scout.** Reported entries can be taken down. A taken-down entry says so on its share switch, with the reason, and can't be shared again unless it's restored. A whole workspace can be suspended from the commons too; its own scouting is never touched.
+
 ## 1.5.5 — 2026-10-30
 
 Workspaces can now share pit scouting with everyone at an event, in the new scouting commons.

@@ -2,23 +2,25 @@
 // - useCommons: what other workspaces shared on a team (signed-in accounts only; nothing is fetched signed out).
 // - useWorkspaceCommons: a workspace's opt-in and its shares, for the share switch and Settings: asked again whenever
 //   a component showing it mounts (one request at a time per workspace), and updated in place by setShare / setOptIn.
+// - reportEntry / setMute: a reader's report of a shared entry, and their own mute of a source workspace.
 // - pitAge: how old a pit claim is, said prominently (a robot rebuilt on Saturday makes Friday's notes wrong).
 import { useEffect, useState } from "react";
 import { apiFetch, qs, type ApiError } from "./api";
 import { usePersonal } from "./personal";
 import { useFlag, useWorkspaceFlag } from "./flags";
-import type { CommonsAnswer, CommonsEvent, WorkspaceCommons } from "../shared/commons";
+import type { CommonsAnswer, CommonsEvent, CommonsReportReason, CommonsSource, WorkspaceCommons } from "../shared/commons";
 
 export const commonsPath = (season: number, team: number) => `/api/scout/commons${qs({ season, team })}`;
 export const commonsPhotoUrl = (id: string) => `/api/scout/commons/photos/${encodeURIComponent(id)}`;
 const workspacePath = (ws: string) => `/api/scout/workspaces/${encodeURIComponent(ws)}/commons`;
 
-/** The commons on a team this season. Null while signed out or switched off by the owner (nothing asked). */
-export function useCommons(team: number, season: number): { data?: CommonsAnswer; error?: ApiError } | null {
+/** The commons on a team this season (`reload` asks again: after a mute). Null while signed out or switched off by the owner (nothing asked). */
+export function useCommons(team: number, season: number): { data?: CommonsAnswer; error?: ApiError; reload: () => void } | null {
   const { user } = usePersonal();
   const on = useFlag("scoutingCommons");
   const signedIn = !!user && on;
   const [st, setSt] = useState<{ key: string; data?: CommonsAnswer; error?: ApiError } | null>(null);
+  const [nonce, setNonce] = useState(0);
   const key = `${season}:${team}:${user?.id ?? ""}`;
   useEffect(() => {
     if (!signedIn) return;
@@ -28,9 +30,20 @@ export function useCommons(team: number, season: number): { data?: CommonsAnswer
       (error: ApiError) => { if (live) setSt({ key, error }); },
     );
     return () => { live = false; };
-  }, [signedIn, season, team, key]);
+  }, [signedIn, season, team, key, nonce]);
   if (!signedIn) return null;
-  return st?.key === key ? st : {};
+  const reload = () => setNonce((n) => n + 1);
+  return st?.key === key ? { ...st, reload } : { reload };
+}
+
+/** Report a shared entry to Control Scout (one open report per reader per entry; `already`: it was reported before). */
+export async function reportEntry(entryId: string, reason: CommonsReportReason, note: string): Promise<{ already: boolean }> {
+  return apiFetch<{ reported: true; already: boolean }>("/api/scout/commons/reports", { method: "POST", json: { entryId, reason, note } });
+}
+
+/** Mute or unmute a source workspace for this account only. The muted list after. */
+export async function setMute(sourceId: number, muted: boolean): Promise<CommonsSource[]> {
+  return (await apiFetch<{ muted: CommonsSource[] }>(`/api/scout/commons/mutes/${sourceId}`, { method: "PUT", json: { muted } })).muted;
 }
 
 // One copy per workspace, shared by every component showing it.

@@ -3,7 +3,7 @@
 // entries show credited to the workspace, each with its age said prominently (before the event: stale; over a
 // day: aging), under a labelled layer; nothing shows when nothing is shared. And pitAge's rules on their own.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { AccountUser } from "../lib/personal";
 import type { CommonsAnswer, CommonsEntry } from "../shared/commons";
@@ -37,7 +37,11 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   asked = [];
-  vi.stubGlobal("fetch", vi.fn(async (url: string) => { asked.push(String(url)); return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }); }));
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+    asked.push(init?.method && init.method !== "GET" ? `${init.method} ${url} ${init.body ?? ""}` : String(url));
+    const reply = String(url).includes("/mutes/") ? { muted: [] } : body;
+    return new Response(JSON.stringify(reply), { status: 200, headers: { "Content-Type": "application/json" } });
+  }));
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); h.user = null; });
 
@@ -86,6 +90,18 @@ describe("CommonsSection", () => {
     expect(within(card).getByText("Auto routines").nextElementSibling?.textContent).toBe("0");
     expect(within(card).getByText("Can do the endgame").nextElementSibling?.textContent).toBe("no");
     expect(within(card).queryByText("Robot weight (lb)")).toBeNull();
+  });
+});
+
+describe("CommonsSection: mutes", () => {
+  it("everything muted: says so, and Unmute asks the server then reads again", async () => {
+    h.user = user;
+    body = { ...answer([]), muted: [{ id: 4, name: "Gear Gang" }] };
+    show();
+    expect(await screen.findByText(/comes from workspaces you muted/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Unmute Gear Gang" }));
+    await waitFor(() => expect(asked).toContain('PUT /api/scout/commons/mutes/4 {"muted":false}'));
+    await waitFor(() => expect(asked.filter((u) => u.startsWith("/api/scout/commons?")).length).toBe(2));
   });
 });
 

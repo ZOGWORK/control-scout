@@ -420,6 +420,7 @@ describe("scouting commons: moderation", () => {
     const down = await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: true, reason: "Not scouting" });
     expect(down.status).toBe(200);
     expect(down.json.reports).toEqual([]);
+    expect(down.json.removed).toEqual([expect.objectContaining({ entryId: id, source: expect.objectContaining({ name: "Pyro Scouts" }), reason: "Not scouting", removedBy: "owner@example.com" })]);
     expect((await read(loner)).entries).toEqual([]);
     const ws = await adminA("GET", `/api/scout/workspaces/${A}/commons`);
     expect(ws.json.shares[0]).toMatchObject({ uuid: e.uuid, status: "removed", removedReason: "Not scouting" });
@@ -428,6 +429,7 @@ describe("scouting commons: moderation", () => {
     expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.shares[0].status).toBe("removed"); // unsharing doesn't undo a takedown
     expect((await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: false })).status).toBe(200);
     expect((await read(loner)).entries).toHaveLength(1);
+    expect((await owner("GET", "/api/owner/commons/reports")).json.removed).toEqual([]);
     const audit = await all<any>("SELECT action FROM owner_audit WHERE action LIKE 'commons.entry.%' ORDER BY id DESC LIMIT 2");
     expect(audit.map((a) => a.action)).toEqual(["commons.entry.restore", "commons.entry.remove"]);
   });

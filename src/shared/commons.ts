@@ -103,5 +103,11 @@ export interface CommonsReportGroup {
   reports: { id: number; reason: CommonsReportReason; note: string; createdAt: string }[];
 }
 
+/** An entry the owner took down (GET /api/owner/commons/reports, `removed`). */
+export interface CommonsRemoved { entryId: string; source: CommonsSource; season: number; eventCode: string; team: number; removedAt: string; removedBy: string; reason: string }
+
+/** GET /api/owner/commons/reports, and every moderation action's answer. */
+export interface CommonsModeration { reports: CommonsReportGroup[]; removed: CommonsRemoved[] }
+
 /** The owner console's list of workspaces that have joined the commons. */
 export interface CommonsWorkspaceRow { source: CommonsSource; optedIn: boolean; shared: number; removed: number; suspended: { at: string; by: string; reason: string } | null }

@@ -30,7 +30,7 @@ import { aggregateConsensus, type ConsensusEntry } from "../../src/shared/consen
 import type { ScoutField } from "../../src/shared/scoutTemplate.js";
 import {
   COMMONS_REFUSAL, isReportReason, REPORT_NOTE_MAX, REPORT_REASONS, type CommonsAnswer, type CommonsEntry, type CommonsEvent, type CommonsPhoto, type CommonsRefusal,
-  type CommonsReportGroup, type CommonsReportReason, type CommonsSource, type CommonsStatus, type CommonsWorkspaceRow, type WorkspaceCommons,
+  type CommonsRemoved, type CommonsReportGroup, type CommonsReportReason, type CommonsSource, type CommonsStatus, type CommonsWorkspaceRow, type WorkspaceCommons,
 } from "../../src/shared/commons.js";
 import { accessError, requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { fieldReader } from "./consensus.js";
@@ -376,6 +376,21 @@ export async function setTakedown(entryId: unknown, removed: boolean, reason: st
   return { was: cur.status as CommonsStatus };
 }
 
+/** Entries the owner took down, newest first, to restore from the console. */
+export async function removedEntries(limit = 100): Promise<CommonsRemoved[]> {
+  const rows = await all<any>(
+    `SELECT c.workspace_id, c.entry_uuid, c.season, c.event_code, c.team, c.removed_at, c.removed_by, c.removed_reason, ws.name ws_name
+       FROM commons_entries c JOIN workspaces ws ON ws.id = c.workspace_id WHERE c.status = 'removed' ORDER BY c.removed_at DESC LIMIT ?`, [limit]);
+  return rows.map((r) => ({
+    entryId: `${Number(r.workspace_id)}:${String(r.entry_uuid)}`, source: { id: Number(r.workspace_id), name: String(r.ws_name || "A workspace") },
+    season: Number(r.season), eventCode: String(r.event_code), team: Number(r.team),
+    removedAt: String(r.removed_at ?? ""), removedBy: String(r.removed_by ?? ""), reason: String(r.removed_reason ?? ""),
+  }));
+}
+
+/** The console's moderation answer: the open queue and what's taken down. */
+const moderation = async () => ({ reports: await reportQueue(), removed: await removedEntries() });
+
 /** Dismiss an entry's open reports (nothing wrong with it). How many were dismissed. */
 export async function dismissReports(entryId: unknown, by: string): Promise<number | null> {
   const id = parseEntryId(entryId);
@@ -583,7 +598,7 @@ type Handler = (req: Request, res: Response) => Promise<unknown>;
  * The owner console's commons routes (mounted under /api/owner, behind its owner gate and JSON-only rule):
  *   GET /commons/events                         every event switched, with what's shared there.
  *   PUT /commons/events/:season/:code {enabled}  open or close the commons at one event; audited.
- *   GET /commons/reports                        the open report queue, grouped by entry.
+ *   GET /commons/reports                        the open report queue, grouped by entry, and the entries taken down.
  *   PUT /commons/entries/:entryId {removed, reason?}   take an entry down (resolving its reports) or restore it; audited.
  *   POST /commons/entries/:entryId/dismiss      dismiss an entry's open reports; audited.
  *   GET /commons/workspaces                     workspaces in the commons.
@@ -603,7 +618,7 @@ export function commonsOwnerRoutes(r: Router, wrap: (fn: Handler) => (req: Reque
       throw e;
     }
   }));
-  r.get("/commons/reports", wrap(async () => ({ reports: await reportQueue() })));
+  r.get("/commons/reports", wrap(moderation));
   r.put("/commons/entries/:entryId", wrap(async (req, res) => {
     if (typeof req.body?.removed !== "boolean") { res.status(400).json({ error: "Send {\"removed\": true | false, \"reason\": \"…\"}" }); return; }
     const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
@@ -611,13 +626,13 @@ export function commonsOwnerRoutes(r: Router, wrap: (fn: Handler) => (req: Reque
     if (!out) { res.status(404).json({ error: "That entry was never in the scouting commons." }); return; }
     await recordAudit(actor(req), req.body.removed ? "commons.entry.remove" : "commons.entry.restore", { entryId: req.params.entryId, ...(reason ? { reason } : {}) }, null,
       { from: out.was, to: req.body.removed ? "removed" : out.was === "removed" ? "published" : out.was });
-    return { reports: await reportQueue() };
+    return moderation();
   }));
   r.post("/commons/entries/:entryId/dismiss", wrap(async (req, res) => {
     const n = await dismissReports(req.params.entryId, actor(req));
     if (n == null) { res.status(400).json({ error: "Not a commons entry" }); return; }
     await recordAudit(actor(req), "commons.reports.dismiss", { entryId: req.params.entryId, reports: n });
-    return { reports: await reportQueue() };
+    return moderation();
   }));
   r.get("/commons/workspaces", wrap(async () => ({ workspaces: await commonsWorkspaces() })));
   r.put("/commons/workspaces/:sourceId", wrap(async (req, res) => {

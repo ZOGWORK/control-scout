@@ -1,14 +1,21 @@
 // "Scouting commons" on the team page (docs/scouting-commons.md): pit scouting other workspaces shared at events where
 // the commons is open, as a separate, labelled layer under the reader's own workspace's take (which comes first).
-// Signed-in accounts only; nothing at all when no open event has anything on the team.
-import { Camera, Clock, Cog, Globe2, Users } from "lucide-react";
+// Signed-in accounts only; nothing at all when no open event has anything on the team (and nothing is muted).
+// Each entry can be reported to Control Scout, and its workspace muted for this account only (unmuted from the
+// list under the entries).
+import { useId, useState } from "react";
+import { Camera, Clock, Cog, EyeOff, Flag, Globe2, MoreHorizontal, Users } from "lucide-react";
 import { Section } from "./page";
-import { Badge } from "./ui/basic";
+import { Badge, Label, Textarea } from "./ui/basic";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./ui/overlay";
+import { toast } from "./ui/sonner";
 import { StatTile } from "./StatTile";
 import { cn } from "./cn";
-import { commonsPhotoUrl, pitAge, useCommons, type PitAgeTone } from "../lib/commons";
+import { commonsPhotoUrl, pitAge, reportEntry, setMute, useCommons, type PitAgeTone } from "../lib/commons";
+import type { ApiError } from "../lib/api";
 import { int } from "../lib/format";
-import type { CommonsAnswer, CommonsEntry } from "../shared/commons";
+import { REPORT_NOTE_MAX, REPORT_REASONS, REPORT_REASON_LABEL, type CommonsAnswer, type CommonsEntry, type CommonsReportReason } from "../shared/commons";
 import type { ConsensusNumber } from "../shared/consensus";
 
 const avg = (x: ConsensusNumber) => (Number.isInteger(x.avg) ? String(x.avg) : x.avg.toFixed(1));
@@ -35,7 +42,52 @@ function answerText(v: unknown): string | null {
   return v === true ? "yes" : v === false ? "no" : String(v);
 }
 
-function CommonsCard({ entry, events }: { entry: CommonsEntry; events: CommonsAnswer["events"] }) {
+/** Report one entry: a reason and an optional note. Reporters stay anonymous; the owner reviews the queue. */
+function ReportDialog({ entry, open, onOpenChange }: { entry: CommonsEntry; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const [reason, setReason] = useState<CommonsReportReason>("wrong");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const id = useId();
+  const send = async () => {
+    setBusy(true);
+    try {
+      const r = await reportEntry(entry.id, reason, note);
+      toast.success(r.already ? "You've already reported this entry. It's in the queue." : "Reported. Thanks: Control Scout will take a look.");
+      onOpenChange(false);
+      setNote("");
+    } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Report {entry.source.name}'s pit entry</DialogTitle>
+          <DialogDescription>Control Scout reviews every report and can take an entry down. {entry.source.name} isn't told who reported it.</DialogDescription>
+        </DialogHeader>
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-sm font-medium">What's wrong?</legend>
+          {REPORT_REASONS.map((r) => (
+            <label key={r} className="flex min-h-10 cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/10">
+              <input type="radio" name={`${id}-reason`} value={r} checked={reason === r} onChange={() => setReason(r)} className="accent-[var(--accent)]" />
+              {REPORT_REASON_LABEL[r]}
+            </label>
+          ))}
+        </fieldset>
+        <div>
+          <Label htmlFor={`${id}-note`}>Anything to add? (optional)</Label>
+          <Textarea id={`${id}-note`} value={note} onChange={(e) => setNote(e.target.value)} maxLength={REPORT_NOTE_MAX} placeholder="e.g. They swapped to a tank drive on Saturday morning." className="mt-2" />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={() => { void send(); }} disabled={busy}><Flag /> Send report</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CommonsCard({ entry, events, onMute }: { entry: CommonsEntry; events: CommonsAnswer["events"]; onMute: () => void }) {
+  const [reporting, setReporting] = useState(false);
   const ev = events.find((e) => e.code === entry.eventCode);
   const answers = entry.fields.map((f) => ({ f, v: answerText(entry.data[f.id]) })).filter((x) => x.v != null);
   return (
@@ -45,8 +97,20 @@ function CommonsCard({ entry, events }: { entry: CommonsEntry; events: CommonsAn
           <p className="flex items-center gap-1.5 font-medium"><Users className="size-4 shrink-0 text-info" aria-hidden />{entry.source.name}</p>
           <p className="text-xs text-muted-foreground">Pit scouting at {ev?.name ?? entry.eventCode}</p>
         </div>
-        <PitAgeBadge entry={entry} events={events} />
+        <div className="flex items-start gap-1">
+          <PitAgeBadge entry={entry} events={events} />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={`More about ${entry.source.name}'s entry`} className="max-sm:size-10"><MoreHorizontal /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setReporting(true)}><Flag /> Report this entry</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onMute}><EyeOff /> Mute {entry.source.name}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+      <ReportDialog entry={entry} open={reporting} onOpenChange={setReporting} />
       {answers.length > 0 && (
         <dl className="mt-3 flex flex-wrap gap-1.5">
           {answers.map(({ f, v }) => (
@@ -74,14 +138,21 @@ function CommonsCard({ entry, events }: { entry: CommonsEntry; events: CommonsAn
 export function CommonsSection({ team, season }: { team: number; season: number }) {
   const c = useCommons(team, season);
   const d = c?.data;
-  if (!d || !d.entries.length) return null; // signed out, failed, loading, or nothing shared: say nothing
+  if (!c || !d || (!d.entries.length && !d.muted.length)) return null; // signed out, failed, loading, or nothing shared: say nothing
+  const mute = async (id: number, name: string, muted: boolean) => {
+    try {
+      await setMute(id, muted);
+      toast.success(muted ? `${name} muted: their shares are hidden for you. Unmute below.` : `${name} unmuted.`);
+      c.reload();
+    } catch (e) { toast.error((e as ApiError).message); }
+  };
   const l = d.layer;
   const workspaces = l.scouts;
   return (
     <Section title={<span className="inline-flex items-center gap-2">Scouting commons <Badge variant="info"><Globe2 /> Shared by other teams</Badge></span>}
       description={<>Pit scouting other workspaces chose to share at {d.events.length === 1 ? d.events[0].name : "events where the commons is open"}. A separate layer: your own workspace's scouting comes first{d.ownHidden ? `, and your workspace's ${d.ownHidden === 1 ? "share is" : `${d.ownHidden} shares are`} left out here` : ""}. Check the time on each claim: robots change between days.</>}>
       <div className="space-y-4" data-testid="commons">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {d.entries.length > 0 && <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           <StatTile tone="sky" icon={Globe2} label="Shared entries" value={int(l.entries)} hint={`from ${int(workspaces)} ${workspaces === 1 ? "workspace" : "workspaces"}`} />
           {l.counters.slice(0, 3).map((x) => (
             <StatTile key={x.id} tone="emerald" icon={Cog} label={x.label} value={avg(x)} hint={`average of ${int(x.n)}`} />
@@ -89,7 +160,7 @@ export function CommonsSection({ team, season }: { team: number; season: number 
           {l.ratings.slice(0, 3).map((r) => (
             <StatTile key={r.id} tone="violet" icon={Cog} label={r.label} value={<>{avg(r)}<span className="text-base font-normal text-muted-foreground"> / {r.max}</span></>} hint={`average of ${int(r.n)}`} />
           ))}
-        </div>
+        </div>}
         {l.tags.length > 0 && (
           <ul className="flex flex-wrap gap-1.5" aria-label="Most reported">
             {l.tags.map((t) => (
@@ -99,8 +170,16 @@ export function CommonsSection({ team, season }: { team: number; season: number 
             ))}
           </ul>
         )}
-        <ul className="grid gap-3 lg:grid-cols-2">{d.entries.map((e) => <CommonsCard key={e.id} entry={e} events={d.events} />)}</ul>
-        <p className="text-xs text-muted-foreground">Each entry is credited to the workspace that shared it. Averages count each workspace as one scout. Match scouting is never shared.</p>
+        {d.entries.length > 0
+          ? <ul className="grid gap-3 lg:grid-cols-2">{d.entries.map((e) => <CommonsCard key={e.id} entry={e} events={d.events} onMute={() => { void mute(e.source.id, e.source.name, true); }} />)}</ul>
+          : <p className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">Everything shared on {team} comes from workspaces you muted.</p>}
+        {d.muted.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground" aria-label="Muted workspaces">
+            <EyeOff className="size-4" aria-hidden /> Muted by you:
+            {d.muted.map((m) => <Button key={m.id} variant="outline" size="sm" onClick={() => { void mute(m.id, m.name, false); }} aria-label={`Unmute ${m.name}`}>{m.name} · Unmute</Button>)}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">Each entry is credited to the workspace that shared it. Averages count each workspace as one scout. Match scouting is never shared. Something wrong? Report it from the entry's menu.</p>
       </div>
     </Section>
   );
