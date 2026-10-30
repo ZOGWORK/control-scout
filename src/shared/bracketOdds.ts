@@ -32,7 +32,13 @@ export interface BracketMatch {
   blueScore: number | null;
 }
 
-export interface BracketAlliance { number: number; teams: number[] }
+export interface BracketAlliance {
+  number: number;
+  /** Captain and picks: the robots it fields. */
+  teams: number[];
+  /** A backup robot it brought in: counts as the alliance in posted line-ups, never fielded by the simulation. */
+  backup?: number | null;
+}
 
 /** One single-match chance: P(the first alliance's lineup beats the second's), with the call's tier. */
 export type Price = (a: number[], b: number[]) => { p: number; tier: ConfidenceTier };
@@ -213,7 +219,7 @@ export interface BracketInput {
 /** A key for the posted state the odds are conditioned on: the alliances and every played playoff result. */
 export function bracketStateKey(alliances: BracketAlliance[], matches: BracketMatch[]): string {
   return JSON.stringify({
-    a: alliances.map((a) => [a.number, ...a.teams]),
+    a: alliances.map((a) => [a.number, a.backup ?? null, ...a.teams]),
     m: matches.filter((m) => m.redScore != null && m.blueScore != null).map((m) => [m.series, m.number, m.red, m.blue, m.redScore, m.blueScore]).sort((x, y) => (x[0] as number) - (y[0] as number) || (x[1] as number) - (y[1] as number)),
   });
 }
@@ -224,7 +230,7 @@ export function bracketOdds(input: BracketInput): BracketOdds {
   const { alliances, matches, price } = input;
   const byNumber = new Map(alliances.map((a) => [a.number, a]));
   const teamAlliance = new Map<number, number>();
-  for (const a of alliances) for (const t of a.teams) teamAlliance.set(t, a.number);
+  for (const a of alliances) for (const t of [...a.teams, ...(a.backup != null ? [a.backup] : [])]) teamAlliance.set(t, a.number);
   const allianceOf = (teams: number[]) => { for (const t of teams) { const a = teamAlliance.get(t); if (a != null) return a; } return null; };
   const bySeries = new Map<number, BracketMatch[]>();
   for (const m of [...matches].sort((x, y) => x.number - y.number)) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
