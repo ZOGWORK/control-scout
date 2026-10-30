@@ -12,6 +12,7 @@ import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from ".
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
+import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
@@ -363,6 +364,9 @@ export function createApp(opts: { dist?: string } = {}) {
     if (!p) throw new HttpError(404, `No FTC team ${req.params.number} in our data`);
     return p;
   }));
+
+  // The team page's season road map (server/api/roadmap.ts).
+  api.get("/teams/:number/roadmap", h(async (req) => teamRoadMap(season(req.query.season), int(req.params.number, "team", { min: 1, max: 999999 }))));
 
   api.get("/teams/:number/matches", h(async (req) => {
     const team = int(req.params.number, "team", { min: 1, max: 999999 });

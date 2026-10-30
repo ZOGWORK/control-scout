@@ -88,6 +88,8 @@ export interface MatchRow {
 export interface AllianceRow { number: number; name: string | null; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }
 export interface AwardRow { type: string; placement: number; team: number; name: string | null }
 export interface AdvancementRow { slots: number; advancesTo: string | null; rows: { team: number; status: string; declined: boolean }[] }
+/** One team's official advancement points at an event (FIRST's /advancement/{code}/points, 2025–26 on; Table 4-2 order). */
+export interface AdvancementPointsRow { team: number; total: number; awards: number; playoffs: number; alliance: number; quals: number }
 
 export interface EventBundle {
   event: EventRow;
@@ -100,6 +102,8 @@ export interface EventBundle {
     alliances: AllianceRow[];
     awards: AwardRow[];
     advancement: AdvancementRow | null | undefined; // undefined = not fetched
+    /** Official advancement points per team; undefined = not fetched (keep what's stored), [] = none published. */
+    advancementPoints?: AdvancementPointsRow[];
   } | null;
 }
 
@@ -198,6 +202,12 @@ export function bundleStatements(b: EventBundle): InStatement[] {
     s.push({ sql: "DELETE FROM advancement WHERE season = ? AND code = ?", args: k });
     const adv = b.detail.advancement;
     if (adv) s.push({ sql: "INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, ?, ?, ?, ?)", args: [...k, adv.slots, adv.advancesTo, JSON.stringify(adv.rows)] });
+  }
+  if (b.detail.advancementPoints !== undefined) {
+    s.push({ sql: "DELETE FROM advancement_points WHERE season = ? AND code = ?", args: k });
+    for (const p of b.detail.advancementPoints) {
+      s.push({ sql: "INSERT OR REPLACE INTO advancement_points (season, code, team, total, awards, playoffs, alliance, quals) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", args: [...k, p.team, p.total, p.awards, p.playoffs, p.alliance, p.quals] });
+    }
   }
   return s;
 }

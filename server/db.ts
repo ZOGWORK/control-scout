@@ -1622,6 +1622,20 @@ CREATE TABLE commons_mutes (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 60,
+    name: "official advancement points",
+    sql: `
+-- FIRST's own advancement points per team at an event (server/sources/first.ts, /advancement/{code}/points; 2025–26 on),
+-- the season road map's "points earned" (server/api/roadmap.ts). Table 4-1 parts; total is FIRST's, not a sum we take.
+CREATE TABLE advancement_points (
+  season INTEGER NOT NULL, code TEXT NOT NULL, team INTEGER NOT NULL,
+  total REAL NOT NULL, awards REAL NOT NULL, playoffs REAL NOT NULL, alliance REAL NOT NULL, quals REAL NOT NULL,
+  PRIMARY KEY (season, code, team)
+);
+CREATE INDEX advancement_points_team ON advancement_points (team, season);
+`,
+  },
 ];
 
 export type Db = Client;
