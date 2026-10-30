@@ -319,13 +319,18 @@ export async function reportEntry(user: User, entryId: unknown, reason: unknown,
   if (!e || !(await sourceOn(String(e.cp_workspace_id)))) return { ok: false, status: 404, error: "That entry isn't in the scouting commons any more." };
   const now = new Date();
   const since = new Date(now.getTime() - 864e5).toISOString();
-  // The daily cap is in the insert itself, so reports sent at once can't each pass a separate count.
+  // The daily cap and the share still being up are both in the insert itself: reports sent at once can't each pass a
+  // separate count, and a takedown (or unshare) that lands meanwhile doesn't get a fresh open report right after.
   const wrote = await run(
     `INSERT INTO commons_reports (workspace_id, entry_uuid, season, event_code, team, reporter_user_id, reason, note, created_at)
      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM commons_reports WHERE reporter_user_id = ? AND created_at > ?) < ?
+       AND EXISTS (SELECT 1 FROM commons_entries WHERE workspace_id = ? AND entry_uuid = ? AND status = 'published')
      ON CONFLICT (workspace_id, entry_uuid, reporter_user_id) WHERE resolved_at IS NULL DO NOTHING`,
-    [id.sourceId, id.uuid, Number(e.season), String(e.event_code), Number(e.team), user.id, reason, text, now.toISOString(), user.id, since, REPORTS_PER_DAY]);
+    [id.sourceId, id.uuid, Number(e.season), String(e.event_code), Number(e.team), user.id, reason, text, now.toISOString(), user.id, since, REPORTS_PER_DAY, id.sourceId, id.uuid]);
   if (wrote) return { ok: true, already: false };
+  if (!(await get("SELECT 1 FROM commons_entries WHERE workspace_id = ? AND entry_uuid = ? AND status = 'published'", [id.sourceId, id.uuid]))) {
+    return { ok: false, status: 404, error: "That entry isn't in the scouting commons any more." };
+  }
   const open = await get("SELECT 1 FROM commons_reports WHERE workspace_id = ? AND entry_uuid = ? AND reporter_user_id = ? AND resolved_at IS NULL", [id.sourceId, id.uuid, user.id]);
   return open ? { ok: true, already: true } : { ok: false, status: 429, error: "That's a lot of reports for one day. Thanks: they're being looked at. Try again tomorrow." };
 }
@@ -337,12 +342,12 @@ export async function reportEntry(user: User, entryId: unknown, reason: unknown,
 /**
  * Every open report, one group per entry, the most reported (then the oldest) first. Each group carries the entry as
  * it is now, whatever readers see (muted, withdrawn or closed): its answers with their fields, notes and photos, so the
- * owner can check what was reported. Open reports are bounded by the readers' daily cap, so the queue is never paged.
+ * owner can check what was reported; never once it's deleted or edited into match scouting. Open reports are bounded by the readers' daily cap, so the queue is never paged.
  */
 export async function reportQueue(): Promise<CommonsReportGroup[]> {
   const rows = await all<any>(
     `SELECT r.id, r.workspace_id, r.entry_uuid, r.season, r.event_code, r.team, r.reason, r.note, r.created_at, ws.name ws_name, ws.cp_workspace_id,
-            w.notes, w.data, w.updated_at, w.deleted, w.template_id, w.template_version, c.status
+            w.notes, w.data, w.updated_at, w.deleted, w.kind, w.template_id, w.template_version, c.status
        FROM commons_reports r JOIN workspaces ws ON ws.id = r.workspace_id
        LEFT JOIN workspace_scout_entries w ON w.workspace_id = r.workspace_id AND w.uuid = r.entry_uuid
        LEFT JOIN commons_entries c ON c.workspace_id = r.workspace_id AND c.entry_uuid = r.entry_uuid
@@ -354,7 +359,8 @@ export async function reportQueue(): Promise<CommonsReportGroup[]> {
     const key = `${Number(r.workspace_id)}:${String(r.entry_uuid)}`;
     let g = groups.get(key);
     if (!g) {
-      const live = r.updated_at != null && !Number(r.deleted);
+      // Only a live pit entry is shown: one edited into match scouting since stays inside its workspace.
+      const live = r.updated_at != null && !Number(r.deleted) && r.kind === "pit";
       let data: Record<string, unknown> = {};
       let fields: ScoutField[] = [];
       if (live) {
@@ -397,10 +403,16 @@ async function photosOf(pairs: (readonly [number, string])[]): Promise<Map<strin
   return out;
 }
 
-/** A photo of an entry that was ever shared in the commons, for the owner's review (whatever readers see now). */
+/**
+ * A photo of an entry that was ever shared in the commons and is still a live pit entry, for the owner's review
+ * (whatever readers see now). An entry edited into match scouting since keeps its photos inside its workspace.
+ */
 export async function ownerCommonsPhoto(id: string): Promise<{ object_key: string; status: string } | null> {
   const r = await get<any>(
-    `SELECT p.object_key, p.status FROM entry_photos p JOIN commons_entries c ON c.workspace_id = p.workspace_id AND c.entry_uuid = p.entry_uuid WHERE p.id = ?`, [id]);
+    `SELECT p.object_key, p.status FROM entry_photos p
+       JOIN commons_entries c ON c.workspace_id = p.workspace_id AND c.entry_uuid = p.entry_uuid
+       JOIN workspace_scout_entries w ON w.workspace_id = p.workspace_id AND w.uuid = p.entry_uuid
+      WHERE p.id = ? AND w.kind = 'pit' AND w.deleted = 0`, [id]);
   return r ? { object_key: String(r.object_key), status: String(r.status) } : null;
 }
 

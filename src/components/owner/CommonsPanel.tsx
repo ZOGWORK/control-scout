@@ -149,7 +149,7 @@ function Reports() {
   };
   const act = async (path: string, init: { method: string; json: unknown }, done: string) => {
     setBusy(true);
-    try { afterAction(REPORTS, await apiFetch<CommonsModeration>(path, init)); setOlder([]); toast.success(done); } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
+    try { afterAction(REPORTS, await apiFetch<CommonsModeration>(path, init)); setOlder([]); setOlderMore(null); toast.success(done); } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
   };
   const takeDown = (entryId: string, name: string) => setPending({
     title: `Take down ${name}'s entry?`, description: "It's hidden at once, its open reports are closed, and the workspace can't share it again until you restore it.", confirm: "Take down",

@@ -527,6 +527,12 @@ describe("scouting commons: moderation edges", () => {
     expect(q.data).toMatchObject({ drivetrain: "Mecanum" });
     expect(q.fields.map((f: { id: string }) => f.id)).toContain("drivetrain");
     const uid = (await all<{ id: number }>("SELECT id FROM users WHERE email = 'cm-gone@example.com'"))[0].id;
+    // Edited into match scouting since: its answers and notes stay inside the workspace, even in the queue.
+    const { adminA } = await cast();
+    const e = (await all<any>("SELECT uuid, season, team, event_code, data, notes, updated_at FROM workspace_scout_entries WHERE uuid = ?", [id.split(":")[1]]))[0];
+    await push(adminA, A, [{ uuid: e.uuid, season: Number(e.season), team: Number(e.team), eventCode: e.event_code, matchLabel: "Q1", kind: "match", data: {}, notes: "private match note", updatedAt: Number(e.updated_at) + 1000 }]);
+    const q2 = (await owner("GET", "/api/owner/commons/reports")).json.reports[0];
+    expect(q2).toMatchObject({ notes: null, data: {}, fields: [], photos: [] });
     const { deleteUser } = await import("../auth/session");
     await deleteUser(uid);
     expect(await all("SELECT 1 FROM commons_reports WHERE reporter_user_id = ?", [uid])).toEqual([]);
