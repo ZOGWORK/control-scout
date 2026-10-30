@@ -110,7 +110,8 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
 
   const sections: BundleSection[] = [
     section("event", "Teams, schedule and rankings", ev, ev.field.length, ev.matches.length ? null : "No schedule published yet: it's in the bundle once FIRST posts it."),
-    section("ratings", "Ratings for offline predictions", ratings, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
+    // The book's clock (`now`) moves with every build; the ratings themselves only with new results.
+    section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0 }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
     section("reports", "Know your match reports", reports.map((r) => r.html), reports.length,
       team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null),
     section("picklist", "Pick list", picklist?.html ?? null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list."),
