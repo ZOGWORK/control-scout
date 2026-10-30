@@ -25,6 +25,7 @@ import { ago, seasonLabel } from "../lib/format";
 import { cn } from "../components/cn";
 import { useFlag } from "../lib/flags";
 import { netKind, updateStatus } from "../lib/offline/updatePolicy";
+import { EventBundles } from "../components/offline/EventBundles";
 import { UpdateModeToggle, UpdateNetworkToggle, connectionNote, useConnection, useUpdatePrefs } from "../components/offline/UpdateSettings";
 
 export default function DownloadPage() {
@@ -62,7 +63,8 @@ export default function DownloadPage() {
   }, [m, local?.version, liteOk]);
   return (
     <div>
-      <PageHeader title="Download" description="Save a season on this device and its team pages, event pages and search work with no wifi. Offline predictions are automatic." />
+      <PageHeader title="Download" description="Take an event with you in one small bundle, or save whole seasons: team pages, event pages and search keep working with no wifi. Offline predictions are automatic." />
+      <EventBundles />
       {err ? (
         <EmptyState
           icon={err.reason === "none" ? HardDriveDownload : WifiOff}
