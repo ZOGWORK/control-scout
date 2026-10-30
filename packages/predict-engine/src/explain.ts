@@ -274,6 +274,14 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
     : ` (led by Team ${top.team}, ~${Math.round(top[c])} pts)`;
 }
 
+const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
+
+/** A sheet to store or send: log-odds and weights to 4 places (about 0.01 percentage points). */
+export function compactFactorSheet(s: FactorSheet): FactorSheet {
+  const entry = (f: SheetFactor): SheetFactor => ({ ...f, logit: r4(f.logit), weight: r4(f.weight) });
+  return { probabilityModel: s.probabilityModel, logit: r4(s.logit), phases: s.phases.map(entry), model: s.model.map(entry), reasons: s.reasons.map(entry) };
+}
+
 const PHASE_NAMES: Record<Component, string> = { auto: "Autonomous", teleop: "TeleOp", endgame: "Endgame", pen: "Penalties" };
 
 type ModelFactorId = Exclude<SheetFactorId, Component | "schedule" | "headToHead">;

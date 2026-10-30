@@ -14,7 +14,7 @@ import { ADVANCING_TYPES } from "./scoutData.js";
 import { PartnershipOverlay, partnershipFact, type PairLookup, type PartnershipFact } from "./partnership.js";
 import type { AllianceResult, MatchRecord } from "./types.js";
 import type { AllianceInput, BonusFlags, EventInput, FirstAdvancement, MatchInput } from "./inputs.js";
-import { explainMatch, type ConfidenceTier } from "./explain.js";
+import { compactFactorSheet, explainMatch, type ConfidenceTier, type FactorSheet } from "./explain.js";
 import { BONUS_SLOTS, TIE_RULE, seasonBonusModel, type BonusModelSource } from "./bonus.js";
 
 /** The fitted model (server/predict/model.json, from scripts/predict/export-model.mts). */
@@ -113,6 +113,15 @@ export interface ForecastMatch {
   /** Unplayed matches (engine 2.4): the strongest real history between these robots (played
    *  together or against each other before), when the app supplies a pair table. A reason only. */
   history?: PartnershipFact | null;
+  /** Unplayed matches with a prediction, when the forecast is asked for them (ForecastOptions.factorSheets,
+   *  engine 3.3): every factor behind pRedWin with its weight, from the same book and options (compacted). */
+  factorSheet?: FactorSheet | null;
+}
+
+/** What a forecast carries beyond the default (engine 3.3). */
+export interface ForecastOptions {
+  /** Each unplayed match's full factor sheet (ForecastMatch.factorSheet). Off by default: it adds a few KB a match. */
+  factorSheets?: boolean;
 }
 
 export interface MatchBonusSummary {
@@ -206,6 +215,15 @@ export abstract class Forecaster {
     const pairs = book.season != null ? this.partnerships(book.season) : null;
     return predictMatch(book, red, blue, this.model.noise, this.model.calibration, {
       context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band,
+      ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
+    });
+  }
+
+  /** The full explanation of a lineup on a given book, made with exactly predict's options (so its odds are predict's). */
+  protected explainOn(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
+    const pairs = book.season != null ? this.partnerships(book.season) : null;
+    return explainMatch(book, red, blue, {
+      noise: this.model.noise, calibration: this.model.calibration, context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band,
       ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
     });
   }
@@ -417,7 +435,7 @@ export abstract class Forecaster {
     return null;
   }
 
-  forecast(ev: EventInput, myTeam: number | null, runs = 2000): Forecast | null {
+  forecast(ev: EventInput, myTeam: number | null, runs = 2000, opts: ForecastOptions = {}): Forecast | null {
     const seasonBook = this.book(ev.season);
     if (!seasonBook || this.unsupportedReason(ev)) return null;
     const base = this.partnerships(ev.season);
@@ -427,10 +445,10 @@ export abstract class Forecaster {
     const book = this.eventBook(ev, seasonBook, pairs);
     // Teams with no result yet this season start from the event region's regional prior (engine 2.7).
     // and every team's ratings include its form at this event (engine 2.9).
-    return book.withRegion(this.regionOf(ev.code), () => book.withEvent(ev.code, () => this.forecastOn(ev, myTeam, runs, book, pairs)));
+    return book.withRegion(this.regionOf(ev.code), () => book.withEvent(ev.code, () => this.forecastOn(ev, myTeam, runs, book, pairs, opts)));
   }
 
-  private forecastOn(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, pairs: PartnershipOverlay | null): Forecast {
+  private forecastOn(ev: EventInput, myTeam: number | null, runs: number, book: RatingBook, pairs: PartnershipOverlay | null, opts: ForecastOptions): Forecast {
     const region = this.regionOf(ev.code);
     const stage = this.stageOf(ev);
     const { input, assumptions, adv, bonusDraws } = this.simInput(ev, stage, book, runs);
@@ -446,7 +464,8 @@ export abstract class Forecaster {
     const teams: ForecastTeam[] = [...res.values()].map((o) => this.teamView(o, book, o.team === myTeam));
     const matches: ForecastMatch[] = ev.matches.filter((m) => m.red.teams.length && m.blue.teams.length).slice(0, 400).map((m) => {
       const red = m.red.teams.map((t) => t.number), blue = m.blue.teams.map((t) => t.number);
-      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, { level: m.level, event: ev.code, ...(region ? { region } : {}) }) : null;
+      const ctx: MatchContext = { level: m.level, event: ev.code, ...(region ? { region } : {}) };
+      const p = !m.played && red.length <= 2 && blue.length <= 2 ? this.predict(book, red, blue, ctx) : null;
       return {
         key: m.key, label: m.label, level: m.level, red, blue, pRedWin: p?.pRedWin ?? null, redMean: p?.red.mean ?? null, blueMean: p?.blue.mean ?? null,
         redBand: p?.red.band ?? null, blueBand: p?.blue.band ?? null,
@@ -455,6 +474,7 @@ export abstract class Forecaster {
         ...(pairs ? { history: p ? partnershipFact(pairs, red, blue, ev.season) : null } : {}),
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,
         bonus: p && m.level === "qual" && red.length === 2 && blue.length === 2 ? this.bonusSummary(book, ev.season, red, blue, ev.code) : null,
+        ...(opts.factorSheets ? { factorSheet: p ? compactFactorSheet(this.explainOn(book, red, blue, ctx).factorSheet) : null } : {}),
       };
     });
     teams.sort((a, b) => b.pAdvance - a.pAdvance || a.rank.mean - b.rank.mean);

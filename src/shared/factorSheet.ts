@@ -1,17 +1,12 @@
 // The full why breakdown (engine 3.3 factor sheet): every factor behind a call with its weight in it.
 // Shared by the server (it stores the sheet with each live ledger call), the web app and the offline
 // lite path, so all three show the same thing.
-import type { FactorSheet, SheetFactor } from "@control-scout/predict-engine";
+import { compactFactorSheet, type FactorSheet, type SheetFactor } from "@control-scout/predict-engine";
 
 export type { FactorSheet, SheetFactor };
 
-const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
-
 /** The sheet as stored and sent: log-odds and weights to 4 places (about 0.01 percentage points). */
-export function compactSheet(s: FactorSheet): FactorSheet {
-  const entry = (f: SheetFactor): SheetFactor => ({ ...f, logit: r4(f.logit), weight: r4(f.weight) });
-  return { probabilityModel: s.probabilityModel, logit: r4(s.logit), phases: s.phases.map(entry), model: s.model.map(entry), reasons: s.reasons.map(entry) };
-}
+export const compactSheet = compactFactorSheet;
 
 /** A stored sheet (ledger column factor_sheet), or null for calls logged before engine 3.3 or a malformed value. */
 export function parseSheet(json: string | null | undefined): FactorSheet | null {

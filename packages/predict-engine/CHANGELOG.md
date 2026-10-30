@@ -18,8 +18,12 @@ This release only adds to the explanation.
   - **Reasons** (weight 0, words only): schedule strength (ratings already account for every partner and
     opponent faced), and with `opts.partnership` the robots' head-to-head or partnership history. If a
     partnership β were ever turned on, its shift would get its real weight here.
-- **New exports:** `contextualTerms` (each input's term, and the calibration's gain and offset) and
-  `contextualModelById`. `contextualProbability` is unchanged.
+- **Forecasts:** `forecast(ev, myTeam, runs, { factorSheets: true })` adds each unplayed match's sheet
+  (`ForecastMatch.factorSheet`), made from the forecast's own book with exactly the options behind its
+  `pRedWin`. Off by default, so existing forecast payloads are unchanged.
+- **New exports:** `compactFactorSheet` (log-odds and weights to 4 places, for storing and sending),
+  `contextualTerms` (each input's term, and the calibration's gain and offset), `contextualModelById`
+  and `ForecastOptions`. `contextualProbability` is unchanged.
 
 ## 3.2.0 — 2026-10-23 · Score ranges refitted
 
