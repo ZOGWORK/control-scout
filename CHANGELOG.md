@@ -29,7 +29,7 @@ Every prediction now opens up into its full why: each factor behind the call, wi
 - **Reasons that don't move the odds** are listed at 0%: these robots' history together or against each other, and schedule strength (ratings already account for every partner and opponent faced).
 - **Post-match review.** Each call logged before a match now keeps its breakdown. Once the match is played, every factor that leaned one way says whether it pointed to the winner, with how much of the call those factors carried.
 - Works offline too: a prediction made on your device from the lite pack shows the same breakdown.
-- Engine 3.3.0: the breakdown only. Win odds and scores are unchanged.
+- Engine 3.3.0: the breakdown only. Win odds and scores are unchanged (#355).
 
 ## 1.5.4 — 2026-10-30
 
