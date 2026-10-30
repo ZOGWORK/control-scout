@@ -3,7 +3,15 @@
 An opt-in, per-event shared pool of **pit** scouting. A workspace can share pit entries with every signed-in
 Scout user at that event, credited to the workspace. Match scouting always stays inside the workspace.
 
-Code: `server/scout/commons.ts` (server), `src/shared/commons.ts` (types shared with the app). Migration 58.
+Code: `server/scout/commons.ts` (server), `src/shared/commons.ts` (types shared with the app), `src/lib/commons.ts` and
+`src/components/CommonsSection.tsx` (the app), `src/components/owner/CommonsPanel.tsx` (the console). Migrations 58-59.
+
+## The owner's toggle, above everything
+
+`scoutingCommons` is a feature toggle (Owner console › Features), with per-workspace overrides like workspace
+scouting. Off globally, every commons route answers 403 `feature_disabled` and the app hides the commons, whatever
+each event's switch says. Off for one workspace, its shares are hidden and it can't share or opt in. Nothing is deleted
+either way. The console's own commons routes are never gated.
 
 ## Three switches, all off by default
 
@@ -48,3 +56,26 @@ Commons photos are the workspace's own entry photos (`entry_photos`): the same p
 expiry (2 days after the event, docs/r2-photos.md). A reader opens one through `GET /api/scout/commons/photos/:id`,
 which answers a short-lived signed URL only while the photo's entry is in the commons (`404` otherwise, `410`
 expired). Off with the rest of photos (R2 not configured, or the `photos` switch off).
+
+## Moderation
+
+In Owner console › Moderation › Scouting commons:
+
+- **Reports.** Any signed-in reader reports a shared entry (`POST /api/scout/commons/reports {entryId, reason, note}`).
+  The reason is one of wrong, outdated, inappropriate or other. A reader can have one open report per entry and
+  at most 20 reports a day (the cap is checked in the insert itself). Reporters are never shown to the workspace or the
+  owner, and deleting an account deletes its reports and mutes. The queue groups reports by entry, most reported first,
+  each with the entry as it is now: its answers, notes and photos (`GET /api/owner/commons/photos/:id`). A workspace
+  hidden by the owner's switches takes no reports.
+- **Take down / restore.** A takedown sets the share to `removed` with a reason: it's hidden at once, its open reports
+  close as "removed", and the workspace can't share it again. The entry's share switch says why. Restoring shares it
+  again as it was. **Dismiss** closes an entry's reports and leaves it shared. Takedowns list newest first, 50 at a
+  time (`GET /api/owner/commons/removed?before=&entryId=` for older ones).
+- **Suspend a workspace.** Everything it shared is hidden and it can't share, until lifted. Its own scouting is untouched,
+  and its members can still unshare entries (so lifting the suspension doesn't bring back what they withdrew).
+- **Mute (readers).** `PUT /api/scout/commons/mutes/:sourceId {muted}` hides a source workspace's shares for that reader
+  only. Workspaces muted that share on the team are listed under its entries with an Unmute button.
+
+Every owner action is in the audit log (`commons.entry.remove|restore`, `commons.reports.dismiss`,
+`commons.workspace.suspend|unsuspend`, `commons.event.open|close`). The console's Moderation section shows a badge
+with the number of reported entries waiting.

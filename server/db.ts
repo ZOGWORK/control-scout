@@ -1577,6 +1577,51 @@ CREATE INDEX commons_entries_event_team ON commons_entries (season, event_code, 
 CREATE INDEX commons_entries_team ON commons_entries (season, team, status);
 `,
   },
+  {
+    version: 59,
+    name: "scouting commons moderation",
+    sql: `
+-- Moderating the scouting commons (server/scout/commons.ts, docs/scouting-commons.md).
+-- An owner takedown: commons_entries.status 'removed', with when, by whom and why. A removed entry stays out of the
+-- commons until the owner restores it; its workspace can't share it again meanwhile.
+ALTER TABLE commons_entries ADD COLUMN removed_at TEXT;
+ALTER TABLE commons_entries ADD COLUMN removed_by TEXT;
+ALTER TABLE commons_entries ADD COLUMN removed_reason TEXT;
+-- The workspace's own choice under a takedown (published | withdrawn): what Restore puts back. Unsharing or opting out
+-- while taken down changes it to withdrawn, so a restore never shares what the workspace withdrew.
+ALTER TABLE commons_entries ADD COLUMN removed_from TEXT;
+-- The owner's mute of a whole workspace: everything it shared is hidden and it can't share more, until lifted.
+ALTER TABLE commons_workspaces ADD COLUMN suspended_at TEXT;
+ALTER TABLE commons_workspaces ADD COLUMN suspended_by TEXT;
+ALTER TABLE commons_workspaces ADD COLUMN suspended_reason TEXT;
+-- A reader's report of a shared entry. reason: wrong | outdated | inappropriate | other. One open report per reader
+-- per entry. resolution: dismissed | removed (the owner took the entry down), set once with resolved_at.
+CREATE TABLE commons_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  entry_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  reporter_user_id INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  resolved_at TEXT,
+  resolved_by TEXT,
+  resolution TEXT
+);
+CREATE UNIQUE INDEX commons_reports_open ON commons_reports (workspace_id, entry_uuid, reporter_user_id) WHERE resolved_at IS NULL;
+CREATE INDEX commons_reports_queue ON commons_reports (resolved_at, created_at);
+-- A reader's own mute of a source workspace: its shares are hidden from that reader only.
+CREATE TABLE commons_mutes (
+  user_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, workspace_id)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;
