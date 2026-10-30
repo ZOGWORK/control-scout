@@ -3,13 +3,13 @@
 // callback) or, for Export CSV, is the download link itself. Rows follow the space: Personal has no pick list,
 // activity, assignments, export or template; a read-only workspace keeps everything that reads and drops the template.
 import type { ComponentType, ReactNode } from "react";
-import { ChevronRight, ClipboardCheck, ClipboardList, Download, History, LayoutList, ListOrdered, Video, Wrench } from "lucide-react";
+import { ChevronRight, ClipboardCheck, ClipboardList, Download, Handshake, History, LayoutList, ListOrdered, Video, Wrench } from "lucide-react";
 import { workspaceExportUrl } from "../../../shared/scoutExport";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
 
 /** The views a row opens (Export CSV is a link, so it has none). */
-export type DataView = "entries" | "picklist" | "activity" | "assignments" | "pit" | "recordings" | "template";
+export type DataView = "entries" | "picklist" | "activity" | "assignments" | "alliance" | "pit" | "recordings" | "template";
 
 /** What Export CSV sends: the page URL's filters (the entry list's), for the season on screen. The same as the page's own. */
 export function dataHubExportUrl(workspaceId: string, sp: URLSearchParams, season: number): string {
@@ -58,6 +58,7 @@ export function dataHubRows(p: Omit<DataHubProps, "onOpen" | "className">): Row[
     rows.push({ key: "activity", icon: History, open: "activity", title: "Activity", detail: "What changed in the workspace" });
     const mine = Math.max(0, p.openForYou ?? 0);
     rows.push({ key: "assignments", icon: ClipboardCheck, open: "assignments", title: "Assignments", detail: mine ? `Who scouts which teams · ${mine} open for you` : "Who scouts which teams", badge: mine || undefined });
+    rows.push({ key: "alliance", icon: Handshake, open: "alliance", title: "Scouting alliance", detail: "Share one event's scouting with another team" });
   }
   const pit = p.pit && p.pit.total > 0 ? p.pit : null;
   rows.push({ key: "pit", icon: Wrench, open: "pit", title: "Pit scouting", detail: pit ? `${Math.min(pit.done, pit.total)} of ${plural(pit.total, "team")} done${at}` : "Robot details, once per team" });

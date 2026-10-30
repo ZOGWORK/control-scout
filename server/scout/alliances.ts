@@ -328,7 +328,8 @@ export function alliancesRouter(): Router {
     const ev = await eventInfo(season, eventCode);
     if (!ev) { res.status(404).json({ error: "No such event this season." }); return; }
     if (!ev.end) { res.status(400).json({ error: "This event has no dates yet, so a link couldn't end on time." }); return; }
-    if (allianceEndsAt(ev.end) <= now()) { res.status(400).json({ error: "This event is over." }); return; }
+    const endsOn = ev.end;
+    if (allianceEndsAt(endsOn) <= now()) { res.status(400).json({ error: "This event is over." }); return; }
     await settleAlliances();
     return serialized(`alliance:${season}:${eventCode}`, async () => {
       if (await liveLinkAt(m.workspaceId, season, eventCode)) { res.status(409).json({ error: "This workspace already has an alliance (or an invite) for this event." }); return; }
@@ -337,7 +338,7 @@ export function alliancesRouter(): Router {
       await run(
         `INSERT INTO scout_alliances (season, event_code, ends_on, inviter_ws, inviter_name, inviter_keeps, invited_by_account_id, code_hash, invite_expires_at, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-        [season, eventCode, ev.end, m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, hashCode(code), Math.min(t + INVITE_TTL_MS, allianceEndsAt(ev.end)), t]);
+        [season, eventCode, endsOn, m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, hashCode(code), Math.min(t + INVITE_TTL_MS, allianceEndsAt(endsOn)), t]);
       const row = toRow(await get<any>("SELECT * FROM scout_alliances WHERE code_hash = ?", [hashCode(code)]));
       res.status(201);
       const body: AllianceInviteResponse = { alliance: view(row, m.workspaceId, ev.name), code };
