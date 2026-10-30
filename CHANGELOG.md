@@ -29,7 +29,7 @@ Every team's qualification schedule now gets a difficulty rating: how strong its
 - **"3rd-hardest of 24", said in words.** Each team's opponents' and partners' average rating against the field's, for example "Opponents average +38 over the field's, partners −12." Hardest first, with a word (Hard, Tough, Average, Kind, Easy) and a strip showing how far from average it is.
 - **Before and during the event.** Before the first match it covers the whole schedule. Once quals are under way, the matches still to play lead and the full schedule is one tap away.
 - **Every team rated.** Teams with no result yet this season start from last season's rating, as everywhere else on the site.
-- **It matters.** Across the 2023–2025 seasons, a schedule one step harder than average cost a team about 2 places in the final ranking against its rating (docs/schedule-difficulty.md).
+- **It matters.** Across the 2023–2025 seasons, a schedule one step harder than average cost a team about 2 places in the final ranking against its rating (docs/schedule-difficulty.md) (#357).
 - **Offline and for other features.** Season packs carry it as a team stat, and the event and team API answers include it.
 
 ## 1.5.4 — 2026-10-30
