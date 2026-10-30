@@ -49,7 +49,8 @@ export function AllianceView({ workspaceId, workspaceName, season, eventCode, is
         <div className="space-y-6">
           {active && <LinkedPanel workspaceId={workspaceId} alliance={active} canManage={canManage} />}
           {pending.map((a) => <PendingCard key={a.id} workspaceId={workspaceId} alliance={a} canManage={canManage} />)}
-          {canManage ? <LinkForms workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
+          {/* One link at a time on screen: the forms come back once it ends (or the invite is cancelled). */}
+          {canManage ? !active && !pending.length && <LinkForms workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
             : !active && !pending.length && <EmptyState icon={Handshake} title="No alliance yet" description={readOnly ? "This workspace is read-only." : "An admin of this workspace can invite another team's workspace, or accept their invite."} />}
           {past.length > 0 && <PastLinks list={past} />}
         </div>
