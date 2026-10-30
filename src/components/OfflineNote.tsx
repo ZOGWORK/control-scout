@@ -10,12 +10,21 @@ import { Link } from "react-router-dom";
 import { useOfflineMode } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
 import { ago, seasonLabel } from "../lib/format";
+import { SnapshotBanner } from "./offline/Snapshot";
 import { Badge } from "./ui/basic";
 import { cn } from "./cn";
 
 export function OfflineNote({ data, className }: { data: unknown; className?: string }) {
   const src = offlineSource(data);
   if (!src) return null;
+  if (src.bundle) {
+    // From an event-day bundle: its time and age, always (docs/event-bundle.md).
+    return (
+      <SnapshotBanner at={src.dataAsOf ?? src.bundle.builtAt} className={className}>
+        No signal, so this is your event-day bundle; live data takes over as soon as it loads. <Link to="/download" className="underline">Bundles</Link>
+      </SnapshotBanner>
+    );
+  }
   return (
     <p role="status" className={cn("mb-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs", className)}>
       <WifiOff className="mt-px size-3.5 shrink-0 text-info" />

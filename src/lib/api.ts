@@ -1,7 +1,7 @@
 // Fetching: typed JSON calls, an in-memory cache with stale-while-revalidate,
 // and a hook that gives every page the same loading / error / data states.
 //
-// Offline data (the lite pack and saved seasons, lib/packs + lib/offline) only
+// Offline data (the lite pack, saved seasons and event-day bundles, lib/packs + lib/offline) only
 // ever RUNS with no signal: while the server answers, every read comes from it
 // and nothing here opens, decodes or queries a pack (sql.js and the engine
 // aren't even loaded; they're dynamic imports). The pack is used only when the
@@ -13,6 +13,7 @@
 // background (packSync.tsx) is separate: that only stores bytes for later.
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
+import { bundleFor, savedBundles } from "./offline/bundleMeta";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 
@@ -53,13 +54,18 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
   if (OFFLINE_PATHS.test(path)) {
     const saved = savedSeasons();
     const season = Number(/^\/api\/(?:events|projections)\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
-    return saved.length && (season == null || saved.some((s) => s.season === season)) ? "saved" : null;
+    if (saved.length && (season == null || saved.some((s) => s.season === season))) return "saved";
+    // An event-day bundle answers its own event's page (docs/event-bundle.md).
+    const ev = /^\/api\/events\/(\d{4})\/([^/?]+)$/.exec(url.pathname);
+    return ev && bundleFor(Number(ev[1]), decodeURIComponent(ev[2])) ? "saved" : null;
   }
   if (!PACK_PREDICT_PATH.test(path)) return null;
   const lite = packStatus();
   // Only a season the pack is known to hold: a pack saved before its seasons were noted (or a request
-  // that names no season) waits for the server, as the pack might not answer it.
-  return lite?.seasons && asked != null && lite.seasons.includes(asked) ? "lite" : null;
+  // that names no season) waits for the server, as the pack might not answer it. A bundle holds its
+  // event's teams' ratings for its season.
+  if (asked == null) return null;
+  return (lite?.seasons?.includes(asked) || savedBundles().some((b) => b.season === asked)) ? "lite" : null;
 }
 
 // "Offline mode": something on screen came from data saved on this device. The
@@ -110,7 +116,7 @@ function savedAnswer(path: string): Promise<unknown> {
  *  else fail with the network error. Never used for an HTTP error — the
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
-  if ((method ?? "GET").toUpperCase() !== "GET" || !OFFLINE_PATHS.test(path) || !savedSeasons().length) throw error;
+  if ((method ?? "GET").toUpperCase() !== "GET" || !OFFLINE_PATHS.test(path) || (!savedSeasons().length && !savedBundles().length)) throw error;
   const data = await savedAnswer(path);
   if (data == null) throw error;
   setUsingSaved(true);

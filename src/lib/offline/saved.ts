@@ -49,8 +49,9 @@ export function useSavedSeasons(): SavedSeason[] {
   return useSyncExternalStore(subscribe, savedSeasons, () => parsed);
 }
 
-/** Where an offline answer came from, for the "Offline: from your saved …" note. */
-export interface OfflineSource { season: number; savedAt: number; dataAsOf: string | null }
+/** Where an offline answer came from, for the "Offline: from your saved …" note. `bundle`: from an event-day
+ *  bundle (docs/event-bundle.md), whose data is from `dataAsOf` (else `builtAt`): the note shows its time and age. */
+export interface OfflineSource { season: number; savedAt: number; dataAsOf: string | null; bundle?: { builtAt: string; name: string } }
 
 // A symbol, non-enumerable: invisible to JSON, spreads and equality checks, so
 // the answer keeps exactly the API's shape.
