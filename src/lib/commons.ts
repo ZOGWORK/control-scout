@@ -6,16 +6,18 @@
 import { useEffect, useState } from "react";
 import { apiFetch, qs, type ApiError } from "./api";
 import { usePersonal } from "./personal";
+import { useFlag, useWorkspaceFlag } from "./flags";
 import type { CommonsAnswer, CommonsEvent, WorkspaceCommons } from "../shared/commons";
 
 export const commonsPath = (season: number, team: number) => `/api/scout/commons${qs({ season, team })}`;
 export const commonsPhotoUrl = (id: string) => `/api/scout/commons/photos/${encodeURIComponent(id)}`;
 const workspacePath = (ws: string) => `/api/scout/workspaces/${encodeURIComponent(ws)}/commons`;
 
-/** The commons on a team this season. Null while signed out (nothing asked). */
+/** The commons on a team this season. Null while signed out or switched off by the owner (nothing asked). */
 export function useCommons(team: number, season: number): { data?: CommonsAnswer; error?: ApiError } | null {
   const { user } = usePersonal();
-  const signedIn = !!user;
+  const on = useFlag("scoutingCommons");
+  const signedIn = !!user && on;
   const [st, setSt] = useState<{ key: string; data?: CommonsAnswer; error?: ApiError } | null>(null);
   const key = `${season}:${team}:${user?.id ?? ""}`;
   useEffect(() => {
@@ -51,8 +53,13 @@ function load(ws: string): Promise<WorkspaceCommons> {
   return p;
 }
 
-/** A workspace's opt-in and shares (members). Undefined while loading, or when it can't be read (hidden then). */
-export function useWorkspaceCommons(workspaceId: string | null | undefined): WorkspaceCommons | undefined {
+/**
+ * A workspace's opt-in and shares (members). Undefined while loading, when it can't be read, or while the owner has
+ * the commons switched off for the workspace (hidden then: nothing is asked).
+ */
+export function useWorkspaceCommons(ws: string | null | undefined): WorkspaceCommons | undefined {
+  const on = useWorkspaceFlag("scoutingCommons", ws);
+  const workspaceId = on ? ws : null;
   const [, bump] = useState(0);
   useEffect(() => {
     const fn = () => bump((x) => x + 1);

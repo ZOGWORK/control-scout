@@ -7,7 +7,10 @@
 // - the entry's: its author or a workspace admin shares it (commons_entries, status "published").
 // The entry itself is read live from workspace_scout_entries: an edit shows at once, a deleted entry (or one edited
 // into a match entry) drops out, and commons_entries' event + team key follows the entry on every write (bus.ts).
-// Workspace scouting switched off for a workspace (the owner's per-workspace flag) hides its shares too.
+// Above all three, the owner's `scoutingCommons` feature toggle (src/shared/flags.ts): off globally, no commons route
+// reads or writes anything (403 feature_disabled), whatever the event switches say; off for one workspace (an
+// override), that workspace's shares are hidden and it can't share or opt in. Workspace scouting switched off for a
+// workspace hides its shares too. The owner console's routes are never gated, so the switches stay reachable.
 //
 // Reading (any signed-in account): GET /api/scout/commons?season=&team=[&event=]. The reader's own workspaces'
 // entries are left out (they read those as their own scouting, which always comes first). Photos are the
@@ -17,7 +20,7 @@ import express, { type NextFunction, type Request, type Response, type Router } 
 import { all, get, run } from "../db.js";
 import { controlPointInfo, isWorkspaceId, linkedAccountId } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
-import { isEnabledFor } from "../flags.js";
+import { featureDisabled, isEnabledFor, requireFeature } from "../flags.js";
 import { aggregateConsensus, type ConsensusEntry } from "../../src/shared/consensus.js";
 import type { ScoutField } from "../../src/shared/scoutTemplate.js";
 import {
@@ -202,12 +205,13 @@ async function ownWorkspaces(user: User): Promise<Set<string>> {
   return new Set((await all<{ cp_workspace_id: string }>("SELECT cp_workspace_id FROM workspace_members WHERE account_id = ?", [accountId])).map((r) => String(r.cp_workspace_id)));
 }
 
-/** Source workspaces whose scouting the owner paused (the workspaceScouting flag): their shares are hidden too. */
+/** Source workspaces the owner switched off (workspace scouting, or the commons, for that workspace): their shares are hidden. */
 async function pausedSources(cpIds: string[]): Promise<Set<string>> {
   const out = new Set<string>();
-  for (const id of new Set(cpIds)) if (!(await isEnabledFor("workspaceScouting", id))) out.add(id);
+  for (const id of new Set(cpIds)) if (!(await sourceOn(id))) out.add(id);
   return out;
 }
+const sourceOn = async (cpId: string) => (await isEnabledFor("workspaceScouting", cpId)) && (await isEnabledFor("scoutingCommons", cpId));
 
 /** The commons on one team in one season: at `event`, or at every event the commons is open at. */
 export async function readCommons(user: User, season: number, team: number, event: string | null): Promise<CommonsAnswer> {
@@ -314,7 +318,7 @@ async function commonsPhoto(id: string): Promise<{ object_key: string; status: s
     `SELECT p.object_key, p.status, ws.cp_workspace_id FROM ${FROM}
        JOIN entry_photos p ON p.workspace_id = c.workspace_id AND p.entry_uuid = c.entry_uuid
       WHERE p.id = ? AND ${VISIBLE}`, [id]);
-  if (!r || !(await isEnabledFor("workspaceScouting", String(r.cp_workspace_id)))) return null;
+  if (!r || !(await sourceOn(String(r.cp_workspace_id)))) return null;
   return { object_key: String(r.object_key), status: String(r.status) };
 }
 
@@ -338,8 +342,17 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
  *   PUT  /workspaces/:id/commons {optedIn}         admins. WorkspaceCommons.
  *   PUT  /workspaces/:id/commons/entries/:uuid {publish}   the entry's author or an admin. {commons}; 4xx {error, code}.
  */
+/** The commons switched off by the owner for this workspace (or everywhere): 403 feature_disabled, nothing read or written. */
+async function commonsPaused(res: Response, workspaceId: string): Promise<boolean> {
+  if (await isEnabledFor("scoutingCommons", workspaceId)) return false;
+  featureDisabled(res, "scoutingCommons");
+  return true;
+}
+
 export function commonsRouter(): Router {
   const r = express.Router();
+  // The readers' routes follow the global switch (a workspace's own override is checked on its shares, as it's read).
+  r.use("/commons", requireFeature("scoutingCommons"));
   r.get("/commons", h(async (req, res) => {
     res.set("Cache-Control", "private, no-store");
     const user = await currentUser(req);
@@ -368,12 +381,13 @@ export function commonsRouter(): Router {
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
-    if (await workspacePaused(res, workspaceId)) return;
+    if (await workspacePaused(res, workspaceId) || await commonsPaused(res, workspaceId)) return;
     const access = await workspaceAccess(user, workspaceId);
     if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
     return workspaceCommons(workspaceId);
   }));
   r.put("/workspaces/:workspaceId/commons", jsonOnly, requireWorkspaceAdmin(), h(async (req, res) => {
+    if (await commonsPaused(res, req.params.workspaceId)) return;
     if (typeof req.body?.optedIn !== "boolean") { res.status(400).json({ error: "Send {\"optedIn\": true | false}" }); return; }
     return setWorkspaceOptIn(res.locals.user as User, res.locals.membership as Membership, req.body.optedIn);
   }));
@@ -383,7 +397,7 @@ export function commonsRouter(): Router {
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
     if (typeof req.body?.publish !== "boolean") { res.status(400).json({ error: "Send {\"publish\": true | false}" }); return; }
-    if (await workspacePaused(res, workspaceId)) return;
+    if (await workspacePaused(res, workspaceId) || await commonsPaused(res, workspaceId)) return;
     const access = await workspaceAccess(user, workspaceId, { write: true });
     if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
     const out = await publishEntry(access.membership, String(req.params.uuid), req.body.publish);
