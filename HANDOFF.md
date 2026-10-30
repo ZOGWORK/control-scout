@@ -16,7 +16,7 @@ aren't here.
 
 ## 1. Partnership memory (predictions)
 - **What:** blend real past alliance results (together/against) into the Lab's odds, with the fact as a reason.
-- **Status:** research done; PR being opened (unsure it opened, as `gh pr create` hadn't returned when this was written).
+- **Status:** PR open, [#350](https://github.com/ZOGWORK/control-scout/pull/350); Greptile not yet run.
   - Branch `claude/partnership-memory-predictions-3e1adb`, commit c8ff3350.
 - **Done:**
   - Already live since engine 2.4 (#231, #236): the "played together / against" fact shows in the Lab, match pages, offline
