@@ -39,11 +39,11 @@ function useEventOptions(): EventOption[] {
     if (linked) add({ season: Number(linked[1]), code: linked[2].toUpperCase(), name: linked[2].toUpperCase(), start: null });
     const mine = (team.data?.events ?? []).filter((e) => (e.end ?? e.start ?? "9999") >= today()).sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
     for (const e of mine) add({ season: e.season, code: e.code, name: e.name, start: e.start });
-    for (const t of state.tracked.events) { const [s, c] = t.split(":"); add({ season: Number(s), code: c, name: c, start: null }); }
+    for (const t of state.tracked?.events ?? []) { const [s, c] = t.split(":"); add({ season: Number(s), code: c, name: c, start: null }); }
     // The linked event's name, when another list knows it.
     if (linked) { const k = evKey(Number(linked[1]), linked[2]); const named = mine.find((e) => evKey(e.season, e.code) === k); if (named) out.set(k, { season: named.season, code: named.code, name: named.name, start: named.start }); }
     return [...out.values()];
-  }, [sp, team.data, state.tracked.events]);
+  }, [sp, team.data, state.tracked?.events]);
 }
 
 export function EventBundles() {
@@ -117,7 +117,7 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
         <label className="grid gap-1 text-sm"><span className="font-medium">Event</span>
           <Select value={ev ? evKey(ev.season, ev.code) : undefined} onValueChange={(v) => { setChosen(v); setTeam(undefined); }}>
             <SelectTrigger aria-label="Event" className="h-10"><SelectValue /></SelectTrigger>
-            <SelectContent>{options.map((o) => <SelectItem key={evKey(o.season, o.code)} value={evKey(o.season, o.code)}>{o.name}{o.start ? ` · ${new Date(`${o.start.slice(0, 10)}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" })}` : ""}</SelectItem>)}</SelectContent>
+            <SelectContent>{options.map((o) => <SelectItem key={evKey(o.season, o.code)} value={evKey(o.season, o.code)}>{o.name === o.code && m?.manifest?.code === o.code ? m.manifest.name : o.name}{o.start ? ` · ${new Date(`${o.start.slice(0, 10)}T12:00:00`).toLocaleDateString([], { month: "short", day: "numeric" })}` : ""}</SelectItem>)}</SelectContent>
           </Select>
         </label>
         <label className="grid gap-1 text-sm"><span className="font-medium">Your team <span className="font-normal text-muted-foreground">(whose match reports go in)</span></span>
