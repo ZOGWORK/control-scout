@@ -72,6 +72,8 @@ describe("bracketOdds", () => {
     expect(o.series[3].call).toBeNull();
     expect(o.series[3].likely?.alliance).toBe(1);
     expect(o.series[6].pending).toBe(true);
+    // Unknown sides name the likeliest match-up: two different alliances.
+    for (const x of o.series.filter((v) => v.red.likely && v.blue.likely)) expect(x.red.likely!.alliance).not.toBe(x.blue.likely!.alliance);
   });
 
   it("is deterministic for a seed", () => {

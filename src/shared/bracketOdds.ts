@@ -265,6 +265,8 @@ export function bracketOdds(input: BracketInput): BracketOdds {
   const nums = alliances.map((a) => a.number);
   const champ = new Map(nums.map((n) => [n, 0])), final = new Map(nums.map((n) => [n, 0]));
   const occ = Array.from({ length: N }, () => [new Map<number, number>(), new Map<number, number>()]);
+  /** Match-ups per node ("a|b" → runs), so an unknown slot names the likeliest pairing's alliance, never the same one twice. */
+  const pairs = Array.from({ length: N }, () => new Map<string, number>());
   const wonAt = Array.from({ length: N }, () => new Map<number, number>());
   /** meet[a][node] → opponent → [met, lost] */
   const meet = new Map(nums.map((n) => [n, Array.from({ length: N }, () => new Map<number, [number, number]>())]));
@@ -290,6 +292,7 @@ export function bracketOdds(input: BracketInput): BracketOdds {
       }
       win[k + 1] = w; lose[k + 1] = w === a ? b : a;
       occ[k][0].set(a, (occ[k][0].get(a) ?? 0) + 1); occ[k][1].set(b, (occ[k][1].get(b) ?? 0) + 1);
+      pairs[k].set(`${a}|${b}`, (pairs[k].get(`${a}|${b}`) ?? 0) + 1);
       wonAt[k].set(w, (wonAt[k].get(w) ?? 0) + 1);
       if (st.winner == null) for (const [x, y] of [[a, b], [b, a]]) {
         const m = meet.get(x)![k], c = m.get(y) ?? [0, 0];
@@ -306,10 +309,12 @@ export function bracketOdds(input: BracketInput): BracketOdds {
   const tiers: ConfidenceTier[] = [];
   const series: BracketSeriesView[] = shape.nodes.map((node, k) => {
     const st = resolved[k];
+    let pair: number[] | null = null, best = 0;
+    for (const [key, c] of pairs[k]) if (c > best) { best = c; pair = key.split("|").map(Number); }
     const sides = [node.red, node.blue].map((s, j): BracketSlotView => {
       const known = st.sides[j];
-      const t = known == null ? top(occ[k][j]) : null;
-      return { source: node.ifNeeded ? (j === 0 ? "Upper bracket" : "Lower bracket") : slotSource(s), alliance: known, likely: t ? { alliance: t[0], p: t[1] / runs } : null };
+      const t = known == null && pair ? pair[j] : null;
+      return { source: node.ifNeeded ? (j === 0 ? "Upper bracket" : "Lower bracket") : slotSource(s), alliance: known, likely: t != null ? { alliance: t, p: (occ[k][j].get(t) ?? 0) / runs } : null };
     });
     const [a, b] = st.sides;
     let call: BracketSeriesView["call"] = null, likely: BracketSeriesView["likely"] = null;
