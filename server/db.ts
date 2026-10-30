@@ -1536,6 +1536,41 @@ CREATE TABLE workspace_flag_overrides (
 ALTER TABLE digest_prefs ADD COLUMN welcomed_at TEXT;
 `,
   },
+  {
+    version: 58,
+    name: "scouting alliances",
+    sql: `
+-- Two workspaces linked for one event (server/scout/alliances.ts, docs/alliances.md). The inviter's admin makes a
+-- pending row with a one-time code (only its sha256 kept); the partner's admin accepts it with the code. Each side
+-- says, at link time, whether both keep a copy of the other's entries when the link ends (*_keeps: copies only
+-- when both are 1). Status: pending | active | ended (ended_reason: event_over | unlinked | cancelled | expired).
+CREATE TABLE scout_alliances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  ends_on TEXT NOT NULL,
+  inviter_ws TEXT NOT NULL,
+  inviter_name TEXT NOT NULL,
+  inviter_keeps INTEGER NOT NULL,
+  invited_by_account_id INTEGER NOT NULL,
+  invitee_ws TEXT,
+  invitee_name TEXT,
+  invitee_keeps INTEGER,
+  accepted_by_account_id INTEGER,
+  code_hash TEXT UNIQUE,
+  invite_expires_at INTEGER,
+  status TEXT NOT NULL,
+  ended_reason TEXT,
+  created_at INTEGER NOT NULL,
+  accepted_at INTEGER,
+  ended_at INTEGER,
+  copies_made INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX scout_alliances_inviter ON scout_alliances (inviter_ws, status);
+CREATE INDEX scout_alliances_invitee ON scout_alliances (invitee_ws, status);
+CREATE INDEX scout_alliances_live ON scout_alliances (status, ends_on);
+`,
+  },
 ];
 
 export type Db = Client;

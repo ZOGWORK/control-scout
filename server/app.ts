@@ -55,6 +55,7 @@ import { picklistRouter } from "./scout/picklist.js";
 import { assignmentsRouter } from "./scout/assignments.js";
 import { commentsRouter } from "./scout/comments.js";
 import { consensusRouter } from "./scout/consensus.js";
+import { alliancesRouter } from "./scout/alliances.js";
 import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { pushRouter } from "./push/routes.js";
@@ -744,6 +745,8 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/scout", commentsRouter());
   // Scout consensus (v1.6 Task 1): a workspace's entries on a team rolled up; members only.
   api.use("/scout", consensusRouter());
+  // Scouting alliances (docs/alliances.md): two workspaces linked for one event; admins link, members read the union.
+  api.use("/scout", alliancesRouter());
   // The pre-match report's workspace half (v1.6 Task 2): consensus, pick list and assignments; members only.
   api.use("/scout", matchReportRouter());
   // The owner's switches: with realtime off the stream answers 503 and the app polls instead; with workspace

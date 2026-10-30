@@ -27,6 +27,7 @@ import { closeInboxStreams } from "./inbox/routes.js";
 import { closeProjectionStreams } from "./projections/routes.js";
 import { startProjections } from "./projections/job.js";
 import { deliverOwnerAlerts, inboxSettled, pruneInbox } from "./inbox/inbox.js";
+import { settleAlliances } from "./scout/alliances.js";
 import { photoSchedulerTick } from "./scout/photos.js";
 import { pruneActivity } from "./scout/activityLog.js";
 import { pruneSentLog, pushTick } from "./push/push.js";
@@ -141,6 +142,10 @@ if (!process.env.CS_NO_SCHEDULER) {
   };
   setTimeout(pruneNotes, 100_000).unref();
   setInterval(pruneNotes, 6 * 3600_000).unref();
+  // Scouting alliances (docs/alliances.md): links whose event is over end (and make the copies both sides agreed to), hourly.
+  const settleLinks = () => { settleAlliances().then((n) => { if (n) log(`alliances: ended ${n}`); }).catch((e) => log(`alliances: ${(e as Error).message}`)); };
+  setTimeout(settleLinks, 110_000).unref();
+  setInterval(settleLinks, 3600_000).unref();
   // Web push (server/push/push.ts, docs/push.md): every minute, match reminders 15 min ahead, upsets and event
   // starts for subscribed devices. Nothing at all without the VAPID settings or with the owner's push switch off.
   setInterval(() => { pushTick(Date.now(), log).catch((e) => log(`push: ${(e as Error).message}`)); }, 60_000).unref();
