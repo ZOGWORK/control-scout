@@ -25,7 +25,7 @@ Turning on the email digest now sends a short welcome email, so you know what's 
 - [alerts] One click to unsubscribe, from the very first email
 
 ### Email digest
-- **A welcome, once.** The first time you turn on the email digest, a welcome email explains what each digest holds, that it comes a few times a week and only when there's news about your teams, and which teams it will follow. Turning it off and on again doesn't send another (#PR).
+- **A welcome, once.** The first time you turn on the email digest, a welcome email explains what each digest holds, that it comes a few times a week and only when there's news about your teams, and which teams it will follow. Turning it off and on again doesn't send another (#349).
 - **Not following anyone yet?** The welcome says so and links to picking your team, so the first digest has something in it.
 
 ## 1.5.3 — 2026-10-29
