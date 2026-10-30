@@ -7,11 +7,13 @@ import { MemoryRouter } from "react-router-dom";
 import type { RoadStop, TeamRoadMap } from "../shared/roadmap";
 
 const data: { current: TeamRoadMap | null } = { current: null };
-vi.mock("../lib/api", () => ({ useApi: () => ({ data: data.current, error: null, loading: false, reload: () => {} }) }));
+const flag = { on: true };
+vi.mock("../lib/api", () => ({ useApi: (path: string | null) => ({ data: path ? data.current : undefined, error: null, loading: false, reload: () => {} }), isFeatureDisabled: () => false }));
+vi.mock("../lib/flags", () => ({ useFlag: () => flag.on }));
 vi.mock("./states", () => ({ Async: ({ state, children }: any) => children(state.data) }));
 const { RoadMapSection } = await import("./RoadMap");
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); flag.on = true; });
 
 const stop = (o: Partial<RoadStop>): RoadStop => ({
   code: "E1", name: "Event one", type: "LeagueTournament", start: "2026-10-01", end: "2026-10-01", when: "done", level: null, home: true,
@@ -58,5 +60,12 @@ describe("season road map", () => {
     expect(screen.queryByTestId("roadmap-need")).toBeNull();
     expect(screen.queryByText(/~d+/)).toBeNull();
     expect(screen.queryByText(/advancement points (official)/)).toBeNull();
+  });
+
+  it("the owner's seasonRoadMap toggle off hides it", () => {
+    flag.on = false;
+    show(modelled);
+    expect(screen.queryByText("Season road map")).toBeNull();
+    expect(screen.queryByTestId("roadmap")).toBeNull();
   });
 });

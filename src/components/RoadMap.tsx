@@ -4,7 +4,8 @@
 // Every encoded ruleset shows its sources and season (server/data/roadmapRules.ts, docs/season-road-map.md).
 import { Link } from "react-router-dom";
 import { Award, Check, ChevronRight, Flag, MapPinned, Route, Target, Trophy, X } from "lucide-react";
-import { useApi } from "../lib/api";
+import { isFeatureDisabled, useApi } from "../lib/api";
+import { useFlag } from "../lib/flags";
 import type { RoadAdvanceStatus, RoadNeed, RoadStop, TeamRoadMap } from "../shared/roadmap";
 import { Section } from "./page";
 import { Async } from "./states";
@@ -14,9 +15,12 @@ import { awardLabel, dateRange, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { cn } from "./cn";
 
-/** `quiet`: render nothing until there's something to show (a page that already says there are no results). */
+/** `quiet`: render nothing until there's something to show (a page that already says there are no results).
+ *  Switched off by the owner (the seasonRoadMap feature toggle): not asked for, and nothing shown. */
 export function RoadMapSection({ team, season, quiet = false }: { team: number; season: number; quiet?: boolean }) {
-  const state = useApi<TeamRoadMap>(`/api/teams/${team}/roadmap?season=${season}`);
+  const on = useFlag("seasonRoadMap");
+  const state = useApi<TeamRoadMap>(on ? `/api/teams/${team}/roadmap?season=${season}` : null);
+  if (!on || isFeatureDisabled(state.error)) return null;
   if (quiet && !state.data?.stops.length) return null;
   return (
     <Section title="Season road map" description="Every event this season in date order, how the team is advancing, and what the next stop takes.">

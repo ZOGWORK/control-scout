@@ -366,7 +366,7 @@ export function createApp(opts: { dist?: string } = {}) {
   }));
 
   // The team page's season road map (server/api/roadmap.ts).
-  api.get("/teams/:number/roadmap", h(async (req) => teamRoadMap(season(req.query.season), int(req.params.number, "team", { min: 1, max: 999999 }))));
+  api.get("/teams/:number/roadmap", requireFeature("seasonRoadMap"), h(async (req) => teamRoadMap(season(req.query.season), int(req.params.number, "team", { min: 1, max: 999999 }))));
 
   api.get("/teams/:number/matches", h(async (req) => {
     const team = int(req.params.number, "team", { min: 1, max: 999999 });

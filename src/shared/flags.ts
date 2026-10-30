@@ -9,6 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
+  "seasonRoadMap",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -39,6 +40,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   autoPowerRankings: { group: "kill", scope: "global" },
   dailyPowerRankings: { group: "kill", scope: "global" },
   weeklyDigest: { group: "kill", scope: "global" },
+  seasonRoadMap: { group: "feature", scope: "global" },
 };
 
 /** The owner console's feature toggles, in the order its Features tab lists them. */
@@ -64,6 +66,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   offlinePacks: "Offline packs are paused right now. Packs already on this device keep working.",
   discordBot: "The Discord bot is turned off by the owner for now.",
   rulesReference: "The rules quick reference is switched off for now. Check the official game manual instead.",
+  seasonRoadMap: "The season road map is switched off for now. The rest of this team's page still works.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
 };
@@ -79,6 +82,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Live predictions",
     on: "Anyone can ask for a match prediction, the upcoming matches list, an event forecast, partner scenarios and match share cards.",
     off: "Those calls answer that predictions are switched off for now, and Predict says so. The track record and every logged prediction are kept, and team and event pages still load.",
+  },
+  seasonRoadMap: {
+    label: "Season road map",
+    on: "Team pages show the season road map: every event in date order with its advancement, official advancement points where the region's rules are encoded, and what the next stop takes.",
+    off: "Team pages leave the road map out and its data is refused. Advancement points keep being stored with each event, so switching back on shows them at once.",
   },
   advancementOdds: {
     label: "Advancement odds",
