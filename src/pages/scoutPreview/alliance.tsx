@@ -38,7 +38,7 @@ const shared: AllianceShared = {
     { id: 2, workspaceId: WS, season: S, eventCode: EV, team: 21010, assigneeAccountId: 2, assigneeName: "Marcus", createdByAccountId: 9, createdByName: "Coach", createdAt: now, status: "open", doneAt: null, doneByAccountId: null, doneByName: null, version: 1, progress: 2, side: "you" },
   ],
   matchAssignments: [
-    { id: 3, workspaceId: "p", season: S, eventCode: EV, watching: { kind: "alliance", side: "red" }, fromMatch: "Q1", toMatch: "Q30", assigneeAccountId: 10, assigneeName: "Ben", createdByAccountId: 11, createdByName: "Rae", createdAt: now, version: 1, side: "partner" },
+    { id: 3, workspaceId: "p", season: S, eventCode: EV, watching: { kind: "alliance", side: "red" }, fromMatch: "Q1", toMatch: "Q30", assigneeAccountId: 10, assigneeName: "Ben", createdByAccountId: 11, createdByName: "Rae", createdAt: now, updatedAt: now, version: 1, side: "partner" },
   ],
   coverage: {
     you: { workspaceId: WS, name: "Riverside Robotics", entries: 15, matchEntries: 15, pitEntries: 0, teams: 5, matches: 13, scouts: 3 },
