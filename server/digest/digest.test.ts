@@ -13,13 +13,14 @@ import { invalidateFlags, setFlag } from "../flags";
 import { PRIVATE_TABLES } from "../data/snapshot";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings";
 import { buildDigest, sectionsOf } from "./build";
-import { digestTick, resetDigestTick, runDigestWeek } from "./job";
+import { digestTick, resetDigestTick, runDigest } from "./job";
 import { renderDigest, headline } from "./template";
-import { dueWeek, nextSend } from "./schedule";
+import { dueSlot, mondayOf, nextSlot, previousSlot, slotsOfWeek, FIRST_HOUR, LAST_HOUR, SENDS_PER_WEEK, type Slot } from "./schedule";
+import { addDays } from "./build";
 import { setDigest } from "./prefs";
 import { verifyWebhook } from "./routes";
 
-const WEEK = "2026-11-02"; // the Monday it goes out; it reports Oct 26 – Nov 1
+const WEEK = "2026-11-02"; // the day the fixtures' digest goes out; it reports Oct 26 – Nov 1 (the period is pinned in tests)
 const SEASON = 2026;
 let server: Server;
 let base = "";
@@ -127,8 +128,12 @@ beforeEach(async () => {
   await seed();
 });
 
-const runWeek = (week = WEEK) => runDigestWeek(week, { gapMs: 0, rankings: rankings(), season: SEASON });
-const logRow = (userId: number, week = WEEK) => get<any>("SELECT * FROM digest_sends WHERE user_id = ? AND week = ?", [userId, week]);
+/** A send slot on a date (10:00 New York), reporting the seven days before; `next`: the next send's date (null: unknown). */
+const slotOn = (date: string): Slot => ({ key: `${date}T10:00`, date, at: Date.parse(`${date}T15:00:00Z`) });
+const period = (send: string) => ({ send, from: addDays(send, -7) });
+const runWeek = (date = WEEK, next: string | null = null, o: { allowed?: () => Promise<boolean> } = {}) =>
+  runDigest(slotOn(date), { gapMs: 0, rankings: rankings(), season: SEASON, period: { from: addDays(date, -7), next }, ...o });
+const logRow = (userId: number, date = WEEK) => get<any>("SELECT * FROM digest_sends WHERE user_id = ? AND week = ?", [userId, `${date}T10:00`]);
 
 describe("the brief's fixture users", () => {
   it("A: two followed teams, a win, a loss, an upcoming event, a ranked mover — every number, link and date matches the data", async () => {
@@ -138,13 +143,13 @@ describe("the brief's fixture users", () => {
     expect(s.sent).toBe(1);
     const m = mails[0];
     expect(m.to).toBe("a@example.com");
-    expect(m.subject).toBe("Your Control Scout week: 4215 wins NJ Qualifier");
+    expect(m.subject).toBe("Your Control Scout update: 4215 wins NJ Qualifier");
     // Your teams' week: both teams, the event linked, record, seed, playoff result and the OPR trend with numbers.
     expect(m.text).toContain("4215 Team Duct Tape at NJ Qualifier\n  8–2 · 2nd seed · Won the event · OPR 142.3 ↑ from 128.1\n  http://localhost:5173/events/2026/USNJQ1");
     expect(m.text).toContain("6980 Robo Lions at NJ Qualifier\n  5–5 · 14th seed · OPR 98.4 ↓ from 101.2");
     expect(m.html).toContain('href="http://localhost:5173/events/2026/USNJQ1"');
     // Prediction check-in: this week's 2 calls on their matches, both right; the season adds the October miss.
-    expect(m.text).toContain("This week: 2 of 2 calls right (100%).");
+    expect(m.text).toContain("Since October 26: 2 of 2 calls right (100%).");
     expect(m.text).toContain("Season: 2 of 3 calls right (67%)");
     // Coming up: dates, place and a countdown, and no invented time.
     expect(m.text).toContain("Nov 14–15 (in 12 days): NJ Championship, Edison, NJ\n  4215 Team Duct Tape · schedule not posted yet");
@@ -201,7 +206,7 @@ describe("the brief's fixture users", () => {
     const e2 = await user("e2@example.com", { myTeam: 6980 });
     await setDigest(e.id, true); await setDigest(e2.id, true);
     // A crash after claiming e's row but before the send: the re-run must not send it either.
-    await run("INSERT INTO digest_sends (user_id, week, status, template_version, created_at, updated_at) VALUES (?, ?, 'sending', 1, ?, ?)", [e.id, WEEK, "x", "x"]);
+    await run("INSERT INTO digest_sends (user_id, week, status, template_version, created_at, updated_at) VALUES (?, ?, 'sending', 1, ?, ?)", [e.id, `${WEEK}T10:00`, "x", "x"]);
     const first = await runWeek();
     expect(first.sent).toBe(1);
     const second = await runWeek();
@@ -215,7 +220,7 @@ describe("the brief's fixture users", () => {
     await setDigest(f.id, true);
     await runWeek();
     expect(mails).toHaveLength(1);
-    expect(mails[0].text).toContain("This week: 1 of 3 calls right (33%). A rough week for the model");
+    expect(mails[0].text).toContain("Since October 26: 1 of 3 calls right (33%). A rough run for the model");
     expect(JSON.parse((await logRow(f.id)).sections)).toContain("predictions");
   });
 });
@@ -239,7 +244,7 @@ describe("the job", () => {
     expect(mails[0].text).not.toContain("4215 Team Duct Tape at");
     const never = await user("never@example.com", { myTeam: 4215 });
     mails = [];
-    await runDigestWeek("2026-11-09", { gapMs: 0, rankings: rankings(), season: SEASON });
+    await runWeek("2026-11-09");
     expect(mails.map((m) => m.to)).not.toContain("never@example.com");
     expect(await logRow(never.id, "2026-11-09")).toBeUndefined();
   });
@@ -268,7 +273,7 @@ describe("the job", () => {
     const ids = [];
     for (const e of ["s1@example.com", "s2@example.com", "s3@example.com"]) { const u = await user(e, { myTeam: 4215 }); await setDigest(u.id, true); ids.push(u.id); }
     let asked = 0;
-    const s = await runDigestWeek(WEEK, { gapMs: 0, rankings: rankings(), season: SEASON, allowed: async () => ++asked <= 1 });
+    const s = await runWeek(WEEK, null, { allowed: async () => ++asked <= 1 });
     expect(s).toMatchObject({ sent: 1, stopped: true });
     expect(await logRow(ids[1])).toBeUndefined();
     const rest = await runWeek();
@@ -284,19 +289,19 @@ describe("the job", () => {
     await match("USNJQ1", "2026-11-01", many.slice(0, 2), many.slice(2, 4), true, 0.6);
     await match("USNJQ1", "2026-11-01", many.slice(4, 6), many.slice(6, 8), true, 0.6);
     await match("USNJQ1", "2026-11-01", many.slice(8, 10), [5010, 7], true, 0.6);
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: many, name: null, rankings: rankings() });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: many, name: null, rankings: rankings() });
     expect(d.results).toHaveLength(11);
     expect(d.results.at(-1)!.team).toBe(5010);
     expect(headline(d)).toBe("5010 wins NJ Qualifier");
     const m = renderDigest(d, { site: "https://controlscout.org", unsubscribe: "https://controlscout.org/u", email: "x@example.com" });
     expect(m.text).not.toContain("5010 at NJ Qualifier");
-    expect(m.text).toContain("1 more played last week");
+    expect(m.text).toContain("1 more played since October 26");
   });
 
   it("power rankings: an older release isn't shown as new movement; a dropped team gets no row", async () => {
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215], name: null, rankings: rankings("2026-10-23") });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215], name: null, rankings: rankings("2026-10-23") });
     expect(d.rankings).toBeNull();
-    const fallback = await buildDigest({ week: WEEK, season: SEASON, followed: [6980], name: null, rankings: rankings() });
+    const fallback = await buildDigest({ ...period(WEEK), season: SEASON, followed: [6980], name: null, rankings: rankings() });
     expect(fallback.rankings).toMatchObject({ fallback: true });
     expect(fallback.rankings!.rows.map((r) => r.team)).toEqual([102, 4215, 100, 101]);
     expect(fallback.rankings!.rows.some((r) => r.team === 6980)).toBe(false);
@@ -305,50 +310,60 @@ describe("the job", () => {
   it("power rankings publishing switched off (the owner's feature toggle): no rankings section, even with the week's list handed in", async () => {
     await setFlag("powerRankings", false, "test");
     try {
-      const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
+      const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
       expect(d.rankings).toBeNull();
       expect(sectionsOf(d)).not.toContain("rankings");
     } finally { await setFlag("powerRankings", true, "test"); }
-    const on = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
+    const on = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
     expect(on.rankings).not.toBeNull();
   });
 
   it("a team listed in a match it didn't show up for (on_field = 0) didn't play", async () => {
     await run("UPDATE match_teams SET on_field = 0 WHERE team = 6980");
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [6980], name: null, rankings: rankings() });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [6980], name: null, rankings: rankings() });
     expect(d.results).toEqual([]);
   });
 
   it("coming up skips a registration list FIRST filed for an AM/PM pair (not this session's teams)", async () => {
     await run("INSERT INTO event_registrations (season, code, team, fetched_at, shared) VALUES (?, 'USNJCMP', 6980, '2026-10-20', 1)", [SEASON]);
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
     expect(d.upcoming.map((u) => u.team)).toEqual([4215]);
   });
 
   it("a team at two events the same weekend shows both, grouped by event, most recent first", async () => {
     await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties) VALUES (?, 'USPAQ', 4215, 3, 2, 0, 0)", [SEASON]);
     await match("USPAQ", "2026-10-31", [4215, 20], [21, 22], true, 0.6);
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215], name: null, rankings: rankings() });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215], name: null, rankings: rankings() });
     expect(d.results.map((r) => r.code)).toEqual(["USNJQ1", "USPAQ"]);
     expect(d.results[1].record).toEqual({ wins: 2, losses: 0, ties: 0 });
   });
 
-  it("the owner's switch and email being off stop the Monday tick", async () => {
+  it("the owner's switch off stops the tick at a due send; before the send time nothing is due", async () => {
     const a = await user("a@example.com", { myTeam: 4215 });
     await setDigest(a.id, true);
-    const monday8 = Date.parse("2026-11-02T13:00:00Z"); // 08:00 New York (EST, after the Nov 1 change)
+    const slot = slotsOfWeek("2026-11-02")[0];
     await setFlag("weeklyDigest", false, "test");
-    expect(await digestTick(monday8)).toBeNull();
+    expect(await digestTick(slot.at)).toBeNull();
     await setFlag("weeklyDigest", true, "test");
     invalidateFlags();
-    expect(await digestTick(monday8 - 60_000)).toBeNull(); // 07:59
+    expect(await digestTick(slot.at - 60_000)).toBeNull();
+  });
+
+  it("an upcoming event alone is worth an email only when it starts by the next send", async () => {
+    const c = await user("cal@example.com", { myTeam: 4215 });
+    await setDigest(c.id, true);
+    // Nov 9: nothing played Nov 2–8, NJ Championship on Nov 14. Next send Nov 11: it waits for that one.
+    expect((await runWeek("2026-11-09", "2026-11-11")).skippedEmpty).toBe(1);
+    // Next send Nov 16, after the event starts: this one gives the heads-up.
+    expect((await runWeek("2026-11-10", "2026-11-16")).sent).toBe(1);
+    expect(mails[0].text).toContain("NJ Championship");
   });
 });
 
 describe("the email", () => {
   it("escapes names, carries no tracking, and only the logo is an image", async () => {
     await run("UPDATE events SET name = ? WHERE code = 'USNJQ1'", ["<b>NJ</b> & \"Friends\""]);
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [4215], name: "<script>", rankings: rankings() });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215], name: "<script>", rankings: rankings() });
     const m = renderDigest(d, { site: "https://controlscout.org", unsubscribe: "https://controlscout.org/api/digest/unsubscribe?t=x", email: "a@example.com" });
     expect(m.html).not.toContain("<b>NJ</b>");
     expect(m.html).toContain("&lt;b&gt;NJ&lt;/b&gt; &amp; &quot;Friends&quot;");
@@ -359,9 +374,9 @@ describe("the email", () => {
   });
 
   it("subject headlines go by priority: a finish, then the record, then the next event", async () => {
-    const d = await buildDigest({ week: WEEK, season: SEASON, followed: [6980], name: null, rankings: rankings() });
+    const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [6980], name: null, rankings: rankings() });
     expect(headline(d)).toBe("6980 goes 5–5 at NJ Qualifier");
-    const quiet = await buildDigest({ week: "2026-11-09", season: SEASON, followed: [4215], name: null, rankings: rankings() });
+    const quiet = await buildDigest({ ...period("2026-11-09"), season: SEASON, followed: [4215], name: null, rankings: rankings() });
     expect(headline(quiet)).toBe("NJ Championship starts Saturday");
     expect(sectionsOf(quiet)).toEqual(["upcoming"]);
   });
@@ -449,11 +464,48 @@ describe("bounce reports (Resend webhook)", () => {
 });
 
 describe("the schedule", () => {
-  it("Mondays from 08:00 New York time, through daylight saving, never on Tuesday", () => {
-    expect(dueWeek(Date.parse("2026-11-02T12:59:00Z"))).toBeNull(); // 07:59 EST
-    expect(dueWeek(Date.parse("2026-11-02T13:00:00Z"))).toBe("2026-11-02"); // 08:00 EST
-    expect(dueWeek(Date.parse("2026-10-26T12:00:00Z"))).toBe("2026-10-26"); // 08:00 EDT
-    expect(dueWeek(Date.parse("2026-11-03T05:30:00Z"))).toBeNull(); // Tuesday 00:30 EST
-    expect(new Date(nextSend(Date.parse("2026-10-28T00:00:00Z"))).toISOString()).toBe("2026-11-02T13:00:00.000Z");
+  const nyParts = (ms: number) => Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short" }).formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+  const mondays = Array.from({ length: 30 }, (_, i) => addDays("2026-08-31", 7 * i));
+
+  it(`${SENDS_PER_WEEK} sends a week on days never back to back, at ${FIRST_HOUR}:00–${LAST_HOUR}:59 New York time, through daylight saving`, () => {
+    for (const monday of mondays) {
+      const slots = slotsOfWeek(monday);
+      expect(slots).toHaveLength(SENDS_PER_WEEK);
+      const days = slots.map((x) => (Date.parse(`${x.date}T00:00:00Z`) - Date.parse(`${monday}T00:00:00Z`)) / 86_400_000);
+      for (const d of days) expect(d >= 0 && d <= 6).toBe(true);
+      for (let k = 1; k < days.length; k++) expect(days[k] - days[k - 1]).toBeGreaterThanOrEqual(2);
+      for (const x of slots) {
+        // The instant really is that New York wall time (2026-11-01 is the DST change, inside these weeks).
+        const p = nyParts(x.at);
+        expect(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`).toBe(x.key);
+        expect(Number(p.hour)).toBeGreaterThanOrEqual(FIRST_HOUR);
+        expect(Number(p.hour)).toBeLessThanOrEqual(LAST_HOUR);
+      }
+    }
+  });
+
+  it("is the same on every server and run, and differs from week to week", () => {
+    expect(slotsOfWeek("2026-11-02")).toEqual(slotsOfWeek("2026-11-02"));
+    expect(new Set(mondays.map((m) => slotsOfWeek(m).map((x) => x.key.slice(8)).join())).size).toBeGreaterThan(20);
+    expect(new Set(mondays.map((m) => slotsOfWeek(m).map((x) => x.date.slice(8)).join("|"))).size).toBeGreaterThan(3);
+  });
+
+  it("a slot is due from its time until the end of its New York day, never the next day", () => {
+    const [first] = slotsOfWeek("2026-11-02");
+    expect(dueSlot(first.at - 1)).toBeNull();
+    expect(dueSlot(first.at)).toEqual(first);
+    const endOfDay = Date.parse(`${addDays(first.date, 1)}T04:59:00Z`); // 23:59 EST
+    expect(dueSlot(endOfDay)).toEqual(first);
+    expect(dueSlot(Date.parse(`${addDays(first.date, 1)}T05:01:00Z`))).toBeNull(); // 00:01 the next day
+  });
+
+  it("consecutive sends cover every day once: each reports from the previous send's date", () => {
+    const slots = mondays.slice(0, 6).flatMap(slotsOfWeek);
+    for (let k = 1; k < slots.length; k++) {
+      expect(previousSlot(slots[k])).toEqual(slots[k - 1]);
+      expect(nextSlot(slots[k - 1].at)).toEqual(slots[k]);
+    }
+    expect(mondayOf("2026-11-08")).toBe("2026-11-02");
   });
 });

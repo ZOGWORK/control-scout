@@ -1,9 +1,10 @@
-// What one account's weekly digest says (docs/digest.md), read only from data Scout already stores: results,
+// What one account's email digest says (docs/digest.md), read only from data Scout already stores: results,
 // event rankings, OPR, the live prediction ledger, the published power rankings and the account's follows.
 // Nothing here calls FIRST or any other outside service, so a slow upstream can never hold a send up.
 //
-// The week is one fixed definition everywhere: Monday to Sunday (match dates as the event gives them, its own
-// local day) before the Monday the digest goes out. "Coming up" is the 14 days from that Monday on.
+// The period one digest reports is one fixed definition everywhere: from the date of the previous send slot
+// (./schedule.ts) to the day before this one, by match dates as the event gives them (its own local day), so
+// consecutive digests cover every day exactly once. "Coming up" is the 14 days from the send date on.
 import { all, get } from "../db.js";
 import { recordOf, recordSql } from "../../src/shared/eventRecord.js";
 import { decidedCall, rightCall } from "../api/accuracy.js";
@@ -26,10 +27,10 @@ export const UPCOMING_DAYS = 14;
 export interface TeamWeek {
   team: number; teamName: string | null;
   season: number; code: string; event: string;
-  /** The team's last match day there this week: the order (most recent first). */
+  /** The team's last match day there in the period: the order (most recent first). */
   lastDay: string;
   record: { wins: number; losses: number; ties: number } | null;
-  /** The event is over (it ended before the Monday the digest goes out). */
+  /** The event is over (it ended before the day the digest goes out). */
   finished: boolean;
   rank: number | null;
   playoff: { kind: "winner" | "finalist" } | { kind: "alliance"; number: number; seat: "captain" | "pick1" | "pick2" | "backup" } | null;
@@ -53,22 +54,24 @@ export interface CallRecord { calls: number; right: number }
 export interface RankingRow { team: number; teamName: string | null; rank: number; movement: Movement | null }
 
 export interface DigestData {
-  /** The Monday it goes out (New York date); the week it reports is the seven days before. */
-  week: string; from: string; to: string;
+  /** The day it goes out (New York date); it reports `from` to `to` (the day before). `next`: the next send's date. */
+  send: string; from: string; to: string; next: string | null;
   name: string | null;
   followed: number[];
   /** Every result row: the subject and summary count them all; the email lists the first MAX_RESULTS. */
   results: TeamWeek[];
-  predictions: { week: CallRecord; season: CallRecord & { season: number } } | null;
+  predictions: { recent: CallRecord; season: CallRecord & { season: number } } | null;
   upcoming: Upcoming[];
   moreUpcoming: number;
   rankings: { week: string; title: string; rows: RankingRow[]; fallback: boolean } | null;
 }
 
 export type Section = "results" | "predictions" | "upcoming" | "rankings";
-/** Is there anything to report about the account's own teams? The rankings' "biggest movers" fallback alone isn't:
- *  it's shown alongside real news, never sent on its own. */
-export const hasNews = (d: DigestData) => d.results.length > 0 || !!d.predictions || d.upcoming.length > 0 || (!!d.rankings && !d.rankings.fallback);
+/** Is there anything to report about the account's own teams? Two things never make an email on their own: the
+ *  rankings' "biggest movers" fallback, and an upcoming event that starts after the next send's day (the next digest has
+ *  it too, so a few emails a week don't repeat the same calendar with nothing new). */
+export const hasNews = (d: DigestData) => d.results.length > 0 || !!d.predictions || (!!d.rankings && !d.rankings.fallback)
+  || d.upcoming.some((u) => d.next == null || u.start <= d.next);
 
 export const sectionsOf = (d: DigestData): Section[] => [
   ...(d.results.length ? ["results" as const] : []), ...(d.predictions ? ["predictions" as const] : []),
@@ -84,8 +87,8 @@ async function teamNames(teams: number[]): Promise<Map<number, string | null>> {
   return new Map(rows.map((r) => [Number(r.number), r.name?.trim() || null]));
 }
 
-/** Followed teams' events with a result last week, one row per team and event (two events: two rows). */
-export async function teamWeeks(teams: number[], from: string, to: string, week: string): Promise<TeamWeek[]> {
+/** Followed teams' events with a result in the period, one row per team and event (two events: two rows). */
+export async function teamWeeks(teams: number[], from: string, to: string, send: string): Promise<TeamWeek[]> {
   if (!teams.length) return [];
   // A match's day is its own date (event-local); with no time on record, the event's last day stands in. A no-show
   // (on_field = 0, as FIRST stores it) isn't playing, as on the team page.
@@ -117,7 +120,7 @@ export async function teamWeeks(teams: number[], from: string, to: string, week:
          WHERE s.team = ? AND s.season = ? AND s.code != ? AND s.opr_np IS NOT NULL AND s.matches > 0 AND e.start < ?
          ORDER BY e.start DESC, e.code DESC LIMIT 1`, [team, season, code, r.start ?? r.last_day]),
     ]);
-    const finished = String(r.end ?? r.start ?? r.last_day) < week;
+    const finished = String(r.end ?? r.start ?? r.last_day) < send;
     const types = new Set(awards.map((a) => a.type));
     const seat = alliance ? (["captain", "pick1", "pick2", "backup"] as const).find((k) => Number(alliance[k]) === team) ?? null : null;
     out.push({
@@ -136,7 +139,7 @@ export async function teamWeeks(teams: number[], from: string, to: string, week:
   return out.sort((a, b) => (a.lastDay !== b.lastDay ? (a.lastDay < b.lastDay ? 1 : -1) : a.team - b.team || a.code.localeCompare(b.code)));
 }
 
-/** The live ledger's calls on matches with a followed team: last week's and the season's, counted as the track record counts them. */
+/** The live ledger's calls on matches with a followed team: the period's and the season's, counted as the track record counts them. */
 export async function callRecords(teams: number[], season: number, from: string, to: string): Promise<DigestData["predictions"]> {
   if (!teams.length) return null;
   const rows = await all<{ p: number; y: number; day: string | null }>(
@@ -147,37 +150,37 @@ export async function callRecords(teams: number[], season: number, from: string,
                    AND mt.number = p.number AND mt.team IN (${marks(teams)}))`, [season, ...teams]);
   const decided = rows.map((r) => ({ p: Number(r.p), y: Number(r.y), day: r.day })).filter(decidedCall);
   const count = (xs: typeof decided): CallRecord => ({ calls: xs.length, right: xs.filter(rightCall).length });
-  const week = count(decided.filter((r) => r.day != null && r.day >= from && r.day <= to));
-  // No calls on a followed team's match last week: no section (never a 0 of 0).
-  if (!week.calls) return null;
-  return { week, season: { ...count(decided), season } };
+  const recent = count(decided.filter((r) => r.day != null && r.day >= from && r.day <= to));
+  // No calls on a followed team's match in the period: no section (never a 0 of 0).
+  if (!recent.calls) return null;
+  return { recent, season: { ...count(decided), season } };
 }
 
 /** Followed teams' events starting in the next UPCOMING_DAYS (registered or on the roster), soonest first. A registration list
  *  FIRST filed for an AM/PM pair (shared = 1) says who registered for the pair, not for this session, so it isn't used. */
-export async function upcomingEvents(teams: number[], week: string): Promise<Upcoming[]> {
+export async function upcomingEvents(teams: number[], send: string): Promise<Upcoming[]> {
   if (!teams.length) return [];
-  const until = addDays(week, UPCOMING_DAYS);
+  const until = addDays(send, UPCOMING_DAYS);
   const rows = await all<any>(
     `SELECT x.team, e.season, e.code, e.name, e.start, e.end, e.city, e.state,
        EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code) scheduled
      FROM (SELECT season, code, team FROM event_teams WHERE team IN (${marks(teams)})
            UNION SELECT season, code, team FROM event_registrations WHERE shared = 0 AND team IN (${marks(teams)})) x
      JOIN events e ON e.season = x.season AND e.code = x.code
-     WHERE e.start >= ? AND e.start <= ?`, [...teams, ...teams, week, until]);
+     WHERE e.start >= ? AND e.start <= ?`, [...teams, ...teams, send, until]);
   const names = await teamNames([...new Set(rows.map((r) => Number(r.team)))]);
   return rows.map((r): Upcoming => ({
     team: Number(r.team), teamName: names.get(Number(r.team)) ?? null, season: Number(r.season), code: String(r.code), event: String(r.name),
-    start: String(r.start), end: r.end ?? null, city: r.city?.trim() || null, state: r.state?.trim() || null, inDays: daysBetween(week, String(r.start)),
+    start: String(r.start), end: r.end ?? null, city: r.city?.trim() || null, state: r.state?.trim() || null, inDays: daysBetween(send, String(r.start)),
     scheduled: Number(r.scheduled) === 1,
   })).sort((a, b) => a.start.localeCompare(b.start) || a.event.localeCompare(b.event) || a.team - b.team);
 }
 
-/** Followed teams' places in a power rankings week published last week; the five biggest movers when none is in it. */
-export function rankingMoves(res: PowerRankingsResponse, teams: number[], from: string, week: string): DigestData["rankings"] {
+/** Followed teams' places in a power rankings week published in the period; the five biggest movers when none is in it. */
+export function rankingMoves(res: PowerRankingsResponse, teams: number[], from: string, send: string): DigestData["rankings"] {
   const w = res.week;
-  // Only a week that came out in the week reported: last Friday's list, never an older one's movement as if new.
-  if (!w || w.sample || w.published < from || w.published >= week) return null;
+  // Only a list that came out in the period reported, never an older one's movement as if new.
+  if (!w || w.sample || w.published < from || w.published >= send) return null;
   const follow = new Set(teams);
   const mine = w.entries.filter((e) => follow.has(e.team));
   const row = (e: (typeof w.entries)[number]): RankingRow => ({ team: e.team, teamName: e.name, rank: e.rank, movement: e.movement });
@@ -188,26 +191,28 @@ export function rankingMoves(res: PowerRankingsResponse, teams: number[], from: 
 }
 
 export interface BuildInput {
-  week: string; season: number; followed: number[]; name: string | null;
+  /** The send date (New York), the period's first day (the previous send's date) and the next send's date. */
+  send: string; from: string; next?: string | null;
+  season: number; followed: number[]; name: string | null;
   /** Tests: the power rankings as published (default: the live list). */
   rankings?: PowerRankingsResponse;
 }
 
-/** Everything one account's digest for `week` (a Monday, New York date) holds. */
+/** Everything one account's digest for the send on `send` holds. */
 export async function buildDigest(i: BuildInput): Promise<DigestData> {
-  const from = addDays(i.week, -7), to = addDays(i.week, -1);
+  const from = i.from, to = addDays(i.send, -1);
   const [weeks, predictions, upcoming, rankings] = await Promise.all([
-    teamWeeks(i.followed, from, to, i.week),
+    teamWeeks(i.followed, from, to, i.send),
     callRecords(i.followed, i.season, from, to),
-    upcomingEvents(i.followed, i.week),
+    upcomingEvents(i.followed, i.send),
     // Power rankings switched off by the owner (the powerRankings feature toggle): none in the digest.
-    isEnabled("powerRankings").then((on) => (on ? i.rankings ?? latestRankings(i.week) : null)),
+    isEnabled("powerRankings").then((on) => (on ? i.rankings ?? latestRankings(i.send) : null)),
   ]);
   return {
-    week: i.week, from, to, name: i.name, followed: i.followed,
+    send: i.send, from, to, next: i.next ?? null, name: i.name, followed: i.followed,
     results: weeks,
     predictions,
     upcoming: upcoming.slice(0, MAX_UPCOMING), moreUpcoming: Math.max(0, upcoming.length - MAX_UPCOMING),
-    rankings: rankings ? rankingMoves(rankings, i.followed, from, i.week) : null,
+    rankings: rankings ? rankingMoves(rankings, i.followed, from, i.send) : null,
   };
 }

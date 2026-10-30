@@ -754,7 +754,7 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/inbox", inboxRouter({ streamEnabled: () => isEnabled("realtime") }));
   // Web push (docs/push.md): this device's subscription for the signed-in account. Per IP, so a loop can't churn rows.
   api.use("/push", limiter(30), pushRouter());
-  // The weekly email digest (docs/digest.md): the Settings switch, the unsubscribe link and Resend's bounce reports.
+  // The email digest (docs/digest.md): the Settings switch, the unsubscribe link and Resend's bounce reports.
   api.use("/digest", limiter(30), digestRouter());
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());

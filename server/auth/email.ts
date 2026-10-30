@@ -13,7 +13,7 @@ const MAX_SENDS_PER_HOUR = 5;
 const RESEND_COOLDOWN_MS = 30_000;
 
 /** `replyTo`: where a reply goes (the contact form sets the sender's address). `headers`: extra message headers
- *  (the weekly digest's List-Unsubscribe). Resolves with the provider's id for the message when it gives one. */
+ *  (the email digest's List-Unsubscribe). Resolves with the provider's id for the message when it gives one. */
 export type MailOptions = { replyTo?: string; headers?: Record<string, string> };
 export type Mailer = (to: string, subject: string, text: string, html: string, opts?: MailOptions) => Promise<void | { id?: string }>;
 

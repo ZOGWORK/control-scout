@@ -135,8 +135,8 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     off: "The current week stays exactly as it was published (or last refreshed) until next Friday's week replaces it.",
   },
   weeklyDigest: {
-    label: "Weekly email digest",
-    on: "Every Monday at 8:00 New York time, people who turned on the weekly digest get one email with their followed teams' results, the prediction check-in and upcoming events (needs RESEND_API_KEY; without it nothing is sent either way).",
-    off: "No digests are sent and Settings stops offering to turn it on. Everyone's choice is kept, so switching back on resumes the next Monday.",
+    label: "Email digest",
+    on: "Three times a week, at random times between 9:00 and 20:00 New York time on days that are never back to back, people who turned on the email digest get one email with their followed teams' results, the prediction check-in and upcoming events, when there's something to report (needs RESEND_API_KEY; without it nothing is sent either way).",
+    off: "No digests are sent, a batch already going stops, and Settings stops offering to turn it on. Everyone's choice is kept, so switching back on resumes with the next send.",
   },
 };

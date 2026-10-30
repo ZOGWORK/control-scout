@@ -51,7 +51,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works)$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/faq$/, "FAQ"],
-  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Weekly digest"],
+  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"],
 ];
 
 /** The page's short name in the top bar ("Control Scout / Events"); any other path is the not-found page.
