@@ -52,7 +52,11 @@ export interface CommonsAnswer {
 export type CommonsStatus = "published" | "withdrawn" | "removed";
 
 /** One of the workspace's own entries as shared, for its members. */
-export interface CommonsShare { uuid: string; status: CommonsStatus; publishedAt: number; eventCode: string; team: number; removedReason: string | null }
+export interface CommonsShare {
+  uuid: string; status: CommonsStatus; publishedAt: number; eventCode: string; team: number; removedReason: string | null;
+  /** Taken down: whether a restore would share it again (the workspace's own choice; unsharing makes it false). Null otherwise. */
+  sharedIfRestored: boolean | null;
+}
 
 /** GET /api/scout/workspaces/:id/commons (members). */
 export interface WorkspaceCommons {

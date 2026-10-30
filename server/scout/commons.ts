@@ -104,7 +104,7 @@ const workspaceDbId = async (workspaceId: string) =>
 export async function workspaceCommons(workspaceId: string): Promise<WorkspaceCommons> {
   const id = await workspaceDbId(workspaceId);
   const opt = id == null ? undefined : await get<any>("SELECT opted_in, updated_at, updated_by, suspended_at, suspended_reason FROM commons_workspaces WHERE workspace_id = ?", [id]);
-  const shares = id == null ? [] : await all<any>("SELECT entry_uuid, status, published_at, event_code, team, removed_reason FROM commons_entries WHERE workspace_id = ? ORDER BY published_at DESC", [id]);
+  const shares = id == null ? [] : await all<any>("SELECT entry_uuid, status, published_at, event_code, team, removed_reason, removed_from FROM commons_entries WHERE workspace_id = ? ORDER BY published_at DESC", [id]);
   return {
     workspaceId,
     optedIn: Number(opt?.opted_in ?? 0) === 1,
@@ -113,6 +113,7 @@ export async function workspaceCommons(workspaceId: string): Promise<WorkspaceCo
     shares: shares.map((r) => ({
       uuid: String(r.entry_uuid), status: r.status as CommonsStatus, publishedAt: Number(r.published_at), eventCode: String(r.event_code), team: Number(r.team),
       removedReason: r.status === "removed" ? String(r.removed_reason ?? "") : null,
+      sharedIfRestored: r.status === "removed" ? r.removed_from !== "withdrawn" : null,
     })),
   };
 }
@@ -448,7 +449,7 @@ export async function setTakedown(entryId: unknown, removed: boolean, reason: st
     ]);
   } else if (cur.status === "removed") {
     await run(`UPDATE commons_entries SET status = CASE WHEN removed_from = 'withdrawn' THEN 'withdrawn' ELSE 'published' END,
-      removed_from = NULL, removed_at = NULL, removed_by = NULL, removed_reason = NULL, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?`, [Date.now(), id.sourceId, id.uuid]);
+      removed_from = NULL, removed_at = NULL, removed_by = NULL, removed_reason = NULL, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ? AND status = 'removed'`, [Date.now(), id.sourceId, id.uuid]); // only the first of two restores at once changes it
   }
   return { was: cur.status as CommonsStatus };
 }
