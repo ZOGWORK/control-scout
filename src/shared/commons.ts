@@ -43,12 +43,15 @@ export interface CommonsAnswer {
   layer: TeamConsensus;
   /** Entries left out because they came from one of the reader's own workspaces. */
   ownHidden: number;
+  /** Source workspaces this reader muted (their entries left out here), to unmute from the page. */
+  muted: CommonsSource[];
 }
 
-export type CommonsStatus = "published" | "withdrawn";
+/** removed: taken down by the owner (only the owner restores it). */
+export type CommonsStatus = "published" | "withdrawn" | "removed";
 
 /** One of the workspace's own entries as shared, for its members. */
-export interface CommonsShare { uuid: string; status: CommonsStatus; publishedAt: number; eventCode: string; team: number }
+export interface CommonsShare { uuid: string; status: CommonsStatus; publishedAt: number; eventCode: string; team: number; removedReason: string | null }
 
 /** GET /api/scout/workspaces/:id/commons (members). */
 export interface WorkspaceCommons {
@@ -56,11 +59,13 @@ export interface WorkspaceCommons {
   /** The admins' opt-in. Off (the default): nothing of this workspace is shared, whatever an entry says. */
   optedIn: boolean;
   updatedAt: string | null; updatedBy: string | null;
+  /** The owner suspended the workspace from the commons: nothing it shared shows, and it can't share. Null: not suspended. */
+  suspended: { at: string; reason: string } | null;
   shares: CommonsShare[];
 }
 
 /** Why a publish was refused (the 4xx body's `code`). */
-export type CommonsRefusal = "not_opted_in" | "not_pit" | "no_event" | "event_off" | "no_entry" | "forbidden";
+export type CommonsRefusal = "not_opted_in" | "not_pit" | "no_event" | "event_off" | "no_entry" | "forbidden" | "removed" | "suspended";
 
 export const COMMONS_REFUSAL: Record<CommonsRefusal, string> = {
   not_opted_in: "Your workspace hasn't joined the scouting commons. An admin can switch it on in Settings.",
@@ -69,4 +74,33 @@ export const COMMONS_REFUSAL: Record<CommonsRefusal, string> = {
   event_off: "The scouting commons isn't open at this event.",
   no_entry: "That entry isn't on the server yet (or was deleted). Let it sync, then share it.",
   forbidden: "Only the entry's author or a workspace admin can share or unshare it.",
+  removed: "This entry was taken down from the scouting commons by Control Scout, so it can't be shared again.",
+  suspended: "Your workspace is suspended from the scouting commons, so nothing it shares is shown. Contact Control Scout if you think that's a mistake.",
 };
+
+/** Why a reader reports a shared entry. */
+export const REPORT_REASONS = ["wrong", "outdated", "inappropriate", "other"] as const;
+export type CommonsReportReason = (typeof REPORT_REASONS)[number];
+export const REPORT_REASON_LABEL: Record<CommonsReportReason, string> = {
+  wrong: "Wrong about this robot",
+  outdated: "Out of date: the robot changed",
+  inappropriate: "Inappropriate or not scouting",
+  other: "Something else",
+};
+export const isReportReason = (x: unknown): x is CommonsReportReason => typeof x === "string" && (REPORT_REASONS as readonly string[]).includes(x);
+export const REPORT_NOTE_MAX = 500;
+
+/** The owner console's report queue: one row per reported entry, its open reports gathered. */
+export interface CommonsReportGroup {
+  /** `${source.id}:${uuid}`, as CommonsEntry.id. */
+  entryId: string;
+  source: CommonsSource;
+  season: number; eventCode: string; team: number;
+  /** The entry as readers saw it (null: deleted since). */
+  notes: string | null; scoutedAt: number | null;
+  status: CommonsStatus | null;
+  reports: { id: number; reason: CommonsReportReason; note: string; createdAt: string }[];
+}
+
+/** The owner console's list of workspaces that have joined the commons. */
+export interface CommonsWorkspaceRow { source: CommonsSource; optedIn: boolean; shared: number; removed: number; suspended: { at: string; by: string; reason: string } | null }

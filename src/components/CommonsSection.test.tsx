@@ -28,7 +28,7 @@ const entry = (over: Partial<CommonsEntry>): CommonsEntry => ({
 const answer = (entries: CommonsEntry[]): CommonsAnswer => ({
   season: 2025, team: 18360, events: [{ code: "USCMQ1", name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08" }], entries,
   layer: { ...emptyConsensus(18360), entries: entries.length, pitEntries: entries.length, scouts: entries.length, counters: [{ kind: "pit", id: "weight", label: "Robot weight (lb)", type: "counter", avg: 38, n: 1 }], tags: [{ label: "Drivetrain: Mecanum", count: 1 }] },
-  ownHidden: 1,
+  ownHidden: 1, muted: [],
 });
 
 let asked: string[] = [];
