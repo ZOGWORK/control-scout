@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "../ui/sonner";
 import { Group, Row } from "./rows";
 import { WorkspaceMembers } from "./WorkspaceMembers";
+import { WorkspaceCommons } from "./WorkspaceCommons";
 
 /** The one-line explanation members see on controls only admins can use. */
 export const ADMINS_ONLY = "Only workspace admins can change these.";
@@ -104,6 +105,7 @@ function WorkspaceShared({ workspace, isAdmin }: { workspace: WorkspaceSpace; is
         <Row label="Create and edit entries"><span className="text-sm text-foreground">Every member</span></Row>
         <Row label="Delete an entry"><span className="text-sm text-foreground">Its author, or an admin</span></Row>
       </Group>
+      <WorkspaceCommons workspace={workspace} isAdmin={isAdmin} />
     </>
   );
 }

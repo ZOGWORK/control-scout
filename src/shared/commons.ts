@@ -26,7 +26,8 @@ export interface CommonsEntry {
 }
 
 /** An event the commons is switched on for, as the read names it. */
-export interface CommonsEvent { code: string; name: string; start: string | null; end: string | null }
+/** `timezone`: the event's IANA zone (null: unknown), so "before this event" means before its first day where it is held. */
+export interface CommonsEvent { code: string; name: string; start: string | null; end: string | null; timezone: string | null }
 
 /** GET /api/scout/commons?season=&team=[&event=]. */
 export interface CommonsAnswer {

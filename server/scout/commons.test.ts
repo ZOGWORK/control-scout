@@ -68,6 +68,8 @@ beforeEach(async () => {
   });
   await setFlag("photos", true, "test");
   await setFlag("workspaceScouting", true, "test");
+  await setFlag("scoutingCommons", true, "test");
+  await setWorkspaceOverride("scoutingCommons", A, null, "test");
   for (const t of ["commons_entries", "commons_workspaces", "commons_events", "entry_photos"]) await run(`DELETE FROM ${t}`);
   invalidateFlags();
 });
@@ -162,7 +164,7 @@ describe("scouting commons", () => {
       expect(c.entries[0]).toMatchObject({ source: { name: "Pyro Scouts" }, eventCode: EV, team: 18360, notes: e.notes, scoutedAt: e.updatedAt, data: e.data });
       expect(c.entries[0].fields.length).toBeGreaterThan(0);
       expect(JSON.stringify(c)).not.toMatch(/Ada|cm-admin-a|3101/);
-      expect(c.events).toEqual([{ code: EV, name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08" }]);
+      expect(c.events).toEqual([{ code: EV, name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08", timezone: null }]);
     }
     // Signed out: 401.
     expect((await client()("GET", `/api/scout/commons?season=${S}&team=18360`)).status).toBe(401);
@@ -340,5 +342,48 @@ describe("scouting commons: the layer and the owner's count", () => {
     await push(adminA, A, [{ ...gone, deleted: true, updatedAt: gone.updatedAt + 1000 }]);
     const list = await owner("GET", "/api/owner/commons/events");
     expect(list.json.events[0]).toMatchObject({ code: EV, shared: 1 });
+  });
+});
+
+describe("scouting commons: the owner's feature toggle", () => {
+  it("off everywhere: no commons read, share or opt-in, whatever the event switch says; on again, everything is back", async () => {
+    const { adminA, loner, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry();
+    await push(adminA, A, [e]);
+    await share(adminA, A, e.uuid);
+    await setFlag("scoutingCommons", false, "test");
+    invalidateFlags();
+    const off = await loner("GET", `/api/scout/commons?season=${S}&team=18360`);
+    expect(off.status).toBe(403);
+    expect(off.json).toMatchObject({ error: "feature_disabled", feature: "scoutingCommons" });
+    expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.feature).toBe("scoutingCommons");
+    expect((await adminA("PUT", `/api/scout/workspaces/${A}/commons`, { optedIn: false })).status).toBe(403);
+    expect((await share(adminA, A, e.uuid, false)).status).toBe(403);
+    // A workspace's own "on" override doesn't open it while it's off everywhere.
+    await setWorkspaceOverride("scoutingCommons", A, true, "test");
+    invalidateFlags();
+    expect((await adminA("PUT", `/api/scout/workspaces/${A}/commons`, { optedIn: true })).status).toBe(403);
+    expect((await share(adminA, A, e.uuid)).status).toBe(403);
+    await setWorkspaceOverride("scoutingCommons", A, null, "test");
+    expect((await owner("GET", "/api/owner/commons/events")).status).toBe(200); // the console stays reachable
+    await setFlag("scoutingCommons", true, "test");
+    invalidateFlags();
+    expect((await read(loner)).entries).toHaveLength(1); // nothing was lost
+  });
+
+  it("off for one workspace: its shares are hidden and it can't share; others carry on", async () => {
+    const { adminA, adminB, loner, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A); await optIn(adminB, B);
+    const a = entry(), b = entry();
+    await push(adminA, A, [a]); await push(adminB, B, [b]);
+    await share(adminA, A, a.uuid); await share(adminB, B, b.uuid);
+    await setWorkspaceOverride("scoutingCommons", A, false, "test");
+    invalidateFlags();
+    expect((await read(loner)).entries.map((x) => x.source.name)).toEqual(["Robo Owls"]);
+    expect((await share(adminA, A, a.uuid)).status).toBe(403);
+    expect((await owner("GET", "/api/owner/commons/events")).json.events[0].shared).toBe(1);
   });
 });
