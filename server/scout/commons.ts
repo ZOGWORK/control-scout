@@ -16,15 +16,21 @@
 // entries are left out (they read those as their own scouting, which always comes first). Photos are the
 // workspace's photos (entry_photos: same caps, same expiry), viewed through GET /api/scout/commons/photos/:id.
 // Nothing here names a person: the credit is the workspace.
+//
+// Moderation (migration 59): any reader reports a shared entry (one open report per reader per entry, a few a day)
+// and mutes a source workspace for themself; the owner takes an entry down (status "removed": hidden, and its
+// workspace can't share it again until the owner restores it) or suspends a whole workspace from the commons.
+// Every owner action is in the audit log.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
-import { all, get, run } from "../db.js";
+import { all, get, run, writeBatch } from "../db.js";
 import { controlPointInfo, isWorkspaceId, linkedAccountId } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { featureDisabled, isEnabledFor, requireFeature } from "../flags.js";
 import { aggregateConsensus, type ConsensusEntry } from "../../src/shared/consensus.js";
 import type { ScoutField } from "../../src/shared/scoutTemplate.js";
 import {
-  COMMONS_REFUSAL, type CommonsAnswer, type CommonsEntry, type CommonsEvent, type CommonsPhoto, type CommonsRefusal, type CommonsStatus, type WorkspaceCommons,
+  COMMONS_REFUSAL, isReportReason, REPORT_NOTE_MAX, REPORT_REASONS, type CommonsAnswer, type CommonsEntry, type CommonsEvent, type CommonsPhoto, type CommonsRefusal,
+  type CommonsReportGroup, type CommonsReportReason, type CommonsSource, type CommonsStatus, type CommonsWorkspaceRow, type WorkspaceCommons,
 } from "../../src/shared/commons.js";
 import { accessError, requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { fieldReader } from "./consensus.js";
@@ -97,13 +103,17 @@ const workspaceDbId = async (workspaceId: string) =>
 /** The workspace's opt-in and its shares (members). Never writes. */
 export async function workspaceCommons(workspaceId: string): Promise<WorkspaceCommons> {
   const id = await workspaceDbId(workspaceId);
-  const opt = id == null ? undefined : await get<any>("SELECT opted_in, updated_at, updated_by FROM commons_workspaces WHERE workspace_id = ?", [id]);
-  const shares = id == null ? [] : await all<any>("SELECT entry_uuid, status, published_at, event_code, team FROM commons_entries WHERE workspace_id = ? ORDER BY published_at DESC", [id]);
+  const opt = id == null ? undefined : await get<any>("SELECT opted_in, updated_at, updated_by, suspended_at, suspended_reason FROM commons_workspaces WHERE workspace_id = ?", [id]);
+  const shares = id == null ? [] : await all<any>("SELECT entry_uuid, status, published_at, event_code, team, removed_reason FROM commons_entries WHERE workspace_id = ? ORDER BY published_at DESC", [id]);
   return {
     workspaceId,
     optedIn: Number(opt?.opted_in ?? 0) === 1,
     updatedAt: opt?.updated_at ?? null, updatedBy: opt?.updated_by ?? null,
-    shares: shares.map((r) => ({ uuid: String(r.entry_uuid), status: r.status as CommonsStatus, publishedAt: Number(r.published_at), eventCode: String(r.event_code), team: Number(r.team) })),
+    suspended: opt?.suspended_at ? { at: String(opt.suspended_at), reason: String(opt.suspended_reason ?? "") } : null,
+    shares: shares.map((r) => ({
+      uuid: String(r.entry_uuid), status: r.status as CommonsStatus, publishedAt: Number(r.published_at), eventCode: String(r.event_code), team: Number(r.team),
+      removedReason: r.status === "removed" ? String(r.removed_reason ?? "") : null,
+    })),
   };
 }
 
@@ -136,11 +146,14 @@ export async function publishEntry(m: Membership, uuid: string, publish: boolean
   // The same shape as deleting (entries.ts mayWrite): the author's call, or an admin's.
   if (m.role !== "admin" && Number(e.author_account_id) !== m.accountId) return refuse(403, "forbidden");
   if (!publish) {
-    await run("UPDATE commons_entries SET status = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?", [Date.now(), id, uuid]);
+    // A takedown stays a takedown: unsharing a removed entry leaves it removed (only the owner restores it).
+    await run("UPDATE commons_entries SET status = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND entry_uuid = ? AND status <> 'removed'", [Date.now(), id, uuid]);
     return { ok: true, commons: await workspaceCommons(m.workspaceId) };
   }
-  const opt = await get<{ opted_in: number }>("SELECT opted_in FROM commons_workspaces WHERE workspace_id = ?", [id]);
+  const opt = await get<{ opted_in: number; suspended_at: string | null }>("SELECT opted_in, suspended_at FROM commons_workspaces WHERE workspace_id = ?", [id]);
   if (Number(opt?.opted_in ?? 0) !== 1) return refuse(409, "not_opted_in");
+  if (opt?.suspended_at) return refuse(403, "suspended");
+  if ((await get<{ status: string }>("SELECT status FROM commons_entries WHERE workspace_id = ? AND entry_uuid = ?", [id, uuid]))?.status === "removed") return refuse(403, "removed");
   if (e.kind !== "pit") return refuse(409, "not_pit");
   const code = String(e.event_code ?? "").toUpperCase();
   if (!code) return refuse(409, "no_event");
@@ -151,13 +164,22 @@ export async function publishEntry(m: Membership, uuid: string, publish: boolean
   const wrote = await run(
     `INSERT INTO commons_entries (workspace_id, entry_uuid, season, event_code, team, status, published_at, published_by_account_id, updated_at)
      SELECT ?, ?, ?, ?, ?, 'published', ?, ?, ?
-      WHERE EXISTS (SELECT 1 FROM commons_workspaces WHERE workspace_id = ? AND opted_in = 1)
+      WHERE EXISTS (SELECT 1 FROM commons_workspaces WHERE workspace_id = ? AND opted_in = 1 AND suspended_at IS NULL)
         AND EXISTS (SELECT 1 FROM commons_events WHERE season = ? AND event_code = ? AND enabled = 1)
      ON CONFLICT(workspace_id, entry_uuid) DO UPDATE SET season = excluded.season, event_code = excluded.event_code, team = excluded.team,
-       status = 'published', published_at = excluded.published_at, published_by_account_id = excluded.published_by_account_id, updated_at = excluded.updated_at`,
+       status = 'published', published_at = excluded.published_at, published_by_account_id = excluded.published_by_account_id, updated_at = excluded.updated_at
+       WHERE commons_entries.status <> 'removed'`,
     [id, uuid, Number(e.season), code, Number(e.team), now, m.accountId, now, id, Number(e.season), code]);
-  if (!wrote) return refuse(409, (await eventOpen(Number(e.season), code)) ? "not_opted_in" : "event_off");
+  if (!wrote) return whyNotWritten(id!, uuid, Number(e.season), code);
   return { ok: true, commons: await workspaceCommons(m.workspaceId) };
+}
+
+/** Which check refused a publish write that wrote nothing (something changed between the checks and the write). */
+async function whyNotWritten(id: number, uuid: string, season: number, code: string): Promise<PublishResult> {
+  if ((await get<{ status: string }>("SELECT status FROM commons_entries WHERE workspace_id = ? AND entry_uuid = ?", [id, uuid]))?.status === "removed") return refuse(403, "removed");
+  const opt = await get<{ opted_in: number; suspended_at: string | null }>("SELECT opted_in, suspended_at FROM commons_workspaces WHERE workspace_id = ?", [id]);
+  if (opt?.suspended_at) return refuse(403, "suspended");
+  return refuse(409, Number(opt?.opted_in ?? 0) !== 1 ? "not_opted_in" : "event_off");
 }
 
 /** Keep the commons' event + team key on the entry: an edit can move a pit entry to another team or event. */
@@ -181,10 +203,11 @@ onEntriesWritten((workspaceId, entries) => {
 
 /**
  * What's in the commons now, as SQL over commons_entries c, the entry w, the event switch ce and the opt-in cw:
- * shared, the entry live, a pit entry still on the key it was shared under, the event open and the workspace opted in.
+ * shared (not withdrawn, not taken down), the entry live, a pit entry still on the key it was shared under, the event
+ * open, and the workspace opted in and not suspended by the owner.
  */
 const SHARED = `c.status = 'published' AND w.deleted = 0 AND w.kind = 'pit'
-  AND w.season = c.season AND UPPER(w.event_code) = c.event_code AND w.team = c.team AND cw.opted_in = 1`;
+  AND w.season = c.season AND UPPER(w.event_code) = c.event_code AND w.team = c.team AND cw.opted_in = 1 AND cw.suspended_at IS NULL`;
 const VISIBLE = `${SHARED} AND ce.enabled = 1`;
 const FROM = `commons_entries c
   JOIN workspace_scout_entries w ON w.workspace_id = c.workspace_id AND w.uuid = c.entry_uuid
@@ -224,7 +247,8 @@ export async function readCommons(user: User, season: number, team: number, even
     event ? [season, team, event] : [season, team]);
   const own = await ownWorkspaces(user);
   const paused = await pausedSources(rows.map((r) => String(r.cp_workspace_id)));
-  const kept = rows.filter((r) => !paused.has(String(r.cp_workspace_id)));
+  const muted = await mutedSources(user.id);
+  const kept = rows.filter((r) => !paused.has(String(r.cp_workspace_id)) && !muted.some((m) => m.id === Number(r.workspace_id)));
   const mine = kept.filter((r) => own.has(String(r.cp_workspace_id)));
   const theirs = kept.filter((r) => !own.has(String(r.cp_workspace_id)));
   const photos = await commonsPhotos(season, team, event);
@@ -249,7 +273,138 @@ export async function readCommons(user: User, season: number, team: number, even
     const grouped = layerFields(fields, data);
     layer.push({ team, kind: "pit", authorAccountId: Number(r.workspace_id), updatedAt: Number(r.updated_at), data: grouped.data, fields: grouped.fields });
   }
-  return { season, team, events: await commonsEvents(season, event), entries, layer: aggregateConsensus(team, layer), ownHidden: mine.length };
+  return { season, team, events: await commonsEvents(season, event), entries, layer: aggregateConsensus(team, layer), ownHidden: mine.length, muted };
+}
+
+// ---------------------------------------------------------------------------
+// Readers: report an entry, mute a source workspace
+// ---------------------------------------------------------------------------
+
+/** The source workspaces this reader muted, by name. */
+export async function mutedSources(userId: number): Promise<CommonsSource[]> {
+  const rows = await all<any>("SELECT m.workspace_id, ws.name FROM commons_mutes m JOIN workspaces ws ON ws.id = m.workspace_id WHERE m.user_id = ? ORDER BY ws.name", [userId]);
+  return rows.map((r) => ({ id: Number(r.workspace_id), name: String(r.name || "A workspace") }));
+}
+
+/** Mute or unmute a source workspace for this reader (a workspace that never shared can't be muted: 404). */
+export async function setMute(userId: number, sourceId: number, muted: boolean): Promise<CommonsSource[] | null> {
+  if (!(await get("SELECT 1 FROM commons_workspaces WHERE workspace_id = ?", [sourceId]))) return null;
+  if (muted) await run("INSERT OR IGNORE INTO commons_mutes (user_id, workspace_id, created_at) VALUES (?, ?, ?)", [userId, sourceId, new Date().toISOString()]);
+  else await run("DELETE FROM commons_mutes WHERE user_id = ? AND workspace_id = ?", [userId, sourceId]);
+  return mutedSources(userId);
+}
+
+/** Open reports one reader may file in a day: plenty for real problems, too few to flood the queue. */
+export const REPORTS_PER_DAY = 20;
+
+/** "12:abc…" -> its parts (a commons entry id). */
+export function parseEntryId(raw: unknown): { sourceId: number; uuid: string } | null {
+  if (typeof raw !== "string") return null;
+  const m = /^(\d{1,12}):([A-Za-z0-9_-]{1,80})$/.exec(raw);
+  return m ? { sourceId: Number(m[1]), uuid: m[2] } : null;
+}
+
+export type ReportResult = { ok: true; already: boolean } | { ok: false; status: 400 | 404 | 429; error: string };
+
+/** A reader's report of an entry they can see in the commons now. Reporting it again while open changes nothing. */
+export async function reportEntry(user: User, entryId: unknown, reason: unknown, note: unknown): Promise<ReportResult> {
+  const id = parseEntryId(entryId);
+  if (!id) return { ok: false, status: 400, error: "entryId required" };
+  if (!isReportReason(reason)) return { ok: false, status: 400, error: `reason must be one of ${REPORT_REASONS.join(", ")}` };
+  const text = typeof note === "string" ? note.trim().slice(0, REPORT_NOTE_MAX) : "";
+  const e = await get<any>(`SELECT c.season, c.event_code, c.team FROM ${FROM} WHERE c.workspace_id = ? AND c.entry_uuid = ? AND ${VISIBLE}`, [id.sourceId, id.uuid]);
+  if (!e) return { ok: false, status: 404, error: "That entry isn't in the scouting commons any more." };
+  const since = new Date(Date.now() - 864e5).toISOString();
+  const recent = await get<{ n: number }>("SELECT COUNT(*) n FROM commons_reports WHERE reporter_user_id = ? AND created_at > ?", [user.id, since]);
+  if (Number(recent?.n ?? 0) >= REPORTS_PER_DAY) return { ok: false, status: 429, error: "That's a lot of reports for one day. Thanks: they're being looked at. Try again tomorrow." };
+  const wrote = await run(
+    `INSERT INTO commons_reports (workspace_id, entry_uuid, season, event_code, team, reporter_user_id, reason, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (workspace_id, entry_uuid, reporter_user_id) WHERE resolved_at IS NULL DO NOTHING`,
+    [id.sourceId, id.uuid, Number(e.season), String(e.event_code), Number(e.team), user.id, reason, text, new Date().toISOString()]);
+  return { ok: true, already: !wrote };
+}
+
+// ---------------------------------------------------------------------------
+// The owner: the report queue, takedowns, suspending a workspace
+// ---------------------------------------------------------------------------
+
+/** The open reports, one group per entry, the most reported (then the oldest) first. */
+export async function reportQueue(limit = 100): Promise<CommonsReportGroup[]> {
+  const rows = await all<any>(
+    `SELECT r.id, r.workspace_id, r.entry_uuid, r.season, r.event_code, r.team, r.reason, r.note, r.created_at, ws.name ws_name,
+            w.notes, w.updated_at, w.deleted, c.status
+       FROM commons_reports r JOIN workspaces ws ON ws.id = r.workspace_id
+       LEFT JOIN workspace_scout_entries w ON w.workspace_id = r.workspace_id AND w.uuid = r.entry_uuid
+       LEFT JOIN commons_entries c ON c.workspace_id = r.workspace_id AND c.entry_uuid = r.entry_uuid
+      WHERE r.resolved_at IS NULL ORDER BY r.created_at`);
+  const groups = new Map<string, CommonsReportGroup>();
+  for (const r of rows) {
+    const key = `${Number(r.workspace_id)}:${String(r.entry_uuid)}`;
+    let g = groups.get(key);
+    if (!g) {
+      const live = r.updated_at != null && !Number(r.deleted);
+      g = {
+        entryId: key, source: { id: Number(r.workspace_id), name: String(r.ws_name || "A workspace") },
+        season: Number(r.season), eventCode: String(r.event_code), team: Number(r.team),
+        notes: live ? String(r.notes ?? "") : null, scoutedAt: live ? Number(r.updated_at) : null, status: (r.status ?? null) as CommonsStatus | null, reports: [],
+      };
+      groups.set(key, g);
+    }
+    g.reports.push({ id: Number(r.id), reason: r.reason as CommonsReportReason, note: String(r.note ?? ""), createdAt: String(r.created_at) });
+  }
+  return [...groups.values()].sort((a, b) => b.reports.length - a.reports.length || a.reports[0].createdAt.localeCompare(b.reports[0].createdAt)).slice(0, limit);
+}
+
+/**
+ * Take an entry down (removed: true) or restore it (false: shared again, as it was). A takedown resolves the entry's
+ * open reports as "removed". Returns what it was before, or null for an entry that was never shared.
+ */
+export async function setTakedown(entryId: unknown, removed: boolean, reason: string, by: string): Promise<{ was: CommonsStatus } | null> {
+  const id = parseEntryId(entryId);
+  if (!id) return null;
+  const cur = await get<{ status: string }>("SELECT status FROM commons_entries WHERE workspace_id = ? AND entry_uuid = ?", [id.sourceId, id.uuid]);
+  if (!cur) return null;
+  const now = new Date().toISOString();
+  if (removed) {
+    await writeBatch([
+      { sql: "UPDATE commons_entries SET status = 'removed', removed_at = ?, removed_by = ?, removed_reason = ?, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?", args: [now, by, reason.slice(0, 300), Date.now(), id.sourceId, id.uuid] },
+      { sql: "UPDATE commons_reports SET resolved_at = ?, resolved_by = ?, resolution = 'removed' WHERE workspace_id = ? AND entry_uuid = ? AND resolved_at IS NULL", args: [now, by, id.sourceId, id.uuid] },
+    ]);
+  } else if (cur.status === "removed") {
+    await run("UPDATE commons_entries SET status = 'published', removed_at = NULL, removed_by = NULL, removed_reason = NULL, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?", [Date.now(), id.sourceId, id.uuid]);
+  }
+  return { was: cur.status as CommonsStatus };
+}
+
+/** Dismiss an entry's open reports (nothing wrong with it). How many were dismissed. */
+export async function dismissReports(entryId: unknown, by: string): Promise<number | null> {
+  const id = parseEntryId(entryId);
+  if (!id) return null;
+  return run("UPDATE commons_reports SET resolved_at = ?, resolved_by = ?, resolution = 'dismissed' WHERE workspace_id = ? AND entry_uuid = ? AND resolved_at IS NULL",
+    [new Date().toISOString(), by, id.sourceId, id.uuid]);
+}
+
+/** Every workspace that has joined (or left) the commons, with what it shares now and what was taken down. */
+export async function commonsWorkspaces(): Promise<CommonsWorkspaceRow[]> {
+  const rows = await all<any>(
+    `SELECT cw.workspace_id, ws.name, cw.opted_in, cw.suspended_at, cw.suspended_by, cw.suspended_reason,
+            (SELECT COUNT(*) FROM commons_entries c WHERE c.workspace_id = cw.workspace_id AND c.status = 'published') shared,
+            (SELECT COUNT(*) FROM commons_entries c WHERE c.workspace_id = cw.workspace_id AND c.status = 'removed') removed
+       FROM commons_workspaces cw JOIN workspaces ws ON ws.id = cw.workspace_id
+      ORDER BY (cw.suspended_at IS NULL), removed DESC, ws.name`);
+  return rows.map((r) => ({
+    source: { id: Number(r.workspace_id), name: String(r.name || "A workspace") }, optedIn: Number(r.opted_in) === 1, shared: Number(r.shared), removed: Number(r.removed),
+    suspended: r.suspended_at ? { at: String(r.suspended_at), by: String(r.suspended_by ?? ""), reason: String(r.suspended_reason ?? "") } : null,
+  }));
+}
+
+/** Suspend a workspace from the commons, or lift it. Null: the workspace never joined. */
+export async function setSuspended(sourceId: number, suspended: boolean, reason: string, by: string): Promise<{ was: boolean } | null> {
+  const cur = await get<{ suspended_at: string | null }>("SELECT suspended_at FROM commons_workspaces WHERE workspace_id = ?", [sourceId]);
+  if (!cur) return null;
+  if (suspended) await run("UPDATE commons_workspaces SET suspended_at = ?, suspended_by = ?, suspended_reason = ? WHERE workspace_id = ?", [new Date().toISOString(), by, reason.slice(0, 300), sourceId]);
+  else await run("UPDATE commons_workspaces SET suspended_at = NULL, suspended_by = NULL, suspended_reason = NULL WHERE workspace_id = ?", [sourceId]);
+  return { was: !!cur.suspended_at };
 }
 
 /**
@@ -363,6 +518,22 @@ export function commonsRouter(): Router {
     if (event != null && !EVENT_CODE.test(event)) { res.status(400).json({ error: "Not an event code" }); return; }
     return readCommons(user, season, team, event);
   }));
+  r.post("/commons/reports", jsonOnly, h(async (req, res) => {
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
+    const out = await reportEntry(user, req.body?.entryId, req.body?.reason, req.body?.note);
+    if (!out.ok) { res.status(out.status).json({ error: out.error }); return; }
+    return { reported: true, already: out.already };
+  }));
+  r.put("/commons/mutes/:sourceId", jsonOnly, h(async (req, res) => {
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
+    const sourceId = Number(req.params.sourceId);
+    if (!Number.isSafeInteger(sourceId) || sourceId < 1 || typeof req.body?.muted !== "boolean") { res.status(400).json({ error: "Send {\"muted\": true | false} for a workspace" }); return; }
+    const muted = await setMute(user.id, sourceId, req.body.muted);
+    if (!muted) { res.status(404).json({ error: "No such workspace in the scouting commons." }); return; }
+    return { muted };
+  }));
   r.get("/commons/photos/:id", h(async (req, res) => {
     res.set("Cache-Control", "no-store");
     const user = await currentUser(req);
@@ -412,6 +583,11 @@ type Handler = (req: Request, res: Response) => Promise<unknown>;
  * The owner console's commons routes (mounted under /api/owner, behind its owner gate and JSON-only rule):
  *   GET /commons/events                         every event switched, with what's shared there.
  *   PUT /commons/events/:season/:code {enabled}  open or close the commons at one event; audited.
+ *   GET /commons/reports                        the open report queue, grouped by entry.
+ *   PUT /commons/entries/:entryId {removed, reason?}   take an entry down (resolving its reports) or restore it; audited.
+ *   POST /commons/entries/:entryId/dismiss      dismiss an entry's open reports; audited.
+ *   GET /commons/workspaces                     workspaces in the commons.
+ *   PUT /commons/workspaces/:sourceId {suspended, reason?}  suspend a workspace from the commons, or lift it; audited.
  */
 export function commonsOwnerRoutes(r: Router, wrap: (fn: Handler) => (req: Request, res: Response, next: NextFunction) => void, actor: (req: Request) => string) {
   r.get("/commons/events", wrap(async () => ({ events: await listCommonsEvents() })));
@@ -426,5 +602,31 @@ export function commonsOwnerRoutes(r: Router, wrap: (fn: Handler) => (req: Reque
       if (e instanceof CommonsError) { res.status(e.status).json({ error: e.message }); return; }
       throw e;
     }
+  }));
+  r.get("/commons/reports", wrap(async () => ({ reports: await reportQueue() })));
+  r.put("/commons/entries/:entryId", wrap(async (req, res) => {
+    if (typeof req.body?.removed !== "boolean") { res.status(400).json({ error: "Send {\"removed\": true | false, \"reason\": \"…\"}" }); return; }
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+    const out = await setTakedown(req.params.entryId, req.body.removed, reason, actor(req));
+    if (!out) { res.status(404).json({ error: "That entry was never in the scouting commons." }); return; }
+    await recordAudit(actor(req), req.body.removed ? "commons.entry.remove" : "commons.entry.restore", { entryId: req.params.entryId, ...(reason ? { reason } : {}) }, null,
+      { from: out.was, to: req.body.removed ? "removed" : out.was === "removed" ? "published" : out.was });
+    return { reports: await reportQueue() };
+  }));
+  r.post("/commons/entries/:entryId/dismiss", wrap(async (req, res) => {
+    const n = await dismissReports(req.params.entryId, actor(req));
+    if (n == null) { res.status(400).json({ error: "Not a commons entry" }); return; }
+    await recordAudit(actor(req), "commons.reports.dismiss", { entryId: req.params.entryId, reports: n });
+    return { reports: await reportQueue() };
+  }));
+  r.get("/commons/workspaces", wrap(async () => ({ workspaces: await commonsWorkspaces() })));
+  r.put("/commons/workspaces/:sourceId", wrap(async (req, res) => {
+    const sourceId = Number(req.params.sourceId);
+    if (!Number.isSafeInteger(sourceId) || typeof req.body?.suspended !== "boolean") { res.status(400).json({ error: "Send {\"suspended\": true | false, \"reason\": \"…\"}" }); return; }
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+    const out = await setSuspended(sourceId, req.body.suspended, reason, actor(req));
+    if (!out) { res.status(404).json({ error: "That workspace never joined the scouting commons." }); return; }
+    await recordAudit(actor(req), req.body.suspended ? "commons.workspace.suspend" : "commons.workspace.unsuspend", { sourceId, ...(reason ? { reason } : {}) }, null, { from: out.was, to: req.body.suspended });
+    return { workspaces: await commonsWorkspaces() };
   }));
 }
