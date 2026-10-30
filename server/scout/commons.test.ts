@@ -299,3 +299,46 @@ describe("scouting commons", () => {
     expect((await loner("GET", "/api/scout/commons/photos/p-ready")).status).toBe(404);
   });
 });
+
+describe("scouting commons: the layer and the owner's count", () => {
+  it("averages a field only with fields that ask the same question (a relabelled id stays apart)", async () => {
+    const { fieldGrouper } = await import("./commons");
+    const group = fieldGrouper();
+    const lb = { id: "weight", label: "Robot weight (lb)", type: "counter" as const, phase: "pit" as const, max: 60 };
+    const kg = { ...lb, label: "Robot weight (kg)" };
+    const a = group([lb], { weight: 40 });
+    const b = group([kg], { weight: 18 });
+    const c = group([{ ...lb, label: " robot weight (LB) " }], { weight: 42 });
+    expect(a).toEqual({ fields: [lb], data: { weight: 40 } });
+    expect(b).toEqual({ fields: [{ ...kg, id: "weight~2" }], data: { "weight~2": 18 } });
+    expect(c.data).toEqual({ weight: 42 }); // same question, other spacing and case
+  });
+
+  it("a reader who joins a workspace stops seeing its shares as commons within the refresh, no sign-in needed", async () => {
+    const { adminA, loner, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry();
+    await push(adminA, A, [e]);
+    await share(adminA, A, e.uuid);
+    expect((await read(loner)).entries).toHaveLength(1);
+    const a = accountFor("cm-loner@example.com");
+    a.workspaces = [{ id: A, name: "Pyro Scouts", role: "member" }];
+    clearInfoCache(); // Control Point asked again (as it is after a minute)
+    expect(await read(loner)).toMatchObject({ entries: [], ownHidden: 1 });
+    a.workspaces = [];
+    clearInfoCache();
+  });
+
+  it("counts for the owner only what a reader would see: a deleted share isn't counted", async () => {
+    const { adminA, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry(), gone = entry();
+    await push(adminA, A, [e, gone]);
+    await share(adminA, A, e.uuid); await share(adminA, A, gone.uuid);
+    await push(adminA, A, [{ ...gone, deleted: true, updatedAt: gone.updatedAt + 1000 }]);
+    const list = await owner("GET", "/api/owner/commons/events");
+    expect(list.json.events[0]).toMatchObject({ code: EV, shared: 1 });
+  });
+});

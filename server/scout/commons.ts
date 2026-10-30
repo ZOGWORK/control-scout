@@ -15,10 +15,11 @@
 // Nothing here names a person: the credit is the workspace.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all, get, run } from "../db.js";
-import { isWorkspaceId, linkedAccountId } from "../auth/controlPoint.js";
+import { controlPointInfo, isWorkspaceId, linkedAccountId } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { isEnabledFor } from "../flags.js";
 import { aggregateConsensus, type ConsensusEntry } from "../../src/shared/consensus.js";
+import type { ScoutField } from "../../src/shared/scoutTemplate.js";
 import {
   COMMONS_REFUSAL, type CommonsAnswer, type CommonsEntry, type CommonsEvent, type CommonsPhoto, type CommonsRefusal, type CommonsStatus, type WorkspaceCommons,
 } from "../../src/shared/commons.js";
@@ -40,16 +41,27 @@ const isTeam = (n: number) => Number.isSafeInteger(n) && n >= 1 && n <= 999_999;
 
 export interface CommonsEventSwitch extends CommonsEvent { season: number; enabled: boolean; updatedAt: string; updatedBy: string; shared: number }
 
-/** Every event the owner has switched (on or off), newest change first, with how many entries are shared there now. */
+/**
+ * Every event the owner has switched (on or off), newest change first, with how many entries are shared there now:
+ * counted as a reader would see them (a live pit entry on its shared key, its workspace opted in and not paused),
+ * whether or not the event is open right now.
+ */
 export async function listCommonsEvents(): Promise<CommonsEventSwitch[]> {
   const rows = await all<any>(
-    `SELECT ce.season, ce.event_code, ce.enabled, ce.updated_at, ce.updated_by, e.name, e.start, e.end,
-            (SELECT COUNT(*) FROM commons_entries c WHERE c.season = ce.season AND c.event_code = ce.event_code AND c.status = 'published') shared
+    `SELECT ce.season, ce.event_code, ce.enabled, ce.updated_at, ce.updated_by, e.name, e.start, e.end
        FROM commons_events ce LEFT JOIN events e ON e.season = ce.season AND e.code = ce.event_code
       ORDER BY ce.updated_at DESC`);
+  const counts = await all<any>(`SELECT c.season, c.event_code, ws.cp_workspace_id, COUNT(*) n FROM ${FROM} WHERE ${SHARED} GROUP BY c.season, c.event_code, ws.cp_workspace_id`);
+  const paused = await pausedSources(counts.map((r) => String(r.cp_workspace_id)));
+  const shared = new Map<string, number>();
+  for (const r of counts) {
+    if (paused.has(String(r.cp_workspace_id))) continue;
+    const k = `${Number(r.season)}:${String(r.event_code)}`;
+    shared.set(k, (shared.get(k) ?? 0) + Number(r.n));
+  }
   return rows.map((r) => ({
     season: Number(r.season), code: String(r.event_code), name: String(r.name ?? r.event_code), start: r.start ?? null, end: r.end ?? null,
-    enabled: Number(r.enabled) === 1, updatedAt: String(r.updated_at), updatedBy: String(r.updated_by), shared: Number(r.shared ?? 0),
+    enabled: Number(r.enabled) === 1, updatedAt: String(r.updated_at), updatedBy: String(r.updated_by), shared: shared.get(`${Number(r.season)}:${String(r.event_code)}`) ?? 0,
   }));
 }
 
@@ -131,12 +143,17 @@ export async function publishEntry(m: Membership, uuid: string, publish: boolean
   if (!code) return refuse(409, "no_event");
   if (!(await eventOpen(Number(e.season), code))) return refuse(409, "event_off");
   const now = Date.now();
-  await run(
+  // The opt-in and the event switch are checked again in the write itself, so an opt-out (or the event closing) that
+  // lands between the checks above and this write can't leave a share behind: one statement, one answer.
+  const wrote = await run(
     `INSERT INTO commons_entries (workspace_id, entry_uuid, season, event_code, team, status, published_at, published_by_account_id, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'published', ?, ?, ?)
+     SELECT ?, ?, ?, ?, ?, 'published', ?, ?, ?
+      WHERE EXISTS (SELECT 1 FROM commons_workspaces WHERE workspace_id = ? AND opted_in = 1)
+        AND EXISTS (SELECT 1 FROM commons_events WHERE season = ? AND event_code = ? AND enabled = 1)
      ON CONFLICT(workspace_id, entry_uuid) DO UPDATE SET season = excluded.season, event_code = excluded.event_code, team = excluded.team,
        status = 'published', published_at = excluded.published_at, published_by_account_id = excluded.published_by_account_id, updated_at = excluded.updated_at`,
-    [id, uuid, Number(e.season), code, Number(e.team), now, m.accountId, now]);
+    [id, uuid, Number(e.season), code, Number(e.team), now, m.accountId, now, id, Number(e.season), code]);
+  if (!wrote) return refuse(409, (await eventOpen(Number(e.season), code)) ? "not_opted_in" : "event_off");
   return { ok: true, commons: await workspaceCommons(m.workspaceId) };
 }
 
@@ -163,19 +180,25 @@ onEntriesWritten((workspaceId, entries) => {
  * What's in the commons now, as SQL over commons_entries c, the entry w, the event switch ce and the opt-in cw:
  * shared, the entry live, a pit entry still on the key it was shared under, the event open and the workspace opted in.
  */
-const VISIBLE = `c.status = 'published' AND w.deleted = 0 AND w.kind = 'pit'
-  AND w.season = c.season AND UPPER(w.event_code) = c.event_code AND w.team = c.team
-  AND ce.enabled = 1 AND cw.opted_in = 1`;
+const SHARED = `c.status = 'published' AND w.deleted = 0 AND w.kind = 'pit'
+  AND w.season = c.season AND UPPER(w.event_code) = c.event_code AND w.team = c.team AND cw.opted_in = 1`;
+const VISIBLE = `${SHARED} AND ce.enabled = 1`;
 const FROM = `commons_entries c
   JOIN workspace_scout_entries w ON w.workspace_id = c.workspace_id AND w.uuid = c.entry_uuid
   JOIN commons_events ce ON ce.season = c.season AND ce.event_code = c.event_code
   JOIN commons_workspaces cw ON cw.workspace_id = c.workspace_id
   JOIN workspaces ws ON ws.id = c.workspace_id`;
 
-/** The workspaces (Control Point ids) a signed-in user belongs to, as last cached: their entries aren't commons to them. */
+/**
+ * The workspaces (Control Point ids) a signed-in user belongs to: their entries aren't commons to them. Asked through
+ * the same refreshing path as /api/auth/me (controlPointInfo: Control Point's answer reused for a minute), so joining or
+ * leaving a workspace changes the split within a minute; the cached memberships stand in when Control Point can't answer.
+ */
 async function ownWorkspaces(user: User): Promise<Set<string>> {
   const accountId = await linkedAccountId(user.id).catch(() => null);
   if (accountId == null) return new Set();
+  const info = await controlPointInfo(accountId).catch(() => null);
+  if (info) return new Set(info.workspaces.map((w) => String(w.id)));
   return new Set((await all<{ cp_workspace_id: string }>("SELECT cp_workspace_id FROM workspace_members WHERE account_id = ?", [accountId])).map((r) => String(r.cp_workspace_id)));
 }
 
@@ -200,8 +223,9 @@ export async function readCommons(user: User, season: number, team: number, even
   const kept = rows.filter((r) => !paused.has(String(r.cp_workspace_id)));
   const mine = kept.filter((r) => own.has(String(r.cp_workspace_id)));
   const theirs = kept.filter((r) => !own.has(String(r.cp_workspace_id)));
-  const photos = await commonsPhotos(theirs);
+  const photos = await commonsPhotos(season, team, event);
   const readers = new Map<string, ReturnType<typeof fieldReader>>();
+  const layerFields = fieldGrouper();
   const entries: CommonsEntry[] = [];
   const layer: ConsensusEntry[] = [];
   for (const r of theirs) {
@@ -217,10 +241,40 @@ export async function readCommons(user: User, season: number, team: number, even
       season: Number(r.season), eventCode: String(r.event_code).toUpperCase(), team: Number(r.team),
       data, notes: String(r.notes ?? ""), fields, scoutedAt: Number(r.updated_at), publishedAt: Number(r.published_at), photos: photos.get(key) ?? [],
     });
-    // One "scout" per source workspace (aggregateConsensus counts distinct authors).
-    layer.push({ team, kind: "pit", authorAccountId: Number(r.workspace_id), updatedAt: Number(r.updated_at), data, fields });
+    // One "scout" per source workspace (aggregateConsensus counts distinct authors); fields grouped by what they ask.
+    const grouped = layerFields(fields, data);
+    layer.push({ team, kind: "pit", authorAccountId: Number(r.workspace_id), updatedAt: Number(r.updated_at), data: grouped.data, fields: grouped.fields });
   }
   return { season, team, events: await commonsEvents(season, event), entries, layer: aggregateConsensus(team, layer), ownHidden: mine.length };
+}
+
+/**
+ * Workspaces' templates are their own: the same field id can mean different things (an admin can relabel `weight` as
+ * kilograms, or widen a rating's scale). aggregateConsensus groups by id, so for the layer each field is re-keyed by
+ * its whole definition (type, label, scale, options): only fields that ask the same question are averaged together.
+ * The first definition seen for an id keeps it; another gets `id~2`, `id~3`... (shown under its own label).
+ */
+export function fieldGrouper() {
+  const ids = new Map<string, string>(); // definition -> layer id
+  const taken = new Map<string, number>(); // id -> definitions seen
+  const keyOf = (f: ScoutField) => JSON.stringify([f.id, f.type, f.label.trim().toLowerCase(), f.max ?? null, f.options ?? null]);
+  return (fields: ScoutField[], data: Record<string, unknown>) => {
+    const out: ScoutField[] = [];
+    const d: Record<string, unknown> = {};
+    for (const f of fields) {
+      const k = keyOf(f);
+      let id = ids.get(k);
+      if (!id) {
+        const n = (taken.get(f.id) ?? 0) + 1;
+        taken.set(f.id, n);
+        id = n === 1 ? f.id : `${f.id}~${n}`;
+        ids.set(k, id);
+      }
+      out.push({ ...f, id });
+      if (f.id in data) d[id] = data[f.id];
+    }
+    return { fields: out, data: d };
+  };
 }
 
 async function commonsEvents(season: number, event: string | null): Promise<CommonsEvent[]> {
@@ -231,15 +285,20 @@ async function commonsEvents(season: number, event: string | null): Promise<Comm
   return rows.map((r) => ({ code: String(r.event_code), name: String(r.name ?? r.event_code), start: r.start ?? null, end: r.end ?? null }));
 }
 
-/** The ready and expired photos of these commons entries, oldest first, by `${workspace_id}:${uuid}`. */
-async function commonsPhotos(rows: any[]): Promise<Map<string, CommonsPhoto[]>> {
+/**
+ * The ready and expired photos of the commons entries on this team (the same key and checks as the entries, so the
+ * query stays the same size however large the pool grows), oldest first, by `${workspace_id}:${uuid}`. The caller
+ * only reads those of the entries it kept.
+ */
+async function commonsPhotos(season: number, team: number, event: string | null): Promise<Map<string, CommonsPhoto[]>> {
   const out = new Map<string, CommonsPhoto[]>();
-  if (!rows.length || !(await photosAvailable())) return out;
-  const pairs = rows.map((r) => [Number(r.workspace_id), String(r.entry_uuid)] as const);
+  if (!(await photosAvailable())) return out;
   const found = await all<any>(
-    `SELECT id, workspace_id, entry_uuid, created_at, status FROM entry_photos
-      WHERE status IN ('ready', 'expired') AND (${pairs.map(() => "(workspace_id = ? AND entry_uuid = ?)").join(" OR ")}) ORDER BY created_at, id`,
-    pairs.flat());
+    `SELECT p.id, p.workspace_id, p.entry_uuid, p.created_at, p.status FROM ${FROM}
+       JOIN entry_photos p ON p.workspace_id = c.workspace_id AND p.entry_uuid = c.entry_uuid
+      WHERE c.season = ? AND c.team = ? ${event ? "AND c.event_code = ?" : ""} AND ${VISIBLE} AND p.status IN ('ready', 'expired')
+      ORDER BY p.created_at, p.id`,
+    event ? [season, team, event] : [season, team]);
   for (const p of found) {
     const key = `${Number(p.workspace_id)}:${String(p.entry_uuid)}`;
     const list = out.get(key) ?? [];
