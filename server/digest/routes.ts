@@ -12,13 +12,14 @@
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { currentUser, type User } from "../auth/session.js";
-import { all, run } from "../db.js";
+import { all, get, run } from "../db.js";
 import { env } from "../env.js";
 import { isEnabled } from "../flags.js";
 import { emailEnabled } from "../auth/email.js";
 import { cleanValue, EMPTY_STATE } from "../../src/shared/personal.js";
 import type { DigestStatus, UnsubscribeStatus } from "../../src/shared/digest.js";
 import { prefsFor, setDigest, stopForAddress, unsubscribe } from "./prefs.js";
+import { sendWelcome } from "./welcome.js";
 import { followedTeams } from "./job.js";
 
 const signedIn = (fn: (req: Request, res: Response, user: User) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
@@ -76,8 +77,11 @@ export function digestRouter(): Router {
     if (typeof on !== "boolean") { res.status(400).json({ error: "enabled must be true or false" }); return; }
     if (on && !(await digestAvailable())) { res.status(503).json({ error: "The email digest isn't available on this server right now." }); return; }
     if (on && !user.email) { res.status(409).json({ error: "Your account has no email address to send it to." }); return; }
+    // Turned on for the first time: the welcome email goes out (once per account, welcome.ts), without holding up the answer.
+    const welcome = on && !(await get<{ w: string | null }>("SELECT welcomed_at w FROM digest_prefs WHERE user_id = ?", [user.id]))?.w;
     await setDigest(user.id, on);
-    return digestStatus(user);
+    if (welcome) void sendWelcome(user.id).catch((e) => console.warn(`[digest] welcome failed: ${(e as Error)?.message ?? e}`));
+    return { ...(await digestStatus(user)), welcomeSent: welcome };
   }));
 
   // The link in the email: off in this same request, then a plain confirmation page (no sign-in, no second click).

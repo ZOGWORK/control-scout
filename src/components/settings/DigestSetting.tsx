@@ -1,8 +1,9 @@
 // Settings › Notifications › Email: the email digest switch (docs/digest.md). Off until turned on; signed in only
 // (it's emailed to the account's address). The switch is stored on the server, not in the synced settings, so the
 // email's unsubscribe link and a bounce change it everywhere at once. Turning it on sends nothing: the toast and the
-// line under the switch confirm it, and the first digest comes within a few days (sends are a few times a week at random
-// times: no send day or time is named to members).
+// line under the switch confirm it. The first time an account turns it on, a welcome email says what to expect
+// (server/digest/welcome.ts); the first digest comes within a few days (a few times a week at random times: no send day
+// or time is named to members).
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
@@ -33,8 +34,9 @@ export function DigestSetting() {
     setStatus({ ...status, enabled: on });
     setBusy(true);
     try {
-      setStatus(await apiFetch<DigestStatus>("/api/digest", { method: "PUT", json: { enabled: on } }));
-      toast(on ? "Email digest on. You'll get the first one within a few days." : "Email digest off. Nothing more will be sent.");
+      const next = await apiFetch<DigestStatus>("/api/digest", { method: "PUT", json: { enabled: on } });
+      setStatus(next);
+      toast(!on ? "Email digest off. Nothing more will be sent." : next.welcomeSent ? "Email digest on. A welcome email is on its way." : "Email digest on. You'll get the first one within a few days.");
     } catch (e) {
       setStatus(before);
       toast.error(`Couldn't change the email digest: ${(e as Error).message}`);

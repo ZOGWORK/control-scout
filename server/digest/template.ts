@@ -22,14 +22,14 @@ export interface Links {
   email: string;
 }
 
-const L = {
+export const L = {
   page: "#f3f2ee", card: "#ffffff", line: "#e6e4dd", text: "#18181b", body: "#3f3f46", muted: "#52525b",
   link: "#8a5a00", gold: "#ffc700", chip: "#f4f2ea", up: "#15803d", down: "#b91c1c", flat: "#52525b",
 };
-const FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const DISPLAY = "'Space Grotesk',Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+export const FONT = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+export const DISPLAY = "'Space Grotesk',Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -139,7 +139,7 @@ export function callsVerdict(c: { calls: number; right: number }): string {
   return "A rough run for the model: more calls wrong than usual.";
 }
 
-const url = (site: string, path: string) => `${site}${path}`;
+export const url = (site: string, path: string) => `${site}${path}`;
 const eventPath = (season: number, code: string) => `/events/${season}/${encodeURIComponent(code)}`;
 
 // ---------------------------------------------------------------------------------------------------
@@ -187,12 +187,12 @@ export function renderText(d: DigestData, k: Links): string {
 // HTML
 // ---------------------------------------------------------------------------------------------------
 
-const a = (href: string, text: string, style = "") => `<a href="${esc(href)}" class="cs-link" style="color:${L.link};text-decoration:none;font-weight:600;${style}">${text}</a>`;
+export const a = (href: string, text: string, style = "") => `<a href="${esc(href)}" class="cs-link" style="color:${L.link};text-decoration:none;font-weight:600;${style}">${text}</a>`;
 const chip = (text: string) => `<span class="cs-chip" style="display:inline-block;margin:0 6px 6px 0;padding:3px 9px;border-radius:999px;background:${L.chip};color:${L.text};font-size:13px;line-height:18px;font-weight:600;white-space:nowrap">${esc(text)}</span>`;
 const trendColor = (t: Trend) => (t === "up" ? L.up : t === "down" ? L.down : L.flat);
 const trendClass = (t: Trend) => `cs-${t}`;
 
-function h2(title: string, note?: string): string {
+export function h2(title: string, note?: string): string {
   return `<tr><td style="padding:32px 32px 4px" class="cs-pad">
     <h2 class="cs-text" style="margin:0;font-family:${DISPLAY};font-size:20px;line-height:28px;font-weight:700;letter-spacing:-0.2px;color:${L.text}">${esc(title)}</h2>
     ${note ? `<p class="cs-muted" style="margin:4px 0 0;font-family:${FONT};font-size:14px;line-height:21px;color:${L.muted}">${note}</p>` : ""}
@@ -200,7 +200,7 @@ function h2(title: string, note?: string): string {
 }
 
 /** One item row: a hairline above, then its lines. */
-function item(inner: string): string {
+export function item(inner: string): string {
   return `<tr><td style="padding:0 32px" class="cs-pad"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
     <td class="cs-line" style="padding:16px 0;border-top:1px solid ${L.line};font-family:${FONT}">${inner}</td></tr></table></td></tr>`;
 }
@@ -235,7 +235,7 @@ function rankingItem(r: RankingRow, site: string): string {
   </tr></table>`);
 }
 
-function moreLink(text: string, href: string): string {
+export function moreLink(text: string, href: string): string {
   return `<tr><td style="padding:4px 32px 0" class="cs-pad"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
     <td class="cs-line" style="padding:14px 0 0;border-top:1px solid ${L.line};font-family:${FONT};font-size:15px;line-height:22px">${a(href, `${esc(text)} &rarr;`, "display:inline-block;padding:4px 0")}</td></tr></table></td></tr>`;
 }
@@ -282,6 +282,26 @@ export function renderHtml(d: DigestData, k: Links): string {
     rows.push(moreLink("See the full power rankings", url(site, `/power-rankings/${d.rankings.week}`)));
   }
 
+  return layout({
+    subject, preheader, links: k, title: "Your Control Scout update", subtitle: periodLabel(d.from, d.to), name: d.name, intro: intro(d), rows,
+    footer: "It only comes when there's something to report.",
+  });
+}
+
+/** One email's content inside the shared page (`layout`): the card's heading, greeting, intro and section rows. */
+export interface LayoutParts {
+  subject: string; preheader: string; links: Links;
+  title: string; subtitle?: string | null; name: string | null; intro: string; rows: string[];
+  /** The footer's second line, under "You're getting this because…". */
+  footer: string;
+  /** The gold button at the end of the card (default: Open Control Scout, the home page). */
+  cta?: { text: string; href: string };
+}
+
+/** The page every digest email shares: logo header, the gold-topped card, sign-off, button and the unsubscribe footer. */
+export function layout(o: LayoutParts): string {
+  const k = o.links, site = k.site, subject = o.subject, preheader = o.preheader;
+  const cta = o.cta ?? { text: "Open Control Scout", href: site };
   const host = site.replace(/^https?:\/\//, "");
   return `<!doctype html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -316,25 +336,25 @@ a{text-decoration:none}
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
         <tr><td style="height:4px;background:${L.gold};font-size:0;line-height:0;border-radius:18px 18px 0 0">&nbsp;</td></tr>
         <tr><td style="padding:36px 32px 0" class="cs-pad">
-          <h1 class="cs-text cs-h1" style="margin:0;font-family:${DISPLAY};font-size:30px;line-height:36px;font-weight:700;letter-spacing:-0.6px;color:${L.text}">Your Control Scout update</h1>
-          <p class="cs-muted" style="margin:6px 0 0;font-family:${FONT};font-size:14px;line-height:20px;color:${L.muted}">${esc(periodLabel(d.from, d.to))}</p>
-          <p class="cs-text" style="margin:24px 0 0;font-family:${FONT};font-size:17px;line-height:26px;color:${L.text}">Hi ${d.name ? `<strong>${esc(d.name)}</strong>` : "there"},</p>
-          <p class="cs-body" style="margin:8px 0 0;font-family:${FONT};font-size:17px;line-height:27px;color:${L.body}">${esc(intro(d))}</p>
+          <h1 class="cs-text cs-h1" style="margin:0;font-family:${DISPLAY};font-size:30px;line-height:36px;font-weight:700;letter-spacing:-0.6px;color:${L.text}">${esc(o.title)}</h1>
+          ${o.subtitle ? `<p class="cs-muted" style="margin:6px 0 0;font-family:${FONT};font-size:14px;line-height:20px;color:${L.muted}">${esc(o.subtitle)}</p>` : ""}
+          <p class="cs-text" style="margin:24px 0 0;font-family:${FONT};font-size:17px;line-height:26px;color:${L.text}">Hi ${o.name ? `<strong>${esc(o.name)}</strong>` : "there"},</p>
+          <p class="cs-body" style="margin:8px 0 0;font-family:${FONT};font-size:17px;line-height:27px;color:${L.body}">${esc(o.intro)}</p>
         </td></tr>
-        ${rows.join("\n")}
+        ${o.rows.join("\n")}
         <tr><td style="padding:36px 32px 0" class="cs-pad">
           <p class="cs-body" style="margin:0;font-family:${FONT};font-size:17px;line-height:26px;color:${L.body}">See you at the next event,</p>
           <p class="cs-text" style="margin:2px 0 0;font-family:${FONT};font-size:17px;line-height:26px;font-weight:700;color:${L.text}">The Control Scout team</p>
         </td></tr>
         <tr><td style="padding:24px 32px 36px" class="cs-pad">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:10px;background:${L.gold}">
-            <a href="${esc(site)}" style="display:inline-block;padding:13px 22px;font-family:${FONT};font-size:15px;line-height:20px;font-weight:700;color:#18181b;text-decoration:none;border-radius:10px">Open Control Scout &rarr;</a>
+            <a href="${esc(cta.href)}" style="display:inline-block;padding:13px 22px;font-family:${FONT};font-size:15px;line-height:20px;font-weight:700;color:#18181b;text-decoration:none;border-radius:10px">${esc(cta.text)} &rarr;</a>
           </td></tr></table>
         </td></tr>
       </table>
     </td></tr>
     <tr><td align="center" style="padding:24px 16px 0;font-family:${FONT}">
-      <p class="cs-muted" style="margin:0;font-size:13px;line-height:20px;color:${L.muted}">You're getting this because you turned on the email digest for <span class="cs-text" style="color:${L.text}">${esc(k.email)}</span>.<br>It only comes when there's something to report.</p>
+      <p class="cs-muted" style="margin:0;font-size:13px;line-height:20px;color:${L.muted}">You're getting this because you turned on the email digest for <span class="cs-text" style="color:${L.text}">${esc(k.email)}</span>.<br>${esc(o.footer)}</p>
       <p style="margin:12px 0 0;font-size:13px;line-height:20px">
         <a href="${esc(k.unsubscribe)}" class="cs-muted" style="display:inline-block;padding:6px 8px;color:${L.muted};text-decoration:underline">Unsubscribe</a>
         <span class="cs-muted" style="color:${L.muted}">·</span>

@@ -27,6 +27,7 @@ import { r2 } from "../scout/r2.js";
 import { listOrphaned } from "../scout/orphans.js";
 import { powerRankingsOwnerRoutes } from "../powerRankings/ownerRoutes.js";
 import { heroLinesOwnerRoutes } from "./heroLinesRoutes.js";
+import { digestOwnerRoutes } from "../digest/ownerRoutes.js";
 import { predictionEngine } from "./predictionEngine.js";
 import { StreamError, listStreams, setEventStream } from "./streams.js";
 
@@ -217,6 +218,8 @@ export function ownerRouter(): Router {
   powerRankingsOwnerRoutes(r, h, actor);
   // The home page's hero lines (./heroLinesRoutes.ts).
   heroLinesOwnerRoutes(r, h, actor);
+  // The email digest (server/digest/ownerRoutes.ts): subscribers, the next send, and a test send to the owner's own account.
+  digestOwnerRoutes(r, h, actor, (req) => owner(req).id);
 
   r.get("/audit", h(async (req) => ({ entries: await listAudit(num(req.query.limit, 100, 1, 500)) })));
   return r;

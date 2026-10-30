@@ -58,6 +58,14 @@ export function slotsOfWeek(monday: string): Slot[] {
   });
 }
 
+/** A one-off slot at `now` (the owner's "send now"): keyed by its New York date and minute, like a scheduled one. */
+export function slotAt(now: number): Slot {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: ZONE, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+    .formatToParts(new Date(now)).map((x) => [x.type, x.value]));
+  const date = `${p.year}-${p.month}-${p.day}`;
+  return { key: `${date}T${p.hour}:${p.minute}`, date, at: now };
+}
+
 /** The slot due at `now`: the latest one whose time has come, as long as it's still its New York day. Else null. */
 export function dueSlot(now: number): Slot | null {
   const today = localDate(now);

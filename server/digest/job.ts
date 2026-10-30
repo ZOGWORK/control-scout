@@ -109,6 +109,8 @@ export interface RunOptions {
   rankings?: PowerRankingsResponse;
   /** Tests: the season. */
   season?: number;
+  /** Only these accounts (the owner's "send me one now"). */
+  only?: number[];
   /** Tests: the period reported and the next send's date, in place of the ones the schedule gives the slot. */
   period?: { from: string; next: string | null };
   /** Asked before every account: false stops the rest of the batch (default: the owner's weeklyDigest switch). */
@@ -125,7 +127,8 @@ export async function runDigest(slot: Slot, o: RunOptions = {}): Promise<RunSumm
   const s: RunSummary = { slot: week, sent: 0, failed: 0, skippedEmpty: 0, skippedOff: 0, skippedBounce: 0, already: 0, stopped: false };
   // Only the ids up front: each account is read again when its turn comes, so a change made while earlier
   // emails go out (unsubscribing, unfollowing, deleting the account) counts.
-  const ids = (await all<{ user_id: number }>("SELECT user_id FROM digest_prefs ORDER BY user_id")).map((r) => Number(r.user_id));
+  const ids = (await all<{ user_id: number }>("SELECT user_id FROM digest_prefs ORDER BY user_id")).map((r) => Number(r.user_id))
+    .filter((id) => !o.only || o.only.includes(id));
   const rankings = o.rankings ?? await latestRankings(slot.date);
   let sentBefore = false;
   for (const userId of ids) {
@@ -140,6 +143,9 @@ export async function runDigest(slot: Slot, o: RunOptions = {}): Promise<RunSumm
       const followed = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
       if (!followed.length || !r.email) continue; // never enters the queue
       if (await get("SELECT 1 FROM digest_sends WHERE user_id = ? AND week = ?", [userId, week])) { s.already++; continue; }
+      // One digest a day: an earlier one today (the owner's test, or a slot run before) already reported up to
+      // yesterday, so this one would only repeat it. The next send covers from today (coverFrom).
+      if (await get("SELECT 1 FROM digest_sends WHERE user_id = ? AND substr(week, 1, 10) = ? AND status IN ('sent', 'bounced', 'sending')", [userId, slot.date])) { s.already++; continue; }
       const from = o.period?.from ?? await coverFrom(userId, slot);
       const data: DigestData = await buildDigest({ send: slot.date, from, next, season: o.season ?? CURRENT_SEASON, followed, name: firstName(r.display_name), rankings });
       const sections = sectionsOf(data);

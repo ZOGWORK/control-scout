@@ -64,7 +64,7 @@ const SECTIONS: LegalSectionDef[] = [
   {
     id: "why", title: "Why we use it", body: (
       <ul>
-        <li><strong>Your email</strong> is used to send sign-in codes and to recognise your account, and for the email digest only if you turn it on in Settings (off unless you do; every digest has a one-click unsubscribe link). The digest has no tracking pixels or tracked links. No marketing, ever.</li>
+        <li><strong>Your email</strong> is used to send sign-in codes and to recognise your account, and for the email digest only if you turn it on in Settings (off unless you do: then one welcome email, and the digest a few times a week; every one has a one-click unsubscribe link). The digest has no tracking pixels or tracked links. No marketing, ever.</li>
         <li><strong>Synced data</strong> is there so your lists and scouting follow you between devices.</li>
         <li><strong>Contact messages</strong> are used only to read and answer what you sent.</li>
         <li><strong>Usage statistics</strong> (only if you allow them) tell us which pages people use, so we know what to improve.</li>

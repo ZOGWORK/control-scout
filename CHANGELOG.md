@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.4 — 2026-10-30
+
+Turning on the email digest now sends a short welcome email, so you know what's coming.
+
+### Highlights
+- [alerts] A welcome email when you turn on the email digest
+- [alerts] It lists the teams the digest will follow
+- [alerts] One click to unsubscribe, from the very first email
+
+### Email digest
+- **A welcome, once.** The first time you turn on the email digest, a welcome email explains what each digest holds, that it comes a few times a week and only when there's news about your teams, and which teams it will follow. Turning it off and on again doesn't send another (#349).
+- **Not following anyone yet?** The welcome says so and links to picking your team, so the first digest has something in it.
+
 ## 1.5.3 — 2026-10-29
 
 The email digest now comes a few times a week instead of once, each one covering just the days since the last.
