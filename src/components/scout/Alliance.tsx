@@ -405,11 +405,14 @@ function PastLinks({ list }: { list: Alliance[] }) {
  * Pick lists stay per workspace. While linked, a toggle above this workspace's list switches to the partner's,
  * read-only (the server sends only the teams at the event). Without an active link, just the list.
  */
-export function PicklistWithPartner({ workspaceId, workspaceName, season, eventCode, children }: {
-  workspaceId: string; workspaceName: string; season: number; eventCode: string | null; children: ReactNode;
+export function PicklistWithPartner({ workspaceId, workspaceName, season, eventCode, enabled = true, children }: {
+  workspaceId: string; workspaceName: string; season: number; eventCode: string | null;
+  /** Scouting alliances on for this workspace (the owner's switch): off asks nothing and shows just the list. */
+  enabled?: boolean;
+  children: ReactNode;
 }) {
-  const st = useAlliances(workspaceId, season);
-  const active = activeAlliance(st.data?.alliances, eventCode);
+  const st = useAlliances(enabled ? workspaceId : null, season);
+  const active = enabled ? activeAlliance(st.data?.alliances, eventCode) : null;
   const [which, setWhich] = useState<"ours" | "partner">("ours");
   if (!active?.partner) return <>{children}</>;
   return (

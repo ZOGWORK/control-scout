@@ -103,11 +103,11 @@ beforeEach(async () => {
 });
 
 describe("the registry", () => {
-  it("has exactly the seven v1 feature toggles, the kill switches apart, and only workspace scouting per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting"]);
+  it("has exactly the feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
-    expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting"]);
-    expect(FLAGS.length).toBe(14);
+    expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances"]);
+    expect(FLAGS.length).toBe(15);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {
@@ -138,7 +138,8 @@ describe("resolution: workspace override, else global, else on", () => {
     expect(await isEnabledFor("workspaceScouting", "ws-a")).toBe(a);
     expect(await isEnabledFor("workspaceScouting", "ws-b")).toBe(b);
     expect(await isEnabledFor("workspaceScouting", null)).toBe(none);
-    expect(await workspaceFlags(["ws-a", "ws-b"])).toEqual({ "ws-a": { workspaceScouting: a }, "ws-b": { workspaceScouting: b } });
+    // Every workspace-scoped flag is resolved per workspace; the others there follow their own (untouched: on) switches.
+    expect(await workspaceFlags(["ws-a", "ws-b"])).toEqual({ "ws-a": { workspaceScouting: a, scoutingAlliances: true }, "ws-b": { workspaceScouting: b, scoutingAlliances: true } });
   });
 
   it("a global-only flag ignores a stray workspace row; an unregistered key is never gated", async () => {
@@ -253,7 +254,7 @@ describe("owner routes", () => {
     await setWorkspaceOverride("workspaceScouting", "ws-b", false, "owner@example.com");
     const r = await call("GET", "/api/owner/flags", { cookie: ownerCookie });
     expect(r.status).toBe(200);
-    expect(r.json.flags.map((f: any) => [f.name, f.group, f.scope])).toEqual(FLAGS.map((f) => [f, FEATURE_FLAGS.includes(f) ? "feature" : "kill", f === "workspaceScouting" ? "workspace" : "global"]));
+    expect(r.json.flags.map((f: any) => [f.name, f.group, f.scope])).toEqual(FLAGS.map((f) => [f, FEATURE_FLAGS.includes(f) ? "feature" : "kill", WORKSPACE_FLAGS.includes(f) ? "workspace" : "global"]));
     expect(r.json.overrides).toEqual([{ workspaceId: "ws-b", flag: "workspaceScouting", enabled: false, updatedAt: expect.any(String), updatedBy: "owner@example.com" }]);
     expect(r.json.workspaces).toEqual([{ id: "ws-a", name: "Alpha Robotics" }, { id: "ws-b", name: "Beta Bots" }]);
   });

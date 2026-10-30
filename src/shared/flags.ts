@@ -7,7 +7,7 @@
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
-  "livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting",
+  "livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -29,6 +29,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   offlinePacks: { group: "feature", scope: "global" },
   discordBot: { group: "feature", scope: "global" },
   workspaceScouting: { group: "feature", scope: "workspace" },
+  scoutingAlliances: { group: "feature", scope: "workspace" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
   photos: { group: "kill", scope: "global" },
@@ -60,6 +61,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   offlinePacks: "Offline packs are paused right now. Packs already on this device keep working.",
   discordBot: "The Discord bot is turned off by the owner for now.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
+  scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
 };
 export const featureOffMessage = (flag: string): string => FEATURE_OFF_MESSAGE[flag as Flag] ?? "This is switched off for now.";
 
@@ -98,6 +100,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Workspace scouting",
     on: "Members of a Control Point workspace share scout entries.",
     off: "Shared entries pause (devices keep them queued until it's back on); everyone's personal scouting keeps working.",
+  },
+  scoutingAlliances: {
+    label: "Scouting alliances",
+    on: "Workspace admins can link with another team's workspace for one event; both sides then read each other's entries and assignments at that event and share one consensus.",
+    off: "No new links, and nothing is read across workspaces through existing ones: each workspace sees only its own scouting again. Links are kept (and still end with their event), so switching back on resumes them.",
   },
   errorReporting: {
     label: "Error reports",

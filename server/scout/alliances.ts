@@ -24,6 +24,10 @@
 // never doubles them) with the original author and answers, a version in their history, published to its
 // streams. Photos stay with the original. Ending is settled lazily (every alliance route) and by a sweep
 // (server/index.ts); a copy that failed part way is retried by the next sweep.
+//
+// The owner's scoutingAlliances switch (src/shared/flags.ts; per workspace): off for a workspace, every alliance route
+// of it answers 403 feature_disabled, nobody accepts its invites, nothing is read across a link with it from either
+// side, and copies wait until it's back on. Links themselves are kept and still end with their event.
 import { createHash, randomInt } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
@@ -119,6 +123,9 @@ async function endLink(r: Row, reason: AllianceEndReason): Promise<boolean> {
 /** Make each side's copy of the other's entries (idempotent), then mark the link's copies made. */
 async function keepCopies(r: Row): Promise<void> {
   if (!r.invitee_ws) return;
+  // Copying is a read across workspaces: while alliances are off for either side it waits (copies_made stays 0,
+  // so the sweep makes them once they're back on).
+  if (!(await isEnabledFor("scoutingAlliances", r.inviter_ws)) || !(await isEnabledFor("scoutingAlliances", r.invitee_ws))) return;
   await copyEntries(r, r.inviter_ws, r.invitee_ws, r.invitee_name ?? "");
   await copyEntries(r, r.invitee_ws, r.inviter_ws, r.inviter_name);
   await run("UPDATE scout_alliances SET copies_made = 1 WHERE id = ?", [r.id]);
@@ -275,6 +282,21 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
 const isSeason = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 2000 && v <= 2100;
 const newCode = () => Array.from({ length: INVITE_CODE_LENGTH }, () => INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)]).join("");
 
+/**
+ * Scouting alliances switched off by the owner (the scoutingAlliances flag: the workspace's override, else the global
+ * switch): 403 feature_disabled. Off means no new links and no reads across workspaces through existing ones.
+ */
+async function alliancesOff(res: Response, workspaceId: string): Promise<boolean> {
+  if (await isEnabledFor("scoutingAlliances", workspaceId)) return false;
+  featureDisabled(res, "scoutingAlliances");
+  return true;
+}
+
+/** Gate the admin routes on the flag (after requireWorkspaceAdmin, which checked the id and membership). */
+const requireAlliances = (req: Request, res: Response, next: NextFunction) => {
+  alliancesOff(res, req.params.workspaceId).then((off) => { if (!off) next(); }, next);
+};
+
 /** The shared-read guard: signed in, a good id, scouting on for both sides, linked for the event. */
 async function shared(req: Request, res: Response): Promise<Extract<AllianceAccess, { ok: true }> | null> {
   res.set("Cache-Control", "private, no-store");
@@ -284,11 +306,13 @@ async function shared(req: Request, res: Response): Promise<Extract<AllianceAcce
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
   const id = Number(req.params.allianceId);
   if (!Number.isSafeInteger(id) || id < 1) { res.status(400).json({ error: "allianceId required" }); return null; }
-  if (await workspacePaused(res, workspaceId)) return null;
+  if (await workspacePaused(res, workspaceId) || await alliancesOff(res, workspaceId)) return null;
   const a = await allianceAccess(user, workspaceId, id);
   if (!a.ok) { res.status(a.status).json(a.code ? { error: a.error, code: a.code } : { error: a.error }); return null; }
   // The partner switched its scouting off: what it shares is off too (its members can't read it either).
   if (!(await isEnabledFor("workspaceScouting", a.partnerWs))) { featureDisabled(res, "workspaceScouting"); return null; }
+  // Switched off for the partner: nothing is read across in either direction.
+  if (await alliancesOff(res, a.partnerWs)) return null;
   return a;
 }
 
@@ -302,7 +326,7 @@ export function alliancesRouter(): Router {
     if (!user) { res.status(401).json({ error: "Sign in first." }); return; }
     const workspaceId = req.params.workspaceId;
     if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return; }
-    if (await workspacePaused(res, workspaceId)) return;
+    if (await workspacePaused(res, workspaceId) || await alliancesOff(res, workspaceId)) return;
     const access = await workspaceAccess(user, workspaceId);
     if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
     await settleAlliances();
@@ -318,7 +342,7 @@ export function alliancesRouter(): Router {
   }));
 
   // Invite: an admin, for an event of this season that hasn't ended. The code comes back once.
-  r.post("/workspaces/:workspaceId/alliances", jsonOnly, requireWorkspaceAdmin(), h(async (req, res) => {
+  r.post("/workspaces/:workspaceId/alliances", jsonOnly, requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
     res.set("Cache-Control", "no-store");
     const m = res.locals.membership as Membership;
     const { season, eventCode: rawCode, keepCopies } = req.body ?? {};
@@ -347,7 +371,7 @@ export function alliancesRouter(): Router {
   }));
 
   // Accept: an admin of the other workspace, with the code.
-  r.post("/workspaces/:workspaceId/alliances/accept", jsonOnly, requireWorkspaceAdmin(), h(async (req, res) => {
+  r.post("/workspaces/:workspaceId/alliances/accept", jsonOnly, requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
     res.set("Cache-Control", "no-store");
     const m = res.locals.membership as Membership;
     const { code: raw, keepCopies } = req.body ?? {};
@@ -358,6 +382,8 @@ export function alliancesRouter(): Router {
     const found = await get<any>("SELECT * FROM scout_alliances WHERE code_hash = ? AND status = 'pending'", [hashCode(code)]);
     if (!found) { res.status(404).json({ error: "No open invite with that code. It may have expired or been used." }); return; }
     const inv = toRow(found);
+    // Switched off for the inviting workspace: no new link with it either.
+    if (await alliancesOff(res, inv.inviter_ws)) return;
     if (inv.inviter_ws === m.workspaceId) { res.status(400).json({ error: "That's this workspace's own invite: send it to the other team's admin." }); return; }
     return serialized(`alliance:${inv.season}:${inv.event_code}`, async () => {
       if (await liveLinkAt(m.workspaceId, inv.season, inv.event_code)) { res.status(409).json({ error: "This workspace already has an alliance (or an invite) for this event." }); return; }
@@ -372,7 +398,7 @@ export function alliancesRouter(): Router {
   }));
 
   // End: an admin of either side. Pending: the invite is cancelled. Active: unlinked now (copies as agreed).
-  r.post("/workspaces/:workspaceId/alliances/:allianceId/end", requireWorkspaceAdmin(), h(async (req, res) => {
+  r.post("/workspaces/:workspaceId/alliances/:allianceId/end", requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
     res.set("Cache-Control", "no-store");
     const m = res.locals.membership as Membership;
     const id = Number(req.params.allianceId);

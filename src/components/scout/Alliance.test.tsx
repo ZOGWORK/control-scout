@@ -80,6 +80,15 @@ describe("PicklistWithPartner", () => {
     expect(screen.queryByText("our list")).toBeNull();
   });
 
+  it("switched off by the owner: asks nothing and shows just the workspace's own list", async () => {
+    routes = { "/api/scout/workspaces/w1/alliances?season=2025": list([linked], false) };
+    render(<MemoryRouter><PicklistWithPartner enabled={false} workspaceId="w1" workspaceName="Gearheads" season={2025} eventCode="USALQ1"><p>our list</p></PicklistWithPartner></MemoryRouter>);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+    expect(screen.queryByRole("radio")).toBeNull();
+    expect(screen.getByText("our list")).toBeTruthy();
+  });
+
   it("without a link, just the workspace's own list", async () => {
     routes = { "/api/scout/workspaces/w1/alliances?season=2025": list([], false) };
     render(<MemoryRouter><PicklistWithPartner workspaceId="w1" workspaceName="Gearheads" season={2025} eventCode={null}><p>our list</p></PicklistWithPartner></MemoryRouter>);

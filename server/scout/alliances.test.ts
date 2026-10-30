@@ -11,10 +11,10 @@ import { all, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { setMailer } from "../auth/email";
 import { clearInfoCache } from "../auth/controlPoint";
-import { setWorkspaceOverride } from "../flags";
+import { setFlag, setWorkspaceOverride } from "../flags";
 import { closeAllStreams } from "./stream";
 import { clearConsensusCache } from "./consensus";
-import { copyUuid, coverageOf, setAllianceClock } from "./alliances";
+import { copyUuid, coverageOf, setAllianceClock, settleAlliances } from "./alliances";
 import { allianceEndsAt, normalInviteCode } from "../../src/shared/alliances";
 
 const KEY = "k".repeat(40);
@@ -378,5 +378,69 @@ describe("ending: the link expires, copies only when both agreed", () => {
     const i = await invite(p.ada, A);
     expect((await end(p.ada, A, i.json.alliance.id)).json.alliance).toMatchObject({ status: "ended", endedReason: "cancelled" });
     expect((await accept(p.bea, B, i.json.code)).status).toBe(404);
+  });
+});
+
+describe("the owner's switch: scoutingAlliances off", () => {
+  const gone = (r: { status: number; json: any }) => { expect(r.status).toBe(403); expect(r.json).toMatchObject({ error: "feature_disabled", feature: "scoutingAlliances" }); };
+
+  it("off everywhere: no new links, no list, and no cross-workspace read through a live link", async () => {
+    const p = await cast();
+    const id = await link();
+    await pushOk(p.ben, B, [entry({ team: 101, notes: "B's" })]);
+    await setFlag("scoutingAlliances", false, "owner@test");
+    try {
+      gone(await list(p.abe, A));
+      gone(await invite(p.ada, A));
+      gone(await accept(p.bea, B, "AAAAA-AAAAA"));
+      gone(await end(p.ada, A, id));
+      for (const [call, ws] of [[p.abe, A], [p.ben, B]] as const) {
+        gone(await sharedOf(call, ws, id));
+        gone(await consensusOf(call, ws, id));
+        gone(await picklistOf(call, ws, id));
+      }
+      // Each workspace still sees its own scouting.
+      expect((await p.abe("GET", `/api/scout/workspaces/${A}/consensus?season=${S}&teams=101`)).json.teams[0].entries).toBe(0);
+      expect((await p.ben("GET", `/api/scout/workspaces/${B}/consensus?season=${S}&teams=101`)).json.teams[0].entries).toBe(1);
+    } finally { await setFlag("scoutingAlliances", true, "owner@test"); }
+    // Back on: the link was kept.
+    expect((await sharedOf(p.abe, A, id)).status).toBe(200);
+  });
+
+  it("off for the partner only: the other side can't read across either, nor accept its invite", async () => {
+    const p = await cast();
+    const id = await link();
+    await setWorkspaceOverride("scoutingAlliances", B, false, "owner@test");
+    try {
+      gone(await sharedOf(p.abe, A, id));
+      gone(await consensusOf(p.abe, A, id));
+      gone(await picklistOf(p.abe, A, id));
+      expect((await list(p.abe, A)).status).toBe(200); // A's own list of links still reads
+    } finally { await setWorkspaceOverride("scoutingAlliances", B, null, "owner@test"); }
+    await end(p.ada, A, id);
+    await setWorkspaceOverride("scoutingAlliances", A, false, "owner@test");
+    try {
+      // C can't accept an invite from A while A is off (A can't even make one).
+      gone(await invite(p.ada, A));
+      const c = await invite(p.cal, C);
+      expect(c.status).toBe(201);
+      gone(await accept(p.ada, A, c.json.code));
+    } finally { await setWorkspaceOverride("scoutingAlliances", A, null, "owner@test"); }
+  });
+
+  it("copies wait while it's off, and are made once it's back on", async () => {
+    const p = await cast();
+    const id = await link(true, true);
+    const fromB = entry({ team: 102, notes: "B copy later" });
+    await pushOk(p.ben, B, [fromB]);
+    await setFlag("scoutingAlliances", false, "owner@test");
+    try {
+      setAllianceClock(() => allianceEndsAt(ENDS) + 1);
+      await settleAlliances();
+      expect((await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries.map((e: any) => e.notes)).toEqual([]);
+    } finally { await setFlag("scoutingAlliances", true, "owner@test"); }
+    await settleAlliances();
+    const a = (await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries;
+    expect(a.map((e: any) => e.uuid)).toEqual([copyUuid(id, B, fromB.uuid)]);
   });
 });

@@ -32,6 +32,8 @@ export interface DataHubProps {
   eventCode?: string | null;
   /** Entries in the list Entries opens (the space's, this season). */
   entryCount: number;
+  /** Scouting alliances on for this workspace (the owner's scoutingAlliances switch). Absent: on. */
+  alliances?: boolean;
   /** Open assignments for you in this workspace. */
   openForYou?: number;
   /** Pit scouting at the session's event, when the page knows the event's teams. */
@@ -58,7 +60,7 @@ export function dataHubRows(p: Omit<DataHubProps, "onOpen" | "className">): Row[
     rows.push({ key: "activity", icon: History, open: "activity", title: "Activity", detail: "What changed in the workspace" });
     const mine = Math.max(0, p.openForYou ?? 0);
     rows.push({ key: "assignments", icon: ClipboardCheck, open: "assignments", title: "Assignments", detail: mine ? `Who scouts which teams · ${mine} open for you` : "Who scouts which teams", badge: mine || undefined });
-    rows.push({ key: "alliance", icon: Handshake, open: "alliance", title: "Scouting alliance", detail: "Share one event's scouting with another team" });
+    if (p.alliances !== false) rows.push({ key: "alliance", icon: Handshake, open: "alliance", title: "Scouting alliance", detail: "Share one event's scouting with another team" });
   }
   const pit = p.pit && p.pit.total > 0 ? p.pit : null;
   rows.push({ key: "pit", icon: Wrench, open: "pit", title: "Pit scouting", detail: pit ? `${Math.min(pit.done, pit.total)} of ${plural(pit.total, "team")} done${at}` : "Robot details, once per team" });

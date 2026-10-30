@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Owner console › Features: exactly the seven v1 toggles as cards (label, on/off, scope), the kill switches below,
+// Owner console › Features: the feature toggles as cards (label, on/off, scope), the kill switches below,
 // a global flip that asks first (saying what turns off and that nothing is deleted) and sends {confirm: true}, and
 // a workspace's own setting that applies at once with a toast.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,11 +28,11 @@ beforeEach(() => { sent.length = 0; toasts.length = 0; });
 afterEach(cleanup);
 
 describe("FeaturesPanel", () => {
-  it("shows the seven v1 toggles as cards with their state and scope, then the kill switches", () => {
+  it("shows the feature toggles as cards with their state and scope, then the kill switches", () => {
     const { container } = render(<FeaturesPanel />);
     const cards = [...container.querySelectorAll("li[data-flag]")].map((li) => li.getAttribute("data-flag"));
-    expect(cards.slice(0, 7)).toEqual([...FEATURE_FLAGS]);
-    expect(cards.slice(7)).toEqual(FLAGS.filter((f) => FLAG_META[f].group === "kill"));
+    expect(cards.slice(0, FEATURE_FLAGS.length)).toEqual([...FEATURE_FLAGS]);
+    expect(cards.slice(FEATURE_FLAGS.length)).toEqual(FLAGS.filter((f) => FLAG_META[f].group === "kill"));
     const coin = container.querySelector('li[data-flag="coinFlips"]') as HTMLElement;
     expect(within(coin).getByText("Coin flips")).toBeTruthy();
     expect(within(coin).getByText("Off")).toBeTruthy();
@@ -40,7 +40,7 @@ describe("FeaturesPanel", () => {
     const ws = container.querySelector('li[data-flag="workspaceScouting"]') as HTMLElement;
     expect(within(ws).getByText("Per workspace", { selector: "span" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Kill switches" })).toBeTruthy();
-    expect(screen.getByText(/1 of 7 off right now/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`1 of ${FEATURE_FLAGS.length} off right now`))).toBeTruthy();
   });
 
   it("a global flip asks first, says what turns off and that nothing is deleted, then sends confirm", async () => {
@@ -77,11 +77,12 @@ describe("FeaturesPanel", () => {
     await waitFor(() => expect(sent[1]).toEqual({ path: "/api/owner/flags/workspaceScouting/workspaces/ws-b", json: { enabled: null } }));
   });
 
-  it("searches the workspaces", () => {
+  it("searches the workspaces (each per-workspace flag has its own list)", () => {
     const { container } = render(<FeaturesPanel />);
-    fireEvent.change(screen.getByPlaceholderText("Search workspaces"), { target: { value: "beta" } });
-    expect([...container.querySelectorAll("li[data-workspace]")].map((li) => li.getAttribute("data-workspace"))).toEqual(["ws-b"]);
-    fireEvent.change(screen.getByPlaceholderText("Search workspaces"), { target: { value: "zzz" } });
-    expect(screen.getByText(/No workspace matches/)).toBeTruthy();
+    const card = within(container.querySelector('li[data-flag="workspaceScouting"]') as HTMLElement);
+    fireEvent.change(card.getByPlaceholderText("Search workspaces"), { target: { value: "beta" } });
+    expect([...container.querySelectorAll('li[data-flag="workspaceScouting"] li[data-workspace]')].map((li) => li.getAttribute("data-workspace"))).toEqual(["ws-b"]);
+    fireEvent.change(card.getByPlaceholderText("Search workspaces"), { target: { value: "zzz" } });
+    expect(card.getByText(/No workspace matches/)).toBeTruthy();
   });
 });

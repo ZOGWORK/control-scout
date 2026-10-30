@@ -190,7 +190,9 @@ export default function ScoutPage() {
   }, [entries, status]);
   const showAssignments = !!workspace && !spaces.resolving && sp.get("view") === "assignments";
   // A scouting alliance (?view=alliance, docs/alliances.md): link with another team's workspace for one event.
-  const showAlliance = !!workspace && !spaces.resolving && sp.get("view") === "alliance";
+  // Off (the owner's scoutingAlliances switch, for this workspace): no row, no view, no partner's pick list.
+  const alliancesOn = useWorkspaceFlag("scoutingAlliances", space);
+  const showAlliance = !!workspace && !spaces.resolving && alliancesOn && sp.get("view") === "alliance";
   const myOpen = workspace && me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open").length : 0;
   // Scout an assigned team: the list filtered to that team at that event, and a new entry for it there.
   // The event of the assignment Scout was tapped on: only for that space and season (a switch falls back to the defaults).
@@ -301,7 +303,7 @@ export default function ScoutPage() {
             {!sub ? (
               <>
                 <DataHub workspace={workspace ? { id: workspace.id, name: spaceName ?? "" } : null} readOnly={!!readOnly} isAdmin={isAdmin} season={season} eventCode={session?.eventCode ?? null}
-                  entryCount={entries.length} openForYou={myOpen} filters={sp} filteredCount={filtering ? feed.shown.length : null}
+                  entryCount={entries.length} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
                   onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} />
               </>
             ) : <>
@@ -314,7 +316,7 @@ export default function ScoutPage() {
               ) : showAlliance && workspace ? (
                 <AllianceView key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null} isAdmin={isAdmin} readOnly={!!readOnly} />
               ) : showPicklist && workspace ? (
-                <PicklistWithPartner key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null}>
+                <PicklistWithPartner key={`${workspace.id}:${season}`} enabled={alliancesOn} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null}>
                   <SharedPicklist workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} readOnly={!!readOnly} />
                 </PicklistWithPartner>
               )

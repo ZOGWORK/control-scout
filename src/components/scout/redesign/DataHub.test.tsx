@@ -19,6 +19,7 @@ describe("Data hub rows", () => {
     expect(keys({ workspace: WS })).toEqual(["entries", "picklist", "activity", "assignments", "alliance", "pit", "recordings", "export"]);
   });
   it("an admin: the template too, last", () => {
+    expect(keys({ workspace: WS, alliances: false })).not.toContain("alliance"); // the owner switched scouting alliances off
     expect(keys({ workspace: WS, isAdmin: true })).toEqual(["entries", "picklist", "activity", "assignments", "alliance", "pit", "recordings", "export", "template"]);
   });
   it("a read-only workspace keeps what reads and exports, and drops the template even for an admin", () => {
