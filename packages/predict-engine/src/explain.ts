@@ -309,7 +309,7 @@ const MODEL_NAMES: Record<ModelFactorId, string> = {
 /** Below this many log-odds (about a quarter point near 50%) a model factor reads as even. */
 const EVEN_LOGIT = 0.01;
 
-function modelLabel(id: ModelFactorId, favors: SheetFactor["favors"], side: string, firmer: boolean): string {
+function modelLabel(id: ModelFactorId, favors: SheetFactor["favors"], side: string, firmer: boolean, atEvent: boolean): string {
   if (favors === "even") {
     if (id === "certainty") return "The data behind this call is about as sure as usual";
     if (id === "pointMix") return "The mix of auto, endgame and penalty points is about even";
@@ -317,7 +317,7 @@ function modelLabel(id: ModelFactorId, favors: SheetFactor["favors"], side: stri
   }
   switch (id) {
     case "pointMix": return `${side}'s mix of auto, endgame and penalty points counts in its favor`;
-    case "form": return `Form this season and at this event favors ${side}`;
+    case "form": return `Form this season${atEvent ? " and at this event" : ""} favors ${side}`;
     case "momentum": return `Momentum over the last few matches favors ${side}`;
     case "reliability": return `Breakdowns and consistency favor ${side}`;
     case "partners": return `How evenly the partners share the work favors ${side}`;
@@ -361,7 +361,7 @@ function sheetOf(book: RatingBook, teamsA: number[], teamsB: number[], p: MatchP
     .filter(([id, v]) => model || id !== "certainty" || Math.abs(v) > 1e-9)
     .map(([id, v]) => {
       const favors: SheetFactor["favors"] = Math.abs(v) < EVEN_LOGIT ? "even" : v > 0 ? "A" : "B";
-      return { id, kind: "model", name: MODEL_NAMES[id], label: modelLabel(id, favors, favors === "A" ? nameA : nameB, Math.sign(v) === Math.sign(F)), favors, logit: v, weight: 0 };
+      return { id, kind: "model", name: MODEL_NAMES[id], label: modelLabel(id, favors, favors === "A" ? nameA : nameB, Math.sign(v) === Math.sign(F), !!opts.context?.event), favors, logit: v, weight: 0 };
     });
   const reasons: SheetFactor[] = [{
     id: "schedule", kind: "reason", name: "Schedule strength", favors: "even", logit: 0, weight: 0,
