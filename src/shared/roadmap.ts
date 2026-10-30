@@ -57,6 +57,10 @@ export interface RoadRoute {
 export interface RoadNeed {
   /** The next stop it applies to; null when the team isn't registered for one yet. */
   event: { code: string; name: string; start: string | null } | null;
+  /** The event comes from the season calendar (the league's tournament, the region's championship), not a registration. */
+  fromCalendar: boolean;
+  /** No event yet: the league's tournaments still to come, one of which the team will play (one per conference). */
+  options: { code: string; name: string; start: string | null }[];
   level: string;
   /** Where it leads ("New Jersey Championship"). */
   leadsTo: string;
@@ -90,7 +94,7 @@ export interface RoadRuleset {
   region: string;
   name: string;
   season: number;
-  levels: { label: string; next: string; note: string | null }[];
+  levels: { kind: "meet" | "entry" | "super" | "regional" | "world"; label: string; next: string; note: string | null }[];
   sources: RoadSource[];
   checked: string;
   points: {

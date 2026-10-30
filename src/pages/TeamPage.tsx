@@ -42,6 +42,7 @@ import { CommonsSection } from "../components/CommonsSection";
 import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { predictHref } from "../shared/predictUrl";
+import { RoadMapSection } from "../components/RoadMap";
 
 /** The record rule, mid-sentence ("Records count every match played, …"). */
 const RECORD_RULE_LOWER = RECORD_RULE.charAt(0).toLowerCase() + RECORD_RULE.slice(1);
@@ -94,6 +95,7 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
           </div>
           {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
           {predictable && <ReportCardSection team={p.team.number} season={p.season} data={p.reportCards} />}
+          <RoadMapSection team={p.team.number} season={p.season} />
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
             <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
@@ -107,7 +109,7 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
           <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
         </>
       )}
-      {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
+      {rest && !hasResults && <><RoadMapSection team={p.team.number} season={p.season} quiet /><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
       {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
           the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
