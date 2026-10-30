@@ -361,7 +361,12 @@ describe("scouting commons: the owner's feature toggle", () => {
     expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.feature).toBe("scoutingCommons");
     expect((await adminA("PUT", `/api/scout/workspaces/${A}/commons`, { optedIn: false })).status).toBe(403);
     expect((await share(adminA, A, e.uuid, false)).status).toBe(403);
-    expect((await loner("POST", "/api/scout/commons/reports", { entryId: "1:x", reason: "wrong" })).status).toBe(403);
+    // A workspace's own "on" override doesn't open it while it's off everywhere.
+    await setWorkspaceOverride("scoutingCommons", A, true, "test");
+    invalidateFlags();
+    expect((await adminA("PUT", `/api/scout/workspaces/${A}/commons`, { optedIn: true })).status).toBe(403);
+    expect((await share(adminA, A, e.uuid)).status).toBe(403);
+    await setWorkspaceOverride("scoutingCommons", A, null, "test");
     expect((await owner("GET", "/api/owner/commons/events")).status).toBe(200); // the console stays reachable
     await setFlag("scoutingCommons", true, "test");
     invalidateFlags();

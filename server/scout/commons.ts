@@ -234,7 +234,7 @@ async function pausedSources(cpIds: string[]): Promise<Set<string>> {
   for (const id of new Set(cpIds)) if (!(await sourceOn(id))) out.add(id);
   return out;
 }
-const sourceOn = async (cpId: string) => (await isEnabledFor("workspaceScouting", cpId)) && (await isEnabledFor("scoutingCommons", cpId));
+const sourceOn = async (cpId: string) => (await isEnabledFor("workspaceScouting", cpId)) && (await isEnabledFor("scoutingCommons", null)) && (await isEnabledFor("scoutingCommons", cpId));
 
 /** The commons on one team in one season: at `event`, or at every event the commons is open at. */
 export async function readCommons(user: User, season: number, team: number, event: string | null): Promise<CommonsAnswer> {
@@ -512,9 +512,12 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
  *   PUT  /workspaces/:id/commons {optedIn}         admins. WorkspaceCommons.
  *   PUT  /workspaces/:id/commons/entries/:uuid {publish}   the entry's author or an admin. {commons}; 4xx {error, code}.
  */
-/** The commons switched off by the owner for this workspace (or everywhere): 403 feature_disabled, nothing read or written. */
+/**
+ * The commons switched off by the owner everywhere, or for this workspace: 403 feature_disabled, nothing read or
+ * written. The global switch is checked first, so a workspace's own "on" override can't open it while it's off everywhere.
+ */
 async function commonsPaused(res: Response, workspaceId: string): Promise<boolean> {
-  if (await isEnabledFor("scoutingCommons", workspaceId)) return false;
+  if ((await isEnabledFor("scoutingCommons", null)) && (await isEnabledFor("scoutingCommons", workspaceId))) return false;
   featureDisabled(res, "scoutingCommons");
   return true;
 }

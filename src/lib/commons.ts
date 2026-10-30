@@ -51,14 +51,28 @@ const cache = new Map<string, WorkspaceCommons>();
 const inflight = new Map<string, Promise<WorkspaceCommons>>();
 const listeners = new Set<() => void>();
 const changed = () => { for (const fn of [...listeners]) fn(); };
+/** Bumped by every write's answer: a read that started before it is older than what's cached, and is dropped. */
+const writes = new Map<string, number>();
 /** Tests: forget everything. */
-export function clearCommonsCache() { cache.clear(); inflight.clear(); }
+export function clearCommonsCache() { cache.clear(); inflight.clear(); writes.clear(); }
+
+/** A write's answer: newer than any read still on its way. */
+function wrote(ws: string, c: WorkspaceCommons) {
+  writes.set(ws, (writes.get(ws) ?? 0) + 1);
+  cache.set(ws, c);
+  changed();
+}
 
 function load(ws: string): Promise<WorkspaceCommons> {
   let p = inflight.get(ws);
   if (!p) {
+    const at = writes.get(ws) ?? 0;
     p = apiFetch<WorkspaceCommons>(workspacePath(ws)).then(
-      (c) => { cache.set(ws, c); inflight.delete(ws); changed(); return c; },
+      (c) => {
+        inflight.delete(ws);
+        if ((writes.get(ws) ?? 0) !== at) return cache.get(ws) ?? c; // a write answered meanwhile: its copy is newer
+        cache.set(ws, c); changed(); return c;
+      },
       (e) => { inflight.delete(ws); throw e; },
     );
     inflight.set(ws, p);
@@ -71,8 +85,10 @@ function load(ws: string): Promise<WorkspaceCommons> {
  * the commons switched off for the workspace (hidden then: nothing is asked).
  */
 export function useWorkspaceCommons(ws: string | null | undefined): WorkspaceCommons | undefined {
-  const on = useWorkspaceFlag("scoutingCommons", ws);
-  const workspaceId = on ? ws : null;
+  // The global switch first: a workspace's own override can't open the commons while it's off everywhere.
+  const global = useFlag("scoutingCommons");
+  const forWorkspace = useWorkspaceFlag("scoutingCommons", ws);
+  const workspaceId = global && forWorkspace ? ws : null;
   const [, bump] = useState(0);
   useEffect(() => {
     const fn = () => bump((x) => x + 1);
@@ -88,16 +104,14 @@ export function useWorkspaceCommons(ws: string | null | undefined): WorkspaceCom
 /** Share or unshare one entry. Throws the server's refusal (its `code` says why: COMMONS_REFUSAL). */
 export async function setShare(workspaceId: string, uuid: string, publish: boolean): Promise<WorkspaceCommons> {
   const r = await apiFetch<{ commons: WorkspaceCommons }>(`${workspacePath(workspaceId)}/entries/${encodeURIComponent(uuid)}`, { method: "PUT", json: { publish } });
-  cache.set(workspaceId, r.commons);
-  changed();
+  wrote(workspaceId, r.commons);
   return r.commons;
 }
 
 /** An admin's opt-in or opt-out (opting out withdraws every share). */
 export async function setOptIn(workspaceId: string, optedIn: boolean): Promise<WorkspaceCommons> {
   const c = await apiFetch<WorkspaceCommons>(workspacePath(workspaceId), { method: "PUT", json: { optedIn } });
-  cache.set(workspaceId, c);
-  changed();
+  wrote(workspaceId, c);
   return c;
 }
 
