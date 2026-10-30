@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.5 — 2026-10-30
+
+Every team's qualification schedule now gets a difficulty rating: how strong its opponents and partners are next to the rest of the field.
+
+### Highlights
+- [rankings] Schedule difficulty for every team on the event page's Rankings tab
+- [teams] Team pages show how hard their draw is at each event
+- [rankings] Mid-event, see what's still to play next to the full schedule
+- [offline] Saved season packs carry it too
+
+### Schedule difficulty
+- **"3rd-hardest of 24", said in words.** Each team's opponents' and partners' average rating against the field's, for example "Opponents average +38 over the field's, partners −12." Hardest first, with a word (Hard, Tough, Average, Kind, Easy) and a strip showing how far from average it is.
+- **Before and during the event.** Before the first match it covers the whole schedule. Once quals are under way, the matches still to play lead and the full schedule is one tap away.
+- **Every team rated.** Teams with no result yet this season start from last season's rating, as everywhere else on the site.
+- **It matters.** Across the 2023–2025 seasons, a schedule one step harder than average cost a team about 2 places in the final ranking against its rating (docs/schedule-difficulty.md).
+- **Offline and for other features.** Season packs carry it as a team stat, and the event and team API answers include it.
+
 ## 1.5.4 — 2026-10-30
 
 Turning on the email digest now sends a short welcome email, so you know what's coming.
