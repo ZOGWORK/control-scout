@@ -29,6 +29,7 @@ import { useScoutLive, type LiveMode } from "../lib/scoutLive";
 import { EntryAttribution } from "../components/EntryAttribution";
 import { SaveStatus } from "../components/SaveStatus";
 import { EntryPhotos } from "../components/scout/EntryPhotos";
+import { CommonsBadge, CommonsShare } from "../components/scout/CommonsShare";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
 import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
@@ -438,6 +439,7 @@ export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, 
                 <EntryAttribution e={e} className="min-w-0" />
                 <EntrySyncState e={e} />
               </div>
+              <CommonsBadge e={e} />
               {assigned && <Badge variant="beta" className="mt-1.5 max-w-full whitespace-normal leading-snug [overflow-wrap:anywhere]"><ClipboardCheck className="shrink-0" /> {assigned}</Badge>}
             </>
           )}
@@ -603,6 +605,7 @@ function EntryForm({ season, initial, team, initialKind = "match", space, spaceN
       </div>
       </fieldset>
       {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5 max-sm:mt-4" />}
+      {initial && !isScoutQueued(initial) && <CommonsShare e={initial} readOnly={readOnly} className="mt-5 max-sm:mt-4" />}
       {toPersonal && (
         <p role="status" className="mt-5 max-sm:mt-4 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           This workspace is read-only now, so this entry can't be saved to it. Save keeps what you typed in Personal{initial ? ", as a new entry of your own" : ""}.
