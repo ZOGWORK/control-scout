@@ -12,14 +12,48 @@ import { Button } from "../ui/button";
 import { Switch } from "../ui/controls";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/overlay";
 import { toast } from "../ui/sonner";
-import { apiFetch, ApiError, prime, useApi } from "../../lib/api";
+import { apiFetch, ApiError, markStale, prime, useApi } from "../../lib/api";
 import { useMeta } from "../../lib/meta";
 import { agoShort, dateRange } from "../../lib/format";
-import { REPORT_REASON_LABEL, type CommonsModeration, type CommonsWorkspaceRow } from "../../shared/commons";
+import { REPORT_REASON_LABEL, type CommonsModeration, type CommonsRemoved, type CommonsReportGroup, type CommonsWorkspaceRow } from "../../shared/commons";
 
 const EVENTS = "/api/owner/commons/events";
 const REPORTS = "/api/owner/commons/reports";
 const WORKSPACES = "/api/owner/commons/workspaces";
+
+/**
+ * After an action, everything it can change is read again: the other lists' counts and the console's badges
+ * (the overview). `keep`: the answer the action already returned, primed after the rest is marked stale.
+ */
+function afterAction(keep: string, value: unknown) {
+  markStale("/api/owner/commons/");
+  markStale("/api/owner/overview");
+  prime(keep, value);
+}
+
+const answerText = (v: unknown) => (v === undefined || v === null || v === "" ? null : v === true ? "yes" : v === false ? "no" : String(v));
+
+/** What was reported: its answers, notes and photos, as the entry is now (whatever readers see). */
+function ReportedEntry({ g }: { g: CommonsReportGroup }) {
+  const answers = g.fields.map((f) => ({ f, v: answerText(g.data[f.id]) })).filter((x) => x.v != null);
+  return (
+    <div className="mt-2 space-y-2">
+      {answers.length > 0 && (
+        <dl className="flex flex-wrap gap-1.5">
+          {answers.map(({ f, v }) => <div key={f.id} className="inline-flex items-baseline gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs"><dt className="text-muted-foreground">{f.label}</dt><dd className="font-medium">{v}</dd></div>)}
+        </dl>
+      )}
+      {g.notes && <p className="line-clamp-4 whitespace-pre-line rounded-lg bg-muted/50 px-3 py-2 text-sm">{g.notes}</p>}
+      {g.photos.length > 0 && (
+        <ul className="flex flex-wrap gap-2" aria-label="Photos">
+          {g.photos.map((p) => p.expired
+            ? <li key={p.id} className="flex size-16 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">Expired</li>
+            : <li key={p.id}><a href={`/api/owner/commons/photos/${encodeURIComponent(p.id)}`} target="_blank" rel="noreferrer"><img src={`/api/owner/commons/photos/${encodeURIComponent(p.id)}`} alt={`Photo on ${g.source.name}'s reported entry`} loading="lazy" className="size-16 rounded-lg border border-border object-cover" /></a></li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 interface EventSwitch { season: number; code: string; name: string; start: string | null; end: string | null; enabled: boolean; updatedAt: string; updatedBy: string; shared: number }
 
@@ -58,7 +92,7 @@ function Events() {
     setBusy(true); setError(null);
     try {
       const r = await apiFetch<{ events: EventSwitch[] }>(`${EVENTS}/${s}/${encodeURIComponent(c)}`, { method: "PUT", json: { enabled } });
-      prime(EVENTS, r);
+      afterAction(EVENTS, r);
       toast.success(enabled ? `The commons is open at ${c}.` : `The commons is closed at ${c}. Shares are kept for if it opens again.`);
       if (enabled) setCode("");
     } catch (e) { setError((e as ApiError).message); } finally { setBusy(false); }
@@ -102,9 +136,20 @@ function Reports() {
   const state = useApi<CommonsModeration>(REPORTS);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
+  // Older takedowns loaded with "Show older" (the first page comes with the queue).
+  const [older, setOlder] = useState<CommonsRemoved[]>([]);
+  const [olderMore, setOlderMore] = useState<boolean | null>(null);
+  const loadOlder = async (last: CommonsRemoved) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch<{ removed: CommonsRemoved[]; more: boolean }>(`/api/owner/commons/removed?before=${encodeURIComponent(last.removedAt)}&entryId=${encodeURIComponent(last.entryId)}`);
+      setOlder((x) => [...x, ...r.removed]);
+      setOlderMore(r.more);
+    } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
+  };
   const act = async (path: string, init: { method: string; json: unknown }, done: string) => {
     setBusy(true);
-    try { prime(REPORTS, await apiFetch<CommonsModeration>(path, init)); toast.success(done); } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
+    try { afterAction(REPORTS, await apiFetch<CommonsModeration>(path, init)); setOlder([]); toast.success(done); } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
   };
   const takeDown = (entryId: string, name: string) => setPending({
     title: `Take down ${name}'s entry?`, description: "It's hidden at once, its open reports are closed, and the workspace can't share it again until you restore it.", confirm: "Take down",
@@ -113,7 +158,10 @@ function Reports() {
 
   return (
     <Async state={state}>
-      {({ reports, removed }) => (
+      {({ reports, removed: first, removedMore }) => {
+        const removed = [...first, ...older];
+        const more = olderMore ?? removedMore;
+        return (
         <div className="space-y-6">
           <ReasonDialog pending={pending} onClose={() => setPending(null)} />
           <div>
@@ -132,7 +180,7 @@ function Reports() {
                         <Button variant="destructive" size="sm" disabled={busy} onClick={() => takeDown(g.entryId, g.source.name)}><Trash2 /> Take down</Button>
                       </div>
                     </div>
-                    {g.notes && <p className="mt-2 line-clamp-4 whitespace-pre-line rounded-lg bg-muted/50 px-3 py-2 text-sm">{g.notes}</p>}
+                    <ReportedEntry g={g} />
                     <ul className="mt-2 space-y-1 text-sm">
                       {g.reports.map((r) => (
                         <li key={r.id} className="flex flex-wrap items-baseline gap-2"><Flag className="size-3.5 shrink-0 self-center text-danger" aria-hidden /><span className="font-medium">{REPORT_REASON_LABEL[r.reason]}</span>{r.note && <span className="text-muted-foreground">“{r.note}”</span>}<span className="text-xs text-muted-foreground">{agoShort(Date.parse(r.createdAt))}</span></li>
@@ -159,10 +207,12 @@ function Reports() {
                   ))}
                 </TableBody>
               </Table>
+              {more && <Button variant="outline" size="sm" className="mt-3" disabled={busy} onClick={() => { void loadOlder(removed[removed.length - 1]); }}>Show older</Button>}
             </div>
           )}
         </div>
-      )}
+        );
+      }}
     </Async>
   );
 }
@@ -174,7 +224,7 @@ function Workspaces() {
   const set = async (w: CommonsWorkspaceRow, suspended: boolean, reason = "") => {
     setBusy(true);
     try {
-      prime(WORKSPACES, await apiFetch<{ workspaces: CommonsWorkspaceRow[] }>(`${WORKSPACES}/${w.source.id}`, { method: "PUT", json: { suspended, reason } }));
+      afterAction(WORKSPACES, await apiFetch<{ workspaces: CommonsWorkspaceRow[] }>(`${WORKSPACES}/${w.source.id}`, { method: "PUT", json: { suspended, reason } }));
       toast.success(suspended ? `${w.source.name} suspended.` : `${w.source.name} can share again.`);
     } catch (e) { toast.error((e as ApiError).message); } finally { setBusy(false); }
   };

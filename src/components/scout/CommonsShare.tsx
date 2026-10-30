@@ -36,6 +36,14 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
           {removed ? <>Control Scout took this entry down{removed.removedReason ? ` (${removed.removedReason})` : ""}, so it can't be shared again. It stays in your workspace as it is.</>
             : <>Nothing your workspace shared is shown{c.suspended!.reason ? ` (${c.suspended!.reason})` : ""}. Your own scouting is untouched. Contact Control Scout if you think that's a mistake.</>}
         </p>
+        {/* Suspended, an entry that's shared can still be unshared (so lifting the suspension won't bring it back). */}
+        {!removed && on && (
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <label htmlFor={id} className="text-sm">Shared: unshare it</label>
+            <Switch id={id} checked disabled={busy || readOnly} onCheckedChange={(v) => { if (!v) void toggle(false); }} />
+          </div>
+        )}
+        {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
       </div>
     );
   }

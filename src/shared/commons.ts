@@ -100,6 +100,8 @@ export interface CommonsReportGroup {
   /** The entry as readers saw it (null: deleted since). */
   notes: string | null; scoutedAt: number | null;
   status: CommonsStatus | null;
+  /** Its answers, with the pit fields to read them by, and its photos (none once deleted). */
+  data: Record<string, unknown>; fields: ScoutField[]; photos: CommonsPhoto[];
   reports: { id: number; reason: CommonsReportReason; note: string; createdAt: string }[];
 }
 
@@ -107,7 +109,7 @@ export interface CommonsReportGroup {
 export interface CommonsRemoved { entryId: string; source: CommonsSource; season: number; eventCode: string; team: number; removedAt: string; removedBy: string; reason: string }
 
 /** GET /api/owner/commons/reports, and every moderation action's answer. */
-export interface CommonsModeration { reports: CommonsReportGroup[]; removed: CommonsRemoved[] }
+export interface CommonsModeration { reports: CommonsReportGroup[]; removed: CommonsRemoved[]; /** Older takedowns remain (GET /api/owner/commons/removed). */ removedMore: boolean }
 
 /** The owner console's list of workspaces that have joined the commons. */
 export interface CommonsWorkspaceRow { source: CommonsSource; optedIn: boolean; shared: number; removed: number; suspended: { at: string; by: string; reason: string } | null }

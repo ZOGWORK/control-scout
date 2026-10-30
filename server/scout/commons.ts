@@ -30,7 +30,7 @@ import { aggregateConsensus, type ConsensusEntry } from "../../src/shared/consen
 import type { ScoutField } from "../../src/shared/scoutTemplate.js";
 import {
   COMMONS_REFUSAL, isReportReason, REPORT_NOTE_MAX, REPORT_REASONS, type CommonsAnswer, type CommonsEntry, type CommonsEvent, type CommonsPhoto, type CommonsRefusal,
-  type CommonsRemoved, type CommonsReportGroup, type CommonsReportReason, type CommonsSource, type CommonsStatus, type CommonsWorkspaceRow, type WorkspaceCommons,
+  type CommonsModeration, type CommonsRemoved, type CommonsReportGroup, type CommonsReportReason, type CommonsSource, type CommonsStatus, type CommonsWorkspaceRow, type WorkspaceCommons,
 } from "../../src/shared/commons.js";
 import { accessError, requireWorkspaceAdmin, workspaceAccess, workspacePaused, writerName } from "./entries.js";
 import { fieldReader } from "./consensus.js";
@@ -247,7 +247,9 @@ export async function readCommons(user: User, season: number, team: number, even
     event ? [season, team, event] : [season, team]);
   const own = await ownWorkspaces(user);
   const paused = await pausedSources(rows.map((r) => String(r.cp_workspace_id)));
-  const muted = await mutedSources(user.id);
+  // Only the mutes that hid something here: a workspace muted elsewhere that shares nothing on this team isn't listed.
+  const sharing = new Set(rows.filter((r) => !paused.has(String(r.cp_workspace_id))).map((r) => Number(r.workspace_id)));
+  const muted = (await mutedSources(user.id)).filter((m) => sharing.has(m.id));
   const kept = rows.filter((r) => !paused.has(String(r.cp_workspace_id)) && !muted.some((m) => m.id === Number(r.workspace_id)));
   const mine = kept.filter((r) => own.has(String(r.cp_workspace_id)));
   const theirs = kept.filter((r) => !own.has(String(r.cp_workspace_id)));
@@ -312,47 +314,94 @@ export async function reportEntry(user: User, entryId: unknown, reason: unknown,
   if (!id) return { ok: false, status: 400, error: "entryId required" };
   if (!isReportReason(reason)) return { ok: false, status: 400, error: `reason must be one of ${REPORT_REASONS.join(", ")}` };
   const text = typeof note === "string" ? note.trim().slice(0, REPORT_NOTE_MAX) : "";
-  const e = await get<any>(`SELECT c.season, c.event_code, c.team FROM ${FROM} WHERE c.workspace_id = ? AND c.entry_uuid = ? AND ${VISIBLE}`, [id.sourceId, id.uuid]);
-  if (!e) return { ok: false, status: 404, error: "That entry isn't in the scouting commons any more." };
-  const since = new Date(Date.now() - 864e5).toISOString();
-  const recent = await get<{ n: number }>("SELECT COUNT(*) n FROM commons_reports WHERE reporter_user_id = ? AND created_at > ?", [user.id, since]);
-  if (Number(recent?.n ?? 0) >= REPORTS_PER_DAY) return { ok: false, status: 429, error: "That's a lot of reports for one day. Thanks: they're being looked at. Try again tomorrow." };
+  const e = await get<any>(`SELECT c.season, c.event_code, c.team, ws.cp_workspace_id FROM ${FROM} WHERE c.workspace_id = ? AND c.entry_uuid = ? AND ${VISIBLE}`, [id.sourceId, id.uuid]);
+  // Hidden from readers (its workspace switched off by the owner) counts as not in the commons: nothing to report.
+  if (!e || !(await sourceOn(String(e.cp_workspace_id)))) return { ok: false, status: 404, error: "That entry isn't in the scouting commons any more." };
+  const now = new Date();
+  const since = new Date(now.getTime() - 864e5).toISOString();
+  // The daily cap is in the insert itself, so reports sent at once can't each pass a separate count.
   const wrote = await run(
-    `INSERT INTO commons_reports (workspace_id, entry_uuid, season, event_code, team, reporter_user_id, reason, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO commons_reports (workspace_id, entry_uuid, season, event_code, team, reporter_user_id, reason, note, created_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM commons_reports WHERE reporter_user_id = ? AND created_at > ?) < ?
      ON CONFLICT (workspace_id, entry_uuid, reporter_user_id) WHERE resolved_at IS NULL DO NOTHING`,
-    [id.sourceId, id.uuid, Number(e.season), String(e.event_code), Number(e.team), user.id, reason, text, new Date().toISOString()]);
-  return { ok: true, already: !wrote };
+    [id.sourceId, id.uuid, Number(e.season), String(e.event_code), Number(e.team), user.id, reason, text, now.toISOString(), user.id, since, REPORTS_PER_DAY]);
+  if (wrote) return { ok: true, already: false };
+  const open = await get("SELECT 1 FROM commons_reports WHERE workspace_id = ? AND entry_uuid = ? AND reporter_user_id = ? AND resolved_at IS NULL", [id.sourceId, id.uuid, user.id]);
+  return open ? { ok: true, already: true } : { ok: false, status: 429, error: "That's a lot of reports for one day. Thanks: they're being looked at. Try again tomorrow." };
 }
 
 // ---------------------------------------------------------------------------
 // The owner: the report queue, takedowns, suspending a workspace
 // ---------------------------------------------------------------------------
 
-/** The open reports, one group per entry, the most reported (then the oldest) first. */
-export async function reportQueue(limit = 100): Promise<CommonsReportGroup[]> {
+/**
+ * Every open report, one group per entry, the most reported (then the oldest) first. Each group carries the entry as
+ * it is now, whatever readers see (muted, withdrawn or closed): its answers with their fields, notes and photos, so the
+ * owner can check what was reported. Open reports are bounded by the readers' daily cap, so the queue is never paged.
+ */
+export async function reportQueue(): Promise<CommonsReportGroup[]> {
   const rows = await all<any>(
-    `SELECT r.id, r.workspace_id, r.entry_uuid, r.season, r.event_code, r.team, r.reason, r.note, r.created_at, ws.name ws_name,
-            w.notes, w.updated_at, w.deleted, c.status
+    `SELECT r.id, r.workspace_id, r.entry_uuid, r.season, r.event_code, r.team, r.reason, r.note, r.created_at, ws.name ws_name, ws.cp_workspace_id,
+            w.notes, w.data, w.updated_at, w.deleted, w.template_id, w.template_version, c.status
        FROM commons_reports r JOIN workspaces ws ON ws.id = r.workspace_id
        LEFT JOIN workspace_scout_entries w ON w.workspace_id = r.workspace_id AND w.uuid = r.entry_uuid
        LEFT JOIN commons_entries c ON c.workspace_id = r.workspace_id AND c.entry_uuid = r.entry_uuid
       WHERE r.resolved_at IS NULL ORDER BY r.created_at`);
   const groups = new Map<string, CommonsReportGroup>();
+  const readers = new Map<string, ReturnType<typeof fieldReader>>();
+  const photos = await photosOf(rows.map((r) => [Number(r.workspace_id), String(r.entry_uuid)] as const));
   for (const r of rows) {
     const key = `${Number(r.workspace_id)}:${String(r.entry_uuid)}`;
     let g = groups.get(key);
     if (!g) {
       const live = r.updated_at != null && !Number(r.deleted);
+      let data: Record<string, unknown> = {};
+      let fields: ScoutField[] = [];
+      if (live) {
+        try { const d = JSON.parse(String(r.data)); if (d && typeof d === "object" && !Array.isArray(d)) data = d; } catch { /* unreadable: no answers */ }
+        const cpId = String(r.cp_workspace_id);
+        let read = readers.get(cpId);
+        if (!read) { read = fieldReader(cpId); readers.set(cpId, read); }
+        fields = await read(Number(r.season), "pit", r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version));
+      }
       g = {
         entryId: key, source: { id: Number(r.workspace_id), name: String(r.ws_name || "A workspace") },
         season: Number(r.season), eventCode: String(r.event_code), team: Number(r.team),
-        notes: live ? String(r.notes ?? "") : null, scoutedAt: live ? Number(r.updated_at) : null, status: (r.status ?? null) as CommonsStatus | null, reports: [],
+        notes: live ? String(r.notes ?? "") : null, scoutedAt: live ? Number(r.updated_at) : null, status: (r.status ?? null) as CommonsStatus | null,
+        data, fields, photos: live ? photos.get(key) ?? [] : [], reports: [],
       };
       groups.set(key, g);
     }
     g.reports.push({ id: Number(r.id), reason: r.reason as CommonsReportReason, note: String(r.note ?? ""), createdAt: String(r.created_at) });
   }
-  return [...groups.values()].sort((a, b) => b.reports.length - a.reports.length || a.reports[0].createdAt.localeCompare(b.reports[0].createdAt)).slice(0, limit);
+  return [...groups.values()].sort((a, b) => b.reports.length - a.reports.length || a.reports[0].createdAt.localeCompare(b.reports[0].createdAt));
+}
+
+/** The photos of these entries (by workspace row id and uuid), in batches so the query stays small, by `${id}:${uuid}`. */
+async function photosOf(pairs: (readonly [number, string])[]): Promise<Map<string, CommonsPhoto[]>> {
+  const out = new Map<string, CommonsPhoto[]>();
+  const keys = [...new Map(pairs.map((p) => [`${p[0]}:${p[1]}`, p])).values()];
+  if (!keys.length || !(await photosAvailable())) return out;
+  for (let i = 0; i < keys.length; i += 100) {
+    const batch = keys.slice(i, i + 100);
+    const found = await all<any>(
+      `SELECT id, workspace_id, entry_uuid, created_at, status FROM entry_photos WHERE status IN ('ready', 'expired')
+         AND (${batch.map(() => "(workspace_id = ? AND entry_uuid = ?)").join(" OR ")}) ORDER BY created_at, id`, batch.flat());
+    for (const p of found) {
+      const key = `${Number(p.workspace_id)}:${String(p.entry_uuid)}`;
+      const list = out.get(key) ?? [];
+      list.push({ id: String(p.id), createdAt: Number(p.created_at), expired: p.status === "expired" });
+      out.set(key, list);
+    }
+  }
+  return out;
+}
+
+/** A photo of an entry that was ever shared in the commons, for the owner's review (whatever readers see now). */
+export async function ownerCommonsPhoto(id: string): Promise<{ object_key: string; status: string } | null> {
+  const r = await get<any>(
+    `SELECT p.object_key, p.status FROM entry_photos p JOIN commons_entries c ON c.workspace_id = p.workspace_id AND c.entry_uuid = p.entry_uuid WHERE p.id = ?`, [id]);
+  return r ? { object_key: String(r.object_key), status: String(r.status) } : null;
 }
 
 /**
@@ -376,20 +425,32 @@ export async function setTakedown(entryId: unknown, removed: boolean, reason: st
   return { was: cur.status as CommonsStatus };
 }
 
-/** Entries the owner took down, newest first, to restore from the console. */
-export async function removedEntries(limit = 100): Promise<CommonsRemoved[]> {
+export const REMOVED_PAGE = 50;
+
+/**
+ * Entries the owner took down, newest first, a page at a time (`before`: the removedAt of the last one already shown,
+ * with its entry id to break ties), to restore from the console. `more`: older ones remain.
+ */
+export async function removedEntries(before: { at: string; entryId: string } | null = null, limit = REMOVED_PAGE): Promise<{ removed: CommonsRemoved[]; more: boolean }> {
   const rows = await all<any>(
     `SELECT c.workspace_id, c.entry_uuid, c.season, c.event_code, c.team, c.removed_at, c.removed_by, c.removed_reason, ws.name ws_name
-       FROM commons_entries c JOIN workspaces ws ON ws.id = c.workspace_id WHERE c.status = 'removed' ORDER BY c.removed_at DESC LIMIT ?`, [limit]);
-  return rows.map((r) => ({
+       FROM commons_entries c JOIN workspaces ws ON ws.id = c.workspace_id
+      WHERE c.status = 'removed' ${before ? "AND (c.removed_at < ? OR (c.removed_at = ? AND (c.workspace_id || ':' || c.entry_uuid) < ?))" : ""}
+      ORDER BY c.removed_at DESC, (c.workspace_id || ':' || c.entry_uuid) DESC LIMIT ?`,
+    before ? [before.at, before.at, before.entryId, limit + 1] : [limit + 1]);
+  const removed = rows.slice(0, limit).map((r) => ({
     entryId: `${Number(r.workspace_id)}:${String(r.entry_uuid)}`, source: { id: Number(r.workspace_id), name: String(r.ws_name || "A workspace") },
     season: Number(r.season), eventCode: String(r.event_code), team: Number(r.team),
     removedAt: String(r.removed_at ?? ""), removedBy: String(r.removed_by ?? ""), reason: String(r.removed_reason ?? ""),
   }));
+  return { removed, more: rows.length > limit };
 }
 
-/** The console's moderation answer: the open queue and what's taken down. */
-const moderation = async () => ({ reports: await reportQueue(), removed: await removedEntries() });
+/** The console's moderation answer: the open queue and the newest page of what's taken down. */
+const moderation = async (): Promise<CommonsModeration> => {
+  const page = await removedEntries();
+  return { reports: await reportQueue(), removed: page.removed, removedMore: page.more };
+};
 
 /** Dismiss an entry's open reports (nothing wrong with it). How many were dismissed. */
 export async function dismissReports(entryId: unknown, by: string): Promise<number | null> {
@@ -601,7 +662,9 @@ type Handler = (req: Request, res: Response) => Promise<unknown>;
  * The owner console's commons routes (mounted under /api/owner, behind its owner gate and JSON-only rule):
  *   GET /commons/events                         every event switched, with what's shared there.
  *   PUT /commons/events/:season/:code {enabled}  open or close the commons at one event; audited.
- *   GET /commons/reports                        the open report queue, grouped by entry, and the entries taken down.
+ *   GET /commons/reports                        the open report queue (each entry's answers, notes and photos), and the newest takedowns.
+ *   GET /commons/removed?before=&entryId=       older takedowns, a page at a time.
+ *   GET /commons/photos/:id                     a reported entry's photo, for review.
  *   PUT /commons/entries/:entryId {removed, reason?}   take an entry down (resolving its reports) or restore it; audited.
  *   POST /commons/entries/:entryId/dismiss      dismiss an entry's open reports; audited.
  *   GET /commons/workspaces                     workspaces in the commons.
@@ -622,6 +685,21 @@ export function commonsOwnerRoutes(r: Router, wrap: (fn: Handler) => (req: Reque
     }
   }));
   r.get("/commons/reports", wrap(moderation));
+  // Older takedowns, a page at a time: ?before=<removedAt>&entryId=<the last one shown>.
+  r.get("/commons/removed", wrap(async (req, res) => {
+    const at = typeof req.query.before === "string" ? req.query.before : "", entryId = typeof req.query.entryId === "string" ? req.query.entryId : "";
+    if (!at || !parseEntryId(entryId)) { res.status(400).json({ error: "before and entryId: the last taken-down entry shown" }); return; }
+    return removedEntries({ at, entryId });
+  }));
+  // A reported entry's photo, for the owner to check (any entry ever shared): 302 to a short-lived signed URL.
+  r.get("/commons/photos/:id", wrap(async (req, res) => {
+    res.set("Cache-Control", "no-store");
+    const c = r2();
+    const p = c && (await photosAvailable()) ? await ownerCommonsPhoto(String(req.params.id)) : null;
+    if (!c || !p || (p.status !== "ready" && p.status !== "expired")) { res.status(404).json({ error: "No such photo." }); return; }
+    if (p.status === "expired") { res.status(410).json({ error: "photo expired" }); return; }
+    res.redirect(302, viewUrl(c, p.object_key, PHOTO_TIMING.viewTtlSec));
+  }));
   r.put("/commons/entries/:entryId", wrap(async (req, res) => {
     if (typeof req.body?.removed !== "boolean") { res.status(400).json({ error: "Send {\"removed\": true | false, \"reason\": \"…\"}" }); return; }
     const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";

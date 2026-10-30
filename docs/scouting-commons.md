@@ -63,14 +63,18 @@ In Owner console › Moderation › Scouting commons:
 
 - **Reports.** Any signed-in reader reports a shared entry (`POST /api/scout/commons/reports {entryId, reason, note}`).
   The reason is one of wrong, outdated, inappropriate or other. A reader can have one open report per entry and
-  at most 20 reports a day. Reporters are never shown to the workspace or the owner. The queue groups reports by entry,
-  most reported first.
+  at most 20 reports a day (the cap is checked in the insert itself). Reporters are never shown to the workspace or the
+  owner, and deleting an account deletes its reports and mutes. The queue groups reports by entry, most reported first,
+  each with the entry as it is now: its answers, notes and photos (`GET /api/owner/commons/photos/:id`). A workspace
+  hidden by the owner's switches takes no reports.
 - **Take down / restore.** A takedown sets the share to `removed` with a reason: it's hidden at once, its open reports
   close as "removed", and the workspace can't share it again. The entry's share switch says why. Restoring shares it
-  again as it was. **Dismiss** closes an entry's reports and leaves it shared.
-- **Suspend a workspace.** Everything it shared is hidden and it can't share, until lifted. Its own scouting is untouched.
+  again as it was. **Dismiss** closes an entry's reports and leaves it shared. Takedowns list newest first, 50 at a
+  time (`GET /api/owner/commons/removed?before=&entryId=` for older ones).
+- **Suspend a workspace.** Everything it shared is hidden and it can't share, until lifted. Its own scouting is untouched,
+  and its members can still unshare entries (so lifting the suspension doesn't bring back what they withdrew).
 - **Mute (readers).** `PUT /api/scout/commons/mutes/:sourceId {muted}` hides a source workspace's shares for that reader
-  only. Muted workspaces are listed under the entries with an Unmute button.
+  only. Workspaces muted that share on the team are listed under its entries with an Unmute button.
 
 Every owner action is in the audit log (`commons.entry.remove|restore`, `commons.reports.dismiss`,
 `commons.workspace.suspend|unsuspend`, `commons.event.open|close`). The console's Moderation section shows a badge

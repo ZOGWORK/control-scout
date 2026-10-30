@@ -474,3 +474,78 @@ describe("scouting commons: moderation", () => {
     expect((await read(loner)).entries).toHaveLength(1);
   });
 });
+
+describe("scouting commons: moderation edges", () => {
+  const sharedEntry = async () => {
+    const { adminA, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry();
+    await push(adminA, A, [e]);
+    await share(adminA, A, e.uuid);
+    const ws = (await all<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [A]))[0].id;
+    return { e, id: `${ws}:${e.uuid}`, ws };
+  };
+  beforeEach(async () => { for (const t of ["commons_reports", "commons_mutes"]) await run(`DELETE FROM ${t}`); });
+
+  it("the daily cap holds when reports arrive at once", async () => {
+    const { adminA, loner } = await cast();
+    const { ws } = await sharedEntry();
+    const more = Array.from({ length: 25 }, () => entry());
+    await push(adminA, A, more);
+    for (const m of more) await share(adminA, A, m.uuid);
+    const rs = await Promise.all(more.map((m) => loner("POST", "/api/scout/commons/reports", { entryId: `${ws}:${m.uuid}`, reason: "wrong" })));
+    expect(rs.filter((r) => r.status === 200).length).toBe(20);
+    expect(rs.filter((r) => r.status === 429).length).toBe(5);
+  });
+
+  it("a workspace hidden by the owner's switch takes no reports", async () => {
+    const { loner } = await cast();
+    const { id } = await sharedEntry();
+    await setWorkspaceOverride("workspaceScouting", A, false, "test");
+    invalidateFlags();
+    expect((await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong" })).status).toBe(404);
+    await setWorkspaceOverride("workspaceScouting", A, null, "test");
+    invalidateFlags();
+  });
+
+  it("lists only the mutes that hid something on this team", async () => {
+    const { loner } = await cast();
+    const { ws } = await sharedEntry();
+    await loner("PUT", `/api/scout/commons/mutes/${ws}`, { muted: true });
+    expect((await read(loner)).muted).toEqual([{ id: ws, name: "Pyro Scouts" }]);
+    expect((await read(loner, `season=${S}&team=101`)).muted).toEqual([]); // nothing shared on 101
+  });
+
+  it("the queue shows what was reported (answers and fields), and deleting an account removes its reports and mutes", async () => {
+    const { owner } = await cast();
+    const { id, ws } = await sharedEntry();
+    const gone = await signIn("cm-gone@example.com");
+    await gone("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong", note: "mine" });
+    await gone("PUT", `/api/scout/commons/mutes/${ws}`, { muted: true });
+    const q = (await owner("GET", "/api/owner/commons/reports")).json.reports[0];
+    expect(q.data).toMatchObject({ drivetrain: "Mecanum" });
+    expect(q.fields.map((f: { id: string }) => f.id)).toContain("drivetrain");
+    const uid = (await all<{ id: number }>("SELECT id FROM users WHERE email = 'cm-gone@example.com'"))[0].id;
+    const { deleteUser } = await import("../auth/session");
+    await deleteUser(uid);
+    expect(await all("SELECT 1 FROM commons_reports WHERE reporter_user_id = ?", [uid])).toEqual([]);
+    expect(await all("SELECT 1 FROM commons_mutes WHERE user_id = ?", [uid])).toEqual([]);
+  });
+
+  it("takedowns page: the oldest stays reachable with before/entryId", async () => {
+    const { adminA, owner } = await cast();
+    const { ws } = await sharedEntry();
+    const many = Array.from({ length: 52 }, () => entry());
+    await push(adminA, A, many);
+    for (const m of many) { await share(adminA, A, m.uuid); await owner("PUT", `/api/owner/commons/entries/${ws}:${m.uuid}`, { removed: true }); }
+    const first = (await owner("GET", "/api/owner/commons/reports")).json;
+    expect(first.removed).toHaveLength(50);
+    expect(first.removedMore).toBe(true);
+    const last = first.removed.at(-1);
+    const next = (await owner("GET", `/api/owner/commons/removed?before=${encodeURIComponent(last.removedAt)}&entryId=${encodeURIComponent(last.entryId)}`)).json;
+    expect(next.more).toBe(false);
+    const seen = new Set([...first.removed, ...next.removed].map((x: { entryId: string }) => x.entryId));
+    expect(seen.size).toBe(52);
+  });
+});
