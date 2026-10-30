@@ -2,7 +2,7 @@
 // alliance, and a card per series with its call. Every alliance keeps one colour across the tab, so a card's
 // "A3" and the odds row's Alliance 3 read as the same thing at a glance.
 import type { ReactNode } from "react";
-import { Check, Crown, Swords, Trophy } from "lucide-react";
+import { Crown, Swords, Trophy } from "lucide-react";
 import type { BracketAllianceOdds, BracketOdds, BracketSeriesView, BracketSlotView, MatchView } from "../shared/api";
 import { BRACKET_ACCURACY } from "../shared/bracketAccuracy";
 import { oddsPct, seasonLabel } from "../lib/format";
@@ -83,14 +83,13 @@ export function AllianceOddsCard({ odds, children }: { odds: BracketAllianceOdds
   );
 }
 
-function SlotRow({ slot, wins, won, bestOf }: { slot: BracketSlotView; wins: number; won: boolean | null; bestOf: number }) {
+function SlotRow({ slot, wins, bestOf }: { slot: BracketSlotView; wins: number; bestOf: number }) {
   return (
     <div className="flex min-h-7 items-center gap-2">
       {slot.alliance != null ? <AllianceChip alliance={slot.alliance} /> : <span className="text-xs text-muted-foreground">{slot.source}</span>}
       {slot.alliance == null && slot.likely && <span className="text-xs text-muted-foreground">likely <AllianceChip alliance={slot.likely.alliance} className="px-1 py-0 text-[11px]" /> {oddsPct(slot.likely.p)}</span>}
       <span className="ml-auto flex items-center gap-1 text-sm tabular-nums">
-        {won && <Check className="size-3.5 text-success" aria-label="won" />}
-        {bestOf > 1 && slot.alliance != null && <span className={cn(won ? "font-semibold" : "text-muted-foreground")}>{wins}</span>}
+        {bestOf > 1 && slot.alliance != null && <span className="font-semibold">{wins}</span>}
       </span>
     </div>
   );
@@ -99,20 +98,27 @@ function SlotRow({ slot, wins, won, bestOf }: { slot: BracketSlotView; wins: num
 /** One series: its sides, score and call, then its matches' scores. */
 export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matches: MatchView[]; final: boolean }) {
   const decided = s.winner != null;
+  const loser = decided ? (s.winner === s.red.alliance ? s.blue.alliance : s.red.alliance) : null;
   return (
     <div className={cn("rounded-xl border border-border bg-card p-3", final && "border-accent/40", s.skipped && "opacity-60")}>
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className="text-foreground">{s.label}</span> · {s.stage}
         {s.bestOf > 1 && <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[11px]">Best of {s.bestOf}</span>}
       </p>
+      {decided ? (
+        // Decided: one line, so a played-through bracket stays short on a phone.
+        <p className="mt-2 flex items-center gap-1.5 text-sm">
+          <Trophy className="size-3.5 text-accent" aria-hidden /> <AllianceChip alliance={s.winner!} /> <span className="text-muted-foreground">beat</span> {loser != null && <AllianceChip alliance={loser} className="opacity-70" />}
+          {s.bestOf > 1 && <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.max(...s.wins)}–{Math.min(...s.wins)}</span>}
+        </p>
+      ) : (
+      <>
       <div className="mt-2 space-y-1">
-        <SlotRow slot={s.red} wins={s.wins[0]} won={decided ? s.winner === s.red.alliance : null} bestOf={s.bestOf} />
-        <SlotRow slot={s.blue} wins={s.wins[1]} won={decided ? s.winner === s.blue.alliance : null} bestOf={s.bestOf} />
+        <SlotRow slot={s.red} wins={s.wins[0]} bestOf={s.bestOf} />
+        <SlotRow slot={s.blue} wins={s.wins[1]} bestOf={s.bestOf} />
       </div>
       <div className="mt-2 border-t border-border pt-2 text-xs">
-        {decided ? (
-          <p className="flex items-center gap-1.5"><Trophy className="size-3.5 text-accent" aria-hidden /> <AllianceChip alliance={s.winner!} /> won the series</p>
-        ) : s.skipped ? (
+        {s.skipped ? (
           <p className="text-muted-foreground">Not needed: the upper-bracket alliance won the grand final.</p>
         ) : s.pending ? (
           <p className="text-muted-foreground">Played only if the lower-bracket alliance wins the grand final.</p>
@@ -131,6 +137,8 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
           <p className="text-muted-foreground">Waiting on the alliances</p>
         )}
       </div>
+      </>
+      )}
       {matches.length > 0 && (
         <div className="mt-2 space-y-0.5">
           {matches.map((m) => (
