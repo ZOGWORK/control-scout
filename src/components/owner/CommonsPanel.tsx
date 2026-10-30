@@ -43,7 +43,7 @@ function ReportedEntry({ g }: { g: CommonsReportGroup }) {
           {answers.map(({ f, v }) => <div key={f.id} className="inline-flex items-baseline gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs"><dt className="text-muted-foreground">{f.label}</dt><dd className="font-medium">{v}</dd></div>)}
         </dl>
       )}
-      {g.notes && <p className="line-clamp-4 whitespace-pre-line rounded-lg bg-muted/50 px-3 py-2 text-sm">{g.notes}</p>}
+      {g.notes && <p className="whitespace-pre-line break-words rounded-lg bg-muted/50 px-3 py-2 text-sm">{g.notes}</p>}
       {g.photos.length > 0 && (
         <ul className="flex flex-wrap gap-2" aria-label="Photos">
           {g.photos.map((p) => p.expired
