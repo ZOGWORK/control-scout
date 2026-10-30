@@ -12,10 +12,10 @@
 // The confidence tier says how much of the call rests on real matches rather
 // than priors. Its thresholds are a stated rule, not a fitted value — see
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
-import { predictMatch, type BandParams, type NoiseParams, type PartnershipInput, type ScoreBand } from "./matchModel.js";
+import { predictMatch, type BandParams, type MatchPrediction, type NoiseParams, type PartnershipInput, type ScoreBand } from "./matchModel.js";
 import { PARTNERSHIP_PARAMS, partnershipFact, type PartnershipFact } from "./partnership.js";
 import type { CalibrationParams } from "./calibration.js";
-import type { ContextualModel, MatchContext, ProbabilityModel } from "./contextual.js";
+import { contextualFeatures, contextualModelById, contextualTerms, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
 import type { RatingBook } from "./rating.js";
 import type { Component, TeamRating } from "./types.js";
 import { allianceBonusOdds, BONUS_CONFIDENCE_RULE, tieProbability, type AllianceBonusOdds, type BonusModelSource } from "./bonus.js";
@@ -39,6 +39,44 @@ export interface Factor {
   favors: "A" | "B" | "even";
   /** Plain-language sentence, e.g. "Red's autonomous is worth about 14 more points". */
   label: string;
+}
+
+/** The factor sheet's entries (engine 3.3): the four phases, the win model's grouped inputs, and words-only reasons. */
+export type SheetFactorId = Component | "pointMix" | "form" | "momentum" | "reliability" | "partners" | "experience" | "certainty" | "schedule" | "headToHead";
+
+export interface SheetFactor {
+  id: SheetFactorId;
+  /** phase: a split of the predicted margin; model: the win model's other inputs; reason: words only, weight 0. */
+  kind: "phase" | "model" | "reason";
+  /** Short name, e.g. "Autonomous", "Momentum". */
+  name: string;
+  /** One plain sentence. Phases carry the same sentence as `factors`. */
+  label: string;
+  favors: "A" | "B" | "even";
+  /** Log-odds toward A this factor adds to the served call (0 for reasons: they never move the odds). */
+  logit: number;
+  /** Share of the call: |logit| over the sum of every entry's |logit| (0-1; the weights add up to 1). */
+  weight: number;
+  /** Phases: signed points toward A, the same number as in `factors`. */
+  points?: number;
+}
+
+/**
+ * Every factor behind a call, each with its weight (engine 3.3). The entries' log-odds add up exactly to
+ * logit(winProbA): the score gap is split across the four phases in proportion to their points, the
+ * contextual model's inputs are grouped into plain factors, and whatever the calibration adds (and the
+ * clamps take) sits with "How sure the data is". Built from the served numbers; it never changes them.
+ */
+export interface FactorSheet {
+  probabilityModel: ProbabilityModel;
+  /** logit(winProbA), clamped at 1e-12 from 0 and 1: the sum of every entry's logit. */
+  logit: number;
+  /** All four phases, ranked as `factors` (which are the first three, field for field). */
+  phases: SheetFactor[];
+  /** The win model's other inputs, grouped, largest weight first (legacy model: at most the calibration). */
+  model: SheetFactor[];
+  /** Words only, weight 0: schedule strength, and with opts.partnership the robots' history. */
+  reasons: SheetFactor[];
 }
 
 export interface TeamStrength {
@@ -138,6 +176,8 @@ export interface MatchExplanation {
   /** The strongest real history between these robots (played together or against each
    *  other, any season since 2019–20), when opts.partnership is given and a pair has met. */
   partnership: PartnershipFact | null;
+  /** Every factor with its weight in the call (engine 3.3). `factors` are its top three phases. */
+  factorSheet: FactorSheet;
   teamsA: TeamStrength[];
   teamsB: TeamStrength[];
   /** Points each alliance loses to overlap per phase (engine 2.11; zeros in playoffs or when off). With the
@@ -234,6 +274,107 @@ function carrier(side: TeamStrength[], c: Exclude<Component, "pen">, base: numbe
     : ` (led by Team ${top.team}, ~${Math.round(top[c])} pts)`;
 }
 
+const PHASE_NAMES: Record<Component, string> = { auto: "Autonomous", teleop: "TeleOp", endgame: "Endgame", pen: "Penalties" };
+
+type ModelFactorId = Exclude<SheetFactorId, Component | "schedule" | "headToHead">;
+
+/** The contextual model's inputs (contextualFeatures order, D1–D22) and the factor each one belongs to. */
+const INPUT_FACTOR: ModelFactorId[] = [
+  "pointMix", "pointMix", "pointMix", // D1–D3 auto / endgame / penalty gaps, on top of their points
+  "partners", // D4 how unevenly each alliance's robots score
+  "experience", "experience", "experience", // D5–D7 matches played, days since the last match, rating uncertainty
+  "certainty", "certainty", "certainty", "certainty", "certainty", // D8–D12 how far to trust the score gap
+  "form", // D13 beating its rating this season
+  "reliability", "reliability", // D14–D15 consistency, collapse rate
+  "certainty", "certainty", // D16–D17
+  "form", // D18 form at this event
+  "certainty", // D19
+  "momentum", // D20 the last few matches against the season
+  "reliability", "reliability", // D21–D22 last match collapsed, matches since
+];
+
+const MODEL_NAMES: Record<ModelFactorId, string> = {
+  pointMix: "Where the points come from", form: "Form", momentum: "Momentum", reliability: "Reliability",
+  partners: "Partner balance", experience: "Experience and rest", certainty: "How sure the data is",
+};
+
+/** Below this many log-odds (about a quarter point near 50%) a model factor reads as even. */
+const EVEN_LOGIT = 0.01;
+
+function modelLabel(id: ModelFactorId, favors: SheetFactor["favors"], side: string, firmer: boolean): string {
+  if (favors === "even") {
+    if (id === "certainty") return "The data behind this call is about as sure as usual";
+    if (id === "pointMix") return "The mix of auto, endgame and penalty points is about even";
+    return `${MODEL_NAMES[id]} ${id === "experience" ? "are" : "is"} about even`;
+  }
+  switch (id) {
+    case "pointMix": return `${side}'s mix of auto, endgame and penalty points counts in its favor`;
+    case "form": return `Form this season and at this event favors ${side}`;
+    case "momentum": return `Momentum over the last few matches favors ${side}`;
+    case "reliability": return `Breakdowns and consistency favor ${side}`;
+    case "partners": return `How evenly the partners share the work favors ${side}`;
+    case "experience": return `Matches played and rest favor ${side}`;
+    case "certainty": return firmer ? `Solid data makes ${side} a firmer favorite` : "Thin or noisy data pulls the call toward 50/50";
+  }
+}
+
+const logitOf = (p: number) => { const q = Math.max(1e-12, Math.min(1 - 1e-12, p)); return Math.log(q / (1 - q)); };
+
+/**
+ * The factor sheet for a prediction already made (engine 3.3). `raw` holds the four phases' unrounded
+ * points in the order of `ranked` (the factors, before the top-3 cut).
+ */
+function sheetOf(book: RatingBook, teamsA: number[], teamsB: number[], p: MatchPrediction, opts: ExplainOptions, raw: { id: Component; points: number }[], ranked: Factor[], fact: PartnershipFact | null, nameA: string, nameB: string): FactorSheet {
+  const F = logitOf(p.pRedWin);
+  const L = logitOf(p.pRaw ?? p.pRedWin);
+  const margin = raw.reduce((s, x) => s + x.points, 0);
+  // Log-odds of the score gap per point of margin; at a zero margin, its slope there (4φ(0)/S).
+  const S = Math.hypot(p.red.sd, p.blue.sd);
+  const perPoint = Math.abs(margin) > 1e-9 ? L / margin : S > 0 ? 1.5957691216057308 / S : 0;
+  const model = p.model === "contextual" ? contextualModelById(opts.contextual, p.modelId) : null;
+  let gain = 1;
+  const grouped = new Map<ModelFactorId, number>();
+  if (model) {
+    const x = contextualFeatures(book, teamsA, teamsB, { ...p, pRedWin: p.pRaw ?? p.pRedWin }, opts.context, model.coefficients.length);
+    if (x) {
+      const t = contextualTerms(model, x);
+      gain = t.gain;
+      t.terms.forEach((v, i) => grouped.set(INPUT_FACTOR[i], (grouped.get(INPUT_FACTOR[i]) ?? 0) + gain * v));
+    }
+  } else if (opts.calibration) gain = opts.calibration.a;
+  const phases: SheetFactor[] = ranked.map((f, i) => ({
+    id: f.id, kind: "phase", name: PHASE_NAMES[f.id], label: f.label, favors: f.favors, logit: gain * perPoint * raw[i].points, weight: 0, points: f.points,
+  }));
+  const shift = p.partnershipShift ?? 0;
+  // The calibration's offset and the clamps land in "How sure the data is", so the sheet adds up exactly.
+  const accounted = phases.reduce((s, f) => s + f.logit, 0) + [...grouped.values()].reduce((s, v) => s + v, 0) + shift;
+  grouped.set("certainty", (grouped.get("certainty") ?? 0) + F - accounted);
+  const modelFactors: SheetFactor[] = [...grouped]
+    .filter(([id, v]) => model || id !== "certainty" || Math.abs(v) > 1e-9)
+    .map(([id, v]) => {
+      const favors: SheetFactor["favors"] = Math.abs(v) < EVEN_LOGIT ? "even" : v > 0 ? "A" : "B";
+      return { id, kind: "model", name: MODEL_NAMES[id], label: modelLabel(id, favors, favors === "A" ? nameA : nameB, Math.sign(v) === Math.sign(F)), favors, logit: v, weight: 0 };
+    });
+  const reasons: SheetFactor[] = [{
+    id: "schedule", kind: "reason", name: "Schedule strength", favors: "even", logit: 0, weight: 0,
+    label: "Ratings already account for every partner and opponent faced, so schedule strength adds no separate weight",
+  }];
+  if (opts.partnership) {
+    const favors: SheetFactor["favors"] = !fact ? "even"
+      : fact.kind === "against" ? (fact.record.wins > fact.record.losses ? "A" : fact.record.wins < fact.record.losses ? "B" : "even")
+      : Math.abs(fact.effect) < 0.15 ? "even" : (fact.effect > 0) === (fact.side === "A") ? "A" : "B";
+    reasons.unshift({
+      id: "headToHead", kind: "reason", name: "Head-to-head", favors, logit: shift, weight: 0,
+      label: fact?.label ?? "These robots haven't played together or against each other before",
+    });
+  }
+  const all = [...phases, ...modelFactors, ...reasons];
+  const total = all.reduce((s, f) => s + Math.abs(f.logit), 0);
+  for (const f of all) f.weight = total > 0 ? Math.abs(f.logit) / total : 0;
+  modelFactors.sort((x, y) => y.weight - x.weight);
+  return { probabilityModel: p.model ?? "legacy", logit: F, phases, model: modelFactors, reasons };
+}
+
 /**
  * Explain one match between alliances A and B (2 robots each in FTC, but any
  * size works). Pure: same book + teams → same answer, server or browser.
@@ -259,23 +400,22 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
     { id: "endgame", points: sum(A, "endgame") - oA.endgame - (sum(B, "endgame") - oB.endgame) },
     { id: "pen", points: sum(B, "pen") - sum(A, "pen") },
   ];
-  const factors: Factor[] = raw
-    .sort((x, y) => Math.abs(y.points) - Math.abs(x.points))
-    .slice(0, 3)
-    .map(({ id, points }) => {
-      const favors: Factor["favors"] = Math.abs(points) < 1 ? "even" : points > 0 ? "A" : "B";
-      const pts = Math.round(Math.abs(points));
-      let label: string;
-      if (favors === "even") label = `${COMPONENT_WORDS[id][0].toUpperCase()}${COMPONENT_WORDS[id].slice(1)} is about even`;
-      else if (id === "pen") {
-        const cleaner = favors === "A" ? nameA : nameB, other = favors === "A" ? nameB : nameA;
-        label = `${other} tends to give away about ${pts} more penalty points than ${cleaner}`;
-      } else {
-        const lead = favors === "A" ? nameA : nameB;
-        label = `${lead}'s ${COMPONENT_WORDS[id]} is worth about ${pts} more points${carrier(favors === "A" ? A : B, id, base?.[id] ?? null)}`;
-      }
-      return { id, points: round1(points), favors, label };
-    });
+  const ranked = raw.sort((x, y) => Math.abs(y.points) - Math.abs(x.points)).map(({ id, points }): Factor => {
+    const favors: Factor["favors"] = Math.abs(points) < 1 ? "even" : points > 0 ? "A" : "B";
+    const pts = Math.round(Math.abs(points));
+    let label: string;
+    if (favors === "even") label = `${COMPONENT_WORDS[id][0].toUpperCase()}${COMPONENT_WORDS[id].slice(1)} is about even`;
+    else if (id === "pen") {
+      const cleaner = favors === "A" ? nameA : nameB, other = favors === "A" ? nameB : nameA;
+      label = `${other} tends to give away about ${pts} more penalty points than ${cleaner}`;
+    } else {
+      const lead = favors === "A" ? nameA : nameB;
+      label = `${lead}'s ${COMPONENT_WORDS[id]} is worth about ${pts} more points${carrier(favors === "A" ? A : B, id, base?.[id] ?? null)}`;
+    }
+    return { id, points: round1(points), favors, label };
+  });
+  // The top 3 are the sheet's first three phases (engine 3.3): one ranking, so the two never disagree.
+  const factors = ranked.slice(0, 3);
 
   const all = [...A, ...B];
   const minMatches = all.length ? Math.min(...all.map((t) => t.matches)) : 0;
@@ -299,6 +439,11 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
       : "Ratings still carry noticeable uncertainty relative to match variance.";
   }
 
+  const partnership = opts.partnership
+    ? partnershipFact(opts.partnership.table, teamsA, teamsB, opts.partnership.season, opts.partnership.params ?? PARTNERSHIP_PARAMS, p.partnershipShift ?? 0)
+    : null;
+  const factorSheet = sheetOf(book, teamsA, teamsB, p, opts, raw, ranked, partnership, nameA, nameB);
+
   const reasons = [...eventFormReasons(book, [...teamsA, ...teamsB], opts.context?.event), ...(opts.recent ? recentReasons([...teamsA, ...teamsB], opts.recent) : [])];
 
   // From the displayed (rounded) score to the stored whole-point bounds, the larger side: "score ± pm" always
@@ -320,9 +465,8 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
     probabilityModel: p.model ?? "legacy",
     probabilityModelId: p.modelId ?? null,
     shadow: p.pShadow != null ? { winProbA: p.pShadow, modelId: p.shadowModelId! } : null,
-    partnership: opts.partnership
-      ? partnershipFact(opts.partnership.table, teamsA, teamsB, opts.partnership.season, opts.partnership.params ?? PARTNERSHIP_PARAMS, p.partnershipShift ?? 0)
-      : null,
+    partnership,
+    factorSheet,
     teamsA: A,
     teamsB: B,
     overlapA: oA,
