@@ -36,6 +36,7 @@ import { EventGlance } from "../components/EventGlance";
 import { ProvisionalDetails, ProvisionalTeams, SharedSessionTeams } from "../components/ProvisionalInfo";
 import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
+import { ScheduleDifficultyCard } from "../components/ScheduleDifficulty";
 import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
@@ -236,6 +237,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {e.status === "live" && <StatsAsOf />}
               {/* Model vs field: the biggest gaps between the model's rating order and the seeding (components/ModelVsField.tsx). */}
               {predictable && <ModelVsField season={e.season} code={e.code} refreshKey={d.live?.checkedAt ?? undefined} />}
+              {/* Schedule difficulty: each team's qualification draw next to the field's (components/ScheduleDifficulty.tsx). */}
+              {predictable && <ScheduleDifficultyCard d={d} team={teamParam} />}
               {/* Before quals start: a simulated ranking, only on a click and loudly uncertain (components/SimulatedRankings.tsx). */}
               {predictable && !d.matches.some((m) => m.level === "qual" && m.played) && d.field.length >= 4 && <SimulatedRankings d={d} team={teamParam} />}
               {unofficial && <UnofficialNote text={unofficial} />}
