@@ -9,6 +9,7 @@ import { localToUtcMs } from "../data/time";
 import { resetForecasters } from "../predict/engine";
 import { FITTED_MODEL } from "@control-scout/predict-engine";
 import { matchDetail, matchViews } from "../api/matches";
+import { setFlag } from "../flags";
 import { backtest, liveLoggable, runStats, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
 
 const S = CURRENT_SEASON;
@@ -136,6 +137,14 @@ describe("live prediction ledger", () => {
     const d = await matchDetail(S, "LIVE", "qual:0:1");
     expect(d!.match.prediction?.kind).toBe("live");
     expect(d!.match.prediction?.sheet).toEqual(sheet);
+    // The owner's factorSheet toggle off: the call is still logged with its sheet, but the match page doesn't serve it.
+    await setFlag("factorSheet", false, "test");
+    try {
+      const off = await matchDetail(S, "LIVE", "qual:0:1");
+      expect(off!.match.prediction?.kind).toBe("live");
+      expect(off!.match.prediction?.sheet).toBeUndefined();
+      expect(JSON.parse((await ledger()).find((r) => r.kind === "live").factor_sheet)).toEqual(sheet);
+    } finally { await setFlag("factorSheet", true, "test"); }
   });
 
   it("skips matches that started, are under a minute away, or have no provable start", async () => {

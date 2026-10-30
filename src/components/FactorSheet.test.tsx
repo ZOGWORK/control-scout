@@ -2,9 +2,13 @@
 // The full why breakdown as a user sees it: every factor with its share, reasons at 0%, and once the match is
 // played, which factors pointed to the winner. Built from a real engine sheet, so the shares are the engine's.
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { FITTED_MODEL, PartnershipBook, RatingBook, explainMatch, type MatchRecord } from "@control-scout/predict-engine";
-import { FactorSheetPanel } from "./FactorSheet";
+
+// The owner's factorSheet toggle (src/lib/flags useFlag), switchable per test.
+const flag = vi.hoisted(() => ({ on: true }));
+vi.mock("../lib/flags", () => ({ useFlag: (name: string) => (name === "factorSheet" ? flag.on : true) }));
+const { FactorSheetPanel } = await import("./FactorSheet");
 import { compactSheet, parseSheet, pointedRight, sheetReview, sheetWinner } from "../shared/factorSheet";
 
 const al = (teams: number[], auto: number, teleop: number, endgame: number, pen = 0) => ({ teams, auto, teleop, endgame, np: auto + teleop + endgame, penCommitted: pen, total: auto + teleop + endgame });
@@ -25,7 +29,7 @@ function sheet() {
   return { x, s: compactSheet(x.factorSheet) };
 }
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); flag.on = true; });
 
 describe("factor sheet (shared)", () => {
   it("compacts to 4 places, round-trips through the ledger column, and refuses junk", () => {
@@ -64,6 +68,13 @@ describe("FactorSheetPanel", () => {
     expect(within(panel).getByText("Schedule strength").closest("li")!.textContent).toContain("0%");
     expect(screen.queryByTestId("sheet-review")).toBeNull();
     expect(screen.queryByText("Pointed right")).toBeNull();
+  });
+
+  it("is hidden while the owner has the full why breakdown switched off", () => {
+    flag.on = false;
+    const { container } = render(<FactorSheetPanel sheet={sheet().s} winner="A" defaultOpen />);
+    expect(container.innerHTML).toBe("");
+    expect(screen.queryByTestId("factor-sheet")).toBeNull();
   });
 
   it("after the match: says which factors pointed to the winner and how much of the call they carried", () => {

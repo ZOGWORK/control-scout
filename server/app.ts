@@ -606,7 +606,7 @@ export function createApp(opts: { dist?: string } = {}) {
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
     return {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, factorSheet: compactSheet(x.factorSheet), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
+      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, ...((await isEnabled("factorSheet")) ? { factorSheet: compactSheet(x.factorSheet) } : {}), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
       level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
     };

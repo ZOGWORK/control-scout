@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
 import { pointedRight, sheetReview, type FactorSheet, type SheetFactor } from "../shared/factorSheet";
 import { factorLabel } from "../lib/factorLabel";
+import { useFlag } from "../lib/flags";
 import { cn } from "./cn";
 
 const pctOf = (w: number) => (w <= 0 ? "0%" : w < 0.005 ? "<1%" : `${Math.round(w * 100)}%`);
@@ -27,6 +28,9 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
   defaultOpen?: boolean;
   className?: string;
 }) {
+  // The owner's factorSheet toggle: off, the call keeps its top 3 reasons and nothing else (offline too).
+  const on = useFlag("factorSheet");
+  if (!on) return null;
   const all = [...sheet.phases, ...sheet.model, ...sheet.reasons];
   // Bars are drawn against the largest share, so a call carried by one factor still reads at a glance.
   const top = Math.max(...all.map((f) => f.weight), 0.0001);

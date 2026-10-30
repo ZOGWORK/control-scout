@@ -16,6 +16,7 @@ import { bonusFromRow, bonusView } from "../../src/shared/bonusOdds.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
 import { rangesOf } from "../../src/shared/scoreRange.js";
 import { compactSheet, parseSheet, type FactorSheet } from "../../src/shared/factorSheet.js";
+import { isEnabled } from "../flags.js";
 
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
@@ -169,7 +170,7 @@ export async function matchDetail(season: number, code: string, key: string, eve
  */
 async function withSheet(season: number, code: string, m: MatchView): Promise<MatchView> {
   const p = m.prediction;
-  if (!p || p.kind === "backtest") return m;
+  if (!p || p.kind === "backtest" || !(await isEnabled("factorSheet"))) return m;
   let sheet: FactorSheet | null = null;
   if (p.kind === "live") {
     const row = await get<any>("SELECT factor_sheet FROM predictions WHERE kind = 'live' AND season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [season, code, m.level, m.series, m.number]);
