@@ -8,7 +8,7 @@ commit and push after every small step; no Claude attribution in git; screenshot
 Playwright, never the in-app browser pane.
 
 **Honest status as of writing:** NOTHING below is merged. Every session started 2026-10-30 ~16:00–16:15 ET and was still
-running. None had reported back. No PR numbers were known for them yet. Check each branch on GitHub for an open PR before
+running. None had reported back. As of 16:25 ET, the only open PRs were #350 (partnership) and #351 (commons 1/3). Weekly usage was at 96%. Check each branch on GitHub for an open PR before
 resuming. Only features Sushil has pasted so far are listed. His list said 67 remain; the rest haven't been sent, so they
 aren't here.
 
@@ -36,20 +36,20 @@ aren't here.
 - **What:** expand the top-3 reasons into a full factor sheet (form, momentum, schedule, phase splits, head-to-head) with each
   factor's weight in the call. Shown behind an expander in the Lab and Know-your-match. Stored with live ledger calls, so
   post-match review shows which factors were right.
-- **Status:** in progress (session "why-sheet", branch `claude/why-factor-sheet-a9b202`). No PR known.
+- **Status:** in progress (session "why-sheet", branch `claude/why-factor-sheet-a9b202`). No PR yet. Pushed as of 16:25 ET: 84879f9b engine 3.3.0 adds a full factor sheet to every explanation, numbers unchanged; 5d820333 stores it with live ledger calls (migration 58) and serves it on the match page, Know-your-match, the Lab and offline, with a 3.3.0 slice report bit-identical to 3.2.0.
 - **Decisions:**
   - Add `factorSheet` to `MatchExplanation`. Keep `factors` (top 3) unchanged and derived from the same numbers, with a test
     that they never disagree.
   - Served odds and scores stay bit-identical (prove it with replay).
   - Partnership counts as weight 0.
   - Engine minor bump plus a matching Control Point PR.
-- **Left:** everything until the session reports. Then a CP PR merged with it.
+- **Left:** screenshots, open the PR, Greptile 5/5, the matching Control Point PR (vendored 3.3.0 tarball + CP surfaces), and merge both together. Migration 58 may clash at merge: take the next free number.
 - **Depends on:** nothing. Schedule difficulty (#7) could later feed its "schedule" factor.
 
 ## 3. Playoff bracket predictor
 - **What:** on the event's Playoffs tab, series-by-series calls, championship odds per alliance and a "danger match" line,
   updating live between rounds.
-- **Status:** in progress (session "bracket-predictor", branch `claude/bracket-predictor-938035`). No PR known.
+- **Status:** in progress (session "bracket-predictor", branch `claude/bracket-predictor-938035`). No PR yet. Pushed: 140fdb02 model (format from the posted bracket, series calls, championship odds by Monte Carlo); 7a864c75 bracket odds on the event detail, cached per posted result, plus a walk-forward replay script. **Left:** run the replay and write up the numbers, the UI on the Playoffs tab, screenshots, PR, Greptile, merge.
 - **Decisions:**
   - Reuse `src/shared/projectionCore.ts`'s sim and bracket; no new model.
   - Model the bracket from posted data; unknown formats get series calls only.
@@ -60,7 +60,7 @@ aren't here.
 
 ## 4. Question-box quick reference
 - **What:** a searchable game-manual summary plus Q&A rulings, cached offline, for drivers in the question box.
-- **Status:** in progress (session "question-box", branch `claude/question-box-reference-172454`). No PR known.
+- **Status:** in progress (session "question-box", branch `claude/question-box-reference-172454`). Nothing pushed as of 16:25 ET (probably still sourcing content).
 - **Decisions:**
   - Static per-season content in the repo, stamped with the manual revision.
   - Summaries with section numbers, never the official text.
@@ -72,7 +72,7 @@ aren't here.
 ## 5. Public scouting commons
 - **What:** opt-in per-event pool. Workspaces publish pit entries (never match entries by default), readable by signed-in
   users at that event, with credit.
-- **Status:** in progress (session "scouting-commons", branch `claude/scouting-commons-57fbea`). No PR known.
+- **Status:** in progress (session "scouting-commons"). Split into 3 PRs. **PR 1/3 open: [#351](https://github.com/ZOGWORK/control-scout/pull/351)**, branch `claude/commons-api` (9e5ff14c per-event switch, workspace opt-in, per-entry share, signed-in read with consensus layer; c805eb10 commons tables kept out of the public snapshot). **Left:** #351 Greptile + merge; PR 2/3 UI + consensus layer on pages; PR 3/3 moderation (report/takedown, mute, owner portal).
 - **Decisions:**
   - Per-entry publish flag behind a workspace opt-in (default off); commons table keyed by event + team.
   - A separate, labelled consensus layer; own data always outranks commons.
@@ -85,7 +85,7 @@ aren't here.
 
 ## 6. Scouting alliances
 - **What:** two workspaces link for one event: shared assignments and entries, one consensus, then split afterwards.
-- **Status:** in progress (session "scouting-alliances", branch `claude/scouting-alliances-d46a10`). No PR known.
+- **Status:** in progress (session "scouting-alliances", branch `claude/scouting-alliances-d46a10`). No PR yet. Pushed: c85fd4f5, the server side (invite/accept link for one event; shared reads of entries, assignments, coverage and the partner's pick list; one consensus over the union; copies at the end when both agreed). **Left:** UI, permission tests, screenshots, PR, Greptile, merge; rebase on commons #351 if that merges first.
 - **Decisions:**
   - Invite + accept link record scoped to one event.
   - Consensus runs over the union.
@@ -99,7 +99,7 @@ aren't here.
 ## 7. Schedule difficulty rating
 - **What:** each team's qual-schedule strength against the field ("3rd-hardest schedule here") on the event and team pages.
   Recomputed mid-event on remaining matches. Included in offline packs.
-- **Status:** in progress (session "schedule-difficulty", branch `claude/schedule-difficulty-1e2158`). No PR known.
+- **Status:** in progress (session "schedule-difficulty", branch `claude/schedule-difficulty-1e2158`). No PR yet. Pushed: ad465307, the shared computation and a past-season evaluation. **Left:** API field, event + team page UI, offline pack stat, docs, screenshots, PR, Greptile, merge.
 - **Decisions:**
   - Opponents' average engine rating minus partners', normalised across the field.
   - Reuse the engine's priors.
@@ -111,7 +111,7 @@ aren't here.
 ## 8. Season road map
 - **What:** on the team page, the team's events in order, with advancement state and what's needed at the next event to
   reach championship.
-- **Status:** in progress (session "season-road-map", branch `claude/season-road-map-91434c`). No PR known.
+- **Status:** in progress (session "season-road-map", branch `claude/season-road-map-91434c`). Nothing pushed as of 16:25 ET.
 - **Decisions:**
   - Per-region advancement rules as curated, repo-stored, per-season config, each labelled with its source.
   - NEVER compute a "needed" number for a region that isn't encoded; those get the neutral "results so far + what's next" view.
@@ -121,7 +121,7 @@ aren't here.
 ## 9. Ultra-light venue mode
 - **What:** a text-first, no-image, server-rendered version of the event, team, match and pick-list pages for one-bar
   connections. Payloads in the low tens of KB. Auto-suggested when loads time out.
-- **Status:** in progress (session "venue-light-mode", branch `claude/venue-light-mode-9f7f49`). No PR known.
+- **Status:** in progress (session "venue-light-mode", branch `claude/venue-light-mode-9f7f49`). Nothing pushed as of 16:25 ET.
 - **Decisions:**
   - A rendering mode, not a second app.
   - Triggers: `?lite=1`, a manual toggle, and a conservative auto-suggest.
@@ -134,7 +134,7 @@ aren't here.
 - **What:** one tap downloads an event's bundle: the event slice of the data pack, frozen static-HTML snapshots of the pick
   list and the user's Know-your-match reports, the rules reference, and a venue card. It has a manifest, a size label and a
   freshness stamp everywhere.
-- **Status:** in progress (session "event-bundle", branch `claude/event-day-bundle-31fe4e`). No PR known.
+- **Status:** in progress (session "event-bundle", branch `claude/event-day-bundle-31fe4e`). Nothing pushed as of 16:25 ET.
 - **Decisions:**
   - Event slice, not the season.
   - One bundle per event on the device, prunable.
@@ -149,7 +149,7 @@ aren't here.
 ## Resume order
 1. **Check each session first.** Open each linked session or branch above, see what is pushed or merged, and update the
    statuses here. Don't restart a feature whose branch already has work; continue it.
-2. Merge #1 (docs only, quick).
+2. Merge #350 (#1, docs only) and #351 (commons 1/3) once they reach Greptile 5/5.
 3. Finish and merge the independent ones as they reach 5/5, smallest first: #4 → #7 → #3 → #9 → #8.
 4. #2 with its Control Point PR (merged together).
 5. #5, then #6 (the second one rebases on the first's consensus/permission changes).
