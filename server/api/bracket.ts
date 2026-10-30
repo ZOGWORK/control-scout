@@ -7,12 +7,22 @@ import { textSeed } from "../../src/shared/projectionCore.js";
 import type { FieldRow, MatchView } from "../../src/shared/api.js";
 import type { ScoutForecaster } from "../predict/engine.js";
 import { registerCache } from "../caches.js";
+import { isEnabled } from "../flags.js";
 
 interface AllianceRow { number: number; captain: number | null; pick1: number | null; pick2: number | null; backup: number | null }
 
 const cache = new Map<string, BracketOdds | null>();
 const CACHE_MAX = 200;
 registerCache("Bracket odds", () => cache.clear());
+
+/**
+ * An event detail as the public sees it: without the bracket odds while the owner has switched them off (the
+ * bracketOdds feature toggle). The detail is shared and cached, so a copy, never a change to it. The bracket and
+ * its results are public data and stay either way.
+ */
+export async function withBracketGate<T extends { bracket?: BracketOdds | null }>(d: T): Promise<T> {
+  return d.bracket && !(await isEnabled("bracketOdds")) ? { ...d, bracket: null } : d;
+}
 
 /** The posted playoff matches, as the bracket reads them. */
 export function bracketMatches(matches: MatchView[]): BracketMatch[] {

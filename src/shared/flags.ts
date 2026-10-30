@@ -7,7 +7,7 @@
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
-  "livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting",
+  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -24,6 +24,7 @@ export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, tr
 export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   livePredictions: { group: "feature", scope: "global" },
   advancementOdds: { group: "feature", scope: "global" },
+  bracketOdds: { group: "feature", scope: "global" },
   powerRankings: { group: "feature", scope: "global" },
   coinFlips: { group: "feature", scope: "global" },
   offlinePacks: { group: "feature", scope: "global" },
@@ -55,6 +56,7 @@ export interface FeatureDisabledBody { error: typeof FEATURE_DISABLED; feature: 
 export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   livePredictions: "Live predictions are switched off for now. The track record and every team and event page still work.",
   advancementOdds: "Advancement odds are switched off for now. The rest of this event's page still works.",
+  bracketOdds: "Playoff bracket odds are switched off for now. The bracket and its results still show.",
   powerRankings: "Power rankings are switched off for now. Every published week is kept and comes back when they do.",
   coinFlips: "Coin flips are switched off for now.",
   offlinePacks: "Offline packs are paused right now. Packs already on this device keep working.",
@@ -78,6 +80,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Advancement odds",
     on: "Event pages show the simulated advancement odds (the Odds tab), updated live during the event.",
     off: "The Odds tab says the odds are switched off for now, and the odds and their live stream are refused. The simulations keep running, so switching back on shows the latest at once.",
+  },
+  bracketOdds: {
+    label: "Playoff bracket odds",
+    on: "Once alliances are posted, the Playoffs tab shows each series' favourite, every alliance's championship odds and its danger match, updated after every series.",
+    off: "The Playoffs tab shows the bracket and its results with no odds, and the event's data leaves the odds out. Nothing is lost: switching back on shows the current odds at once.",
   },
   powerRankings: {
     label: "Power rankings publishing",

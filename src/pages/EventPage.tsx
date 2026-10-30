@@ -647,7 +647,9 @@ function Playoffs({ d }: { d: EventDetail }) {
   const playoff = d.matches.filter((m) => m.level === "playoff");
   const bySeries = new Map<number, MatchView[]>();
   for (const m of playoff) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
-  const bracket = d.bracket ?? null;
+  // The owner's bracketOdds toggle: off shows the bracket and results without odds (the server leaves them out too).
+  const bracketOn = useFlag("bracketOdds");
+  const bracket = bracketOn ? d.bracket ?? null : null;
   const oddsBy = new Map((bracket?.alliances ?? []).map((o) => [o.alliance, o]));
   return (
     <div className="space-y-6 max-sm:space-y-4">
