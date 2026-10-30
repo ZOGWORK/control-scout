@@ -12,6 +12,16 @@ running. None had reported back. As of 16:25 ET, the only open PRs were #350 (pa
 resuming. Only features Sushil has pasted so far are listed. His list said 67 remain; the rest haven't been sent, so they
 aren't here.
 
+**Owner-portal toggles (Sushil, 2026-10-30): every feature below must sit behind its own switch on the portal's Features tab.**
+- Use the existing system: register the key in `src/shared/flags.ts` (`FLAGS` + `FLAG_META` + `FEATURE_OFF_MESSAGE`), then gate with
+  `requireFeature` / `isEnabledFor` on the server and `GET /api/flags` in the app. Each PR adds a test that the flag off hides it,
+  plus a screenshot of the new toggle.
+- Keys: `factorSheet` (#2), `bracketOdds` (#3), `rulesReference` (#4), `scoutingCommons` (#5, workspace-scoped), `scoutingAlliances`
+  (#6, workspace-scoped), `scheduleDifficulty` (#7), `seasonRoadMap` (#8), `venueLightMode` (#9), `eventBundle` (#10).
+- #1 needs none: it changes nothing users see.
+- Sent to every session at ~16:35 ET; delivery was queued, not confirmed read. A feature isn't done until its toggle exists.
+- On a `flags.ts` merge conflict, keep every key.
+
 ---
 
 ## 1. Partnership memory (predictions)
