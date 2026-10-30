@@ -12,6 +12,33 @@ running. None had reported back. As of 16:25 ET, the only open PRs were #350 (pa
 resuming. Only features Sushil has pasted so far are listed. His list said 67 remain; the rest haven't been sent, so they
 aren't here.
 
+## ⏸ CHECKPOINT — 2026-10-30 ~18:40 ET, all work PAUSED by Sushil
+This table is newer than the per-item "Status" lines below; trust it over them. All 9 sessions are stopped, every worktree is
+committed and pushed, and nothing is queued. A commit titled "WIP checkpoint…" is untested mid-edit work: review its diff
+first when resuming.
+
+| # | Feature | PR | Branch | Last commit | State at pause |
+|---|---|---|---|---|---|
+| 1 | Partnership re-test | #350 open | `claude/partnership-memory-predictions-3e1adb` | this file | Docs + script; Greptile requested, not yet 5/5 |
+| 2 | Why factor sheet | #355 open | `claude/why-factor-sheet-a9b202` | clean | Engine 3.3.0, no Control Point PR yet (required, merge together); toggle `factorSheet` status unknown, check |
+| 3 | Bracket predictor | #356 open | `claude/bracket-predictor-938035` | f1ef6ed3 WIP | Mid-edit adding the `bracketOdds` toggle (flags.ts, FeaturesPanel, EventPage) |
+| 4 | Rules reference | #354 open | `claude/question-box-reference-172454` | 294e2271 WIP | Mid-edit on RulesPage (toggle work likely) |
+| 5a | Commons 1/3 | #351 **MERGED** | `claude/commons-api` | — | Schema, publish flag, read API on main. Not verified live |
+| 5b | Commons 2/3 | #352 open | `claude/commons-ui` | 5faad4c5 WIP | Mid-edit: UI + toggle. 3/3 (moderation) not started |
+| 6 | Scouting alliances | #353 open | `claude/scouting-alliances-d46a10` | b29a9d67 WIP | Mid-edit adding the `scoutingAlliances` toggle + UI tests |
+| 7 | Schedule difficulty | #357 open | `claude/schedule-difficulty-1e2158` | clean | Toggle status unknown, check |
+| 8 | Season road map | **no PR yet** | `claude/season-road-map-91434c` | 1ad19515 clean | Done incl. `seasonRoadMap` toggle (NJ, MI, IA rulesets); open the PR next |
+| 9 | Venue light mode | #358 open | `claude/venue-light-mode-9f7f49` | clean | Toggle status unknown, check |
+| 10 | Event-day bundle | **no PR yet** | `claude/event-day-bundle-31fe4e` | 56851c0b clean | Built + tested, pluggable rules section; open the PR, then add `eventBundle` toggle if missing |
+
+**Merge hazards:**
+- Several branches all claim app version **1.5.5**. Each takes main+1 at its own merge.
+- Every branch edits `src/shared/flags.ts`. On a conflict, keep every key.
+- Migration numbers (why-sheet uses 58) take the next free number at merge.
+- Greptile state per PR: unknown. Check each one.
+
+**To resume a feature:** open its session (it keeps its context) and say "continue". Or start fresh from its branch with this file.
+
 **Owner-portal toggles (Sushil, 2026-10-30): every feature below must sit behind its own switch on the portal's Features tab.**
 - Use the existing system: register the key in `src/shared/flags.ts` (`FLAGS` + `FLAG_META` + `FEATURE_OFF_MESSAGE`), then gate with
   `requireFeature` / `isEnabledFor` on the server and `GET /api/flags` in the app. Each PR adds a test that the flag off hides it,
