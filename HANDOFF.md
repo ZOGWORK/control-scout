@@ -20,11 +20,10 @@ first when resuming.
 | # | Feature | PR | Branch | Last commit | State at pause |
 |---|---|---|---|---|---|
 | 1 | Partnership re-test | #350 open | `claude/partnership-memory-predictions-3e1adb` | this file | Docs + script; Greptile requested, not yet 5/5 |
-| 2 | Why factor sheet | #355 open | `claude/why-factor-sheet-a9b202` | clean | Engine 3.3.0, no Control Point PR yet (required, merge together); toggle `factorSheet` status unknown, check |
+| 2 | Why factor sheet | #355 open | `claude/why-factor-sheet-a9b202` | clean | Engine 3.3.0; Control Point PR **CP#344** open (needs a screenshot). Merge both together; toggle `factorSheet` status unknown, check |
 | 3 | Bracket predictor | #356 open | `claude/bracket-predictor-938035` | f1ef6ed3 WIP | Mid-edit adding the `bracketOdds` toggle (flags.ts, FeaturesPanel, EventPage) |
 | 4 | Rules reference | #354 open | `claude/question-box-reference-172454` | 294e2271 WIP | Mid-edit on RulesPage (toggle work likely) |
-| 5a | Commons 1/3 | #351 **MERGED** | `claude/commons-api` | — | Schema, publish flag, read API on main. Not verified live |
-| 5b | Commons 2/3 | #352 open | `claude/commons-ui` | 5faad4c5 WIP | Mid-edit: UI + toggle. 3/3 (moderation) not started |
+| 5 | Scouting commons | #351, #352, #359 **ALL MERGED** | `claude/commons-*` | main fe2c8371 | Done (1.5.5, 1.5.6), Greptile 5/5 each. The 5faad4c5 checkpoint was finished and merged in #359. Not yet verified on the live site |
 | 6 | Scouting alliances | #353 open | `claude/scouting-alliances-d46a10` | b29a9d67 WIP | Mid-edit adding the `scoutingAlliances` toggle + UI tests |
 | 7 | Schedule difficulty | #357 open | `claude/schedule-difficulty-1e2158` | clean | Toggle status unknown, check |
 | 8 | Season road map | **no PR yet** | `claude/season-road-map-91434c` | 1ad19515 clean | Done incl. `seasonRoadMap` toggle (NJ, MI, IA rulesets); open the PR next |
@@ -32,7 +31,7 @@ first when resuming.
 | 10 | Event-day bundle | **no PR yet** | `claude/event-day-bundle-31fe4e` | 56851c0b clean | Built + tested, pluggable rules section; open the PR, then add `eventBundle` toggle if missing |
 
 **Merge hazards:**
-- Several branches all claim app version **1.5.5**. Each takes main+1 at its own merge.
+- Main is now at **1.5.6**. Several branches still claim 1.5.5. Each takes main+1 at its own merge.
 - Every branch edits `src/shared/flags.ts`. On a conflict, keep every key.
 - Migration numbers (why-sheet uses 58) take the next free number at merge.
 - Greptile state per PR: unknown. Check each one.
