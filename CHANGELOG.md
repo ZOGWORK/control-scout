@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.3 — 2026-10-29
+
+The email digest now comes a few times a week instead of once, each one covering just the days since the last.
+
+### Highlights
+- [alerts] The email digest comes a few times a week, not once
+- [alerts] Each one covers only what happened since the last
+- [alerts] Never at night, and never two days in a row in a week
+
+### Email digest
+- **A few times a week.** The digest now goes out three times a week, at different times, never two days in a row in the same week, and never at night. It still only comes when there's something to report about your teams.
+- **Just what's new.** Each email covers the days since the one before, so results and prediction calls are never repeated. An event coming up won't make an email by itself unless it starts before the next one would arrive (#348).
+- Renamed from "Weekly digest" to "Email digest" in Settings, on the unsubscribe page and in the email itself. Your on or off choice carries over.
+
 ## 1.5.2 — 2026-10-29
 
 The Events page stops jumping while it loads.

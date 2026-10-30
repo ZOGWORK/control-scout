@@ -1,4 +1,4 @@
-// /api/digest: the weekly email digest (docs/digest.md).
+// /api/digest: the email digest (docs/digest.md).
 //
 //   GET  /api/digest                  → DigestStatus                       signed in
 //   PUT  /api/digest   { enabled }    → DigestStatus                       signed in (JSON)
@@ -24,7 +24,7 @@ import { followedTeams } from "./job.js";
 const signedIn = (fn: (req: Request, res: Response, user: User) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   (async () => {
     const user = await currentUser(req);
-    if (!user) { res.status(401).json({ error: "Sign in to manage the weekly digest." }); return; }
+    if (!user) { res.status(401).json({ error: "Sign in to manage the email digest." }); return; }
     const b = await fn(req, res, user);
     if (!res.headersSent && b !== undefined) res.json(b);
   })().catch(next);
@@ -74,7 +74,7 @@ export function digestRouter(): Router {
     if (!req.is("application/json")) { res.status(415).json({ error: "Send JSON" }); return; }
     const on = (req.body as { enabled?: unknown } | null)?.enabled;
     if (typeof on !== "boolean") { res.status(400).json({ error: "enabled must be true or false" }); return; }
-    if (on && !(await digestAvailable())) { res.status(503).json({ error: "The weekly digest isn't available on this server right now." }); return; }
+    if (on && !(await digestAvailable())) { res.status(503).json({ error: "The email digest isn't available on this server right now." }); return; }
     if (on && !user.email) { res.status(409).json({ error: "Your account has no email address to send it to." }); return; }
     await setDigest(user.id, on);
     return digestStatus(user);
@@ -86,7 +86,7 @@ export function digestRouter(): Router {
   });
   // The mail app's own Unsubscribe button (List-Unsubscribe-Post): same effect, no page.
   r.post("/unsubscribe", (req, res, next) => {
-    unsubscribe(req.query.t).then((ok) => res.status(ok ? 200 : 404).type("text/plain").send(ok ? "Unsubscribed from the weekly digest." : "This unsubscribe link isn't active."), next);
+    unsubscribe(req.query.t).then((ok) => res.status(ok ? 200 : 404).type("text/plain").send(ok ? "Unsubscribed from the email digest." : "This unsubscribe link isn't active."), next);
   });
 
   // Resend's delivery reports. Without RESEND_WEBHOOK_SECRET the endpoint doesn't exist (bounces then rest on

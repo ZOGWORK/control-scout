@@ -1,4 +1,4 @@
-// The weekly digest email (docs/digest.md): subject, plain text and HTML from one DigestData.
+// The digest email (docs/digest.md): subject, plain text and HTML from one DigestData.
 //
 // Text first, links second: every number reads with images blocked (the logo is the only image, and the
 // name sits next to it in text). Old-school email HTML: one centred 600px column of tables, inline styles,
@@ -35,9 +35,10 @@ const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "Ju
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const parts = (d: string) => { const t = new Date(`${d}T12:00:00Z`); return { y: t.getUTCFullYear(), m: t.getUTCMonth(), d: t.getUTCDate(), w: t.getUTCDay() }; };
 
-/** "October 19 to 25, 2026" (or across months / years). */
-export function weekLabel(from: string, to: string): string {
+/** The period an email reports: "October 26 to 28, 2026" (or across months / years), "Wednesday, October 28, 2026" for one day. */
+export function periodLabel(from: string, to: string): string {
   const a = parts(from), b = parts(to);
+  if (from === to) return `${DAYS[a.w]}, ${MONTHS_LONG[a.m]} ${a.d}, ${a.y}`;
   if (a.y !== b.y) return `${MONTHS_LONG[a.m]} ${a.d}, ${a.y} to ${MONTHS_LONG[b.m]} ${b.d}, ${b.y}`;
   if (a.m !== b.m) return `${MONTHS_LONG[a.m]} ${a.d} to ${MONTHS_LONG[b.m]} ${b.d}, ${b.y}`;
   return `${MONTHS_LONG[a.m]} ${a.d} to ${b.d}, ${b.y}`;
@@ -55,6 +56,8 @@ export const countdown = (days: number) => (days <= 0 ? "today" : days === 1 ? "
 export const ordinal = (k: number) => { const s = ["th", "st", "nd", "rd"], v = k % 100; return `${k}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`; };
 const pct = (c: { calls: number; right: number }) => `${Math.round((c.right / c.calls) * 100)}%`;
 const record = (r: NonNullable<TeamWeek["record"]>) => `${r.wins}–${r.losses}${r.ties ? `–${r.ties}` : ""}`;
+/** A row's record as the email words it: "8–2 record", or "3–0 since Sunday" when earlier matches went out before. */
+const recordText = (r: TeamWeek, d: DigestData) => (r.record ? `${record(r.record)}${r.partial ? ` ${sinceLabel(d)}` : " record"}` : null);
 const teamLabel = (t: { team: number; teamName: string | null }) => (t.teamName ? `${t.team} ${t.teamName}` : String(t.team));
 const SEAT: Record<string, string> = { captain: "captain", pick1: "first pick", pick2: "second pick", backup: "backup" };
 
@@ -81,7 +84,14 @@ export const moveText = (m: Movement | null) => (!m ? "—" : m.kind === "up" ? 
 /** Short event name for a subject line: "NJ Qualifier" stays, a long name is cut at a word. */
 const shortName = (s: string, max = 40) => (s.length <= max ? s : `${s.slice(0, max).replace(/\s+\S*$/, "")}…`);
 
-/** The subject's headline, by priority: a finish, the week's record, a perfect week of calls, the next event, the rankings. */
+/** "since Monday" (the period's first day, within the last week), else "since October 20". */
+export function sinceLabel(d: DigestData): string {
+  const a = parts(d.from);
+  const days = Math.round((Date.parse(`${d.send}T00:00:00Z`) - Date.parse(`${d.from}T00:00:00Z`)) / 86_400_000);
+  return days <= 6 ? `since ${DAYS[a.w]}` : `since ${MONTHS_LONG[a.m]} ${a.d}`;
+}
+
+/** The subject's headline, by priority: a finish, the period's record, a perfect run of calls, the next event, the rankings. */
 export function headline(d: DigestData): string {
   const done = d.results.filter((r) => r.finished);
   const win = done.find((r) => r.playoff?.kind === "winner");
@@ -97,36 +107,36 @@ export function headline(d: DigestData): string {
       ? `${d.results[0].team} goes ${record(sum)} at ${shortName(d.results[0].event)}`
       : `Your teams went ${record(sum)}`;
   }
-  if (d.predictions && d.predictions.week.calls >= 3 && d.predictions.week.right === d.predictions.week.calls) return `a perfect week of calls, ${d.predictions.week.right} of ${d.predictions.week.calls}`;
+  if (d.predictions && d.predictions.recent.calls >= 3 && d.predictions.recent.right === d.predictions.recent.calls) return `a perfect run of calls, ${d.predictions.recent.right} of ${d.predictions.recent.calls}`;
   const next = d.upcoming[0];
   if (next) return `${shortName(next.event)} starts ${next.inDays <= 0 ? "today" : next.inDays === 1 ? "tomorrow" : next.inDays < 7 ? DAYS[parts(next.start).w] : `${MONTHS[parts(next.start).m]} ${parts(next.start).d}`}`;
   const ranked = d.rankings && !d.rankings.fallback ? d.rankings.rows[0] : null;
   if (ranked) return `${ranked.team} is #${ranked.rank} in the power rankings`;
-  if (d.predictions) return `${d.predictions.week.right} of ${d.predictions.week.calls} calls right`;
+  if (d.predictions) return `${d.predictions.recent.right} of ${d.predictions.recent.calls} calls right`;
   return "the power rankings moved";
 }
 
-export const subjectOf = (d: DigestData) => `Your Control Scout week: ${headline(d)}`;
+export const subjectOf = (d: DigestData) => `Your Control Scout update: ${headline(d)}`;
 
 /** The line under the greeting: what this email holds, in one sentence. */
 export function intro(d: DigestData): string {
   const teams = [...new Set(d.results.map((r) => r.team))];
   const bits: string[] = [];
-  if (teams.length) bits.push(`${teams.length === 1 ? teams[0] : `${teams.length} of your teams`} played last week`);
+  if (teams.length) bits.push(`${teams.length === 1 ? teams[0] : `${teams.length} of your teams`} played ${sinceLabel(d)}`);
   const events = new Set(d.upcoming.map((u) => `${u.season}:${u.code}`)).size + (d.moreUpcoming ? 1 : 0);
   if (events) bits.push(`${events === 1 ? "one event is" : `${events}${d.moreUpcoming ? "+" : ""} events are`} coming up in the next two weeks`);
   if (bits.length) return `${bits.join(", and ").replace(/^./, (c) => c.toUpperCase())}. Here's the rundown.`;
   return "Here's how the predictions and power rankings went for your teams.";
 }
 
-/** The check-in's verdict, plain about a bad week. */
+/** The check-in's verdict, plain about a bad run. */
 export function callsVerdict(c: { calls: number; right: number }): string {
   const r = c.right / c.calls;
   if (r === 1) return "Every call right.";
-  if (r >= 0.75) return "A strong week for the model.";
+  if (r >= 0.75) return "A strong run for the model.";
   if (r >= 0.6) return "About as expected.";
-  if (r >= 0.5) return "A below-par week for the model.";
-  return "A rough week for the model: more calls wrong than usual.";
+  if (r >= 0.5) return "A below-par run for the model.";
+  return "A rough run for the model: more calls wrong than usual.";
 }
 
 const url = (site: string, path: string) => `${site}${path}`;
@@ -138,19 +148,19 @@ const eventPath = (season: number, code: string) => `/events/${season}/${encodeU
 
 export function renderText(d: DigestData, k: Links): string {
   const out: string[] = [];
-  out.push(`Hi ${d.name ?? "there"},`, "", intro(d), `Week of ${weekLabel(d.from, d.to)} (Monday to Sunday).`, "");
+  out.push(`Hi ${d.name ?? "there"},`, "", intro(d), `Results from ${periodLabel(d.from, d.to)}.`, "");
   if (d.results.length) {
-    out.push("YOUR TEAMS' WEEK", "");
+    out.push("YOUR TEAMS' RESULTS", "");
     for (const r of d.results.slice(0, MAX_RESULTS)) {
-      const facts = [r.record && record(r.record), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `ranked ${ordinal(r.rank)} so far`), playoffText(r.playoff), oprTrend(r)?.text].filter(Boolean);
+      const facts = [r.record && (r.partial ? recordText(r, d) : record(r.record)), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `ranked ${ordinal(r.rank)} so far`), playoffText(r.playoff), oprTrend(r)?.text].filter(Boolean);
       out.push(`${teamLabel(r)} at ${r.event}`, `  ${facts.join(" · ") || "Results posted"}`, `  ${url(k.site, eventPath(r.season, r.code))}`, "");
     }
     const more = d.results.length - MAX_RESULTS;
-    if (more > 0) out.push(`${more} more played last week: ${url(k.site, "/my-team")}`, "");
+    if (more > 0) out.push(`${more} more played ${sinceLabel(d)}: ${url(k.site, "/my-team")}`, "");
   }
   if (d.predictions) {
-    const w = d.predictions.week, s = d.predictions.season;
-    out.push("PREDICTION CHECK-IN", "", `This week: ${w.right} of ${w.calls} calls right (${pct(w)}). ${callsVerdict(w)}`,
+    const w = d.predictions.recent, s = d.predictions.season;
+    out.push("PREDICTION CHECK-IN", "", `${sinceLabel(d).replace(/^./, (c) => c.toUpperCase())}: ${w.right} of ${w.calls} calls right (${pct(w)}). ${callsVerdict(w)}`,
       `Season: ${s.right} of ${s.calls} calls right (${pct(s)}) on your teams' matches.`, `How the predictions work: ${url(k.site, "/methodology#accuracy")}`, "");
   }
   if (d.upcoming.length) {
@@ -168,7 +178,7 @@ export function renderText(d: DigestData, k: Links): string {
     out.push(`Full list: ${url(k.site, `/power-rankings/${d.rankings.week}`)}`, "");
   }
   out.push("See you at the next event,", "The Control Scout team", "", "---",
-    `You're getting this because you turned on the weekly digest for ${k.email}.`,
+    `You're getting this because you turned on the email digest for ${k.email}.`,
     `Unsubscribe: ${k.unsubscribe}`, `Manage email preferences: ${url(k.site, "/settings?section=notifications")}`);
   return out.join("\n");
 }
@@ -198,8 +208,8 @@ function item(inner: string): string {
 const teamLine = (t: { team: number; teamName: string | null }, site: string) =>
   `<div style="font-size:16px;line-height:24px"><a href="${esc(url(site, `/teams/${t.team}`))}" class="cs-text" style="color:${L.text};text-decoration:none;font-weight:700">${t.team}</a>${t.teamName ? `<span class="cs-muted" style="color:${L.muted}"> ${esc(t.teamName)}</span>` : ""}</div>`;
 
-function resultItem(r: TeamWeek, site: string): string {
-  const chips = [r.record && `${record(r.record)} record`, r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `${ordinal(r.rank)} so far`), playoffText(r.playoff)]
+function resultItem(r: TeamWeek, site: string, d: DigestData): string {
+  const chips = [recordText(r, d), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `${ordinal(r.rank)} so far`), playoffText(r.playoff)]
     .filter((x): x is string => !!x).map(chip).join("");
   const t = oprTrend(r);
   return item(`${teamLine(r, site)}
@@ -243,19 +253,19 @@ export function renderHtml(d: DigestData, k: Links): string {
   const subject = subjectOf(d);
   const preheader = [
     d.results[0] && `${d.results[0].team}${d.results[0].record ? ` went ${record(d.results[0].record)}` : " played"} at ${d.results[0].event}`,
-    d.predictions && `${d.predictions.week.right} of ${d.predictions.week.calls} calls right`,
+    d.predictions && `${d.predictions.recent.right} of ${d.predictions.recent.calls} calls right`,
     d.upcoming[0] && `${d.upcoming[0].event} ${countdown(d.upcoming[0].inDays)}`,
   ].filter(Boolean).join(" · ");
   const rows: string[] = [];
 
   if (d.results.length) {
-    rows.push(h2("Your teams' week", "Record, seed and OPR at each event they played."));
-    for (const r of d.results.slice(0, MAX_RESULTS)) rows.push(resultItem(r, site));
+    rows.push(h2("Your teams' results", `Record, seed and OPR at each event they played ${esc(sinceLabel(d))}.`));
+    for (const r of d.results.slice(0, MAX_RESULTS)) rows.push(resultItem(r, site, d));
     const more = d.results.length - MAX_RESULTS;
-    rows.push(moreLink(more > 0 ? `${more} more played last week: see them all` : "See all your teams", url(site, "/my-team")));
+    rows.push(moreLink(more > 0 ? `${more} more played ${sinceLabel(d)}: see them all` : "See all your teams", url(site, "/my-team")));
   }
   if (d.predictions) {
-    const w = d.predictions.week, s = d.predictions.season;
+    const w = d.predictions.recent, s = d.predictions.season;
     rows.push(h2("Prediction check-in", "Our pre-match calls on your teams' matches, straight from the public ledger."));
     rows.push(statBlock(`${w.right} of ${w.calls} <span class="cs-muted" style="font-size:18px;font-weight:600;color:${L.muted}">calls right · ${pct(w)}</span>`, esc(callsVerdict(w))));
     rows.push(`<tr><td style="padding:12px 32px 0;font-family:${FONT};font-size:15px;line-height:22px" class="cs-pad cs-body"><span class="cs-body" style="color:${L.body}">Season so far: <strong class="cs-text" style="color:${L.text}">${s.right} of ${s.calls}</strong> right (${pct(s)}).</span></td></tr>`);
@@ -299,15 +309,15 @@ a{text-decoration:none}
         <td style="width:30px;height:30px;line-height:0;background:${L.gold};border-radius:8px"><img src="${esc(site)}/logo.png" width="30" height="30" alt="" style="display:block;width:30px;height:30px;border:0;border-radius:8px"></td>
         <td class="cs-text" style="padding-left:10px;font-family:${DISPLAY};font-size:19px;font-weight:700;letter-spacing:-0.3px;color:${L.text}">Control Scout</td>
         <td class="cs-line" style="padding-left:12px;border-right:1px solid ${L.line};font-size:0">&nbsp;</td>
-        <td class="cs-muted" style="padding-left:12px;font-family:${FONT};font-size:17px;color:${L.muted}">Weekly</td>
+        <td class="cs-muted" style="padding-left:12px;font-family:${FONT};font-size:17px;color:${L.muted}">Digest</td>
       </tr></table></a>
     </td></tr>
     <tr><td class="cs-card" style="background:${L.card};border:1px solid ${L.line};border-radius:18px;overflow:hidden">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
         <tr><td style="height:4px;background:${L.gold};font-size:0;line-height:0;border-radius:18px 18px 0 0">&nbsp;</td></tr>
         <tr><td style="padding:36px 32px 0" class="cs-pad">
-          <h1 class="cs-text cs-h1" style="margin:0;font-family:${DISPLAY};font-size:30px;line-height:36px;font-weight:700;letter-spacing:-0.6px;color:${L.text}">Your week in Control Scout</h1>
-          <p class="cs-muted" style="margin:6px 0 0;font-family:${FONT};font-size:14px;line-height:20px;color:${L.muted}">${esc(weekLabel(d.from, d.to))}</p>
+          <h1 class="cs-text cs-h1" style="margin:0;font-family:${DISPLAY};font-size:30px;line-height:36px;font-weight:700;letter-spacing:-0.6px;color:${L.text}">Your Control Scout update</h1>
+          <p class="cs-muted" style="margin:6px 0 0;font-family:${FONT};font-size:14px;line-height:20px;color:${L.muted}">${esc(periodLabel(d.from, d.to))}</p>
           <p class="cs-text" style="margin:24px 0 0;font-family:${FONT};font-size:17px;line-height:26px;color:${L.text}">Hi ${d.name ? `<strong>${esc(d.name)}</strong>` : "there"},</p>
           <p class="cs-body" style="margin:8px 0 0;font-family:${FONT};font-size:17px;line-height:27px;color:${L.body}">${esc(intro(d))}</p>
         </td></tr>
@@ -324,7 +334,7 @@ a{text-decoration:none}
       </table>
     </td></tr>
     <tr><td align="center" style="padding:24px 16px 0;font-family:${FONT}">
-      <p class="cs-muted" style="margin:0;font-size:13px;line-height:20px;color:${L.muted}">You're getting this because you turned on the weekly digest for <span class="cs-text" style="color:${L.text}">${esc(k.email)}</span>.<br>It only comes when there's something to report.</p>
+      <p class="cs-muted" style="margin:0;font-size:13px;line-height:20px;color:${L.muted}">You're getting this because you turned on the email digest for <span class="cs-text" style="color:${L.text}">${esc(k.email)}</span>.<br>It only comes when there's something to report.</p>
       <p style="margin:12px 0 0;font-size:13px;line-height:20px">
         <a href="${esc(k.unsubscribe)}" class="cs-muted" style="display:inline-block;padding:6px 8px;color:${L.muted};text-decoration:underline">Unsubscribe</a>
         <span class="cs-muted" style="color:${L.muted}">·</span>

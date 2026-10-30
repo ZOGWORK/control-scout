@@ -1,14 +1,15 @@
-// The weekly digest job (docs/digest.md): Mondays at 08:00 New York time (./schedule.ts), from the scheduler in
-// server/index.ts. Never on request and never on a page load.
+// The email digest job (docs/digest.md): SENDS_PER_WEEK times a week at random times (./schedule.ts), from the
+// scheduler in server/index.ts. Never on request and never on a page load.
 //
 // Who: every account with a digest_prefs row (anyone who has ever turned it on). Of those, an account gets an email
 // only when all three hold: the switch is on, its address hasn't hard-bounced, and it follows at least one team (my
 // team or a tracked team, the same follows push and My team read). An account that follows nobody is left out
 // entirely: no log row, no email.
 //
-// The send log (digest_sends) has one row per account and week, written before the email goes out: the status, the
-// template version and the sections it holds. That row is the idempotency key: a job that crashes and runs again,
-// or a second server running the same Monday, finds it and sends nothing twice. Skips are logged too ("skipped-empty",
+// The send log (digest_sends) has one row per account and send slot, written before the email goes out: the status,
+// the template version and the sections it holds. Its `week` column holds the slot's key ("2026-11-04T14:37", New York
+// time; it held a week's Monday before sends went random). That row is the idempotency key: a job that crashes and
+// runs again, or a second server running the same slot, finds it and sends nothing twice. Skips are logged too ("skipped-empty",
 // "skipped-toggle-off", "skipped-bounce"), so "I didn't get it" is answerable from the log.
 //
 // One account's failure never stops the batch: it's logged as "failed" (with the provider's reason, never the address)
@@ -21,9 +22,9 @@ import { cleanValue, EMPTY_STATE } from "../../src/shared/personal.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { latestRankings } from "../powerRankings/store.js";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings.js";
-import { buildDigest, hasNews, sectionsOf, type DigestData } from "./build.js";
+import { addDays, buildDigest, hasNews, sectionsOf, type DigestData } from "./build.js";
 import { renderDigest, TEMPLATE_VERSION } from "./template.js";
-import { dueWeek } from "./schedule.js";
+import { dueSlot, nextSlot, type Slot } from "./schedule.js";
 
 type Log = (m: string) => void;
 const quiet: Log = () => {};
@@ -35,7 +36,7 @@ export const KEEP_DAYS = 400;
 
 export type SendStatus = "sending" | "sent" | "failed" | "skipped-empty" | "skipped-toggle-off" | "skipped-bounce" | "bounced";
 
-export interface RunSummary { week: string; sent: number; failed: number; skippedEmpty: number; skippedOff: number; skippedBounce: number; already: number; stopped: boolean }
+export interface RunSummary { slot: string; sent: number; failed: number; skippedEmpty: number; skippedOff: number; skippedBounce: number; already: number; stopped: boolean }
 
 /** The public site links point at: the canonical origin (controlscout.org in production). */
 export const siteUrl = () => env.canonicalUrl.replace(/\/$/, "");
@@ -58,23 +59,23 @@ export function followedTeams(myTeam: number | null, tracked: number[]): number[
 }
 
 /**
- * Claim this account's row for the week. False: it already has one (sent, skipped or in flight), or the account is
+ * Claim this account's row for the slot. False: it already has one (sent, skipped or in flight), or the account is
  * gone. A "sending" claim also needs the digest still on, unbounced and on the same unsubscribe link at this instant,
  * so an unsubscribe, a bounce or a deleted account that lands mid-batch stops the email.
  */
-async function claim(userId: number, week: string, status: SendStatus, sections: string[] = [], subject: string | null = null, token?: string): Promise<boolean> {
+async function claim(userId: number, slot: string, status: SendStatus, sections: string[] = [], subject: string | null = null, token?: string): Promise<boolean> {
   const at = new Date().toISOString();
   const allowed = status === "sending" ? " AND EXISTS (SELECT 1 FROM digest_prefs p WHERE p.user_id = ? AND p.enabled = 1 AND p.bounced_at IS NULL AND p.token = ?)" : "";
   return (await run(
     `INSERT INTO digest_sends (user_id, week, status, template_version, sections, subject, created_at, updated_at)
      SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)${allowed}
      ON CONFLICT (user_id, week) DO NOTHING`,
-    [userId, week, status, TEMPLATE_VERSION, JSON.stringify(sections), subject, at, at, userId, ...(allowed ? [userId, token ?? ""] : [])])) === 1;
+    [userId, slot, status, TEMPLATE_VERSION, JSON.stringify(sections), subject, at, at, userId, ...(allowed ? [userId, token ?? ""] : [])])) === 1;
 }
 
-const settle = (userId: number, week: string, status: SendStatus, extra: { error?: string; emailId?: string } = {}) =>
+const settle = (userId: number, slot: string, status: SendStatus, extra: { error?: string; emailId?: string } = {}) =>
   run("UPDATE digest_sends SET status = ?, error = ?, email_id = ?, updated_at = ? WHERE user_id = ? AND week = ?",
-    [status, extra.error ?? null, extra.emailId ?? null, new Date().toISOString(), userId, week]);
+    [status, extra.error ?? null, extra.emailId ?? null, new Date().toISOString(), userId, slot]);
 
 /** One account as it stands right now: its switch, link, address and follows (undefined: no longer there). */
 const accountNow = (userId: number) => get<any>(
@@ -82,6 +83,23 @@ const accountNow = (userId: number) => get<any>(
      (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'myTeam') my_team,
      (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'tracked') tracked
    FROM digest_prefs d JOIN users u ON u.id = d.user_id WHERE d.user_id = ?`, [userId]);
+
+/** How far back a digest ever reaches: a first digest, or one after a long gap, covers this many days at most. */
+export const MAX_LOOKBACK_DAYS = 7;
+
+/**
+ * Where an account's period starts: the date of its last digest that reported the days before it (sent, or empty
+ * with nothing to report), so a send that was skipped (an outage, the owner's switch, a schedule change) loses no
+ * days; at most MAX_LOOKBACK_DAYS back. The send log's key starts with the New York date either way (a slot
+ * "2026-11-03T17:28", or a Monday "2026-11-02" from the weekly schedule).
+ */
+export async function coverFrom(userId: number, slot: Slot): Promise<string> {
+  const floor = addDays(slot.date, -MAX_LOOKBACK_DAYS);
+  const last = await get<{ d: string | null }>(
+    "SELECT MAX(substr(week, 1, 10)) d FROM digest_sends WHERE user_id = ? AND substr(week, 1, 10) < ? AND status IN ('sent', 'bounced', 'skipped-empty')",
+    [userId, slot.date]);
+  return last?.d && last.d > floor ? last.d : floor;
+}
 
 export interface RunOptions {
   log?: Log;
@@ -91,19 +109,24 @@ export interface RunOptions {
   rankings?: PowerRankingsResponse;
   /** Tests: the season. */
   season?: number;
+  /** Tests: the period reported and the next send's date, in place of the ones the schedule gives the slot. */
+  period?: { from: string; next: string | null };
   /** Asked before every account: false stops the rest of the batch (default: the owner's weeklyDigest switch). */
   allowed?: () => Promise<boolean>;
 }
 
-/** Build and send one week's digests. Safe to run again for the same week: each account goes out at most once. */
-export async function runDigestWeek(week: string, o: RunOptions = {}): Promise<RunSummary> {
+/** Build and send one slot's digests. Safe to run again for the same slot: each account goes out at most once. */
+export async function runDigest(slot: Slot, o: RunOptions = {}): Promise<RunSummary> {
+  // The next slot's date decides whether an upcoming event alone is worth an email (build.ts hasNews). Each account's
+  // period starts where its own last digest left off (coverFrom), so a skipped send loses no days.
+  const week = slot.key, next = o.period ? o.period.next : nextSlot(slot.at).date;
   const log = o.log ?? quiet, gap = o.gapMs ?? SEND_GAP_MS;
   const allowed = o.allowed ?? (() => isEnabled("weeklyDigest"));
-  const s: RunSummary = { week, sent: 0, failed: 0, skippedEmpty: 0, skippedOff: 0, skippedBounce: 0, already: 0, stopped: false };
+  const s: RunSummary = { slot: week, sent: 0, failed: 0, skippedEmpty: 0, skippedOff: 0, skippedBounce: 0, already: 0, stopped: false };
   // Only the ids up front: each account is read again when its turn comes, so a change made while earlier
   // emails go out (unsubscribing, unfollowing, deleting the account) counts.
   const ids = (await all<{ user_id: number }>("SELECT user_id FROM digest_prefs ORDER BY user_id")).map((r) => Number(r.user_id));
-  const rankings = o.rankings ?? await latestRankings(week);
+  const rankings = o.rankings ?? await latestRankings(slot.date);
   let sentBefore = false;
   for (const userId of ids) {
     try {
@@ -117,7 +140,8 @@ export async function runDigestWeek(week: string, o: RunOptions = {}): Promise<R
       const followed = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
       if (!followed.length || !r.email) continue; // never enters the queue
       if (await get("SELECT 1 FROM digest_sends WHERE user_id = ? AND week = ?", [userId, week])) { s.already++; continue; }
-      const data: DigestData = await buildDigest({ week, season: o.season ?? CURRENT_SEASON, followed, name: firstName(r.display_name), rankings });
+      const from = o.period?.from ?? await coverFrom(userId, slot);
+      const data: DigestData = await buildDigest({ send: slot.date, from, next, season: o.season ?? CURRENT_SEASON, followed, name: firstName(r.display_name), rankings });
       const sections = sectionsOf(data);
       if (!hasNews(data)) { if (await claim(userId, week, "skipped-empty")) s.skippedEmpty++; else s.already++; continue; }
       const token = String(r.token);
@@ -147,18 +171,18 @@ export async function runDigestWeek(week: string, o: RunOptions = {}): Promise<R
 }
 
 let running: Promise<RunSummary | null> | null = null;
-let doneWeek: string | null = null;
+let doneSlot: string | null = null;
 
-/** The scheduler's tick (every few minutes): run this Monday's digests once, when they're due and allowed. */
+/** The scheduler's tick (every few minutes): run the due slot's digests once, when it's due and allowed. */
 export async function digestTick(now = Date.now(), log: Log = quiet): Promise<RunSummary | null> {
-  const week = dueWeek(now);
-  if (!week || week === doneWeek || running) return null;
+  const slot = dueSlot(now);
+  if (!slot || slot.key === doneSlot || running) return null;
   if (!emailEnabled() || !(await isEnabled("weeklyDigest"))) return null;
   running = (async () => {
     try {
-      const out = await runDigestWeek(week, { log });
+      const out = await runDigest(slot, { log });
       // A batch stopped by the owner's switch isn't done: switched back on, the next tick finishes it.
-      if (!out.stopped) doneWeek = week;
+      if (!out.stopped) doneSlot = slot.key;
       await run("DELETE FROM digest_sends WHERE created_at < ?", [new Date(now - KEEP_DAYS * 86_400_000).toISOString()]);
       return out;
     } finally { running = null; }
@@ -166,5 +190,5 @@ export async function digestTick(now = Date.now(), log: Log = quiet): Promise<Ru
   return running;
 }
 
-/** Tests: forget which week this process already ran. */
-export function resetDigestTick(): void { doneWeek = null; running = null; }
+/** Tests: forget which slot this process already ran. */
+export function resetDigestTick(): void { doneSlot = null; running = null; }

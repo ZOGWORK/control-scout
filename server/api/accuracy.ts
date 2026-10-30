@@ -28,7 +28,7 @@ export const isoWeek = (t: string) => {
 
 /** A call that counts toward win-call accuracy: the match wasn't a tie and the call wasn't a coin flip (p exactly 0.5). */
 export const decidedCall = (r: { p: number; y: number }) => r.y !== 0.5 && r.p !== 0.5;
-/** A decided call that named the winner. The one rule for "right" (track record, the weekly digest's check-in). */
+/** A decided call that named the winner. The one rule for "right" (track record, the email digest's check-in). */
 export const rightCall = (r: { p: number; y: number }) => (r.p > 0.5) === (r.y === 1);
 
 export function block(rows: Row[]): AccuracyBlock | null {

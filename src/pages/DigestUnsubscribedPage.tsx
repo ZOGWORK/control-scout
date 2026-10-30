@@ -1,4 +1,4 @@
-// /digest/unsubscribed: where the weekly digest's unsubscribe link lands (docs/digest.md). The server already
+// /digest/unsubscribed: where the email digest's unsubscribe link lands (docs/digest.md). The server already
 // switched the digest off in the click's own request (GET /api/digest/unsubscribe), so this page only says so:
 // no sign-in, no second click. ?status=invalid: the link was replaced (the digest was turned back on since) or
 // mistyped, and nothing changed.
@@ -21,8 +21,8 @@ export default function DigestUnsubscribedPage() {
       </h1>
       <p className="mt-3 text-sm text-muted-foreground sm:text-base">
         {done
-          ? "You've unsubscribed from the weekly digest. You can turn it back on in Settings."
-          : "Nothing was changed. The weekly digest was turned back on since that email, which replaces its unsubscribe link. To stop it, use the link in the latest digest or turn it off in Settings."}
+          ? "You've unsubscribed from the email digest. You can turn it back on in Settings."
+          : "Nothing was changed. The email digest was turned back on since that email, which replaces its unsubscribe link. To stop it, use the link in the latest digest or turn it off in Settings."}
       </p>
       <div className="mt-7 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row">
         <Button asChild variant="outline"><Link to="/settings?section=notifications">Open Settings</Link></Button>

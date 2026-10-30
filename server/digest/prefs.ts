@@ -1,4 +1,4 @@
-// Who gets the weekly digest (docs/digest.md): the Settings switch, the one-click unsubscribe link, and hard bounces.
+// Who gets the email digest (docs/digest.md): the Settings switch, the one-click unsubscribe link, and hard bounces.
 //
 // The switch lives in its own table, not in the synced settings: an unsubscribe click or a bounce changes it on the
 // server, and a device's older copy of the settings must never turn it back on. Off by default (no row: off).
