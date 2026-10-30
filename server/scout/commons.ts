@@ -126,7 +126,13 @@ export async function setWorkspaceOptIn(user: User, m: Membership, optedIn: bool
     `INSERT INTO commons_workspaces (workspace_id, opted_in, updated_at, updated_by) VALUES (?, ?, ?, ?)
      ON CONFLICT(workspace_id) DO UPDATE SET opted_in = excluded.opted_in, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     [id, optedIn ? 1 : 0, now, writerName(user)]);
-  if (!optedIn) await run("UPDATE commons_entries SET status = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND status = 'published'", [Date.now(), id]);
+  if (!optedIn) {
+    await writeBatch([
+      { sql: "UPDATE commons_entries SET status = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND status = 'published'", args: [Date.now(), id] },
+      // Taken down meanwhile: withdrawn too, for when the owner restores them.
+      { sql: "UPDATE commons_entries SET removed_from = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND status = 'removed'", args: [Date.now(), id] },
+    ]);
+  }
   return workspaceCommons(m.workspaceId);
 }
 
@@ -146,8 +152,12 @@ export async function publishEntry(m: Membership, uuid: string, publish: boolean
   // The same shape as deleting (entries.ts mayWrite): the author's call, or an admin's.
   if (m.role !== "admin" && Number(e.author_account_id) !== m.accountId) return refuse(403, "forbidden");
   if (!publish) {
-    // A takedown stays a takedown: unsharing a removed entry leaves it removed (only the owner restores it).
-    await run("UPDATE commons_entries SET status = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND entry_uuid = ? AND status <> 'removed'", [Date.now(), id, uuid]);
+    // A takedown stays a takedown: unsharing a removed entry leaves it removed (only the owner restores it), but records
+    // the workspace's choice, so a restore leaves it unshared.
+    await writeBatch([
+      { sql: "UPDATE commons_entries SET status = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND entry_uuid = ? AND status <> 'removed'", args: [Date.now(), id, uuid] },
+      { sql: "UPDATE commons_entries SET removed_from = 'withdrawn', updated_at = ? WHERE workspace_id = ? AND entry_uuid = ? AND status = 'removed'", args: [Date.now(), id, uuid] },
+    ]);
     return { ok: true, commons: await workspaceCommons(m.workspaceId) };
   }
   const opt = await get<{ opted_in: number; suspended_at: string | null }>("SELECT opted_in, suspended_at FROM commons_workspaces WHERE workspace_id = ?", [id]);
@@ -417,8 +427,9 @@ export async function ownerCommonsPhoto(id: string): Promise<{ object_key: strin
 }
 
 /**
- * Take an entry down (removed: true) or restore it (false: shared again, as it was). A takedown resolves the entry's
- * open reports as "removed". Returns what it was before, or null for an entry that was never shared.
+ * Take an entry down (removed: true) or restore it (false: back to the workspace's own choice, removed_from: shared
+ * again if it was shared, still withdrawn if it was unshared before or since). A takedown resolves the entry's open
+ * reports as "removed". Returns what it was before, or null for an entry that was never shared.
  */
 export async function setTakedown(entryId: unknown, removed: boolean, reason: string, by: string): Promise<{ was: CommonsStatus } | null> {
   const id = parseEntryId(entryId);
@@ -428,13 +439,24 @@ export async function setTakedown(entryId: unknown, removed: boolean, reason: st
   const now = new Date().toISOString();
   if (removed) {
     await writeBatch([
-      { sql: "UPDATE commons_entries SET status = 'removed', removed_at = ?, removed_by = ?, removed_reason = ?, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?", args: [now, by, reason.slice(0, 300), Date.now(), id.sourceId, id.uuid] },
+      {
+        sql: `UPDATE commons_entries SET removed_from = CASE WHEN status = 'removed' THEN removed_from ELSE status END,
+                status = 'removed', removed_at = ?, removed_by = ?, removed_reason = ?, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?`,
+        args: [now, by, reason.slice(0, 300), Date.now(), id.sourceId, id.uuid],
+      },
       { sql: "UPDATE commons_reports SET resolved_at = ?, resolved_by = ?, resolution = 'removed' WHERE workspace_id = ? AND entry_uuid = ? AND resolved_at IS NULL", args: [now, by, id.sourceId, id.uuid] },
     ]);
   } else if (cur.status === "removed") {
-    await run("UPDATE commons_entries SET status = 'published', removed_at = NULL, removed_by = NULL, removed_reason = NULL, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?", [Date.now(), id.sourceId, id.uuid]);
+    await run(`UPDATE commons_entries SET status = CASE WHEN removed_from = 'withdrawn' THEN 'withdrawn' ELSE 'published' END,
+      removed_from = NULL, removed_at = NULL, removed_by = NULL, removed_reason = NULL, updated_at = ? WHERE workspace_id = ? AND entry_uuid = ?`, [Date.now(), id.sourceId, id.uuid]);
   }
   return { was: cur.status as CommonsStatus };
+}
+/** What a restore set the entry to (published, or withdrawn when the workspace had unshared it). */
+export async function shareStatus(entryId: unknown): Promise<CommonsStatus | null> {
+  const id = parseEntryId(entryId);
+  if (!id) return null;
+  return ((await get<{ status: string }>("SELECT status FROM commons_entries WHERE workspace_id = ? AND entry_uuid = ?", [id.sourceId, id.uuid]))?.status ?? null) as CommonsStatus | null;
 }
 
 export const REMOVED_PAGE = 50;
@@ -718,7 +740,7 @@ export function commonsOwnerRoutes(r: Router, wrap: (fn: Handler) => (req: Reque
     const out = await setTakedown(req.params.entryId, req.body.removed, reason, actor(req));
     if (!out) { res.status(404).json({ error: "That entry was never in the scouting commons." }); return; }
     await recordAudit(actor(req), req.body.removed ? "commons.entry.remove" : "commons.entry.restore", { entryId: req.params.entryId, ...(reason ? { reason } : {}) }, null,
-      { from: out.was, to: req.body.removed ? "removed" : out.was === "removed" ? "published" : out.was });
+      { from: out.was, to: await shareStatus(req.params.entryId) });
     return moderation();
   }));
   r.post("/commons/entries/:entryId/dismiss", wrap(async (req, res) => {

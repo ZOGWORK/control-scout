@@ -25,6 +25,10 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const id = useId();
+  const toggle = async (publish: boolean) => {
+    setBusy(true); setErr(null);
+    try { await setShare(e.workspaceId!, e.uuid, publish); } catch (x) { setErr((x as ApiError).message); } finally { setBusy(false); }
+  };
   if (e.kind !== "pit" || !e.workspaceId || !c?.optedIn) return null;
   const on = isShared(c, e.uuid);
   const removed = c.shares.find((s) => s.uuid === e.uuid && s.status === "removed");
@@ -47,10 +51,6 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
       </div>
     );
   }
-  const toggle = async (publish: boolean) => {
-    setBusy(true); setErr(null);
-    try { await setShare(e.workspaceId!, e.uuid, publish); } catch (x) { setErr((x as ApiError).message); } finally { setBusy(false); }
-  };
   return (
     <div className={`rounded-xl border p-4 ${on ? "border-info/40 bg-info/[0.06]" : "border-border"} ${className ?? ""}`}>
       <div className="flex items-start justify-between gap-4">

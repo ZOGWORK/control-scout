@@ -433,6 +433,13 @@ describe("scouting commons: moderation", () => {
     await share(adminA, A, e.uuid, false);
     expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.shares[0].status).toBe("removed"); // unsharing doesn't undo a takedown
     expect((await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: false })).status).toBe(200);
+    // It was unshared while taken down: restoring leaves the workspace's choice (withdrawn), never re-shares it.
+    expect((await read(loner)).entries).toEqual([]);
+    expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.shares[0].status).toBe("withdrawn");
+    // Shared again, taken down and restored: shared again as it was.
+    await share(adminA, A, e.uuid);
+    await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: true });
+    await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: false });
     expect((await read(loner)).entries).toHaveLength(1);
     expect((await owner("GET", "/api/owner/commons/reports")).json.removed).toEqual([]);
     const audit = await all<any>("SELECT action FROM owner_audit WHERE action LIKE 'commons.entry.%' ORDER BY id DESC LIMIT 2");

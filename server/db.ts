@@ -1587,6 +1587,9 @@ CREATE INDEX commons_entries_team ON commons_entries (season, team, status);
 ALTER TABLE commons_entries ADD COLUMN removed_at TEXT;
 ALTER TABLE commons_entries ADD COLUMN removed_by TEXT;
 ALTER TABLE commons_entries ADD COLUMN removed_reason TEXT;
+-- The workspace's own choice under a takedown (published | withdrawn): what Restore puts back. Unsharing or opting out
+-- while taken down changes it to withdrawn, so a restore never shares what the workspace withdrew.
+ALTER TABLE commons_entries ADD COLUMN removed_from TEXT;
 -- The owner's mute of a whole workspace: everything it shared is hidden and it can't share more, until lifted.
 ALTER TABLE commons_workspaces ADD COLUMN suspended_at TEXT;
 ALTER TABLE commons_workspaces ADD COLUMN suspended_by TEXT;
