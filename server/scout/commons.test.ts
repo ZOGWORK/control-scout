@@ -162,7 +162,7 @@ describe("scouting commons", () => {
       expect(c.entries[0]).toMatchObject({ source: { name: "Pyro Scouts" }, eventCode: EV, team: 18360, notes: e.notes, scoutedAt: e.updatedAt, data: e.data });
       expect(c.entries[0].fields.length).toBeGreaterThan(0);
       expect(JSON.stringify(c)).not.toMatch(/Ada|cm-admin-a|3101/);
-      expect(c.events).toEqual([{ code: EV, name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08" }]);
+      expect(c.events).toEqual([{ code: EV, name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08", timezone: null }]);
     }
     // Signed out: 401.
     expect((await client()("GET", `/api/scout/commons?season=${S}&team=18360`)).status).toBe(401);

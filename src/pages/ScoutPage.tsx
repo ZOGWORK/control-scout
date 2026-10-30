@@ -605,7 +605,8 @@ function EntryForm({ season, initial, team, initialKind = "match", space, spaceN
       </div>
       </fieldset>
       {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5 max-sm:mt-4" />}
-      {initial && !isScoutQueued(initial) && <CommonsShare e={initial} readOnly={readOnly} className="mt-5 max-sm:mt-4" />}
+      {initial && !isScoutQueued(initial) && <CommonsShare e={initial} readOnly={readOnly} className="mt-5 max-sm:mt-4"
+        unsaved={kind !== initial.kind || teamText !== String(initial.team) || eventCode.trim().toUpperCase() !== (initial.eventCode ?? "").toUpperCase() || notes !== initial.notes || JSON.stringify(data) !== JSON.stringify(initial.data)} />}
       {toPersonal && (
         <p role="status" className="mt-5 max-sm:mt-4 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
           This workspace is read-only now, so this entry can't be saved to it. Save keeps what you typed in Personal{initial ? ", as a new entry of your own" : ""}.

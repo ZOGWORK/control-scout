@@ -48,7 +48,7 @@ export interface CommonsEventSwitch extends CommonsEvent { season: number; enabl
  */
 export async function listCommonsEvents(): Promise<CommonsEventSwitch[]> {
   const rows = await all<any>(
-    `SELECT ce.season, ce.event_code, ce.enabled, ce.updated_at, ce.updated_by, e.name, e.start, e.end
+    `SELECT ce.season, ce.event_code, ce.enabled, ce.updated_at, ce.updated_by, e.name, e.start, e.end, e.timezone
        FROM commons_events ce LEFT JOIN events e ON e.season = ce.season AND e.code = ce.event_code
       ORDER BY ce.updated_at DESC`);
   const counts = await all<any>(`SELECT c.season, c.event_code, ws.cp_workspace_id, COUNT(*) n FROM ${FROM} WHERE ${SHARED} GROUP BY c.season, c.event_code, ws.cp_workspace_id`);
@@ -60,7 +60,7 @@ export async function listCommonsEvents(): Promise<CommonsEventSwitch[]> {
     shared.set(k, (shared.get(k) ?? 0) + Number(r.n));
   }
   return rows.map((r) => ({
-    season: Number(r.season), code: String(r.event_code), name: String(r.name ?? r.event_code), start: r.start ?? null, end: r.end ?? null,
+    season: Number(r.season), code: String(r.event_code), name: String(r.name ?? r.event_code), start: r.start ?? null, end: r.end ?? null, timezone: r.timezone ?? null,
     enabled: Number(r.enabled) === 1, updatedAt: String(r.updated_at), updatedBy: String(r.updated_by), shared: shared.get(`${Number(r.season)}:${String(r.event_code)}`) ?? 0,
   }));
 }
@@ -279,10 +279,10 @@ export function fieldGrouper() {
 
 async function commonsEvents(season: number, event: string | null): Promise<CommonsEvent[]> {
   const rows = await all<any>(
-    `SELECT ce.event_code, e.name, e.start, e.end FROM commons_events ce LEFT JOIN events e ON e.season = ce.season AND e.code = ce.event_code
+    `SELECT ce.event_code, e.name, e.start, e.end, e.timezone FROM commons_events ce LEFT JOIN events e ON e.season = ce.season AND e.code = ce.event_code
       WHERE ce.season = ? AND ce.enabled = 1 ${event ? "AND ce.event_code = ?" : ""} ORDER BY e.start, ce.event_code`,
     event ? [season, event] : [season]);
-  return rows.map((r) => ({ code: String(r.event_code), name: String(r.name ?? r.event_code), start: r.start ?? null, end: r.end ?? null }));
+  return rows.map((r) => ({ code: String(r.event_code), name: String(r.name ?? r.event_code), start: r.start ?? null, end: r.end ?? null, timezone: r.timezone ?? null }));
 }
 
 /**

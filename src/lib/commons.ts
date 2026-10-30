@@ -1,7 +1,7 @@
 // The scouting commons in the app (docs/scouting-commons.md; the server: server/scout/commons.ts).
 // - useCommons: what other workspaces shared on a team (signed-in accounts only; nothing is fetched signed out).
-// - useWorkspaceCommons: a workspace's opt-in and its shares, for the share switch and Settings; one request per
-//   workspace, shared by every component that asks, and updated in place by setShare / setOptIn.
+// - useWorkspaceCommons: a workspace's opt-in and its shares, for the share switch and Settings: asked again whenever
+//   a component showing it mounts (one request at a time per workspace), and updated in place by setShare / setOptIn.
 // - pitAge: how old a pit claim is, said prominently (a robot rebuilt on Saturday makes Friday's notes wrong).
 import { useEffect, useState } from "react";
 import { apiFetch, qs, type ApiError } from "./api";
@@ -59,7 +59,9 @@ export function useWorkspaceCommons(workspaceId: string | null | undefined): Wor
     listeners.add(fn);
     return () => { listeners.delete(fn); };
   }, []);
-  useEffect(() => { if (workspaceId && !cache.has(workspaceId)) load(workspaceId).catch(() => {}); }, [workspaceId]);
+  // Asked again each time a component showing it mounts (opening an entry, Settings), so an admin's change on another
+  // device shows without a reload; the copy already here shows meanwhile, and requests at once are shared.
+  useEffect(() => { if (workspaceId) load(workspaceId).catch(() => {}); }, [workspaceId]);
   return workspaceId ? cache.get(workspaceId) : undefined;
 }
 
@@ -82,6 +84,27 @@ export async function setOptIn(workspaceId: string, optedIn: boolean): Promise<W
 /** Is this entry shared right now? */
 export const isShared = (c: WorkspaceCommons | undefined, uuid: string) => !!c?.shares.some((s) => s.uuid === uuid && s.status === "published");
 
+/** 00:00 on `date` (YYYY-MM-DD) in the IANA zone `tz`, as ms; the reader's local midnight when the zone is unknown or unusable. */
+export function zonedMidnight(date: string, tz: string | null): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return NaN;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])];
+  if (!tz) return new Date(y, mo, d).getTime();
+  try {
+    const fmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    // The zone's offset at an instant: what its wall clock reads, taken as UTC, minus the instant.
+    const offset = (at: number) => {
+      const p = Object.fromEntries(fmt.formatToParts(new Date(at)).map((x) => [x.type, x.value]));
+      return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second)) - at;
+    };
+    const guess = Date.UTC(y, mo, d);
+    const first = guess - offset(guess);
+    return guess - offset(first); // once more, in case midnight sits across a DST change from the guess
+  } catch {
+    return new Date(y, mo, d).getTime(); // not a zone this browser knows
+  }
+}
+
 export type PitAgeTone = "fresh" | "aging" | "stale";
 export interface PitAge { tone: PitAgeTone; when: string; note: string }
 
@@ -92,12 +115,13 @@ const HOUR = 36e5;
  * the note says what that means: scouted before the event started is stale (the robot may have changed since);
  * over a day old is aging (a rebuild overnight is common); otherwise fresh.
  */
-export function pitAge(scoutedAt: number, event: Pick<CommonsEvent, "start"> | undefined, now = Date.now()): PitAge {
+export function pitAge(scoutedAt: number, event: Pick<CommonsEvent, "start" | "timezone"> | undefined, now = Date.now()): PitAge {
   const d = new Date(scoutedAt);
   const sameYear = d.getFullYear() === new Date(now).getFullYear();
   const when = d.toLocaleString(undefined, { weekday: "short", ...(now - scoutedAt > 6 * 24 * HOUR ? { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) } : {}), hour: "numeric", minute: "2-digit" });
-  // The event's first day, from 00:00 local to the scout: before it means another event or the off-season.
-  const start = event?.start && /^\d{4}-\d{2}-\d{2}$/.test(event.start) ? new Date(`${event.start}T00:00:00`).getTime() : NaN;
+  // The event's first day, from 00:00 where the event is held (the same for every reader): before it means another
+  // event or the off-season. An event with no known zone falls back to the reader's own midnight.
+  const start = event?.start ? zonedMidnight(event.start, event.timezone ?? null) : NaN;
   if (Number.isFinite(start) && scoutedAt < start) return { tone: "stale", when, note: "Before this event: the robot may have changed" };
   const age = now - scoutedAt;
   if (age > 24 * HOUR) {

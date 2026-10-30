@@ -31,8 +31,8 @@ export function PitAgeBadge({ entry, events, now }: { entry: CommonsEntry; event
 }
 
 function answerText(v: unknown): string | null {
-  if (v === undefined || v === null || v === "" || v === false || v === 0) return null;
-  return v === true ? "yes" : String(v);
+  if (v === undefined || v === null || v === "") return null; // unanswered; 0 and "no" are answers
+  return v === true ? "yes" : v === false ? "no" : String(v);
 }
 
 function CommonsCard({ entry, events }: { entry: CommonsEntry; events: CommonsAnswer["events"] }) {

@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({ user: null as AccountUser | null }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 
 const { CommonsSection } = await import("./CommonsSection");
-const { pitAge } = await import("../lib/commons");
+const { pitAge, zonedMidnight } = await import("../lib/commons");
 
 const HOUR = 36e5;
 const NOW = new Date("2025-11-08T15:00:00").getTime();
@@ -26,7 +26,7 @@ const entry = (over: Partial<CommonsEntry>): CommonsEntry => ({
   ], scoutedAt: NOW - 2 * HOUR, publishedAt: NOW - HOUR, photos: [], ...over,
 });
 const answer = (entries: CommonsEntry[]): CommonsAnswer => ({
-  season: 2025, team: 18360, events: [{ code: "USCMQ1", name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08" }], entries,
+  season: 2025, team: 18360, events: [{ code: "USCMQ1", name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08", timezone: null }], entries,
   layer: { ...emptyConsensus(18360), entries: entries.length, pitEntries: entries.length, scouts: entries.length, counters: [{ kind: "pit", id: "weight", label: "Robot weight (lb)", type: "counter", avg: 38, n: 1 }], tags: [{ label: "Drivetrain: Mecanum", count: 1 }] },
   ownHidden: 1,
 });
@@ -72,10 +72,25 @@ describe("CommonsSection", () => {
     expect(within(card).getByTestId("pit-age").textContent).toMatch(/^Scouted /);
     expect(within(block).getByText("Drivetrain: Mecanum")).toBeTruthy();
   });
+
+  it("shows 0 and no as answers; leaves only unanswered questions out", async () => {
+    h.user = user;
+    const fields = [
+      { id: "autoRoutines", label: "Auto routines", type: "counter" as const, phase: "pit" as const, max: 10 },
+      { id: "endgameCapable", label: "Can do the endgame", type: "toggle" as const, phase: "pit" as const },
+      { id: "weight", label: "Robot weight (lb)", type: "counter" as const, phase: "pit" as const, max: 60 },
+    ];
+    body = answer([entry({ fields, data: { autoRoutines: 0, endgameCapable: false }, scoutedAt: Date.now() - HOUR })]);
+    show();
+    const card = await screen.findByTestId("commons-entry");
+    expect(within(card).getByText("Auto routines").nextElementSibling?.textContent).toBe("0");
+    expect(within(card).getByText("Can do the endgame").nextElementSibling?.textContent).toBe("no");
+    expect(within(card).queryByText("Robot weight (lb)")).toBeNull();
+  });
 });
 
 describe("pitAge", () => {
-  const ev = { start: "2025-11-08" };
+  const ev = { start: "2025-11-08", timezone: null };
   it("fresh within a day of the event, with hours", () => {
     expect(pitAge(NOW - 3 * HOUR, ev, NOW)).toMatchObject({ tone: "fresh", note: "3h ago" });
     expect(pitAge(NOW - 10 * 60_000, ev, NOW)).toMatchObject({ tone: "fresh", note: "Within the hour" });
@@ -86,6 +101,15 @@ describe("pitAge", () => {
   it("a day old: aging; two or more: stale", () => {
     expect(pitAge(NOW - 30 * HOUR, undefined, NOW)).toMatchObject({ tone: "aging", note: "A day old: check it still holds" });
     expect(pitAge(NOW - 50 * HOUR, undefined, NOW)).toMatchObject({ tone: "stale", note: "2 days old: check it still holds" });
+  });
+  it("before the event means before its first day where it's held, whoever reads it", () => {
+    // 2025-11-08 00:00 in Tokyo is 2025-11-07 15:00 UTC: a 16:00 UTC entry is on the event's first day there.
+    expect(zonedMidnight("2025-11-08", "Asia/Tokyo")).toBe(Date.UTC(2025, 10, 7, 15));
+    expect(zonedMidnight("2025-03-09", "America/Los_Angeles")).toBe(Date.UTC(2025, 2, 9, 8)); // the DST change day
+    const tokyo = { start: "2025-11-08", timezone: "Asia/Tokyo" };
+    expect(pitAge(Date.UTC(2025, 10, 7, 16), tokyo, Date.UTC(2025, 10, 7, 18)).tone).toBe("fresh");
+    expect(pitAge(Date.UTC(2025, 10, 7, 14), tokyo, Date.UTC(2025, 10, 7, 18)).tone).toBe("stale");
+    expect(Number.isFinite(zonedMidnight("2025-11-08", "Not/AZone"))).toBe(true); // an unknown zone falls back
   });
   it("names the weekday", () => {
     expect(pitAge(NOW - HOUR, ev, NOW).when).toMatch(/Sat/);
