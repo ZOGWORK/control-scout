@@ -11,6 +11,9 @@ import { cn } from "./cn";
 
 const pctOf = (w: number) => (w <= 0 ? "0%" : w < 0.005 ? "<1%" : `${Math.round(w * 100)}%`);
 
+/** Below this many log-odds (about 52.5% either way) the whole call is a near coin flip. */
+const COIN_FLIP = 0.1;
+
 const TONE = {
   A: { text: "text-red-alliance", bar: "bg-red-alliance" },
   B: { text: "text-blue-alliance", bar: "bg-blue-alliance" },
@@ -39,6 +42,11 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
           <p className="rounded-lg bg-success/10 px-3 py-2 text-sm" data-testid="sheet-review">
             <span className="font-semibold text-success">{review.right} of {review.leaning}</span> factors that leaned one way pointed to the winner, carrying{" "}
             <span className="font-semibold tabular-nums">{pctOf(review.rightWeight)}</span> of the call.
+          </p>
+        )}
+        {Math.abs(sheet.logit) < COIN_FLIP && (
+          <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm" data-testid="sheet-coin-flip">
+            This call is close to a coin flip, so every factor is small. The shares show how that small lean splits.
           </p>
         )}
         <Section title="Game phases" note="An exact split of the predicted margin">

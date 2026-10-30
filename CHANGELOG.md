@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Every prediction now opens up into its full why: each factor behind the call, with how much of it that factor carries.
 
 ### Highlights
-- [predict] A full why breakdown under every prediction: each factor and its share of the call
+- [predict] A full why breakdown under every prediction, with each factor's share
 - [predict] Form, momentum, reliability and more, next to the game phases
 - [report] After a match, see which factors pointed to the winner
 
