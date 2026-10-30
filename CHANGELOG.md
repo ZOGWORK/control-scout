@@ -25,7 +25,7 @@ Something wrong in the scouting commons? Report it, or mute a workspace you don'
 - [workspace] Taken-down entries and suspensions are explained in the entry itself
 
 ### Scouting commons
-- **Report.** Every shared entry has a menu with "Report this entry": pick what's wrong (wrong about the robot, out of date, inappropriate, something else) and add a note. The workspace isn't told who reported it (#PRNUM).
+- **Report.** Every shared entry has a menu with "Report this entry": pick what's wrong (wrong about the robot, out of date, inappropriate, something else) and add a note. The workspace isn't told who reported it (#359).
 - **Mute.** "Mute" hides a workspace's shares for you alone. Muted workspaces are listed under the entries, each with an Unmute button.
 - **Reviewed by Control Scout.** Reported entries can be taken down. A taken-down entry says so on its share switch, with the reason, and can't be shared again unless it's restored. A whole workspace can be suspended from the commons too; its own scouting is never touched.
 
