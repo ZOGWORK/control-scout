@@ -21,8 +21,10 @@ export interface DigestStatus {
 
 /** GET /api/owner/digest: the owner console's Email digest card. */
 export interface OwnerDigest {
-  /** Email set up (RESEND_API_KEY) and the owner's switch on. */
+  /** Scheduled sends go out: email set up (RESEND_API_KEY) and the owner's switch on. */
   available: boolean;
+  /** Email is set up at all: test sends work even with scheduled sends switched off. */
+  emailReady: boolean;
   /** Accounts with the digest on (and not bounced). */
   subscribers: number;
   /** The next scheduled send, ISO (owner only: members are never told a time). */

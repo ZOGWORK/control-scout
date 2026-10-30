@@ -8,10 +8,12 @@ import { get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { sha256 } from "../auth/session";
 import { setMailer, type MailOptions } from "../auth/email";
-import { invalidateFlags } from "../flags";
+import { invalidateFlags, setFlag } from "../flags";
 import { localDate } from "../powerRankings/schedule";
 import { addDays } from "./build";
 import { welcomeEmail } from "./welcome";
+import { runDigest } from "./job";
+import { slotAt } from "./schedule";
 
 let server: Server;
 let base = "";
@@ -108,6 +110,17 @@ describe("the welcome email", () => {
     expect(mails.map((m) => m.to)).toEqual(["f@example.com"]);
   });
 
+  it("a failure before the send (reading the teams) also leaves it unsent, so the next turn-on retries", async () => {
+    const u = await user("q@example.com", { myTeam: 4215 });
+    await run("ALTER TABLE teams RENAME TO teams_away");
+    try {
+      await api("/api/digest", { method: "PUT", cookie: u.cookie, body: { enabled: true } });
+      await new Promise((r) => setTimeout(r, 150));
+    } finally { await run("ALTER TABLE teams_away RENAME TO teams"); }
+    expect(mails).toHaveLength(0);
+    expect((await get<{ w: string | null }>("SELECT welcomed_at w FROM digest_prefs WHERE user_id = ?", [u.id]))!.w).toBeNull();
+  });
+
   it("with no followed teams it says how to pick one; a long list is cut with 'and N more'", () => {
     const links = { site: "https://controlscout.org", unsubscribe: "https://controlscout.org/u", email: "x@example.com" };
     expect(welcomeEmail({ links, name: null, teams: [] }).text).toContain("You don't follow any teams yet");
@@ -157,6 +170,38 @@ describe("the owner console's test sends", () => {
     expect(w.result).toMatchObject({ kind: "welcome", outcome: "sent" });
     expect(mails.at(-1)!.subject).toBe("Welcome to the Control Scout email digest");
     expect(mails.at(-1)!.to).toBe("owner@example.com");
+  });
+
+  it("test sends still work with scheduled sends switched off", async () => {
+    const o = await user("owner@example.com", { myTeam: 4215 });
+    await api("/api/digest", { method: "PUT", cookie: o.cookie, body: { enabled: true } });
+    await settle(1);
+    await setFlag("weeklyDigest", false, "test");
+    const d = await (await api("/api/owner/digest", { cookie: o.cookie })).json();
+    expect(d).toMatchObject({ available: false, emailReady: true });
+    const w = await (await api("/api/owner/digest/send", { method: "POST", cookie: o.cookie, body: { kind: "welcome", confirm: true } })).json();
+    expect(w.result.outcome).toBe("sent");
+  });
+
+  it("a test digest and a scheduled send on the same day never both go out (nothing repeats)", async () => {
+    const o = await user("owner@example.com", { myTeam: 4215 });
+    const other = await user("member@example.com", { myTeam: 4215 });
+    const yesterday = addDays(localDate(Date.now()), -1);
+    await run("INSERT INTO events (season, code, name, start, end, source) VALUES (2026, 'USNJQ9', 'NJ Test Qualifier', ?, ?, 'first')", [yesterday, yesterday]);
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, blue_total, source) VALUES (2026, 'USNJQ9', 'qual', 0, 1, 'Q1', ?, 1, 100, 50, 'first')", [`${yesterday}T10:00:00`]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2026, 'USNJQ9', 'qual', 0, 1, 4215, 'red'), (2026, 'USNJQ9', 'qual', 0, 1, 1, 'blue')");
+    for (const u of [o, other]) await api("/api/digest", { method: "PUT", cookie: u.cookie, body: { enabled: true } });
+    await settle(2);
+    mails = [];
+    expect((await (await api("/api/owner/digest/send", { method: "POST", cookie: o.cookie, body: { kind: "digest", confirm: true } })).json()).result.outcome).toBe("sent");
+    // Later the same day, the scheduled send: the member gets theirs, the owner (already sent today) doesn't.
+    const later = slotAt(Date.now() + 60_000);
+    const s = await runDigest({ ...later, key: `${later.date}T23:59` }, { gapMs: 0 });
+    expect(s).toMatchObject({ sent: 1, already: 1 });
+    expect(mails.map((m) => m.to)).toEqual(["owner@example.com", "member@example.com"]);
+    // And a second test the same day says so.
+    const again = await (await api("/api/owner/digest/send", { method: "POST", cookie: o.cookie, body: { kind: "digest", confirm: true } })).json();
+    expect(again.result.message).toContain("already had a digest today");
   });
 
   it("says so when the owner's digest is off, or there's nothing to report", async () => {

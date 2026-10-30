@@ -42,7 +42,7 @@ export function DigestPanel() {
     <Section title="Email digest" description="The opt-in email a few times a week. Test sends go only to your own account, built exactly like a real one.">
       <Async state={state}>
         {(d) => {
-          const blocked = !d.available ? "Email isn't set up on this server (RESEND_API_KEY), or the Email digest switch is off under Features."
+          const blocked = !d.emailReady ? "Email isn't set up on this server (RESEND_API_KEY)."
             : !d.mine.enabled ? "Turn on the email digest for your account in Settings › Notifications first: test sends go to you, with your unsubscribe link."
             : null;
           return (
@@ -74,6 +74,9 @@ export function DigestPanel() {
                 <Button disabled={!!blocked || !!busy} onClick={() => send("digest")}><Send /> {busy === "digest" ? "Sending…" : "Send me a digest now"}</Button>
                 <Button variant="outline" disabled={!!blocked || !!busy} onClick={() => send("welcome")}><Sparkles /> {busy === "welcome" ? "Sending…" : "Send me the welcome email"}</Button>
               </div>
+              {!d.available && d.emailReady && (
+                <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">Scheduled sends are paused (the Email digest switch under Features). Test sends still work.</p>
+              )}
               {(blocked || result) && (
                 <p role="status" className="flex items-start gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground">
                   <Mail className="mt-0.5 size-4 shrink-0" aria-hidden />{blocked ?? result!.message}

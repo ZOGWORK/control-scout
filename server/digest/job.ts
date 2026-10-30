@@ -143,6 +143,9 @@ export async function runDigest(slot: Slot, o: RunOptions = {}): Promise<RunSumm
       const followed = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
       if (!followed.length || !r.email) continue; // never enters the queue
       if (await get("SELECT 1 FROM digest_sends WHERE user_id = ? AND week = ?", [userId, week])) { s.already++; continue; }
+      // One digest a day: an earlier one today (the owner's test, or a slot run before) already reported up to
+      // yesterday, so this one would only repeat it. The next send covers from today (coverFrom).
+      if (await get("SELECT 1 FROM digest_sends WHERE user_id = ? AND substr(week, 1, 10) = ? AND status IN ('sent', 'bounced', 'sending')", [userId, slot.date])) { s.already++; continue; }
       const from = o.period?.from ?? await coverFrom(userId, slot);
       const data: DigestData = await buildDigest({ send: slot.date, from, next, season: o.season ?? CURRENT_SEASON, followed, name: firstName(r.display_name), rankings });
       const sections = sectionsOf(data);

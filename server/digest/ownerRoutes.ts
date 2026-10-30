@@ -38,7 +38,7 @@ async function ownerDigest(userId: number, now = Date.now()): Promise<OwnerDiges
     ? Object.fromEntries((await all<{ status: string; n: number }>("SELECT status, COUNT(*) n FROM digest_sends WHERE week = ? GROUP BY status", [last.week])).map((r) => [r.status, Number(r.n)]))
     : null;
   return {
-    available, subscribers: Number(subs?.n ?? 0), nextSend: new Date(nextSlot(now).at).toISOString(),
+    available, emailReady: emailEnabled(), subscribers: Number(subs?.n ?? 0), nextSend: new Date(nextSlot(now).at).toISOString(),
     mine: { enabled: Number(mine?.enabled ?? 0) === 1, followed: followedTeams(parse("myTeam", raw.myTeam) ?? null, (parse("tracked", raw.tracked) ?? EMPTY_STATE.tracked).teams).length },
     lastSend: last && counts ? { key: last.week, counts } : null,
   };
@@ -60,7 +60,7 @@ export async function sendToOwner(userId: number, kind: "digest" | "welcome", no
   if (s.sent) return { kind, outcome: "sent", message: "Digest sent to your account's address. The next scheduled one starts from today, so nothing repeats." };
   if (s.failed) return { kind, outcome: "failed", message: "The digest couldn't be sent: the email provider refused it (the send log has the reason)." };
   if (s.skippedEmpty) return { kind, outcome: "nothing", message: "Nothing to report for your teams since your last digest (up to 7 days back), so nothing was sent." };
-  if (s.already) return { kind, outcome: "skipped", message: "A digest for this minute is already logged. Try again in a minute." };
+  if (s.already) return { kind, outcome: "skipped", message: "You've already had a digest today (scheduled or a test), so nothing new went out: the next one covers from today." };
   return { kind, outcome: "skipped", message: "Turn on the email digest in Settings and follow a team first: the test goes to your own account." };
 }
 

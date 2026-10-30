@@ -90,22 +90,23 @@ export async function sendWelcome(userId: number, o: { force?: boolean } = {}): 
   const at = new Date().toISOString();
   // Claimed before sending, so two quick toggles (or two servers) send one welcome.
   if (!o.force && (await run("UPDATE digest_prefs SET welcomed_at = ? WHERE user_id = ? AND welcomed_at IS NULL", [at, userId])) !== 1) return "skipped";
-  const teams = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
-  const names = teams.length
-    ? new Map((await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${teams.map(() => "?").join(",")})`, teams))
-      .map((t) => [Number(t.number), t.name?.trim() || null]))
-    : new Map<number, string | null>();
-  const unsub = unsubscribeUrl(String(r.token));
-  const mail = welcomeEmail({
-    links: { site: siteUrl(), unsubscribe: unsub, email: String(r.email) }, name: firstName(r.display_name),
-    teams: teams.map((t) => ({ team: t, teamName: names.get(t) ?? null })),
-  });
   try {
+    const teams = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
+    const names = teams.length
+      ? new Map((await all<{ number: number; name: string | null }>(`SELECT number, name FROM teams WHERE number IN (${teams.map(() => "?").join(",")})`, teams))
+        .map((t) => [Number(t.number), t.name?.trim() || null]))
+      : new Map<number, string | null>();
+    const unsub = unsubscribeUrl(String(r.token));
+    const mail = welcomeEmail({
+      links: { site: siteUrl(), unsubscribe: unsub, email: String(r.email) }, name: firstName(r.display_name),
+      teams: teams.map((t) => ({ team: t, teamName: names.get(t) ?? null })),
+    });
     await sendEmail(String(r.email), mail.subject, mail.text, mail.html, {
       headers: { "List-Unsubscribe": `<${unsub}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     });
     return "sent";
   } catch (e) {
+    // Any failure after the claim (reading the teams, building or sending the email) leaves it unsent: clear the mark.
     if (!o.force) await run("UPDATE digest_prefs SET welcomed_at = NULL WHERE user_id = ? AND welcomed_at = ?", [userId, at]);
     console.warn(`[digest] welcome not sent to account ${userId}: ${(e as Error)?.message ?? e}`);
     return "failed";
