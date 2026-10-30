@@ -37,3 +37,6 @@ export function sheetReview(s: FactorSheet, winner: "A" | "B" | "tie" | null): {
   const right = leaning.filter((f) => f.favors === winner);
   return { right: right.length, leaning: leaning.length, rightWeight: right.reduce((a, f) => a + f.weight, 0) };
 }
+
+/** Who won a played match, in the sheet's sides (A = red). */
+export const sheetWinner = (red: number, blue: number): "A" | "B" | "tie" => (red === blue ? "tie" : red > blue ? "A" : "B");

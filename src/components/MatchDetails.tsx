@@ -18,6 +18,8 @@ import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
 import { BonusOdds } from "./BonusOdds";
+import { FactorSheetPanel } from "./FactorSheet";
+import { sheetWinner } from "../shared/factorSheet";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
@@ -228,6 +230,7 @@ function Prediction({ d }: { d: MatchDetail }) {
       {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 bg-text-base/[0.02]" />}
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} reasons={p.reasons} className="mt-1.5" /></> : null}
       {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
+      {p.sheet && <FactorSheetPanel sheet={p.sheet} winner={played ? sheetWinner(m.red.score!.total, m.blue.score!.total) : null} className="mt-3" />}
       <CalibrationLine pRed={p.pRed} compact className="mt-3" />
     </section>
   );
