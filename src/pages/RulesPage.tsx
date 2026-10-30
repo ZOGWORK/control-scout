@@ -162,7 +162,7 @@ export default function RulesPage() {
 
       <div className="mt-6 max-sm:mt-4 relative max-w-xl">
         <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-        <Input ref={search} value={query} onChange={(e) => setQuery(e.target.value)} type="search" enterKeyHint="search"
+        <Input ref={search} value={query} onChange={(e) => setQuery(e.target.value)} enterKeyHint="search"
           placeholder="Search rules, e.g. pin, G407, NECTAR, question box" aria-label="Search the rules" className="h-12 rounded-xl pl-10 pr-10 text-base" />
         {searching && (
           <button type="button" onClick={() => { setQuery(""); search.current?.focus(); }} aria-label="Clear search" className="absolute right-2 top-1/2 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"><X className="size-4" /></button>

@@ -413,6 +413,11 @@ const flows: Flow[] = [
         // A page never opened online: its code chunk must come from the precache.
         await page.goto(`${PROD}/methodology`, { waitUntil: "domcontentloaded" });
         await page.getByRole("heading", { name: /How Control Scout predictions work/ }).waitFor({ timeout: 15_000 });
+        // The rules quick reference: built into the app, so it opens and searches with no server.
+        await page.goto(`${PROD}/rules`, { waitUntil: "domcontentloaded" });
+        await page.getByLabel("Search the rules").fill("pin");
+        await page.locator("li#G421").waitFor({ timeout: 15_000 });
+        assert(await page.locator("li#R601").count() === 0, "rules search didn't narrow the list offline");
         // A prediction with no server: from the lite pack.
         await page.goto(`${PROD}/predict?red=18360,24089&blue=14380,23636&season=2025`, { waitUntil: "domcontentloaded" });
         await page.getByText(/to win/).first().waitFor({ timeout: 20_000 });
@@ -420,7 +425,7 @@ const flows: Flow[] = [
         assert(/offline|lite pack|on this device/i.test(body), "prediction shown but not labelled as offline");
         assert(/(Rough guess|Fair|Solid)/i.test(body), "offline prediction has no tier");
         await ctx.setOffline(false);
-        return "first visit: no lite pack; returning visit: lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; a match prediction runs from the lite pack, labelled offline, with a tier";
+        return "first visit: no lite pack; returning visit: lite pack saved automatically; offline reload opens the app; an unvisited page loads from the precache; the rules reference opens and searches offline; a match prediction runs from the lite pack, labelled offline, with a tier";
       } finally {
         await ctx.setOffline(false);
         if (process.platform === "win32" && server.pid) spawnSync("taskkill", ["/pid", String(server.pid), "/T", "/F"], { stdio: "ignore" }); else server.kill();

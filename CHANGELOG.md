@@ -20,12 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 A rules quick reference for the question box: the most-cited BIOBUZZ rules and Q&A rulings, searchable with no signal.
 
 ### Highlights
-- [offline] Rules quick reference: search BIOBUZZ rules by number or word, even offline
+- [offline] Rules quick reference: search BIOBUZZ rules, even offline
 - [live] Penalties at a glance: minor, major and card for each rule
 - [report] Q&A rulings summarised next to the rules they answer
 
 ### Rules quick reference
-- **New page: Rules.** In the menu under More, and a Rules button on every BIOBUZZ event page. It summarises 73 of the most-cited rules in our own words, grouped by manual section: fouls and cards, pre-match, AUTO, scoring elements, robot and opponent contact, humans, robot construction, and the question box itself.
+- **New page: Rules.** In the menu under More, and a Rules button on every BIOBUZZ event page. It summarises 79 of the most-cited rules in our own words, grouped by manual section: fouls and cards, pre-match, AUTO, scoring elements, robot and opponent contact, humans, robot construction, and the question box itself.
 - **Search that works offline.** Type a rule number (G421, g 421, G-421) or a word (pin, opponent nectar, question box); it runs in the browser over the copy built into the app, so it answers at a venue with no signal.
 - **Q&A rulings, labelled unofficial guidance.** 23 answered Q&A questions, summarised, each linked from the rules it is about.
 - **Stamped and honest.** The page names the manual revision and date it follows and says plainly that these are unofficial summaries, with links to the official manual and Q&A.
