@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -48,6 +48,7 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/power-rankings", label: "Power rankings", icon: Trophy },
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
+    { to: "/rules", label: "Rules", icon: Gavel },
     { to: "/download", label: "Download", icon: Download },
     { to: "/methodology", label: "How it works", icon: BookOpen },
     { to: "/settings", label: "Settings", icon: Settings },
