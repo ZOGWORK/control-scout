@@ -29,6 +29,8 @@ export interface TeamWeek {
   season: number; code: string; event: string;
   /** The team's last match day there in the period: the order (most recent first). */
   lastDay: string;
+  /** The event began before the period: `record` counts only the period's matches (reported earlier ones aren't repeated). */
+  partial: boolean;
   record: { wins: number; losses: number; ties: number } | null;
   /** The event is over (it ended before the day the digest goes out). */
   finished: boolean;
@@ -109,8 +111,9 @@ export async function teamWeeks(teams: number[], from: string, to: string, send:
       get<any>(`SELECT et.rank, et.wins, et.losses, et.ties, e.type, r.rank meet_rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
                 LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team
                 WHERE et.season = ? AND et.code = ? AND et.team = ?`, [season, code, team]),
-      // Its record there as the team page counts it (src/shared/eventRecord.ts): every match, playoffs included.
-      get<any>(recordSql("mt.season = ? AND mt.code = ? AND mt.team = ?"), [season, code, team]),
+      // Its record there in the period, counted as the team page counts records (src/shared/eventRecord.ts): every match,
+      // playoffs included. Only the period's matches, so an event spanning two digests is never counted twice.
+      get<any>(recordSql(`mt.season = ? AND mt.code = ? AND mt.team = ? AND ${day} BETWEEN ? AND ?`), [season, code, team, from, to]),
       get<any>("SELECT opr_np FROM team_event_stats WHERE season = ? AND code = ? AND team = ?", [season, code, team]),
       all<any>("SELECT type FROM awards WHERE season = ? AND code = ? AND team = ? AND type IN ('Winner', 'Finalist')", [season, code, team]),
       get<any>("SELECT number, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ? AND ? IN (captain, pick1, pick2, backup)", [season, code, team]),
@@ -121,14 +124,17 @@ export async function teamWeeks(teams: number[], from: string, to: string, send:
          ORDER BY e.start DESC, e.code DESC LIMIT 1`, [team, season, code, r.start ?? r.last_day]),
     ]);
     const finished = String(r.end ?? r.start ?? r.last_day) < send;
+    const partial = String(r.start ?? r.last_day) < from;
     const types = new Set(awards.map((a) => a.type));
     const seat = alliance ? (["captain", "pick1", "pick2", "backup"] as const).find((k) => Number(alliance[k]) === team) ?? null : null;
     out.push({
       team, teamName: names.get(team) ?? null, season, code, event: String(r.name), lastDay: String(r.last_day),
-      // FIRST's ranking row only when we hold no scored match there, and never a league meet's: that's the league's
-      // running standing, earlier meets included. A meet's rank is its own (team_event_records), as on the team page.
+      // FIRST's ranking row only when we hold no scored match there, never a league meet's (that's the league's running
+      // standing, earlier meets included), and never for an event that began before the period (the whole event's row
+      // would repeat what an earlier digest reported). A meet's rank is its own (team_event_records), as on the team page.
+      partial,
       record: rec ? { wins: recordOf(rec).wins, losses: recordOf(rec).losses, ties: recordOf(rec).ties }
-        : et && et.wins != null && et.type !== "LeagueMeet" ? { wins: Number(et.wins), losses: Number(et.losses ?? 0), ties: Number(et.ties ?? 0) } : null,
+        : !partial && et && et.wins != null && et.type !== "LeagueMeet" ? { wins: Number(et.wins), losses: Number(et.losses ?? 0), ties: Number(et.ties ?? 0) } : null,
       finished, rank: n(et?.type === "LeagueMeet" ? et.meet_rank : et?.rank),
       playoff: types.has("Winner") ? { kind: "winner" } : types.has("Finalist") ? { kind: "finalist" }
         : alliance && seat ? { kind: "alliance", number: Number(alliance.number), seat } : null,

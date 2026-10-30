@@ -56,6 +56,8 @@ export const countdown = (days: number) => (days <= 0 ? "today" : days === 1 ? "
 export const ordinal = (k: number) => { const s = ["th", "st", "nd", "rd"], v = k % 100; return `${k}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`; };
 const pct = (c: { calls: number; right: number }) => `${Math.round((c.right / c.calls) * 100)}%`;
 const record = (r: NonNullable<TeamWeek["record"]>) => `${r.wins}–${r.losses}${r.ties ? `–${r.ties}` : ""}`;
+/** A row's record as the email words it: "8–2 record", or "3–0 since Sunday" when earlier matches went out before. */
+const recordText = (r: TeamWeek, d: DigestData) => (r.record ? `${record(r.record)}${r.partial ? ` ${sinceLabel(d)}` : " record"}` : null);
 const teamLabel = (t: { team: number; teamName: string | null }) => (t.teamName ? `${t.team} ${t.teamName}` : String(t.team));
 const SEAT: Record<string, string> = { captain: "captain", pick1: "first pick", pick2: "second pick", backup: "backup" };
 
@@ -150,7 +152,7 @@ export function renderText(d: DigestData, k: Links): string {
   if (d.results.length) {
     out.push("YOUR TEAMS' RESULTS", "");
     for (const r of d.results.slice(0, MAX_RESULTS)) {
-      const facts = [r.record && record(r.record), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `ranked ${ordinal(r.rank)} so far`), playoffText(r.playoff), oprTrend(r)?.text].filter(Boolean);
+      const facts = [r.record && (r.partial ? recordText(r, d) : record(r.record)), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `ranked ${ordinal(r.rank)} so far`), playoffText(r.playoff), oprTrend(r)?.text].filter(Boolean);
       out.push(`${teamLabel(r)} at ${r.event}`, `  ${facts.join(" · ") || "Results posted"}`, `  ${url(k.site, eventPath(r.season, r.code))}`, "");
     }
     const more = d.results.length - MAX_RESULTS;
@@ -206,8 +208,8 @@ function item(inner: string): string {
 const teamLine = (t: { team: number; teamName: string | null }, site: string) =>
   `<div style="font-size:16px;line-height:24px"><a href="${esc(url(site, `/teams/${t.team}`))}" class="cs-text" style="color:${L.text};text-decoration:none;font-weight:700">${t.team}</a>${t.teamName ? `<span class="cs-muted" style="color:${L.muted}"> ${esc(t.teamName)}</span>` : ""}</div>`;
 
-function resultItem(r: TeamWeek, site: string): string {
-  const chips = [r.record && `${record(r.record)} record`, r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `${ordinal(r.rank)} so far`), playoffText(r.playoff)]
+function resultItem(r: TeamWeek, site: string, d: DigestData): string {
+  const chips = [recordText(r, d), r.rank != null && (r.finished ? `${ordinal(r.rank)} seed` : `${ordinal(r.rank)} so far`), playoffText(r.playoff)]
     .filter((x): x is string => !!x).map(chip).join("");
   const t = oprTrend(r);
   return item(`${teamLine(r, site)}
@@ -258,7 +260,7 @@ export function renderHtml(d: DigestData, k: Links): string {
 
   if (d.results.length) {
     rows.push(h2("Your teams' results", `Record, seed and OPR at each event they played ${esc(sinceLabel(d))}.`));
-    for (const r of d.results.slice(0, MAX_RESULTS)) rows.push(resultItem(r, site));
+    for (const r of d.results.slice(0, MAX_RESULTS)) rows.push(resultItem(r, site, d));
     const more = d.results.length - MAX_RESULTS;
     rows.push(moreLink(more > 0 ? `${more} more played ${sinceLabel(d)}: see them all` : "See all your teams", url(site, "/my-team")));
   }

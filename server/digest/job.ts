@@ -22,9 +22,9 @@ import { cleanValue, EMPTY_STATE } from "../../src/shared/personal.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { latestRankings } from "../powerRankings/store.js";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings.js";
-import { buildDigest, hasNews, sectionsOf, type DigestData } from "./build.js";
+import { addDays, buildDigest, hasNews, sectionsOf, type DigestData } from "./build.js";
 import { renderDigest, TEMPLATE_VERSION } from "./template.js";
-import { dueSlot, nextSlot, previousSlot, type Slot } from "./schedule.js";
+import { dueSlot, nextSlot, type Slot } from "./schedule.js";
 
 type Log = (m: string) => void;
 const quiet: Log = () => {};
@@ -84,6 +84,23 @@ const accountNow = (userId: number) => get<any>(
      (SELECT value FROM user_state x WHERE x.user_id = d.user_id AND x.key = 'tracked') tracked
    FROM digest_prefs d JOIN users u ON u.id = d.user_id WHERE d.user_id = ?`, [userId]);
 
+/** How far back a digest ever reaches: a first digest, or one after a long gap, covers this many days at most. */
+export const MAX_LOOKBACK_DAYS = 7;
+
+/**
+ * Where an account's period starts: the date of its last digest that reported the days before it (sent, or empty
+ * with nothing to report), so a send that was skipped (an outage, the owner's switch, a schedule change) loses no
+ * days; at most MAX_LOOKBACK_DAYS back. The send log's key starts with the New York date either way (a slot
+ * "2026-11-03T17:28", or a Monday "2026-11-02" from the weekly schedule).
+ */
+export async function coverFrom(userId: number, slot: Slot): Promise<string> {
+  const floor = addDays(slot.date, -MAX_LOOKBACK_DAYS);
+  const last = await get<{ d: string | null }>(
+    "SELECT MAX(substr(week, 1, 10)) d FROM digest_sends WHERE user_id = ? AND substr(week, 1, 10) < ? AND status IN ('sent', 'bounced', 'skipped-empty')",
+    [userId, slot.date]);
+  return last?.d && last.d > floor ? last.d : floor;
+}
+
 export interface RunOptions {
   log?: Log;
   /** Spacing between sends, ms (tests: 0). */
@@ -100,9 +117,9 @@ export interface RunOptions {
 
 /** Build and send one slot's digests. Safe to run again for the same slot: each account goes out at most once. */
 export async function runDigest(slot: Slot, o: RunOptions = {}): Promise<RunSummary> {
-  // The period reported: from the previous slot's date to the day before this one; the next slot's date decides
-  // whether an upcoming event alone is worth an email (build.ts hasNews).
-  const week = slot.key, from = o.period?.from ?? previousSlot(slot).date, next = o.period ? o.period.next : nextSlot(slot.at).date;
+  // The next slot's date decides whether an upcoming event alone is worth an email (build.ts hasNews). Each account's
+  // period starts where its own last digest left off (coverFrom), so a skipped send loses no days.
+  const week = slot.key, next = o.period ? o.period.next : nextSlot(slot.at).date;
   const log = o.log ?? quiet, gap = o.gapMs ?? SEND_GAP_MS;
   const allowed = o.allowed ?? (() => isEnabled("weeklyDigest"));
   const s: RunSummary = { slot: week, sent: 0, failed: 0, skippedEmpty: 0, skippedOff: 0, skippedBounce: 0, already: 0, stopped: false };
@@ -123,6 +140,7 @@ export async function runDigest(slot: Slot, o: RunOptions = {}): Promise<RunSumm
       const followed = followedTeams(parse("myTeam", r.my_team) ?? null, (parse("tracked", r.tracked) ?? EMPTY_STATE.tracked).teams);
       if (!followed.length || !r.email) continue; // never enters the queue
       if (await get("SELECT 1 FROM digest_sends WHERE user_id = ? AND week = ?", [userId, week])) { s.already++; continue; }
+      const from = o.period?.from ?? await coverFrom(userId, slot);
       const data: DigestData = await buildDigest({ send: slot.date, from, next, season: o.season ?? CURRENT_SEASON, followed, name: firstName(r.display_name), rankings });
       const sections = sectionsOf(data);
       if (!hasNews(data)) { if (await claim(userId, week, "skipped-empty")) s.skippedEmpty++; else s.already++; continue; }

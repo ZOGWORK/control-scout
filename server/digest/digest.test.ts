@@ -13,7 +13,7 @@ import { invalidateFlags, setFlag } from "../flags";
 import { PRIVATE_TABLES } from "../data/snapshot";
 import type { PowerRankingsResponse } from "../../src/shared/powerRankings";
 import { buildDigest, sectionsOf } from "./build";
-import { digestTick, resetDigestTick, runDigest } from "./job";
+import { coverFrom, digestTick, resetDigestTick, runDigest } from "./job";
 import { renderDigest, headline } from "./template";
 import { dueSlot, mondayOf, nextSlot, previousSlot, slotsOfWeek, FIRST_HOUR, LAST_HOUR, SENDS_PER_WEEK, type Slot } from "./schedule";
 import { addDays } from "./build";
@@ -328,6 +328,36 @@ describe("the job", () => {
     await run("INSERT INTO event_registrations (season, code, team, fetched_at, shared) VALUES (?, 'USNJCMP', 6980, '2026-10-20', 1)", [SEASON]);
     const d = await buildDigest({ ...period(WEEK), season: SEASON, followed: [4215, 6980], name: null, rankings: rankings() });
     expect(d.upcoming.map((u) => u.team)).toEqual([4215]);
+  });
+
+  it("an event spanning two sends: each email counts only its own days' matches, never the earlier ones again", async () => {
+    await run("UPDATE matches SET red_np = red_total, blue_np = blue_total"); // scored, so the record counts them
+    // NJ Qualifier runs Oct 31 – Nov 1; 4215 won a match each day. Sent Nov 1 (Oct 26–31), then Nov 3 (Nov 1–2).
+    const first = await buildDigest({ send: "2026-11-01", from: "2026-10-26", season: SEASON, followed: [4215], name: null, rankings: rankings() });
+    const second = await buildDigest({ send: "2026-11-03", from: "2026-11-01", season: SEASON, followed: [4215], name: null, rankings: rankings() });
+    expect(first.results[0]).toMatchObject({ code: "USNJQ1", record: { wins: 1, losses: 0, ties: 0 }, partial: false });
+    expect(second.results[0]).toMatchObject({ code: "USNJQ1", record: { wins: 1, losses: 0, ties: 0 }, partial: true });
+    const m = renderDigest(second, { site: "https://controlscout.org", unsubscribe: "https://controlscout.org/u", email: "x@example.com" });
+    expect(m.text).toContain("1–0 since Sunday");
+    expect(m.html).toContain("1–0 since Sunday");
+    // With no scored match in its period, an event that began earlier never falls back to the whole event's ranking row.
+    await run("UPDATE matches SET red_np = NULL, blue_np = NULL");
+    const again = await buildDigest({ send: "2026-11-03", from: "2026-11-01", season: SEASON, followed: [4215], name: null, rankings: rankings() });
+    expect(again.results[0].record).toBeNull();
+  });
+
+  it("a period starts where the account's last digest left off, so a skipped send loses no days (7 days at most)", async () => {
+    const u = await user("cover@example.com", { myTeam: 4215 });
+    const slot = slotOn("2026-11-03");
+    expect(await coverFrom(u.id, slot)).toBe("2026-10-27"); // no digest yet: the last 7 days
+    const log = (key: string, status: string) => run("INSERT INTO digest_sends (user_id, week, status, template_version, created_at, updated_at) VALUES (?, ?, ?, 1, 'x', 'x')", [u.id, key, status]);
+    await log("2026-10-26", "sent"); // a weekly-schedule row (a Monday): older than the 7 days
+    expect(await coverFrom(u.id, slot)).toBe("2026-10-27");
+    await log("2026-10-29T12:00", "skipped-empty");
+    await log("2026-11-01T10:56", "failed"); // never delivered: its days are still to report
+    expect(await coverFrom(u.id, slot)).toBe("2026-10-29");
+    await log("2026-11-01T11:00", "sent");
+    expect(await coverFrom(u.id, slot)).toBe("2026-11-01");
   });
 
   it("a team at two events the same weekend shows both, grouped by event, most recent first", async () => {

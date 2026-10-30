@@ -46,9 +46,13 @@ load. The app never names a send day or time; it says "a few times a week".
 
 ## What it says
 
-One period definition everywhere: from the previous send's date to the day
-before this send, by each match's own (event-local) date, so consecutive
-digests cover every day exactly once. Every number comes from stored data; nothing
+One period definition everywhere: from the date of the account's last digest
+that reported (sent, or empty with nothing to report) to the day before this
+send, at most 7 days back, by each match's own (event-local) date. So a send
+that was skipped (an outage, the owner's switch) loses no days, a failed send's
+days are reported next time, and consecutive digests cover every day once.
+An event that runs across two sends is counted by each only for its own days'
+matches ("3–0 since Sunday"), never the whole event again. Every number comes from stored data; nothing
 calls FIRST or any other service at send time.
 
 1. **Your teams' results.** One row per team and event with a result in the period:
