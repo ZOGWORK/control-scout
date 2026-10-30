@@ -36,6 +36,7 @@
     "slices": "tsx scripts/engine-slices.ts",
     "projections": "tsx scripts/projections.ts",
     "projections:replay": "tsx scripts/projections-replay.ts",
+    "schedule:eval": "tsx scripts/schedule-difficulty-eval.ts",
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
     "audit:flows": "tsx scripts/audit-flows.ts",
