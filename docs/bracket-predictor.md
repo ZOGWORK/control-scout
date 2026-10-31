@@ -30,13 +30,13 @@ A double-elimination event that numbers its series from 0 is shifted to the brac
 
 | | Series | Favourite won | Brier | Higher seed won |
 |---|---:|---:|---:|---:|
-| All | 10,598 | **77.9%** | **0.151** | 71.8% |
-| First round | 3,700 | 81.5% | 0.128 | 76.3% |
-| Later rounds | 6,898 | 76.0% | 0.163 | 69.3% |
+| All | 10,598 | **77.9%** | **0.151** | 71.7% |
+| First round | 3,701 | 81.5% | 0.128 | 76.3% |
+| Later rounds | 6,897 | 76.0% | 0.163 | 69.3% |
 | Double elimination (2024–25 on) | 9,106 | 77.5% | 0.154 | 71.0% |
 | Semifinals + final (2023–24) | 1,269 | 81.5% | 0.123 | 78.0% |
 | 2-alliance final | 133 | 74.4% | 0.159 | 70.7% |
-| Unknown format (calls only) | 90 | 70.0% | 0.182 | 57.8% |
+| Unknown format (calls only) | 90 | 71.1% | 0.175 | 56.7% |
 
 "Higher seed won" is the naive call for comparison: the model beats it by about six points.
 

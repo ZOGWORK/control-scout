@@ -3,7 +3,7 @@
 export const BRACKET_ACCURACY = {
   seasons: [2023, 2024, 2025],
   /** Series calls: how many, how often the favourite won, Brier score, and how often the higher seed won (the naive call). */
-  series: { n: 10598, accuracy: 0.779, brier: 0.151, higherSeedAccuracy: 0.718 },
+  series: { n: 10598, accuracy: 0.779, brier: 0.151, higherSeedAccuracy: 0.717 },
   /** Championship odds before the first playoff match: alliance-events scored and Brier score. */
   championship: { n: 7370, brier: 0.072 },
 } as const;
