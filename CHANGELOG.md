@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Every event's rankings get a Schedule column: how strong each team's opponents and partners are next to the rest of the field.
 
 ### Highlights
-- [rankings] A Schedule column in every event's rankings: how hard each team's draw is
+- [rankings] A Schedule column in every event's rankings: how hard each draw is
 - [teams] Team pages show how hard their draw is at each event
 - [rankings] Model vs field folds into one line until you open it
 - [offline] Saved season packs carry it too
