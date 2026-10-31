@@ -30,7 +30,7 @@ Search understands what you're asking about a team or event: "hypnotic awards" o
 - **Numbers in the answer.** The top team shows the numbers asked about, from its newest season: ranking score and rank at its latest event, OPR and OPR rank, record and win rate, awards and the latest one, matches and average score. A number that isn't stored is left out, never estimated.
 - **Opens in the right place.** A team opens at its awards, event history or matches; an event opens on that tab (rankings, awards, odds, playoffs, matches).
 - **Typos.** A misspelled topic word is forgiven when the query would otherwise find nothing, and words like "team" no longer stop a search ("violet fusion team").
-- The same answers in the search box at the top and on the address-bar search page. A plain name, number or match query ("AUSYQ1 Q12") works exactly as before, and a team whose own name has the word ("Match Point") still comes first.
+- The same answers in the search box at the top and on the address-bar search page. A plain name, number or match query ("AUSYQ1 Q12") works exactly as before, and a team whose own name has the word ("Match Point") still comes first (#366).
 
 ## 1.6.7 — 2026-10-31
 
