@@ -138,7 +138,9 @@ function BundleContents({ b, meta, onRemove }: { b: EventBundle; meta: SavedBund
   );
 }
 
-/** /bundle/:season/:code/picklist: the live pick list when it loads, else the frozen one. */
+/** /bundle/:season/:code/picklist: the frozen pick list at once, while the live one is asked for; when the live
+ *  one loads, it takes over (the same season). A request that never answers (venue wifi that carries nothing)
+ *  never hides the snapshot. */
 export function BundlePicklistPage() {
   const { season, code } = useParams();
   const s = /^\d{4}$/.test(season ?? "") ? Number(season) : null;
@@ -149,17 +151,21 @@ export function BundlePicklistPage() {
   useEffect(() => {
     if (!ws || s == null) { setLive("unavailable"); return; }
     let on = true;
+    setLive("trying");
     apiFetch(`/api/scout/workspaces/${encodeURIComponent(ws)}/picklist?season=${s}`).then(() => on && setLive("loaded"), () => on && setLive("unavailable"));
     return () => { on = false; };
   }, [ws, s]);
-  if (live === "loaded" && ws) return <Navigate to={`/scout?space=${encodeURIComponent(ws)}&view=picklist`} replace />;
+  if (live === "loaded" && ws && s != null) return <Navigate to={`/scout?space=${encodeURIComponent(ws)}&view=picklist&season=${s}`} replace />;
   if (!meta) return <Page><NoBundle season={s} code={code ?? ""} /></Page>;
-  if (loading || live === "trying") return <Page><div className="skeleton h-72 rounded-2xl" /></Page>;
+  if (loading) return <Page><div className="skeleton h-72 rounded-2xl" /></Page>;
   if (!bundle?.picklist) return <Page><EmptyState icon={ListOrdered} title="No pick list in this bundle" description="Bundles made while signed in with a scouting workspace hold its pick list." /></Page>;
   return (
     <Page>
       <Link to={`/bundle/${meta.season}/${encodeURIComponent(meta.code)}`} className="mb-3 inline-flex min-h-9 items-center text-sm text-muted-foreground hover:text-foreground">← {meta.name} bundle</Link>
-      <SnapshotBanner at={bundleTime(meta)}>Couldn't load the live pick list, so this is the one from your bundle. Picks made since aren't in it.</SnapshotBanner>
+      <SnapshotBanner at={bundleTime(meta)}>
+        {live === "trying" ? "Checking for the live pick list; it replaces this as soon as it loads. " : "Couldn't load the live pick list, so this is the one from your bundle. "}
+        Picks made since aren't in it.
+      </SnapshotBanner>
       <SnapshotFrame html={bundle.picklist.html} title="Pick list, snapshot" />
     </Page>
   );

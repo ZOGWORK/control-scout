@@ -190,6 +190,17 @@ describe("a public bundle", () => {
     expect(c.sections.find((s) => s.id === "venue")!.version).toBe(a.sections.find((s) => s.id === "venue")!.version);
   });
 
+  it("a newer data time with nothing changed keeps the version (the printed snapshot time isn't hashed)", async () => {
+    await kvSet("sync:last", { at: "2026-10-30T07:00:00.000Z" });
+    clearBundleCache();
+    const a = (await manifest(anon, "?team=13")).json;
+    await kvSet("sync:last", { at: "2026-10-30T09:30:00.000Z" });
+    clearBundleCache();
+    const b = (await manifest(anon, "?team=13")).json;
+    expect(b.dataAsOf).not.toBe(a.dataAsOf);
+    expect(b.version).toBe(a.version);
+  });
+
   it("no team: event data only, and it says how to add your matches", async () => {
     const m = (await manifest(anon)).json;
     expect(m.sections.find((s) => s.id === "reports")).toMatchObject({ items: 0, note: expect.stringMatching(/your team/i) });

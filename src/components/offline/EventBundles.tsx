@@ -81,7 +81,9 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
   const [pct, setPct] = useState<number | null>(null);
 
   // Your team, when it's at this event; else the first pick stays "no team" until chosen.
-  const field = m?.manifest?.field ?? [];
+  // The event's teams outlive a manifest (changing team asks again for the same event's field).
+  const [fieldOf, setFieldOf] = useState<{ code: string; field: [number, string | null][] } | null>(null);
+  const field = ev && fieldOf?.code === ev.code ? fieldOf.field : [];
   const myHere = state.myTeam != null && field.some(([t]) => t === state.myTeam) ? state.myTeam : null;
   const teamNow = team === undefined ? myHere : team;
   const req: BundleRequest | null = ev ? { season: ev.season, code: ev.code, team: teamNow, workspace: workspace?.id ?? null } : null;
@@ -90,8 +92,13 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
   useEffect(() => {
     if (!req) return;
     let live = true;
-    setM((x) => (x?.key === reqKey ? x : { key: reqKey, manifest: x?.manifest?.code === req.code ? x.manifest : undefined }));
-    bundles().then((b) => b.fetchBundleManifest(req)).then((manifest) => live && setM({ key: reqKey, manifest }), (e: Error) => live && setM({ key: reqKey, error: e.message }));
+    // A new request: no manifest until its own answer (an older one's file would be the wrong team or workspace).
+    setM({ key: reqKey });
+    bundles().then((b) => b.fetchBundleManifest(req)).then((manifest) => {
+      if (!live) return;
+      setM({ key: reqKey, manifest });
+      setFieldOf({ code: manifest.code, field: manifest.field });
+    }, (e: Error) => live && setM({ key: reqKey, error: e.message }));
     return () => { live = false; };
   }, [reqKey]);
 

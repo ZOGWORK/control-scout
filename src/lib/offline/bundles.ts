@@ -49,7 +49,7 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
     reports: m.sections.find((s) => s.id === "reports")?.items ?? 0, picklist: !!m.workspace,
   };
   writeBundles([...savedBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]);
-  memo.delete(bundleKey(m.season, m.code));
+  for (const k of memo.keys()) if (k.startsWith(`${bundleKey(m.season, m.code)}@`)) memo.delete(k);
   return saved;
 }
 
@@ -60,16 +60,19 @@ export function loadBundle(season: number, code: string): Promise<EventBundle | 
   const meta = bundleFor(season, code);
   if (!meta) return Promise.resolve(null);
   const key = bundleKey(meta.season, meta.code);
-  let p = memo.get(key);
+  // By version too: another tab may have saved a newer bundle for this event since this one was decoded.
+  const memoKey = `${key}@${meta.version}`;
+  let p = memo.get(memoKey);
   if (!p) {
     p = (async () => {
       const v = await getv<{ bytes: Uint8Array; version: string }>(key);
       if (!v?.bytes) return null;
       const text = await new Response(new Response(v.bytes as Uint8Array<ArrayBuffer>).body!.pipeThrough(new DecompressionStream("gzip"))).text();
       const b = JSON.parse(text) as EventBundle;
-      return b.format === BUNDLE_FORMAT ? b : null;
+      return b.format === BUNDLE_FORMAT && b.manifest.version === meta.version ? b : null;
     })().catch(() => null);
-    memo.set(key, p);
+    for (const k of memo.keys()) if (k.startsWith(`${key}@`)) memo.delete(k);
+    memo.set(memoKey, p);
   }
   return p;
 }
@@ -79,7 +82,7 @@ export async function removeBundle(season: number, code: string): Promise<void> 
   if (!meta) return;
   const key = bundleKey(meta.season, meta.code);
   await del(key);
-  memo.delete(key);
+  for (const k of memo.keys()) if (k.startsWith(`${key}@`)) memo.delete(k);
   writeBundles(savedBundles().filter((b) => !(b.season === meta.season && b.code === meta.code)));
 }
 

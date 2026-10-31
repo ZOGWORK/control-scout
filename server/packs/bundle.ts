@@ -88,6 +88,8 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
 
   // Your team's matches, frozen as static HTML.
   const reports: HtmlSnapshot[] = [];
+  // What the reports are made of, for their version: the HTML prints the snapshot time, which moves without new data.
+  const reportData: unknown[] = [];
   const mine = team != null ? ev.matches.filter((m) => teamsOf(m).includes(team)).slice(0, MAX_REPORTS) : [];
   for (const m of mine) {
     const r = await matchReport(season, code, m.key);
@@ -99,6 +101,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
       picklist: wsPart.picks.picks.map((p) => p.team).filter((t) => lineup.includes(t)),
       assignedToMe: [],
     } : null;
+    reportData.push({ r, ws });
     reports.push({ key: m.key, label: m.label, time: m.time, html: matchReportHtml(r, ws, { asOf, timezone: tz, mine: team, workspaceName: workspace?.name ?? null }) });
   }
 
@@ -112,9 +115,9 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     section("event", "Teams, schedule and rankings", ev, ev.field.length, ev.matches.length ? null : "No schedule published yet: it's in the bundle once FIRST posts it."),
     // The book's clock (`now`) moves with every build; the ratings themselves only with new results.
     section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0 }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
-    section("reports", "Know your match reports", reports.map((r) => r.html), reports.length,
+    section("reports", "Know your match reports", reportData, reports.length,
       team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null),
-    section("picklist", "Pick list", picklist?.html ?? null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list."),
+    section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list."),
     section("rules", "Rules reference", rules, rules ? 1 : 0, rules ? null : "The rules reference isn't in bundles yet."),
     section("venue", "Venue card", venue, 1),
   ];

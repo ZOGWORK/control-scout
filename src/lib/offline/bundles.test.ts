@@ -6,10 +6,11 @@ import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { downloadBundle, loadBundle, pruneFinished, removeBundle } from "./bundles";
+import { put } from "../packs";
 import { bundleFor, savedBundles, writeBundles } from "./bundleMeta";
 import { offlineAnswer } from "./answer";
 import { offlineSource } from "./saved";
-import type { BundleManifest, EventBundle } from "../../shared/eventBundle";
+import { bundleKey, type BundleManifest, type EventBundle } from "../../shared/eventBundle";
 
 const bundle = (version: string): EventBundle => ({
   format: 1,
@@ -36,6 +37,18 @@ describe("event-day bundles on the device", () => {
     serve("v2");
     await downloadBundle(req);
     expect(savedBundles().map((b) => b.version)).toEqual(["v2"]);
+    expect((await loadBundle(2025, "USTXQ1"))?.manifest.version).toBe("v2");
+  });
+
+  it("a newer bundle saved by another tab is read, never the copy decoded before", async () => {
+    serve("v1");
+    const req = { season: 2025, code: "USTXNXLT", team: 13, workspace: null };
+    await downloadBundle({ ...req, code: "USTXQ1" });
+    expect((await loadBundle(2025, "USTXQ1"))?.manifest.version).toBe("v1");
+    // Another tab: new bytes in IndexedDB and a new list entry, nothing through this tab's download.
+    const gz = new Uint8Array(gzipSync(JSON.stringify(bundle("v2"))));
+    await put(bundleKey(2025, "USTXQ1"), { bytes: gz, version: "v2" });
+    writeBundles(savedBundles().map((b) => ({ ...b, version: "v2" })));
     expect((await loadBundle(2025, "USTXQ1"))?.manifest.version).toBe("v2");
   });
 
