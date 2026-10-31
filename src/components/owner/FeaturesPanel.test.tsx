@@ -28,11 +28,12 @@ beforeEach(() => { sent.length = 0; toasts.length = 0; });
 afterEach(cleanup);
 
 describe("FeaturesPanel", () => {
-  it("shows the seven v1 toggles as cards with their state and scope, then the kill switches", () => {
+  it("shows every feature toggle as a card with its state and scope, then the kill switches", () => {
     const { container } = render(<FeaturesPanel />);
     const cards = [...container.querySelectorAll("li[data-flag]")].map((li) => li.getAttribute("data-flag"));
-    expect(cards.slice(0, 7)).toEqual([...FEATURE_FLAGS]);
-    expect(cards.slice(7)).toEqual(FLAGS.filter((f) => FLAG_META[f].group === "kill"));
+    const n = FEATURE_FLAGS.length;
+    expect(cards.slice(0, n)).toEqual([...FEATURE_FLAGS]);
+    expect(cards.slice(n)).toEqual(FLAGS.filter((f) => FLAG_META[f].group === "kill"));
     const coin = container.querySelector('li[data-flag="coinFlips"]') as HTMLElement;
     expect(within(coin).getByText("Coin flips")).toBeTruthy();
     expect(within(coin).getByText("Off")).toBeTruthy();
@@ -40,7 +41,7 @@ describe("FeaturesPanel", () => {
     const ws = container.querySelector('li[data-flag="workspaceScouting"]') as HTMLElement;
     expect(within(ws).getByText("Per workspace", { selector: "span" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Kill switches" })).toBeTruthy();
-    expect(screen.getByText(/1 of 7 off right now/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`1 of ${n} off right now`))).toBeTruthy();
   });
 
   it("a global flip asks first, says what turns off and that nothing is deleted, then sends confirm", async () => {
