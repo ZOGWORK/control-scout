@@ -17,20 +17,21 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 1.5.7 — 2026-10-31
 
-Every team's qualification schedule now gets a difficulty rating: how strong its opponents and partners are next to the rest of the field.
+Every event's rankings get a Schedule column: how strong each team's opponents and partners are next to the rest of the field.
 
 ### Highlights
-- [rankings] Schedule difficulty for every team on the event page's Rankings tab
+- [rankings] A Schedule column in every event's rankings: how hard each team's draw is
 - [teams] Team pages show how hard their draw is at each event
-- [rankings] Mid-event, see what's still to play next to the full schedule
+- [rankings] Model vs field folds into one line until you open it
 - [offline] Saved season packs carry it too
 
 ### Schedule difficulty
-- **"3rd-hardest of 24", said in words.** Each team's opponents' and partners' average rating against the field's, for example "Opponents average +38 over the field's, partners −12." Hardest first, with a word (Hard, Tough, Average, Kind, Easy) and a strip showing how far from average it is.
-- **Before and during the event.** Before the first match it covers the whole schedule. Once quals are under way, the matches still to play lead and the full schedule is one tap away.
+- **A Schedule column in the rankings.** Each team's opponents' average rating over the field's, minus its partners', next to its record: red for a hard draw, green for a kind one. Tap a value for it in words, for example "3rd-hardest of 24. Opponents average +38 over the field's, partners −12." Sort and filter on it like any column; "Sched. left", "Opp. vs field" and "Partners vs field" are in the column picker.
+- **Before and during the event.** Before the first match it covers the whole schedule. Once quals are under way, the live standings add "Sched. left" for the matches still to play. Team pages show the team's draw at each event.
 - **Every team rated.** Teams with no result yet this season start from last season's rating, as everywhere else on the site.
 - **It matters.** Across the 2023–2025 seasons, a schedule one step harder than average cost a team about 2 places in the final ranking against its rating (docs/schedule-difficulty.md) (#357).
 - **Offline and for other features.** Season packs carry it as a team stat, and the event and team API answers include it.
+- **Tidier Rankings tab.** Model vs field starts folded to one line with its count of gaps; tap it to open. On a phone, the standings table shows team numbers only, and a tap on a number gives the name and a link to the team page.
 - **An owner switch.** The owner console's Features tab has a Schedule difficulty toggle: off hides it on event and team pages and leaves it out of the event and team answers.
 ## 1.5.6 — 2026-10-30
 

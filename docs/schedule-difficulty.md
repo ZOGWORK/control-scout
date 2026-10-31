@@ -26,24 +26,36 @@ Details:
   `src/shared/projectionInput.ts`): the season's rating book with any fresh results from this event folded in.
   A team with no result yet this season gets the engine's existing prior (its last-season rating carried over,
   or the rookie prior). Nothing new is invented.
+- **The posted draw**, not who took the field: a no-show doesn't change whom a team was drawn with or against.
 - **Surrogate appearances** don't count toward a team's rank, so they're left out of that team's own schedule.
+- **Ties share a place** from both ends: two teams tied for the easiest draw are both "easiest of N".
 - **Two views.** `full` over every qualification match. Once quals are under way, `remaining` over the matches
-  still to play (null before the first result, after the last, and once the event's last day has passed).
+  still to play (null before the first result, after the last, and once the event's last day has passed by its
+  venue's calendar).
 - No figure without a posted schedule (the simulator's random stand-in schedule is never rated), or for a
   field under 6 teams.
 
 ## Where it shows
 
-- **Event page, Rankings tab:** every team, hardest first, with the plain line. Mid-event, "Still to play"
-  leads and "Full schedule" is one tap away; each row also names the other view's rank.
+- **Event page, Rankings tab: a Schedule column** in the rankings table, next to the record it helps explain. Hard
+  draws are red, kind ones green; tap (or hover) a value for the plain line and its place in the field. The records
+  table reads it from `team_event_records` (`schedule`, `schedule_left`, `schedule_opp`, `schedule_part`,
+  migration 60), filled by the stats job (`fillScheduleDifficulty` in `server/stats/records.ts`), so it sorts and
+  filters like any column; "Sched. left", "Opp. vs field" and "Partners vs field" are in the column picker. The
+  live standings (during an event) and the plain standings table (before the stats update) read the event detail's
+  figures instead, so they're current to the last result; mid-event they add a "Sched. left" column.
 - **Team page:** one card per event of the season with a posted schedule.
 - **API:** `GET /api/events/:season/:code` → `scheduleDifficulty` (the whole field);
-  `GET /api/teams/:number` → `schedule` (that team, per event). Server helpers in
-  `server/predict/scheduleDifficulty.ts`: `eventSchedule(season, code)` (cached per data version) and
-  `seasonScheduleDifficulty(f, leanEventInputs(season))` for a whole season. Anything with a `Forecaster` and an
-  `EventInput` can call `eventScheduleDifficulty(f, ev)` directly.
+  `GET /api/teams/:number` → `schedule` (that team, per event); the records API's `scheduleDifficulty`,
+  `scheduleLeft`, `scheduleOpponents` and `schedulePartners` fields. Server helpers in
+  `server/predict/scheduleDifficulty.ts`: `eventSchedule(season, code)` (cached per data version and per whether
+  the event is over) and `seasonScheduleDifficulty(f, leanEvents(season))` for a whole season. Anything with a
+  `Forecaster`, an `EventInput` and the posted draw can call `eventScheduleDifficulty(f, ev, { posted, over })`.
 - **Offline packs:** a `team_schedule_difficulty` table in each season pack (`src/shared/packSchema.ts`),
-  computed when the pack is built (about 12 s for a full season). Older packs without it show no figure.
+  computed when the pack is built (about 12 s for a full season). Older packs without it show no figure; figures
+  saved mid-event drop "still to play" once the event is over.
+- **Owner toggle:** `scheduleDifficulty` on the owner console's Features tab. Off hides the column and the team
+  page section, leaves the fields out of the event and team answers, and refuses the records columns.
 
 ## Does it explain anything? Measured on past seasons
 
