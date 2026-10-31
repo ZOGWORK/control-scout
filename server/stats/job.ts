@@ -17,7 +17,7 @@ import { normalize } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 import { onRecord } from "../../src/shared/eventRecord.js";
-import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
+import { computeRecords, fillAdvancementOdds, fillRecordPredictions, fillScheduleDifficulty } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
@@ -500,6 +500,7 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
     if (isLegacy(s)) continue;
     await fillRecordPredictions(s, log);
     await fillAdvancementOdds(s, log);
+    await fillScheduleDifficulty(s, log);
   }
   await scoreLivePredictions(log);
   // Report cards read the scored live calls: right after they're scored. Every season whose scored live

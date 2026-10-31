@@ -77,7 +77,7 @@ import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
-import { allFlags, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
+import { allFlags, featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
 import { linkedAccountId } from "./auth/controlPoint.js";
@@ -523,6 +523,7 @@ export function createApp(opts: { dist?: string } = {}) {
   // --- Records: season stat tables with filters (src/shared/filterDsl.ts) --
 
   const recordsLimit = limiter(120), recordsCsvLimit = limiter(10);
+  const SCHEDULE_STAT = /schedule(Difficulty|Left|Opponents|Partners)/;
   const records = (kind: "teams" | "matches") => [
     (req: Request, res: Response, next: NextFunction) => (req.query.format === "csv" ? recordsCsvLimit : recordsLimit)(req, res, next),
     h(async (req, res) => {
@@ -533,6 +534,8 @@ export function createApp(opts: { dist?: string } = {}) {
       const scope = kind === "matches" ? "match" : scopeRaw === "season" ? "teamSeason" : "teamEvent";
       const format = req.query.format ?? "json";
       if (format !== "json" && format !== "csv") throw bad("format must be json or csv");
+      // The owner's scheduleDifficulty toggle off: its columns can't be asked for, sorted or filtered on.
+      if (scope === "teamEvent" && SCHEDULE_STAT.test(JSON.stringify(req.query)) && !(await isEnabled("scheduleDifficulty"))) { featureDisabled(res, "scheduleDifficulty"); return undefined; }
       try {
         const q = recordsQuery(scope, req.query as Record<string, unknown>, format === "csv" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
         if (format === "csv") { await streamRecordsCsv(s, q, res, `control-scout-${s}-${kind}${scope === "teamSeason" ? "-season" : ""}.csv`); return undefined; }

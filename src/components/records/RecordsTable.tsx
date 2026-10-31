@@ -31,6 +31,8 @@ import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome
 import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 import { emptyColumns } from "../../lib/eventRankingNotes";
+import { SCHEDULE_STATS, ScheduleValue } from "../ScheduleDifficulty";
+import { useFlag } from "../../lib/flags";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -90,7 +92,9 @@ export function RecordsTable(p: RecordsTableProps) {
   }, [navigate, loc.pathname, loc.hash, sp, scope, defaultSort]);
 
   // Columns: the URL's, else this device's choice for this table, else the defaults (a newly ticked one goes last).
-  const pickable = useMemo(() => new Set(pickableStats(scope, predictable).map((s) => s.key)), [scope, predictable]);
+  // The owner's scheduleDifficulty toggle off: its columns aren't offered (and a saved choice of them is dropped).
+  const scheduleOn = useFlag("scheduleDifficulty");
+  const pickable = useMemo(() => new Set(pickableStats(scope, predictable).map((s) => s.key).filter((k) => scheduleOn || !SCHEDULE_STATS.has(k))), [scope, predictable, scheduleOn]);
   const [stored, setStored] = useState(() => readCols(p.storageKey));
   const cols = useMemo(() => (state.cols ?? stored ?? p.defaultCols).filter((k) => pickable.has(k)), [state.cols, stored, p.defaultCols, pickable]);
   const setCols = (next: string[] | null) => { writeCols(p.storageKey, next); setStored(next); setState({ ...state, cols: next }, true); };
@@ -106,7 +110,9 @@ export function RecordsTable(p: RecordsTableProps) {
   const req = { season, scope, state, fields, code, ...(code ? { pageSize: RECORDS_MAX_PAGE_SIZE } : {}) };
   // Match rows also carry the scores and the prediction the phone summary is built from, whatever columns
   // are picked (the CSV export keeps to the picked columns).
-  const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])] : fields), [scope, fields, predictable]);
+  // The Schedule column's tap-for-words needs the opponents and partners behind it.
+  const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])]
+    : fields.includes("scheduleDifficulty") ? [...new Set([...fields, "scheduleOpponents", "schedulePartners"])] : fields), [scope, fields, predictable]);
   // An unreadable filter or unknown country asks nothing: the rows would be broader than the link says.
   const api = useApi<Resp>(state.filterError || state.countryUnknown ? null : recordsUrl({ ...req, fields: fetchFields }));
   const last = useRef<Resp | undefined>(undefined);
@@ -553,7 +559,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
 
 /** A phone's Team cell: just the number (the column stays narrow, so more stats fit), and a tap shows the
  *  team's name with a link to its page. */
-function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
+export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
   return (
     <Popover>
       <PopoverTrigger className="rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
@@ -723,7 +729,9 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
-                      {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
+                      {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
+                        : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} />
+                        : formatStat(d, v)}
                     </td>
                   );
                 })}

@@ -26,14 +26,16 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const show = (code: string, v: DisagreementsView) => {
+/** Render it, opened (it starts collapsed) unless `open` is false. */
+const show = async (code: string, v: DisagreementsView, open = true) => {
   answers[`/api/events/2025/${code}/disagreements`] = { ...v, code };
   render(<MemoryRouter><ModelVsField season={2025} code={code} /></MemoryRouter>);
+  if (open && !v.hidden) fireEvent.click(await screen.findByRole("button", { name: /Model vs field/ }));
 };
 
 describe("ModelVsField", () => {
   it("states each call with its numbers and tier, as a call, not a verdict", async () => {
-    show("A", view({ rows: [row(18), row(2, { direction: "seed-higher", modelPlace: 14, seedPlace: 2, seed: { rank: 2, of: 24, event: null }, tier: "moderate" })] }));
+    await show("A", view({ rows: [row(18), row(2, { direction: "seed-higher", modelPlace: 14, seedPlace: 2, seed: { rank: 2, of: 24, event: null }, tier: "moderate" })] }));
     expect(await screen.findByText(/The model rates them #3 of 24; they're/)).toBeTruthy();
     expect(screen.getByText(/the model rates them #14 of 24/)).toBeTruthy();
     expect(screen.getByText("The model rates them higher than their seed")).toBeTruthy();
@@ -47,27 +49,38 @@ describe("ModelVsField", () => {
   });
 
   it("before quals, names the last event the seed comes from", async () => {
-    show("B", view({ mode: "pre-quals", rows: [row(7, { seed: { rank: 20, of: 22, event: { code: "P1", name: "Valley Qualifier" } }, oprKind: "season", record: null, rp: null })] }));
+    await show("B", view({ mode: "pre-quals", rows: [row(7, { seed: { rank: 20, of: 22, event: { code: "P1", name: "Valley Qualifier" } }, oprKind: "season", record: null, rp: null })] }));
     expect(await screen.findByText(/Before quals: seeds from each team's last event/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Valley Qualifier" }).getAttribute("href")).toBe("/events/2025/P1");
     expect(screen.getByText(/Season OPR/)).toBeTruthy();
   });
 
   it("shows three per side, the rest behind a button", async () => {
-    show("C", view({ rows: [1, 2, 3, 4, 5].map((t) => row(t)) }));
+    await show("C", view({ rows: [1, 2, 3, 4, 5].map((t) => row(t)) }));
     await screen.findByText("Team 1");
     expect(screen.queryByText("Team 4")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Show 2 more/ }));
     expect(screen.getByText("Team 5")).toBeTruthy();
   });
 
+  it("starts collapsed to one line with the count, and opens on a tap", async () => {
+    await show("F", view({ rows: [row(1), row(2, { direction: "seed-higher" })] }), false);
+    const toggle = await screen.findByRole("button", { name: /Model vs field/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByText(/2 gaps: 1 rated higher, 1 seeded higher/)).toBeTruthy();
+    expect(screen.queryByText("Team 1")).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("Team 1")).toBeTruthy();
+  });
+
   it("says why nothing is shown", async () => {
-    show("D", view({ hidden: "Only 8 teams here: too small a field for gaps in the order to mean much." }));
+    await show("D", view({ hidden: "Only 8 teams here: too small a field for gaps in the order to mean much." }));
     expect(await screen.findByText(/too small a field/)).toBeTruthy();
   });
 
   it("says when the order and the seeding agree", async () => {
-    show("E", view());
+    await show("E", view());
     expect(await screen.findByText(/agree here/)).toBeTruthy();
   });
 

@@ -11,6 +11,7 @@
 // predicted score from the walk-forward ledger (calls made before each match,
 // without hindsight; never blended with live calls), and advancement odds
 // from the pre-event forecast (ratings frozen the day before the event).
+import { leanEvents, seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 import type { InStatement } from "@libsql/client";
 import { ADVANCING_TYPES, normType, type EventInput } from "@control-scout/predict-engine";
 import { all, kvSet, writeBatch } from "../db.js";
@@ -71,11 +72,11 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
     all<any>("SELECT code, team, rank, rp, tbp FROM event_teams WHERE season = ?", [season]),
     // The engine's numbers (filled after the backtest) carry over to the rewritten
     // rows, so they never go missing while a refresh runs; the fill steps update them.
-    all<any>("SELECT code, team, pred_win_avg, pred_score_avg, adv_odds FROM team_event_records WHERE season = ?", [season]),
+    all<any>("SELECT code, team, pred_win_avg, pred_score_avg, adv_odds, schedule, schedule_left, schedule_opp, schedule_part FROM team_event_records WHERE season = ?", [season]),
     all<any>("SELECT team, pred_win_avg, pred_score_avg FROM team_season_records WHERE season = ?", [season]),
     all<any>("SELECT code, level, series, number, red_pred_win FROM match_records WHERE season = ? AND red_pred_win IS NOT NULL", [season]),
   ]);
-  const prevEv = new Map(oldEv.map((r) => [`${r.code}|${r.team}`, [r.pred_win_avg, r.pred_score_avg, r.adv_odds]]));
+  const prevEv = new Map(oldEv.map((r) => [`${r.code}|${r.team}`, [r.pred_win_avg, r.pred_score_avg, r.adv_odds, r.schedule, r.schedule_left, r.schedule_opp, r.schedule_part]]));
   const prevSs = new Map(oldSs.map((r) => [Number(r.team), [r.pred_win_avg, r.pred_score_avg]]));
   const prevMr = new Map(oldMr.map((r) => [`${r.code}|${r.level}:${r.series}:${r.number}`, r.red_pred_win]));
   const fold = (x: string | null | undefined) => (x == null ? null : foldText(x));
@@ -86,7 +87,7 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
   const evStmts: InStatement[] = [{ sql: "DELETE FROM team_event_records WHERE season = ?", args: [season] }];
   const seasonAcc = new Map<number, { samples: number[][]; events: number; played: number; w: number; l: number; t: number; bestOpr: (number | null)[] }>();
   const evCols = ["season", "code", "team", "event_name", "event_type", "event_region", "event_start", "event_end", "team_name", "home_region", "rookie_year", "school",
-    "event_name_fold", "team_name_fold", "school_fold", "rank", "rp", "tb1", "played", "wins", "losses", "ties", ...SCORE_COLS, "pred_win_avg", "pred_score_avg", "adv_odds"];
+    "event_name_fold", "team_name_fold", "school_fold", "rank", "rp", "tb1", "played", "wins", "losses", "ties", ...SCORE_COLS, "pred_win_avg", "pred_score_avg", "adv_odds", "schedule", "schedule_left", "schedule_opp", "schedule_part"];
   const evSql = `INSERT INTO team_event_records (${evCols.join(", ")}) VALUES (${evCols.map(() => "?").join(", ")})`;
 
   for (const e of events) {
@@ -129,7 +130,7 @@ export async function computeRecords(season: number, events: DbEvent[], log: Log
         sql: evSql,
         args: [season, e.code, team, e.name, e.type, e.region, e.start, e.end, meta?.name ?? null, meta?.home_region ?? null, num(meta?.rookie_year), meta?.school ?? null,
           fold(e.name), fold(meta?.name), fold(meta?.school),
-          num(rk?.rank), fin(num(rk?.rp)), fin(num(rk?.tbp)), played, wins, losses, ties, ...scoreArgs(aggs), ...(prevEv.get(`${e.code}|${team}`) ?? [null, null, null])],
+          num(rk?.rank), fin(num(rk?.rp)), fin(num(rk?.tbp)), played, wins, losses, ties, ...scoreArgs(aggs), ...(prevEv.get(`${e.code}|${team}`) ?? [null, null, null, null, null, null, null])],
       });
       let s = seasonAcc.get(team);
       if (!s) { s = { samples: [], events: 0, played: 0, w: 0, l: 0, t: 0, bestOpr: PARTS.map(() => null) }; seasonAcc.set(team, s); }
@@ -208,6 +209,25 @@ export async function fillRecordPredictions(season: number, log: Log = () => {})
     },
   ]);
   log(`${season}: predicted win % and score for ${ev.length} team-events`);
+}
+
+/**
+ * Schedule difficulty for every team at every event of the season with a posted schedule
+ * (src/shared/scheduleDifficulty.ts, read as the event page reads it): the full schedule, what's still to play, and
+ * the full schedule's opponents and partners against the field.
+ */
+export async function fillScheduleDifficulty(season: number, log: Log = () => {}): Promise<void> {
+  const sds = seasonScheduleDifficulty(await forecasterFor(season), await leanEvents(season));
+  const stmts: InStatement[] = [{ sql: "UPDATE team_event_records SET schedule = NULL, schedule_left = NULL, schedule_opp = NULL, schedule_part = NULL WHERE season = ?", args: [season] }];
+  for (const [code, sd] of sds) {
+    for (const t of sd.teams) {
+      if (!t.full) continue;
+      stmts.push({ sql: "UPDATE team_event_records SET schedule = ?, schedule_left = ?, schedule_opp = ?, schedule_part = ? WHERE season = ? AND code = ? AND team = ?",
+        args: [t.full.difficulty, t.remaining?.difficulty ?? null, t.full.opponents, t.full.partners, season, code, t.team] });
+    }
+  }
+  await writeBatch(stmts);
+  log(`${season}: schedule difficulty for ${sds.size} events`);
 }
 
 /** Simulation runs per event for the records' advancement odds (the event page's forecast uses FORECAST_RUNS). */
