@@ -26,7 +26,7 @@ import { LEARNED_DAYS, type LiteLearned } from "../../src/shared/liteLearned.js"
 import { packsDir } from "./routes.js";
 import { PACK_INDEXES, PACK_TABLES as FULL_TABLES, PACK_TEAMS_DDL, SCHEDULE_TABLE } from "../../src/shared/packSchema.js";
 import { SCHEDULE_COLUMNS, scheduleRows } from "../../src/shared/scheduleDifficulty.js";
-import { leanEventInputs, seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
+import { leanEvents, seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 
 export const PACK_FORMAT = 1;
 const KEEP_VERSIONS = 3;
@@ -116,7 +116,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
   // Schedule difficulty, a team stat worked out now (seasons with ratings only): every event with a posted schedule.
   await out.execute(SCHEDULE_TABLE.ddl);
   if (PREDICT_SEASONS.includes(season)) {
-    const sds = seasonScheduleDifficulty(await forecasterFor(season), await leanEventInputs(season));
+    const sds = seasonScheduleDifficulty(await forecasterFor(season), await leanEvents(season));
     const sched = [...sds].flatMap(([code, sd]) => scheduleRows(sd).map((r) => [season, code, ...r]));
     const ph = `(${["season", "code", "team", ...SCHEDULE_COLUMNS].map(() => "?").join(",")})`;
     for (let i = 0; i < sched.length; i += 1000) {

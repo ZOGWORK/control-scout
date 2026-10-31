@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, wrap, type SeasonDb } from "./readers";
 import { packDb, season2024, season2025 } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
-import { SCHEDULE_COLUMNS, scheduleDifficulty, scheduleRows } from "../../shared/scheduleDifficulty";
+import { SCHEDULE_COLUMNS, scheduleDifficulty, scheduleRows, withoutRemaining } from "../../shared/scheduleDifficulty";
 
 let s25: SeasonDb, s24: SeasonDb;
 beforeAll(async () => { [s25, s24] = await Promise.all([season2025(), season2024()]); });
@@ -261,17 +261,32 @@ describe("offline schedule difficulty (a team stat in the pack)", () => {
   const sd = scheduleDifficulty(new Map([[100, 60], [200, 20], [300, 20], [400, 20], [500, 30], [600, 25]]), [
     { red: [100, 200], blue: [300, 400], played: true }, { red: [300, 500], blue: [100, 600], played: false }, { red: [200, 600], blue: [400, 500], played: false },
   ])!;
-  const rows = scheduleRows(sd).map((r) => ({ season: 2025, code: "USNJQ1", ...Object.fromEntries([["team", r[0]], ...SCHEDULE_COLUMNS.map((c, i) => [c, r[i + 1]])]) }));
-
-  it("reads the event's figures and the team's, as the server serves them", async () => {
-    const db = (await season2025()).db;
+  const rowsFor = (code: string) => scheduleRows(sd).map((r) => ({ season: 2025, code, ...Object.fromEntries([["team", r[0]], ...SCHEDULE_COLUMNS.map((c, i) => [c, r[i + 1]])]) }));
+  const insert = (db: SeasonDb["db"], rows: Record<string, unknown>[]) => {
     for (const r of rows) {
       const cols = Object.keys(r);
       db.all(`INSERT INTO team_schedule_difficulty (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`, Object.values(r) as number[]);
     }
-    expect(readEventDetail({ season: 2025, db }, "USNJQ1")!.scheduleDifficulty).toEqual(sd);
+  };
+
+  it("reads an upcoming event's figures and the team's, as the server serves them", async () => {
+    // USNJQ9 is in 2099: a pack saved mid-event keeps its "still to play" while the event is on.
+    const db = (await season2025()).db;
+    insert(db, rowsFor("USNJQ9"));
+    expect(readEventDetail({ season: 2025, db }, "USNJQ9")!.scheduleDifficulty).toEqual(sd);
+  });
+
+  it("figures saved mid-event drop \"still to play\" once the event is over", async () => {
+    const db = (await season2025()).db;
+    const rows = rowsFor("USNJQ1");
+    for (const r of rows) {
+      const cols = Object.keys(r);
+      db.all(`INSERT INTO team_schedule_difficulty (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`, Object.values(r) as number[]);
+    }
+    // USNJQ1 ended in 2025.
+    expect(readEventDetail({ season: 2025, db }, "USNJQ1")!.scheduleDifficulty).toEqual(withoutRemaining(sd));
     const p = readTeamProfile([{ season: 2025, db }], 300)!;
-    expect(p.schedule).toEqual([{ ...sd.teams.find((t) => t.team === 300), code: "USNJQ1", scheduled: 3, played: 1 }]);
+    expect(p.schedule).toEqual([{ ...sd.teams.find((t) => t.team === 300), remaining: null, code: "USNJQ1", scheduled: 3, played: 1 }]);
   });
 
   it("an older pack without the table shows no figure", async () => {

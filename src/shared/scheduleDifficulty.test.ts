@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scheduleDifficulty, scheduleFromRows, scheduleLine, scheduleRankText, scheduleRows, scheduleWord, SCHEDULE_COLUMNS, type ScheduleMatch } from "./scheduleDifficulty";
+import { eventOver, postedQuals, scheduleDifficulty, scheduleFromRows, scheduleLine, scheduleRankText, scheduleRows, scheduleWord, withoutRemaining, SCHEDULE_COLUMNS, type ScheduleMatch } from "./scheduleDifficulty";
 
 // Eight teams: 1 and 2 are strong (60), the rest 20.
 const rating = new Map([[1, 60], [2, 60], [3, 20], [4, 20], [5, 20], [6, 20], [7, 20], [8, 20]]);
@@ -71,11 +71,23 @@ describe("scheduleDifficulty", () => {
 describe("schedule words", () => {
   it("reads the rank from whichever end is shorter", () => {
     expect(scheduleRankText({ rank: 1, of: 24 })).toBe("hardest of 24");
-    expect(scheduleRankText({ rank: 3, of: 24 })).toBe("3rd-hardest of 24");
-    expect(scheduleRankText({ rank: 22, of: 24 })).toBe("3rd-easiest of 24");
-    expect(scheduleRankText({ rank: 24, of: 24 })).toBe("easiest of 24");
-    expect(scheduleRankText({ rank: 12, of: 24 })).toBe("12th-hardest of 24");
-    expect(scheduleRankText({ rank: 11, of: 21 })).toBe("11th-hardest of 21");
+    expect(scheduleRankText({ rank: 3, of: 24, easyRank: 22 })).toBe("3rd-hardest of 24");
+    expect(scheduleRankText({ rank: 22, of: 24, easyRank: 3 })).toBe("3rd-easiest of 24");
+    expect(scheduleRankText({ rank: 24, of: 24, easyRank: 1 })).toBe("easiest of 24");
+    expect(scheduleRankText({ rank: 12, of: 24, easyRank: 13 })).toBe("12th-hardest of 24");
+    expect(scheduleRankText({ rank: 11, of: 21, easyRank: 11 })).toBe("11th-hardest of 21");
+    // Without an easy-end rank (a hand-made side), always counted from the hard end.
+    expect(scheduleRankText({ rank: 22, of: 24 })).toBe("22nd-hardest of 24");
+  });
+
+  it("two teams tied for the easiest are both the easiest, never 2nd-easiest", () => {
+    // Teams 7 and 8 have identical draws: partnered with a strong robot against two weak ones.
+    const sd = scheduleDifficulty(rating, [m([7, 1], [3, 4]), m([8, 2], [5, 6])])!;
+    const [t7, t8] = [7, 8].map((t) => sd.teams.find((x) => x.team === t)!.full!);
+    expect(t7.rank).toBe(t8.rank);
+    expect(t7.easyRank).toBe(1);
+    expect(scheduleRankText(t7)).toBe("easiest of 8");
+    expect(scheduleRankText(t8)).toBe("easiest of 8");
   });
 
   it("says what the numbers mean in one plain line", () => {
@@ -84,5 +96,32 @@ describe("schedule words", () => {
     expect(scheduleWord(1.2)).toBe("Hard");
     expect(scheduleWord(0)).toBe("Average");
     expect(scheduleWord(-1.5)).toBe("Easy");
+  });
+});
+
+describe("the event's calendar and its posted draw", () => {
+  it("is over only once the venue's last day has passed", () => {
+    // 2026-10-31 01:00 UTC is still Oct 30 evening in Los Angeles.
+    const now = Date.parse("2026-10-31T01:00:00Z");
+    expect(eventOver({ start: "2026-10-30", end: "2026-10-30", timezone: "America/Los_Angeles" }, now)).toBe(false);
+    expect(eventOver({ start: "2026-10-30", end: "2026-10-30", timezone: "Europe/Berlin" }, now)).toBe(true);
+    // No zone: not over while it's still that day anywhere on Earth.
+    expect(eventOver({ start: "2026-10-30", end: "2026-10-30", timezone: null }, now)).toBe(false);
+    expect(eventOver({ start: null, end: null, timezone: null }, now)).toBe(false);
+  });
+
+  it("drops the remaining view and keeps the full one", () => {
+    const sd = scheduleDifficulty(rating, [m([3, 4], [1, 2]), m([3, 5], [6, 7], false)])!;
+    expect(withoutRemaining(sd).teams.every((t) => t.remaining === null)).toBe(true);
+    expect(withoutRemaining(sd).teams.map((t) => t.full)).toEqual(sd.teams.map((t) => t.full));
+  });
+
+  it("rates the posted draw: a no-show still counts in whom a team was drawn with and against", () => {
+    const team = (number: number, onField = true, surrogate = false) => ({ number, onField, surrogate });
+    const q = postedQuals([
+      { level: "qual", played: true, red: { teams: [team(3), team(4, false)] }, blue: { teams: [team(1), team(2, true, true)] } },
+      { level: "playoff", played: true, red: { teams: [team(1)] }, blue: { teams: [team(2)] } },
+    ]);
+    expect(q).toEqual([{ red: [3, 4], blue: [1, 2], played: true, noRank: [2] }]);
   });
 });

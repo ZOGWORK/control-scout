@@ -9,7 +9,8 @@ import { reliabilityFromRow, type Reliability } from "../../shared/reliability";
 import type { Database, SqlValue } from "sql.js";
 import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats } from "../../shared/api";
 import { SCHEDULE_TABLE } from "../../shared/packSchema";
-import { scheduleFromRows } from "../../shared/scheduleDifficulty";
+import { eventOver, scheduleFromRows, withoutRemaining, type ScheduleDifficulty } from "../../shared/scheduleDifficulty";
+import type { EventCalendar } from "../../shared/eventDay";
 import { eventTypeLabel } from "../../shared/labels";
 import { localToUtcMs } from "../../shared/time";
 import { eventStatus } from "../../shared/eventDay";
@@ -217,12 +218,19 @@ function packSchedule(db: Db, season: number, where: { code: string } | { team: 
     : db.all(`SELECT * FROM ${SCHEDULE_TABLE.name} WHERE season = ? AND team = ?`, [season, where.team]);
 }
 
+/** Figures saved mid-event lose "still to play" once the event is over by its venue's calendar (as the server's do). */
+function asOfNow(db: Db, season: number, code: string, rows: Record<string, unknown>[]): ScheduleDifficulty | null {
+  const sd = scheduleFromRows(rows);
+  const cal = one<EventCalendar>(db, 'SELECT start, "end", timezone FROM events WHERE season = ? AND code = ?', [season, code]);
+  return sd && cal && eventOver(cal) ? withoutRemaining(sd) : sd;
+}
+
 /** A team's schedule difficulty at each event of `events` that has a figure, in that order. */
 function teamSchedules(db: Db, season: number, team: number, events: TeamEventRow[]): TeamSchedule[] {
   const by = new Map(packSchedule(db, season, { team }).map((r) => [String(r.code), r]));
   return events.flatMap((e) => {
     const r = by.get(e.code);
-    const t = r && scheduleFromRows([r])?.teams[0];
+    const t = r && asOfNow(db, season, e.code, [r])?.teams[0];
     return r && t ? [{ ...t, code: e.code, scheduled: Number(r.scheduled), played: Number(r.played) }] : [];
   });
 }
@@ -260,7 +268,7 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
     live: null, // a saved season: no live checks, no Refresh results (that needs the server)
     forecastUnsupported: OFFLINE_FORECAST,
     // As of when the pack was built.
-    scheduleDifficulty: scheduleFromRows(packSchedule(db, season, { code })),
+    scheduleDifficulty: asOfNow(db, season, code, packSchedule(db, season, { code })),
   };
 }
 

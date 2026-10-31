@@ -13,7 +13,7 @@ import { eventStatus } from "../../src/shared/eventDay.js";
 import { toEventInput } from "../../src/shared/eventInput.js";
 import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
-import { eventScheduleDifficulty } from "../../src/shared/scheduleDifficulty.js";
+import { eventOver, eventScheduleDifficulty, postedQuals } from "../../src/shared/scheduleDifficulty.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -134,8 +134,8 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     // A stopgap until FIRST posts the event: once it has a team list (its registrations count) or a schedule, FIRST's data is all that shows.
     provisional: field.length || matches.length ? null : await provisional(season, code),
     sharedSessions: field.length || matches.length ? null : await sharedSessions(season, code, r.start),
-    // Read from the same engine input as the forecast and the projections (ratings with fresh results, the schedule).
-    scheduleDifficulty: f ? eventScheduleDifficulty(f, input) : null,
+    // Ratings read as the forecast and the projections read them; the qualification draw as posted (no-shows included).
+    scheduleDifficulty: f ? eventScheduleDifficulty(f, input, { posted: postedQuals(matches), over: eventOver(r) }) : null,
   };
 }
 

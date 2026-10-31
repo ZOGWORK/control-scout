@@ -21,6 +21,7 @@
 // offline packs), the device and later features (disagreements, "matches that matter") all call this.
 import type { EventInput, Forecaster } from "@control-scout/predict-engine";
 import { rankingInput } from "./projectionInput.js";
+import { eventToday, type EventCalendar } from "./eventDay.js";
 
 export interface ScheduleMatch {
   red: number[];
@@ -43,6 +44,8 @@ export interface ScheduleSide {
   /** 1 = hardest schedule among the `of` teams with a counted match. Ties share the better rank. */
   rank: number;
   of: number;
+  /** The same place counted from the easy end (1 = easiest). Ties share it too, so it isn't always of − rank + 1. */
+  easyRank: number;
   /** Standard deviations from the field's mean difficulty (0 when the field has no spread). */
   z: number;
 }
@@ -87,9 +90,10 @@ function sides(raw: Raw[], rating: Map<number, number>, total: number, n: number
   const sd = Math.sqrt(mean(rows.map((r) => (r.difficulty - m) ** 2)));
   for (const r of rows) {
     const rank = 1 + rows.filter((o) => o.difficulty > r.difficulty + 1e-9).length;
+    const easyRank = 1 + rows.filter((o) => o.difficulty < r.difficulty - 1e-9).length;
     out.set(r.team, {
       opponents: r1(r.opponents), partners: r1(r.partners), difficulty: r1(r.difficulty), matches: r.matches,
-      rank, of: rows.length, z: sd > 1e-9 ? r2((r.difficulty - m) / sd) : 0,
+      rank, of: rows.length, easyRank, z: sd > 1e-9 ? r2((r.difficulty - m) / sd) : 0,
     });
   }
   return out;
@@ -141,10 +145,12 @@ const signed = (x: number) => { const r = Math.round(x); return `${r > 0 ? "+" :
 const ordinal = (n: number) => { const s = ["th", "st", "nd", "rd"], v = n % 100; return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`; };
 
 /** "3rd-hardest of 24" / "easiest of 24" / "hardest of 24": where a schedule sits in its field. */
-export function scheduleRankText(s: Pick<ScheduleSide, "rank" | "of">): string {
+export function scheduleRankText(s: Pick<ScheduleSide, "rank" | "of"> & { easyRank?: number }): string {
   if (s.rank === 1) return `hardest of ${s.of}`;
-  // Counted from the easy end when that reads shorter ("2nd-easiest of 24" rather than "23rd-hardest").
-  const fromEasy = s.of - s.rank + 1;
+  // Counted from the easy end when that reads shorter ("2nd-easiest of 24" rather than "23rd-hardest"), with its own
+  // rank so a tie reads right (two teams tied for the easiest are both "easiest", never "2nd-easiest").
+  if (s.easyRank == null) return `${ordinal(s.rank)}-hardest of ${s.of}`;
+  const fromEasy = s.easyRank;
   if (fromEasy === 1) return `easiest of ${s.of}`;
   return fromEasy < s.rank ? `${ordinal(fromEasy)}-easiest of ${s.of}` : `${ordinal(s.rank)}-hardest of ${s.of}`;
 }
@@ -161,26 +167,45 @@ export function scheduleLine(s: Pick<ScheduleSide, "opponents" | "partners">, wh
   return `${o} average ${signed(s.opponents)} over the field's, ${p} ${signed(s.partners)}.`;
 }
 
+/** Has the event's last day passed, by its venue's calendar (src/shared/eventDay.ts)? Its unplayed matches won't be
+ *  played then (cancelled, or results never posted), so there's no "still to play". */
+export function eventOver(e: EventCalendar, now = Date.now()): boolean {
+  const last = e.end ?? e.start;
+  return !!last && last < eventToday(now, e.timezone).from;
+}
+
+/** The figures without the "still to play" view (an event that's over). */
+export const withoutRemaining = (sd: ScheduleDifficulty): ScheduleDifficulty => ({ ...sd, teams: sd.teams.map((t) => ({ ...t, remaining: null })) });
+
+/** The posted qualification lineups of an event page's matches: every scheduled team, on the field or not. */
+export function postedQuals(matches: { level: string; played: boolean; red: { teams: { number: number; surrogate: boolean }[] }; blue: { teams: { number: number; surrogate: boolean }[] } }[]): ScheduleMatch[] {
+  return matches.filter((m) => m.level === "qual").map((m) => {
+    const noRank = [...m.red.teams, ...m.blue.teams].filter((t) => t.surrogate).map((t) => t.number);
+    return { red: m.red.teams.map((t) => t.number), blue: m.blue.teams.map((t) => t.number), played: m.played, ...(noRank.length ? { noRank } : {}) };
+  });
+}
+
 /**
- * An event's schedule difficulty from the engine, read exactly as the Monte Carlo projections read it
- * (projectionInput.ts rankingInput): the field's ratings with the event's fresh results folded in (a team with
- * none this season on its last-season prior) and the posted qualification schedule. Null without a posted
- * schedule (the simulator's random stand-in schedule is never rated), without ratings, or for a field too small.
+ * An event's schedule difficulty from the engine. Ratings are read exactly as the Monte Carlo projections read them
+ * (projectionInput.ts rankingInput): the field's ratings with the event's fresh results folded in, a team with none
+ * this season on its last-season prior. The schedule is `posted`: the qualification draw as published, every
+ * scheduled team whether or not it took the field (a no-show doesn't change whom a team was drawn with or against).
+ * `over`: the event's last day has passed (eventOver), so no "still to play". Null without a posted schedule (the
+ * simulator's random stand-in schedule is never rated), without ratings, or for a field too small.
  */
-export function eventScheduleDifficulty(f: Forecaster, ev: EventInput, today = new Date().toISOString().slice(0, 10)): ScheduleDifficulty | null {
-  const quals = ev.matches.filter((m) => m.level === "qual");
-  if (!quals.length || !quals.every((m) => m.red.teams.length && m.blue.teams.length)) return null;
+export function eventScheduleDifficulty(f: Forecaster, ev: EventInput, o: { posted: ScheduleMatch[]; over: boolean }): ScheduleDifficulty | null {
+  if (!o.posted.length || !o.posted.every((m) => m.red.length && m.blue.length)) return null;
   const input = rankingInput(f, ev);
-  if (!input || input.quals.length !== quals.length) return null;
+  if (!input) return null;
   const rating = new Map([...input.ratings].map(([t, r]) => [t, r.auto + r.teleop + r.endgame]));
-  return scheduleDifficulty(rating, input.quals.map((q, i) => ({ red: q.red, blue: q.blue, played: quals[i].played, ...(q.noRank?.length ? { noRank: q.noRank } : {}) })), { over: (ev.end ?? ev.start ?? today) < today });
+  return scheduleDifficulty(rating, o.posted, { over: o.over });
 }
 
 // --- Offline packs ---------------------------------------------------------------------------------------
 // A season pack carries every event's figures as a team stat (one row per event and team; packSchema.ts
 // SCHEDULE_TABLE), so a saved event or team page shows them with no connection.
 
-const SIDE_COLS = ["opponents", "partners", "difficulty", "matches", "rank", "of", "z"] as const;
+const SIDE_COLS = ["opponents", "partners", "difficulty", "matches", "rank", "of", "easyRank", "z"] as const;
 /** Pack columns after (season, code, team), in order. */
 export const SCHEDULE_COLUMNS = ["field_mean", "scheduled", "played", ...SIDE_COLS.map((c) => `full_${c}`), ...SIDE_COLS.map((c) => `rem_${c}`)] as const;
 
