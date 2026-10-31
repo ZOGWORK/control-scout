@@ -44,14 +44,14 @@ export function AllianceView({ workspaceId, workspaceName, season, eventCode, is
   const canManage = !!st.data?.canManage && isAdmin && !readOnly;
   return (
     <Section title="Scouting alliance"
-      description={<>Link {workspaceName} with another team's workspace for one event. Both sides read each other's entries and assignments and share one consensus until the event ends; each side's entries stay its own to edit.</>}>
+      description={<>Share {workspaceName}'s scouting with another team for one meet. Both teams see each other's entries and assignments at that event and share one consensus; nobody joins the other team, and each side's entries stay its own to edit. The link ends by itself after the event.</>}>
       {st.loading ? <LoadingBlock rows={3} label="Loading alliances" /> : st.error ? <ErrorState error={st.error} onRetry={st.reload} /> : (
         <div className="space-y-6">
           {active && <LinkedPanel workspaceId={workspaceId} alliance={active} canManage={canManage} />}
           {pending.map((a) => <PendingCard key={a.id} workspaceId={workspaceId} alliance={a} canManage={canManage} />)}
           {/* One link at a time on screen: the forms come back once it ends (or the invite is cancelled). */}
           {canManage ? !active && !pending.length && <LinkForms workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
-            : !active && !pending.length && <EmptyState icon={Handshake} title="No alliance yet" description={readOnly ? "This workspace is read-only." : "An admin of this workspace can invite another team's workspace, or accept their invite."} />}
+            : !active && !pending.length && <EmptyState icon={Handshake} title="No alliance yet" description={readOnly ? "This workspace is read-only." : "An admin of this workspace can invite another team to share scouting at a meet, or accept their invite."} />}
           {past.length > 0 && <PastLinks list={past} />}
         </div>
       )}

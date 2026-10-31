@@ -105,7 +105,7 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   },
   scoutingAlliances: {
     label: "Scouting alliances",
-    on: "Workspace admins can link with another team's workspace for one event; both sides then read each other's entries and assignments at that event and share one consensus.",
+    on: "Workspace admins can share scouting with another team for one meet (a Scout-only link, never a Control Point membership); both sides then read each other's entries and assignments at that event and share one consensus.",
     off: "No new links, and nothing is read across workspaces through existing ones: each workspace sees only its own scouting again. Links are kept (and still end with their event), so switching back on resumes them.",
   },
   scoutingCommons: {
