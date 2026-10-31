@@ -105,11 +105,11 @@ beforeEach(async () => {
 });
 
 describe("the registry", () => {
-  it("has exactly the nine feature toggles, the kill switches apart, and only workspace scouting per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons"]);
+  it("has exactly the registered feature toggles, the kill switches apart, and only workspace scouting per workspace", () => {
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(16);
+    expect(FLAGS.length).toBe(17);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {

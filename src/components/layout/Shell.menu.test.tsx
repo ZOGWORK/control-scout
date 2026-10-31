@@ -6,6 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TAB_KEY } from "../../lib/tabBar";
+import { resetFlags } from "../../lib/flags";
+import { DEFAULT_FLAGS } from "../../shared/flags";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 const personal = vi.hoisted(() => ({ user: null as null | { id: number; email: string; displayName: string | null; createdAt: string }, sync: "local", offlineAccount: false, signOut: vi.fn(async () => {}) }));
@@ -31,7 +33,7 @@ beforeEach(() => {
   personal.user = null;
   personal.sync = "local";
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetFlags(); });
 
 const shell = (at = "/") => render(<MemoryRouter initialEntries={[at]}><Shell><Routes><Route path="*" element={<Where />} /></Routes></Shell></MemoryRouter>);
 
@@ -119,6 +121,18 @@ describe("the phone's top bar and tab bar", () => {
     expect(button.getAttribute("aria-expanded")).toBe("true");
     const pages = within(sheet).getByRole("navigation", { name: "All pages" });
     for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works", "Settings"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+  });
+
+  it("the Rules row is there while the rulesReference toggle is on, and gone when the owner switches it off", async () => {
+    shell();
+    let { sheet } = await openMenu();
+    expect(within(within(sheet).getByRole("navigation", { name: "All pages" })).getByRole("link", { name: "Rules" }).getAttribute("href")).toBe("/rules");
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    act(() => resetFlags({ ...DEFAULT_FLAGS, rulesReference: false }, true));
+    ({ sheet } = await openMenu());
+    expect(within(within(sheet).getByRole("navigation", { name: "All pages" })).queryByRole("link", { name: "Rules" })).toBeNull();
+    expect(screen.queryAllByRole("link", { name: "Rules" })).toEqual([]);
   });
 
   it("the logo in the top bar goes home", () => {

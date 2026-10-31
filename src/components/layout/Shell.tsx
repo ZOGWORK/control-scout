@@ -10,7 +10,7 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
@@ -28,6 +28,7 @@ import { useYoursRow, FOLLOWED_TEAM_PATH } from "../../lib/yoursRow";
 import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
 import { tabDef, useTabBar } from "../../lib/tabBar";
 import { watchTextSize } from "../../lib/textSize";
+import { useFlag } from "../../lib/flags";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -48,14 +49,19 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/power-rankings", label: "Power rankings", icon: Trophy },
     { to: "/compare", label: "Compare", icon: Scale },
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
+    { to: "/rules", label: "Rules", icon: Gavel },
     { to: "/download", label: "Download", icon: Download },
     { to: "/methodology", label: "How it works", icon: BookOpen },
     { to: "/settings", label: "Settings", icon: Settings },
   ] },
 ];
 
-/** The navigation's sections. (The owner console's link sits above the owner's name instead: AccountFooter.) */
-const useSections = () => SECTIONS;
+/** The navigation's sections, less what the owner has switched off (the Rules row: the rulesReference toggle).
+ *  (The owner console's link sits above the owner's name instead: AccountFooter.) */
+function useSections() {
+  const rules = useFlag("rulesReference");
+  return rules ? SECTIONS : SECTIONS.map((s) => ({ ...s, items: s.items.filter((i) => i.to !== "/rules") }));
+}
 
 export function BrandMark({ className }: { className?: string }) {
   return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
