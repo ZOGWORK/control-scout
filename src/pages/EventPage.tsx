@@ -468,7 +468,7 @@ function Matches({ d, team, live }: { d: EventDetail; team: number | null; live:
 }
 
 /** Rankings tab columns (FTC Scout's: RS, TBP, played, record, np OPR / AVG / MAX) plus Control Scout's win % and odds. */
-const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds", "scheduleDifficulty"];
+const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "scheduleDifficulty", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
 const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
 const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
 /** An unofficial event (a scrimmage…): its records are real, but the ratings never learn from them. */
@@ -567,6 +567,14 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
       : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
     { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), heat: true },
     { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => { const [w, l, t] = rec(r); return `${w ?? "–"}-${l ?? "–"}-${t ?? "–"}`; }, heat: true },
+    // Schedule difficulty (src/shared/scheduleDifficulty.ts), next to the record it helps explain (and in view on a
+    // phone): red = a hard draw. Tap a value for it in words.
+    ...(schedule ? [{ key: "schedule", label: "Schedule", title: "Schedule difficulty: opponents' average rating over the field's, minus partners' (points; + = harder). Tap a value for the plain-words version.",
+      value: (r: FieldRow) => sched.get(r.team)?.full?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
+      render: (r: FieldRow) => { const x = sched.get(r.team)?.full; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
+    ...(left ? [{ key: "scheduleLeft", label: "Sched. left", title: "Schedule difficulty of the qualification matches still to play. Tap a value for the plain-words version.",
+      value: (r: FieldRow) => sched.get(r.team)?.remaining?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
+      render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
     ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
     { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
     { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
@@ -574,13 +582,6 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
     { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true },
     { key: "pen", label: "Pen.", title: "Penalty points given away per match (OPR)", value: (r) => r.opr.pen, asc: true, align: "right", render: (r) => num(r.opr.pen), hideOnMobile: true, heat: true },
     { key: "rating", label: "Rating", title: "Prediction rating now (± uncertainty)", value: (r) => r.rating?.np ?? null, align: "right", render: (r) => r.rating ? <span>{num(r.rating.np)} <span className="text-muted-foreground">±{num(r.rating.sd, 0)}</span></span> : "—" },
-    // Schedule difficulty (src/shared/scheduleDifficulty.ts): red = a hard draw. Tap a value for it in words.
-    ...(schedule ? [{ key: "schedule", label: "Schedule", title: "Schedule difficulty: opponents' average rating over the field's, minus partners' (points; + = harder). Tap a value for the plain-words version.",
-      value: (r: FieldRow) => sched.get(r.team)?.full?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
-      render: (r: FieldRow) => { const x = sched.get(r.team)?.full; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
-    ...(left ? [{ key: "scheduleLeft", label: "Sched. left", title: "Schedule difficulty of the qualification matches still to play. Tap a value for the plain-words version.",
-      value: (r: FieldRow) => sched.get(r.team)?.remaining?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
-      render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
   ];
   return (
     <div className="space-y-2">
