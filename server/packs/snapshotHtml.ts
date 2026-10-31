@@ -44,7 +44,7 @@ h1{font-size:20px;margin:2px 0 4px;letter-spacing:-.01em}h2{font-size:15px;margi
 .bar i{display:block;height:100%}
 .grid{display:grid;gap:10px}@media (min-width:720px){.grid{grid-template-columns:1fr 1fr}}
 .team{border-left:3px solid var(--line);padding:6px 0 6px 10px;margin:8px 0}
-.team.red{border-color:var(--red)}.team.blue{border-color:var(--blue)}
+.team.side-red{border-color:var(--red)}.team.side-blue{border-color:var(--blue)}
 .team b{color:var(--fg)}
 .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .chip{border:1px solid var(--line);border-radius:999px;padding:0 7px;font-size:11px;color:var(--mut)}
@@ -66,7 +66,7 @@ const stampText = (asOf: string, tz: string | null) => `Snapshot from ${clockIn(
 
 function split(o: OprSplit | null | undefined): string {
   if (!o || o.np == null) return `<span class="mut">No OPR yet</span>`;
-  return `<span class="num"><b>${num(o.np)}</b> OPR</span> <span class="mut sm num">(auto ${num(o.auto)} · driver ${num(o.teleop)} · endgame ${num(o.endgame)}${o.pen != null ? ` · gives away ${num(o.pen)}` : ""})</span>`;
+  return `<span class="num"><b>${num(o.np)}</b> OPR</span> <span class="mut sm num">(auto ${num(o.auto)} · driver ${num(o.teleop)} · endgame ${num(o.endgame)}${o.pen != null && o.pen > 0 ? ` · gives away ${num(o.pen)}` : ""})</span>`;
 }
 
 function consensusLines(c: TeamConsensus | undefined): string {
@@ -90,7 +90,7 @@ function teamBlock(side: "red" | "blue", t: ReportTeam | undefined, number: numb
     ? `Rank <b class="num">${ev.rank}</b> here · <span class="num">${ev.wins ?? 0}-${ev.losses ?? 0}-${ev.ties ?? 0}</span>`
     : `<span class="mut">No standing here yet</span>`;
   const season = t?.season ? ` · season <span class="num">${t.season.wins}-${t.season.losses}-${t.season.ties}</span>${t.season.rank ? `, world #${t.season.rank}${t.season.of ? ` of ${t.season.of}` : ""}` : ""}` : "";
-  return `<div class="team ${side}"><div><b class="num">${number}</b> ${esc(t?.name ?? "")}${t?.city ? ` <span class="mut sm">${esc([t.city, t.state].filter(Boolean).join(", "))}</span>` : ""}</div>`
+  return `<div class="team side-${side}"><div><b class="num">${number}</b> ${esc(t?.name ?? "")}${t?.city ? ` <span class="mut sm">${esc([t.city, t.state].filter(Boolean).join(", "))}</span>` : ""}</div>`
     + `<div class="sm">${standing}${season}</div>`
     + `<div class="sm">${split(ev?.opr?.np != null ? ev.opr : t?.season?.opr)}</div>`
     + (chips ? `<div class="chips">${chips}</div>` : "")
