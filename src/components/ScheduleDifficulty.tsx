@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import type { TeamEventRow, TeamSchedule } from "../shared/api";
 import { scheduleLine, scheduleRankText, scheduleWord, type ScheduleSide } from "../shared/scheduleDifficulty";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
+import { SCHEDULE_STAT_KEYS } from "../shared/statCatalog";
 import { Section } from "./page";
 import { cn } from "./cn";
 import { useFlag } from "../lib/flags";
@@ -46,7 +47,19 @@ function Strip({ z }: { z: number }) {
 // ---------------------------------------------------------------------------
 
 /** The record columns (src/shared/statCatalog.ts) that hold schedule difficulty. */
-export const SCHEDULE_STATS: ReadonlySet<string> = new Set(["scheduleDifficulty", "scheduleLeft", "scheduleOpponents", "schedulePartners"]);
+export const SCHEDULE_STATS: ReadonlySet<string> = new Set(SCHEDULE_STAT_KEYS);
+
+/**
+ * Each team's place by full-schedule difficulty within one event's whole table (1 = hardest, ties shared from both
+ * ends, as scheduleDifficulty ranks them), for the cell's "3rd-hardest of 24". Empty for a filtered or multi-event
+ * table, where a place among the rows shown would mislead.
+ */
+export function schedulePlaces(rows: { team?: number; stats: Record<string, unknown> }[]): Map<number, Pick<ScheduleSide, "rank" | "of" | "easyRank">> {
+  const vs = rows.flatMap((r) => (typeof r.stats.scheduleDifficulty === "number" && r.team != null ? [{ team: r.team, v: r.stats.scheduleDifficulty }] : []));
+  return new Map(vs.map(({ team, v }) => [team, {
+    rank: 1 + vs.filter((o) => o.v > v + 1e-9).length, of: vs.length, easyRank: 1 + vs.filter((o) => o.v < v - 1e-9).length,
+  }]));
+}
 
 /**
  * One Schedule cell: the signed points, and for the full schedule a tap (or hover) for the plain line, so the

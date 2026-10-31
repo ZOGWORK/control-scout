@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { TeamEventRow } from "../shared/api";
 import { scheduleDifficulty } from "../shared/scheduleDifficulty";
-import { ScheduleValue, TeamScheduleSection } from "./ScheduleDifficulty";
+import { schedulePlaces, ScheduleValue, TeamScheduleSection } from "./ScheduleDifficulty";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 
@@ -33,6 +33,17 @@ describe("ScheduleValue (the Rankings table's Schedule cell)", () => {
     const { container } = render(<><ScheduleValue stat="scheduleDifficulty" v={null} /><ScheduleValue stat="scheduleLeft" v={-2.04} /></>);
     expect(container.textContent).toBe("—−2.0");
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("schedulePlaces (the records table's place in the field)", () => {
+  it("ranks one event's rows hardest first, ties shared from both ends, rows without a value left out", () => {
+    const rows = [[1, 10], [2, -5], [3, -5], [4, 2], [5, null]].map(([team, v]) => ({ team: team as number, stats: { scheduleDifficulty: v } }));
+    const p = schedulePlaces(rows);
+    expect(p.get(1)).toEqual({ rank: 1, of: 4, easyRank: 4 });
+    expect(p.get(2)).toEqual({ rank: 3, of: 4, easyRank: 1 });
+    expect(p.get(3)).toEqual({ rank: 3, of: 4, easyRank: 1 });
+    expect(p.has(5)).toBe(false);
   });
 });
 

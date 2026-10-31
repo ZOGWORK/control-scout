@@ -71,7 +71,7 @@ import { liveHeroLines } from "./heroLines.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
-import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
+import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
 import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type RankingsQuery } from "./api/rankings.js";
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
@@ -523,7 +523,6 @@ export function createApp(opts: { dist?: string } = {}) {
   // --- Records: season stat tables with filters (src/shared/filterDsl.ts) --
 
   const recordsLimit = limiter(120), recordsCsvLimit = limiter(10);
-  const SCHEDULE_STAT = /schedule(Difficulty|Left|Opponents|Partners)/;
   const records = (kind: "teams" | "matches") => [
     (req: Request, res: Response, next: NextFunction) => (req.query.format === "csv" ? recordsCsvLimit : recordsLimit)(req, res, next),
     h(async (req, res) => {
@@ -534,10 +533,16 @@ export function createApp(opts: { dist?: string } = {}) {
       const scope = kind === "matches" ? "match" : scopeRaw === "season" ? "teamSeason" : "teamEvent";
       const format = req.query.format ?? "json";
       if (format !== "json" && format !== "csv") throw bad("format must be json or csv");
-      // The owner's scheduleDifficulty toggle off: its columns can't be asked for, sorted or filtered on.
-      if (scope === "teamEvent" && SCHEDULE_STAT.test(JSON.stringify(req.query)) && !(await isEnabled("scheduleDifficulty"))) { featureDisabled(res, "scheduleDifficulty"); return undefined; }
       try {
         const q = recordsQuery(scope, req.query as Record<string, unknown>, format === "csv" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
+        // The owner's scheduleDifficulty toggle off: its columns can't be asked for, sorted or filtered on, and the
+        // default (every stat, no fields asked for) leaves them out.
+        if (scope === "teamEvent" && !(await isEnabled("scheduleDifficulty"))) {
+          const filter = JSON.stringify(q.filter ?? null);
+          const asked = (k: string) => k === q.sort || filter.includes(`"${k}"`) || (req.query.fields != null && q.fields.includes(k));
+          if (SCHEDULE_STAT_KEYS.some(asked)) { featureDisabled(res, "scheduleDifficulty"); return undefined; }
+          q.fields = q.fields.filter((k) => !SCHEDULE_STAT_KEYS.includes(k));
+        }
         if (format === "csv") { await streamRecordsCsv(s, q, res, `control-scout-${s}-${kind}${scope === "teamSeason" ? "-season" : ""}.csv`); return undefined; }
         return await listRecords(s, q);
       } catch (e) {

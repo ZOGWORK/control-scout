@@ -31,7 +31,7 @@ import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome
 import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 import { emptyColumns } from "../../lib/eventRankingNotes";
-import { SCHEDULE_STATS, ScheduleValue } from "../ScheduleDifficulty";
+import { SCHEDULE_STATS, ScheduleValue, schedulePlaces } from "../ScheduleDifficulty";
 import { useFlag } from "../../lib/flags";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
@@ -632,6 +632,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
   // red mean only where a team stands, so the other columns drop their category colour (the header keeps it).
   const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
   const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
+  // The Schedule cell's place in the field ("3rd-hardest of 24"): only on one event's whole table, like the heat.
+  const places = useMemo(() => (whole && cols.includes("scheduleDifficulty") ? schedulePlaces(data.rows as { team?: number; stats: Record<string, unknown> }[]) : new Map()), [whole, data.rows, cols]);
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
   const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
@@ -730,7 +732,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
-                        : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} />
+                        : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={team != null ? places.get(team) : undefined} />
                         : formatStat(d, v)}
                     </td>
                   );

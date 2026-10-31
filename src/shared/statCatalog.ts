@@ -131,6 +131,9 @@ export const STAT_CATALOG: readonly StatDef[] = [
   { key: "redPredictedWinPct", label: "Red Predicted Win %", short: "Red pred. win %", category: "Control Scout Exclusives", type: "number", scopes: ["match"], percent: true, description: "Red alliance's pre-match win probability (walk-forward ledger)." },
 ];
 
+/** The schedule difficulty columns (src/shared/scheduleDifficulty.ts), behind the owner's scheduleDifficulty toggle. */
+export const SCHEDULE_STAT_KEYS: readonly string[] = ["scheduleDifficulty", "scheduleLeft", "scheduleOpponents", "schedulePartners"];
+
 export const STAT_BY_KEY: ReadonlyMap<string, StatDef> = new Map(STAT_CATALOG.map((s) => [s.key, s]));
 
 /** The stats a record kind supports, in picker order. */

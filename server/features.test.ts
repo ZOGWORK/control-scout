@@ -207,6 +207,21 @@ describe("gated routes", () => {
     expect("schedule" in t.json).toBe(false);
   });
 
+  it("schedule difficulty off: the records refuse its columns, sort and filter, and the default leaves them out", async () => {
+    const on = await call("GET", "/api/records/2025/teams?fields=scheduleDifficulty&sort=scheduleDifficulty");
+    expect(on.status).toBe(200);
+    await setFlag("scheduleDifficulty", false, "owner@example.com");
+    for (const q of ["fields=rank,scheduleDifficulty", "fields=rank&sort=scheduleLeft", "fields=rank&filter=and-scheduleOpponents.gt.0-"]) {
+      const r = await call("GET", `/api/records/2025/teams?${q}`);
+      expect(r.status, q).toBe(403);
+      expect(r.json, q).toMatchObject({ error: "feature_disabled", feature: "scheduleDifficulty" });
+    }
+    // No fields asked for (every stat): answered, without the schedule columns.
+    const all = await call("GET", "/api/records/2025/teams");
+    expect(all.status).toBe(200);
+    for (const row of all.json.rows ?? []) for (const k of ["scheduleDifficulty", "scheduleLeft", "scheduleOpponents", "schedulePartners"]) expect(k in row.stats).toBe(false);
+  });
+
   it("the track record, public team and event data and the home headlines are never gated", async () => {
     await allOff();
     for (const p of ["/api/predict/accuracy", "/api/teams/1", "/api/events/2025/USNJQ1", "/api/events?season=2025", "/api/search?q=a", "/api/rankings", "/api/meta", "/api/home/headlines", "/api/home/overview"]) {

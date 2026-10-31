@@ -458,8 +458,9 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  *    search index without them, so past seasons' ranks and "of N" drop the placeholders too.
  * 7: the season record is every match on the team's record (src/shared/eventRecord.ts): qualification no-shows
  *    count as FIRST counts them, playoff matches sat out don't. Hosts already rebuilt under 6 rebuild once more.
+ * 8: schedule difficulty in the event records (team_event_records.schedule*, migration 60): every season once.
  */
-export const STATS_RULES = 7;
+export const STATS_RULES = 8;
 
 /** True when past seasons were computed under older rules, or haven't all been
  *  recomputed by this engine version yet (a new engine rewrites every season's
