@@ -63,16 +63,20 @@ function statusOf(f: EventFacts | undefined, team: number, when: RoadStop["when"
 
 const levelOf = (rs: RegionRuleset | null, type: string | null) => (rs && type ? rs.levels.find((l) => l.types.includes(type)) ?? null : null);
 
-/** The fewest points each finish guarantees on its own, with the worst qualification rank, at an event of `n` teams. */
+/**
+ * The fewest points each finish guarantees on its own, with the worst qualification rank, at an event of `n` teams.
+ * The playoff rows are for an alliance's captain or pick (alliances are two teams, Competition Manual 13.7.1): a
+ * backup robot earns no alliance points, so it's left out of them.
+ */
 export function routes(ps: PointsSystem, n: number, target: number | null): RoadRoute[] {
   const a = allianceCount(Math.max(4, n));
   // Alliance points: 21 − the alliance lead number or the draft acceptance number; the lowest a playoff team gets is the last alliance's.
   const lastAlliance = 21 - a, q = ps.qualMin;
   const list: [string, number][] = [
-    ["Win the event (any alliance)", ps.playoff.first + lastAlliance + q],
+    ["Win the event, as captain or pick", ps.playoff.first + lastAlliance + q],
     ["Inspire Award, 1st place", ps.inspire[0] + q],
     ["Top seed, then finalist", qualPoints(1, n) + 20 + ps.playoff.second],
-    ["Finalist (any alliance)", ps.playoff.second + lastAlliance + q],
+    ["Finalist, as captain or pick", ps.playoff.second + lastAlliance + q],
     ["Inspire Award, 2nd place", ps.inspire[1] + q],
     ["Another judged award, 1st place", ps.otherAwards[0] + q],
   ];
@@ -198,7 +202,8 @@ export async function teamRoadMap(season: number, team: number): Promise<TeamRoa
     teamInfo(team), teamEvents(season, team),
     // FIRST's registrations for events still to come (data/registrations.ts): on the calendar before any roster exists.
     all<any>(`SELECT e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country FROM event_registrations r JOIN events e ON e.season = r.season AND e.code = r.code
-              WHERE r.season = ? AND r.team = ? AND r.shared = 0`, [season, team]),
+              WHERE r.season = ? AND r.team = ? AND r.shared = 0
+                AND NOT EXISTS (SELECT 1 FROM event_teams x WHERE x.season = r.season AND x.code = r.code)`, [season, team]),
   ]);
   const have = new Set(rostered.map((e) => e.code));
   const events = [...rostered, ...registered.filter((e) => !have.has(e.code)).map((e) => listedRow(season, e))];

@@ -20,12 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Team pages now show a season road map: every event in date order, how the team is advancing, and what its next stop takes.
 
 ### Highlights
-- [teams] A season road map on every team page: events in date order with their advancement
-- [teams] New Jersey, Michigan and Iowa teams see a points target for their next stop
-- [teams] Official advancement points earned at each event, with the last team in
+- [teams] A season road map on team pages: every event and its advancement
+- [teams] NJ, Michigan and Iowa teams see a points target for their next stop
+- [teams] FIRST's official advancement points earned at each event
 
 ### Season road map
-- **Every event, in order.** Each event the team is on, registered events included, with its rank, record, awards, alliance and FIRST's advancement result (advanced, didn't take a slot, still to come).
+- **Every event, in order.** Each event the team is on, registered events included, with its rank, record, awards, alliance and FIRST's advancement result (advanced, didn't take a slot, still to come) (#360).
 - **What's needed next.** Where Control Scout has encoded the region's 2026–27 rules (New Jersey, Michigan, Iowa), a panel names the next stop and what last season's last team in scored there. It also lists which finishes reach that on their own and, for league teams, how many meet matches count toward the league tournament. Every encoded ruleset shows its sources and season.
 - **Official points.** FIRST's own advancement points for each event, split into awards, playoffs, alliance and qualification, beside the lowest total that took a slot.
 - **Other regions.** Results so far and what's next, with no points target until the region's rules are encoded.

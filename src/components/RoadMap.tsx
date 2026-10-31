@@ -200,7 +200,7 @@ function NeedPanel({ r }: { r: TeamRoadMap }) {
               </li>
             ))}
           </ul>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">Points add up: an award on top of a playoff run, or a high seed. A guide from last season's cutoffs, not a guarantee.</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">Points add up: an award on top of a playoff run, or a high seed. A backup robot earns no alliance points. A guide from last season's cutoffs, not a guarantee.</p>
         </div>
       )}
       <PointsTable r={r} />

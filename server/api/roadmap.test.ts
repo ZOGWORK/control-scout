@@ -153,6 +153,10 @@ describe("road map from the database", () => {
     await run("INSERT INTO events (season, code, name, type, region, league, start, end, source) VALUES (2026, 'USNJNELT', 'NE League Tournament', 'LeagueTournament', 'USNJ', 'NE', '2026-10-01', '2026-10-01', 'first')");
     await run("INSERT INTO events (season, code, name, type, region, start, end, source) VALUES (2026, 'USNJCMP', 'New Jersey Championship', 'Championship', 'USNJ', '2099-03-14', '2099-03-14', 'first')");
     await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (2026, 'USNJCMP', 100, '2026-10-30')");
+    // Registered for a qualifier whose official roster is out without the team (it skipped it): not a stop.
+    await run("INSERT INTO events (season, code, name, type, region, start, end, source) VALUES (2026, 'USNJSKIP', 'Skipped', 'Qualifier', 'USNJ', '2099-01-01', '2099-01-01', 'first')");
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (2026, 'USNJSKIP', 100, '2026-10-30')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2026, 'USNJSKIP', 999)");
     const b: EventBundle = {
       event: { season: 2026, code: "USNJNELT", name: "NE League Tournament", type: "LeagueTournament", divisionCode: null, region: "USNJ", league: "NE", venue: null, address: null, city: null, state: null, country: null, start: "2026-10-01", end: "2026-10-01", timezone: null, remote: false, hybrid: false, website: null, livestream: null, source: "first", upstreamUpdated: null } as any,
       teams: [],
