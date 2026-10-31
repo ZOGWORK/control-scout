@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.5.5 — 2026-10-30
+## 1.5.7 — 2026-10-31
 
 Every team's qualification schedule now gets a difficulty rating: how strong its opponents and partners are next to the rest of the field.
 
@@ -31,6 +31,36 @@ Every team's qualification schedule now gets a difficulty rating: how strong its
 - **Every team rated.** Teams with no result yet this season start from last season's rating, as everywhere else on the site.
 - **It matters.** Across the 2023–2025 seasons, a schedule one step harder than average cost a team about 2 places in the final ranking against its rating (docs/schedule-difficulty.md) (#357).
 - **Offline and for other features.** Season packs carry it as a team stat, and the event and team API answers include it.
+## 1.5.6 — 2026-10-30
+
+Something wrong in the scouting commons? Report it, or mute a workspace you don't want to see.
+
+### Highlights
+- [scout] Report a shared pit entry from its menu on a team page
+- [scout] Mute a workspace's shares, just for you, and unmute any time
+- [workspace] Taken-down entries and suspensions are explained in the entry itself
+
+### Scouting commons
+- **Report.** Every shared entry has a menu with "Report this entry": pick what's wrong (wrong about the robot, out of date, inappropriate, something else) and add a note. The workspace isn't told who reported it (#359).
+- **Mute.** "Mute" hides a workspace's shares for you alone. Muted workspaces are listed under the entries, each with an Unmute button.
+- **Reviewed by Control Scout.** Reported entries can be taken down. A taken-down entry says so on its share switch, with the reason, and can't be shared again unless it's restored. A whole workspace can be suspended from the commons too; its own scouting is never touched.
+
+## 1.5.5 — 2026-10-30
+
+Workspaces can now share pit scouting with everyone at an event, in the new scouting commons.
+
+### Highlights
+- [scout] Share a pit entry in the scouting commons, one entry at a time
+- [teams] Team pages show other teams' shared pit scouting, under your own
+- [scout] Every shared pit claim says when it was scouted, coloured by age
+- [workspace] Off until a workspace admin joins, and only at events where it's open
+
+### Scouting commons
+- **Join, then share.** A workspace admin joins the commons in Settings → Workspace. Nothing is shared by joining: each pit entry gets its own "Share in the scouting commons" switch, for its author or an admin. Match scouting is never shared, and leaving the commons withdraws everything (#352).
+- **Credited to the workspace.** Shared entries show the workspace's name, never a scout's.
+- **On the team page.** Signed in, a team's page shows the pit scouting other workspaces shared, with photos, in a "Scouting commons" section below your own workspace's take. Its averages and most-reported answers count each workspace once.
+- **How old is that claim?** Each shared entry leads with when it was scouted: green the same day, amber after a day, red after two days or when it's from before the event, since robots get rebuilt overnight.
+- **One event at a time.** The commons opens event by event, so it starts small, and the owner can switch the whole commons off (or off for one workspace) from the console's Features tab.
 
 ## 1.5.4 — 2026-10-30
 

@@ -21,7 +21,10 @@ export function localDbPath(url = env.databaseUrl): string | null {
  *  owner_audit, feature_flags and request_metrics_daily are this server's own operations (the owner's email, its switches, its traffic). */
 export const PRIVATE_TABLES = [
   "users", "sessions", "identities", "email_codes", "user_state", "scout_entries", "error_reports", "contact_messages", "analytics_daily",
-  "workspace_members", "entry_photos", "workspace_scout_entries", "workspace_template_versions", "workspace_assignments", "workspace_match_assignments", "workspace_former_members", "workspace_pending_departures", "workspaces",
+  "workspace_members", "entry_photos", "workspace_scout_entries", "workspace_template_versions", "workspace_assignments", "workspace_match_assignments", "workspace_former_members", "workspace_pending_departures",
+  // The scouting commons (migrations 58-59): shares, opt-ins, readers' reports and mutes, the owner's switches and takedowns (their email). Before workspaces, which they reference.
+  "commons_reports", "commons_mutes", "commons_entries", "commons_workspaces", "commons_events",
+  "workspaces",
   "owner_audit", "feature_flags", "request_metrics_daily", "owner_alerts", "workspace_activity", "inbox_items", "workspace_entry_comments",
   "workspace_picklist", "workspace_picklist_versions", "workspace_picklist_ops", "workspace_entry_versions", "push_subscriptions", "push_sent",
   // Owner-set event streams (migration 34): updated_by is the owner's email.
