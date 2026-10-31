@@ -2,13 +2,15 @@
 // The rules quick reference page: the revision stamp and the "unofficial, check the manual" note with its link
 // are always there; the section browser lists the manual's sections; search narrows the rules in the browser
 // (no fetch at all) and says when nothing matches.
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ruleReference } from "../shared/rules";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 
+const scrolls = vi.hoisted(() => ({ n: 0 }));
+vi.mock("../lib/pageScroll", async (orig) => ({ ...(await orig<typeof import("../lib/pageScroll")>()), scrollToElement: () => { scrolls.n++; } }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 const { default: RulesPage } = await import("./RulesPage");
 const mount = (url = "/rules") => render(<MemoryRouter initialEntries={[url]}><RulesPage /></MemoryRouter>);
@@ -53,6 +55,20 @@ describe("Rules page", () => {
     fireEvent.click(within(document.getElementById("G407")!).getByRole("link", { name: "Q2" }));
     expect(box.value).toBe("");
     expect(document.getElementById("qa-2")).toBeTruthy();
+  });
+
+  it("a jump happens once: searching afterwards doesn't pull the page back to the entry", async () => {
+    await act(() => new Promise((r) => requestAnimationFrame(() => r(null)))); // a previous test's frame lands first
+    scrolls.n = 0;
+    mount("/rules#G421");
+    await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+    expect(scrolls.n).toBe(1);
+    fireEvent.change(screen.getByLabelText("Search the rules"), { target: { value: "pin" } });
+    fireEvent.change(screen.getByLabelText("Search the rules"), { target: { value: "pinn" } });
+    fireEvent.change(screen.getByLabelText("Search the rules"), { target: { value: "pin" } });
+    await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+    expect(document.getElementById("G421")).toBeTruthy();
+    expect(scrolls.n).toBe(1);
   });
 
   it("says when nothing matches and offers the official manual", () => {

@@ -152,11 +152,16 @@ export default function RulesPage() {
     if (!target) return;
     const el = document.getElementById(target.id);
     if (!el) return; // waiting for the search to clear (or not an entry at all)
+    // Done once: later search edits must not jump back to it.
+    setTarget(null);
     requestAnimationFrame(() => scrollToElement(el));
     setFlash(target.id);
+  }, [target, query]);
+  useEffect(() => {
+    if (!flash) return;
     const t = setTimeout(() => setFlash(null), 2000);
     return () => clearTimeout(t);
-  }, [target, query]);
+  }, [flash]);
   /** A link to an entry on this page: kept as a real #link, followed here so a hidden one is revealed. */
   const follow = (id: string) => (e: MouseEvent) => { e.preventDefault(); history.replaceState(history.state, "", `#${id}`); go(id); };
 
