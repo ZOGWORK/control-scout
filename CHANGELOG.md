@@ -79,7 +79,7 @@ A rules quick reference for the question box: the most-cited BIOBUZZ rules and Q
 =======
 ## 1.5.7 — 2026-10-31
 
-One tap before you leave for the venue saves the whole event on your phone: the schedule, rankings, your match reports and your pick list, each saying what time it's from.
+One tap before you leave for the venue saves the whole event on your phone: the schedule, rankings, your match reports and your pick list, each saying what time it's from (#361).
 
 ### Highlights
 - [offline] Event-day bundle: one small download per event, its size on the button
