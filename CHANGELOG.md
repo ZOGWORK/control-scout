@@ -15,6 +15,34 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.0 — 2026-10-31
+
+Search reads the whole question: compare teams, ask about a season or a state, and it says plainly what it can't answer yet.
+
+### Highlights
+- [teams] "hypnotic vs bad wolf" opens Compare, now with awards side by side
+- [rankings] "4215 ranking last season in New Jersey" shows its place there
+- [teams] Typos get a "Showing results for" line; nothing found offers a way on
+- [teams] Asks for something not tracked yet? Search says so, never guesses
+- [speed] Results update as you type; arrow keys, Enter and Escape all work
+
+### Search
+- **One answer everywhere.** The search box, the /search page and the address-bar search give the same answer from one place on the server. A team number ("4215", "team 4215", "#4215") is that team alone; a number with no team says so.
+- **Versus.** "hypnotic versus bad wolf" (or vs, against; up to four teams) opens Compare for those teams. A side that names no team never gives a half-empty Compare: you get the teams found and a note.
+- **Seasons, states and rankings.** "4215 ranking at last year's DECODE season, state of New Jersey" opens 4215's 2025–26 page and New Jersey's 2025–26 rankings, with its place there (#8 of 193). Game names, "last season" and "this season" are read as seasons.
+- **What isn't there yet.** Asking for something Control Scout doesn't track (a reputation score, robot specs, team members, budgets, social media) shows the closest real result and a plain note on what's missing. Nothing is made up: there is no reputation score, so none is shown.
+- **Never a dead end.** A typo shows "Showing results for …"; a query that matches nothing says what was understood, lists the closest matches and links to every team and event. Site pages a word names ("records", "rules") are listed below the results.
+- **More questions.** "hypnotic opr" lists every event's OPR; "hypnotic opr at East Bergen" opens the event on the team; "… at this event" lets you pick the event instead of guessing; "hypnotic schedule difficulty" opens that section with the team's numbers; "hypnotic 2025-26" opens that season.
+- **Typing.** Results follow as you type, an older answer never replaces a newer one, Escape closes the list and keeps your place, and Enter opens the highlighted result.
+
+### Compare
+- **Events and awards.** Each team's events (rank and OPR at each) and awards for the season, side by side.
+
+### Behind the scenes
+- Search can learn which results people open for a query (aggregate counts per season, nothing about who), only to re-order what it already found. An exact match always stays first.
+- Search counts the kinds of question people ask (for example "[team] robot specs"), with no query text, to show what to build next. The owner console reads the list.
+- Bruno AI can suggest a better reading of a query that found nothing. It's off until the owner turns it on, and it never supplies a number (#PR).
+
 ## 1.6.9 — 2026-10-31
 
 Search understands what you're asking about a team or event: "hypnotic awards" or "4215 ranking points" finds the team and answers with its numbers.

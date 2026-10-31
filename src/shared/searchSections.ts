@@ -41,8 +41,12 @@ function rowsOf(h: SearchHit, prefix: string): AnswerRow[] {
   ];
 }
 
-const byKind = (hits: SearchHit[], prefix = ""): AnswerSection[] =>
-  SEARCH_GROUPS.map(([kind, title]): AnswerSection => ({ id: kind, title, rows: hits.filter((h) => h.kind === kind).flatMap((h) => rowsOf(h, prefix)) })).filter((s) => s.rows.length);
+/** The kinds' groups in their usual order; `leadTop`: the top result's group first (a whole answer ranks it:
+ *  "4215 ranking … New Jersey" puts the team's season page above the region's rankings). */
+const byKind = (hits: SearchHit[], prefix = "", leadTop = false): AnswerSection[] =>
+  SEARCH_GROUPS.map(([kind, title]): AnswerSection => ({ id: kind, title, rows: hits.filter((h) => h.kind === kind).flatMap((h) => rowsOf(h, prefix)) }))
+    .filter((s) => s.rows.length)
+    .sort((a, b) => (leadTop ? Number(b.id === hits[0]?.kind) - Number(a.id === hits[0]?.kind) : 0));
 
 /** Plain hits (offline, or a box limited to some kinds): the kinds in order, nothing else. */
 export const plainSections = (hits: SearchHit[]): AnswerSection[] => byKind(hits);
@@ -60,7 +64,7 @@ export function answerSections(answer: SearchAnswer, ai?: SearchAnswer | null): 
   }
   if (answer.step === "did-you-mean" && answer.didYouMean) notes.didYouMean = answer.didYouMean;
   if (answer.intent) { notes.understood = [`Understood: ${answer.intent.understood.join(" · ")}`]; if (answer.intent.gap) notes.gap = answer.intent.gap; }
-  sections.push(...byKind(answer.hits));
+  sections.push(...byKind(answer.hits, "", true));
   if (answer.step === "recovery" && answer.recovery) {
     notes.understood = answer.recovery.understood;
     if (answer.recovery.closest.length) sections.push({ id: "closest", title: "Closest matches", rows: answer.recovery.closest.flatMap((h) => rowsOf(h, "closest/")) });
