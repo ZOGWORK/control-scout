@@ -99,6 +99,9 @@ const metrics = (rs: Row[], key: string, b: Beta) => {
 
 /** Choose (decay, k) on the training seasons: fit β on all but the last, select on the last, refit on all. */
 function choose(train: Row[], trainSeasons: number[]): { key: string; b: Beta } {
+  // A missing season must stop the run, never fall back to a default choice that would read as evidence.
+  const missing = trainSeasons.filter((s) => !train.some((r) => r.season === s));
+  if (missing.length) throw new Error(`no rated 2v2 matches for training season(s) ${missing.join(", ")}: use a complete snapshot`);
   const last = Math.max(...trainSeasons);
   const inner = train.filter((r) => r.season < last), sel = train.filter((r) => r.season === last);
   let key = "0.5|4";

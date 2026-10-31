@@ -12,6 +12,8 @@ running. None had reported back. As of 16:25 ET, the only open PRs were #350 (pa
 resuming. Only features Sushil has pasted so far are listed. His list said 67 remain; the rest haven't been sent, so they
 aren't here.
 
+## ▶ RESUMED 2026-10-31 ~09:10 ET: all 8 unfinished sessions restarted from this checkpoint (usage reset to 0%)
+
 ## ⏸ CHECKPOINT — 2026-10-30 ~18:40 ET, all work PAUSED by Sushil
 This table is newer than the per-item "Status" lines below; trust it over them. All 9 sessions are stopped, every worktree is
 committed and pushed, and nothing is queued. A commit titled "WIP checkpoint…" is untested mid-edit work: review its diff
@@ -19,9 +21,9 @@ first when resuming.
 
 | # | Feature | PR | Branch | Last commit | State at pause |
 |---|---|---|---|---|---|
-| 1 | Partnership re-test | #350 open | `claude/partnership-memory-predictions-3e1adb` | this file | Docs + script; Greptile requested, not yet 5/5 |
-| 2 | Why factor sheet | #355 open | `claude/why-factor-sheet-a9b202` | clean | Engine 3.3.0; Control Point PR **CP#344** open (needs a screenshot). Merge both together; toggle `factorSheet` status unknown, check |
-| 3 | Bracket predictor | #356 open | `claude/bracket-predictor-938035` | f1ef6ed3 WIP | Mid-edit adding the `bracketOdds` toggle (flags.ts, FeaturesPanel, EventPage) |
+| 1 | Partnership re-test | #350 open | `claude/partnership-memory-predictions-3e1adb` | this file | Docs + script; Greptile 4/5 fixed (script refuses missing seasons, limits worded honestly), re-review requested |
+| 2 | Why factor sheet | #355 open (resumed 10-31) | `claude/why-factor-sheet-a9b202` | clean | Engine 3.3.0; Control Point PR **CP#344** open (needs a screenshot). Merge both together; toggle `factorSheet` status unknown, check |
+| 3 | Bracket predictor | #356 open (resumed 10-31) | `claude/bracket-predictor-938035` | f1ef6ed3 WIP | Mid-edit adding the `bracketOdds` toggle (flags.ts, FeaturesPanel, EventPage) |
 | 4 | Rules reference | #354 open | `claude/question-box-reference-172454` | 294e2271 WIP | Mid-edit on RulesPage (toggle work likely) |
 | 5 | Scouting commons | #351, #352, #359 **ALL MERGED** | `claude/commons-*` | main fe2c8371 | Done (1.5.5, 1.5.6), Greptile 5/5 each. The 5faad4c5 checkpoint was finished and merged in #359. Not yet verified on the live site |
 | 6 | Scouting alliances | #353 open | `claude/scouting-alliances-d46a10` | b29a9d67 WIP | Mid-edit adding the `scoutingAlliances` toggle + UI tests |

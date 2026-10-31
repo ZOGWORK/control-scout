@@ -102,9 +102,14 @@ asks again against today's champion, replayed exactly as `scripts/engine-slices.
 - The pair signal the ratings don't already carry does not hold up out of sample.
 
 Limits of this run:
-- The database it ran on held 2023–24 onward only, so pair history before 2023–24 was missing. At the
-  chosen decays (0 and 0.25), seasons two or more back weigh at most 0.25² ≈ 6%. That can't turn a
-  significant loss into a gain.
+- The database it ran on held 2023–24 onward only, so pair history before 2023–24 was missing.
+  - The pair inputs, and so the fitted β and the chosen (decay, k), would differ with it. A fold that
+    can see those seasons could choose differently.
+  - The low decays chosen here (0 and 0.25) suggest old history counts for little. They don't bound how
+    much the result could move.
+  - So this run alone doesn't settle the question. It agrees with the 2.4 test, which did have
+    2019–20 on and failed the same way. Rerun on a complete snapshot before any decision to ship;
+    the script now refuses to run when a training season is missing.
 - 2026–27 had no rated 2v2 matches in that database yet, so it was skipped. It is the one season no
   engine choice has seen. Rerun the script once 2026–27 has a few thousand rated matches; the same rule
   applies.
