@@ -15,6 +15,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useSyncExter
 import { offlineSource, savedSeasons } from "./offline/saved";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
+import { noteArrived, watchRequest } from "./liteSuggest";
 
 /**
  * A failed call. `code`: the answer's `error` when it's a machine code (`feature_disabled`), so callers can tell a
@@ -150,7 +151,10 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   const outer = rest.signal;
   const forward = () => ctrl?.abort();
   if (ctrl && outer) { if (outer.aborted) ctrl.abort(); else outer.addEventListener("abort", forward, { once: true }); }
+  // Slow or failing requests while online offer the light version (src/lib/liteSuggest.ts).
+  const watch = watchRequest(path, rest.method);
   let res: Response;
+  let answered = false;
   try {
     const request = fetch(path, {
       credentials: "same-origin",
@@ -163,25 +167,34 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl) : await request;
     if (!(got instanceof Response)) { setUsingSaved(true); return got.saved; }
     res = got;
+    answered = true;
   } catch (e) {
     if (e instanceof ApiError) throw e;
+    // Unreachable, unless the page let the request go itself (it moved on).
+    if (!outer?.aborted) watch.failed();
     return offlineOr<T>(path, rest.method, unreachable());
   } finally {
+    // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).
+    if (!answered) watch.done();
     outer?.removeEventListener("abort", forward);
   }
   // Server still starting (it opens its port before its data is ready): wait
   // as asked and try again, so a cold start reads as a slow load, not an error.
   // It answered, so this isn't "no signal"; each try gets its own timeout.
   if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
+    watch.done(false); // the retry is watched on its own
     await new Promise((r) => setTimeout(r, Math.min(15, Number(res.headers.get("Retry-After")) || 5) * 1000));
     return apiFetch<T>(path, { ...(init ?? {}), _tries: _tries + 1 });
   }
   // The server answered: whatever came from saved data goes back to the server's.
   if (res.status < 500) setUsingSaved(false);
-  const text = await res.text();
+  let text: string;
+  try { text = await res.text(); } catch (e) { watch.done(false); throw e; }
   let body: any = null;
   let unreadable = false;
   try { body = text ? JSON.parse(text) : null; } catch { unreadable = true; }
+  // Only a good, readable answer is the page's data arriving.
+  watch.done(res.ok && !unreadable);
   if (!res.ok) {
     // Switched off by the owner: the server's own words, and the code that tells it from a lost membership.
     if (res.status === 403 && body?.error === FEATURE_DISABLED) throw new ApiError(403, typeof body.message === "string" ? body.message : featureOffMessage(String(body.feature ?? "")), false, FEATURE_DISABLED, typeof body.feature === "string" ? body.feature : undefined);
@@ -215,6 +228,8 @@ function expectObject<T>(data: T): T {
  *  retry, which keeps an error on screen (e.g. the Predict page's offline fallback) until it's answered. */
 export function load<T>(path: string, force = false, quiet = false): Promise<T> {
   const e = cache.get(path) as Entry<T> | undefined;
+  // Data already here (fresh, or stale and shown while it revalidates): the page isn't waiting on the network.
+  if (e?.data !== undefined) noteArrived(path);
   if (!force && e?.promise) return e.promise;
   if (!force && e?.data !== undefined && Date.now() - e.at < FRESH_MS) return Promise.resolve(e.data);
   const my = ++seq;

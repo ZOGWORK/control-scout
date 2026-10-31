@@ -78,7 +78,7 @@ describe("FeaturesPanel", () => {
     await waitFor(() => expect(sent[1]).toEqual({ path: "/api/owner/flags/workspaceScouting/workspaces/ws-b", json: { enabled: null } }));
   });
 
-  it("searches the workspaces", () => {
+  it("searches the workspaces (each per-workspace flag has its own list)", () => {
     const { container } = render(<FeaturesPanel />);
     // Each workspace-scoped toggle has its own list; this one is workspace scouting's.
     const card = within(container.querySelector('li[data-flag="workspaceScouting"]') as HTMLElement);

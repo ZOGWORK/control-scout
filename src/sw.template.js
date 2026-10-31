@@ -59,6 +59,20 @@ function hasSavedSeason() {
   });
 }
 
+/** The full page a light one stands in for (fullHref in src/shared/lite.ts, kept in step: src/sw.lite.test.ts). */
+function fullPage(url) {
+  const rest = url.pathname.replace(/^\/lite/i, "") || "/";
+  if (!/^\/picklist\/?$/i.test(rest)) return /^\/(events|teams)\//i.test(rest) ? rest + (/^\/teams\//i.test(rest) ? url.search : "") : "/";
+  const q = new URLSearchParams();
+  const space = url.searchParams.get("space");
+  if (space && /^[A-Za-z0-9_-]{1,64}$/.test(space)) q.set("space", space);
+  q.set("tab", "data");
+  q.set("view", "picklist");
+  const season = url.searchParams.get("season");
+  if (season && /^\d{4}$/.test(season)) q.set("season", season);
+  return `/scout?${q}`;
+}
+
 async function fromCache(req) {
   const names = (await caches.keys()).filter((k) => k.startsWith(PREFIX)).sort().reverse();
   for (const k of names) {
@@ -75,8 +89,11 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/packs/")) return;
 
   if (req.mode === "navigate") {
-    // Pages: fresh when online, the cached shell when not (the app routes client-side).
-    event.respondWith(fetch(req).catch(async () => (await fromCache("/")) ?? Response.error()));
+    // Pages: fresh when online, the cached shell when not (the app routes client-side). A light page (/lite/…,
+    // src/shared/lite.ts) is for a weak signal; with none at all, its full page opens instead, from the shell and
+    // the offline pack.
+    const lite = /^\/lite(\/|$)/i.test(url.pathname);
+    event.respondWith(fetch(req).catch(async () => (lite ? Response.redirect(new URL(fullPage(url), url).href, 302) : (await fromCache("/")) ?? Response.error())));
     return;
   }
   if (BRAND.has(url.pathname)) {

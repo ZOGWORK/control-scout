@@ -26,7 +26,7 @@ import { all, get, run, writeBatch } from "../db.js";
 import { controlPointInfo, isWorkspaceId, linkedAccountId } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { featureDisabled, isEnabledFor, requireFeature } from "../flags.js";
-import { aggregateConsensus, type ConsensusEntry } from "../../src/shared/consensus.js";
+import { aggregateConsensus, fieldGrouper, type ConsensusEntry } from "../../src/shared/consensus.js";
 import type { ScoutField } from "../../src/shared/scoutTemplate.js";
 import {
   COMMONS_REFUSAL, isReportReason, REPORT_NOTE_MAX, REPORT_REASONS, type CommonsAnswer, type CommonsEntry, type CommonsEvent, type CommonsPhoto, type CommonsRefusal,
@@ -521,34 +521,8 @@ export async function setSuspended(sourceId: number, suspended: boolean, reason:
   return { was: !!cur.suspended_at };
 }
 
-/**
- * Workspaces' templates are their own: the same field id can mean different things (an admin can relabel `weight` as
- * kilograms, or widen a rating's scale). aggregateConsensus groups by id, so for the layer each field is re-keyed by
- * its whole definition (type, label, scale, options): only fields that ask the same question are averaged together.
- * The first definition seen for an id keeps it; another gets `id~2`, `id~3`... (shown under its own label).
- */
-export function fieldGrouper() {
-  const ids = new Map<string, string>(); // definition -> layer id
-  const taken = new Map<string, number>(); // id -> definitions seen
-  const keyOf = (f: ScoutField) => JSON.stringify([f.id, f.type, f.label.trim().toLowerCase(), f.max ?? null, f.options ?? null]);
-  return (fields: ScoutField[], data: Record<string, unknown>) => {
-    const out: ScoutField[] = [];
-    const d: Record<string, unknown> = {};
-    for (const f of fields) {
-      const k = keyOf(f);
-      let id = ids.get(k);
-      if (!id) {
-        const n = (taken.get(f.id) ?? 0) + 1;
-        taken.set(f.id, n);
-        id = n === 1 ? f.id : `${f.id}~${n}`;
-        ids.set(k, id);
-      }
-      out.push({ ...f, id });
-      if (f.id in data) d[id] = data[f.id];
-    }
-    return { fields: out, data: d };
-  };
-}
+// fieldGrouper (re-key each field by its whole definition) lives in src/shared/consensus.ts, shared with scouting alliances.
+export { fieldGrouper };
 
 async function commonsEvents(season: number, event: string | null): Promise<CommonsEvent[]> {
   const rows = await all<any>(

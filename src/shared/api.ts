@@ -1,7 +1,7 @@
 // API contract shared by the server and the web app (types only).
 import type { Reliability } from "./reliability";
 import type { ScheduleDifficulty, ScheduleDifficultyTeam } from "./scheduleDifficulty";
-import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
+import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
@@ -200,6 +200,9 @@ export interface MatchPredictionView {
   noScoreBasis?: true;
   /** Bonus ranking point odds (2025+ qualification matches), made with the same call (same kind and moment). */
   bonus?: BonusOddsView;
+  /** The full why breakdown (engine 3.3): every factor with its weight in the call. Only where one match is
+   *  shown (match page, Know your match), on live calls logged with it and calls from today's ratings. */
+  sheet?: FactorSheet;
 }
 
 /** P(each bonus RP) per alliance, in the season's label order (src/shared/labels.ts bonusLabels), and the
@@ -374,6 +377,8 @@ export interface MatchExplanationView {
   /** The ranges' level (0.8 = 80%). Optional: offline answers from an older pack may lack it. */
   rangeLevel?: number;
   factors: Factor[];
+  /** The full why breakdown (engine 3.3). Optional: an older offline pack's engine may not make one. */
+  factorSheet?: FactorSheet;
   /** Earlier matches these robots played together or against each other, if any. */
   history?: PairHistory | null;
   confidence: { tier: ConfidenceTier; reason: string; minMatches: number; ratingShare: number };

@@ -7,7 +7,7 @@
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
-  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference", "scheduleDifficulty",
+  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -27,12 +27,15 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   bracketOdds: { group: "feature", scope: "global" },
   powerRankings: { group: "feature", scope: "global" },
   coinFlips: { group: "feature", scope: "global" },
+  factorSheet: { group: "feature", scope: "global" },
   offlinePacks: { group: "feature", scope: "global" },
   discordBot: { group: "feature", scope: "global" },
   workspaceScouting: { group: "feature", scope: "workspace" },
+  scoutingAlliances: { group: "feature", scope: "workspace" },
   scoutingCommons: { group: "feature", scope: "workspace" },
   scheduleDifficulty: { group: "feature", scope: "global" },
   rulesReference: { group: "feature", scope: "global" },
+  venueLightMode: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
   photos: { group: "kill", scope: "global" },
@@ -62,11 +65,14 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   bracketOdds: "Playoff bracket odds are switched off for now. The bracket and its results still show.",
   powerRankings: "Power rankings are switched off for now. Every published week is kept and comes back when they do.",
   coinFlips: "Coin flips are switched off for now.",
+  factorSheet: "The full why breakdown is switched off for now. Predictions still show their top 3 reasons.",
   offlinePacks: "Offline packs are paused right now. Packs already on this device keep working.",
   discordBot: "The Discord bot is turned off by the owner for now.",
   rulesReference: "The rules quick reference is switched off for now. Check the official game manual instead.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
+  scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
+  venueLightMode: "The light version is switched off for now. Here's the full page.",
   scheduleDifficulty: "Schedule difficulty is switched off for now. The rest of this page still works.",
 };
 export const featureOffMessage = (flag: string): string => FEATURE_OFF_MESSAGE[flag as Flag] ?? "This is switched off for now.";
@@ -102,6 +108,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     on: "Home shows today's coin flips: the matches the model rates closest to 50-50.",
     off: "Home leaves the coin flips out and the radar is refused. It keeps being gathered, so switching back on shows today's at once.",
   },
+  factorSheet: {
+    label: "Full why breakdown",
+    on: "Under a prediction's top 3 reasons (Predict, the match page, Know your match, offline too), an expander lists every factor behind the call with its share, and after a match which factors pointed to the winner.",
+    off: "The expander is hidden and the match page and Predict stop sending it; predictions keep their top 3 reasons. Live calls still log their breakdown, so switching back on shows it for matches already called.",
+  },
   realtime: {
     label: "Live updates stream",
     on: "Members looking at a workspace's scout entries see new ones arrive live.",
@@ -111,6 +122,16 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Workspace scouting",
     on: "Members of a Control Point workspace share scout entries.",
     off: "Shared entries pause (devices keep them queued until it's back on); everyone's personal scouting keeps working.",
+  },
+  scoutingAlliances: {
+    label: "Scouting alliances",
+    on: "Workspace admins can share scouting with another team for one meet (a Scout-only link, never a Control Point membership); both sides then read each other's entries and assignments at that event and share one consensus.",
+    off: "No new links, and nothing is read across workspaces through existing ones: each workspace sees only its own scouting again. Links are kept (and still end with their event), so switching back on resumes them.",
+  },
+  venueLightMode: {
+    label: "Light version (venue mode)",
+    on: "Event, team, match and pick list pages have a text-only light version for a weak signal (/lite/…): linked from their footer, offered when a page crawls, and reachable with ?lite=1.",
+    off: "Light pages send visitors to the full page, ?lite=1 is ignored, and the footer link and the slow-connection offers are hidden. The offline pack works as before.",
   },
   scoutingCommons: {
     label: "Scouting commons",

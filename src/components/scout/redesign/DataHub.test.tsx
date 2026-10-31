@@ -16,13 +16,14 @@ describe("Data hub rows", () => {
     expect(keys({})).toEqual(["entries", "pit", "recordings"]);
   });
   it("a member: everything but the template", () => {
-    expect(keys({ workspace: WS })).toEqual(["entries", "picklist", "activity", "assignments", "pit", "recordings", "export"]);
+    expect(keys({ workspace: WS })).toEqual(["entries", "picklist", "activity", "assignments", "alliance", "pit", "recordings", "export"]);
   });
   it("an admin: the template too, last", () => {
-    expect(keys({ workspace: WS, isAdmin: true })).toEqual(["entries", "picklist", "activity", "assignments", "pit", "recordings", "export", "template"]);
+    expect(keys({ workspace: WS, alliances: false })).not.toContain("alliance"); // the owner switched scouting alliances off
+    expect(keys({ workspace: WS, isAdmin: true })).toEqual(["entries", "picklist", "activity", "assignments", "alliance", "pit", "recordings", "export", "template"]);
   });
   it("a read-only workspace keeps what reads and exports, and drops the template even for an admin", () => {
-    expect(keys({ workspace: WS, isAdmin: true, readOnly: true })).toEqual(["entries", "picklist", "activity", "assignments", "pit", "recordings", "export"]);
+    expect(keys({ workspace: WS, isAdmin: true, readOnly: true })).toEqual(["entries", "picklist", "activity", "assignments", "alliance", "pit", "recordings", "export"]);
     const rows = dataHubRows({ ...base, workspace: WS, readOnly: true });
     expect(rows.find((r) => r.key === "entries")!.detail).toMatch(/read$/);
     expect(rows.find((r) => r.key === "picklist")!.detail).toMatch(/read-only/);
@@ -50,7 +51,7 @@ describe("Data hub actions", () => {
   it("each row opens its view", () => {
     const onOpen = vi.fn();
     render(<DataHub {...base} workspace={WS} isAdmin onOpen={onOpen} />);
-    for (const [name, view] of [["Entries", "entries"], ["Pick list", "picklist"], ["Activity", "activity"], ["Assignments", "assignments"], ["Pit scouting", "pit"], ["Match recordings", "recordings"], ["Template", "template"]] as const) {
+    for (const [name, view] of [["Entries", "entries"], ["Pick list", "picklist"], ["Activity", "activity"], ["Assignments", "assignments"], ["Scouting alliance", "alliance"], ["Pit scouting", "pit"], ["Match recordings", "recordings"], ["Template", "template"]] as const) {
       fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
       expect(onOpen).toHaveBeenLastCalledWith(view);
     }

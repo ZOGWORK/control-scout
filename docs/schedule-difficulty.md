@@ -40,7 +40,7 @@ Details:
 - **Event page, Rankings tab: a Schedule column** in the rankings table, next to the record it helps explain. Hard
   draws are red, kind ones green; tap (or hover) a value for the plain line and its place in the field. The records
   table reads it from `team_event_records` (`schedule`, `schedule_left`, `schedule_opp`, `schedule_part`,
-  migration 60), filled by the stats job (`fillScheduleDifficulty` in `server/stats/records.ts`), so it sorts and
+  migration 62), filled by the stats job (`fillScheduleDifficulty` in `server/stats/records.ts`), so it sorts and
   filters like any column; "Sched. left", "Opp. vs field" and "Partners vs field" are in the column picker. The
   live standings (during an event) and the plain standings table (before the stats update) read the event detail's
   figures instead, so they're current to the last result; mid-event they add a "Sched. left" column.

@@ -39,6 +39,7 @@ import { indexNowKeyRoute } from "./indexNow.js";
 import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { pairHistory } from "../src/shared/pairHistory.js";
+import { compactSheet } from "../src/shared/factorSheet.js";
 import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
@@ -57,6 +58,7 @@ import { assignmentsRouter } from "./scout/assignments.js";
 import { commentsRouter } from "./scout/comments.js";
 import { consensusRouter } from "./scout/consensus.js";
 import { commonsRouter } from "./scout/commons.js";
+import { alliancesRouter } from "./scout/alliances.js";
 import { matchReportRouter } from "./scout/matchReport.js";
 import { inboxRouter } from "./inbox/routes.js";
 import { pushRouter } from "./push/routes.js";
@@ -91,6 +93,7 @@ import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/m
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
+import { liteRouter, liteSwitch } from "./lite/routes.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -622,7 +625,7 @@ export function createApp(opts: { dist?: string } = {}) {
     const names = new Map((await all<any>(`SELECT number, name FROM teams WHERE number IN (${[...red, ...blue].map(() => "?").join(",")})`, [...red, ...blue])).map((r) => [Number(r.number), r.name]));
     return {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
-      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
+      rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, ...((await isEnabled("factorSheet")) ? { factorSheet: compactSheet(x.factorSheet) } : {}), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
       level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
     };
@@ -763,6 +766,8 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/scout", consensusRouter());
   // The scouting commons (docs/scouting-commons.md): shared pit entries, per event; signed-in reads, members share.
   api.use("/scout", commonsRouter());
+  // Scouting alliances (docs/alliances.md): two workspaces linked for one event; admins link, members read the union.
+  api.use("/scout", alliancesRouter());
   // The pre-match report's workspace half (v1.6 Task 2): consensus, pick list and assignments; members only.
   api.use("/scout", matchReportRouter());
   // The owner's switches: with realtime off the stream answers 503 and the app polls instead; with workspace
@@ -786,6 +791,9 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use(CSP_REPORT_PATH, cspReportRouter());
   app.use("/api", api);
   app.use("/packs", packsRouter());
+  // Light pages for a weak signal (server/lite/, docs/lite.md): /lite/…, and ?lite=1 on a rich page's address.
+  app.use(liteSwitch);
+  app.use("/lite", liteRouter());
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));
   app.get("/sitemap-:n.xml", h(sitemapChunkRoute));

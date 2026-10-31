@@ -21,6 +21,7 @@ import { computeRecords, fillAdvancementOdds, fillRecordPredictions, fillSchedul
 import { snapshotRankings } from "./rankings.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
+import { compactSheet } from "../../src/shared/factorSheet.js";
 import { refreshReportCards } from "./reportCards.js";
 import { computeReliability } from "./reliability.js";
 import { teamPageTest } from "../teamPages.js";
@@ -368,13 +369,15 @@ export async function logLivePredictions(log: Log = () => {}): Promise<number> {
     const x = f.explain(season, m.red, m.blue, m.level === "playoff" ? "playoff" : "qual", m.code);
     if (!x) continue;
     stmts.push({
-      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id, ${RANGE_COLUMNS}, ${BONUS_COLUMNS}, history)
-            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT OR IGNORE INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, factors, engine_version, predicted_at, match_time, no_score_basis, model_id, data_version, ratings_through, p_red_shadow, shadow_model_id, ${RANGE_COLUMNS}, ${BONUS_COLUMNS}, history, factor_sheet)
+            VALUES ('live', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [season, m.code, m.level, m.series, m.number, JSON.stringify(m.red), JSON.stringify(m.blue), x.winProbA, x.predictedScoreA, x.predictedScoreB,
         x.confidence.tier, JSON.stringify(x.factors), ENGINE_VERSION, at, m.time, noScoreBasis, x.probabilityModelId ?? "legacy", dataVersion, ratingsThrough, x.shadow?.winProbA ?? null, x.shadow?.modelId ?? null,
         ...rangeArgs(x, !!noScoreBasis), ...bonusArgs(season, x),
         // The partnership line shown with the call (a reason only; the logged odds don't depend on it).
-        x.partnership ? JSON.stringify(pairHistory(x.partnership)) : null],
+        x.partnership ? JSON.stringify(pairHistory(x.partnership)) : null,
+        // Every factor with its weight in this call (engine 3.3), for the post-match review.
+        JSON.stringify(compactSheet(x.factorSheet))],
     });
   }
   await writeBatch(stmts);
@@ -458,7 +461,7 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  *    search index without them, so past seasons' ranks and "of N" drop the placeholders too.
  * 7: the season record is every match on the team's record (src/shared/eventRecord.ts): qualification no-shows
  *    count as FIRST counts them, playoff matches sat out don't. Hosts already rebuilt under 6 rebuild once more.
- * 8: schedule difficulty in the event records (team_event_records.schedule*, migration 60): every season once.
+ * 8: schedule difficulty in the event records (team_event_records.schedule*, migration 62): every season once.
  */
 export const STATS_RULES = 8;
 
