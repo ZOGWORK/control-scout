@@ -47,7 +47,9 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
   );
 }
 
-export function Section({ title, description, action, stackAction = false, children, className, delay = 0 }: {
+export function Section({ id, title, description, action, stackAction = false, children, className, delay = 0 }: {
+  /** An anchor (/teams/4215#awards, from search): the section scrolls clear of the sticky top bar. */
+  id?: string;
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -59,7 +61,7 @@ export function Section({ title, description, action, stackAction = false, child
 }) {
   return (
     <Reveal delay={delay} className={cn('mb-8', className)}>
-      <section>
+      <section id={id} className={id ? 'scroll-mt-16' : undefined}>
         {(title || action) && (
           <div className={cn('mb-4 flex items-end justify-between gap-3 border-b border-border pb-3', stackAction && 'max-sm:flex-col max-sm:items-start')}>
             <div className="min-w-0">

@@ -8,7 +8,7 @@ import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
-import type { SearchHit } from "../../shared/api";
+import type { SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
@@ -53,6 +53,19 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
 
 const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event: CalendarDays, match: Swords };
 export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
+
+/** The numbers a search asked about ("hypnotic ranking points"), under the top team's name. */
+export function HitFacts({ facts }: { facts: SearchFact[] }) {
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {facts.map((f) => (
+        <span key={f.label} className="inline-flex max-w-full items-baseline gap-1 rounded-md border border-accent/25 bg-accent/[0.07] px-1.5 py-0.5 text-[11px]">
+          <span className="shrink-0 text-muted-foreground">{f.label}</span><span className="truncate font-medium tabular-nums text-foreground">{f.value}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export interface SearchBoxProps {
   onPick: (h: SearchHit) => void;
@@ -171,6 +184,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                             {(h.kind === "event" || h.kind === "match") && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
                             <span className="truncate">{h.subtitle}</span>
                           </span>
+                          {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
                         </span>
                       </div>
                     );

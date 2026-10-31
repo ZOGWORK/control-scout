@@ -5,7 +5,7 @@
 // visit never waits on the header's state.
 import { Link, useSearchParams } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
-import { GROUPS, hitHref, useSearchHits } from "../components/search/SearchBox";
+import { GROUPS, HitFacts, hitHref, useSearchHits } from "../components/search/SearchBox";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import { BOOT_HITS } from "../lib/searchBoot";
 import { useTitle, useMeta } from "../lib/meta";
@@ -60,6 +60,7 @@ export default function SearchPage() {
                             {(h.kind === "event" || h.kind === "match") && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
                             <span className="truncate">{h.subtitle}</span>
                           </span>
+                          {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
                         </span>
                       </Link>
                     </li>

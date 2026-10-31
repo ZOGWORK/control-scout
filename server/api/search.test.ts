@@ -2,7 +2,8 @@
 import { beforeAll, describe, it, expect } from "vitest";
 import { openDb, migrate, setDb, run } from "../db";
 import { rebuildSearch } from "../stats/job";
-import { ensureSearchIndex, search } from "./search";
+import { ensureSearchIndex, search, searchIntent } from "./search";
+import { hitHref } from "../../src/shared/search";
 import { all as dbAll } from "../db";
 
 beforeAll(async () => {
@@ -133,5 +134,58 @@ describe("search", () => {
   it("doesn't return far-off guesses", async () => {
     expect(await titles("garden state")).toEqual([]);
     expect(await titles("zzzzzz")).toEqual([]);
+  });
+});
+
+// "hypnotic awards", "4215 ranking points": the name finds the team, the rest says what about it.
+describe("search with a topic", () => {
+  beforeAll(async () => {
+    await run("INSERT INTO teams (number, name, city) VALUES (7777, 'Match Point', 'Reno')");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches, wins, losses, ties, avg_score) VALUES (2025, 4215, 101.64, 616, 8375, 32, 26, 6, 0, 140.2)");
+    await run("INSERT INTO event_teams (season, code, team, rank, rp) VALUES (2025, 'AUSYQ1', 4215, 2, 2.456), (2025, 'AUSYQ1', 16321, 1, 3.1)");
+    await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, 'AUSYQ1', 'Inspire', 1, 4215)");
+    await rebuildSearch();
+  });
+
+  it("reads the topic and what's left, phrases and typos included", () => {
+    expect(searchIntent("hypnotic ranking points")).toMatchObject({ topic: "rp", rest: "hypnotic" });
+    expect(searchIntent("Hypnotic Robotics AWARDS")).toMatchObject({ topic: "awards", rest: "Hypnotic Robotics" });
+    expect(searchIntent("ultra violet team")).toMatchObject({ topic: null, rest: "ultra violet" });
+    expect(searchIntent("hypnotic awrds")).toBeNull();
+    expect(searchIntent("hypnotic awrds", true)).toMatchObject({ topic: "awards", rest: "hypnotic" });
+    expect(searchIntent("awards")).toBeNull(); // nothing left to search for
+    expect(searchIntent("hypnotic")).toBeNull(); // nothing dropped
+  });
+
+  it("opens the team on what was asked, with its own numbers", async () => {
+    const [aw] = await search("hypnotic awards", 5);
+    expect(aw).toMatchObject({ kind: "team", ref: "4215", section: "awards" });
+    expect(aw.facts).toEqual([{ label: "Awards", value: "1" }, { label: "Latest", value: "Inspire at Sydney South Qualifier" }, { label: "Season", value: "2025–26" }]);
+    expect(hitHref(aw)).toBe("/teams/4215#awards");
+    const [rp] = await search("4215 ranking points", 5);
+    expect(rp.facts).toEqual([{ label: "Ranking score", value: "2.46 at Sydney South Qualifier" }, { label: "Event rank", value: "#2 of 2" }, { label: "Season", value: "2025–26" }]);
+    expect((await search("hypnotic opr", 5))[0].facts).toEqual([{ label: "OPR", value: "101.6" }, { label: "OPR rank", value: "#616 of 8,375" }, { label: "Season", value: "2025–26" }]);
+    expect((await search("hypnotic record", 5))[0].facts?.slice(0, 2)).toEqual([{ label: "Record", value: "26-6-0" }, { label: "Win rate", value: "81%" }]);
+  });
+
+  it("forgives a misspelled topic word, even next to a correct one", async () => {
+    expect((await search("hypnotic awrds", 5))[0]).toMatchObject({ ref: "4215", section: "awards" });
+    expect((await search("hypnotic robotics ranking ponts", 5))[0]).toMatchObject({ ref: "4215" });
+    expect((await search("hypnotic robotics ranking ponts", 5))[0].facts?.[0].label).toBe("Ranking score");
+  });
+
+  it("opens an event on the asked tab, the topic named in its subtitle", async () => {
+    const [ev] = await search("sydney south odds", 5);
+    expect(ev).toMatchObject({ kind: "event", ref: "2025:AUSYQ1", section: "odds" });
+    expect(ev.subtitle).toMatch(/^Advancement odds · /);
+    expect(hitHref(ev)).toBe("/events/2025/AUSYQ1?tab=odds");
+  });
+
+  it("leaves names, plain queries and match queries as they were", async () => {
+    expect((await search("drive team", 5))[0]).toMatchObject({ ref: "5555" });
+    expect((await search("drive team", 5))[0].section).toBeUndefined();
+    expect((await search("match point", 5))[0]).toMatchObject({ ref: "7777" });
+    expect((await search("AUSYQ1 Q12", 5))[0]).toMatchObject({ kind: "match" });
+    expect((await search("4215", 5))[0]).toEqual({ kind: "team", ref: "4215", title: "4215 Hypnotic Robotics", subtitle: "Ames", season: 2026 });
   });
 });

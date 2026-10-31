@@ -6,7 +6,9 @@
 import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
-import { fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
+import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
+import { teamFacts } from "./searchFacts.js";
+import { allowedEdits, editDistance, fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
 import { findRegions } from "../../src/shared/regions.js";
 import { registerCache } from "../caches.js";
@@ -39,10 +41,60 @@ async function matchHit(q: string): Promise<SearchHit | null> {
   return { kind: "match", ref: `${season}:${code}:${row.level}:${row.series}:${row.number}`, title: `${row.label} · ${ev?.name ?? code}`, subtitle: `${code} · ${season}`, season };
 }
 
+/** A query that also asks about something ("hypnotic ranking points", "4215 awards"): the topic, its words as
+ *  canonical ("ranking points"), and the words left to search for. Null when nothing would be left, or nothing dropped.
+ *  `typos`: a topic word may be misspelled ("awrds", "ranking ponts"), within the name search's own edit allowance. */
+export function searchIntent(q: string, typos = false): { topic: SearchTopic | null; phrase: string | null; rest: string } | null {
+  const ws = q.trim().split(/\s+/).filter(Boolean);
+  const lower = ws.map((w) => w.toLowerCase());
+  let topic: SearchTopic | null = null, phrase: string | null = null, at = -1, len = 0;
+  for (const [p, t] of SEARCH_TOPICS) {
+    const pw = p.split(" ");
+    const same = (a: string | undefined, w: string) => a === w || (typos && a != null && editDistance(a, w) <= allowedEdits(w.length));
+    const i = lower.findIndex((_, j) => pw.every((w, k) => same(lower[j + k], w)));
+    if (i >= 0) { topic = t; phrase = p; at = i; len = pw.length; break; }
+  }
+  const rest = ws.filter((w, i) => (i < at || i >= at + len) && !SEARCH_FILLER.has(w.toLowerCase()));
+  if (rest.length === ws.length || !rest.length) return null;
+  return { topic, phrase, rest: rest.join(" ") };
+}
+
 /** `prefer`: the visitor's own teams/events ("team:16321", "event:2025:AUBRQ2") —
  *  my team, tracked and shortlisted — rank above other matches of the same strength.
- *  `kinds`: only these kinds of hit (an events-only box), chosen before the limit so other kinds can't crowd them out. */
+ *  `kinds`: only these kinds of hit (an events-only box), chosen before the limit so other kinds can't crowd them out.
+ *  A query that also asks about something ("hypnotic awards", "4215 ranking points", "USNJCMP odds") finds what the
+ *  rest names, each hit opening on that part of its page (SearchHit.section), and the top team carries the numbers
+ *  asked about (SearchHit.facts). A team or event whose own name has the words ("Match Point") still comes first.
+ *  Words like "team", and misspelled topic words ("hypnotic awrds"), count only when the whole query finds nothing. */
 export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
+  const full = await searchWords(q, limit, prefer, kinds);
+  // A match query ("USNJQ1 match 3") means that match, not the event's matches.
+  if (MATCH_RE.test(q.trim())) return full;
+  // The readings to try, in order: the words as typed, then (when the query found nothing) with a topic word's typo
+  // forgiven ("hypnotic robotics ranking ponts": "ranking" alone leaves "ponts" unfound). The first that finds anything wins.
+  const readings = [searchIntent(q), full.length ? null : searchIntent(q, true)];
+  for (const intent of readings) {
+    if (!intent || (!intent.topic && full.length)) continue;
+    const { topic, phrase } = intent;
+    const hits = await searchWords(intent.rest, limit, prefer, kinds);
+    if (!hits.length) continue;
+    // The top team answers with its numbers ("Ranking score 3.40 at …"); the rest name the topic.
+    const top = topic ? hits.find((h) => h.kind === "team") : undefined;
+    const facts = top && topic ? await teamFacts(Number(top.ref), topic) : [];
+    const found = hits.map((h): SearchHit => {
+      if (!topic) return h;
+      const section = sectionFor(h.kind, topic);
+      const withFacts = h === top && facts.length > 0;
+      return { ...h, ...(section ? { section } : {}), ...(withFacts ? { facts } : { subtitle: [TOPIC_LABEL[topic], h.subtitle].filter(Boolean).join(" · ") }) };
+    });
+    const named = phrase ? full.filter((h) => ` ${normalize(h.title)} `.includes(` ${normalize(phrase)} `)) : [];
+    const seen = new Set<string>();
+    return [...named, ...found, ...full].filter((h) => { const k = `${h.kind}:${h.ref}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, limit);
+  }
+  return full;
+}
+
+async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
   const query = q.trim();
   if (!query) return [];
   const allow = (k: SearchHit["kind"]) => !kinds?.size || kinds.has(k);
