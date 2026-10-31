@@ -1,0 +1,176 @@
+// @vitest-environment jsdom
+// The header's search with the whole answer (docs/search.md): live as you type, an older reply never replacing a
+// newer one, the keyboard, Escape, what a screen reader hears, Bruno AI's suggestion arriving after search's own
+// results (labelled as his), the gap note, the pages and the recovery state.
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SearchAnswer, SearchHit } from "../../shared/api";
+
+const t = (ref: string, name: string): SearchHit => ({ kind: "team", ref, title: `${ref} ${name}`, subtitle: "Oradell, NJ, USA", season: 2026 });
+const answer = (q: string, a: Partial<SearchAnswer>): SearchAnswer => ({ q, hits: [], pages: [], step: "deterministic", weak: false, ...a });
+
+/** Each request waits until the test answers it: replies can arrive in any order. */
+const pending: { url: string; resolve: (v: unknown) => void }[] = [];
+vi.mock("../../lib/api", async (orig) => ({ ...(await orig<typeof import("../../lib/api")>()), apiFetch: (url: string) => new Promise((resolve) => pending.push({ url, resolve })) }));
+vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
+vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null }));
+const flags = { brunoSearch: true, searchLearning: true };
+vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: (n: keyof typeof flags) => flags[n] }));
+
+const { SearchBox, SEARCH_DEBOUNCE_MS } = await import("./SearchBox");
+
+const beacon = vi.fn(() => true);
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  Element.prototype.scrollIntoView = () => {};
+  Object.defineProperty(navigator, "sendBeacon", { configurable: true, value: beacon });
+});
+afterEach(() => { cleanup(); pending.length = 0; beacon.mockClear(); vi.useRealTimers(); });
+
+function mount(onPick = vi.fn()) {
+  render(<SearchBox onPick={onPick} placeholder="Search teams, events, matches…" label="Search" />);
+  const input = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
+  act(() => input.focus());
+  return { input, onPick };
+}
+const type = async (input: HTMLInputElement, v: string) => { fireEvent.change(input, { target: { value: v } }); await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); }); };
+const reply = async (match: RegExp, body: unknown) => {
+  const i = pending.findIndex((p) => match.test(p.url));
+  expect(i, `a request for ${match}`).toBeGreaterThanOrEqual(0);
+  const [p] = pending.splice(i, 1);
+  await act(async () => { p.resolve(body); });
+};
+
+describe("live search", () => {
+  it("asks once typing pauses, shows that it's searching, and never opens anything on its own (T15, T21)", async () => {
+    const { input, onPick } = mount();
+    fireEvent.change(input, { target: { value: "hyp" } });
+    fireEvent.change(input, { target: { value: "hypno" } });
+    expect(input.value).toBe("hypno"); // typing is never blocked
+    expect(screen.getByText("Searching…")).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=hypno&limit=15&answer=1")]);
+    await reply(/q=hypno/, answer("hypno", { hits: [t("4215", "Hypnotic Robotics")] }));
+    expect(screen.getByRole("option", { name: /4215 Hypnotic Robotics/ })).toBeTruthy();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+  it("an older reply arriving last never replaces the newer one (T15)", async () => {
+    const { input } = mount();
+    await type(input, "bad");
+    await type(input, "bad wolf");
+    await reply(/q=bad%20wolf/, answer("bad wolf", { hits: [t("6980", "Bad Wolf")] }));
+    await reply(/q=bad&/, answer("bad", { hits: [t("1", "Bad News Bots")] }));
+    expect(screen.getByRole("option", { name: /6980 Bad Wolf/ })).toBeTruthy();
+    expect(screen.queryByText(/Bad News Bots/)).toBeNull();
+  });
+});
+
+describe("keyboard and screen readers (T16, T57, T58)", () => {
+  it("Down and Up move, Enter opens the highlighted one, the list is a listbox the field controls", async () => {
+    const { input, onPick } = mount();
+    await type(input, "robotics");
+    const hits = [t("4215", "Hypnotic Robotics"), t("6980", "Bad Wolf")];
+    await reply(/q=robotics/, answer("robotics", { hits }));
+    expect(input.getAttribute("aria-expanded")).toBe("true");
+    expect(input.getAttribute("aria-controls")).toBe(screen.getByRole("listbox").id);
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([expect.stringContaining("4215 Hypnotic Robotics"), expect.stringContaining("6980 Bad Wolf")]);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getAllByRole("option")[1].getAttribute("aria-selected")).toBe("true");
+    expect(input.getAttribute("aria-activedescendant")).toBe(screen.getAllByRole("option")[1].id);
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(hits[0]);
+  });
+  it("Escape closes the list and keeps the field focused; again, it clears", async () => {
+    const { input } = mount();
+    await type(input, "hypnotic");
+    await reply(/q=hypnotic/, answer("hypnotic", { hits: [t("4215", "Hypnotic Robotics")] }));
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(input);
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input.value).toBe("");
+    expect(document.activeElement).toBe(input);
+  });
+});
+
+describe("the answer's parts", () => {
+  it("Bruno AI's suggestion arrives after search's own results, labelled as his (T66)", async () => {
+    const { input } = mount();
+    await type(input, "robots that hypnotise");
+    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", didYouMean: "Dread Pirate Robots", weak: true, hits: [t("11545", "Dread Pirate Robots")] }));
+    // Search's own results are on screen while he's asked.
+    expect(screen.getByRole("option", { name: /Dread Pirate Robots/ })).toBeTruthy();
+    expect(screen.getByText(/Asking Bruno AI/)).toBeTruthy();
+    await reply(/\/api\/search\/refine/, answer("robots that hypnotise", { step: "ai", refined: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
+    expect(screen.getByRole("group", { name: "Bruno AI suggestion" })).toBeTruthy();
+    expect(screen.getByText(/Bruno AI read this as/)).toBeTruthy();
+    expect(screen.getByRole("option", { name: /Dread Pirate Robots/ })).toBeTruthy();
+  });
+  it("Bruno AI's group arriving keeps the highlight on its row; a new query drops his old suggestion", async () => {
+    const onPick = vi.fn();
+    const { input } = mount(onPick);
+    await type(input, "robots that hypnotise");
+    const base = [t("11545", "Dread Pirate Robots"), t("7", "Robot Seven")];
+    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // on "Robot Seven"
+    await reply(/\/api\/search\/refine/, answer("robots that hypnotise", { step: "ai", refined: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
+    const selected = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");
+    expect(selected?.textContent).toContain("Robot Seven");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(base[1]);
+    // Typed again: his old suggestion is gone until he answers the new query.
+    act(() => input.focus());
+    await type(input, "robots that hypnotise");
+    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
+    expect(screen.queryByRole("group", { name: "Bruno AI suggestion" })).toBeNull();
+  });
+  it("Bruno AI off: never asked", async () => {
+    flags.brunoSearch = false;
+    try {
+      const { input } = mount();
+      await type(input, "zz");
+      await reply(/\/api\/search\?q=/, answer("zz", { step: "did-you-mean", weak: true, hits: [t("1", "Zz Bots")] }));
+      expect(pending.some((p) => p.url.includes("/refine"))).toBe(false);
+    } finally { flags.brunoSearch = true; }
+  });
+  it("a missing view: what was understood, the closest result, and the gap note (T73)", async () => {
+    const { input } = mount();
+    await type(input, "hypnotic robot specs");
+    await reply(/q=hypnotic/, answer("hypnotic robot specs", {
+      step: "closest", hits: [t("4215", "Hypnotic Robotics")],
+      intent: { kind: "robot-specs", pattern: "[team] robot specs", met: false, understood: ["Team 4215 Hypnotic Robotics", "Their robot specs"], gap: "Robot specs (drivetrain, weight, design) aren't tracked yet." },
+    }));
+    expect(screen.getByText(/Understood: Team 4215 Hypnotic Robotics · Their robot specs/)).toBeTruthy();
+    expect(screen.getByText("Robot specs (drivetrain, weight, design) aren't tracked yet.")).toBeTruthy();
+    expect(screen.getByRole("option", { name: /4215 Hypnotic Robotics/ })).toBeTruthy();
+  });
+  it("pages below the results; the recovery state is never a bare dead end (T10, T13)", async () => {
+    const { input, onPick } = mount();
+    await type(input, "records");
+    await reply(/q=records/, answer("records", { step: "recovery", weak: true, pages: [{ title: "Team records", href: "/teams" }], recovery: { understood: ['No team, event or match matched "records"'], closest: [], browse: [{ title: "Browse all teams", href: "/teams" }, { title: "Browse all events", href: "/events" }] } }));
+    const groups = screen.getAllByRole("group").map((g) => g.getAttribute("aria-label"));
+    expect(groups).toEqual(["Pages", "Browse"]);
+    expect(screen.getByText(/No team, event or match matched/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("option", { name: /Browse all events/ }));
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/events" }));
+  });
+  it("an opened result is counted with its query only (aggregate: no account)", async () => {
+    const { input } = mount();
+    await type(input, "hypnotic");
+    await reply(/q=hypnotic/, answer("hypnotic", { hits: [t("4215", "Hypnotic Robotics")] }));
+    fireEvent.click(screen.getByRole("option", { name: /4215/ }));
+    expect(beacon).toHaveBeenCalledTimes(1);
+    const [url, blob] = beacon.mock.calls[0] as unknown as [string, Blob];
+    expect(url).toBe("/api/search/click");
+    expect(JSON.parse(await blob.text())).toEqual({ q: "hypnotic", kind: "team", ref: "4215" });
+  });
+  it("a pick that opens a feature (Compare) is sent too, so its question is counted", async () => {
+    const { input } = mount();
+    await type(input, "hypnotic vs bad wolf reputation");
+    await reply(/q=hypnotic/, answer("hypnotic vs bad wolf reputation", { step: "closest", hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
+    fireEvent.click(screen.getByRole("option", { name: /vs 6980/ }));
+    expect(beacon).toHaveBeenCalledTimes(1);
+  });
+});

@@ -4,6 +4,7 @@
 // and a cross-site form can't send JSON without a preflight we never allow), and every change is
 // written to the audit log.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
+import { topIntents } from "../api/searchIntents.js";
 import { ownerOf } from "../owner.js";
 import type { User } from "../auth/session.js";
 import { listErrorReports, OWNER_NOTE_MAX, setErrorNote } from "../errorReports.js";
@@ -70,6 +71,9 @@ export function ownerRouter(): Router {
     return u;
   }));
   r.get("/workspaces", h(async () => ({ workspaces: await listWorkspaces() })));
+
+  // What search shows people ask for (server/api/searchIntents.ts): unmet first, the build list. Patterns and counts only.
+  r.get("/search-intents", h(async (req) => ({ unmet: await topIntents(num(req.query.limit, 20, 1, 200)), all: await topIntents(num(req.query.limit, 20, 1, 200), false) })));
 
   r.get("/usage", h(async (req): Promise<OwnerUsage> => {
     const days = num(req.query.days, 14, 1, 90);

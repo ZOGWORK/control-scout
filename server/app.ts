@@ -10,6 +10,10 @@ import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
+import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
+import { refine } from "./api/searchBruno.js";
+import { recordClick } from "./api/searchLearn.js";
+import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
@@ -344,7 +348,36 @@ export function createApp(opts: { dist?: string } = {}) {
     const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
     // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
     const kinds = new Set(String(req.query.kinds ?? "").split(",").filter((k): k is SearchHit["kind"] => k === "team" || k === "event" || k === "match" || k === "place"));
-    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), boundedCount(req.query.limit, "limit", 12, 1, 25), prefer, kinds) };
+    const limit = boundedCount(req.query.limit, "limit", 12, 1, 25);
+    // ?answer=1 (the header's search and /search): the whole answer, with its step, pages and recovery
+    // (server/api/searchAnswer.ts). Pickers ask for plain hits.
+    if (req.query.answer === "1" && !kinds.size) return searchAnswer(String(req.query.q ?? ""), { limit, prefer });
+    return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };
+  }));
+
+  // Step 3 of search's chain (server/api/searchBruno.ts): asked by the app after the first answer is on screen,
+  // only when that answer was weak. 204: nothing to add (Bruno off, unreachable, or no better reading).
+  api.get("/search/refine", limiter(20), h(async (req, res) => {
+    await ensureSearchIndex(rebuildSearch);
+    const r = await refine(String(req.query.q ?? ""), { limit: boundedCount(req.query.limit, "limit", 12, 1, 25) });
+    if (!r) { res.status(204).end(); return undefined; }
+    return r;
+  }));
+
+  // A result opened from search (server/api/searchLearn.ts), and the intent its query asked for
+  // (server/api/searchIntents.ts): counted only when it's one search really gave for that query, so nothing can be
+  // planted. Aggregate counts only, nothing about who.
+  api.post("/search/click", limiter(30), h(async (req, res) => {
+    const q = cleanQuery(String(req.body?.q ?? "")), kind = String(req.body?.kind ?? ""), ref = String(req.body?.ref ?? "");
+    if (q && ref) {
+      const a = await searchAnswer(q, { learn: false, limit: 25 });
+      const hit = a.hits.find((x) => x.kind === kind && x.ref === ref);
+      // What the query asked for, counted from search's own reading of it (server/api/searchIntents.ts).
+      if (hit) await recordIntent(a.intent);
+      if (hit && !hit.href && (await isEnabled("searchLearning").catch(() => false))) await recordClick(learnQuery(q), hit);
+    }
+    res.status(204).end();
+    return undefined;
   }));
 
   // Weather in a team's home town, for the top bar (shown only when you've set your team).
