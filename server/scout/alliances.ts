@@ -152,9 +152,11 @@ function queueCopies(r: Row, from: string, to: string, endedAt: number): InState
 /** Make the copies the link queued (each once, whatever retries), then mark the link's copies made. */
 async function keepCopies(r: Row): Promise<void> {
   if (!r.invitee_ws) return;
-  // Copying is a read across workspaces: while alliances are off for either side it waits (copies_made stays 0,
-  // so the sweep makes them once they're back on).
-  if (!(await isEnabledFor("scoutingAlliances", r.inviter_ws)) || !(await isEnabledFor("scoutingAlliances", r.invitee_ws))) return;
+  // Copying is a read across workspaces: while alliances, or workspace scouting itself, are off for either side it
+  // waits (copies_made stays 0, so the sweep makes them once both are back on).
+  for (const ws of [r.inviter_ws, r.invitee_ws]) {
+    if (!(await isEnabledFor("scoutingAlliances", ws)) || !(await isEnabledFor("workspaceScouting", ws))) return;
+  }
   await copyQueued(r, r.invitee_ws, r.invitee_name ?? "");
   await copyQueued(r, r.inviter_ws, r.inviter_name);
   const left = await get<{ n: number }>("SELECT COUNT(*) n FROM scout_alliance_copy_queue WHERE alliance_id = ?", [r.id]);
@@ -262,12 +264,12 @@ export async function allianceAccess(user: User, workspaceId: string, allianceId
 // The shared reads
 // ---------------------------------------------------------------------------
 
-/** Both sides' live entries at the link's event, each observation once (a copy of the other side's entry isn't repeated). */
+/** Both sides' live entries at the link's event, each observation once (a copy is skipped while its original is live here). */
 async function unionEntries(you: string, partner: string, season: number, eventCode: string): Promise<AllianceEntry[]> {
   const rows = await all<any>(
     `SELECT ws.cp_workspace_id, w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
       WHERE ws.cp_workspace_id IN (?, ?) AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
-        AND ${notACopyWithin("ws.cp_workspace_id", "w.uuid", 2)}
+        AND ${notACopyWithin("w", "ws.cp_workspace_id", 2)}
       ORDER BY w.updated_at DESC`,
     [you, partner, season, eventCode, you, partner]);
   // Each entry's answers under its own questions: the template it was made with, of its own workspace.

@@ -36,17 +36,23 @@ const CACHE_MAX = 5_000;
  */
 export interface ConsensusScope {
   workspaces: string[]; eventCode?: string;
-  /** Read each observation once: a workspace's copy (kept from an earlier alliance) of an entry from another workspace in the scope is skipped. */
+  /** Read each observation once: a workspace's copy (kept from an earlier alliance) is skipped while its original, in another workspace of the scope, is live at the same event. */
   oneEach?: boolean;
 }
 const scopeKey = (s: ConsensusScope) => `${[...new Set(s.workspaces)].sort().join("+")}@${s.eventCode?.toUpperCase() ?? ""}${s.oneEach ? "#1" : ""}`;
 
 /**
- * SQL: the row isn't a copy (kept when an alliance ended: scout_alliance_copies) of an entry that came from one of
- * these workspaces, whose original is read instead. Its `n` placeholders are the workspaces.
+ * SQL: the entry row `w` (in workspace `wsCol`) isn't a copy (kept when an alliance ended: scout_alliance_copies) whose
+ * original, in one of these workspaces, is still live at the same season and event, so is read itself. A copy whose
+ * original was deleted (or moved) since is the only one left of that observation, and is read. Its `n`
+ * placeholders are the workspaces.
  */
-export const notACopyWithin = (wsCol: string, uuidCol: string, n: number) =>
-  `NOT EXISTS (SELECT 1 FROM scout_alliance_copies c WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${uuidCol} AND c.origin_ws IN (${Array(n).fill("?").join(", ")}))`;
+export const notACopyWithin = (w: string, wsCol: string, n: number) =>
+  `NOT EXISTS (SELECT 1 FROM scout_alliance_copies c
+      JOIN workspaces ow ON ow.cp_workspace_id = c.origin_ws
+      JOIN workspace_scout_entries o ON o.workspace_id = ow.id AND o.uuid = c.origin_uuid AND o.deleted = 0
+        AND o.season = ${w}.season AND UPPER(o.event_code) = UPPER(${w}.event_code)
+     WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${w}.uuid AND c.origin_ws IN (${Array(n).fill("?").join(", ")}))`;
 
 /** scope key -> "season:team" -> computed consensus. */
 const cache = new Map<string, { workspaces: string[]; teams: Map<string, { at: number; value: TeamConsensus }> }>();
@@ -122,7 +128,7 @@ async function compute(scope: ConsensusScope, season: number, teams: number[]): 
     `SELECT ws.cp_workspace_id, w.team, w.kind, w.author_account_id, w.updated_at, w.data, w.template_id, w.template_version
        FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
       WHERE ws.cp_workspace_id IN (${spaces.map(() => "?").join(", ")}) AND w.season = ? AND w.deleted = 0${event ? " AND UPPER(w.event_code) = ?" : ""}
-        AND w.team IN (${teams.map(() => "?").join(", ")})${scope.oneEach ? ` AND ${notACopyWithin("ws.cp_workspace_id", "w.uuid", spaces.length)}` : ""}`,
+        AND w.team IN (${teams.map(() => "?").join(", ")})${scope.oneEach ? ` AND ${notACopyWithin("w", "ws.cp_workspace_id", spaces.length)}` : ""}`,
     [...spaces, season, ...(event ? [event] : []), ...teams, ...(scope.oneEach ? spaces : [])]);
   const readers = new Map(spaces.map((w) => [w, fieldReader(w)]));
   // Several workspaces: each has its own templates, so a field id is only averaged with fields asking the same question.

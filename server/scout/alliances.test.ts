@@ -430,6 +430,33 @@ describe("ending: the link expires, copies only when both agreed", () => {
     expect(await notes(p.ben, B)).toEqual(["A1", "B1"]);
   });
 
+  it("a kept copy whose original was deleted since still counts when the two link again", async () => {
+    const p = await cast();
+    const first = await link(true, true);
+    const a1 = entry({ team: 101, notes: "A1 gone later" });
+    await pushOk(p.abe, A, [a1]);
+    await end(p.ada, A, first); // B keeps a copy of A1
+    await pushOk(p.ada, A, [{ ...a1, deleted: true, updatedAt: a1.updatedAt + 10 }]);
+    const second = await link(true, true);
+    const shared = (await sharedOf(p.ben, B, second)).json;
+    expect(shared.entries.map((e: any) => `${e.side}:${e.notes}`)).toEqual(["you:A1 gone later"]);
+    expect((await consensusOf(p.ben, B, second)).json.teams[0].entries).toBe(1);
+  });
+
+  it("copies wait while the owner has paused either side's workspace scouting", async () => {
+    const p = await cast();
+    const id = await link(true, true);
+    await pushOk(p.ben, B, [entry({ team: 102, notes: "B while paused" })]);
+    await setWorkspaceOverride("workspaceScouting", B, false, "owner@test");
+    try {
+      await end(p.ada, A, id);
+      await settleAlliances();
+      expect((await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries).toEqual([]);
+    } finally { await setWorkspaceOverride("workspaceScouting", B, null, "owner@test"); }
+    await settleAlliances();
+    expect((await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries.map((e: any) => e.notes)).toEqual(["B while paused"]);
+  });
+
   it("the inviter can cancel a pending invite, and its code stops working", async () => {
     const p = await cast();
     const i = await invite(p.ada, A);
