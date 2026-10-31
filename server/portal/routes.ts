@@ -30,6 +30,7 @@ import { heroLinesOwnerRoutes } from "./heroLinesRoutes.js";
 import { digestOwnerRoutes } from "../digest/ownerRoutes.js";
 import { predictionEngine } from "./predictionEngine.js";
 import { StreamError, listStreams, setEventStream } from "./streams.js";
+import { commonsOwnerRoutes } from "../scout/commons.js";
 
 const h = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Request, res: Response, next: NextFunction) => {
   fn(req, res).then((b) => { if (!res.headersSent && b !== undefined) res.json(b); }).catch(next);
@@ -89,6 +90,9 @@ export function ownerRouter(): Router {
 
   // Feature toggles and kill switches (server/portal/features.ts).
   featureOwnerRoutes(r, h, actor);
+
+  // The scouting commons, opened one event at a time (server/scout/commons.ts).
+  commonsOwnerRoutes(r, h, actor);
 
   // Event live streams (server/portal/streams.ts): the list, and set / remove one (an empty url removes it).
   r.get("/streams", h(async () => ({ streams: await listStreams() })));

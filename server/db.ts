@@ -1538,6 +1538,92 @@ ALTER TABLE digest_prefs ADD COLUMN welcomed_at TEXT;
   },
   {
     version: 58,
+    name: "scouting commons",
+    sql: `
+-- The scouting commons (server/scout/commons.ts, docs/scouting-commons.md): pit entries a workspace chooses to share
+-- with every signed-in Scout user at an event, credited to the workspace. Match entries are never shared.
+-- Launched per event: the owner switches the commons on for one event at a time. No row: off.
+CREATE TABLE commons_events (
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  enabled INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL,
+  PRIMARY KEY (season, event_code)
+) WITHOUT ROWID;
+-- A workspace's opt-in, set by its admins. No row (or opted_in 0): it shares nothing, whatever its entries say.
+CREATE TABLE commons_workspaces (
+  workspace_id INTEGER PRIMARY KEY REFERENCES workspaces (id),
+  opted_in INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL,
+  updated_by TEXT NOT NULL
+);
+-- The per-entry publish flag, keyed by event + team for reading. The entry itself stays in workspace_scout_entries
+-- (read live, so an edit shows at once); season, event_code and team follow the entry when it's edited.
+-- status: published | withdrawn (unpublished by the workspace, or it opted out). An edit never republishes.
+CREATE TABLE commons_entries (
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  entry_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  published_at INTEGER NOT NULL,
+  published_by_account_id INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, entry_uuid)
+);
+CREATE INDEX commons_entries_event_team ON commons_entries (season, event_code, team, status);
+CREATE INDEX commons_entries_team ON commons_entries (season, team, status);
+`,
+  },
+  {
+    version: 59,
+    name: "scouting commons moderation",
+    sql: `
+-- Moderating the scouting commons (server/scout/commons.ts, docs/scouting-commons.md).
+-- An owner takedown: commons_entries.status 'removed', with when, by whom and why. A removed entry stays out of the
+-- commons until the owner restores it; its workspace can't share it again meanwhile.
+ALTER TABLE commons_entries ADD COLUMN removed_at TEXT;
+ALTER TABLE commons_entries ADD COLUMN removed_by TEXT;
+ALTER TABLE commons_entries ADD COLUMN removed_reason TEXT;
+-- The workspace's own choice under a takedown (published | withdrawn): what Restore puts back. Unsharing or opting out
+-- while taken down changes it to withdrawn, so a restore never shares what the workspace withdrew.
+ALTER TABLE commons_entries ADD COLUMN removed_from TEXT;
+-- The owner's mute of a whole workspace: everything it shared is hidden and it can't share more, until lifted.
+ALTER TABLE commons_workspaces ADD COLUMN suspended_at TEXT;
+ALTER TABLE commons_workspaces ADD COLUMN suspended_by TEXT;
+ALTER TABLE commons_workspaces ADD COLUMN suspended_reason TEXT;
+-- A reader's report of a shared entry. reason: wrong | outdated | inappropriate | other. One open report per reader
+-- per entry. resolution: dismissed | removed (the owner took the entry down), set once with resolved_at.
+CREATE TABLE commons_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  entry_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  team INTEGER NOT NULL,
+  reporter_user_id INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  resolved_at TEXT,
+  resolved_by TEXT,
+  resolution TEXT
+);
+CREATE UNIQUE INDEX commons_reports_open ON commons_reports (workspace_id, entry_uuid, reporter_user_id) WHERE resolved_at IS NULL;
+CREATE INDEX commons_reports_queue ON commons_reports (resolved_at, created_at);
+-- A reader's own mute of a source workspace: its shares are hidden from that reader only.
+CREATE TABLE commons_mutes (
+  user_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL REFERENCES workspaces (id),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, workspace_id)
+) WITHOUT ROWID;
+`,
+  },
+  {
+    version: 60,
     name: "factor sheet with live calls",
     sql: `
 -- The full why breakdown (engine 3.3 factorSheet, src/shared/factorSheet.ts compactSheet) written with each live call,
