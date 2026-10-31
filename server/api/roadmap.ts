@@ -36,6 +36,8 @@ export interface RoadMapInput {
   facts: Map<string, EventFacts>;
   /** Event code → name, for "advances to". */
   names: Map<string, string>;
+  /** Event code → start date, for a championship the team isn't registered for yet. */
+  starts?: Map<string, string | null>;
   /** League regions: the league tournaments still to come in the team's league (from the season calendar). */
   leagueTournaments?: { code: string; name: string; start: string | null }[];
 }
@@ -172,7 +174,7 @@ export function buildRoadMap(input: RoadMapInput): TeamRoadMap {
     // The championship the team's slot came from, else the region's only one.
     const from = stops.find((s) => s.type && ENTRY.has(s.type) && (s.advancement?.status === "advanced" || s.advancement?.status === "already"));
     const champCode = ev?.code ?? (from && rs!.feeds?.[from.code]) ?? (rs!.championships.length === 1 ? rs!.championships[0].code : null);
-    const champ = champCode ? { code: champCode, name: input.names.get(champCode) ?? rs!.championships.find((c) => c.code === champCode)?.name ?? champCode, start: ev?.start ?? null } : null;
+    const champ = champCode ? { code: champCode, name: input.names.get(champCode) ?? rs!.championships.find((c) => c.code === champCode)?.name ?? champCode, start: ev?.start ?? input.starts?.get(champCode) ?? null } : null;
     const last = lastSeasonOf(rs!.lastSeason.regional, rs!.lastSeason.season);
     const target = last?.fcmp?.cutoff.median ?? last?.cutoff.median ?? null;
     const n = ev && ev.roster >= 4 ? ev.roster : median(rs!.lastSeason.regional.map((c) => c.teams));
@@ -220,6 +222,7 @@ export async function teamRoadMap(season: number, team: number): Promise<TeamRoa
   const codes = events.map((e) => e.code);
   const facts = new Map<string, EventFacts>();
   const names = new Map<string, string>();
+  const starts = new Map<string, string | null>();
   if (codes.length) {
     const ph = codes.map(() => "?").join(",");
     const [evs, counts, advs, pts] = await Promise.all([
@@ -237,7 +240,10 @@ export async function teamRoadMap(season: number, team: number): Promise<TeamRoa
     // Names of the events teams advance to (and of the region's championships).
     const targets = [...new Set([...advs.map((a) => a.advances_to).filter(Boolean), ...REGION_RULESETS.filter((r) => r.season === season).flatMap((r) => r.championships.map((c) => c.code))])];
     if (targets.length) {
-      for (const r of await all<any>(`SELECT code, name FROM events WHERE season = ? AND code IN (${targets.map(() => "?").join(",")})`, [season, ...targets])) names.set(r.code, r.name);
+      for (const r of await all<any>(`SELECT code, name, start FROM events WHERE season = ? AND code IN (${targets.map(() => "?").join(",")})`, [season, ...targets])) {
+        names.set(r.code, r.name);
+        starts.set(r.code, r.start ?? null);
+      }
     }
   }
   const today = new Date().toISOString().slice(0, 10);
@@ -252,7 +258,7 @@ export async function teamRoadMap(season: number, team: number): Promise<TeamRoa
         [season, region, lg[0].league, today])).map((e) => ({ code: e.code, name: e.name, start: e.start ?? null }));
     }
   }
-  return buildRoadMap({ team, season, region, today, events, facts, names, leagueTournaments });
+  return buildRoadMap({ team, season, region, today, events, facts, names, starts, leagueTournaments });
 }
 
 /** A registered event with nothing on the team's record yet, as a team-page event row. */

@@ -212,6 +212,12 @@ describe("road map from the database", () => {
     expect(m.stops[0]).toMatchObject({ points: { total: 76, playoffs: 40 }, cutoff: 76, advancement: { status: "advanced", to: "New Jersey Championship" } });
     expect(m.stage).toBe("regional");
     expect(m.need?.event?.code).toBe("USNJCMP");
+    // Registered, so a stop; and without the registration the calendar still gives its date.
+    await run("DELETE FROM event_registrations WHERE code = 'USNJCMP'");
+    const unregistered = await teamRoadMap(2026, 100);
+    expect(unregistered.need?.event).toMatchObject({ code: "USNJCMP", start: "2099-03-14" });
+    expect(unregistered.need?.fromCalendar).toBe(true);
+    await run("INSERT INTO event_registrations (season, code, team, fetched_at) VALUES (2026, 'USNJCMP', 100, '2026-10-30')");
     // A re-fetch that couldn't read the points keeps them; an empty list clears them.
     await writeBatch(bundleStatements({ ...b, detail: { ...b.detail!, advancementPoints: undefined } }));
     expect((await teamRoadMap(2026, 100)).stops[0].points?.total).toBe(76);
