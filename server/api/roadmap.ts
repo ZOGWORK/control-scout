@@ -161,9 +161,13 @@ export function buildRoadMap(input: RoadMapInput): TeamRoadMap {
   if (stage === "regional") {
     const lvl = rs!.levels.find((l) => l.kind === "regional")!;
     const ev = stops.find((s) => s.when !== "done" && s.type === "Championship" && s.home) ?? null;
-    // Played its championship without taking a slot from it: no qualifying stop is left this season.
-    if (!ev && stops.some((s) => s.when === "done" && s.type === "Championship" && s.home)) {
-      return { team, season, region, ruleset: view, stops, stage: "over", next, need: null, encoded };
+    // Played its championship: FIRST's list says it took no slot (no qualifying stop left this season), or the list
+    // isn't out yet (waiting on it, never read as a miss).
+    const played = !ev ? stops.find((s) => s.when === "done" && s.type === "Championship" && s.home) : undefined;
+    if (played) {
+      const st = played.advancement?.status;
+      const stage = st === "missed" || st === "ineligible" || st === "declined" ? "over" : "awaiting";
+      return { team, season, region, ruleset: view, stops, stage, next, need: null, encoded };
     }
     // The championship the team's slot came from, else the region's only one.
     const from = stops.find((s) => s.type && ENTRY.has(s.type) && (s.advancement?.status === "advanced" || s.advancement?.status === "already"));

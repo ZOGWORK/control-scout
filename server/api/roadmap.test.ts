@@ -106,6 +106,19 @@ describe("season road map", () => {
     expect(m.stops[1].advancement?.status).toBe("missed");
   });
 
+  it("a played championship with no advancement list yet is waited on, never read as a miss", () => {
+    const m = buildRoadMap(input({
+      today: "2027-03-15",
+      events: [row("USNJNELT", "LeagueTournament", "2027-02-06"), row("USNJCMP", "Championship", "2027-03-14")],
+      facts: new Map([
+        ["USNJNELT", facts("USNJ", { advancement: { slots: 6, advancesTo: "USNJCMP", rows: [{ team: 100, status: "FIRST", declined: false }] } })],
+        ["USNJCMP", facts("USNJ")],
+      ]),
+    }));
+    expect(m.stage).toBe("awaiting");
+    expect(m.need).toBeNull();
+  });
+
   it("an event outside the home region never names the home championship", () => {
     const m = buildRoadMap(input({
       events: [row("USOHQ1", "Qualifier", "2026-12-01")],

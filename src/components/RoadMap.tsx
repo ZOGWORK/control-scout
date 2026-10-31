@@ -49,7 +49,7 @@ function RoadMap({ r }: { r: TeamRoadMap }) {
 /** The region's levels, the team's current one lit. */
 function Pipeline({ r }: { r: TeamRoadMap }) {
   const levels = r.ruleset!.levels;
-  const current = r.stage === "beyond" ? "world" : r.stage === "regional" || r.stage === "over" ? "regional" : "entry";
+  const current = r.stage === "beyond" ? "world" : r.stage === "regional" || r.stage === "over" || r.stage === "awaiting" ? "regional" : "entry";
   const at = levels.findIndex((l) => l.kind === current);
   return (
     <ol aria-label={`${r.ruleset!.name} ${seasonLabel(r.season)} advancement path`} className="flex flex-wrap items-center gap-1.5">
@@ -152,6 +152,14 @@ function PointsLine({ s }: { s: RoadStop }) {
 const day = (d: string | null) => (d ? dateRange(d, d) : "date to be set");
 
 function NeedPanel({ r }: { r: TeamRoadMap }) {
+  if (r.stage === "awaiting") {
+    return (
+      <div className={cn("rounded-xl border p-4", TONES.sky.box)}>
+        <p className="flex items-center gap-2 font-semibold"><Flag className="size-4 text-info" aria-hidden />Waiting on FIRST's advancement list</p>
+        <p className="mt-1 text-sm text-muted-foreground">The {r.ruleset!.name} championship is over. Who advances shows here once FIRST publishes it.</p>
+      </div>
+    );
+  }
   if (r.stage === "over") {
     return (
       <div className={cn("rounded-xl border p-4", TONES.sky.box)}>
