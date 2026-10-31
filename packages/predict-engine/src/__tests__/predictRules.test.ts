@@ -13,6 +13,7 @@ import type { EventInput, BonusFlags } from "../inputs";
 import { teamScoreVariance } from "../matchModel";
 import type { BonusModelSource } from "../bonus";
 import type { TeamRating } from "../types";
+import { PartnershipBook } from "../partnership";
 
 const rt = (np: number): TeamRating => ({ auto: np * 0.2, teleop: np * 0.7, endgame: np * 0.1, pen: 0, n: 20, uncertainty: 0 });
 
@@ -260,5 +261,41 @@ describe("per-team disqualification (T601) and TIPS", () => {
     const out = sim([{ red: [1, 2], blue: [3, 4], result: res(80, 80, [6, 2]) }]);
     for (const t of [1, 2]) expect(out.get(t)!.rankP90).toBeLessThanOrEqual(2);
     for (const t of [3, 4]) expect(out.get(t)!.rankP10).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("Forecaster factor sheets (engine 3.3)", () => {
+  const sc = (auto: number, teleop: number) => ({ total: auto + teleop + 10, totalNp: auto + teleop + 10, auto, teleop, endgame: 10, penaltiesCommitted: 0 });
+  const t = (...n: number[]) => n.map((number) => ({ number }));
+  const ev: EventInput = {
+    season: 2025, code: "FIX", type: "Qualifier", start: "2025-11-01", end: "2025-11-01",
+    field: [1, 2, 3, 4].map((n) => ({ teamNumber: n, rank: null })), alliances: [],
+    matches: [
+      { key: "qual:0:1", label: "Q1", level: "qual", series: 0, number: 1, time: "2025-11-01T10:00:00Z", played: true, red: { teams: t(1, 2), score: sc(40, 90) }, blue: { teams: t(3, 4), score: sc(10, 60) } },
+      { key: "qual:0:2", label: "Q2", level: "qual", series: 0, number: 2, time: "2025-11-01T10:10:00Z", played: true, red: { teams: t(1, 3), score: sc(35, 80) }, blue: { teams: t(2, 4), score: sc(15, 70) } },
+      { key: "qual:0:3", label: "Q3", level: "qual", series: 0, number: 3, time: "2025-11-01T10:20:00Z", played: false, red: { teams: t(1, 4), score: null }, blue: { teams: t(2, 3), score: null } },
+    ],
+  };
+
+  it("are off by default, and when asked each unplayed match's sheet explains exactly the odds it shows", () => {
+    expect(new FixtureForecaster().forecast(ev, null, 20)!.matches.every((m) => !("factorSheet" in m))).toBe(true);
+    const fc = new FixtureForecaster().forecast(ev, null, 20, { factorSheets: true })!;
+    const [q1, , q3] = fc.matches;
+    expect(q1.factorSheet).toBeNull(); // played: no prediction
+    const s = q3.factorSheet!;
+    // Made on the forecast's own book (with this event's results): the sheet's call is the row's call.
+    expect(s.logit).toBeCloseTo(Math.log(q3.pRedWin! / (1 - q3.pRedWin!)), 3);
+    expect(s.phases).toHaveLength(4);
+    expect([...s.phases, ...s.model, ...s.reasons].reduce((a, f) => a + f.weight, 0)).toBeCloseTo(1, 3);
+  });
+
+  it("name the same history as the row, fresh event results included", () => {
+    class Paired extends FixtureForecaster { protected partnerships() { return new PartnershipBook(FITTED_MODEL.rating); } }
+    // 1 + 4 play together twice at this event (not yet in the season's pair table), then meet again.
+    const played = (n: number) => ({ key: `qual:0:${n}`, label: `Q${n}`, level: "qual" as const, series: 0, number: n, time: `2025-11-01T10:${10 + n}:00Z`, played: true, red: { teams: t(1, 4), score: sc(45, 95) }, blue: { teams: t(2, 3), score: sc(15, 60) } });
+    const e: EventInput = { ...ev, matches: [played(1), played(2), { ...ev.matches[2], key: "qual:0:3", number: 3 }] };
+    const q3 = new Paired().forecast(e, null, 20, { factorSheets: true })!.matches[2];
+    expect(q3.history?.kind).toBe("together");
+    expect(q3.factorSheet!.reasons.find((r) => r.id === "headToHead")!.label).toBe(q3.history!.label);
   });
 });

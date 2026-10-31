@@ -18,6 +18,8 @@ import { VideoPanel } from "./MatchVideo";
 import { ShareMatch } from "./ShareMatch";
 import { ResultChanges } from "./ResultChanges";
 import { BonusOdds } from "./BonusOdds";
+import { FactorSheetPanel } from "./FactorSheet";
+import { sheetWinner } from "../shared/factorSheet";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
@@ -42,6 +44,13 @@ export function MatchDetails({ m, eventName }: { m: MatchView; eventName?: strin
       <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => <Body d={d} eventName={eventName} />}
       </Async>
+      {/* No connection, so no match detail: the call this list already made on the device (lite pack) keeps its why. */}
+      {state.error?.offline && m.prediction?.sheet ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4" data-testid="offline-why">
+          {m.prediction.factors?.length ? <><p className="text-xs font-medium text-text-muted">Why</p><FactorList factors={m.prediction.factors} className="mt-1.5" /></> : null}
+          <FactorSheetPanel sheet={m.prediction.sheet} winner={m.played && m.red.score && m.blue.score ? sheetWinner(m.red.score.total, m.blue.score.total) : null} className="mt-3" />
+        </div>
+      ) : null}
       {/* Outside the server-loaded part: recording and saved videos work with no connection. */}
       <MatchVideoSection m={m} />
     </div>
@@ -228,6 +237,7 @@ function Prediction({ d }: { d: MatchDetail }) {
       {p.bonus && <BonusOdds season={m.season} bonus={p.bonus} actual={played ? d.bonus : null} className="mt-3 bg-text-base/[0.02]" />}
       {p.factors?.length ? <><p className="mt-3 text-xs font-medium text-text-muted">Why</p><FactorList factors={p.factors} reasons={p.reasons} className="mt-1.5" /></> : null}
       {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
+      {p.sheet && <FactorSheetPanel sheet={p.sheet} winner={played ? sheetWinner(m.red.score!.total, m.blue.score!.total) : null} className="mt-3" />}
       <CalibrationLine pRed={p.pRed} compact className="mt-3" />
     </section>
   );

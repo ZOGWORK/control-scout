@@ -1624,6 +1624,76 @@ CREATE TABLE commons_mutes (
   },
   {
     version: 60,
+    name: "factor sheet with live calls",
+    sql: `
+-- The full why breakdown (engine 3.3 factorSheet, src/shared/factorSheet.ts compactSheet) written with each live call,
+-- so the post-match review can show which factors pointed to the winner. JSON; null on calls logged before 3.3 and
+-- on backtest rows (the replay doesn't keep it).
+ALTER TABLE predictions ADD COLUMN factor_sheet TEXT;
+`,
+  },
+  {
+    version: 61,
+    name: "scouting alliances",
+    sql: `
+-- Two workspaces linked for one event (server/scout/alliances.ts, docs/alliances.md). The inviter's admin makes a
+-- pending row with a one-time code (only its sha256 kept); the partner's admin accepts it with the code. Each side
+-- says, at link time, whether both keep a copy of the other's entries when the link ends (*_keeps: copies only
+-- when both are 1). Status: pending | active | ended (ended_reason: event_over | unlinked | cancelled | expired).
+CREATE TABLE scout_alliances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  season INTEGER NOT NULL,
+  event_code TEXT NOT NULL,
+  ends_on TEXT NOT NULL,
+  inviter_ws TEXT NOT NULL,
+  inviter_name TEXT NOT NULL,
+  inviter_keeps INTEGER NOT NULL,
+  invited_by_account_id INTEGER NOT NULL,
+  invitee_ws TEXT,
+  invitee_name TEXT,
+  invitee_keeps INTEGER,
+  accepted_by_account_id INTEGER,
+  code_hash TEXT UNIQUE,
+  invite_expires_at INTEGER,
+  status TEXT NOT NULL,
+  ended_reason TEXT,
+  created_at INTEGER NOT NULL,
+  accepted_at INTEGER,
+  ended_at INTEGER,
+  copies_made INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX scout_alliances_inviter ON scout_alliances (inviter_ws, status);
+CREATE INDEX scout_alliances_invitee ON scout_alliances (invitee_ws, status);
+CREATE INDEX scout_alliances_live ON scout_alliances (status, ends_on);
+-- What each side gets when a link both sides agreed to keep copies of ends: the other side's live entries at the
+-- event as they were then (written in the same batch as the ending), each with where it first came from. A row
+-- leaves the queue in the same write as its copy is made, so a retry copies only what's left.
+CREATE TABLE scout_alliance_copy_queue (
+  alliance_id INTEGER NOT NULL,
+  to_ws TEXT NOT NULL,
+  origin_ws TEXT NOT NULL,
+  origin_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL, team INTEGER NOT NULL, event_code TEXT, match_label TEXT, kind TEXT NOT NULL,
+  data TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', updated_at INTEGER NOT NULL,
+  author_account_id INTEGER NOT NULL, author_name TEXT NOT NULL DEFAULT '',
+  editor_account_id INTEGER NOT NULL, editor_name TEXT NOT NULL DEFAULT '',
+  template_id TEXT, template_version INTEGER,
+  PRIMARY KEY (alliance_id, to_ws, origin_ws, origin_uuid)
+);
+-- Every copy made, with the entry it first came from: a workspace keeps one copy per original (its id derives from
+-- the origin), and a later link between the same workspaces reads the original once, never the copy beside it.
+CREATE TABLE scout_alliance_copies (
+  to_ws TEXT NOT NULL,
+  copy_uuid TEXT NOT NULL,
+  origin_ws TEXT NOT NULL,
+  origin_uuid TEXT NOT NULL,
+  alliance_id INTEGER NOT NULL,
+  PRIMARY KEY (to_ws, copy_uuid)
+);
+`,
+  },
+  {
+    version: 62,
     name: "official advancement points",
     sql: `
 -- FIRST's own advancement points per team at an event (server/sources/first.ts, /advancement/{code}/points; 2025–26 on),

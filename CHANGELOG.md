@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.6.0 — 2026-10-31
+## 1.6.3 — 2026-10-31
 
 Team pages now show a season road map: every event in date order, how the team is advancing, and what its next stop takes.
 
@@ -29,6 +29,56 @@ Team pages now show a season road map: every event in date order, how the team i
 - **What's needed next.** Where Control Scout has encoded the region's 2026–27 rules (New Jersey, Michigan, Iowa), a panel names the next stop and what last season's last team in scored there. It also lists which finishes reach that on their own and, for league teams, how many meet matches count toward the league tournament. Every encoded ruleset shows its sources and season.
 - **Official points.** FIRST's own advancement points for each event, split into awards, playoffs, alliance and qualification, beside the lowest total that took a slot.
 - **Other regions.** Results so far and what's next, with no points target until the region's rules are encoded.
+
+## 1.6.2 — 2026-10-31
+
+Two teams can now scout one event together: link workspaces, share the scouting, and split again when it ends.
+
+### Highlights
+- [workspace] Scouting alliances: share your scouting with another team for one meet
+- [scout] Both teams see each other's entries and share one consensus
+- [picklist] Pick lists stay your own, with a switch to view your partner's
+- [workspace] Coverage shows what each side added, side by side
+
+### Scouting alliances
+- **Invite and accept.** A workspace admin picks an event and gets a one-time code; the other team's admin enters it to link. It's a link for that meet only: nobody joins the other team. Either admin can unlink at any time. Find it under Scout, Data, Scouting alliance (#353).
+- **One event, shared.** While linked, every member of both workspaces sees both sides' entries and assignments at that event, and one consensus built from all of them. Nothing from other events is shared.
+- **Your entries stay yours.** Each entry stays in its own workspace and only that workspace can edit it; the partner's admins can't change or delete it.
+- **Coverage.** Each side's entries, teams, matches and scouts, with a per-team split. A side that hasn't added anything shows zeros rather than disappearing.
+- **When the event ends** the link ends by itself. Each workspace keeps its own entries, and if both admins ticked "keep a copy" when linking, each also keeps a copy of the other side's entries.
+
+## 1.6.1 — 2026-10-31
+
+A light version of the pages you open at a venue, for when the signal is down to one bar.
+
+### Highlights
+- [speed] Light, text-only event, team, match and pick list pages
+- [speed] Offered by itself when a page crawls, and from every page's footer
+- [speed] One tap back to the full version, always
+
+### Light version
+- **Text first.** `/lite/…` pages are plain server-rendered HTML: no images, no charts (tables instead), no scripts, the device's own fonts. An event's rankings and whole schedule, a team's next matches, latest results and events, a match's lineup, score sheet and call, and your workspace's pick list (read-only, members only, as in the full app) (#358).
+- **Getting there.** "Light version" in the footer of those pages; add `?lite=1` to any of their addresses; while the app's code is still loading after 10 seconds the first paint offers it; and when a page's data hasn't arrived after 8 seconds, or three requests fail within a minute while you're online, a small card asks. "Not now" keeps it away for the rest of the visit.
+- **Never stuck.** Every light page has a Full version button at the top right. With no signal at all, the offline pack still takes over as before (a light page's address opens its full page from the saved app).
+- **Same numbers.** Both versions format numbers, dates and win odds with the same helpers, and predictions keep their confidence words.
+- **Owner switch.** The owner console's Features tab can turn the light version off; its addresses then open the full pages.
+
+## 1.6.0 — 2026-10-31
+
+Every prediction now opens up into its full why: each factor behind the call, with how much of it that factor carries.
+
+### Highlights
+- [predict] A full why breakdown under every prediction, with each factor's share
+- [predict] Form, momentum, reliability and more, next to the game phases
+- [report] After a match, see which factors pointed to the winner
+
+### Predictions
+- **Full why breakdown.** Below the top 3 reasons in the Lab, on the match page and in Know your match, an expander lists every factor behind the call with its share: the four game phases (auto, TeleOp, endgame, penalties), then what else the win model weighs (form, momentum, reliability, partner balance, experience and rest, and how sure the data is). The shares add up to 100%.
+- **At a glance.** A red-vs-blue bar shows how much of the call leans each way. Every factor has its own icon, and on a wide screen the breakdown spans the whole result, with the game phases beside the rest.
+- **Reasons that don't move the odds** are listed at 0%: these robots' history together or against each other, and schedule strength (ratings already account for every partner and opponent faced).
+- **Post-match review.** Each call logged before a match now keeps its breakdown. Once the match is played, every factor that leaned one way says whether it pointed to the winner, with how much of the call those factors carried.
+- Works offline too: a prediction made on your device from the lite pack shows the same breakdown.
+- Engine 3.3.0: the breakdown only. Win odds and scores are unchanged (#355).
 
 ## 1.5.9 — 2026-10-31
 

@@ -143,6 +143,26 @@ export function contextualProbability(model: ContextualModel, L: number, feature
   return model.recalibration ? sigmoid(model.recalibration.slope * logit(clampP(p, 1e-9))) : p;
 }
 
+/** The model with this id: `model` itself or one of its fallbacks (null when none matches). */
+export function contextualModelById(model: ContextualModel | undefined, id: string | null | undefined): ContextualModel | null {
+  for (let m = model; m; m = m.fallback) if (m.id === id) return m;
+  return null;
+}
+
+/**
+ * How the contextual model's inputs move the final log-odds (engine 3.3, for the factor sheet). Up to the
+ * clamps, logit(P) = gain · (L + Σ terms) + offset, where gain and offset fold in the calibration and the
+ * final stretch. Read-only: contextualProbability is unchanged and stays the number that is served.
+ */
+export function contextualTerms(model: ContextualModel, features: number[]): { terms: number[]; gain: number; offset: number } {
+  const rs = model.recalibration?.slope ?? 1;
+  return {
+    terms: features.map((v, i) => (v / model.scale[i]) * model.coefficients[i]),
+    gain: rs * model.calibration.slope,
+    offset: rs * model.calibration.intercept,
+  };
+}
+
 /**
  * The contextual P(red wins), or null when it can't be used: the book has
  * no reliability history for this season (legacy data) or the lineup is

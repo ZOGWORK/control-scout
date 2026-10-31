@@ -77,6 +77,43 @@ block but keeps "above/below what their ratings expected" for pairs with a real 
 and `decay = 0.5` (0.5 and 1 differ by 0.00002), which favours recent seasons in what is
 shown.
 
+### Second look under engine 3.2 (2026-10-30)
+
+Since 2.4 the served engine has learned alliance overlap (2.11), event-local form (2.9) and regional
+priors, any of which could absorb a pair effect or leave a cleaner one. `scripts/partnership-refit.ts`
+asks again against today's champion, replayed exactly as `scripts/engine-slices.ts` replays it.
+
+- **Protocol, rolling origin.** For each test season, (decay, k) is chosen and β fitted only on the
+  seasons before it, on the same grid as 2.4. The 2.4 β was not reused.
+- **Ship rule, fixed before running.** The pooled Δ Brier interval must lie below 0, and no test season
+  may get worse.
+
+| Test season | Trained on | Chosen | Served Brier | + pairs | Δ Brier [95%, event bootstrap] |
+|---|---|---|---|---|---|
+| 2024–25 (33,017) | 2023–24 | decay 0, k 1, βT 0.14, βA 0.10 | 0.15782 | 0.15771 | −1.06e-4 [−2.00e-4, −0.38e-4] |
+| 2025–26 (36,572) | 2023–24, 2024–25 | decay 0.25, k 4, βT 0.42, βA 0.15 | 0.16814 | 0.16823 | **+0.82e-4 [+0.21e-4, +1.42e-4]** |
+| Pooled (69,589) | | | | | −0.07e-4 [−0.22e-4, +0.26e-4] |
+
+**Result: the rule fails, and 3.2 stays reasons-only** (β = 0, no served number changes).
+- 2024–25 improved, but on 2025–26, with the choice made on the two seasons before it, the blend is
+  significantly worse, just as it was against 2.1.1.
+- The chosen settings are unstable: decay 0 vs 0.25, and β moves by a factor of 3 from one fold to the
+  next. That is what a fitted noise term looks like.
+- The pair signal the ratings don't already carry does not hold up out of sample.
+
+Limits of this run:
+- The database it ran on held 2023–24 onward only, so pair history before 2023–24 was missing.
+  - The pair inputs, and so the fitted β and the chosen (decay, k), would differ with it. A fold that
+    can see those seasons could choose differently.
+  - The low decays chosen here (0 and 0.25) suggest old history counts for little. They don't bound how
+    much the result could move.
+  - So this run alone doesn't settle the question. It agrees with the 2.4 test, which did have
+    2019–20 on and failed the same way. Rerun on a complete snapshot before any decision to ship;
+    the script now refuses to run when a training season is missing.
+- 2026–27 had no rated 2v2 matches in that database yet, so it was skipped. It is the one season no
+  engine choice has seen. Rerun the script once 2026–27 has a few thousand rated matches; the same rule
+  applies.
+
 **Coverage.** 64.5% of held-out matches have some pair history, and 24.6% have two
 robots on the same alliance that played together before.
 

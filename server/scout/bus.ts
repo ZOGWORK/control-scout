@@ -28,6 +28,17 @@ const writeHooks = new Set<WriteHook>();
 /** Hear every workspace's entry writes (process-wide; never removed). */
 export function onEntriesWritten(fn: WriteHook): void { writeHooks.add(fn); }
 
+// Work that must happen before a workspace's entries change (scouting alliances: a link whose event is over ends, and
+// keeps its copies, before anything written after the deadline could reach them). Awaited by every entry write.
+type BeforeWriteHook = (workspaceId: string) => Promise<unknown>;
+const beforeWriteHooks = new Set<BeforeWriteHook>();
+/** Run `fn` before every write to a workspace's entries (process-wide; never removed). */
+export function onBeforeEntriesWrite(fn: BeforeWriteHook): void { beforeWriteHooks.add(fn); }
+/** Run the before-write hooks for a workspace. A hook that fails is logged, never blocks the write. */
+export async function beforeEntriesWrite(workspaceId: string): Promise<void> {
+  for (const fn of beforeWriteHooks) { try { await fn(workspaceId); } catch (err) { console.error("[live] before-write hook failed", err); } }
+}
+
 /** Tell every open stream of the workspace about entries just written (in seq order). Never throws. */
 export function publishEntries(workspaceId: string, entries: LiveEntry[]): void {
   if (entries.length) for (const fn of writeHooks) { try { fn(workspaceId, entries); } catch (err) { console.error("[live] write hook failed", err); } }

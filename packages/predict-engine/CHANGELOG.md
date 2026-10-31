@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.3.0 — 2026-10-30 · Full why breakdown
+
+Win probabilities, scores and ranges are identical to 3.2.0: every field `explainMatch` served before is
+bit-identical on every predicted match of the slice replay (`scripts/engine-slices.ts --explain-against`).
+This release only adds to the explanation.
+
+- **`MatchExplanation.factorSheet`** (`FactorSheet`): every factor behind a call, each with its weight in it.
+  - Each entry carries the log-odds it adds toward A; together they add up exactly to logit(winProbA).
+    Its weight is its share of the call: |log-odds| over the sum over all entries.
+  - **Phases** (all four): the score gap's log-odds, split in proportion to each phase's points.
+    `factors` (unchanged) are the first three, field for field, from one ranking, so the two never disagree.
+  - **Model** (the contextual win model's 22 inputs, grouped): where the points come from, form, momentum,
+    reliability, partner balance, experience and rest, and how sure the data is. The last also holds the
+    calibration's small offset and anything the probability clamps take. Under the legacy model the sheet
+    is the phases and at most its calibration offset.
+  - **Reasons** (weight 0, words only): schedule strength (ratings already account for every partner and
+    opponent faced), and with `opts.partnership` the robots' head-to-head or partnership history. If a
+    partnership β were ever turned on, its shift would get its real weight here.
+- **Forecasts:** `forecast(ev, myTeam, runs, { factorSheets: true })` adds each unplayed match's sheet
+  (`ForecastMatch.factorSheet`), made from the forecast's own book with exactly the options behind its
+  `pRedWin`. Off by default, so existing forecast payloads are unchanged.
+- **New exports:** `compactFactorSheet` (log-odds and weights to 4 places, for storing and sending),
+  `contextualTerms` (each input's term, and the calibration's gain and offset), `contextualModelById`
+  and `ForecastOptions`. `contextualProbability` is unchanged.
+
 ## 3.2.0 — 2026-10-23 · Score ranges refitted
 
 Follow-up to Part 12.7. Win probabilities are identical to 3.1.0: the slice replay is bit-identical.

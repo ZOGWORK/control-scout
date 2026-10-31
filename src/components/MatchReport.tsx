@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { cn } from "./cn";
 import { blendedIndex, type Reliability } from "../shared/reliability";
 import { BonusOdds } from "./BonusOdds";
+import { FactorSheetPanel } from "./FactorSheet";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 
@@ -98,6 +99,7 @@ function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
               <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>
               <FactorList factors={p.factors.slice(0, 3)} reasons={p.reasons} className="mt-1.5" />
               {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
+              {p.sheet && <FactorSheetPanel sheet={p.sheet} winner={winner ? (winner === "tie" ? "tie" : winner === "red" ? "A" : "B") : null} defaultOpen={!!scored} className="mt-3" />}
             </details>
           ) : null}
         </>

@@ -344,7 +344,7 @@ describe("workspace scouting per workspace (the owner console's feature toggle)"
       expect((await push(call, null, [entry()])).status).toBe(200);
       // The app learns which of its workspaces is paused (a private answer: it depends on who asks).
       const flags = await call("GET", "/api/flags");
-      expect(flags.json.workspaces).toEqual({ "161": { workspaceScouting: false, scoutingCommons: true }, "162": { workspaceScouting: true, scoutingCommons: true } });
+      expect(flags.json.workspaces).toEqual({ "161": { workspaceScouting: false, scoutingAlliances: true, scoutingCommons: true }, "162": { workspaceScouting: true, scoutingAlliances: true, scoutingCommons: true } });
       expect(flags.json.flags.workspaceScouting).toBe(true);
 
       // Global off, with 162 kept on by its own setting: 162 still works, 161 (its own setting: off) doesn't.

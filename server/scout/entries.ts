@@ -38,7 +38,7 @@ import { READ_ONLY_CODE, READ_ONLY_ERROR, READ_ONLY_STATUS, type OrphanState } f
 import { currentUser, type User } from "../auth/session.js";
 import { featureDisabled, isEnabledFor } from "../flags.js";
 import { featureOffMessage } from "../../src/shared/flags.js";
-import { publishEntries, serialized, type LiveEntry } from "./bus.js";
+import { beforeEntriesWrite, publishEntries, serialized, type LiveEntry } from "./bus.js";
 import { photosByEntry } from "./photoRows.js";
 import { entryChange, logEntryWrites, type EntryBefore } from "./activityLog.js";
 import { versionsAt, versionStatements } from "./history.js";
@@ -269,6 +269,8 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
     results.push({ uuid: e.uuid, ok: true });
   }
   if (!good.length) return results;
+  // Anything that must settle before this workspace's entries change (bus.ts: an alliance whose event is over ends first).
+  await beforeEntriesWrite(m.workspaceId);
   // One write at a time per workspace, so the live streams get entries in seq order (bus.ts).
   const stored = await serialized(m.workspaceId, async () => {
     const before = await lastSeq(m.workspaceId);
