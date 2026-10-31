@@ -60,6 +60,7 @@ const GATED: [Flag, string, string, unknown?][] = [
   ["advancementOdds", "GET", "/api/projections/2025/USNJQ1"],
   ["advancementOdds", "GET", "/api/projections/2025/USNJQ1/stream"],
   ["coinFlips", "GET", "/api/home/coin-flips"],
+  ["seasonRoadMap", "GET", "/api/teams/1/roadmap"],
   ["powerRankings", "GET", "/api/power-rankings"],
   ["powerRankings", "GET", "/api/power-rankings/2026-w42"],
   ["offlinePacks", "GET", "/packs/latest.json"],
@@ -110,10 +111,10 @@ beforeEach(async () => {
 
 describe("the registry", () => {
   it("has exactly the registered feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty"]);
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty", "seasonRoadMap"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(22);
+    expect(FLAGS.length).toBe(23);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {

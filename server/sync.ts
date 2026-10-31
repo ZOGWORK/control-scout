@@ -14,6 +14,7 @@ import { bundleFromScout, fetchScoutEvent } from "./sources/ftcScout.js";
 import { hasFirst } from "./env.js";
 import { syncFtcNj } from "./data/provisional.js";
 import { syncRegistrations } from "./data/registrations.js";
+import { backfillAdvancementPoints } from "./data/advancementPoints.js";
 
 /** Event types that never have matches (skip detail fetches). */
 export const NO_MATCH_TYPES = new Set(["Kickoff", "Workshop", "DemoExhibition", "VolunteerSignup", "PracticeDay", "InnovationChallenge"]);
@@ -167,6 +168,14 @@ export async function syncSeason(season: number, o: SyncOptions = {}): Promise<S
     }
     if ((i + 1) % 50 === 0) log(`${season}: ${i + 1}/${plan.length} fetched (${report.failed.length} failed)`);
   });
+  // Official advancement points for finished events fetched before they were read (data/advancementPoints.ts).
+  // A few per sync; its own failure never fails the sync.
+  if (hasFirst() && season === CURRENT_SEASON) {
+    try {
+      const b = await backfillAdvancementPoints(season);
+      if (b.filled || b.failed) log(`${season}: advancement points for ${b.filled} settled events${b.failed ? `, ${b.failed} failed` : ""}`);
+    } catch (e) { log(`${season}: advancement points backfill failed: ${(e as Error).message.slice(0, 120)}`); }
+  }
   const now = new Date().toISOString();
   await run("UPDATE seasons SET last_sync = ? WHERE season = ?", [now, season]);
   if (!report.failed.length) {

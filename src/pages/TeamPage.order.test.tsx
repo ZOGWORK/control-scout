@@ -22,7 +22,7 @@ const profile = (events: unknown[]) => ({
 let current: TeamProfile = profile([EVENT]);
 vi.mock("../lib/api", async (orig) => ({
   ...(await orig<typeof import("../lib/api")>()),
-  useApi: (path: string | null) => ({ data: path?.startsWith("/api/teams/4215/matches") ? { matches: [] } : path?.startsWith("/api/teams/4215") ? current : undefined, error: undefined, loading: false, reload: () => {} }),
+  useApi: (path: string | null) => ({ data: path?.startsWith("/api/teams/4215/matches") ? { matches: [] } : path?.startsWith("/api/teams/4215/roadmap") ? undefined : path?.startsWith("/api/teams/4215") ? current : undefined, error: undefined, loading: false, reload: () => {} }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), usePredictable: () => true, useTitle: () => {}, useCurrentSeason: () => 2025, useMeta: () => null }));
 vi.mock("../lib/afterPaint", () => ({ useAfterFirstPaint: () => true }));

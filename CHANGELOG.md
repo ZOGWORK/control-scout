@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.6.5 — 2026-10-31
+
+Team pages now show a season road map: every event in date order, how the team is advancing, and what its next stop takes.
+
+### Highlights
+- [teams] A season road map on team pages: every event and its advancement
+- [teams] NJ, Michigan and Iowa teams see a points target for their next stop
+- [teams] FIRST's official advancement points earned at each event
+
+### Season road map
+- **Every event, in order.** Each event the team is on, registered events included, with its rank, record, awards, alliance and FIRST's advancement result (advanced, didn't take a slot, still to come) (#360).
+- **What's needed next.** Where Control Scout has encoded the region's 2026–27 rules (New Jersey, Michigan, Iowa), a panel names the next stop and what last season's last team in scored there. It also lists which finishes reach that on their own and, for league teams, how many meet matches count toward the league tournament. Every encoded ruleset shows its sources and season.
+- **Official points.** FIRST's own advancement points for each event, split into awards, playoffs, alliance and qualification, beside the lowest total that took a slot.
+- **Other regions.** Results so far and what's next, with no points target until the region's rules are encoded.
+
 ## 1.6.4 — 2026-10-31
 
 One tap before you leave for the venue saves the whole event on your phone: the schedule, rankings, your match reports and your pick list, each saying what time it's from (#361).

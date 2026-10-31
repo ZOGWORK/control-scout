@@ -5,7 +5,7 @@
 // + rankings + alliances + awards + advancement. Requests go through a small
 // concurrency limiter with retries; credentials never leave this module.
 import { env, hasFirst } from "../env.js";
-import type { AdvancementRow, AllianceRow, AwardRow, EntryRow, EventBundle, EventRow, MatchRow, MatchTeam, TeamRow } from "../data/bundle.js";
+import type { AdvancementPointsRow, AdvancementRow, AllianceRow, AwardRow, EntryRow, EventBundle, EventRow, MatchRow, MatchTeam, TeamRow } from "../data/bundle.js";
 import { matchKey, matchLabel } from "../data/bundle.js";
 import { normalizeAwardName, normalizeEventType, ownScorePenalties, scoreDetail, splitFirstScore, type ScoreSplit } from "../data/seasons.js";
 import { isTeamNumber } from "../../src/shared/teamPages.js";
@@ -209,7 +209,7 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
   // Remote events (2020–2022): every team plays alone under the same match
   // numbers, so the keys collide; keep the event, rankings and awards only.
   const solo = <T,>(f: () => Promise<T>) => (meta.remote ? Promise.resolve(null) : f());
-  const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement] = await Promise.all([
+  const [schedQ, schedP, results, scoresQ, scoresP, rankings, alliances, awards, advancement, advPoints] = await Promise.all([
     solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=qual`)),
     solo(() => firstGet<any>(`/${season}/schedule/${c}?tournamentLevel=playoff`)),
     solo(() => firstGet<any>(`/${season}/matches/${c}`)),
@@ -220,6 +220,8 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     firstGet<any>(`/${season}/awards/${c}`),
     // 2019–2022: FIRST answers 503 "Advancement data unavailable" for many events; don't let that cost the event.
     firstGet<any>(`/${season}/advancement/${c}`, season <= 2022),
+    // Official advancement points (2025–26 on). Optional: a failure here never costs the event its results.
+    season >= 2025 ? firstGet<any>(`/${season}/advancement/${c}/points`).catch(() => undefined) : Promise.resolve(undefined),
   ]);
 
   // Score breakdowns by match key.
@@ -316,5 +318,22 @@ export async function firstEventBundle(meta: EventRow): Promise<EventBundle> {
     };
   }
 
-  return { event: meta, teams: [], detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv } };
+  return { event: meta, teams: [], detail: { entries, matches, alliances: allianceRows, awards: awardRows, advancement: adv, advancementPoints: advancementPointRows(advPoints) } };
+}
+
+/**
+ * FIRST's points list: `points` is a tuple in the season's sort order (Table 4-2): total, judged award, playoff,
+ * alliance selection, qualification points, then tiebreak averages. Undefined (not fetched, or the request failed)
+ * keeps what's stored; null or an empty list = none published.
+ */
+export function advancementPointRows(raw: unknown): AdvancementPointsRow[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) return [];
+  const out: AdvancementPointsRow[] = [];
+  for (const r of raw) {
+    const p = Array.isArray(r?.points) ? r.points.map(num) : [];
+    if (!num(r?.team) || p.length < 5 || p.slice(0, 5).some((x: number | null) => x == null)) continue;
+    out.push({ team: r.team, total: p[0], awards: p[1], playoffs: p[2], alliance: p[3], quals: p[4] });
+  }
+  return out;
 }
