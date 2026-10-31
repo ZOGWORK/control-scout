@@ -4,7 +4,7 @@ Two teams' workspaces link for one meet. While linked they share a union of entr
 consensus; when the event ends they split again. It's a Scout-only link for that event: nobody joins the other
 team's workspace and nothing changes in Control Point.
 
-- Server: `server/scout/alliances.ts` (table `scout_alliances`, migration 60), tests in `alliances.test.ts`.
+- Server: `server/scout/alliances.ts` (table `scout_alliances`, migration 61), tests in `alliances.test.ts`.
 - Shared types: `src/shared/alliances.ts`.
 - Consensus over the union: `consensusForScope` in `server/scout/consensus.ts`.
 

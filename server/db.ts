@@ -1624,6 +1624,16 @@ CREATE TABLE commons_mutes (
   },
   {
     version: 60,
+    name: "factor sheet with live calls",
+    sql: `
+-- The full why breakdown (engine 3.3 factorSheet, src/shared/factorSheet.ts compactSheet) written with each live call,
+-- so the post-match review can show which factors pointed to the winner. JSON; null on calls logged before 3.3 and
+-- on backtest rows (the replay doesn't keep it).
+ALTER TABLE predictions ADD COLUMN factor_sheet TEXT;
+`,
+  },
+  {
+    version: 61,
     name: "scouting alliances",
     sql: `
 -- Two workspaces linked for one event (server/scout/alliances.ts, docs/alliances.md). The inviter's admin makes a

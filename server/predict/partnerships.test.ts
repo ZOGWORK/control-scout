@@ -128,9 +128,12 @@ describe("partnership memory on an earlier season of the window", () => {
     try {
       const without = f.explain(last, [21, 22], [23, 24]);
       expect(without?.partnership ?? null).toBeNull();
-      const { partnership: _a, ...a } = withHistory!;
-      const { partnership: _b, ...b } = without!;
+      // The factor sheet lists the history as a reason with weight 0; everything else in it is the same.
+      const { partnership: _a, factorSheet: sa, ...a } = withHistory!;
+      const { partnership: _b, factorSheet: sb, ...b } = without!;
       expect(a).toEqual(b);
+      expect({ ...sa, reasons: [] }).toEqual({ ...sb, reasons: [] });
+      expect(sa.reasons.find((r) => r.id === "headToHead")).toMatchObject({ logit: 0, weight: 0 });
     } finally { (f as any).pastPairTables = tables; }
   });
 

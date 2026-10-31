@@ -3,7 +3,7 @@
 // nothing is deleted; a workspace's own setting (workspace-scoped toggles) applies at once, with a toast. The
 // console itself is never behind any of these.
 import { useMemo, useState } from "react";
-import { ClipboardList, Coins, Download, Gavel, Globe, MessageCircle, Power, PowerOff, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
+import { ChartBarBig, ClipboardList, Coins, Download, Gavel, Globe, MessageCircle, Power, PowerOff, Search, Sparkles, Trophy, TrendingUp, Users, type LucideIcon, Swords } from "lucide-react";
 import { Section } from "../page";
 import { Async } from "../states";
 import { Badge, Input } from "../ui/basic";
@@ -27,6 +27,7 @@ const LOOK: Partial<Record<Flag, { icon: LucideIcon; chip: string; edge: string 
   bracketOdds: { icon: Swords, chip: "bg-rose-500/15 text-rose-600 dark:text-rose-300", edge: "border-l-rose-500" },
   powerRankings: { icon: Trophy, chip: "bg-warning/15 text-warning", edge: "border-l-warning" },
   coinFlips: { icon: Coins, chip: "bg-success/15 text-success", edge: "border-l-success" },
+  factorSheet: { icon: ChartBarBig, chip: "bg-rose-500/15 text-rose-500 dark:text-rose-300", edge: "border-l-rose-500" },
   offlinePacks: { icon: Download, chip: "bg-info/15 text-info", edge: "border-l-info" },
   discordBot: { icon: MessageCircle, chip: "bg-violet-500/15 text-violet-500 dark:text-violet-300", edge: "border-l-violet-500" },
   workspaceScouting: { icon: ClipboardList, chip: "bg-danger/15 text-danger", edge: "border-l-danger" },

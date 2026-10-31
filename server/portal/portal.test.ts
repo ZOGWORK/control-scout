@@ -147,7 +147,7 @@ describe("feature flags", () => {
     const r = await call("GET", "/api/flags");
     // photos and push: on, yet false for the app here: they also need R2 and VAPID keys, which this server doesn't have.
     expect(r.json.flags).toEqual({
-      livePredictions: true, advancementOdds: true, bracketOdds: true, powerRankings: true, coinFlips: true, offlinePacks: true, discordBot: true, workspaceScouting: true, scoutingAlliances: true, scoutingCommons: true, rulesReference: true,
+      livePredictions: true, advancementOdds: true, bracketOdds: true, powerRankings: true, coinFlips: true, factorSheet: true, offlinePacks: true, discordBot: true, workspaceScouting: true, scoutingAlliances: true, scoutingCommons: true, rulesReference: true,
       realtime: true, errorReporting: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
