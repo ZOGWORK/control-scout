@@ -92,6 +92,28 @@ describe("season road map", () => {
     expect(m.need).toMatchObject({ event: null, overLimit: true });
   });
 
+  it("a team that played its championship without advancing has no qualifying stop left, not that championship again", () => {
+    const m = buildRoadMap(input({
+      today: "2027-03-20",
+      events: [row("USNJNELT", "LeagueTournament", "2027-02-06"), row("USNJCMP", "Championship", "2027-03-14", { rank: 30 })],
+      facts: new Map([
+        ["USNJNELT", facts("USNJ", { advancement: { slots: 6, advancesTo: "USNJCMP", rows: [{ team: 100, status: "FIRST", declined: false }] } })],
+        ["USNJCMP", facts("USNJ", { advancement: { slots: 19, advancesTo: "FIRST Championship & Premier Events", rows: [{ team: 5, status: "FIRST", declined: false }] } })],
+      ]),
+    }));
+    expect(m.stage).toBe("over");
+    expect(m.need).toBeNull();
+    expect(m.stops[1].advancement?.status).toBe("missed");
+  });
+
+  it("an event outside the home region never names the home championship", () => {
+    const m = buildRoadMap(input({
+      events: [row("USOHQ1", "Qualifier", "2026-12-01")],
+      facts: new Map([["USOHQ1", facts("USOH")]]),
+    }));
+    expect(m.stops[0]).toMatchObject({ home: false, counts: false, advancement: { status: "pending", to: null } });
+  });
+
   it("a team past its championship needs nothing more from the road map", () => {
     const m = buildRoadMap(input({
       today: "2027-03-20",
@@ -104,11 +126,15 @@ describe("season road map", () => {
 
   it("routes are the fewest points each finish guarantees under the 2026–27 table", () => {
     const ps = pointsSystem(2026)!;
-    // 24 teams: 6 alliances, so the last alliance's points are 21 − 6 = 15; the worst qualification points are 2.
-    const r = routes(ps, 24, 50);
-    expect(r.find((x) => x.label.startsWith("Win"))).toMatchObject({ min: 40 + 15 + 2, clears: true });
-    expect(r.find((x) => x.label.startsWith("Inspire 1st"))).toMatchObject({ min: 62, clears: true });
-    expect(r.find((x) => x.label.startsWith("Finalist"))).toMatchObject({ min: 37, clears: false });
+    // 24 teams: 6 alliances, so the last alliance's points are 21 − 6 = 15; the worst qualification points are the
+    // last rank's at a 24-team event (the 28-team sample in Table 4-3 gives its last rank 4).
+    const q = qualPoints(24, 24);
+    expect(q).toBeGreaterThan(ps.qualMin);
+    const r = routes(ps, 24, 57);
+    expect(r.find((x) => x.label.startsWith("Win"))).toMatchObject({ min: 40 + 15 + q, clears: true });
+    expect(r.find((x) => x.label.startsWith("Inspire 1st"))).toMatchObject({ min: 60 + q, clears: true });
+    expect(r.find((x) => x.label.startsWith("Finalist"))).toMatchObject({ min: 20 + 15 + q, clears: false });
+    expect(routes(ps, 28, null).find((x) => x.label.startsWith("Inspire 1st"))!.min).toBe(64);
     expect(routes(ps, 24, null).every((x) => !x.clears)).toBe(true);
   });
 

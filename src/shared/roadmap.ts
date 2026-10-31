@@ -117,8 +117,9 @@ export interface TeamRoadMap {
   ruleset: RoadRuleset | null;
   stops: RoadStop[];
   /** How far the team has got this season: entry = still to advance; regional = qualified for the state/regional
-   *  championship; beyond = advanced from it. Modelled regions only (null elsewhere). */
-  stage: "entry" | "regional" | "beyond" | null;
+   *  championship; beyond = advanced from it; over = played the championship without advancing from it (no qualifying
+   *  stop left). Modelled regions only (null elsewhere). */
+  stage: "entry" | "regional" | "beyond" | "over" | null;
   /** The next event on the team's calendar (any kind), or null. */
   next: RoadStop | null;
   need: RoadNeed | null;

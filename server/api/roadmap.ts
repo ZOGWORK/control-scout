@@ -64,14 +64,15 @@ function statusOf(f: EventFacts | undefined, team: number, when: RoadStop["when"
 const levelOf = (rs: RegionRuleset | null, type: string | null) => (rs && type ? rs.levels.find((l) => l.types.includes(type)) ?? null : null);
 
 /**
- * The fewest points each finish guarantees on its own, with the worst qualification rank, at an event of `n` teams.
+ * The fewest points each finish guarantees on its own, with the worst qualification rank (that rank's points at an
+ * event of `n` teams), at an event of `n` teams.
  * The playoff rows are for an alliance's captain or pick (alliances are two teams, Competition Manual 13.7.1): a
  * backup robot earns no alliance points, so it's left out of them.
  */
 export function routes(ps: PointsSystem, n: number, target: number | null): RoadRoute[] {
   const a = allianceCount(Math.max(4, n));
   // Alliance points: 21 − the alliance lead number or the draft acceptance number; the lowest a playoff team gets is the last alliance's.
-  const lastAlliance = 21 - a, q = ps.qualMin;
+  const lastAlliance = 21 - a, q = qualPoints(Math.max(1, n), Math.max(1, n));
   const list: [string, number][] = [
     ["Win (captain or pick)", ps.playoff.first + lastAlliance + q],
     ["Inspire 1st", ps.inspire[0] + q],
@@ -121,7 +122,8 @@ export function buildRoadMap(input: RoadMapInput): TeamRoadMap {
     const when: RoadStop["when"] = end && end < today ? "done" : e.start && e.start <= today ? "live" : "upcoming";
     const home = !!region && f?.region === region;
     const status = statusOf(f, team, when, e.type);
-    const toCode = f?.advancement?.advancesTo ?? (rs && e.type && ENTRY.has(e.type) ? rs.feeds?.[e.code] ?? (rs.championships.length === 1 ? rs.championships[0].code : null) : null);
+    // The home ruleset names a destination only for home-region events: elsewhere the team can't advance anyway.
+    const toCode = f?.advancement?.advancesTo ?? (home && rs && e.type && ENTRY.has(e.type) ? rs.feeds?.[e.code] ?? (rs.championships.length === 1 ? rs.championships[0].code : null) : null);
     let counts: boolean | null = null;
     if (modelled) {
       if (e.type && ENTRY.has(e.type)) { counts = home && entrySeen < ps!.entryEvents; if (home) entrySeen++; }
@@ -159,6 +161,10 @@ export function buildRoadMap(input: RoadMapInput): TeamRoadMap {
   if (stage === "regional") {
     const lvl = rs!.levels.find((l) => l.kind === "regional")!;
     const ev = stops.find((s) => s.when !== "done" && s.type === "Championship" && s.home) ?? null;
+    // Played its championship without taking a slot from it: no qualifying stop is left this season.
+    if (!ev && stops.some((s) => s.when === "done" && s.type === "Championship" && s.home)) {
+      return { team, season, region, ruleset: view, stops, stage: "over", next, need: null, encoded };
+    }
     // The championship the team's slot came from, else the region's only one.
     const from = stops.find((s) => s.type && ENTRY.has(s.type) && (s.advancement?.status === "advanced" || s.advancement?.status === "already"));
     const champCode = ev?.code ?? (from && rs!.feeds?.[from.code]) ?? (rs!.championships.length === 1 ? rs!.championships[0].code : null);
