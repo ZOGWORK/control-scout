@@ -8,7 +8,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
-import { RECORDS_MAX_PAGE_SIZE, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
+import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
 import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
@@ -31,6 +31,8 @@ import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome
 import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 import { emptyColumns } from "../../lib/eventRankingNotes";
+import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "../ScheduleDifficulty";
+import { useFlag } from "../../lib/flags";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -62,6 +64,9 @@ export interface RecordsTableProps {
   /** Why a column can be empty: shown as a legend under the table when a column has no value in any row of the
    *  whole, unfiltered table (an event's tables), so a column of dashes is never left unexplained. */
   emptyColumnNotes?: Partial<Record<string, string>>;
+  /** One event's table: each team's place in the whole field by schedule difficulty (from the event's own figures,
+   *  teams yet to play included), for the Schedule cell's "3rd-hardest of 24". Absent: the cell gives the line alone. */
+  schedulePlaces?: SchedulePlaces;
   /** Notes about the rows, shown above them only when the table has rows (not over a fallback or an empty state). */
   aboveRows?: ReactNode;
 }
@@ -84,13 +89,19 @@ export function RecordsTable(p: RecordsTableProps) {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
   const loc = useLocation();
-  const state = useMemo(() => parseTableState(sp, scope, defaultSort), [sp, scope, defaultSort]);
+  // The owner's scheduleDifficulty toggle off: its columns aren't offered (and a saved choice of them is dropped), and
+  // a saved sort on one falls back to the table's default (the server refuses it, and its column isn't there to change it).
+  const scheduleOn = useFlag("scheduleDifficulty");
+  const state = useMemo(() => {
+    const s = parseTableState(sp, scope, defaultSort);
+    return !scheduleOn && SCHEDULE_STAT_KEYS.includes(s.sort) ? { ...s, sort: defaultSort, dir: defaultDir(defaultSort, scope) } : s;
+  }, [sp, scope, defaultSort, scheduleOn]);
   const setState = useCallback((next: TableState, replace = false) => {
     navigate({ pathname: loc.pathname, search: searchString(writeTableState(sp, next, scope, defaultSort)), hash: loc.hash }, { replace });
   }, [navigate, loc.pathname, loc.hash, sp, scope, defaultSort]);
 
   // Columns: the URL's, else this device's choice for this table, else the defaults (a newly ticked one goes last).
-  const pickable = useMemo(() => new Set(pickableStats(scope, predictable).map((s) => s.key)), [scope, predictable]);
+  const pickable = useMemo(() => new Set(pickableStats(scope, predictable, scheduleOn).map((s) => s.key)), [scope, predictable, scheduleOn]);
   const [stored, setStored] = useState(() => readCols(p.storageKey));
   const cols = useMemo(() => (state.cols ?? stored ?? p.defaultCols).filter((k) => pickable.has(k)), [state.cols, stored, p.defaultCols, pickable]);
   const setCols = (next: string[] | null) => { writeCols(p.storageKey, next); setStored(next); setState({ ...state, cols: next }, true); };
@@ -106,7 +117,9 @@ export function RecordsTable(p: RecordsTableProps) {
   const req = { season, scope, state, fields, code, ...(code ? { pageSize: RECORDS_MAX_PAGE_SIZE } : {}) };
   // Match rows also carry the scores and the prediction the phone summary is built from, whatever columns
   // are picked (the CSV export keeps to the picked columns).
-  const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])] : fields), [scope, fields, predictable]);
+  // The Schedule column's tap-for-words needs the opponents and partners behind it.
+  const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])]
+    : fields.includes("scheduleDifficulty") ? [...new Set([...fields, "scheduleOpponents", "schedulePartners"])] : fields), [scope, fields, predictable]);
   // An unreadable filter or unknown country asks nothing: the rows would be broader than the link says.
   const api = useApi<Resp>(state.filterError || state.countryUnknown ? null : recordsUrl({ ...req, fields: fetchFields }));
   const last = useRef<Resp | undefined>(undefined);
@@ -228,7 +241,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const [layout, setLayout] = useLayout(p.storageKey);
   const phoneSummary = scope === "match" && phone;
   const summary = phoneSummary && layout === "summary";
-  const sortOptions = useMemo(() => pickableStats(scope, predictable).map((s) => ({ key: s.key, label: s.label })), [scope, predictable]);
+  const sortOptions = useMemo(() => pickableStats(scope, predictable, scheduleOn).map((s) => ({ key: s.key, label: s.label })), [scope, predictable, scheduleOn]);
   const saved = useSavedFilters(scope);
   const countryName = state.country ? countryByCode(state.country)?.name ?? state.country : null;
   const chips: FilterChip[] = [];
@@ -451,7 +464,7 @@ export function RecordsTable(p: RecordsTableProps) {
             </div>
           )}
           {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
-            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam}
+            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam} schedulePlaces={p.schedulePlaces}
               selectable={selectable} selected={selected} onSelect={toggleTeam} pageSelection={pageSelection} onSelectAll={toggleAll} />
           )}
           {p.emptyColumnNotes && !filtered && data.total === data.rows.length && (
@@ -553,7 +566,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
 
 /** A phone's Team cell: just the number (the column stays narrow, so more stats fit), and a tap shows the
  *  team's name with a link to its page. */
-function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
+export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
   return (
     <Popover>
       <PopoverTrigger className="rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
@@ -616,8 +629,8 @@ export function heatBands(rows: { stats: Record<string, unknown> }[], cols: stri
   return out;
 }
 
-function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectable, selected, onSelect, pageSelection, onSelectAll }: {
-  data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string;
+function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, selectable, selected, onSelect, pageSelection, onSelectAll }: {
+  data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
@@ -723,7 +736,9 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
-                      {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" /> : formatStat(d, v)}
+                      {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
+                        : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
+                        : formatStat(d, v)}
                     </td>
                   );
                 })}

@@ -17,7 +17,7 @@ import { normalize } from "../api/fuzzy.js";
 import { forecasterFor } from "../predict/engine.js";
 import { regionNames } from "../../src/shared/regions.js";
 import { onRecord } from "../../src/shared/eventRecord.js";
-import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "./records.js";
+import { computeRecords, fillAdvancementOdds, fillRecordPredictions, fillScheduleDifficulty } from "./records.js";
 import { snapshotRankings } from "./rankings.js";
 import { partnershipPrefix } from "../predict/partnerships.js";
 import { pairHistory } from "../../src/shared/pairHistory.js";
@@ -461,8 +461,9 @@ export interface StatsOptions { seasons?: number[]; backtest?: boolean; log?: Lo
  *    search index without them, so past seasons' ranks and "of N" drop the placeholders too.
  * 7: the season record is every match on the team's record (src/shared/eventRecord.ts): qualification no-shows
  *    count as FIRST counts them, playoff matches sat out don't. Hosts already rebuilt under 6 rebuild once more.
+ * 8: schedule difficulty in the event records (team_event_records.schedule*, migration 62): every season once.
  */
-export const STATS_RULES = 7;
+export const STATS_RULES = 8;
 
 /** True when past seasons were computed under older rules, or haven't all been
  *  recomputed by this engine version yet (a new engine rewrites every season's
@@ -503,6 +504,7 @@ export async function runStats(o: StatsOptions = {}): Promise<void> {
     if (isLegacy(s)) continue;
     await fillRecordPredictions(s, log);
     await fillAdvancementOdds(s, log);
+    await fillScheduleDifficulty(s, log);
   }
   await scoreLivePredictions(log);
   // Report cards read the scored live calls: right after they're scored. Every season whose scored live

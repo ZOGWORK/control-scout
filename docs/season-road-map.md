@@ -51,7 +51,7 @@ FTC Events in early December.
   `GET /v2.0/{season}/advancement/{code}/points` (2025–26 on). The `points`
   tuple is in Table 4-2 order: total, judged award, playoff, alliance
   selection, qualification, then tiebreak averages. The sync stores the first
-  five in `advancement_points` (migration 62) with each event's other data. A
+  five in `advancement_points` (migration 63) with each event's other data. A
   failed request keeps what's stored.
 - **Last team in** at an event: the lowest official total among teams with
   `FIRST` status (not declined) on FIRST's advancement list.

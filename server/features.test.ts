@@ -107,10 +107,10 @@ beforeEach(async () => {
 
 describe("the registry", () => {
   it("has exactly the registered feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "seasonRoadMap"]);
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty", "seasonRoadMap"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(21);
+    expect(FLAGS.length).toBe(22);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {
@@ -192,6 +192,37 @@ describe("gated routes", () => {
     const friday = Date.parse("2026-10-23T05:00:00Z");
     expect((await autoPowerRankingsTick(friday))?.status).toBe("off");
     expect((await dailyRefreshTick(Date.parse("2026-10-24T05:00:00Z"))).status).toBe("off");
+  });
+
+  it("schedule difficulty off: the event and team answers leave it out, and still load", async () => {
+    await run("INSERT OR IGNORE INTO teams (number, name) VALUES (1, 'One')");
+    await run("INSERT OR IGNORE INTO events (season, code, name, type, start, \"end\", timezone, source) VALUES (2025, 'USSDQ1', 'Schedule Qualifier', 'Qualifier', '2025-11-01', '2025-11-01', 'UTC', 'first')");
+    await run("INSERT OR IGNORE INTO event_teams (season, code, team) VALUES (2025, 'USSDQ1', 1)");
+    const ev = () => call("GET", "/api/events/2025/USSDQ1"), team = () => call("GET", "/api/teams/1?season=2025");
+    const first = await ev();
+    expect(first.status, JSON.stringify(first.json).slice(0, 300)).toBe(200);
+    expect("scheduleDifficulty" in first.json).toBe(true);
+    expect("schedule" in (await team()).json).toBe(true);
+    await setFlag("scheduleDifficulty", false, "owner@example.com");
+    const [e, t] = [await ev(), await team()];
+    expect([e.status, t.status]).toEqual([200, 200]);
+    expect("scheduleDifficulty" in e.json).toBe(false);
+    expect("schedule" in t.json).toBe(false);
+  });
+
+  it("schedule difficulty off: the records refuse its columns, sort and filter, and the default leaves them out", async () => {
+    const on = await call("GET", "/api/records/2025/teams?fields=scheduleDifficulty&sort=scheduleDifficulty");
+    expect(on.status).toBe(200);
+    await setFlag("scheduleDifficulty", false, "owner@example.com");
+    for (const q of ["fields=rank,scheduleDifficulty", "fields=rank&sort=scheduleLeft", "fields=rank&filter=and-scheduleOpponents.gt.0-"]) {
+      const r = await call("GET", `/api/records/2025/teams?${q}`);
+      expect(r.status, q).toBe(403);
+      expect(r.json, q).toMatchObject({ error: "feature_disabled", feature: "scheduleDifficulty" });
+    }
+    // No fields asked for (every stat): answered, without the schedule columns.
+    const all = await call("GET", "/api/records/2025/teams");
+    expect(all.status).toBe(200);
+    for (const row of all.json.rows ?? []) for (const k of ["scheduleDifficulty", "scheduleLeft", "scheduleOpponents", "schedulePartners"]) expect(k in row.stats).toBe(false);
   });
 
   it("the track record, public team and event data and the home headlines are never gated", async () => {

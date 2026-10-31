@@ -1694,6 +1694,19 @@ CREATE TABLE scout_alliance_copies (
   },
   {
     version: 62,
+    name: "schedule difficulty in the records",
+    sql: `
+-- Schedule difficulty (src/shared/scheduleDifficulty.ts) as event-ranking columns, filled by the stats job
+-- (stats/records.ts fillScheduleDifficulty): the full schedule's difficulty, the matches still to play (null unless
+-- quals are under way), and the full schedule's opponents and partners against the field. Points per robot.
+ALTER TABLE team_event_records ADD COLUMN schedule REAL;
+ALTER TABLE team_event_records ADD COLUMN schedule_left REAL;
+ALTER TABLE team_event_records ADD COLUMN schedule_opp REAL;
+ALTER TABLE team_event_records ADD COLUMN schedule_part REAL;
+`,
+  },
+  {
+    version: 63,
     name: "official advancement points",
     sql: `
 -- FIRST's own advancement points per team at an event (server/sources/first.ts, /advancement/{code}/points; 2025–26 on),

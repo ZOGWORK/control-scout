@@ -1,6 +1,7 @@
 // The schema of a full season pack (one SQLite file per season). The server
 // builds packs with it (server/packs/build.ts); the app reads saved packs
 // offline against it (src/lib/offline). One definition, so they can't drift.
+import { SCHEDULE_COLUMNS } from "./scheduleDifficulty.js";
 
 /** Season tables, each copied as-is from the server's database (every row of the season). */
 export const PACK_TABLES: { name: string; ddl: string; teamsJoin?: boolean }[] = [
@@ -19,6 +20,13 @@ export const PACK_TABLES: { name: string; ddl: string; teamsJoin?: boolean }[] =
   // this table existed don't have it: the offline reader then answers that there are none.
   { name: "event_projections", ddl: "CREATE TABLE event_projections (season INTEGER, code TEXT, kind TEXT, state_key TEXT, seed INTEGER, runs INTEGER, target_runs INTEGER, stage TEXT, played INTEGER, scheduled INTEGER, through TEXT, slots INTEGER, slots_source TEXT, engine_version TEXT, ms INTEGER, computed_at TEXT, teams TEXT, PRIMARY KEY (season, code, kind))" },
 ];
+
+/** Schedule difficulty per event and team (src/shared/scheduleDifficulty.ts): computed when the pack is built, not
+ *  copied from a server table. Packs built before it existed don't have it: the pages then show no figure. */
+export const SCHEDULE_TABLE = {
+  name: "team_schedule_difficulty",
+  ddl: `CREATE TABLE team_schedule_difficulty (season INTEGER, code TEXT, team INTEGER, ${SCHEDULE_COLUMNS.map((c) => `${c} REAL`).join(", ")}, PRIMARY KEY (season, code, team))`,
+};
 
 export const PACK_TEAMS_DDL = "CREATE TABLE teams (number INTEGER PRIMARY KEY, name TEXT, full_name TEXT, school TEXT, sponsors TEXT, city TEXT, state TEXT, country TEXT, rookie_year INTEGER, website TEXT, home_region TEXT)";
 

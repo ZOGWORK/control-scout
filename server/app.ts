@@ -75,13 +75,13 @@ import { liveHeroLines } from "./heroLines.js";
 import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
-import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE } from "../src/shared/statCatalog.js";
+import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS } from "../src/shared/statCatalog.js";
 import { manualRefresh, type ManualOutcome } from "./data/live.js";
 import { defaultRankingsSeason, rankingPlaces, rankingsPage, snapshotWeeks, type RankingsQuery } from "./api/rankings.js";
 import { MAX_REGIONS, isWeek, parsePlaces } from "../src/shared/rankings.js";
 import { registerCache } from "./caches.js";
 import { requestMetrics } from "./metrics.js";
-import { allFlags, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
+import { allFlags, featureDisabled, hasWorkspaceOverrides, isEnabled, requireFeature, workspaceFlags } from "./flags.js";
 import type { FlagsAnswer } from "../src/shared/flags.js";
 import { currentUser } from "./auth/session.js";
 import { linkedAccountId } from "./auth/controlPoint.js";
@@ -425,10 +425,17 @@ export function createApp(opts: { dist?: string } = {}) {
     };
   }));
 
+  /** The owner's scheduleDifficulty toggle off: the event answer leaves the figures out (a copy; the cached detail is shared). */
+  const scheduleGate = async <T extends { scheduleDifficulty?: unknown }>(d: T): Promise<T> => {
+    if (await isEnabled("scheduleDifficulty")) return d;
+    const { scheduleDifficulty: _off, ...rest } = d;
+    return rest as T;
+  };
+
   api.get("/events/:season/:code", h(async (req, res) => {
     const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
     if (!cached) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
-    const d = await withBracketGate(await withStream(cached));
+    const d = await scheduleGate(await withBracketGate(await withStream(cached)));
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
@@ -443,7 +450,7 @@ export function createApp(opts: { dist?: string } = {}) {
     if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
     const detail = await eventDetail(s, c);
     if (!detail) throw new HttpError(404, `No event ${c} in ${s}`);
-    return { outcome: out.status, message: refreshMessage(out), detail: await withBracketGate(await withStream(detail)) };
+    return { outcome: out.status, message: refreshMessage(out), detail: await scheduleGate(await withBracketGate(await withStream(detail))) };
   }));
 
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
@@ -536,6 +543,14 @@ export function createApp(opts: { dist?: string } = {}) {
       if (format !== "json" && format !== "csv") throw bad("format must be json or csv");
       try {
         const q = recordsQuery(scope, req.query as Record<string, unknown>, format === "csv" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
+        // The owner's scheduleDifficulty toggle off: its columns can't be asked for, sorted or filtered on, and the
+        // default (every stat, no fields asked for) leaves them out.
+        if (scope === "teamEvent" && !(await isEnabled("scheduleDifficulty"))) {
+          const filter = JSON.stringify(q.filter ?? null);
+          const asked = (k: string) => k === q.sort || filter.includes(`"${k}"`) || (req.query.fields != null && q.fields.includes(k));
+          if (SCHEDULE_STAT_KEYS.some(asked)) { featureDisabled(res, "scheduleDifficulty"); return undefined; }
+          q.fields = q.fields.filter((k) => !SCHEDULE_STAT_KEYS.includes(k));
+        }
         if (format === "csv") { await streamRecordsCsv(s, q, res, `control-scout-${s}-${kind}${scope === "teamSeason" ? "-season" : ""}.csv`); return undefined; }
         return await listRecords(s, q);
       } catch (e) {
