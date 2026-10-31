@@ -3,7 +3,7 @@
 // the next stop takes. Elsewhere it's the neutral view: results so far and what's next, never a "needed" number.
 // Every encoded ruleset shows its sources and season (server/data/roadmapRules.ts, docs/season-road-map.md).
 import { Link } from "react-router-dom";
-import { Award, Check, ChevronRight, Flag, MapPinned, Route, Target, Trophy, X } from "lucide-react";
+import { Award, Check, ChevronRight, Flag, MapPinned, Route, Target, Trophy } from "lucide-react";
 import { isFeatureDisabled, useApi } from "../lib/api";
 import { useFlag } from "../lib/flags";
 import type { RoadAdvanceStatus, RoadNeed, RoadStop, TeamRoadMap } from "../shared/roadmap";
@@ -156,94 +156,101 @@ function NeedPanel({ r }: { r: TeamRoadMap }) {
     return (
       <div className={cn("rounded-xl border p-4", TONES.emerald.box)}>
         <p className="flex items-center gap-2 font-semibold"><Trophy className="size-4 text-success" aria-hidden />Past the {r.ruleset!.name} championship</p>
-        <p className="mt-1 text-sm text-muted-foreground">The team has advanced beyond its region this season: FIRST Championship or a Premier event.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Advanced beyond its region: FIRST Championship or a Premier event.</p>
       </div>
     );
   }
   const n = r.need, ls = n.lastSeason;
+  const cut = ls?.fcmp?.cutoff ?? ls?.cutoff;
+  const clears = n.routes.filter((x) => x.clears), short = n.routes.filter((x) => !x.clears);
   return (
     <div data-testid="roadmap-need" className={cn("rounded-xl border p-4", TONES.accent.box)}>
       <p className="flex items-center gap-2 text-sm text-muted-foreground"><span className={cn("flex size-7 items-center justify-center rounded-lg", TONES.accent.chip)}><Target className="size-4" aria-hidden /></span>What's needed next</p>
       <NextLine n={n} season={r.season} />
-      {n.target != null && ls && (
-        <div className="mt-3">
-          <p className="font-display text-4xl font-semibold tabular-nums">~{n.target}<span className="ml-1.5 text-base font-medium text-muted-foreground">points</span></p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {ls.fcmp
-              ? <>For a FIRST Championship slot. In {seasonLabel(ls.season)} the last team inside the championship's {range(ls.fcmp.slots)} FIRST Championship slots had {ls.fcmp.cutoff.median} points (median; {spanText(ls.fcmp.cutoff)}). Any slot, Premier events included: {ls.cutoff.median}.</>
-              : <>In {seasonLabel(ls.season)}, the last team to take a slot at {r.ruleset!.name}'s {ls.events} {n.level.toLowerCase()}{ls.events === 1 ? "" : "s"} had {ls.cutoff.median} points (median; {spanText(ls.cutoff)}), with {range(ls.slots)} slots each.</>}
-            {" "}Same points system this season; slots and fields change.
-          </p>
+      {n.target != null && cut && (
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3">
+          <p className="font-display text-4xl font-semibold tabular-nums">~{n.target}<span className="ml-1 text-base font-medium text-muted-foreground">pts</span></p>
+          <p className="text-xs text-muted-foreground">{ls!.fcmp ? "for a FIRST Championship slot · " : ""}last season's cutoff{cut.min !== cut.max ? `, ${cut.min}–${cut.max}` : ""}</p>
         </div>
       )}
-      <p className="mt-2 text-sm">{n.slots ? <><span className="font-semibold">{n.slots}</span> slots at this event (published)</> : "Slots for this season aren't published yet (FIRST posts them by alliance selection)."}</p>
-      {n.best != null && <p className="mt-1 text-sm">Best this season: <span className="font-semibold tabular-nums">{n.best}</span> points</p>}
-      {n.leagueMatches && (
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <Fact label="Slots" value={n.slots ? String(n.slots) : "TBA"} />
+        <Fact label="Best this season" value={n.best != null ? String(n.best) : "–"} />
+        {n.leagueMatches
+          ? <Fact label="Meet matches" value={`${n.leagueMatches.counted}/${n.leagueMatches.max}`} bar={n.leagueMatches.counted / n.leagueMatches.max} />
+          : <Fact label="Teams" value={String(n.teams)} />}
+      </dl>
+      {n.overLimit && <p className="mt-2 text-sm text-warning">Past the team's first {r.ruleset!.points.entryEvents} qualifiers or league tournaments: it can't advance from it.</p>}
+      {n.target != null && n.routes.length > 0 && (
         <div className="mt-3">
-          <p className="text-sm">League meet matches counted: <span className="font-semibold tabular-nums">{n.leagueMatches.counted} of {n.leagueMatches.max}</span></p>
-          <Meter parts={[{ pc: (n.leagueMatches.counted / n.leagueMatches.max) * 100, cls: "bg-success" }]} />
-          <p className="mt-1 text-[11px] text-muted-foreground">The league tournament ranking (and its qualification points) adds each team's best {n.leagueMatches.max} meet matches; missing ones count as zero.</p>
+          {clears.length > 0 && <>
+            <p className="text-xs font-medium text-muted-foreground">Gets there on its own</p>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {clears.map((x) => <li key={x.label} className="inline-flex items-center gap-1 rounded-md border border-success/30 bg-success/15 px-2 py-1 text-xs font-medium text-success"><Check className="size-3" aria-hidden />{x.label}<span className="tabular-nums opacity-70">{x.min}+</span></li>)}
+            </ul>
+          </>}
+          {short.length > 0 && <>
+            <p className="mt-2 text-xs font-medium text-muted-foreground">Needs more on top</p>
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {short.map((x) => <li key={x.label} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">{x.label}<span className="tabular-nums opacity-70">{x.min}+</span></li>)}
+            </ul>
+          </>}
         </div>
       )}
-      {n.overLimit && <p className="mt-2 text-sm text-warning">The team's next qualifier or league tournament is past its first {r.ruleset!.points.entryEvents}, so it can't advance from it.</p>}
-      {n.routes.length > 0 && n.target != null && (
-        <div className="mt-3">
-          <p className="text-xs font-medium text-muted-foreground">Finishes that reach ~{n.target} on their own (fewest points each guarantees, {n.teams} teams)</p>
-          <ul className="mt-1.5 space-y-1">
-            {n.routes.map((x) => (
-              <li key={x.label} className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  {x.clears ? <Check className="size-3.5 shrink-0 text-success" aria-label="Reaches it" /> : <X className="size-3.5 shrink-0 text-muted-foreground" aria-label="Not on its own" />}
-                  <span className={cn("truncate", !x.clears && "text-muted-foreground")}>{x.label}</span>
-                </span>
-                <span className="tabular-nums text-muted-foreground">{x.min}+</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">Points add up: an award on top of a playoff run, or a high seed. A backup robot earns no alliance points. A guide from last season's cutoffs, not a guarantee.</p>
-        </div>
-      )}
-      <PointsTable r={r} />
+      <HowItWorks r={r} />
+    </div>
+  );
+}
+
+function Fact({ label, value, bar }: { label: string; value: string; bar?: number }) {
+  return (
+    <div className="flex flex-col rounded-lg bg-card/70 px-2 py-2">
+      <dd className="order-1 font-display text-lg font-semibold tabular-nums">{value}</dd>
+      <dt className="order-2 text-[11px] leading-tight text-muted-foreground">{label}</dt>
+      {bar != null && <dd className="order-3 mt-1"><Meter parts={[{ pc: bar * 100, cls: "bg-success" }]} /></dd>}
     </div>
   );
 }
 
 function NextLine({ n, season }: { n: RoadNeed; season: number }) {
-  if (n.event) {
-    return (
-      <p className="mt-2 text-sm">
-        <span className="font-semibold">{n.level}</span>: <Link to={`/events/${season}/${n.event.code}`} className="hover:underline">{n.event.name}</Link> · {day(n.event.start)}
-        <span className="block text-xs text-muted-foreground">Leads to {n.leadsTo}{n.fromCalendar ? " · from the season calendar, not yet a registration" : ""}</span>
-      </p>
-    );
-  }
-  if (n.options.length) {
-    return (
-      <p className="mt-2 text-sm">
-        <span className="font-semibold">{n.level}</span>: one of {n.options.map((o) => `${o.name} (${day(o.start)})`).join(" or ")}
-        <span className="block text-xs text-muted-foreground">Every league team plays one of its league's tournaments. Leads to {n.leadsTo}.</span>
-      </p>
-    );
-  }
-  return <p className="mt-2 text-sm"><span className="font-semibold">{n.level}</span>: none on the team's calendar yet. Leads to {n.leadsTo}.</p>;
+  const when = n.event
+    ? <><Link to={`/events/${season}/${n.event.code}`} className="hover:underline">{n.event.name}</Link> · {day(n.event.start)}</>
+    : n.options.length
+      ? <>{n.options.map((o, i) => <span key={o.code}>{i > 0 && " or "}<Link to={`/events/${season}/${o.code}`} title={o.name} className="underline decoration-dotted underline-offset-2">{day(o.start)}</Link></span>)}</>
+      : <>not on the calendar yet</>;
+  return (
+    <p className="mt-2 text-sm"><span className="font-semibold">{n.level}</span> · {when}
+      <span className="block text-xs text-muted-foreground">Leads to {n.leadsTo}</span>
+    </p>
+  );
 }
 
 const range = (x: { min: number; max: number }) => (x.min === x.max ? `${x.min}` : `${x.min}–${x.max}`);
-const spanText = (x: { min: number; max: number }) => (x.min === x.max ? `${x.min}` : `range ${x.min}–${x.max}`);
 
-function PointsTable({ r }: { r: TeamRoadMap }) {
-  const p = r.ruleset!.points;
+/** Everything behind the numbers, one tap away. */
+function HowItWorks({ r }: { r: TeamRoadMap }) {
+  const p = r.ruleset!.points, n = r.need!, ls = n.lastSeason;
   return (
     <details className="mt-3 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-      <summary className="cursor-pointer font-medium">How advancement points add up ({seasonLabel(r.season)})</summary>
+      <summary className="cursor-pointer font-medium">How this works</summary>
+      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+        {ls && <li>{ls.fcmp
+          ? <>Target: the last team inside the {range(ls.fcmp.slots)} FIRST Championship slots at {seasonLabel(ls.season)}'s championship (any slot, Premier included: {ls.cutoff.median}).</>
+          : <>Target: the median points of the last team to take a slot at {r.ruleset!.name}'s {ls.events} {n.level.toLowerCase()}s in {seasonLabel(ls.season)} ({range(ls.slots)} slots each).</>}{" "}Same points system this season. A guide, not a guarantee.</li>}
+        <li>Each finish shows the fewest points it guarantees alone at a {n.teams}-team event. Points add up across finishes; a backup robot earns no alliance points.</li>
+        {n.options.length > 0 && <li>Every league team plays one of its league's tournaments: {n.options.map((o) => o.name).join("; ")}.</li>}
+        {n.event && n.fromCalendar && <li>Taken from the season calendar: the team isn't registered for it yet.</li>}
+        {n.leagueMatches && <li>The league tournament ranking adds each team's best {n.leagueMatches.max} meet matches; missing ones count as zero.</li>}
+        <li>Slots go to the top point totals not already advanced, only from a team's first {p.entryEvents} qualifiers or league tournaments in its home region. FIRST posts slots by alliance selection.</li>
+      </ul>
       <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
         <dt className="text-muted-foreground">Qualification rank</dt><dd>{p.qual.max} (top seed) down to {p.qual.min}</dd>
-        <dt className="text-muted-foreground">Alliance selection</dt><dd>21 − alliance number (captains) or draft pick number</dd>
-        <dt className="text-muted-foreground">Playoffs</dt><dd>{p.playoff.join(" / ")} for 1st / 2nd / 3rd / 4th</dd>
-        <dt className="text-muted-foreground">Inspire Award</dt><dd>{p.inspire.join(" / ")} for 1st / 2nd / 3rd</dd>
-        <dt className="text-muted-foreground">Other judged awards</dt><dd>{p.otherAwards.join(" / ")} for 1st / 2nd / 3rd</dd>
+        <dt className="text-muted-foreground">Alliance selection</dt><dd>21 − alliance or draft pick number</dd>
+        <dt className="text-muted-foreground">Playoffs</dt><dd>{p.playoff.join(" / ")} (1st–4th)</dd>
+        <dt className="text-muted-foreground">Inspire Award</dt><dd>{p.inspire.join(" / ")} (1st–3rd)</dd>
+        <dt className="text-muted-foreground">Other judged awards</dt><dd>{p.otherAwards.join(" / ")} (1st–3rd)</dd>
       </dl>
-      <p className="mt-2 text-[11px] text-muted-foreground">Slots go to the top point totals not already advanced. A team can advance only from its first {p.entryEvents} qualifiers or league tournaments, in its home region. Source: <a href={p.source.url} target="_blank" rel="noreferrer" className="underline">{p.source.label}</a>, {p.where}.</p>
+      <p className="mt-2 text-[11px] text-muted-foreground">Source: <a href={p.source.url} target="_blank" rel="noreferrer" className="underline">{p.source.label}</a>, {p.where}.</p>
     </details>
   );
 }

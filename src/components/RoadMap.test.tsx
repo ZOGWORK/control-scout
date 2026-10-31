@@ -34,7 +34,7 @@ const modelled: TeamRoadMap = {
     event: { code: "USNJCMP", name: "New Jersey Championship", start: "2027-03-14" }, fromCalendar: false, options: [], level: "State championship", leadsTo: "FIRST Championship or a Premier event",
     slots: null, target: 46, teams: 48, best: 76, leagueMatches: null, overLimit: false,
     lastSeason: { season: 2025, events: 1, codes: ["USNJCMP"], slots: { min: 19, max: 19 }, cutoff: { median: 30, min: 30, max: 30 }, fcmp: { slots: { min: 8, max: 8 }, cutoff: { median: 46, min: 46, max: 46 } } },
-    routes: [{ label: "Inspire Award, 1st place", min: 62, clears: true }, { label: "Another judged award, 1st place", min: 14, clears: false }],
+    routes: [{ label: "Inspire 1st", min: 62, clears: true }, { label: "Other judged award 1st", min: 14, clears: false }],
   },
 };
 
@@ -43,8 +43,8 @@ const show = (m: TeamRoadMap) => { data.current = m; return render(<MemoryRouter
 describe("season road map", () => {
   it("an encoded region: target, official points, advancement and the ruleset's sources", () => {
     show(modelled);
-    expect(screen.getByTestId("roadmap-need").textContent).toMatch(/~46\s*points/);
-    expect(screen.getByText(/For a FIRST Championship slot/)).toBeTruthy();
+    expect(screen.getByTestId("roadmap-need").textContent).toMatch(/~46\s*pts/);
+    expect(screen.getByText(/for a FIRST Championship slot/)).toBeTruthy();
     expect(screen.getAllByText("76").length).toBe(2); // earned at the event, and the season best
     expect(screen.getByText(/last team in had 53/)).toBeTruthy();
     expect(screen.getByText("Advanced to New Jersey Championship")).toBeTruthy();

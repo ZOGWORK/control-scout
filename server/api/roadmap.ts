@@ -73,12 +73,12 @@ export function routes(ps: PointsSystem, n: number, target: number | null): Road
   // Alliance points: 21 − the alliance lead number or the draft acceptance number; the lowest a playoff team gets is the last alliance's.
   const lastAlliance = 21 - a, q = ps.qualMin;
   const list: [string, number][] = [
-    ["Win the event, as captain or pick", ps.playoff.first + lastAlliance + q],
-    ["Inspire Award, 1st place", ps.inspire[0] + q],
-    ["Top seed, then finalist", qualPoints(1, n) + 20 + ps.playoff.second],
-    ["Finalist, as captain or pick", ps.playoff.second + lastAlliance + q],
-    ["Inspire Award, 2nd place", ps.inspire[1] + q],
-    ["Another judged award, 1st place", ps.otherAwards[0] + q],
+    ["Win (captain or pick)", ps.playoff.first + lastAlliance + q],
+    ["Inspire 1st", ps.inspire[0] + q],
+    ["Top seed + finalist", qualPoints(1, n) + 20 + ps.playoff.second],
+    ["Finalist (captain or pick)", ps.playoff.second + lastAlliance + q],
+    ["Inspire 2nd", ps.inspire[1] + q],
+    ["Other judged award 1st", ps.otherAwards[0] + q],
   ];
   return list.map(([label, min]) => ({ label, min, clears: target != null && min >= target }));
 }

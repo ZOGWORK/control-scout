@@ -71,8 +71,8 @@ describe("season road map", () => {
     expect(m.stage).toBe("entry");
     // 2025–26 NJ league tournament cutoffs 37, 48, 51, 53, 54, 54, 55, 63: median 53.5.
     expect(m.need).toMatchObject({ event: null, options: [{ code: "USNJNELT" }, { code: "USNJNELT2" }], target: 54, leadsTo: "New Jersey Championship", leagueMatches: { played: 12, counted: 10, max: 10 }, overLimit: false });
-    expect(m.need!.routes.find((r) => r.label.startsWith("Win the event"))?.clears).toBe(true);
-    expect(m.need!.routes.find((r) => r.label.startsWith("Another judged award"))?.clears).toBe(false);
+    expect(m.need!.routes.find((r) => r.label.startsWith("Win"))?.clears).toBe(true);
+    expect(m.need!.routes.find((r) => r.label.startsWith("Other judged award"))?.clears).toBe(false);
   });
 
   it("only a team's first three home-region entry-level events can advance it", () => {
@@ -107,7 +107,7 @@ describe("season road map", () => {
     // 24 teams: 6 alliances, so the last alliance's points are 21 − 6 = 15; the worst qualification points are 2.
     const r = routes(ps, 24, 50);
     expect(r.find((x) => x.label.startsWith("Win"))).toMatchObject({ min: 40 + 15 + 2, clears: true });
-    expect(r.find((x) => x.label.startsWith("Inspire Award, 1st"))).toMatchObject({ min: 62, clears: true });
+    expect(r.find((x) => x.label.startsWith("Inspire 1st"))).toMatchObject({ min: 62, clears: true });
     expect(r.find((x) => x.label.startsWith("Finalist"))).toMatchObject({ min: 37, clears: false });
     expect(routes(ps, 24, null).every((x) => !x.clears)).toBe(true);
   });
