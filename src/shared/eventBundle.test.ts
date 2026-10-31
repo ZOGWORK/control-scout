@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 import type { RatingBookData } from "@control-scout/predict-engine";
-import { bundleFinished, sliceBook, snapshotAge, stableJson } from "./eventBundle";
+import { bundleFinished, matchClock, sliceBook, snapshotAge, snapshotClock, stableJson, zoneAbbr } from "./eventBundle";
+
+describe("times on the bundle page: 12-hour with AM/PM", () => {
+  it("snapshotClock says 7:23 PM, with the day when it isn't today", () => {
+    const at = new Date(2026, 9, 31, 19, 23).toISOString();
+    expect(snapshotClock(at, new Date(2026, 9, 31, 20, 0))).toBe("7:23 PM");
+    expect(snapshotClock(at, new Date(2026, 10, 1, 9, 0))).toBe("Oct 31, 7:23 PM");
+    expect(snapshotClock(new Date(2026, 9, 31, 0, 5).toISOString(), new Date(2026, 9, 31, 1, 0))).toBe("12:05 AM");
+  });
+
+  it("matchClock reads FIRST's event-local time", () => {
+    expect(matchClock("2025-11-16T11:58:48.832")).toBe("11:58 AM");
+    expect(matchClock("2025-11-16T12:04:00")).toBe("12:04 PM");
+    expect(matchClock("2025-11-16T00:30:00")).toBe("12:30 AM");
+    expect(matchClock("2025-11-16T19:23:00")).toBe("7:23 PM");
+    expect(matchClock(null)).toBeNull();
+  });
+
+  it("zoneAbbr gives a short zone name, never a raw IANA id or a GMT offset", () => {
+    const pt = zoneAbbr("America/Los_Angeles", new Date("2026-11-01T12:00:00Z"));
+    expect(["PT", "PDT", "PST"]).toContain(pt);
+    expect(zoneAbbr(null)).toBeNull();
+    expect(zoneAbbr("Not/A_Zone")).toBeNull();
+  });
+});
 
 describe("event-day bundle rules", () => {
   it("sliceBook keeps only the event's teams, and the season's baseline whole", () => {

@@ -1,19 +1,24 @@
 // An event-day bundle on this device (docs/event-bundle.md): /bundle/:season/:code. Everything here comes from
-// the device, so it opens with no signal: the venue card, what time the data is from, your match reports and
-// the pick list (frozen snapshots), and links into the event page (answered from the bundle when there's no
-// signal, live otherwise). /bundle/:season/:code/picklist shows the frozen pick list, unless the live one loads:
+// the device, so it opens with no signal. It leads with what's useful at the venue: the event, when the data is
+// from (one line), the schedule (your team's matches, or every match, with a team picker right there), and the
+// pick list's top teams when there is one. The rules reference waits, closed, at the bottom. Links into the event
+// page are answered from the bundle when there's no signal, live otherwise. /bundle/:season/:code/picklist shows the frozen pick list, unless the live one loads:
 // then the live one takes over.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { BookOpen, CalendarDays, ClipboardList, ExternalLink, HardDriveDownload, ListOrdered, MapPin, Swords, Trash2 } from "lucide-react";
+import { BookOpen, CalendarDays, ClipboardList, ExternalLink, HardDriveDownload, ListOrdered, MapPin, Swords, Trash2, Trophy } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { useBundle } from "../lib/offline/useBundle";
+import { usePersonal } from "../lib/personal";
 import { fmtBytes } from "../lib/recordings";
 import { matchReportHref } from "../shared/matchReport";
-import { bundleTime, type EventBundle, type SavedBundle, type VenueCard } from "../shared/eventBundle";
+import { bundleTime, matchClock, snapshotClock, zoneAbbr, type EventBundle, type SavedBundle, type VenueCard } from "../shared/eventBundle";
+import type { MatchView } from "../shared/api";
 import { Page, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/basic";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { SnapshotBanner, SnapshotFrame } from "../components/offline/Snapshot";
 
@@ -42,8 +47,12 @@ const dateRange = (v: VenueCard) => {
   return v.end && v.end.slice(0, 10) !== v.start.slice(0, 10) ? `${f(v.start)} – ${f(v.end)}` : f(v.start);
 };
 
-/** The venue card: where and when, from the event's own data. */
-export function VenueCardView({ v }: { v: VenueCard }) {
+/** How many of the pick list's teams show on the page (the rest are one tap away). */
+const PICK_PREVIEW = 5;
+const teamsOf = (m: MatchView) => [...m.red.teams, ...m.blue.teams].map((t) => t.number);
+
+/** The venue card: where and when, from the event's own data (times carry their zone where they're shown). */
+export function VenueCardView({ v, children }: { v: VenueCard; children?: ReactNode }) {
   const place = [v.city, v.state, v.country].filter(Boolean).join(", ");
   const when = dateRange(v);
   const mapQ = v.address ?? [v.venue, place].filter(Boolean).join(", ");
@@ -55,7 +64,7 @@ export function VenueCardView({ v }: { v: VenueCard }) {
         <p className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
           <span>{v.venue && <span className="block font-medium">{v.venue}</span>}<span className="text-muted-foreground">{v.address ?? (place || "Venue not published yet")}</span></span>
         </p>
-        {when && <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /><span><span className="font-medium">{when}</span>{v.timezone && <span className="block text-xs text-muted-foreground">Times in {v.timezone}</span>}</span></p>}
+        {when && <p className="flex items-start gap-2"><CalendarDays className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /><span className="font-medium">{when}</span></p>}
       </div>
       {(mapQ || v.website) && (
         <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
@@ -63,8 +72,28 @@ export function VenueCardView({ v }: { v: VenueCard }) {
           {v.website && <a className="inline-flex items-center gap-1 underline-offset-4 hover:underline" href={v.website} target="_blank" rel="noreferrer">Event site <ExternalLink className="size-3" /></a>}
         </p>
       )}
+      {children}
     </section>
   );
+}
+
+const ALL = "all";
+const teamKey = (season: number, code: string) => `cs-bundle-team:${season}:${code.toUpperCase()}`;
+const readTeam = (season: number, code: string): number | "all" | null => {
+  try { const v = localStorage.getItem(teamKey(season, code)); return v == null ? null : v === ALL ? ALL : Number(v) || null; } catch { return null; }
+};
+
+/** The team whose matches lead the page: the one picked here, else the bundle's, else my team when it plays here; "all": every match. */
+function useShownTeam(meta: SavedBundle, field: number[]): [number | "all", (v: number | "all") => void] {
+  const { state } = usePersonal();
+  const [picked, setPicked] = useState(() => readTeam(meta.season, meta.code));
+  const here = (t: number | null | undefined) => (t != null && field.includes(t) ? t : null);
+  const shown = picked === ALL ? ALL : here(picked) ?? here(meta.team) ?? here(state.myTeam) ?? ALL;
+  const set = (v: number | "all") => {
+    setPicked(v);
+    try { localStorage.setItem(teamKey(meta.season, meta.code), String(v)); } catch { /* private window: this visit only */ }
+  };
+  return [shown, set];
 }
 
 function BundleView({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
@@ -72,48 +101,129 @@ function BundleView({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
   const at = bundleTime(meta);
   const eventHref = `/events/${meta.season}/${encodeURIComponent(meta.code)}`;
   const remove = () => import("../lib/offline/bundles").then((m) => m.removeBundle(meta.season, meta.code)).then(() => { toast(`${meta.name} bundle removed from this device`); nav("/download"); }, (e: Error) => toast.error(e.message));
+  const pick = b.picklist && b.picklist.count > 0 ? b.picklist : null;
   return (
-    <div className="space-y-5 max-sm:space-y-4">
-      <VenueCardView v={b.venue} />
-      <SnapshotBanner at={at}>Pages open live whenever there's signal; this bundle answers only when there isn't.</SnapshotBanner>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-matches">
-          <h2 id="b-matches" className="flex items-center gap-2 font-display text-lg font-semibold"><Swords className="size-4 text-red-alliance" />{meta.team ? `Team ${meta.team}'s matches` : "Your matches"}</h2>
-          {b.reports.length ? (
-            <ul className="mt-3 divide-y divide-border">
-              {b.reports.map((r) => (
-                <li key={r.key}>
-                  <Link to={matchReportHref({ season: meta.season, code: meta.code, key: r.key })} className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:text-accent">
-                    <span className="font-medium">{r.label}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">{r.time ? r.time.slice(11, 16) : "Time not set"} · Know your match</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : <p className="mt-2 text-sm text-muted-foreground">{b.manifest.sections.find((x) => x.id === "reports")?.note ?? "No match reports in this bundle."}</p>}
-        </section>
-        <div className="space-y-4">
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-pick">
-            <h2 id="b-pick" className="flex items-center gap-2 font-display text-lg font-semibold"><ListOrdered className="size-4 text-accent" />Pick list</h2>
-            {b.picklist ? (
-              <p className="mt-2 text-sm text-muted-foreground">{b.picklist.count} {b.picklist.count === 1 ? "team" : "teams"} from {meta.workspace?.name ?? "your workspace"}, frozen at the snapshot time.{" "}
-                <Link to={`/bundle/${meta.season}/${encodeURIComponent(meta.code)}/picklist`} className="font-medium text-foreground underline underline-offset-4">Open the pick list</Link></p>
-            ) : <p className="mt-2 text-sm text-muted-foreground">{b.manifest.sections.find((x) => x.id === "picklist")?.note}</p>}
-          </section>
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-event">
-            <h2 id="b-event" className="flex items-center gap-2 font-display text-lg font-semibold"><ClipboardList className="size-4 text-blue-alliance" />Event</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{b.event.field.length} teams, {b.event.matches.length} matches scheduled, rankings and predictions as of the snapshot. With no signal the event page answers from this bundle.{" "}
-              <Link to={eventHref} className="font-medium text-foreground underline underline-offset-4">Open the event</Link></p>
-          </section>
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-rules">
-            <h2 id="b-rules" className="flex items-center gap-2 font-display text-lg font-semibold"><BookOpen className="size-4 text-success" />{b.rules?.title ?? "Rules reference"}</h2>
-            {b.rules ? <div className="mt-3"><SnapshotFrame html={b.rules.html} title={b.rules.title} /></div>
-              : <p className="mt-2 text-sm text-muted-foreground">{b.manifest.sections.find((x) => x.id === "rules")?.note ?? "Not in this bundle."}</p>}
-          </section>
+    <div className="space-y-4">
+      <VenueCardView v={b.venue}>
+        <SnapshotBanner compact at={at} className="mt-3" />
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button asChild size="sm"><Link to={eventHref}><ClipboardList /> Open the event</Link></Button>
+          <Button asChild size="sm" variant="secondary"><Link to={`${eventHref}?tab=rankings`}><Trophy /> Rankings</Link></Button>
         </div>
+      </VenueCardView>
+      <div className={pick ? "grid items-start gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" : undefined}>
+        <MatchesCard meta={meta} b={b} />
+        {pick && <PickListCard meta={meta} b={b} pick={pick} at={at} />}
       </div>
+      <RulesSection b={b} />
       <BundleContents b={b} meta={meta} onRemove={remove} />
     </div>
+  );
+}
+
+/** The schedule from the bundle: one team's matches (the next one marked), or every match. Never empty for want of a team. */
+function MatchesCard({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
+  const field = useMemo(() => [...b.event.field].sort((x, y) => x.team - y.team), [b.event.field]);
+  const [shown, setShown] = useShownTeam(meta, field.map((f) => f.team));
+  const reports = useMemo(() => new Set(b.reports.map((r) => r.key)), [b.reports]);
+  const matches = shown === ALL ? b.event.matches : b.event.matches.filter((m) => teamsOf(m).includes(shown));
+  const next = shown === ALL ? null : matches.find((m) => !m.played)?.key ?? null;
+  const zone = zoneAbbr(b.venue.timezone);
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-matches">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="b-matches" className="flex items-center gap-2 font-display text-lg font-semibold">
+          <Swords className="size-4 text-red-alliance" />{shown === ALL ? "All matches" : `Team ${shown}'s matches`}
+        </h2>
+        {field.length > 0 && (
+          <Select value={String(shown)} onValueChange={(v) => setShown(v === ALL ? ALL : Number(v))}>
+            <SelectTrigger size="sm" aria-label="Show matches for" className="h-9 w-auto min-w-[9rem] max-w-[14rem] max-sm:h-10"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All matches</SelectItem>
+              {field.map((f) => <SelectItem key={f.team} value={String(f.team)}>{f.team}{f.name ? ` ${f.name}` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      {matches.length ? (
+        <>
+          {zone && matches.some((m) => m.time) && <p className="mt-1 text-xs text-muted-foreground">Times in {zone}</p>}
+          <ul className="mt-2 divide-y divide-border">
+            {matches.map((m) => (
+              <li key={m.key}>
+                <Link to={matchReportHref({ season: meta.season, code: meta.code, key: m.key })} data-bundle-match
+                  aria-label={`${m.label}${reports.has(m.key) ? ", report saved offline" : ""}`}
+                  className="grid min-h-11 grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 py-2 text-sm hover:text-accent max-sm:grid-cols-[3rem_minmax(0,1fr)_auto]">
+                  <span className="font-medium tabular-nums">{m.label}</span>
+                  <span className="min-w-0 truncate font-mono text-xs">
+                    <Side teams={m.red.teams} me={shown} red /> <span className="text-muted-foreground">vs</span> <Side teams={m.blue.teams} me={shown} />
+                  </span>
+                  <span className="flex items-center justify-end gap-2 text-xs tabular-nums text-muted-foreground">
+                    {m.key === next && <Badge variant="outline" className="border-accent/50 text-accent">Next</Badge>}
+                    {m.played && m.red.score && m.blue.score ? <span className="text-foreground">{m.red.score.total}–{m.blue.score.total}</span> : matchClock(m.time) ?? ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">
+          {!b.event.matches.length ? "No schedule published yet. Download the bundle again once FIRST posts it." : `Team ${shown} has no matches in the schedule yet.`}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function Side({ teams, me, red }: { teams: MatchView["red"]["teams"]; me: number | "all"; red?: boolean }) {
+  return (
+    <span className={red ? "text-red-alliance-text" : "text-blue-alliance-text"}>
+      {teams.map((t, i) => <span key={t.number}>{i > 0 && " "}<span className={t.number === me ? "font-bold underline underline-offset-2" : undefined}>{t.number}</span></span>)}
+    </span>
+  );
+}
+
+/** The workspace's pick list as it was saved: who it belongs to, how many, when, and the top few. */
+function PickListCard({ meta, b, pick, at }: { meta: SavedBundle; b: EventBundle; pick: NonNullable<EventBundle["picklist"]>; at: string }) {
+  const names = new Map(b.event.field.map((f) => [f.team, f.name]));
+  const top = (pick.teams ?? []).slice(0, PICK_PREVIEW);
+  const href = `/bundle/${meta.season}/${encodeURIComponent(meta.code)}/picklist`;
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-pick">
+      <h2 id="b-pick" className="flex items-center gap-2 font-display text-lg font-semibold"><ListOrdered className="size-4 text-accent" />Your team's pick list</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {meta.workspace?.name ? `${meta.workspace.name}: ` : ""}{pick.count} {pick.count === 1 ? "team" : "teams"}, saved at <span className="tabular-nums">{snapshotClock(at)}</span>
+      </p>
+      {top.length > 0 && (
+        <ol className="mt-3 space-y-1.5 text-sm">
+          {top.map((t, i) => (
+            <li key={t} className="flex items-baseline gap-2">
+              <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+              <span className="font-medium tabular-nums">{t}</span>
+              <span className="min-w-0 truncate text-muted-foreground">{names.get(t) ?? ""}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <Link to={href} className="mt-3 inline-flex min-h-9 items-center text-sm font-medium underline underline-offset-4 hover:text-accent">
+        {pick.count > top.length ? `See all ${pick.count}` : "Open the full list"}
+      </Link>
+    </section>
+  );
+}
+
+/** The rules reference: closed until asked for, and only rendered once opened (it's long). */
+function RulesSection({ b }: { b: EventBundle }) {
+  const [open, setOpen] = useState(false);
+  if (!b.rules) return null;
+  return (
+    <details className="rounded-2xl border border-border bg-card" onToggle={(e) => setOpen(e.currentTarget.open)} data-bundle-rules>
+      <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3 text-sm font-medium sm:px-5">
+        <BookOpen className="size-4 text-success" aria-hidden />{b.rules.title}
+      </summary>
+      {open && <div className="border-t border-border p-3 sm:p-4"><SnapshotFrame html={b.rules.html} title={b.rules.title} /></div>}
+    </details>
   );
 }
 
