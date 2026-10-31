@@ -38,6 +38,7 @@ import { RECORD_RULE } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
 import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
+import { CommonsSection } from "../components/CommonsSection";
 import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { predictHref } from "../shared/predictUrl";
@@ -110,6 +111,8 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
       {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
           the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
+      {/* The scouting commons: other workspaces' shared pit scouting, a separate layer after the reader's own take. */}
+      {rest && predictable && <CommonsSection team={p.team.number} season={p.season} />}
     </div>
   );
 }

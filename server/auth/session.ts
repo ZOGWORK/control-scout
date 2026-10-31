@@ -88,7 +88,9 @@ export async function deleteUser(id: number): Promise<void> {
   // does), and whatever was written before is deleted below.
   await run("DELETE FROM users WHERE id = ?", [id]);
   await run("DELETE FROM push_sent WHERE subscription_id IN (SELECT id FROM push_subscriptions WHERE user_id = ?)", [id]);
-  for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items", "push_subscriptions", "digest_prefs", "digest_sends"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
+  for (const t of ["sessions", "identities", "user_state", "scout_entries", "inbox_items", "push_subscriptions", "digest_prefs", "digest_sends", "commons_mutes"]) await run(`DELETE FROM ${t} WHERE user_id = ?`, [id]);
+  // Their reports in the scouting commons (the note is theirs); a report already acted on leaves its outcome in the audit log.
+  await run("DELETE FROM commons_reports WHERE reporter_user_id = ?", [id]);
 }
 
 export async function sessionsFor(id: number) {

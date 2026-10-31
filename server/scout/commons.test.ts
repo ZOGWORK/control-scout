@@ -68,6 +68,8 @@ beforeEach(async () => {
   });
   await setFlag("photos", true, "test");
   await setFlag("workspaceScouting", true, "test");
+  await setFlag("scoutingCommons", true, "test");
+  await setWorkspaceOverride("scoutingCommons", A, null, "test");
   for (const t of ["commons_entries", "commons_workspaces", "commons_events", "entry_photos"]) await run(`DELETE FROM ${t}`);
   invalidateFlags();
 });
@@ -162,7 +164,7 @@ describe("scouting commons", () => {
       expect(c.entries[0]).toMatchObject({ source: { name: "Pyro Scouts" }, eventCode: EV, team: 18360, notes: e.notes, scoutedAt: e.updatedAt, data: e.data });
       expect(c.entries[0].fields.length).toBeGreaterThan(0);
       expect(JSON.stringify(c)).not.toMatch(/Ada|cm-admin-a|3101/);
-      expect(c.events).toEqual([{ code: EV, name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08" }]);
+      expect(c.events).toEqual([{ code: EV, name: "Commons Qualifier", start: "2025-11-08", end: "2025-11-08", timezone: null }]);
     }
     // Signed out: 401.
     expect((await client()("GET", `/api/scout/commons?season=${S}&team=18360`)).status).toBe(401);
@@ -340,5 +342,231 @@ describe("scouting commons: the layer and the owner's count", () => {
     await push(adminA, A, [{ ...gone, deleted: true, updatedAt: gone.updatedAt + 1000 }]);
     const list = await owner("GET", "/api/owner/commons/events");
     expect(list.json.events[0]).toMatchObject({ code: EV, shared: 1 });
+  });
+});
+
+describe("scouting commons: the owner's feature toggle", () => {
+  it("off everywhere: no commons read, share or opt-in, whatever the event switch says; on again, everything is back", async () => {
+    const { adminA, loner, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry();
+    await push(adminA, A, [e]);
+    await share(adminA, A, e.uuid);
+    await setFlag("scoutingCommons", false, "test");
+    invalidateFlags();
+    const off = await loner("GET", `/api/scout/commons?season=${S}&team=18360`);
+    expect(off.status).toBe(403);
+    expect(off.json).toMatchObject({ error: "feature_disabled", feature: "scoutingCommons" });
+    expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.feature).toBe("scoutingCommons");
+    expect((await adminA("PUT", `/api/scout/workspaces/${A}/commons`, { optedIn: false })).status).toBe(403);
+    expect((await share(adminA, A, e.uuid, false)).status).toBe(403);
+    // A workspace's own "on" override doesn't open it while it's off everywhere.
+    await setWorkspaceOverride("scoutingCommons", A, true, "test");
+    invalidateFlags();
+    expect((await adminA("PUT", `/api/scout/workspaces/${A}/commons`, { optedIn: true })).status).toBe(403);
+    expect((await share(adminA, A, e.uuid)).status).toBe(403);
+    await setWorkspaceOverride("scoutingCommons", A, null, "test");
+    expect((await owner("GET", "/api/owner/commons/events")).status).toBe(200); // the console stays reachable
+    await setFlag("scoutingCommons", true, "test");
+    invalidateFlags();
+    expect((await read(loner)).entries).toHaveLength(1); // nothing was lost
+  });
+
+  it("off for one workspace: its shares are hidden and it can't share; others carry on", async () => {
+    const { adminA, adminB, loner, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A); await optIn(adminB, B);
+    const a = entry(), b = entry();
+    await push(adminA, A, [a]); await push(adminB, B, [b]);
+    await share(adminA, A, a.uuid); await share(adminB, B, b.uuid);
+    await setWorkspaceOverride("scoutingCommons", A, false, "test");
+    invalidateFlags();
+    expect((await read(loner)).entries.map((x) => x.source.name)).toEqual(["Robo Owls"]);
+    expect((await share(adminA, A, a.uuid)).status).toBe(403);
+    expect((await owner("GET", "/api/owner/commons/events")).json.events[0].shared).toBe(1);
+  });
+});
+
+describe("scouting commons: moderation", () => {
+  const shared = async () => {
+    const { adminA, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry();
+    await push(adminA, A, [e]);
+    await share(adminA, A, e.uuid);
+    const ws = (await all<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [A]))[0].id;
+    return { e, id: `${ws}:${e.uuid}`, ws };
+  };
+  beforeEach(async () => { for (const t of ["commons_reports", "commons_mutes"]) await run(`DELETE FROM ${t}`); });
+
+  it("a reader reports an entry once (again: no second report); the owner sees it queued and on the overview", async () => {
+    const { loner, adminB, owner } = await cast();
+    const { id } = await shared();
+    expect((await client()("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong" })).status).toBe(401);
+    expect((await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "nope" })).status).toBe(400);
+    expect((await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "outdated", note: "New claw since" })).json).toEqual({ reported: true, already: false });
+    expect((await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "outdated" })).json).toEqual({ reported: true, already: true });
+    await adminB("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong" });
+    expect((await loner("POST", "/api/scout/commons/reports", { entryId: "999:nothing", reason: "wrong" })).status).toBe(404);
+    const q = await owner("GET", "/api/owner/commons/reports");
+    expect(q.json.reports).toEqual([expect.objectContaining({ entryId: id, source: { id: expect.any(Number), name: "Pyro Scouts" }, status: "published", reports: [
+      expect.objectContaining({ reason: "outdated", note: "New claw since" }), expect.objectContaining({ reason: "wrong" })] })]);
+    expect(JSON.stringify(q.json)).not.toMatch(/cm-loner|cm-admin-b/); // reporters stay anonymous, even to the queue
+    expect((await owner("GET", "/api/owner/overview")).json.commonsReports).toBe(1);
+    expect((await loner("GET", "/api/owner/commons/reports")).status).toBe(403);
+  });
+
+  it("the owner takes an entry down: hidden, reports resolved, the workspace can't share it again; restoring brings it back", async () => {
+    const { adminA, loner, owner } = await cast();
+    const { e, id } = await shared();
+    await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "inappropriate" });
+    const down = await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: true, reason: "Not scouting" });
+    expect(down.status).toBe(200);
+    expect(down.json.reports).toEqual([]);
+    expect(down.json.removed).toEqual([expect.objectContaining({ entryId: id, source: expect.objectContaining({ name: "Pyro Scouts" }), reason: "Not scouting", removedBy: "owner@example.com" })]);
+    expect((await read(loner)).entries).toEqual([]);
+    const ws = await adminA("GET", `/api/scout/workspaces/${A}/commons`);
+    expect(ws.json.shares[0]).toMatchObject({ uuid: e.uuid, status: "removed", removedReason: "Not scouting" });
+    expect((await share(adminA, A, e.uuid)).json).toMatchObject({ code: "removed" });
+    await share(adminA, A, e.uuid, false);
+    expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.shares[0]).toMatchObject({ status: "removed", sharedIfRestored: false }); // unsharing doesn't undo a takedown
+    expect((await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: false })).status).toBe(200);
+    // It was unshared while taken down: restoring leaves the workspace's choice (withdrawn), never re-shares it.
+    expect((await read(loner)).entries).toEqual([]);
+    expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.shares[0].status).toBe("withdrawn");
+    // Shared again, taken down and restored: shared again as it was.
+    await share(adminA, A, e.uuid);
+    await owner("PUT", `/api/owner/commons/entries/${id}`, { removed: true });
+    // Two restores at once: the second changes nothing.
+    await Promise.all([owner("PUT", `/api/owner/commons/entries/${id}`, { removed: false }), owner("PUT", `/api/owner/commons/entries/${id}`, { removed: false })]);
+    expect((await read(loner)).entries).toHaveLength(1);
+    expect((await owner("GET", "/api/owner/commons/reports")).json.removed).toEqual([]);
+    const audit = await all<any>("SELECT action FROM owner_audit WHERE action LIKE 'commons.entry.%' ORDER BY id DESC LIMIT 4");
+    expect(audit.map((a) => a.action)).toEqual(["commons.entry.restore", "commons.entry.restore", "commons.entry.remove", "commons.entry.restore"]);
+  });
+
+  it("dismissing clears the reports and leaves the entry shared", async () => {
+    const { loner, owner } = await cast();
+    const { id } = await shared();
+    await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong" });
+    expect((await owner("POST", `/api/owner/commons/entries/${id}/dismiss`, {})).json.reports).toEqual([]);
+    expect((await read(loner)).entries).toHaveLength(1);
+  });
+
+  it("the owner suspends a workspace: all its shares hidden, no new shares; lifting it brings them back", async () => {
+    const { adminA, loner, owner } = await cast();
+    const { ws } = await shared();
+    const list = await owner("GET", "/api/owner/commons/workspaces");
+    expect(list.json.workspaces).toEqual([expect.objectContaining({ source: { id: ws, name: "Pyro Scouts" }, optedIn: true, shared: 1, removed: 0, suspended: null })]);
+    await owner("PUT", `/api/owner/commons/workspaces/${ws}`, { suspended: true, reason: "Spam" });
+    expect((await read(loner)).entries).toEqual([]);
+    expect((await adminA("GET", `/api/scout/workspaces/${A}/commons`)).json.suspended).toMatchObject({ reason: "Spam" });
+    const another = entry();
+    await push(adminA, A, [another]);
+    expect((await share(adminA, A, another.uuid)).json.code).toBe("suspended");
+    await owner("PUT", `/api/owner/commons/workspaces/${ws}`, { suspended: false });
+    expect((await read(loner)).entries).toHaveLength(1);
+  });
+
+  it("a reader mutes a source workspace for themself only, and unmutes it", async () => {
+    const { adminB, loner } = await cast();
+    const { ws } = await shared();
+    const m = await loner("PUT", `/api/scout/commons/mutes/${ws}`, { muted: true });
+    expect(m.json.muted).toEqual([{ id: ws, name: "Pyro Scouts" }]);
+    expect(await read(loner)).toMatchObject({ entries: [], muted: [{ id: ws, name: "Pyro Scouts" }] });
+    expect((await read(adminB)).entries).toHaveLength(1); // others still see it
+    expect((await loner("PUT", "/api/scout/commons/mutes/99999", { muted: true })).status).toBe(404);
+    await loner("PUT", `/api/scout/commons/mutes/${ws}`, { muted: false });
+    expect((await read(loner)).entries).toHaveLength(1);
+  });
+});
+
+describe("scouting commons: moderation edges", () => {
+  const sharedEntry = async () => {
+    const { adminA, owner } = await cast();
+    await openEvent(owner);
+    await optIn(adminA, A);
+    const e = entry();
+    await push(adminA, A, [e]);
+    await share(adminA, A, e.uuid);
+    const ws = (await all<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [A]))[0].id;
+    return { e, id: `${ws}:${e.uuid}`, ws };
+  };
+  beforeEach(async () => { for (const t of ["commons_reports", "commons_mutes"]) await run(`DELETE FROM ${t}`); });
+
+  it("the daily cap holds when reports arrive at once", async () => {
+    const { adminA, loner } = await cast();
+    const { ws } = await sharedEntry();
+    const more = Array.from({ length: 25 }, () => entry());
+    await push(adminA, A, more);
+    for (const m of more) await share(adminA, A, m.uuid);
+    const rs = await Promise.all(more.map((m) => loner("POST", "/api/scout/commons/reports", { entryId: `${ws}:${m.uuid}`, reason: "wrong" })));
+    expect(rs.filter((r) => r.status === 200).length).toBe(20);
+    expect(rs.filter((r) => r.status === 429).length).toBe(5);
+  });
+
+  it("a workspace hidden by the owner's switch takes no reports", async () => {
+    const { loner } = await cast();
+    const { id } = await sharedEntry();
+    await setWorkspaceOverride("workspaceScouting", A, false, "test");
+    invalidateFlags();
+    expect((await loner("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong" })).status).toBe(404);
+    await setWorkspaceOverride("workspaceScouting", A, null, "test");
+    invalidateFlags();
+  });
+
+  it("lists only the mutes that hid something on this team", async () => {
+    const { loner } = await cast();
+    const { ws } = await sharedEntry();
+    await loner("PUT", `/api/scout/commons/mutes/${ws}`, { muted: true });
+    expect((await read(loner)).muted).toEqual([{ id: ws, name: "Pyro Scouts" }]);
+    expect((await read(loner, `season=${S}&team=101`)).muted).toEqual([]); // nothing shared on 101
+  });
+
+  it("the queue shows what was reported (answers and fields), and deleting an account removes its reports and mutes", async () => {
+    const { owner } = await cast();
+    const { id, ws } = await sharedEntry();
+    const gone = await signIn("cm-gone@example.com");
+    await gone("POST", "/api/scout/commons/reports", { entryId: id, reason: "wrong", note: "mine" });
+    await gone("PUT", `/api/scout/commons/mutes/${ws}`, { muted: true });
+    const q = (await owner("GET", "/api/owner/commons/reports")).json.reports[0];
+    expect(q.data).toMatchObject({ drivetrain: "Mecanum" });
+    // Moved to another team since the report: the queue labels it with the robot it describes now.
+    {
+      const { adminA } = await cast();
+      const row = (await all<any>("SELECT uuid, season, event_code, data, notes, updated_at FROM workspace_scout_entries WHERE uuid = ?", [id.split(":")[1]]))[0];
+      await push(adminA, A, [{ uuid: row.uuid, season: Number(row.season), team: 101, eventCode: row.event_code, matchLabel: null, kind: "pit", data: JSON.parse(row.data), notes: row.notes, updatedAt: Number(row.updated_at) + 500 }]);
+      expect((await owner("GET", "/api/owner/commons/reports")).json.reports[0].team).toBe(101);
+    }
+    expect(q.fields.map((f: { id: string }) => f.id)).toContain("drivetrain");
+    const uid = (await all<{ id: number }>("SELECT id FROM users WHERE email = 'cm-gone@example.com'"))[0].id;
+    // Edited into match scouting since: its answers and notes stay inside the workspace, even in the queue.
+    const { adminA } = await cast();
+    const e = (await all<any>("SELECT uuid, season, team, event_code, data, notes, updated_at FROM workspace_scout_entries WHERE uuid = ?", [id.split(":")[1]]))[0];
+    await push(adminA, A, [{ uuid: e.uuid, season: Number(e.season), team: Number(e.team), eventCode: e.event_code, matchLabel: "Q1", kind: "match", data: {}, notes: "private match note", updatedAt: Number(e.updated_at) + 1000 }]);
+    const q2 = (await owner("GET", "/api/owner/commons/reports")).json.reports[0];
+    expect(q2).toMatchObject({ notes: null, data: {}, fields: [], photos: [] });
+    const { deleteUser } = await import("../auth/session");
+    await deleteUser(uid);
+    expect(await all("SELECT 1 FROM commons_reports WHERE reporter_user_id = ?", [uid])).toEqual([]);
+    expect(await all("SELECT 1 FROM commons_mutes WHERE user_id = ?", [uid])).toEqual([]);
+  });
+
+  it("takedowns page: the oldest stays reachable with before/entryId", async () => {
+    const { adminA, owner } = await cast();
+    const { ws } = await sharedEntry();
+    const many = Array.from({ length: 52 }, () => entry());
+    await push(adminA, A, many);
+    for (const m of many) { await share(adminA, A, m.uuid); await owner("PUT", `/api/owner/commons/entries/${ws}:${m.uuid}`, { removed: true }); }
+    const first = (await owner("GET", "/api/owner/commons/reports")).json;
+    expect(first.removed).toHaveLength(50);
+    expect(first.removedMore).toBe(true);
+    const last = first.removed.at(-1);
+    const next = (await owner("GET", `/api/owner/commons/removed?before=${encodeURIComponent(last.removedAt)}&entryId=${encodeURIComponent(last.entryId)}`)).json;
+    expect(next.more).toBe(false);
+    const seen = new Set([...first.removed, ...next.removed].map((x: { entryId: string }) => x.entryId));
+    expect(seen.size).toBe(52);
   });
 });

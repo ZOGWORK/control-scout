@@ -42,6 +42,7 @@ import { DigestPanel } from "../components/owner/DigestPanel";
 import { DataPanel } from "../components/owner/DataPanel";
 import { PacksPanel } from "../components/owner/PacksPanel";
 import { ModerationPanel } from "../components/owner/ModerationPanel";
+import { CommonsPanel } from "../components/owner/CommonsPanel";
 import { FeedbackPanel } from "../components/owner/FeedbackPanel";
 import { ErrorsPanel } from "../components/owner/ErrorsPanel";
 import { AnalyticsPanel } from "../components/owner/AnalyticsPanel";
@@ -86,6 +87,7 @@ export default function OwnerPage() {
   const badges: Partial<Record<PanelId, { n: number; what: string; urgent?: boolean }[]>> = o ? {
     feedback: [{ n: o.inbox.openFeedback, what: "open feedback" }, { n: o.inbox.errorReports, what: "error reports", urgent: true }],
     accounts: [{ n: o.orphanedWorkspaces ?? 0, what: "orphaned spaces" }],
+    moderation: [{ n: o.commonsReports ?? 0, what: "reported commons entries", urgent: true }],
   } : {};
   // Phones and tablets: keep the open section's chip in view in the scrolling row.
   const navRef = useRef<HTMLUListElement>(null);
@@ -156,7 +158,7 @@ export default function OwnerPage() {
             </div>
           )}
           {panel === "features" && <FeaturesPanel />}
-          {panel === "moderation" && <ModerationPanel onOpenResync={() => go("data")} />}
+          {panel === "moderation" && <div className="space-y-8"><CommonsPanel /><ModerationPanel onOpenResync={() => go("data")} /></div>}
           {panel === "feedback" && <div className="space-y-8"><FeedbackPanel onOpenResync={() => go("data")} /><ErrorsPanel /></div>}
           {panel === "analytics" && <div className="space-y-8"><AnalyticsPanel /><UsagePanel /></div>}
           {panel === "accounts" && <div className="space-y-8"><UsersPanel /><OrphanedPanel /></div>}

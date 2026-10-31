@@ -11,6 +11,8 @@ export interface OwnerOverview {
   workspaces: number | null;
   /** Scout spaces left read-only because their Control Point workspace was deleted or has no admin (Task 19). null: not on this database yet. */
   orphanedWorkspaces: number | null;
+  /** Entries in the scouting commons with open reports, waiting for the owner (docs/scouting-commons.md). null: not on this database yet. */
+  commonsReports?: number | null;
   scoutEntries: { personal: number; workspace: number | null };
   storage: { databaseBytes: number | null; databaseLocal: boolean; packsBytes: number | null; packFiles: number };
   inbox: { openFeedback: number; errorReports: number; unfiledErrors: number };
