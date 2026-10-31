@@ -19,7 +19,7 @@ const stat = (value: number) => ({ value, rank: 10, of: 100 });
 const team = (n: number, opr: number, wins: number): CompareTeam => ({
   team: { number: n, name: `Team ${n} name` } as CompareTeam["team"],
   stats: { opr: { np: stat(opr), auto: stat(10), teleop: stat(opr - 20), endgame: stat(10), pen: -3 }, rating: null, record: { wins, losses: 2, ties: 0, matches: wins + 2, events: 2 }, avg: { np: 1, score: 1, pen: 1 } },
-  events: [],
+  events: [], awards: [],
 });
 const view = (teams: CompareTeam[]): CompareView => ({ season: 2025, teams, meetings: [] });
 

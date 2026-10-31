@@ -191,11 +191,13 @@ export function relationOf(numbers: number[], red: number[], blue: number[]): "o
 
 export async function compareTeams(numbers: number[], season: number): Promise<CompareView> {
   const teams = await Promise.all(numbers.map(async (n) => {
-    const [info, stats, events] = await Promise.all([teamInfo(n), seasonStats(season, n), teamEvents(season, n)]);
+    const [info, stats, events, awards] = await Promise.all([teamInfo(n), seasonStats(season, n), teamEvents(season, n),
+      all<any>("SELECT a.code, e.name event, a.type, a.placement FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? AND a.season = ? ORDER BY e.start DESC, a.type, a.placement", [n, season])]);
     return {
       team: info ?? { number: n, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
       stats,
       events: events.map((e) => ({ code: e.code, name: e.name, start: e.start, opr: e.opr.np, auto: e.opr.auto, teleop: e.opr.teleop, endgame: e.opr.endgame, rank: e.rank })),
+      awards: awards.map((a) => ({ code: a.code, event: a.event, type: a.type, placement: Number(a.placement) })),
     };
   }));
   // Matches where at least two of the compared teams both played, between any of them: the page shows the ones

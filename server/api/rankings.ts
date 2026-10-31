@@ -50,6 +50,15 @@ async function liveList(season: number): Promise<TeamRow[]> {
      WHERE s.season = ? AND s.rating_np IS NOT NULL AND s.rating_matches >= ? AND ${ranked}`, [season, RANKED_MIN_MATCHES])));
 }
 
+/** A team's place in one region's live ranking for a season: its position among the region's ranked teams, how many
+ *  there are, and its world rank (what /rankings?region= lists). Null when the team isn't ranked that season. */
+export async function regionPlace(season: number, team: number, place: PlaceFilter): Promise<{ rank: number; of: number; world: number } | null> {
+  const list = await liveList(season);
+  const here = list.filter((t) => inPlaces(t, [place]));
+  const i = here.findIndex((t) => Number(t.team) === team);
+  return i < 0 ? null : { rank: i + 1, of: here.length, world: here[i].rank };
+}
+
 /** A snapshot week's ranking, with team names (as stored then: order and rating; names as now). */
 async function weekList(season: number, week: string): Promise<TeamRow[]> {
   return listMemo(`${await dataVersion()}|week|${season}|${week}`, async () => (await all<TeamRow>(

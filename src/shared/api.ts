@@ -61,19 +61,34 @@ export interface SearchPageLink { title: string; href: string }
  *   deterministic  the query matched as typed (or a team number, or a feature it names)
  *   did-you-mean   a correction or closest match: `didYouMean` says what it was read as
  *   ai             Bruno AI refined the query and search ran again on his words (`refined`); every number is search's own
+ *   closest        what was asked was understood, but no view answers all of it: the closest real result, and
+ *                  `intent.gap` says plainly what doesn't exist yet
  *   recovery       nothing matched: `recovery` says what was understood, the closest matches if any, and where to browse
  */
 export interface SearchAnswer {
   q: string;
   hits: SearchHit[];
   pages: SearchPageLink[];
-  step: "deterministic" | "did-you-mean" | "ai" | "recovery";
+  step: "deterministic" | "did-you-mean" | "ai" | "closest" | "recovery";
   didYouMean?: string;
   /** "ai": Bruno AI's reading of the query. */
   refined?: string;
   recovery?: SearchRecovery;
+  /** What the query asked for besides a name (a season, a region, a ranking, a view that doesn't exist yet). */
+  intent?: SearchIntentNote;
   /** Whether a Bruno AI refinement may help (the results are a guess or there are none): the app then asks /api/search/refine. */
   weak: boolean;
+}
+
+/** An understood intent (server/api/searchIntents.ts): counted as `kind` and `pattern` (placeholders, no query text). */
+export interface SearchIntentNote {
+  kind: string;
+  /** "[team] ranking [season] [region]" */
+  pattern: string;
+  /** A view answers it. False: `gap` says what's missing. */
+  met: boolean;
+  understood: string[];
+  gap?: string;
 }
 
 export interface SearchRecovery {
@@ -564,6 +579,8 @@ export interface CompareTeam {
   /** Events this season, oldest first. OPR parts are that event's (season OPR parts are each the best event's,
    *  so the brief can link every number to the event it came from). */
   events: { code: string; name: string; start: string | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; rank: number | null }[];
+  /** Awards this season, newest event first. */
+  awards: { code: string; event: string; type: string; placement: number }[];
 }
 
 export interface CompareView {

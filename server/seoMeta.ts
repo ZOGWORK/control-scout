@@ -29,6 +29,7 @@ import { isEnabled } from "./flags.js";
 import type { TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { searchAnswer } from "./api/searchAnswer.js";
+import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
@@ -438,8 +439,10 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // The same readiness check as /api/search (typo matches on an upgraded database).
   await ensureSearchIndex(rebuildSearch);
   const answer = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
+  // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
+  await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
-  const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...notes.understood.map(esc)].filter(Boolean);
+  const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...notes.understood.map(esc), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
   const body = (said.length ? `<p>${said.join("<br>")}</p>` : "") + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;

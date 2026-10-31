@@ -108,13 +108,16 @@ async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<s
   const m = /^(.+?)\s+at\s+(.+)$/i.exec(q.trim());
   if (!m || MATCH_RE.test(q.trim()) || (kinds?.size && !kinds.has("team"))) return null;
   const intent = searchIntent(m[1]) ?? searchIntent(m[1], true);
-  if (!intent?.topic) return null;
-  const hits = await searchWords(intent.rest, limit, prefer, kinds);
+  // With no topic ("hypnotic at East Bergen") only an event of the team's that really matches counts: "battle at
+  // the bay" stays an event name.
+  const named = intent?.topic ? intent.rest : m[1].trim();
+  const hits = await searchWords(named, limit, prefer, kinds);
   const team = hits.find((h) => h.kind === "team");
   if (!team) return null;
   const where = m[2].trim();
   const vague = /^(?:this|that|the|an?|my|our)?\s*(?:event|meet|tournament|competition|one|comp)?$/i.test(where);
   const pick = vague ? null : await teamAtEvent(Number(team.ref), where);
+  if (!intent?.topic && (!pick || (fuzzyScore(named, team.title.replace(/^\d+\s+/, "")) < 0.75 && !named.split(" ").includes(team.ref)))) return null;
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
   if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts }, ...others];
   const { season } = await teamSeason(Number(team.ref));

@@ -22,7 +22,7 @@ function team(number: number, matches: number, events: Ev[]): CompareTeam {
       opr: { np: stat(best("opr")), auto: stat(best("auto")), teleop: stat(best("teleop")), endgame: stat(best("endgame")), pen: 0 },
       rating: null, record: { wins: 1, losses: 1, ties: 0, matches, events: events.length }, avg: { np: 1, score: 1, pen: 1 },
     },
-    events,
+    events, awards: [],
   };
 }
 const view = (teams: CompareTeam[], meetings: CompareView["meetings"] = []): CompareView => ({ season: 2025, teams, meetings });

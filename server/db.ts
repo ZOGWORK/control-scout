@@ -1733,6 +1733,20 @@ CREATE TABLE search_clicks (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 65,
+    name: "search intents",
+    sql: `
+-- What search understood people asked for (server/api/searchIntents.ts): one row per intent pattern, with teams,
+-- seasons, regions and events replaced by placeholders ("[team] ranking [season] [region]"). met = 0: no view answers
+-- it yet (the build list). Aggregate counts and the day last seen only: no query text, account, device or IP.
+CREATE TABLE search_intents (
+  kind TEXT NOT NULL, pattern TEXT NOT NULL, met INTEGER NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0, last_seen TEXT NOT NULL,
+  PRIMARY KEY (kind, pattern)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;

@@ -20,6 +20,8 @@ export interface AnswerSection { id: SectionId; title: string; rows: AnswerRow[]
 export interface AnswerNotes {
   didYouMean?: string;
   understood: string[];
+  /** What was asked but doesn't exist yet ("There's no reputation score…"), beside the closest real result. */
+  gap?: string;
   /** Bruno AI's reading: `refined` when he rewrote the query, null when he found nothing to search for. */
   ai?: { refined: string | null; found: boolean };
 }
@@ -57,6 +59,7 @@ export function answerSections(answer: SearchAnswer, ai?: SearchAnswer | null): 
     notes.ai = { refined: ai.recovery.ai.refined, found: false };
   }
   if (answer.step === "did-you-mean" && answer.didYouMean) notes.didYouMean = answer.didYouMean;
+  if (answer.intent) { notes.understood = [`Understood: ${answer.intent.understood.join(" · ")}`]; if (answer.intent.gap) notes.gap = answer.intent.gap; }
   sections.push(...byKind(answer.hits));
   if (answer.step === "recovery" && answer.recovery) {
     notes.understood = answer.recovery.understood;

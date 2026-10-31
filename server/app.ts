@@ -13,6 +13,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, searchAnswer } from "./api/searchAnswer.js";
 import { refine } from "./api/searchBruno.js";
 import { recordClick } from "./api/searchLearn.js";
+import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
@@ -363,14 +364,17 @@ export function createApp(opts: { dist?: string } = {}) {
     return r;
   }));
 
-  // A result opened from search (server/api/searchLearn.ts): counted only when it's one search really gave for that
-  // query, so nothing can be planted. Aggregate counts only, nothing about who.
+  // A result opened from search (server/api/searchLearn.ts), and the intent its query asked for
+  // (server/api/searchIntents.ts): counted only when it's one search really gave for that query, so nothing can be
+  // planted. Aggregate counts only, nothing about who.
   api.post("/search/click", limiter(30), h(async (req, res) => {
     const q = cleanQuery(String(req.body?.q ?? "")), kind = String(req.body?.kind ?? ""), ref = String(req.body?.ref ?? "");
-    if (q && ref && (await isEnabled("searchLearning").catch(() => false))) {
+    if (q && ref) {
       const a = await searchAnswer(q, { learn: false, limit: 25 });
-      const hit = a.hits.find((x) => x.kind === kind && x.ref === ref && !x.href);
-      if (hit) await recordClick(q, hit);
+      const hit = a.hits.find((x) => x.kind === kind && x.ref === ref);
+      // What the query asked for, counted from search's own reading of it (server/api/searchIntents.ts).
+      if (hit) await recordIntent(a.intent);
+      if (hit && !hit.href && (await isEnabled("searchLearning").catch(() => false))) await recordClick(q, hit);
     }
     res.status(204).end();
     return undefined;

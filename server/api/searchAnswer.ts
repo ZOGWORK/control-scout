@@ -7,6 +7,7 @@
 //      spelled out ("champs") and the name-and-topic reading taken when it fits better ("team talos" vs "team 4215").
 //   4. Nothing for the whole query: each word on its own; a result matching more words ranks higher, and words that
 //      match nothing are ignored.
+// Before 2: a season, region, ranking or missing view read from the query (./searchIntents.ts).
 // Then the step: "deterministic" when the top result fits what was typed, "did-you-mean" when it's a correction, and
 // "recovery" when there's nothing, or only near matches to teams that never played (those are listed as closest).
 // Learned click weights (./searchLearn.ts) may re-rank the results, never add one. Bruno AI is never asked here:
@@ -18,12 +19,13 @@ import { get } from "../db.js";
 import { fuzzyScore, normalize, words } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
 import { rerank } from "./searchLearn.js";
+import { intentAnswer, parseIntent } from "./searchIntents.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
 export const WEAK_SCORE = 0.9;
 
-export interface AnswerOptions { limit?: number; prefer?: ReadonlySet<string>; learn?: boolean }
+export interface AnswerOptions { limit?: number; prefer?: ReadonlySet<string>; learn?: boolean; /** Read seasons, regions and missing views (./searchIntents.ts): off for the core of an intent. */ intents?: boolean }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
 export function cleanQuery(raw: string): string {
@@ -109,6 +111,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const n = String(Number(num[1]));
     const team = (await search(n, 5, prefer)).find((h) => h.kind === "team" && h.ref === n);
     return team ? answer(q, { hits: [team], step: "deterministic" }) : recovery(q, [`A team number: ${n}`, `No FTC team ${n} on record`]);
+  }
+
+  // 1b. A season, a region, a ranking or a view that doesn't exist yet: the closest real view, and what's missing.
+  const it = opts.intents === false ? null : parseIntent(q);
+  if (it && it.core !== q) {
+    const a = await intentAnswer(q, it, await searchAnswer(it.core, { ...opts, intents: false }));
+    if (a) return a;
   }
 
   // 2. Teams side by side.

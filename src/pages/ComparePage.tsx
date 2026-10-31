@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ArrowUp, GripVertical, Info, Plus, Scale, Sparkles, X } from "lucide-react";
+import { ArrowUp, GripVertical, Info, Plus, Scale, Sparkles, Trophy, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
@@ -24,7 +24,7 @@ import { lookupTeamName, useTeamName } from "../components/TeamInput";
 import { TeamPicker } from "../components/TeamPicker";
 import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
-import { num, rankPct } from "../lib/format";
+import { awardLabel, num, rankPct, seasonLabel } from "../lib/format";
 import { compareSeasonNote } from "../lib/compareSeasonNote";
 import { CompareConsensus } from "../components/ScoutConsensus";
 import { CompareBrief } from "../components/CompareBrief";
@@ -469,6 +469,31 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
       {/* The brief stays closed until asked for: the table and charts come first. */}
       <CompareBrief d={d} />
       {lab && <Button asChild variant="secondary"><Link to={lab}><Sparkles /> Predict {t[0].team.number}+{t[1].team.number} vs {t[2].team.number}+{t[3].team.number}</Link></Button>}
+      <Section title="Events and awards" description={`Each team's ${seasonLabel(d.season)} season side by side: where it played, how it ranked, and what it won`}>
+        <div className={cn("grid gap-3", t.length > 1 && "sm:grid-cols-2", t.length > 2 && "xl:grid-cols-4")}>
+          {t.map((x, i) => (
+            <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3">
+              <p className="flex items-center gap-2 text-sm font-semibold"><span className="size-2.5 shrink-0 rounded-full" style={{ background: COLORS[i] }} />
+                <Link to={`/teams/${x.team.number}?season=${d.season}`} className="truncate hover:text-accent-text">{x.team.number} {x.team.name}</Link></p>
+              <ul className="mt-2 space-y-1 text-xs">
+                {x.events.length ? x.events.map((e) => (
+                  <li key={e.code} className="flex items-baseline gap-2">
+                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text">{e.name}</Link>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{e.rank ? `#${e.rank}` : "—"} · OPR {e.opr == null ? "—" : num(e.opr, 1)}</span>
+                  </li>
+                )) : <li className="text-muted-foreground">No events this season.</li>}
+              </ul>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Awards ({x.awards.length})</p>
+              <ul className="mt-1 space-y-1 text-xs">
+                {x.awards.length ? x.awards.map((a) => (
+                  <li key={`${a.code}:${a.type}:${a.placement}`} className="flex items-baseline gap-1.5"><Trophy className="size-3 shrink-0 translate-y-px text-accent" />
+                    <span className="min-w-0"><span className="font-medium">{awardLabel(a.type, a.placement)}</span> <span className="text-muted-foreground">at {a.event}</span></span></li>
+                )) : <li className="text-muted-foreground">None this season.</li>}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </Section>
       {t.length > 1 && (
         <Section title={`Head to head (${d.meetings.length})`} description={`Matches where ${t[0].team.number} played with or against the others this season`}>
           {d.meetings.length ? <MatchList matches={d.meetings} highlight={t[0].team.number} />

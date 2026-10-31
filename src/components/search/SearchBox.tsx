@@ -4,7 +4,7 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { CalendarDays, ChevronDown, Compass, FileText, Loader2, MapPin, Search, Sparkles, Swords, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
@@ -115,6 +115,7 @@ export function AnswerNotesView({ notes, refining, className }: { notes: AnswerN
   const lines: ReactNode[] = [];
   if (notes.didYouMean) lines.push(<>Showing results for <b className="font-medium text-foreground">“{notes.didYouMean}”</b></>);
   for (const u of notes.understood) lines.push(u);
+  if (notes.gap) lines.push(<span className="inline-flex items-start gap-1 rounded-md border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-foreground"><Info className="mt-px size-3 shrink-0 text-warning" />{notes.gap}</span>);
   if (notes.ai) {
     lines.push(<span className="inline-flex items-center gap-1"><Sparkles className="size-3 shrink-0 text-accent" />{notes.ai.refined
       ? <>Bruno AI read this as <b className="font-medium text-foreground">“{notes.ai.refined}”</b>{notes.ai.found ? "" : ", and nothing matched that either"}</>
