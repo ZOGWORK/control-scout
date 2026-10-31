@@ -385,6 +385,18 @@ describe("ending: the link expires, copies only when both agreed", () => {
     expect((await p.ben("GET", `/api/scout/sync?workspaceId=${B}`)).json.entries.find((e: any) => e.uuid === fromB.uuid).notes).toBe("from B");
   });
 
+  it("an edit synced after the deadline ends the link first: the copy is the entry as it was at the end", async () => {
+    const p = await cast();
+    await link(true, true);
+    const b1 = entry({ team: 102, notes: "B at the deadline" });
+    await pushOk(p.ben, B, [b1]);
+    setAllianceClock(() => allianceEndsAt(ENDS) + 1);
+    // Nothing has settled the link yet; Ben's later edit arrives first.
+    await pushOk(p.ben, B, [{ ...b1, notes: "B after the deadline", updatedAt: b1.updatedAt + 10 }]);
+    const a = (await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries;
+    expect(a.map((e: any) => e.notes)).toEqual(["B at the deadline"]);
+  });
+
   it("no copies when either side said no", async () => {
     const p = await cast();
     await link(true, false);

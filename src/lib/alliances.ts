@@ -1,7 +1,7 @@
 // Scouting alliances on the Scout page (docs/alliances.md; the server: server/scout/alliances.ts). Every request
 // names the reader's own workspace; the server checks membership there and that the link is active.
-import { useEffect } from "react";
-import { apiFetch, markStale, qs, useApi, type ApiState } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { ApiError, apiFetch, markStale, prime, qs, useApi, type ApiState } from "./api";
 import type {
   Alliance, AllianceConsensusResponse, AllianceInviteResponse, AlliancePicklistResponse, AllianceShared, AlliancesResponse,
 } from "../shared/alliances";
@@ -21,16 +21,30 @@ export function activeAlliance(list: Alliance[] | undefined, eventCode?: string 
   return active.find((a) => eventCode && a.eventCode === eventCode.toUpperCase()) ?? active[0] ?? null;
 }
 
-/** An answer that's asked again every ALLIANCE_REFRESH_MS while it's on screen. */
+/** A refusal (not a lost connection): the answer on screen is no longer the reader's to see. */
+const isRefusal = (e: unknown) => e instanceof ApiError && !e.offline && [401, 403, 404, 410].includes(e.status);
+
+/**
+ * An answer that's asked again every ALLIANCE_REFRESH_MS while it's on screen. A refresh the server refuses (the
+ * link ended, the partner's scouting or alliances were switched off, access lost) clears what's shown and shows the
+ * refusal instead: the page cache alone would keep the earlier answer on screen as if it were current. A lost
+ * connection keeps it (it's still the latest known).
+ */
 export function usePolled<T>(path: string | null): ApiState<T> {
   const st = useApi<T>(path);
-  const { reload } = st;
+  const [refused, setRefused] = useState<{ path: string; error: ApiError } | null>(null);
+  const ask = useCallback(async () => {
+    if (!path) return;
+    try { prime(path, await apiFetch<T>(path)); setRefused(null); }
+    catch (e) { if (isRefusal(e)) setRefused({ path, error: e as ApiError }); }
+  }, [path]);
   useEffect(() => {
     if (!path) return;
-    const t = setInterval(() => { if (document.visibilityState === "visible") void reload(); }, ALLIANCE_REFRESH_MS);
+    const t = setInterval(() => { if (document.visibilityState === "visible") void ask(); }, ALLIANCE_REFRESH_MS);
     return () => clearInterval(t);
-  }, [path, reload]);
-  return st;
+  }, [path, ask]);
+  if (refused && refused.path === path) return { data: undefined, error: refused.error, loading: false, reload: ask };
+  return { ...st, reload: async () => { await ask(); await st.reload(); } };
 }
 
 /**

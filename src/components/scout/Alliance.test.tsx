@@ -85,6 +85,26 @@ describe("AllianceView: the invite code", () => {
   });
 });
 
+describe("polling: a refusal clears what was shown", () => {
+  it("the partner switching off mid-view replaces the shared view with the refusal", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      routes = {
+        "/api/scout/workspaces/w1/alliances?season=2025": list([linked], false),
+        "/api/scout/workspaces/w1/alliances/7/shared": shared,
+        "/api/scout/workspaces/w1/alliances/7/consensus?teams=101": { allianceId: 7, season: 2025, eventCode: "USALQ1", teams: [] },
+      };
+      render(<MemoryRouter><AllianceView workspaceId="w1" workspaceName="Gearheads" season={2025} eventCode="USALQ1" isAdmin={false} readOnly={false} /></MemoryRouter>);
+      expect(await screen.findByText("Fast intake")).toBeTruthy();
+      vi.stubGlobal("fetch", vi.fn(async (url: string) => url.endsWith("/shared")
+        ? new Response(JSON.stringify({ error: "feature_disabled", feature: "scoutingAlliances", message: "Scouting alliances are switched off for now." }), { status: 403, headers: { "Content-Type": "application/json" } })
+        : new Response(JSON.stringify(routes[url] ?? { error: "nope" }), { status: routes[url] ? 200 : 404, headers: { "Content-Type": "application/json" } })));
+      await vi.advanceTimersByTimeAsync(31_000);
+      await waitFor(() => expect(screen.queryByText("Fast intake")).toBeNull());
+    } finally { vi.useRealTimers(); }
+  });
+});
+
 describe("PicklistWithPartner", () => {
   it("only while linked: a toggle to the partner's list, read-only", async () => {
     routes = {

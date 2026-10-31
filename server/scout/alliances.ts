@@ -22,8 +22,8 @@
 // workspace keeps its own entries. If both sides agreed to keep copies when linking, each also gets a copy of
 // the other side's live entries at the event: new rows in its own workspace (id al<link>-<hash>, so a retry
 // never doubles them) with the original author and answers, a version in their history, published to its
-// streams. Photos stay with the original. Ending is settled lazily (every alliance route) and by a sweep
-// (server/index.ts); a copy that failed part way is retried by the next sweep.
+// streams. Photos stay with the original. Ending is settled before any write to either workspace's entries (so a copy
+// is the entries as they were at the deadline), lazily by every alliance route, and by a sweep (server/index.ts); a copy that failed part way is retried by the next sweep.
 //
 // The owner's scoutingAlliances switch (src/shared/flags.ts; per workspace): off for a workspace, every alliance route
 // of it answers 403 feature_disabled, nobody accepts its invites, nothing is read across a link with it from either
@@ -47,7 +47,7 @@ import { accessError, lastSeq, readLiveEntries, requireWorkspaceAdmin, storedEnt
 import { eventTeams, listAssignments, listMatchAssignments } from "./assignments.js";
 import { consensusForScope, fieldReader, notACopyWithin, parseTeams } from "./consensus.js";
 import { readPickList } from "./picklist.js";
-import { publishEntries, serialized } from "./bus.js";
+import { onBeforeEntriesWrite, publishEntries, serialized } from "./bus.js";
 import { versionStatements } from "./history.js";
 
 let now = () => Date.now();
@@ -230,6 +230,22 @@ export async function settleAlliances(): Promise<number> {
   }
   return ended;
 }
+
+/**
+ * End this workspace's links that are due, before anything is written to its entries (bus.ts onBeforeEntriesWrite):
+ * the copies a link keeps are then always the entries as they were at its deadline, never an edit made after it.
+ * One indexed query when nothing is due.
+ */
+export async function settleWorkspace(workspaceId: string): Promise<void> {
+  const t = now();
+  const rows = await all<any>(
+    `SELECT * FROM scout_alliances WHERE status = 'active' AND (inviter_ws = ? OR invitee_ws = ?)`, [workspaceId, workspaceId]);
+  for (const raw of rows) {
+    const r = toRow(raw);
+    if (allianceEndsAt(r.ends_on) <= t) await endLink(r, "event_over");
+  }
+}
+onBeforeEntriesWrite(settleWorkspace);
 
 // ---------------------------------------------------------------------------
 // Linked for event X: the permission check for the shared reads
