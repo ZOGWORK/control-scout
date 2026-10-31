@@ -100,7 +100,7 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
             {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
           </Fragment>
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
-            <Section id="events" title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
+            <Section id="events" also={["ranking", "history"]} title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
               {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-muted-foreground">Records count {RECORD_RULE_LOWER}</p>}
             </Section>
@@ -306,7 +306,7 @@ export function OprSection({ p }: { p: TeamProfile }) {
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
   const predictable = usePredictable(p.season);
   return (
-    <Section title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
+    <Section id="opr" title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {OPR_CARDS.map(([k, label, Icon, tone]) => {
           const stat = s?.opr[k];

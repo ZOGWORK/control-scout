@@ -11,7 +11,7 @@ import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchFact, SearchHit } from "../../shared/api";
-import { SEARCH_GROUPS } from "../../shared/search";
+import { SEARCH_GROUPS, shownPath } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
@@ -142,7 +142,8 @@ export function HitFacts({ facts }: { facts: SearchFact[] }) {
   );
 }
 
-/** One row's text: the name (wrapping before it cuts: event divisions differ only at the end), then season and details. */
+/** One row's text: the name (wrapping before it cuts: event divisions differ only at the end), then season and
+ *  details, the numbers asked about, and where it opens ("controlscout.org/teams/4215#opr"). */
 export function HitText({ h }: { h: SearchHit }) {
   return (
     <span className="min-w-0 flex-1">
@@ -154,6 +155,7 @@ export function HitText({ h }: { h: SearchHit }) {
         </span>
       )}
       {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
+      <span className="mt-0.5 block truncate font-mono text-[11px] text-accent-text/80" data-path>{shownPath(h)}</span>
     </span>
   );
 }

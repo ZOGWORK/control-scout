@@ -10,7 +10,7 @@ import { Shell } from "./components/layout/Shell";
 import { SearchProvider } from "./components/layout/Search";
 import { Toaster } from "./components/ui/sonner";
 import { LoadingBlock } from "./components/states";
-import { CanonicalSync, MetaProvider } from "./lib/meta";
+import { CanonicalSync, MetaProvider, SearchRobotsSync } from "./lib/meta";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
 import { LiteSuggest } from "./components/layout/LiteSuggest";
 import { PageViews } from "./lib/analytics";
@@ -191,6 +191,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             </Shell>
             <Toaster />
             <CanonicalSync />
+            <SearchRobotsSync />
             {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), tour, nudge or alerts. */}
             <NotOnBareRoute><ConsentBanner /></NotOnBareRoute>
             {/* In the main bundle, not a chunk of its own: it's for when chunks are crawling (src/lib/liteSuggest.ts). */}

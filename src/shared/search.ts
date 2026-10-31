@@ -70,15 +70,15 @@ export const SEARCH_BROWSE: SearchPageLink[] = [{ title: "Browse all teams", hre
 const TOPIC_SECTION: Record<SearchTopic, Partial<Record<SearchHit["kind"], SearchSection>>> = {
   awards: { team: "awards", event: "awards" },
   matches: { team: "matches", event: "matches" },
-  rankings: { team: "events", event: "rankings" },
-  rp: { team: "events", event: "rankings" },
-  record: { team: "events", event: "rankings" },
-  opr: { event: "rankings" },
-  stats: { event: "rankings" },
+  rankings: { team: "ranking", event: "rankings" },
+  rp: { team: "ranking", event: "rankings" },
+  record: { team: "ranking", event: "rankings" },
+  opr: { team: "opr", event: "rankings" },
+  stats: { team: "opr", event: "rankings" },
   odds: { event: "odds" },
   playoffs: { event: "playoffs" },
   difficulty: { team: "schedule-difficulty" },
-  history: { team: "events" },
+  history: { team: "history" },
 };
 
 /** The section `topic` opens on this kind of page (none: the page's top). */
@@ -101,6 +101,11 @@ export function hitHref(h: SearchHit): string {
   const [s, c, level, series, number] = h.ref.split(":");
   return `/events/${s}/${c}?match=${level}:${series}:${number}`;
 }
+
+/** The site as results name it ("controlscout.org/teams/4215#opr"): the destination shown under each result before
+ *  it's opened. Display only: the link itself is this app's own path. */
+export const SITE_HOST = "controlscout.org";
+export const shownPath = (h: SearchHit) => `${SITE_HOST}${hitHref(h)}`;
 
 /** The id of /search's first-paint JSON block: the query and the hits the server listed (server/seoMeta.ts). */
 export const SEARCH_HITS_ID = "cs-search-hits";

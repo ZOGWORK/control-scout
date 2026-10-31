@@ -49,7 +49,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
   );
 }
 
-export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, id }: {
+export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, id, also }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -63,11 +63,14 @@ export function Section({ title, description, action, stackAction = false, child
   collapsible?: boolean;
   /** The section's anchor: a link to #id opens a collapsible section. */
   id?: string;
+  /** More anchors for the same section (search's deep links: #ranking and #history land on the season road map). */
+  also?: string[];
 }) {
-  if (collapsible) return <FoldedSection id={id} title={title} description={description} className={className} delay={delay}>{children}</FoldedSection>;
+  if (collapsible) return <FoldedSection id={id} also={also} title={title} description={description} className={className} delay={delay}>{children}</FoldedSection>;
   return (
     <Reveal delay={delay} className={cn('mb-8', className)}>
       <section id={id} className={id ? 'scroll-mt-16' : undefined}>
+        {also?.map((a) => <span key={a} id={a} aria-hidden className="block scroll-mt-16" />)}
         {(title || action) && (
           <div className={cn('mb-4 flex items-end justify-between gap-3 border-b border-border pb-3', stackAction && 'max-sm:flex-col max-sm:items-start')}>
             <div className="min-w-0">
@@ -83,9 +86,9 @@ export function Section({ title, description, action, stackAction = false, child
   );
 }
 
-function FoldedSection({ id, title, description, children, className, delay }: { id?: string; title?: ReactNode; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
+function FoldedSection({ id, also, title, description, children, className, delay }: { id?: string; also?: string[]; title?: ReactNode; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
   const { hash } = useLocation();
-  const linked = !!id && hash === `#${id}`;
+  const linked = !!id && [id, ...(also ?? [])].some((a) => hash === `#${a}`);
   const [open, setOpen] = useState(linked);
   // Opened once: the children stay mounted (and their data cached) from then on.
   const [opened, setOpened] = useState(linked);
@@ -93,7 +96,8 @@ function FoldedSection({ id, title, description, children, className, delay }: {
   const body = useId();
   return (
     <Reveal delay={delay} className={cn(open ? 'mb-8' : 'mb-4', className)}>
-      <section id={id}>
+      <section id={id} className={id ? 'scroll-mt-16' : undefined}>
+        {also?.map((a) => <span key={a} id={a} aria-hidden className="block scroll-mt-16" />)}
         <h2 className={cn('border-b border-border', open && 'mb-4')}>
           <button type="button" aria-expanded={open} aria-controls={body} onClick={() => { setOpen((o) => !o); setOpened(true); }}
             className="group flex w-full items-center justify-between gap-3 py-3 text-left">
