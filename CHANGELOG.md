@@ -41,7 +41,7 @@ Search reads the whole question: compare teams, ask about a season or a state, a
 ### Behind the scenes
 - Search can learn which results people open for a query (aggregate counts per season, nothing about who), only to re-order what it already found. An exact match always stays first.
 - Search counts the kinds of question people ask (for example "[team] robot specs"), with no query text, to show what to build next. The owner console reads the list.
-- Bruno AI can suggest a better reading of a query that found nothing. It's off until the owner turns it on, and it never supplies a number (#PR).
+- Bruno AI can suggest a better reading of a query that found nothing. It's off until the owner turns it on, and it never supplies a number (#367).
 
 ## 1.6.9 — 2026-10-31
 
