@@ -50,7 +50,7 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
         )}
         {Math.abs(sheet.logit) < COIN_FLIP && (
           <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm" data-testid="sheet-coin-flip">
-            This call is close to a coin flip, so every factor is small. The shares show how that small lean splits.
+            This call is close to a coin flip. Strong factors can pull in opposite directions and cancel each other.
           </p>
         )}
         <Section title="Game phases" note="An exact split of the predicted margin">

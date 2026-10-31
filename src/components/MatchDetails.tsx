@@ -44,6 +44,13 @@ export function MatchDetails({ m, eventName }: { m: MatchView; eventName?: strin
       <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => <Body d={d} eventName={eventName} />}
       </Async>
+      {/* No connection, so no match detail: the call this list already made on the device (lite pack) keeps its why. */}
+      {state.error?.offline && m.prediction?.sheet ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4" data-testid="offline-why">
+          {m.prediction.factors?.length ? <><p className="text-xs font-medium text-text-muted">Why</p><FactorList factors={m.prediction.factors} className="mt-1.5" /></> : null}
+          <FactorSheetPanel sheet={m.prediction.sheet} winner={m.played && m.red.score && m.blue.score ? sheetWinner(m.red.score.total, m.blue.score.total) : null} className="mt-3" />
+        </div>
+      ) : null}
       {/* Outside the server-loaded part: recording and saved videos work with no connection. */}
       <MatchVideoSection m={m} />
     </div>

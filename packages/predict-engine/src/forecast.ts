@@ -219,9 +219,10 @@ export abstract class Forecaster {
     });
   }
 
-  /** The full explanation of a lineup on a given book, made with exactly predict's options (so its odds are predict's). */
-  protected explainOn(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
-    const pairs = book.season != null ? this.partnerships(book.season) : null;
+  /** The full explanation of a lineup on a given book, made with predict's options (so its odds are predict's). `pairs`:
+   *  the pair table its history reads (default: the season's, as predict uses; at β = 0 the table never moves the odds). */
+  protected explainOn(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}, table?: PairLookup | null) {
+    const pairs = table !== undefined ? table : book.season != null ? this.partnerships(book.season) : null;
     return explainMatch(book, red, blue, {
       noise: this.model.noise, calibration: this.model.calibration, context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band,
       ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
@@ -474,7 +475,8 @@ export abstract class Forecaster {
         ...(pairs ? { history: p ? partnershipFact(pairs, red, blue, ev.season) : null } : {}),
         played: m.played && m.red.score?.total != null && m.blue.score?.total != null ? { red: m.red.score.total, blue: m.blue.score.total } : null,
         bonus: p && m.level === "qual" && red.length === 2 && blue.length === 2 ? this.bonusSummary(book, ev.season, red, blue, ev.code) : null,
-        ...(opts.factorSheets ? { factorSheet: p ? compactFactorSheet(this.explainOn(book, red, blue, ctx).factorSheet) : null } : {}),
+        // The sheet's head-to-head reads the same table as `history` (with this event's fresh results).
+        ...(opts.factorSheets ? { factorSheet: p ? compactFactorSheet(this.explainOn(book, red, blue, ctx, pairs).factorSheet) : null } : {}),
       };
     });
     teams.sort((a, b) => b.pAdvance - a.pAdvance || a.rank.mean - b.rank.mean);
