@@ -57,7 +57,7 @@ export const TOPIC_LABEL: Record<SearchTopic, string> = {
 };
 
 export function hitHref(h: SearchHit): string {
-  if (h.kind === "team") return `/teams/${h.ref}${h.section ? `#${h.section}` : ""}`;
+  if (h.kind === "team") return `/teams/${h.ref}${h.linkSeason ? `?season=${h.linkSeason}` : ""}${h.section ? `#${h.section}` : ""}`;
   if (h.kind === "event") { const [s, c] = h.ref.split(":"); return `/events/${s}/${c}${h.section ? `?tab=${h.section}` : ""}`; }
   if (h.kind === "place") return `/events?region=${encodeURIComponent(h.ref)}`;
   const [s, c, level, series, number] = h.ref.split(":");

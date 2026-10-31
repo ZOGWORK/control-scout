@@ -144,6 +144,10 @@ describe("search with a topic", () => {
     await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, ranked_teams, matches, wins, losses, ties, avg_score) VALUES (2025, 4215, 101.64, 616, 8375, 32, 26, 6, 0, 140.2)");
     await run("INSERT INTO event_teams (season, code, team, rank, rp) VALUES (2025, 'AUSYQ1', 4215, 2, 2.456), (2025, 'AUSYQ1', 16321, 1, 3.1)");
     await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, 'AUSYQ1', 'Inspire', 1, 4215)");
+    // A later league meet: event_teams has the league's running standings (rank 4), the meet's own are rank 1, 3.5.
+    await run("INSERT INTO events (season, code, name, type, city, start, source) VALUES (2025, 'USLGM1', 'Northern League Meet 1', 'LeagueMeet', 'Ramsey', '2025-12-06', 'first')");
+    await run("INSERT INTO event_teams (season, code, team, rank, rp) VALUES (2025, 'USLGM1', 4215, 4, 1.5)");
+    await run("INSERT INTO team_event_records (season, code, team, rank, rp) VALUES (2025, 'USLGM1', 4215, 1, 3.5)");
     await rebuildSearch();
   });
 
@@ -164,9 +168,12 @@ describe("search with a topic", () => {
     const [aw] = await search("hypnotic awards", 5);
     expect(aw).toMatchObject({ kind: "team", ref: "4215", section: "awards" });
     expect(aw.facts).toEqual([{ label: "Awards", value: "1" }, { label: "Latest", value: "Inspire at Sydney South Qualifier" }, { label: "Season", value: "2025–26" }]);
-    expect(hitHref(aw)).toBe("/teams/4215#awards");
+    // The link opens the team page on the answer's season.
+    expect(hitHref(aw)).toBe("/teams/4215?season=2025#awards");
     const [rp] = await search("4215 ranking points", 5);
-    expect(rp.facts).toEqual([{ label: "Ranking score", value: "2.46 at Sydney South Qualifier" }, { label: "Event rank", value: "#2 of 2" }, { label: "Season", value: "2025–26" }]);
+    // A league meet's own numbers, not the league's running standings. (No best rank: 4215 played no match at
+    // AUSYQ1, whose Q12 was played, so its one ranked event is the meet.)
+    expect(rp.facts).toEqual([{ label: "Ranking score", value: "3.50 at Northern League Meet 1" }, { label: "Event rank", value: "#1 of 1" }, { label: "Season", value: "2025–26" }]);
     expect((await search("hypnotic opr", 5))[0].facts).toEqual([{ label: "OPR", value: "101.6" }, { label: "OPR rank", value: "#616 of 8,375" }, { label: "Season", value: "2025–26" }]);
     expect((await search("hypnotic record", 5))[0].facts?.slice(0, 2)).toEqual([{ label: "Record", value: "26-6-0" }, { label: "Win rate", value: "81%" }]);
   });
@@ -182,6 +189,13 @@ describe("search with a topic", () => {
     expect(ev).toMatchObject({ kind: "event", ref: "2025:AUSYQ1", section: "odds" });
     expect(ev.subtitle).toMatch(/^Advancement odds · /);
     expect(hitHref(ev)).toBe("/events/2025/AUSYQ1?tab=odds");
+    // An event from before predictions has no odds tab: no section, and the topic isn't named.
+    await run("INSERT INTO events (season, code, name, city, start, source) VALUES (2021, 'USCASDCMP', 'San Diego Area Championship', 'San Diego', '2022-02-12', 'first')");
+    await rebuildSearch();
+    const [old] = await search("san diego area championship odds", 5);
+    expect(old).toMatchObject({ kind: "event", ref: "2021:USCASDCMP" });
+    expect(old.section).toBeUndefined();
+    expect(old.subtitle).not.toMatch(/odds/i);
   });
 
   it("leaves names, plain queries and match queries as they were", async () => {

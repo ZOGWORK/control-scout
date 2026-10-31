@@ -4,7 +4,7 @@
 // event codes/names/places; exact team numbers jump to the top; a query like
 // "USNJQ1 Q12" or "2025 USNJQ1 M3" resolves straight to a match.
 import { all, get } from "../db.js";
-import { CURRENT_SEASON } from "../data/seasons.js";
+import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
 import { teamFacts } from "./searchFacts.js";
@@ -81,12 +81,14 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     if (!hits.length) continue;
     // The top team answers with its numbers ("Ranking score 3.40 at …"); the rest name the topic.
     const top = topic ? hits.find((h) => h.kind === "team") : undefined;
-    const facts = top && topic ? await teamFacts(Number(top.ref), topic) : [];
+    const answer = top && topic ? await teamFacts(Number(top.ref), topic) : { facts: [], season: null };
     const found = hits.map((h): SearchHit => {
-      if (!topic) return h;
+      // An event before predictions has no odds tab: nothing to open on, so no topic to name either.
+      if (!topic || (topic === "odds" && h.kind === "event" && (h.season == null || isLegacy(h.season)))) return h;
       const section = sectionFor(h.kind, topic);
-      const withFacts = h === top && facts.length > 0;
-      return { ...h, ...(section ? { section } : {}), ...(withFacts ? { facts } : { subtitle: [TOPIC_LABEL[topic], h.subtitle].filter(Boolean).join(" · ") }) };
+      // The answer's numbers, and its season in the link, so the page opens on what they describe.
+      const withFacts = h === top && answer.facts.length > 0;
+      return { ...h, ...(section ? { section } : {}), ...(withFacts ? { facts: answer.facts, linkSeason: answer.season! } : { subtitle: [TOPIC_LABEL[topic], h.subtitle].filter(Boolean).join(" · ") }) };
     });
     const named = phrase ? full.filter((h) => ` ${normalize(h.title)} `.includes(` ${normalize(phrase)} `)) : [];
     const seen = new Set<string>();

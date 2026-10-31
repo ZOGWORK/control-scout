@@ -43,6 +43,8 @@ export interface SearchHit {
   section?: SearchSection;
   /** The numbers the query asked about, for the top team ("hypnotic ranking points"): a few, real, never guessed. */
   facts?: SearchFact[];
+  /** The season the facts are from: the link opens the team page on it. */
+  linkSeason?: number;
 }
 
 /** A team page's part (#id) or an event's tab (?tab=). */
