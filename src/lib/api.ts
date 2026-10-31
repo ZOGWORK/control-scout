@@ -1,7 +1,7 @@
 // Fetching: typed JSON calls, an in-memory cache with stale-while-revalidate,
 // and a hook that gives every page the same loading / error / data states.
 //
-// Offline data (the lite pack and saved seasons, lib/packs + lib/offline) only
+// Offline data (the lite pack, saved seasons and event-day bundles, lib/packs + lib/offline) only
 // ever RUNS with no signal: while the server answers, every read comes from it
 // and nothing here opens, decodes or queries a pack (sql.js and the engine
 // aren't even loaded; they're dynamic imports). The pack is used only when the
@@ -13,6 +13,7 @@
 // background (packSync.tsx) is separate: that only stores bytes for later.
 import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { offlineSource, savedSeasons } from "./offline/saved";
+import { bundleFor, savedBundles } from "./offline/bundleMeta";
 import { packStatus } from "./packPolicy";
 import { FEATURE_DISABLED, featureOffMessage } from "../shared/flags";
 import { noteArrived, watchRequest } from "./liteSuggest";
@@ -47,20 +48,36 @@ export const OFFLINE_TIMEOUT_MS = 4000;
  * the lite pack holds. Only these get the timeout: anything else waits for the server as long as the
  * browser does, so a slow server is never "offline" for it.
  */
-function offlineKind(path: string, method: string | undefined): "saved" | "lite" | null {
+/** A match report an event-day bundle holds a frozen copy of (the page shows it with no signal). */
+const REPORT_PATH = /^\/api\/events\/(\d{4})\/([^/?]+)\/matches\/([^/?]+)\/report(\?|$)/;
+
+function offlineKind(path: string, method: string | undefined): "saved" | "lite" | "snapshot" | null {
   if ((method ?? "GET").toUpperCase() !== "GET") return null;
   const url = new URL(path, "http://offline.invalid");
   const asked = Number(url.searchParams.get("season")) || null;
   if (OFFLINE_PATHS.test(path)) {
     const saved = savedSeasons();
     const season = Number(/^\/api\/(?:events|projections)\/(\d{4})\//.exec(url.pathname)?.[1]) || asked;
-    return saved.length && (season == null || saved.some((s) => s.season === season)) ? "saved" : null;
+    if (saved.length && (season == null || saved.some((s) => s.season === season))) return "saved";
+    // An event-day bundle answers its own event's page (docs/event-bundle.md).
+    const ev = /^\/api\/events\/(\d{4})\/([^/?]+)$/.exec(url.pathname);
+    return ev && bundleFor(Number(ev[1]), decodeURIComponent(ev[2])) ? "saved" : null;
   }
+  // A report the bundle froze: no answer in OFFLINE_TIMEOUT_MS counts as no signal, so the page shows the
+  // snapshot and the request is retried until the server answers (live takes over).
+  const rep = REPORT_PATH.exec(path);
+  // Only when the bundle holds this very report: any other one waits for the server as long as the browser does.
+  if (rep) return bundleFor(Number(rep[1]), decodeURIComponent(rep[2]))?.reportKeys?.includes(decodeURIComponent(rep[3]).toLowerCase()) ? "snapshot" : null;
   if (!PACK_PREDICT_PATH.test(path)) return null;
   const lite = packStatus();
   // Only a season the pack is known to hold: a pack saved before its seasons were noted (or a request
-  // that names no season) waits for the server, as the pack might not answer it.
-  return lite?.seasons && asked != null && lite.seasons.includes(asked) ? "lite" : null;
+  // that names no season) waits for the server, as the pack might not answer it. A bundle holds its
+  // event's teams' ratings for its season.
+  if (asked == null) return null;
+  if (lite?.seasons?.includes(asked)) return "lite";
+  // A bundle predicts only a matchup of its own event's teams: any other waits for the server.
+  const lineup = ["red", "blue"].flatMap((k) => (url.searchParams.get(k) ?? "").split(",")).filter(Boolean).map(Number);
+  return lineup.length && savedBundles().some((b) => b.season === asked && lineup.every((t) => b.teams?.includes(t))) ? "lite" : null;
 }
 
 // "Offline mode": something on screen came from data saved on this device. The
@@ -111,7 +128,7 @@ function savedAnswer(path: string): Promise<unknown> {
  *  else fail with the network error. Never used for an HTTP error — the
  *  server's answer stands. */
 async function offlineOr<T>(path: string, method: string | undefined, error: ApiError): Promise<T> {
-  if ((method ?? "GET").toUpperCase() !== "GET" || !OFFLINE_PATHS.test(path) || !savedSeasons().length) throw error;
+  if ((method ?? "GET").toUpperCase() !== "GET" || !OFFLINE_PATHS.test(path) || (!savedSeasons().length && !savedBundles().length)) throw error;
   const data = await savedAnswer(path);
   if (data == null) throw error;
   setUsingSaved(true);
@@ -127,12 +144,12 @@ const TIMED_OUT = Symbol("timed out");
  * Past that, a prediction counts as no signal at once (the page runs the lite pack); a saved-season read
  * races the server against the saved answer, and keeps waiting for the server if they can't answer.
  */
-async function respond<T>(request: Promise<Response>, kind: "saved" | "lite", path: string, ctrl: AbortController): Promise<Response | { saved: T }> {
+async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "snapshot", path: string, ctrl: AbortController): Promise<Response | { saved: T }> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), OFFLINE_TIMEOUT_MS); });
   const first = await Promise.race([request, deadline]).finally(() => clearTimeout(timer));
   if (first !== TIMED_OUT) return first;
-  if (kind === "lite") { ctrl.abort(); throw unreachable(); }
+  if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
   const won = await Promise.race([request.then((res) => ({ res })), savedAnswer(path).then((data) => ({ data }))]);
   if ("res" in won) return won.res;
   if (won.data == null) return request;

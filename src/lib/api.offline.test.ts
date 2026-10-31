@@ -211,6 +211,37 @@ describe("no signal: the packs answer", () => {
     await done;
   });
 
+  it("a prediction times out on a bundle only when the bundle holds all four teams", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem("cs-event-bundles", JSON.stringify([{ season: 2025, code: "USNJQ1", version: "v", end: null, builtAt: "2026-10-01T00:00:00Z", dataAsOf: null, teams: [1, 2, 3, 4] }]));
+    vi.stubGlobal("fetch", hanging());
+    const p = apiFetch("/api/predict/match?season=2025&red=1,2&blue=3,4");
+    const done = expect(p).rejects.toMatchObject({ status: 0, offline: true });
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS);
+    await done;
+    let settled = false;
+    void apiFetch("/api/predict/match?season=2025&red=1,2&blue=3,99").then(() => { settled = true; }, () => { settled = true; });
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+    expect(settled).toBe(false);
+  });
+
+  it("a match report that hangs, with its event's bundle saved, fails as offline in time (the page shows the snapshot and keeps asking)", async () => {
+    vi.useFakeTimers();
+    localStorage.setItem("cs-event-bundles", JSON.stringify([{ season: 2025, code: "USNJQ1", version: "v", end: null, builtAt: "2026-10-01T00:00:00Z", dataAsOf: null, reportKeys: ["qual:0:1"] }]));
+    vi.stubGlobal("fetch", hanging());
+    const p = apiFetch("/api/events/2025/USNJQ1/matches/qual:0:1/report");
+    const done = expect(p).rejects.toMatchObject({ status: 0, offline: true });
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS);
+    await done;
+    // A report the bundle doesn't hold, or another event's: waits for the server as long as the browser does.
+    for (const other of ["/api/events/2025/USNJQ1/matches/qual:0:9/report", "/api/events/2025/OTHER1/matches/qual:0:1/report"]) {
+      let settled = false;
+      void apiFetch(other).then(() => { settled = true; }, () => { settled = true; });
+      await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS * 2);
+      expect(settled).toBe(false);
+    }
+  });
+
   it("keeps the network error with no saved season, for other paths, for writes, and when the season can't answer", async () => {
     networkDown();
     await expect(apiFetch("/api/teams/100")).rejects.toMatchObject({ status: 0, offline: true });

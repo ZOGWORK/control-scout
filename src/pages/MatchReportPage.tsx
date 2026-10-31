@@ -19,6 +19,8 @@ import { Async } from "../components/states";
 import { Page } from "../components/page";
 import { NotFoundView } from "../components/NotFoundView";
 import { MatchReportView } from "../components/MatchReport";
+import { SnapshotBanner, SnapshotFrame } from "../components/offline/Snapshot";
+import { useBundleSnapshot, type FoundSnapshot } from "../lib/offline/useBundle";
 
 export default function MatchReportPage() {
   const { season, code, key: rawKey } = useParams();
@@ -31,6 +33,10 @@ export default function MatchReportPage() {
   const missing = status === 404 || status === 400;
   useTitle(missing ? "Match not found" : state.data ? `${state.data.match.label} · ${state.data.event.name}` : "Know your match");
   useEventPoll(state.data, () => { if (path) load(path, true).catch(() => {}); });
+  // No signal (or none in OFFLINE_TIMEOUT_MS): the report frozen in this event's bundle, if it holds one. Live
+  // takes over the moment the report loads (the page keeps asking: lib/api.ts).
+  const snapshot = useBundleSnapshot(valid ? Number(season) : null, code ?? null, key, state.data ? null : (state.error as ApiError | undefined)?.offline ? "offline" : state.loading ? "waiting" : null);
+  if (!state.data && snapshot) return <Page><SnapshotReport snap={snapshot} /></Page>;
   if (missing) {
     return <NotFoundView title={`No match ${rawKey ?? ""} at ${code ?? ""}`} description="The match may not be scheduled yet, or the link is from another event. Open the event to see its schedule." />;
   }
@@ -71,6 +77,22 @@ function Report({ r }: { r: MatchReport }) {
         </h1>
       </header>
       <MatchReportView r={r} ws={ws} watch={watch} />
+    </div>
+  );
+}
+
+/** The frozen report from the event-day bundle, under its banner (time and age). */
+function SnapshotReport({ snap }: { snap: FoundSnapshot }) {
+  const { meta, report } = snap;
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <Link to={`/bundle/${meta.season}/${encodeURIComponent(meta.code)}`} className="inline-flex min-h-9 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="size-4" aria-hidden /><span className="truncate">{meta.name} bundle</span>
+        </Link>
+      </div>
+      <SnapshotBanner at={meta.dataAsOf ?? meta.builtAt}>The live report replaces this as soon as it loads.</SnapshotBanner>
+      <SnapshotFrame html={report.html} title={`${report.label}, snapshot`} />
     </div>
   );
 }
