@@ -284,7 +284,7 @@ describe("orphaned workspaces: detection", () => {
     invalidateFlags();
     try {
       const f = (await w.ada("GET", "/api/flags")).json;
-      expect(f.workspaces[w.id]).toEqual({ workspaceScouting: true, scoutingCommons: true });
+      expect(f.workspaces[w.id]).toEqual({ workspaceScouting: true, scoutingAlliances: true, scoutingCommons: true });
       expect(f.flags.workspaceScouting).toBe(true);
       expect((await pull(w.ada, w.id)).status).toBe(200);
     } finally {
