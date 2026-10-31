@@ -27,7 +27,7 @@ Search Control Scout straight from the browser's address bar: type controlscout.
 ### Address-bar search
 - **Press Tab to search.** After one visit, typing controlscout.org in Chrome or Edge's address bar offers "Search Control Scout"; press Tab and type a team number, team name, event or match. Firefox can add Control Scout as a search engine from the same description (`/opensearch.xml`).
 - **A results page.** The search lands on `/search?q=…`, which lists the same teams, events and matches as the search box at the top, grouped the same way, with a field to change the query. The results are in the page's first load, so they show straight away, signed in or not.
-- The search box at the top works exactly as before.
+- The search box at the top works exactly as before (#364).
 
 ## 1.6.6 — 2026-10-31
 
