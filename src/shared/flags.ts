@@ -7,7 +7,7 @@
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
-  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference",
+  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -29,6 +29,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   coinFlips: { group: "feature", scope: "global" },
   factorSheet: { group: "feature", scope: "global" },
   offlinePacks: { group: "feature", scope: "global" },
+  eventBundle: { group: "feature", scope: "global" },
   discordBot: { group: "feature", scope: "global" },
   workspaceScouting: { group: "feature", scope: "workspace" },
   scoutingCommons: { group: "feature", scope: "workspace" },
@@ -64,6 +65,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   coinFlips: "Coin flips are switched off for now.",
   factorSheet: "The full why breakdown is switched off for now. Predictions still show their top 3 reasons.",
   offlinePacks: "Offline packs are paused right now. Packs already on this device keep working.",
+  eventBundle: "Event-day bundles are switched off for now. Bundles already on this device keep working.",
   discordBot: "The Discord bot is turned off by the owner for now.",
   rulesReference: "The rules quick reference is switched off for now. Check the official game manual instead.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
@@ -136,6 +138,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Offline pack auto-updates",
     on: "Returning visitors get the offline prediction pack in the background, and Download lists every pack.",
     off: "No background downloads, and the pack files answer that packs are paused.",
+  },
+  eventBundle: {
+    label: "Event-day bundles",
+    on: "The Download page and upcoming event pages offer a one-tap bundle of an event (its data, ratings, the visitor's match reports, their workspace's pick list and a venue card) for the venue with no signal.",
+    off: "The bundle builder and the event pages' bundle button disappear, and new bundles are refused. Bundles already on a phone keep working until they're removed. Pausing offline packs pauses bundles too.",
   },
   discordBot: {
     label: "Discord bot",

@@ -47,7 +47,11 @@ function useEventOptions(): EventOption[] {
 }
 
 export function EventBundles() {
-  const on = useFlag("offlinePacks");
+  // The owner's switches (GET /api/flags): event-day bundles, and offline packs (paused, bundles pause too). Off, the
+  // builder hides; bundles already here still open from their own page and answer with no signal.
+  const bundlesOn = useFlag("eventBundle");
+  const packsOn = useFlag("offlinePacks");
+  const on = bundlesOn && packsOn;
   const saved = useSavedBundles();
   if (!on) return null;
   return (

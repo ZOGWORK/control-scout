@@ -110,6 +110,9 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
   const oddsOn = useFlag("advancementOdds");
   const rulesOn = useFlag("rulesReference");
+  // The Event-day bundle button: both owner switches on (docs/event-bundle.md).
+  const bundleOn = useFlag("eventBundle");
+  const packsOn = useFlag("offlinePacks");
   const oddsOpen = predictable && !d.forecastUnsupported;
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
@@ -145,7 +148,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
       {!predictable && <p className="mt-3 text-xs text-muted-foreground">{seasonLabel(e.season)} is shown for history: results, rankings and awards, no predictions (those start with 2023–24).</p>}
-      {e.status !== "finished" && (
+      {e.status !== "finished" && bundleOn && packsOn && (
         // Going to it? One small download keeps this event, your match reports and your pick list working with no signal.
         <Link to={`/download?event=${e.season}:${encodeURIComponent(e.code)}`} className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/[0.07] px-2.5 text-sm font-medium hover:border-accent" data-bundle-link>
           <Luggage className="size-4 text-accent" aria-hidden />Event-day bundle

@@ -64,6 +64,10 @@ const GATED: [Flag, string, string, unknown?][] = [
   ["powerRankings", "GET", "/api/power-rankings/2026-w42"],
   ["offlinePacks", "GET", "/packs/latest.json"],
   ["offlinePacks", "GET", "/packs/scout-pack-2026-10-15-1-lite.json.gz"],
+  // Event-day bundles (docs/event-bundle.md): their own switch, and paused with offline packs too.
+  ["eventBundle", "GET", "/api/bundles/2025/USNJQ1/manifest"],
+  ["eventBundle", "GET", "/api/bundles/2025/USNJQ1/file"],
+  ["offlinePacks", "GET", "/api/bundles/2025/USNJQ1/manifest"],
 ];
 /** The owner's own writes that publish power rankings: refused too (the console's reads never are). */
 const GATED_OWNER_WRITES: [Flag, string, string, unknown][] = [
@@ -106,10 +110,10 @@ beforeEach(async () => {
 
 describe("the registry", () => {
   it("has exactly the registered feature toggles, the kill switches apart, and only workspace scouting per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference"]);
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(18);
+    expect(FLAGS.length).toBe(19);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {

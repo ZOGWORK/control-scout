@@ -22,7 +22,7 @@ import { matchReport } from "../api/matchReport.js";
 import { liveForecaster } from "../predict/engine.js";
 import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
-import { featureDisabled, isEnabled } from "../flags.js";
+import { featureDisabled, isEnabled, requireFeature } from "../flags.js";
 import { normalEventCode } from "../../src/shared/assignments.js";
 import { BUNDLE_FORMAT, sliceBook, stableJson, type BundleManifest, type BundleSection, type BundleSectionId, type EventBundle, type HtmlSnapshot, type RulesSection, type VenueCard } from "../../src/shared/eventBundle.js";
 import type { EventDetail, MatchView } from "../../src/shared/api.js";
@@ -185,10 +185,12 @@ async function inputs(req: Request, res: Response): Promise<{ input: BuildInput;
 
 export function bundleRouter(): Router {
   const r = express.Router();
-  // Part of offline packs: switched off with them (the offlinePacks feature toggle).
+  // Part of offline packs: paused with them (the offlinePacks toggle), and switched off on its own (eventBundle).
+  // Either way only new builds are refused: bundles already on a device are never asked for again.
   r.use((_req: Request, res: Response, next: NextFunction) => {
     isEnabled("offlinePacks").then((on) => (on ? next() : featureDisabled(res, "offlinePacks", { paused: true })), next);
   });
+  r.use(requireFeature("eventBundle"));
   r.get("/:season/:code/manifest", h(async (req, res) => {
     const x = await inputs(req, res);
     if (!x) return;
