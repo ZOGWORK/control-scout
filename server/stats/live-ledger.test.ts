@@ -8,7 +8,8 @@ import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons";
 import { localToUtcMs } from "../data/time";
 import { resetForecasters } from "../predict/engine";
 import { FITTED_MODEL } from "@control-scout/predict-engine";
-import { matchViews } from "../api/matches";
+import { matchDetail, matchViews } from "../api/matches";
+import { setFlag } from "../flags";
 import { backtest, liveLoggable, runStats, logLivePredictions, scoreLivePredictions, unloggedLiveMatches } from "./job";
 
 const S = CURRENT_SEASON;
@@ -117,6 +118,33 @@ describe("live prediction ledger", () => {
     expect(q1.prediction?.kind).toBe("live");
     expect(q1.prediction?.pRed).toBe(row.p_red);
     expect(q1.prediction?.history).toEqual(history);
+  });
+
+  it("logs the full why breakdown with the call; the match page serves it, list views never carry it", async () => {
+    await logLivePredictions();
+    const [row] = (await ledger()).filter((r) => r.kind === "live");
+    const sheet = JSON.parse(row.factor_sheet);
+    expect(sheet.probabilityModel).toBe("contextual");
+    expect(sheet.phases).toHaveLength(4);
+    // The top 3 factors logged with the call are the sheet's first three phases.
+    expect(JSON.parse(row.factors)).toEqual(sheet.phases.slice(0, 3).map(({ id, points, favors, label }: any) => ({ id, points, favors, label })));
+    // Its log-odds add up to the logged call (to the 4 places stored).
+    const all = [...sheet.phases, ...sheet.model, ...sheet.reasons];
+    expect(all.reduce((s: number, f: any) => s + f.logit, 0)).toBeCloseTo(Math.log(row.p_red / (1 - row.p_red)), 2);
+    expect(sheet.reasons.find((f: any) => f.id === "headToHead")).toMatchObject({ weight: 0, label: JSON.parse(row.history).label });
+    const views = await matchViews({ season: S, code: "LIVE" });
+    expect(views.find((m) => m.key === "qual:0:1")!.prediction?.sheet).toBeUndefined();
+    const d = await matchDetail(S, "LIVE", "qual:0:1");
+    expect(d!.match.prediction?.kind).toBe("live");
+    expect(d!.match.prediction?.sheet).toEqual(sheet);
+    // The owner's factorSheet toggle off: the call is still logged with its sheet, but the match page doesn't serve it.
+    await setFlag("factorSheet", false, "test");
+    try {
+      const off = await matchDetail(S, "LIVE", "qual:0:1");
+      expect(off!.match.prediction?.kind).toBe("live");
+      expect(off!.match.prediction?.sheet).toBeUndefined();
+      expect(JSON.parse((await ledger()).find((r) => r.kind === "live").factor_sheet)).toEqual(sheet);
+    } finally { await setFlag("factorSheet", true, "test"); }
   });
 
   it("skips matches that started, are under a minute away, or have no provable start", async () => {

@@ -1622,6 +1622,16 @@ CREATE TABLE commons_mutes (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 60,
+    name: "factor sheet with live calls",
+    sql: `
+-- The full why breakdown (engine 3.3 factorSheet, src/shared/factorSheet.ts compactSheet) written with each live call,
+-- so the post-match review can show which factors pointed to the winner. JSON; null on calls logged before 3.3 and
+-- on backtest rows (the replay doesn't keep it).
+ALTER TABLE predictions ADD COLUMN factor_sheet TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

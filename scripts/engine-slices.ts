@@ -7,6 +7,7 @@
 //   DATABASE_URL=file:<copy-of-snapshot.db> npx tsx scripts/engine-slices.ts [--seasons 2023,2024,2025,2026] [--out docs/engine/slices] [--rows <file.json.gz>] [--live]
 //     [--challenger '{"name":"priors","rating":{...}}'] [--gate-out docs/engine/gates]
 //     [--champion '{"rating":{...},"recalibration":false}']  (replay an earlier release as the champion)
+//     [--explain-against <older engine dist dir>]  (every served number of explainMatch must match that build's)
 //
 // Models replayed side by side on identical matches:
 //   champion  the live engine (contextual model on the symmetric book)
@@ -23,7 +24,8 @@
 import "../server/env.js";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 import { ENGINE_VERSION, FITTED_MODEL, RatingBook, contextualFeatures, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
 import { all, kvGet, migrate } from "../server/db.js";
@@ -44,6 +46,20 @@ const ROWS = flag("--rows");
 const LIVE = args.includes("--live");
 /** --features: rows also carry the champion's contextual inputs and raw probability (for refitting its weights). */
 const FEATURES = args.includes("--features");
+/** --explain-against <dist>: for EVERY predicted match, explainMatch through this workspace's engine and through an
+ *  older build (e.g. the last release, built from main) must agree on every field the older one returns, bit for bit.
+ *  The check behind "numbers identical" for a release that only adds to the explanation (engine 3.3's factor sheet). */
+const AGAINST = flag("--explain-against");
+const OLD = AGAINST ? ((await import(pathToFileURL(resolve(AGAINST, "index.js")).href)) as { explainMatch: typeof explainMatch; ENGINE_VERSION: string }) : null;
+/** Where two values first differ (Object.is on every number, so -0 and NaN count), else null. Only the old value's keys are walked. */
+function firstDiff(a: unknown, b: unknown, path = ""): string | null {
+  if (typeof b !== "object" || b === null) return Object.is(a, b) ? null : `${path || "(root)"}: ${String(a)} vs ${String(b)}`;
+  if (typeof a !== "object" || a === null || Array.isArray(a) !== Array.isArray(b)) return `${path}: shape differs`;
+  if (Array.isArray(b) && (a as unknown[]).length !== b.length) return `${path}: length ${(a as unknown[]).length} vs ${b.length}`;
+  for (const k of Object.keys(b)) { const d = firstDiff((a as any)[k], (b as any)[k], `${path}.${k}`); if (d) return d; }
+  return null;
+}
+let against = 0;
 /** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
  *  (e.g. '{"rating":{"rho1":0.6,"regionKappa":0}}' replays 2.6.0 as the champion). */
 const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams>; recalibration?: false }) : null;
@@ -100,6 +116,12 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
         const x = explainMatch(champion, m.red.teams, m.blue.teams, { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, shadow: M.contextual.fallback, band: M.band });
         if (x.winProbA !== pc.pRedWin || x.shadow?.winProbA !== pc.pShadow) throw new Error(`replay differs from explainMatch at ${m.eventCode} ${m.level} ${m.series}-${m.number}`);
         checked++;
+      }
+      if (OLD && !CHAMPION) {
+        const o = { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, shadow: M.contextual.fallback, band: M.band };
+        const d = firstDiff(explainMatch(champion, m.red.teams, m.blue.teams, o), OLD.explainMatch(champion as any, m.red.teams, m.blue.teams, o as any));
+        if (d) throw new Error(`explainMatch differs from ${OLD.ENGINE_VERSION} at ${m.eventCode} ${m.level} ${m.series}-${m.number}: ${d}`);
+        against++;
       }
       const pl = predictMatch(legacy, m.red.teams, m.blue.teams, M.noise, M.calibration, {});
       const ph = challenger ? predictMatch(challenger, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx }) : null;
@@ -207,7 +229,7 @@ const corpusId = `snapshot-${String(dataVersion ?? "unknown").slice(0, 10)}`;
 const meta = {
   generated: new Date().toISOString().slice(0, 10), engine: ENGINE_VERSION, championModel: M.contextual.id, shadowModel: M.contextual.fallback.id,
   corpus: { id: corpusId, dataVersion, seasons: corpus, rules: "server/stats/job.ts backtest: remote/hybrid events dropped; scrimmage and off-season events predicted but never rated; only 2-robot alliances predicted; matches in start-time order, each predicted from earlier results only." },
-  explainMatchChecks: checked, rowsSha256: rowsSha, baselineCheck, lowConfidenceBelow: 200, primarySeason: PRIMARY,
+  explainMatchChecks: checked, ...(OLD ? { explainAgainst: { engine: OLD.ENGINE_VERSION, matches: against } } : {}), rowsSha256: rowsSha, baselineCheck, lowConfidenceBelow: 200, primarySeason: PRIMARY,
 };
 // A --champion run replays something other than the shipped engine: it writes its gate only, never
 // over the shipped engine's slice report.
