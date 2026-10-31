@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.6.8 — 2026-10-31
+
+Search Control Scout straight from the browser's address bar: type controlscout.org, press Tab, then a team number or name.
+
+### Highlights
+- [home] Search Control Scout from the address bar in Chrome and Edge
+- [home] A search results page: teams, events and matches for any query
+- [home] Results show on first load, signed in or not
+
+### Address-bar search
+- **Press Tab to search.** After one visit, typing controlscout.org in Chrome or Edge's address bar offers "Search Control Scout"; press Tab and type a team number, team name, event or match. Firefox can add Control Scout as a search engine from the same description (`/opensearch.xml`).
+- **A results page.** The search lands on `/search?q=…`, which lists the same teams, events and matches as the search box at the top, grouped the same way, with a field to change the query. The results are in the page's first load, so they show straight away, signed in or not.
+- The search box at the top works exactly as before (#364).
+
 ## 1.6.7 — 2026-10-31
 
 Team pages open faster: Reliability, the prediction report card and schedule difficulty start closed and load when opened, and the event list is now titled Season Road Map.

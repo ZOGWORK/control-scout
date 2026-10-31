@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "DigestUnsubscribedPage" | "BundlePage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -38,6 +38,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/rules\/?$/i, "RulesPage"],
   [/^\/power-rankings(\/[^/]+)?\/?$/i, "PowerRankingsPage"],
   [/^\/digest\/unsubscribed\/?$/i, "DigestUnsubscribedPage"],
+  [/^\/search\/?$/i, "SearchPage"],
 ];
 
 /** The lazy page module a path renders (null: Home or a redirect, nothing to load). */
@@ -54,7 +55,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/bundle\/[^/]+\/[^/]+$/, "Event-day bundle"], [/^\/bundle\/[^/]+\/[^/]+\/picklist$/, "Pick list snapshot"],
   [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works)$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
-  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"],
+  [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"], [/^\/search$/, "Search"],
 ];
 
 /** The page's short name in the top bar ("Control Scout / Events"); any other path is the not-found page.
