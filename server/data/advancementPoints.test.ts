@@ -1,6 +1,6 @@
 // Settled events fetched before the sync read FIRST's advancement points get them later: finished events with a
 // published advancement list and no stored points, a bounded few per sync; an event FIRST has no points for is
-// remembered and never asked about again; a failed request is retried next time.
+// asked again weekly until a month after it ended; a failed request is retried next time.
 import { beforeEach, describe, expect, it } from "vitest";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
@@ -13,7 +13,7 @@ beforeEach(async () => {
   setDb(c);
   await migrate(c);
   clearAllCaches();
-  for (const [code, end] of [["DONE1", "2026-10-01"], ["DONE2", "2026-10-02"], ["EMPTY", "2026-10-03"], ["LATER", "2026-12-01"], ["HAVE", "2026-10-04"]]) {
+  for (const [code, end] of [["DONE1", "2026-10-01"], ["DONE2", "2026-10-02"], ["EMPTY", "2026-10-20"], ["LATER", "2026-12-01"], ["HAVE", "2026-10-04"]]) {
     await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, ?, ?, 'Qualifier', ?, ?, 'first')", [S, code, code, end, end]);
     await run("INSERT INTO advancement (season, code, slots, advances_to, rows) VALUES (?, ?, 5, 'CMP', '[]')", [S, code]);
   }
@@ -35,6 +35,13 @@ describe("advancement points backfill", () => {
 
     asked.length = 0;
     expect(await backfillAdvancementPoints(S, { today: "2026-10-31", fetch })).toEqual({ filled: 0, none: 0, failed: 1 });
+    expect(asked).toEqual([`/${S}/advancement/DONE2/points`]);
+    // A week on, the empty one is asked again (FIRST may have published late); a month after it ended, no more.
+    asked.length = 0;
+    await backfillAdvancementPoints(S, { today: "2026-11-07", fetch });
+    expect(asked).toEqual([`/${S}/advancement/DONE2/points`, `/${S}/advancement/EMPTY/points`]);
+    asked.length = 0;
+    await backfillAdvancementPoints(S, { today: "2026-11-25", fetch });
     expect(asked).toEqual([`/${S}/advancement/DONE2/points`]);
   });
 
