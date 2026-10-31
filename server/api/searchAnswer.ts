@@ -134,7 +134,8 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   }
 
   // 2. Teams side by side (in a season, when one is named).
-  const vsSeason = seasonOf(q);
+  // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 4215").
+  const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const vs = await versus(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;
 

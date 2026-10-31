@@ -152,6 +152,11 @@ describe("review fixes", () => {
     expect(hitHref((await searchAnswer("hypnotic versus bad wolf reputation last season")).hits[0])).toBe(`/compare?teams=4215,6980&season=${S - 1}`);
     expect(hitHref((await searchAnswer(`hypnotic vs bad wolf ${S - 1}-${String(S % 100).padStart(2, "0")}`)).hits[0])).toBe(`/compare?teams=4215,6980&season=${S - 1}`);
   });
+  it("a team numbered like a year stays a team in versus", async () => {
+    await run("INSERT OR IGNORE INTO teams (number, name) VALUES (2024, 'Year Bots')");
+    await rebuildSearch();
+    expect(hitHref((await searchAnswer("2024 vs 4215")).hits[0])).toBe("/compare?teams=2024,4215");
+  });
   it("a team with a season named in words opens on that season", async () => {
     const a = await searchAnswer("hypnotic last season");
     expect(a.hits[0]).toMatchObject({ ref: "4215", linkSeason: S - 1 });
