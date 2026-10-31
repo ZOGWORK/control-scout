@@ -17,7 +17,7 @@ export function emptyHint(empty: number[]): string {
   return `${list(empty)} ${empty.length === 1 ? "has" : "have"} nothing yet. Save anyway, or fill ${empty.length === 1 ? "it" : "them"} in first.`;
 }
 
-export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeams, toPersonal = false, onSave, onSaved, className }: {
+export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeams, toPersonal = false, savedTo = null, onSave, onSaved, className }: {
   /** This match's label, as the schedule spells it (Q14). */
   label: string;
   teamCount: number;
@@ -28,6 +28,8 @@ export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeam
   emptyTeams: number[];
   /** A read-only workspace: Save keeps it in Personal. */
   toPersonal?: boolean;
+  /** Where the server saves these too (an admin of several workspaces: lib/adminCopies.ts), shown under the toast. */
+  savedTo?: string | null;
   onSave: (opts: { includeEmpty?: boolean }) => MatchSaveResult;
   onSaved: (nextIndex: number) => void;
   className?: string;
@@ -45,7 +47,8 @@ export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeam
     const r = onSave({ includeEmpty });
     if (!r.ok) { setError(r.error); return; }
     setError(null);
-    toast.success(toPersonal ? `Kept in Personal: the workspace is read-only. ${savedMessage(label, r, nextLabel)}` : savedMessage(label, r, nextLabel));
+    if (toPersonal) toast.success(`Kept in Personal: the workspace is read-only. ${savedMessage(label, r, nextLabel)}`);
+    else toast.success(savedMessage(label, r, nextLabel), r.saved && savedTo ? { description: savedTo } : undefined);
     onSaved(nextIndex);
   };
   const press = () => { if (emptyTeams.length) setAsking(true); else run(false); };

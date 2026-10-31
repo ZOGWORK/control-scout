@@ -1,5 +1,5 @@
 // An admin of several team workspaces scouts once: every entry they save in one of them is also saved in each of
-// the others (owner decision, 2026-10-31). docs/workspaces.md, "Admin of several workspaces".
+// the others (owner decision, 2026-10-31).
 //
 // The rules:
 // - Server side, after the write to the workspace the device sent it to (POST /api/me/scout/sync), so an entry

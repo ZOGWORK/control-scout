@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.1 — 2026-10-31
+
+Scout once for all your teams: an admin of several team workspaces has every entry they save kept in each of them.
+
+### Highlights
+- [workspace] Admin of several teams? Each entry you save goes to all of them
+- [scout] After Save, a line says which teams it was saved to
+- [workspace] Edit it in any of those teams and the others follow
+
+### Scouting
+- **Saved in every team you run.** When you're an admin of more than one team workspace, each match or pit entry you save in one of them is also saved in the others, every time. Each team gets its own copy, made by you, in its history and activity feed, and its members can edit it like any of their entries. It happens on the server when the entry syncs, so an entry saved with no signal is copied once it goes up.
+- **Edits follow, deletes don't.** Changing your entry, in any of those teams, changes it in the others too. A teammate's change stays in their own team. Deleting it in one team leaves the others' copies alone, and a copy a team deleted stays deleted.
+- **Each team's own questions.** Answers go to the questions the other team asks with the same field; anything it doesn't ask, or that doesn't fit its version of the question, is left out there. Notes are copied as they are; photos stay with the entry they were added to.
+- **Only where you're an admin.** Entries saved in Personal, in a team where you're a member, or that a teammate made, stay where they are. A team whose scouting is paused or that's read-only gets nothing.
+
 ## 1.7.0 — 2026-10-31
 
 Search reads the whole question: compare teams, ask about a season or a state, and it says plainly what it can't answer yet.
