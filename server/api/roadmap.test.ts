@@ -73,6 +73,13 @@ describe("season road map", () => {
     expect(m.need).toMatchObject({ event: null, options: [{ code: "USNJNELT" }, { code: "USNJNELT2" }], target: 54, leadsTo: "New Jersey Championship", leagueMatches: { played: 12, counted: 10, max: 10 }, overLimit: false });
     expect(m.need!.routes.find((r) => r.label.startsWith("Win"))?.clears).toBe(true);
     expect(m.need!.routes.find((r) => r.label.startsWith("Other judged award"))?.clears).toBe(false);
+    // A meet on today counts the matches already played there.
+    const live = buildRoadMap(input({
+      today: "2026-11-01",
+      events: [row("USNJNEM1", "LeagueMeet", "2026-10-25", { qualPlayed: 6 }), row("USNJNEM3", "LeagueMeet", "2026-11-01", { qualPlayed: 3 })],
+      facts: new Map([["USNJNEM1", facts("USNJ")], ["USNJNEM3", facts("USNJ")]]),
+    }));
+    expect(live.need?.leagueMatches).toEqual({ played: 9, counted: 9, max: 10 });
   });
 
   it("only a team's first three home-region entry-level events can advance it", () => {

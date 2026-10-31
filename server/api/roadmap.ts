@@ -193,7 +193,8 @@ export function buildRoadMap(input: RoadMapInput): TeamRoadMap {
     const last = lastSeasonOf(rs!.lastSeason.entry, rs!.lastSeason.season);
     const target = last?.cutoff.median ?? null;
     const n = ev && ev.roster >= 4 ? ev.roster : median(rs!.lastSeason.entry.map((c) => c.teams));
-    const meets = stops.filter((s) => s.type === "LeagueMeet" && s.when === "done");
+    // Meets under way today count too: their played matches are already stored.
+    const meets = stops.filter((s) => s.type === "LeagueMeet" && s.when !== "upcoming");
     const played = meets.reduce((t, s) => t + (s.qualPlayed ?? 0), 0);
     const leagues = rs!.levels.some((l) => l.kind === "meet");
     const toLt = !ev || ev.type === "LeagueTournament";
