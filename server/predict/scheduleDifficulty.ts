@@ -69,12 +69,21 @@ export async function leanEvents(season: number, codes?: string[]): Promise<Lean
   return [...byEvent.values()];
 }
 
-/** Every event of a season with figures, from one forecaster (the offline packs). */
-export function seasonScheduleDifficulty(f: Forecaster, events: LeanEvent[], now = Date.now()): Map<string, ScheduleDifficulty> {
+/** Events read per batch by seasonScheduleDifficulty: a whole season's matches and lineups at once is the memory
+ *  spike stats/load.ts loadSeason batches away (it crashed a 512 MB host); one batch of raw rows at a time instead. */
+const SEASON_BATCH = 120;
+
+/** Every event of a season with figures, from one forecaster (the stats job's records and the offline packs). */
+export async function seasonScheduleDifficulty(f: Forecaster, season: number, now = Date.now()): Promise<Map<string, ScheduleDifficulty>> {
+  const codes = (await all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND level = 'qual' ORDER BY code", [season])).map((r) => r.code);
   const out = new Map<string, ScheduleDifficulty>();
-  for (const le of events) {
-    const sd = eventScheduleDifficulty(f, le.ev, { posted: le.posted, over: eventOver(le.calendar, now) });
-    if (sd) out.set(le.ev.code, sd);
+  for (let i = 0; i < codes.length; i += SEASON_BATCH) {
+    for (const le of await leanEvents(season, codes.slice(i, i + SEASON_BATCH))) {
+      const sd = eventScheduleDifficulty(f, le.ev, { posted: le.posted, over: eventOver(le.calendar, now) });
+      if (sd) out.set(le.ev.code, sd);
+    }
+    // The local database answers on this thread: let waiting requests in between batches.
+    await new Promise<void>((r) => setImmediate(r));
   }
   return out;
 }

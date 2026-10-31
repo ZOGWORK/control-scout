@@ -49,7 +49,7 @@ Details:
   `GET /api/teams/:number` → `schedule` (that team, per event); the records API's `scheduleDifficulty`,
   `scheduleLeft`, `scheduleOpponents` and `schedulePartners` fields. Server helpers in
   `server/predict/scheduleDifficulty.ts`: `eventSchedule(season, code)` (cached per data version and per whether
-  the event is over) and `seasonScheduleDifficulty(f, leanEvents(season))` for a whole season. Anything with a
+  the event is over) and `seasonScheduleDifficulty(f, season)` for a whole season (read in batches of events). Anything with a
   `Forecaster`, an `EventInput` and the posted draw can call `eventScheduleDifficulty(f, ev, { posted, over })`.
 - **Offline packs:** a `team_schedule_difficulty` table in each season pack (`src/shared/packSchema.ts`),
   computed when the pack is built (about 12 s for a full season). Older packs without it show no figure; figures

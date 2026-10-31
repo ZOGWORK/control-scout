@@ -8,7 +8,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
-import { RECORDS_MAX_PAGE_SIZE, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
+import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
 import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
@@ -89,14 +89,18 @@ export function RecordsTable(p: RecordsTableProps) {
   const [sp] = useSearchParams();
   const navigate = useNavigate();
   const loc = useLocation();
-  const state = useMemo(() => parseTableState(sp, scope, defaultSort), [sp, scope, defaultSort]);
+  // The owner's scheduleDifficulty toggle off: its columns aren't offered (and a saved choice of them is dropped), and
+  // a saved sort on one falls back to the table's default (the server refuses it, and its column isn't there to change it).
+  const scheduleOn = useFlag("scheduleDifficulty");
+  const state = useMemo(() => {
+    const s = parseTableState(sp, scope, defaultSort);
+    return !scheduleOn && SCHEDULE_STAT_KEYS.includes(s.sort) ? { ...s, sort: defaultSort, dir: defaultDir(defaultSort, scope) } : s;
+  }, [sp, scope, defaultSort, scheduleOn]);
   const setState = useCallback((next: TableState, replace = false) => {
     navigate({ pathname: loc.pathname, search: searchString(writeTableState(sp, next, scope, defaultSort)), hash: loc.hash }, { replace });
   }, [navigate, loc.pathname, loc.hash, sp, scope, defaultSort]);
 
   // Columns: the URL's, else this device's choice for this table, else the defaults (a newly ticked one goes last).
-  // The owner's scheduleDifficulty toggle off: its columns aren't offered (and a saved choice of them is dropped).
-  const scheduleOn = useFlag("scheduleDifficulty");
   const pickable = useMemo(() => new Set(pickableStats(scope, predictable, scheduleOn).map((s) => s.key)), [scope, predictable, scheduleOn]);
   const [stored, setStored] = useState(() => readCols(p.storageKey));
   const cols = useMemo(() => (state.cols ?? stored ?? p.defaultCols).filter((k) => pickable.has(k)), [state.cols, stored, p.defaultCols, pickable]);

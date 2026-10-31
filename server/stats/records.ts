@@ -11,7 +11,7 @@
 // predicted score from the walk-forward ledger (calls made before each match,
 // without hindsight; never blended with live calls), and advancement odds
 // from the pre-event forecast (ratings frozen the day before the event).
-import { leanEvents, seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
+import { seasonScheduleDifficulty } from "../predict/scheduleDifficulty.js";
 import type { InStatement } from "@libsql/client";
 import { ADVANCING_TYPES, normType, type EventInput } from "@control-scout/predict-engine";
 import { all, kvSet, writeBatch } from "../db.js";
@@ -217,7 +217,7 @@ export async function fillRecordPredictions(season: number, log: Log = () => {})
  * the full schedule's opponents and partners against the field.
  */
 export async function fillScheduleDifficulty(season: number, log: Log = () => {}): Promise<void> {
-  const sds = seasonScheduleDifficulty(await forecasterFor(season), await leanEvents(season));
+  const sds = await seasonScheduleDifficulty(await forecasterFor(season), season);
   const stmts: InStatement[] = [{ sql: "UPDATE team_event_records SET schedule = NULL, schedule_left = NULL, schedule_opp = NULL, schedule_part = NULL WHERE season = ?", args: [season] }];
   for (const [code, sd] of sds) {
     for (const t of sd.teams) {
