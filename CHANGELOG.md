@@ -27,7 +27,7 @@ My teams cards fold away: tap a team's number and name to hide the rest of its c
 
 ### Teams
 
-- My teams: each team's number and name is now a button that folds its card to the header (number, name, workspace, season, Full team page) and opens it again, with a chevron that turns; remembered per team on this device (#PR)
+- My teams: each team's number and name is now a button that folds its card to the header (number, name, workspace, season, Full team page) and opens it again, with a chevron that turns; remembered per team on this device (#362)
 
 ## 1.5.8 — 2026-10-31
 
