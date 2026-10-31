@@ -77,3 +77,15 @@ describe("TeamScheduleSection", () => {
     expect(container.innerHTML).toBe("");
   });
 });
+
+describe("the column and filter pickers", () => {
+  it("offer the schedule stats only while the owner's toggle is on (the server refuses them when off)", async () => {
+    const { pickableStats } = await import("./records/StatPicker");
+    const keys = (on: boolean) => pickableStats("teamEvent", true, on).map((s) => s.key);
+    expect(keys(true)).toEqual(expect.arrayContaining(["scheduleDifficulty", "scheduleLeft", "scheduleOpponents", "schedulePartners"]));
+    expect(keys(false).filter((k) => k.startsWith("schedule"))).toEqual([]);
+    // Off by default follows the live flag.
+    resetFlags({ ...DEFAULT_FLAGS, scheduleDifficulty: false }, true);
+    expect(pickableStats("teamEvent", true).some((s) => s.key === "scheduleDifficulty")).toBe(false);
+  });
+});

@@ -97,7 +97,7 @@ export function RecordsTable(p: RecordsTableProps) {
   // Columns: the URL's, else this device's choice for this table, else the defaults (a newly ticked one goes last).
   // The owner's scheduleDifficulty toggle off: its columns aren't offered (and a saved choice of them is dropped).
   const scheduleOn = useFlag("scheduleDifficulty");
-  const pickable = useMemo(() => new Set(pickableStats(scope, predictable).map((s) => s.key).filter((k) => scheduleOn || !SCHEDULE_STATS.has(k))), [scope, predictable, scheduleOn]);
+  const pickable = useMemo(() => new Set(pickableStats(scope, predictable, scheduleOn).map((s) => s.key)), [scope, predictable, scheduleOn]);
   const [stored, setStored] = useState(() => readCols(p.storageKey));
   const cols = useMemo(() => (state.cols ?? stored ?? p.defaultCols).filter((k) => pickable.has(k)), [state.cols, stored, p.defaultCols, pickable]);
   const setCols = (next: string[] | null) => { writeCols(p.storageKey, next); setStored(next); setState({ ...state, cols: next }, true); };
@@ -237,7 +237,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const [layout, setLayout] = useLayout(p.storageKey);
   const phoneSummary = scope === "match" && phone;
   const summary = phoneSummary && layout === "summary";
-  const sortOptions = useMemo(() => pickableStats(scope, predictable).map((s) => ({ key: s.key, label: s.label })), [scope, predictable]);
+  const sortOptions = useMemo(() => pickableStats(scope, predictable, scheduleOn).map((s) => ({ key: s.key, label: s.label })), [scope, predictable, scheduleOn]);
   const saved = useSavedFilters(scope);
   const countryName = state.country ? countryByCode(state.country)?.name ?? state.country : null;
   const chips: FilterChip[] = [];
