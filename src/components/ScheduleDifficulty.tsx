@@ -5,7 +5,7 @@
 // schedule leads and the full schedule sits next to it.
 import { Link } from "react-router-dom";
 import type { TeamEventRow, TeamSchedule } from "../shared/api";
-import { scheduleLine, scheduleRankText, scheduleWord, type ScheduleSide } from "../shared/scheduleDifficulty";
+import { scheduleLine, scheduleRankText, scheduleWord, type ScheduleDifficulty, type ScheduleSide } from "../shared/scheduleDifficulty";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { SCHEDULE_STAT_KEYS } from "../shared/statCatalog";
 import { Section } from "./page";
@@ -49,17 +49,11 @@ function Strip({ z }: { z: number }) {
 /** The record columns (src/shared/statCatalog.ts) that hold schedule difficulty. */
 export const SCHEDULE_STATS: ReadonlySet<string> = new Set(SCHEDULE_STAT_KEYS);
 
-/**
- * Each team's place by full-schedule difficulty within one event's whole table (1 = hardest, ties shared from both
- * ends, as scheduleDifficulty ranks them), for the cell's "3rd-hardest of 24". Empty for a filtered or multi-event
- * table, where a place among the rows shown would mislead.
- */
-export function schedulePlaces(rows: { team?: number; stats: Record<string, unknown> }[]): Map<number, Pick<ScheduleSide, "rank" | "of" | "easyRank">> {
-  const vs = rows.flatMap((r) => (typeof r.stats.scheduleDifficulty === "number" && r.team != null ? [{ team: r.team, v: r.stats.scheduleDifficulty }] : []));
-  return new Map(vs.map(({ team, v }) => [team, {
-    rank: 1 + vs.filter((o) => o.v > v + 1e-9).length, of: vs.length, easyRank: 1 + vs.filter((o) => o.v < v - 1e-9).length,
-  }]));
-}
+/** Each team's place in its event's field by full-schedule difficulty ("3rd-hardest of 24"), from the event's own
+ *  figures (the whole field, teams yet to play included), for the Schedule cells of that event's table. */
+export type SchedulePlaces = ReadonlyMap<number, Pick<ScheduleSide, "rank" | "of" | "easyRank">>;
+export const schedulePlaces = (sd: ScheduleDifficulty | null | undefined): SchedulePlaces =>
+  new Map((sd?.teams ?? []).flatMap((t) => (t.full ? [[t.team, t.full] as const] : [])));
 
 /**
  * One Schedule cell: the signed points, and for the full schedule a tap (or hover) for the plain line, so the

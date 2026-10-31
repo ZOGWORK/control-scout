@@ -36,7 +36,7 @@ import { EventGlance } from "../components/EventGlance";
 import { ProvisionalDetails, ProvisionalTeams, SharedSessionTeams } from "../components/ProvisionalInfo";
 import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
-import { ScheduleValue } from "../components/ScheduleDifficulty";
+import { schedulePlaces, ScheduleValue } from "../components/ScheduleDifficulty";
 import { TeamNumber } from "../components/records/RecordsTable";
 import { usePhone } from "../components/records/MatchSummary";
 import type { ScheduleDifficulty } from "../shared/scheduleDifficulty";
@@ -249,6 +249,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {unofficial && <UnofficialNote text={unofficial} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
+                schedulePlaces={schedulePlaces(schedule)}
                 aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} refreshKey={recordsKey} />}
                 emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} schedule={schedule} />}
                 offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} schedule={schedule} />} />

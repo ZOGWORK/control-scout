@@ -31,7 +31,7 @@ import { PREDICTION_FIELD, SUMMARY_FIELDS } from "../../lib/records/matchOutcome
 import { PredictionValue } from "./PredictionValue";
 import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from "./MatchSummary";
 import { emptyColumns } from "../../lib/eventRankingNotes";
-import { SCHEDULE_STATS, ScheduleValue, schedulePlaces } from "../ScheduleDifficulty";
+import { SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "../ScheduleDifficulty";
 import { useFlag } from "../../lib/flags";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
@@ -64,6 +64,9 @@ export interface RecordsTableProps {
   /** Why a column can be empty: shown as a legend under the table when a column has no value in any row of the
    *  whole, unfiltered table (an event's tables), so a column of dashes is never left unexplained. */
   emptyColumnNotes?: Partial<Record<string, string>>;
+  /** One event's table: each team's place in the whole field by schedule difficulty (from the event's own figures,
+   *  teams yet to play included), for the Schedule cell's "3rd-hardest of 24". Absent: the cell gives the line alone. */
+  schedulePlaces?: SchedulePlaces;
   /** Notes about the rows, shown above them only when the table has rows (not over a fallback or an empty state). */
   aboveRows?: ReactNode;
 }
@@ -457,7 +460,7 @@ export function RecordsTable(p: RecordsTableProps) {
             </div>
           )}
           {summary ? <MatchSummaryList rows={data.rows as MatchRecordRow[]} cols={cols} /> : (
-            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam}
+            <Table data={data} scope={scope} cols={cols} state={state} sortBy={sortBy} code={code} highlightTeam={p.highlightTeam} schedulePlaces={p.schedulePlaces}
               selectable={selectable} selected={selected} onSelect={toggleTeam} pageSelection={pageSelection} onSelectAll={toggleAll} />
           )}
           {p.emptyColumnNotes && !filtered && data.total === data.rows.length && (
@@ -622,8 +625,8 @@ export function heatBands(rows: { stats: Record<string, unknown> }[], cols: stri
   return out;
 }
 
-function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectable, selected, onSelect, pageSelection, onSelectAll }: {
-  data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string;
+function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, selectable, selected, onSelect, pageSelection, onSelectAll }: {
+  data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
   pageSelection: PageSelection; onSelectAll: () => void;
 }) {
@@ -632,8 +635,6 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
   // red mean only where a team stands, so the other columns drop their category colour (the header keeps it).
   const whole = scope === "teamEvent" && !!code && !state.filter && data.total === data.rows.length;
   const heat = useMemo(() => (whole ? heatBands(data.rows as { stats: Record<string, unknown> }[], cols) : new Map<string, (v: unknown) => string>()), [whole, data.rows, cols]);
-  // The Schedule cell's place in the field ("3rd-hardest of 24"): only on one event's whole table, like the heat.
-  const places = useMemo(() => (whole && cols.includes("scheduleDifficulty") ? schedulePlaces(data.rows as { team?: number; stats: Record<string, unknown> }[]) : new Map()), [whole, data.rows, cols]);
   // Phones: the Team column shows the number only, and a tap on it shows the name (TeamNumber).
   const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
@@ -732,7 +733,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, selectab
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
                       band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
-                        : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={team != null ? places.get(team) : undefined} />
+                        : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={team != null ? schedulePlaces?.get(team) : undefined} />
                         : formatStat(d, v)}
                     </td>
                   );
