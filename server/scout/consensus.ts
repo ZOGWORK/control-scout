@@ -36,23 +36,32 @@ const CACHE_MAX = 5_000;
  */
 export interface ConsensusScope {
   workspaces: string[]; eventCode?: string;
-  /** Read each observation once: a workspace's copy (kept from an earlier alliance) is skipped while its original, in another workspace of the scope, is live at the same event. */
+  /** Read each observation once: of an original and the copies workspaces kept of it (earlier alliances), one is read (notACopyWithin). */
   oneEach?: boolean;
 }
 const scopeKey = (s: ConsensusScope) => `${[...new Set(s.workspaces)].sort().join("+")}@${s.eventCode?.toUpperCase() ?? ""}${s.oneEach ? "#1" : ""}`;
 
 /**
- * SQL: the entry row `w` (in workspace `wsCol`) isn't a copy (kept when an alliance ended: scout_alliance_copies) whose
- * original, in one of these workspaces, is still live at the same season and event, so is read itself. A copy whose
- * original was deleted (or moved) since is the only one left of that observation, and is read. Its `n`
- * placeholders are the workspaces.
+ * SQL: the entry row `w` (in workspace `wsCol`) is the one copy of its observation read in this scope. A copy (kept
+ * when an alliance ended: scout_alliance_copies) is skipped while its original, in one of these workspaces, is live at
+ * the same season and event (the original is read instead), and while another live copy of the same original is in
+ * an earlier workspace of the scope (by id: one representative, however many workspaces kept a copy). A copy whose
+ * original was deleted or moved since is the only one left of that observation, and is read. Takes the workspaces
+ * twice as its placeholders: `[...workspaces, ...workspaces]`.
  */
-export const notACopyWithin = (w: string, wsCol: string, n: number) =>
-  `NOT EXISTS (SELECT 1 FROM scout_alliance_copies c
+export const notACopyWithin = (w: string, wsCol: string, n: number) => {
+  const list = Array(n).fill("?").join(", ");
+  const sameEvent = (e: string) => `${e}.deleted = 0 AND ${e}.season = ${w}.season AND UPPER(${e}.event_code) = UPPER(${w}.event_code)`;
+  return `NOT EXISTS (SELECT 1 FROM scout_alliance_copies c
       JOIN workspaces ow ON ow.cp_workspace_id = c.origin_ws
-      JOIN workspace_scout_entries o ON o.workspace_id = ow.id AND o.uuid = c.origin_uuid AND o.deleted = 0
-        AND o.season = ${w}.season AND UPPER(o.event_code) = UPPER(${w}.event_code)
-     WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${w}.uuid AND c.origin_ws IN (${Array(n).fill("?").join(", ")}))`;
+      JOIN workspace_scout_entries o ON o.workspace_id = ow.id AND o.uuid = c.origin_uuid AND ${sameEvent("o")}
+     WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${w}.uuid AND c.origin_ws IN (${list}))
+    AND NOT EXISTS (SELECT 1 FROM scout_alliance_copies c
+      JOIN scout_alliance_copies c2 ON c2.origin_ws = c.origin_ws AND c2.origin_uuid = c.origin_uuid AND c2.to_ws < c.to_ws AND c2.to_ws IN (${list})
+      JOIN workspaces w2 ON w2.cp_workspace_id = c2.to_ws
+      JOIN workspace_scout_entries e2 ON e2.workspace_id = w2.id AND e2.uuid = c2.copy_uuid AND ${sameEvent("e2")}
+     WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${w}.uuid)`;
+};
 
 /** scope key -> "season:team" -> computed consensus. */
 const cache = new Map<string, { workspaces: string[]; teams: Map<string, { at: number; value: TeamConsensus }> }>();
@@ -129,7 +138,7 @@ async function compute(scope: ConsensusScope, season: number, teams: number[]): 
        FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
       WHERE ws.cp_workspace_id IN (${spaces.map(() => "?").join(", ")}) AND w.season = ? AND w.deleted = 0${event ? " AND UPPER(w.event_code) = ?" : ""}
         AND w.team IN (${teams.map(() => "?").join(", ")})${scope.oneEach ? ` AND ${notACopyWithin("w", "ws.cp_workspace_id", spaces.length)}` : ""}`,
-    [...spaces, season, ...(event ? [event] : []), ...teams, ...(scope.oneEach ? spaces : [])]);
+    [...spaces, season, ...(event ? [event] : []), ...teams, ...(scope.oneEach ? [...spaces, ...spaces] : [])]);
   const readers = new Map(spaces.map((w) => [w, fieldReader(w)]));
   // Several workspaces: each has its own templates, so a field id is only averaged with fields asking the same question.
   const group = spaces.length > 1 ? fieldGrouper() : null;

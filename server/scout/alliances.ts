@@ -287,7 +287,7 @@ async function unionEntries(you: string, partner: string, season: number, eventC
       WHERE ws.cp_workspace_id IN (?, ?) AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
         AND ${notACopyWithin("w", "ws.cp_workspace_id", 2)}
       ORDER BY w.updated_at DESC`,
-    [you, partner, season, eventCode, you, partner]);
+    [you, partner, season, eventCode, you, partner, you, partner]);
   // Each entry's answers under its own questions: the template it was made with, of its own workspace.
   const readers = new Map([[you, fieldReader(you)], [partner, fieldReader(partner)]]);
   return Promise.all(rows.map(async (r) => {

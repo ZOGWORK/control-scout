@@ -57,7 +57,8 @@ sweep in `server/index.ts`.
 - Every copy records the entry it first came from (`scout_alliance_copies`). Its id derives from that origin
   (`cp-<hash>`), so a workspace holds at most one copy of any entry. An entry that came from the receiving
   workspace in the first place is never sent back. If the same two workspaces link again, the shared reads and
-  consensus count each original once and skip the copy beside it. A copy whose original was deleted since is read.
+  consensus count each original once and skip the copy beside it. Two workspaces holding copies of the same
+  third workspace's entry count it once too. A copy whose original was deleted since is read.
 - A copy that failed part way is retried by the next sweep, from the saved queue only. Copies also wait while the
   owner has paused workspace scouting for either side.
 

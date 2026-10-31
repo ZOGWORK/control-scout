@@ -469,6 +469,23 @@ describe("ending: the link expires, copies only when both agreed", () => {
     expect((await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries.map((e: any) => e.notes)).toEqual(["B while paused"]);
   });
 
+  it("two kept copies of a third workspace's entry count once when their holders link", async () => {
+    const p = await cast();
+    // B links with A, then with C, keeping copies both times: A and C each hold a copy of B1.
+    const ab = await link(true, true);
+    const b1 = entry({ team: 101, notes: "B1 everywhere" });
+    await pushOk(p.ben, B, [b1]);
+    await end(p.ada, A, ab);
+    const bc = (await accept(p.cal, C, (await invite(p.bea, B)).json.code)).json.alliance.id;
+    await end(p.cal, C, bc);
+    // A and C link: B isn't in it, so neither copy has its original here; one of them is read.
+    const ac = (await accept(p.cal, C, (await invite(p.ada, A)).json.code)).json.alliance.id;
+    const shared = (await sharedOf(p.abe, A, ac)).json;
+    expect(shared.entries.map((e: any) => e.notes)).toEqual(["B1 everywhere"]);
+    expect(shared.coverage.you.entries + shared.coverage.partner.entries).toBe(1);
+    expect((await consensusOf(p.abe, A, ac)).json.teams[0].entries).toBe(1);
+  });
+
   it("the inviter can cancel a pending invite, and its code stops working", async () => {
     const p = await cast();
     const i = await invite(p.ada, A);
