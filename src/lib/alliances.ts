@@ -1,7 +1,7 @@
 // Scouting alliances on the Scout page (docs/alliances.md; the server: server/scout/alliances.ts). Every request
 // names the reader's own workspace; the server checks membership there and that the link is active.
-import { useCallback, useEffect, useState } from "react";
-import { ApiError, apiFetch, markStale, prime, qs, useApi, type ApiState } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ApiError, apiFetch, load, markStale, qs, useApi, type ApiState } from "./api";
 import type {
   Alliance, AllianceConsensusResponse, AllianceInviteResponse, AlliancePicklistResponse, AllianceShared, AlliancesResponse,
 } from "../shared/alliances";
@@ -33,10 +33,14 @@ const isRefusal = (e: unknown) => e instanceof ApiError && !e.offline && [401, 4
 export function usePolled<T>(path: string | null): ApiState<T> {
   const st = useApi<T>(path);
   const [refused, setRefused] = useState<{ path: string; error: ApiError } | null>(null);
+  // Through the page cache's load, which keeps request order (an answer that started before a newer one never
+  // replaces it); the refusal state follows only the latest request too.
+  const asked = useRef(0);
   const ask = useCallback(async () => {
     if (!path) return;
-    try { prime(path, await apiFetch<T>(path)); setRefused(null); }
-    catch (e) { if (isRefusal(e)) setRefused({ path, error: e as ApiError }); }
+    const my = ++asked.current;
+    try { await load<T>(path, true, true); if (my === asked.current) setRefused(null); }
+    catch (e) { if (my === asked.current && isRefusal(e)) setRefused({ path, error: e as ApiError }); }
   }, [path]);
   useEffect(() => {
     if (!path) return;
