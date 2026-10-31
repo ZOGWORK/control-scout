@@ -28,7 +28,7 @@ A played match's score breakdown now compares red and blue at a glance, and ever
 - **One glance per row.** Auto, TeleOp, endgame, no-penalty points, fouls and the total each show red's bar above blue's, on the same baseline and scale, with both scores beside them. A chip names the leader and the gap ("Red +33", or "Even"); for fouls it says who gave away more.
 - **Icons with labels.** Each row has its own icon next to its name, and so does each part of FIRST's full score sheet (leave, park, hive, flower, garden, major and minor fouls).
 - **Bonus RPs.** Swarm, Pollinator 1 and Pollinator 2 (and last season's Movement, Goal and Pattern) each have their own original icon. Earned or missed is shown three ways: a solid or dashed outline, a ✓ or ✗ mark, and the word, so it reads without colour.
-- Display only: every score, OPR, RP and prediction is the same as before, and the margin line still closes the breakdown.
+- Display only: every score, OPR, RP and prediction is the same as before, and the margin line still closes the breakdown (#363).
 
 ## 1.6.5 — 2026-10-31
 
