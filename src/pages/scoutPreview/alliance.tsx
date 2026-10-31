@@ -27,7 +27,8 @@ const entries: AllianceEntry[] = teams.flatMap(([team, , you, partner]) => [
   return {
     uuid: `pv${n}`, side, workspaceId: side === "you" ? WS : "p", team, kind: "match" as const, matchLabel: `Q${(n * 3) % 40 + 1}`,
     notes: side === "partner" && i === 0 ? ["Fast intake, struggled to park.", "Strong auto, two samples every time.", "Defended well in Q12.", ""][n % 4] : "",
-    data: {}, updatedAt: now - n * 600_000, authorAccountId: side === "you" ? n % 3 : 10 + (n % 2),
+    answers: side === "partner" ? [{ label: "Auto samples", text: String(n % 4) }, { label: "Parked", text: n % 3 ? "Yes" : "No" }, { label: "Driving", text: `${3 + (n % 3)} / 5` }] : [],
+    updatedAt: now - n * 600_000, authorAccountId: side === "you" ? n % 3 : 10 + (n % 2),
     authorDisplayName: side === "you" ? scouts[n % 3] : partners[n % 2],
   };
 });
@@ -58,7 +59,7 @@ function prepare(state: string) {
   prime(alliancesPath(WS, S), { alliances: [linked], canManage: true });
   prime(allianceSharedPath(WS, 1), shared);
   prime(allianceConsensusPath(WS, 1, scouted), { allianceId: 1, season: S, eventCode: EV, teams: scouted.map((t, i) => consensus(t, 7 - i, 4.5 - i * 0.4, 3.8 - i * 0.2, i < 2 ? ["Auto", "Driving"] : i < 4 ? ["Auto"] : [])) });
-  prime(alliancePicklistPath(WS, 1), { allianceId: 1, partnerName: "Pyro Pandas", list: { workspaceId: "p", season: S, version: 4, picks: [
+  prime(alliancePicklistPath(WS, 1), { allianceId: 1, partnerName: "Pyro Pandas", teamsKnown: true, list: { workspaceId: "p", season: S, version: 4, picks: [
     { team: 21010, rank: 1, addedBy: { accountId: 10, name: "Ben" }, addedAt: now, note: "Best auto at the event", noteBy: null, noteUpdatedAt: null },
     { team: 7393, rank: 2, addedBy: { accountId: 11, name: "Rae" }, addedAt: now, note: "", noteBy: null, noteUpdatedAt: null },
     { team: 12345, rank: 3, addedBy: { accountId: 10, name: "Ben" }, addedAt: now, note: "Consistent, quiet driver", noteBy: null, noteUpdatedAt: null },

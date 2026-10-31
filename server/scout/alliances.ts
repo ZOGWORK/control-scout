@@ -37,15 +37,15 @@ import { currentUser, type User } from "../auth/session.js";
 import { featureDisabled, isEnabledFor } from "../flags.js";
 import {
   ALLIANCE_ENDED, allianceEndsAt, INVITE_ALPHABET, INVITE_CODE_LENGTH, INVITE_TTL_MS, normalInviteCode,
-  type Alliance, type AllianceConsensusResponse, type AllianceCoverage, type AllianceEndReason, type AllianceEntry, type AllianceInviteResponse,
+  type Alliance, type AllianceAnswer, type AllianceConsensusResponse, type AllianceCoverage, type AllianceEndReason, type AllianceEntry, type AllianceInviteResponse,
   type AlliancePicklistResponse, type AllianceShared, type AllianceSideKey, type AlliancesResponse, type CoverageSide, type TeamCoverage,
 } from "../../src/shared/alliances.js";
 import { normalEventCode, type EventTeamOption } from "../../src/shared/assignments.js";
 import { CONSENSUS_MAX_TEAMS } from "../../src/shared/consensus.js";
-import { parseWorkspaceTemplateId } from "../../src/shared/scoutTemplate.js";
+import { parseWorkspaceTemplateId, type ScoutField } from "../../src/shared/scoutTemplate.js";
 import { accessError, lastSeq, readLiveEntries, requireWorkspaceAdmin, storedEntryFields, workspaceAccess, workspacePaused } from "./entries.js";
 import { eventTeams, listAssignments, listMatchAssignments } from "./assignments.js";
-import { consensusForScope, parseTeams } from "./consensus.js";
+import { consensusForScope, fieldReader, notACopyWithin, parseTeams } from "./consensus.js";
 import { readPickList } from "./picklist.js";
 import { publishEntries, serialized } from "./bus.js";
 import { versionStatements } from "./history.js";
@@ -109,42 +109,69 @@ async function liveLinkAt(workspaceId: string, season: number, eventCode: string
 
 /**
  * End a link (only from the status it's in, so two callers can't both end it). An active one that both sides
- * agreed to keep copies of has them made. True if this call ended it.
+ * agreed to keep copies of saves what each side gets, in the same write: the other side's live entries at the
+ * event as they are now (scout_alliance_copy_queue), so a retry later never copies anything added after the end.
+ * Then the copies are made. True if this call ended it.
  */
 async function endLink(r: Row, reason: AllianceEndReason): Promise<boolean> {
-  const changed = await run(
-    "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?",
-    [reason, now(), r.id, r.status]);
-  if (!changed) return false;
-  if (r.status === "active" && bothKeep(r)) await keepCopies(r);
+  const t = now();
+  const copies = r.status === "active" && bothKeep(r) && r.invitee_ws
+    ? [...queueCopies(r, r.inviter_ws, r.invitee_ws, t), ...queueCopies(r, r.invitee_ws, r.inviter_ws, t)] : [];
+  await writeBatch([
+    { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?", args: [reason, t, r.id, r.status] },
+    ...copies,
+  ]);
+  const after = await rowById(r.id);
+  if (!after || after.status !== "ended" || after.ended_at !== t || after.ended_reason !== reason) return false; // someone else ended it
+  if (copies.length) await keepCopies(after);
   return true;
 }
 
-/** Make each side's copy of the other's entries (idempotent), then mark the link's copies made. */
+/**
+ * Queue `from`'s live entries at the event for `to`, as they are at the end (runs in the ending's own write, and
+ * only if that write ended the link). Each keeps where it first came from: an entry that's itself a copy names its
+ * origin, and one that came from `to` in the first place (a copy from an earlier link) is never sent back.
+ */
+function queueCopies(r: Row, from: string, to: string, endedAt: number): InStatement[] {
+  return [{
+    sql: `INSERT OR IGNORE INTO scout_alliance_copy_queue
+            (alliance_id, to_ws, origin_ws, origin_uuid, season, team, event_code, match_label, kind, data, notes, updated_at,
+             author_account_id, author_name, editor_account_id, editor_name, template_id, template_version)
+          SELECT ?, ?, COALESCE(c.origin_ws, ws.cp_workspace_id), COALESCE(c.origin_uuid, w.uuid), w.season, w.team, w.event_code, w.match_label,
+             w.kind, w.data, w.notes, w.updated_at, w.author_account_id, w.author_name, w.editor_account_id, w.editor_name,
+             CASE WHEN c.origin_ws IS NULL THEN w.template_id END, CASE WHEN c.origin_ws IS NULL THEN w.template_version END
+            FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
+            LEFT JOIN scout_alliance_copies c ON c.to_ws = ws.cp_workspace_id AND c.copy_uuid = w.uuid
+           WHERE ws.cp_workspace_id = ? AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
+             AND COALESCE(c.origin_ws, '') <> ?
+             AND EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)`,
+    args: [r.id, to, from, r.season, r.event_code, to, r.id, endedAt],
+  }];
+}
+
+/** Make the copies the link queued (each once, whatever retries), then mark the link's copies made. */
 async function keepCopies(r: Row): Promise<void> {
   if (!r.invitee_ws) return;
   // Copying is a read across workspaces: while alliances are off for either side it waits (copies_made stays 0,
   // so the sweep makes them once they're back on).
   if (!(await isEnabledFor("scoutingAlliances", r.inviter_ws)) || !(await isEnabledFor("scoutingAlliances", r.invitee_ws))) return;
-  await copyEntries(r, r.inviter_ws, r.invitee_ws, r.invitee_name ?? "");
-  await copyEntries(r, r.invitee_ws, r.inviter_ws, r.inviter_name);
-  await run("UPDATE scout_alliances SET copies_made = 1 WHERE id = ?", [r.id]);
+  await copyQueued(r, r.invitee_ws, r.invitee_name ?? "");
+  await copyQueued(r, r.inviter_ws, r.inviter_name);
+  const left = await get<{ n: number }>("SELECT COUNT(*) n FROM scout_alliance_copy_queue WHERE alliance_id = ?", [r.id]);
+  if (!Number(left?.n)) await run("UPDATE scout_alliances SET copies_made = 1 WHERE id = ?", [r.id]);
 }
 
-/** A copy's id in the receiving workspace: the same for the same link and entry, so a retry adds nothing twice. */
-const copyPrefix = (allianceId: number) => `al${allianceId}-`;
-export const copyUuid = (allianceId: number, fromWorkspace: string, uuid: string) =>
-  `${copyPrefix(allianceId)}${createHash("sha256").update(`${fromWorkspace}\n${uuid}`).digest("hex").slice(0, 32)}`;
+/**
+ * A copy's id in the receiving workspace, from the entry it first came from (not the link): a workspace holds at
+ * most one copy of any entry, however often the two link again.
+ */
+export const copyUuid = (originWorkspace: string, originUuid: string) =>
+  `cp-${createHash("sha256").update(`${originWorkspace}\n${originUuid}`).digest("hex").slice(0, 40)}`;
 
 const WS = "(SELECT id FROM workspaces WHERE cp_workspace_id = ?)";
 
-async function copyEntries(r: Row, from: string, to: string, toName: string): Promise<void> {
-  const rows = await all<any>(
-    `SELECT w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
-      WHERE ws.cp_workspace_id = ? AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
-        AND w.uuid NOT LIKE ? ORDER BY w.seq`,
-    // Never this link's own copies (the other direction's, made just before): they'd come back as copies of copies.
-    [from, r.season, r.event_code, `${copyPrefix(r.id)}%`]);
+async function copyQueued(r: Row, to: string, toName: string): Promise<void> {
+  const rows = await all<any>("SELECT * FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ?", [r.id, to]);
   if (!rows.length) return;
   await serialized(to, async () => {
     const before = await lastSeq(to);
@@ -154,9 +181,9 @@ async function copyEntries(r: Row, from: string, to: string, toName: string): Pr
       { sql: "INSERT INTO workspaces (cp_workspace_id, name, created_at, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(cp_workspace_id) DO NOTHING", args: [to, toName, at, at] },
     ];
     for (const e of rows) {
-      const uuid = copyUuid(r.id, from, String(e.uuid));
+      const uuid = copyUuid(String(e.origin_ws), String(e.origin_uuid));
       uuids.push(uuid);
-      // A template of the other workspace isn't readable here: the copy reads with the built-in fields (as consensus would).
+      // A template of another workspace isn't readable here: the copy reads with the built-in fields (as consensus would).
       const ownTemplate = !parseWorkspaceTemplateId(e.template_id ?? null);
       stmts.push({
         sql: `INSERT INTO workspace_scout_entries
@@ -168,7 +195,13 @@ async function copyEntries(r: Row, from: string, to: string, toName: string): Pr
         args: [to, uuid, e.season, e.team, e.event_code, e.match_label, e.kind, e.data, e.notes ?? "", e.updated_at,
           e.author_account_id, e.author_name ?? "", e.editor_account_id, e.editor_name ?? "",
           ownTemplate ? e.template_id ?? null : null, ownTemplate ? e.template_version ?? null : null, to],
-      }, ...versionStatements(to, uuid, before, { restored: false, fromVersion: null }));
+      }, ...versionStatements(to, uuid, before, { restored: false, fromVersion: null }), {
+        sql: "INSERT OR IGNORE INTO scout_alliance_copies (to_ws, copy_uuid, origin_ws, origin_uuid, alliance_id) VALUES (?, ?, ?, ?, ?)",
+        args: [to, uuid, e.origin_ws, e.origin_uuid, r.id],
+      }, {
+        sql: "DELETE FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ? AND origin_ws = ? AND origin_uuid = ?",
+        args: [r.id, to, e.origin_ws, e.origin_uuid],
+      });
     }
     await writeBatch(stmts);
     const written = [...(await readLiveEntries(to, uuids)).values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq);
@@ -178,7 +211,8 @@ async function copyEntries(r: Row, from: string, to: string, toName: string): Pr
 
 /**
  * End every link that's due: invites past their code's life or their event, links whose event is over. Then
- * retry copies that didn't finish. Cheap when nothing is due; run by every alliance route and by the sweep.
+ * retry copies that didn't finish (only what was queued when the link ended). Cheap when nothing is due; run by
+ * every alliance route and by the sweep.
  */
 export async function settleAlliances(): Promise<number> {
   const t = now();
@@ -228,21 +262,39 @@ export async function allianceAccess(user: User, workspaceId: string, allianceId
 // The shared reads
 // ---------------------------------------------------------------------------
 
-/** Both sides' live entries at the link's event. */
+/** Both sides' live entries at the link's event, each observation once (a copy of the other side's entry isn't repeated). */
 async function unionEntries(you: string, partner: string, season: number, eventCode: string): Promise<AllianceEntry[]> {
   const rows = await all<any>(
     `SELECT ws.cp_workspace_id, w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
       WHERE ws.cp_workspace_id IN (?, ?) AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
+        AND ${notACopyWithin("ws.cp_workspace_id", "w.uuid", 2)}
       ORDER BY w.updated_at DESC`,
-    [you, partner, season, eventCode]);
-  return rows.map((r) => {
+    [you, partner, season, eventCode, you, partner]);
+  // Each entry's answers under its own questions: the template it was made with, of its own workspace.
+  const readers = new Map([[you, fieldReader(you)], [partner, fieldReader(partner)]]);
+  return Promise.all(rows.map(async (r) => {
     const e = storedEntryFields(r);
     const workspaceId = String(r.cp_workspace_id);
+    const fields = await readers.get(workspaceId)!(e.season, e.kind, r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version));
     return {
       uuid: e.uuid, side: (workspaceId === you ? "you" : "partner") as AllianceSideKey, workspaceId, team: e.team, kind: e.kind, matchLabel: e.matchLabel,
-      notes: e.notes, data: e.data, updatedAt: e.updatedAt, authorAccountId: Number(r.author_account_id), authorDisplayName: String(r.author_name ?? ""),
+      notes: e.notes, answers: answersOf(fields, e.data), updatedAt: e.updatedAt,
+      authorAccountId: Number(r.author_account_id), authorDisplayName: String(r.author_name ?? ""),
     };
-  });
+  }));
+}
+
+/** The answered questions of an entry, in the template's order, as text ("Yes", "3", "Left, Center"). */
+export function answersOf(fields: ScoutField[], data: Record<string, unknown>): AllianceAnswer[] {
+  const out: AllianceAnswer[] = [];
+  for (const f of fields) {
+    const v = data[f.id];
+    if (v == null || v === "" || (Array.isArray(v) && !v.length)) continue;
+    const text = typeof v === "boolean" ? (v ? "Yes" : "No") : Array.isArray(v) ? v.map(String).join(", ")
+      : f.type === "rating" && typeof v === "number" ? `${v} / ${f.max ?? 5}` : String(v);
+    out.push({ label: f.label, text: text.slice(0, 500) });
+  }
+  return out;
 }
 
 /** Who contributed what (shown, never policed). Every team on the event's list appears, scouted or not. */
@@ -445,19 +497,19 @@ export function alliancesRouter(): Router {
     if (!teams) { res.status(400).json({ error: `teams: 1 to ${CONSENSUS_MAX_TEAMS} team numbers, comma separated` }); return; }
     const body: AllianceConsensusResponse = {
       allianceId: a.row.id, season: a.row.season, eventCode: a.row.event_code,
-      teams: await consensusForScope({ workspaces: [a.membership.workspaceId, a.partnerWs], eventCode: a.row.event_code }, a.row.season, teams),
+      teams: await consensusForScope({ workspaces: [a.membership.workspaceId, a.partnerWs], eventCode: a.row.event_code, oneEach: true }, a.row.season, teams),
     };
     return body;
   }));
 
-  // The partner's pick list, to read: only the teams at the event when the event has a team list.
+  // The partner's pick list, to read: only the teams on the event's team list.
   r.get("/workspaces/:workspaceId/alliances/:allianceId/picklist", h(async (req, res) => {
     const a = await shared(req, res);
     if (!a) return;
     const [list, teams] = await Promise.all([readPickList(a.partnerWs, a.row.season), eventTeams(a.row.season, a.row.event_code)]);
+    // Only teams known to be at the event: with no team list yet, none (never the partner's whole season).
     const at = new Set(teams.map((t) => t.team));
-    const picks = at.size ? list.picks.filter((p) => at.has(p.team)) : list.picks;
-    const body: AlliancePicklistResponse = { allianceId: a.row.id, partnerName: a.partnerName, list: { ...list, picks } };
+    const body: AlliancePicklistResponse = { allianceId: a.row.id, partnerName: a.partnerName, teamsKnown: at.size > 0, list: { ...list, picks: list.picks.filter((p) => at.has(p.team)) } };
     return body;
   }));
 

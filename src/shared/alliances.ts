@@ -47,6 +47,8 @@ export interface AllianceInviteResponse { alliance: Alliance; code: string }
 
 export type AllianceSideKey = "you" | "partner";
 
+export interface AllianceAnswer { label: string; text: string }
+
 /** A live entry at the event, from either side. Read-only here: each stays its author's to edit, in its own workspace. */
 export interface AllianceEntry {
   uuid: string;
@@ -56,7 +58,8 @@ export interface AllianceEntry {
   kind: "match" | "pit";
   matchLabel: string | null;
   notes: string;
-  data: Record<string, unknown>;
+  /** The answered questions, labelled by the template the entry was made with (its own workspace's). */
+  answers: AllianceAnswer[];
   updatedAt: number;
   authorAccountId: number;
   authorDisplayName: string;
@@ -98,8 +101,13 @@ export interface AllianceShared {
 /** GET /api/scout/workspaces/:id/alliances/:allianceId/consensus?teams=…: one consensus over both sides' entries at the event. */
 export interface AllianceConsensusResponse { allianceId: number; season: number; eventCode: string; teams: TeamConsensus[] }
 
-/** GET /api/scout/workspaces/:id/alliances/:allianceId/picklist: the partner's pick list, to read (the teams at the event). */
-export interface AlliancePicklistResponse { allianceId: number; partnerName: string; list: PickList }
+/** GET /api/scout/workspaces/:id/alliances/:allianceId/picklist: the partner's pick list, to read (only the teams on the event's team list). */
+export interface AlliancePicklistResponse {
+  allianceId: number; partnerName: string;
+  /** The event has a team list: without one no picks are sent (never the partner's whole season). */
+  teamsKnown: boolean;
+  list: PickList;
+}
 
 /** Invite codes: 10 letters and digits that can't be misread, shown as XXXXX-XXXXX. */
 export const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

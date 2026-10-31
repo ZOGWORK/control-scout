@@ -1655,6 +1655,31 @@ CREATE TABLE scout_alliances (
 CREATE INDEX scout_alliances_inviter ON scout_alliances (inviter_ws, status);
 CREATE INDEX scout_alliances_invitee ON scout_alliances (invitee_ws, status);
 CREATE INDEX scout_alliances_live ON scout_alliances (status, ends_on);
+-- What each side gets when a link both sides agreed to keep copies of ends: the other side's live entries at the
+-- event as they were then (written in the same batch as the ending), each with where it first came from. A row
+-- leaves the queue in the same write as its copy is made, so a retry copies only what's left.
+CREATE TABLE scout_alliance_copy_queue (
+  alliance_id INTEGER NOT NULL,
+  to_ws TEXT NOT NULL,
+  origin_ws TEXT NOT NULL,
+  origin_uuid TEXT NOT NULL,
+  season INTEGER NOT NULL, team INTEGER NOT NULL, event_code TEXT, match_label TEXT, kind TEXT NOT NULL,
+  data TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', updated_at INTEGER NOT NULL,
+  author_account_id INTEGER NOT NULL, author_name TEXT NOT NULL DEFAULT '',
+  editor_account_id INTEGER NOT NULL, editor_name TEXT NOT NULL DEFAULT '',
+  template_id TEXT, template_version INTEGER,
+  PRIMARY KEY (alliance_id, to_ws, origin_ws, origin_uuid)
+);
+-- Every copy made, with the entry it first came from: a workspace keeps one copy per original (its id derives from
+-- the origin), and a later link between the same workspaces reads the original once, never the copy beside it.
+CREATE TABLE scout_alliance_copies (
+  to_ws TEXT NOT NULL,
+  copy_uuid TEXT NOT NULL,
+  origin_ws TEXT NOT NULL,
+  origin_uuid TEXT NOT NULL,
+  alliance_id INTEGER NOT NULL,
+  PRIMARY KEY (to_ws, copy_uuid)
+);
 `,
   },
 ];

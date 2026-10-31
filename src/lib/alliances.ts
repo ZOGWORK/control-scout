@@ -1,7 +1,7 @@
 // Scouting alliances on the Scout page (docs/alliances.md; the server: server/scout/alliances.ts). Every request
 // names the reader's own workspace; the server checks membership there and that the link is active.
 import { useEffect } from "react";
-import { apiFetch, invalidate, qs, useApi, type ApiState } from "./api";
+import { apiFetch, markStale, qs, useApi, type ApiState } from "./api";
 import type {
   Alliance, AllianceConsensusResponse, AllianceInviteResponse, AlliancePicklistResponse, AllianceShared, AlliancesResponse,
 } from "../shared/alliances";
@@ -14,11 +14,6 @@ export const alliancePicklistPath = (ws: string, id: number) => `${base(ws)}/${i
 
 /** How often an open alliance view asks again: the partner's scouting doesn't reach this workspace's stream. */
 export const ALLIANCE_REFRESH_MS = 30_000;
-
-/** This workspace's links this season (null: none to ask, e.g. Personal). */
-export function useAlliances(ws: string | null, season: number): ApiState<AlliancesResponse> {
-  return useApi<AlliancesResponse>(ws ? alliancesPath(ws, season) : null);
-}
 
 /** The active link to show: the one at `eventCode` if there is one, else the first active one. */
 export function activeAlliance(list: Alliance[] | undefined, eventCode?: string | null): Alliance | null {
@@ -38,12 +33,21 @@ export function usePolled<T>(path: string | null): ApiState<T> {
   return st;
 }
 
+/**
+ * This workspace's links this season (null: none to ask, e.g. Personal). Asked again while on screen: the other
+ * workspace accepting, unlinking or the event ending changes it without anything reaching this device.
+ */
+export function useAlliances(ws: string | null, season: number): ApiState<AlliancesResponse> {
+  return usePolled<AlliancesResponse>(ws ? alliancesPath(ws, season) : null);
+}
+
 export const useAllianceShared = (ws: string | null, id: number | null) => usePolled<AllianceShared>(ws && id ? allianceSharedPath(ws, id) : null);
 export const useAllianceConsensus = (ws: string | null, id: number | null, teams: number[]) =>
   usePolled<AllianceConsensusResponse>(ws && id && teams.length ? allianceConsensusPath(ws, id, teams) : null);
 export const useAlliancePicklist = (ws: string | null, id: number | null) => usePolled<AlliancePicklistResponse>(ws && id ? alliancePicklistPath(ws, id) : null);
 
-const changed = (ws: string) => invalidate(base(ws));
+/** After a change: what's on screen asks again, keeping what it shows meanwhile (never back to loading). */
+const changed = (ws: string) => markStale(base(ws));
 
 export async function inviteAlliance(ws: string, season: number, eventCode: string, keepCopies: boolean): Promise<AllianceInviteResponse> {
   const r = await apiFetch<AllianceInviteResponse>(base(ws), { method: "POST", json: { season, eventCode, keepCopies } });

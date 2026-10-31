@@ -19,7 +19,7 @@ const linked: Alliance = {
 const side = (workspaceId: string, name: string, entries: number) => ({ workspaceId, name, entries, matchEntries: entries, pitEntries: 0, teams: entries ? 1 : 0, matches: entries, scouts: entries ? 1 : 0 });
 const shared: AllianceShared = {
   alliance: linked,
-  entries: [{ uuid: "e1", side: "partner", workspaceId: "w2", team: 101, kind: "match", matchLabel: "Q3", notes: "Fast intake", data: {}, updatedAt: Date.now(), authorAccountId: 5, authorDisplayName: "Ben" }],
+  entries: [{ uuid: "e1", side: "partner", workspaceId: "w2", team: 101, kind: "match", matchLabel: "Q3", notes: "Fast intake", answers: [{ label: "Auto samples", text: "3" }], updatedAt: Date.now(), authorAccountId: 5, authorDisplayName: "Ben" }],
   assignments: [], matchAssignments: [],
   coverage: { you: side("w1", "Gearheads", 0), partner: side("w2", "Pyro", 1), teams: [{ team: 101, name: "Alpha", you: 0, partner: 1 }, { team: 102, name: "Beta", you: 0, partner: 0 }] },
 };
@@ -48,6 +48,9 @@ describe("AllianceView", () => {
     expect(within(cov).getByText("Gearheads hasn't added any entries at this event yet.")).toBeTruthy();
     expect(within(cov).getByText("Not scouted yet")).toBeTruthy(); // team 102
     expect(screen.getByText("Fast intake")).toBeTruthy();
+    // Tapping the partner's entry shows its answers under its own questions.
+    fireEvent.click(screen.getByText("Fast intake"));
+    expect(within(screen.getByTestId("partner-answers")).getByText("Auto samples")).toBeTruthy();
     // A member: no unlink, no invite.
     expect(screen.queryByRole("button", { name: /unlink/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /invite code/i })).toBeNull();
@@ -63,11 +66,30 @@ describe("AllianceView", () => {
   });
 });
 
+describe("AllianceView: the invite code", () => {
+  it("stays on screen after the invite exists (the list refreshes to pending and the forms hide)", async () => {
+    const pending: Alliance = { ...linked, status: "pending", partner: null, inviteExpiresAt: Date.now() + 86_400_000 };
+    let invited = false;
+    routes = {};
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") { invited = true; return new Response(JSON.stringify({ alliance: pending, code: "ABCDEFGHJK" }), { status: 201, headers: { "Content-Type": "application/json" } }); }
+      if (url === "/api/scout/workspaces/w1/alliances?season=2025") return new Response(JSON.stringify(list(invited ? [pending] : [], true)), { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "nope" }), { status: 404, headers: { "Content-Type": "application/json" } });
+    }));
+    render(<MemoryRouter><AllianceView workspaceId="w1" workspaceName="Gearheads" season={2025} eventCode="USALQ1" isAdmin readOnly={false} /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: /create invite code/i }));
+    expect(await screen.findByText("ABCDE-FGHJK")).toBeTruthy();
+    await screen.findByText(/Invite sent for/); // the refreshed list: pending, forms gone
+    expect(screen.queryByRole("button", { name: /create invite code/i })).toBeNull();
+    expect(screen.getByText("ABCDE-FGHJK")).toBeTruthy();
+  });
+});
+
 describe("PicklistWithPartner", () => {
   it("only while linked: a toggle to the partner's list, read-only", async () => {
     routes = {
       "/api/scout/workspaces/w1/alliances?season=2025": list([linked], false),
-      "/api/scout/workspaces/w1/alliances/7/picklist": { allianceId: 7, partnerName: "Pyro", list: { workspaceId: "w2", season: 2025, version: 1, picks: [
+      "/api/scout/workspaces/w1/alliances/7/picklist": { allianceId: 7, partnerName: "Pyro", teamsKnown: true, list: { workspaceId: "w2", season: 2025, version: 1, picks: [
         { team: 101, rank: 1, addedBy: { accountId: 5, name: "Ben" }, addedAt: 1, note: "first pick", noteBy: null, noteUpdatedAt: null },
       ] } },
     };

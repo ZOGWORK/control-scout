@@ -3,7 +3,7 @@
 // one consensus over both sides' entries, the partner's entries and assignments (read-only), and can switch the
 // pick list to the partner's. Who may do what is the server's call (server/scout/alliances.ts); the buttons follow it.
 import { useMemo, useState, type ReactNode } from "react";
-import { Check, ClipboardList, Copy, Handshake, Link2, Loader2, ThumbsUp, Unlink2, Users } from "lucide-react";
+import { Check, ChevronDown, ClipboardList, Copy, Handshake, Link2, Loader2, ThumbsUp, Unlink2, Users } from "lucide-react";
 import { ApiError } from "../../lib/api";
 import { agoShort, int } from "../../lib/format";
 import {
@@ -42,15 +42,18 @@ export function AllianceView({ workspaceId, workspaceName, season, eventCode, is
   const pending = (list ?? []).filter((a) => a.status === "pending");
   const past = (list ?? []).filter((a) => a.status === "ended").slice(0, 5);
   const canManage = !!st.data?.canManage && isAdmin && !readOnly;
+  // The one-time code just made: held here, above the forms (which hide once the invite exists), until Done.
+  const [code, setCode] = useState<string | null>(null);
   return (
     <Section title="Scouting alliance"
       description={<>Share {workspaceName}'s scouting with another team for one meet. Both teams see each other's entries and assignments at that event and share one consensus; nobody joins the other team, and each side's entries stay its own to edit. The link ends by itself after the event.</>}>
       {st.loading ? <LoadingBlock rows={3} label="Loading alliances" /> : st.error ? <ErrorState error={st.error} onRetry={st.reload} /> : (
         <div className="space-y-6">
+          {code && <NewCode code={code} onDone={() => setCode(null)} />}
           {active && <LinkedPanel workspaceId={workspaceId} alliance={active} canManage={canManage} />}
           {pending.map((a) => <PendingCard key={a.id} workspaceId={workspaceId} alliance={a} canManage={canManage} />)}
           {/* One link at a time on screen: the forms come back once it ends (or the invite is cancelled). */}
-          {canManage ? !active && !pending.length && <LinkForms workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
+          {canManage ? !active && !pending.length && <LinkForms workspaceId={workspaceId} season={season} eventCode={eventCode} onCode={setCode} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
             : !active && !pending.length && <EmptyState icon={Handshake} title="No alliance yet" description={readOnly ? "This workspace is read-only." : "An admin of this workspace can invite another team to share scouting at a meet, or accept their invite."} />}
           {past.length > 0 && <PastLinks list={past} />}
         </div>
@@ -231,13 +234,30 @@ function PartnerEntries({ data }: { data: AllianceShared }) {
       <h3 className="flex items-center gap-2 text-sm font-semibold"><SideName name={name} you={false} /> entries <span className="font-normal text-muted-foreground">· read-only</span></h3>
       <ul className="overflow-hidden rounded-xl border border-border bg-card">
         {(all ? theirs : theirs.slice(0, 8)).map((e) => (
-          <li key={e.uuid} className="border-b border-border px-3 py-2 text-sm last:border-b-0">
-            <p className="flex flex-wrap items-baseline gap-x-2">
-              <span className="font-mono font-medium tabular-nums">{e.team}</span>
-              <span className="text-muted-foreground">{e.kind === "pit" ? "Pit" : e.matchLabel ?? "Match"}</span>
-              <span className="ml-auto text-xs text-muted-foreground">{e.authorDisplayName || "A scout"} · {agoShort(e.updatedAt)}</span>
-            </p>
-            {e.notes && <p className="mt-0.5 line-clamp-2 break-words text-muted-foreground">{e.notes}</p>}
+          <li key={e.uuid} className="border-b border-border text-sm last:border-b-0">
+            {/* Tap for the answers, under the questions of the partner's own template. Read-only. */}
+            <details className="group">
+              <summary className="flex min-h-11 cursor-pointer list-none flex-col justify-center px-3 py-2 hover:bg-text-base/[0.04] [&::-webkit-details-marker]:hidden">
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-mono font-medium tabular-nums">{e.team}</span>
+                  <span className="text-muted-foreground">{e.kind === "pit" ? "Pit" : e.matchLabel ?? "Match"}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">{e.authorDisplayName || "A scout"} · {agoShort(e.updatedAt)}</span>
+                  <ChevronDown aria-hidden className="size-4 shrink-0 self-center text-muted-foreground transition-transform group-open:rotate-180" />
+                </span>
+                {e.notes && <span className="mt-0.5 line-clamp-2 break-words text-muted-foreground group-open:line-clamp-none">{e.notes}</span>}
+              </summary>
+              <div className="px-3 pb-3">
+                {e.answers.length ? (
+                  <dl className="grid gap-x-4 gap-y-1 rounded-lg bg-text-base/[0.03] p-2.5 sm:grid-cols-2" data-testid="partner-answers">
+                    {e.answers.map((x, i) => (
+                      <div key={i} className="flex min-w-0 items-baseline justify-between gap-3">
+                        <dt className="min-w-0 text-muted-foreground">{x.label}</dt><dd className="shrink-0 text-right font-medium break-words">{x.text}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : <p className="text-xs text-muted-foreground">No answers, notes only.</p>}
+              </div>
+            </details>
           </li>
         ))}
       </ul>
@@ -289,7 +309,7 @@ function CopiesBox({ id, checked, onChange }: { id: string; checked: boolean; on
   );
 }
 
-function LinkForms({ workspaceId, season, eventCode, linkedEvents }: { workspaceId: string; season: number; eventCode: string | null; linkedEvents: string[] }) {
+function LinkForms({ workspaceId, season, eventCode, linkedEvents, onCode }: { workspaceId: string; season: number; eventCode: string | null; linkedEvents: string[]; onCode: (code: string) => void }) {
   const [mode, setMode] = useState<"invite" | "accept">("invite");
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -297,24 +317,22 @@ function LinkForms({ workspaceId, season, eventCode, linkedEvents }: { workspace
         <ToggleGroupItem value="invite">Invite a team</ToggleGroupItem>
         <ToggleGroupItem value="accept">I have a code</ToggleGroupItem>
       </ToggleGroup>
-      {mode === "invite" ? <InviteForm workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={linkedEvents} /> : <AcceptForm workspaceId={workspaceId} />}
+      {mode === "invite" ? <InviteForm workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={linkedEvents} onCode={onCode} /> : <AcceptForm workspaceId={workspaceId} />}
     </div>
   );
 }
 
-function InviteForm({ workspaceId, season, eventCode, linkedEvents }: { workspaceId: string; season: number; eventCode: string | null; linkedEvents: string[] }) {
+function InviteForm({ workspaceId, season, eventCode, linkedEvents, onCode }: { workspaceId: string; season: number; eventCode: string | null; linkedEvents: string[]; onCode: (code: string) => void }) {
   const [event, setEvent] = useState(eventCode ?? "");
   const [keep, setKeep] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [code, setCode] = useState<string | null>(null);
   const taken = !!event && linkedEvents.includes(event.toUpperCase());
   const send = async () => {
     setBusy(true);
-    try { setCode((await inviteAlliance(workspaceId, season, event, keep)).code); }
+    try { onCode((await inviteAlliance(workspaceId, season, event, keep)).code); }
     catch (e) { toast.error(errorText(e)); }
     finally { setBusy(false); }
   };
-  if (code) return <NewCode code={code} onDone={() => setCode(null)} />;
   return (
     <div className="space-y-3">
       <div className="space-y-1.5"><Label htmlFor="alliance-event">Event</Label><EventPicker id="alliance-event" season={season} code={event} onChange={setEvent} /></div>
@@ -329,7 +347,7 @@ function NewCode({ code, onDone }: { code: string; onDone: () => void }) {
   const shown = formatInviteCode(code);
   const copy = () => { void navigator.clipboard?.writeText(shown).then(() => toast.success("Code copied."), () => {}); };
   return (
-    <div className="space-y-3" data-testid="alliance-code">
+    <div className="space-y-3 rounded-xl border border-accent/40 bg-card p-4" data-testid="alliance-code">
       <p className="text-sm">Send this code to the other team's workspace admin. It works once, for 7 days, and is shown only now.</p>
       <p className="flex flex-wrap items-center gap-3">
         <span className="rounded-lg border border-accent/40 bg-accent/[0.08] px-4 py-2 font-mono text-2xl font-semibold tracking-widest">{shown}</span>
@@ -432,6 +450,7 @@ function PartnerPicklist({ workspaceId, alliance }: { workspaceId: string; allia
   return (
     <Section title={`${name}'s pick list`} description={`Read-only: ${name}'s own list, the teams at ${alliance.eventName ?? alliance.eventCode}. Only ${name}'s members change it.`}>
       {st.loading ? <LoadingBlock rows={4} label="Loading the partner's pick list" /> : st.error ? <ErrorState error={st.error} onRetry={st.reload} />
+        : st.data && !st.data.teamsKnown ? <EmptyState icon={ClipboardList} title="No team list for this event yet" description={`${name}'s picks show here once the event's teams are published, so only teams at this meet are ever shared.`} />
         : !st.data?.list.picks.length ? <EmptyState icon={ClipboardList} title={`${name} hasn't picked any teams at this event yet`} /> : (
           <ol className="overflow-hidden rounded-xl border border-border bg-card" data-testid="partner-picklist">
             {st.data.list.picks.map((p, i) => (

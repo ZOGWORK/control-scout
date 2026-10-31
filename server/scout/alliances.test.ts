@@ -14,7 +14,8 @@ import { clearInfoCache } from "../auth/controlPoint";
 import { setFlag, setWorkspaceOverride } from "../flags";
 import { closeAllStreams } from "./stream";
 import { clearConsensusCache } from "./consensus";
-import { copyUuid, coverageOf, setAllianceClock, settleAlliances } from "./alliances";
+import { answersOf, copyUuid, coverageOf, setAllianceClock, settleAlliances } from "./alliances";
+import { builtinTemplate } from "../../src/shared/scoutDefaults";
 import { allianceEndsAt, normalInviteCode } from "../../src/shared/alliances";
 
 const KEY = "k".repeat(40);
@@ -71,7 +72,7 @@ beforeEach(async () => {
   // Each test starts with the event not yet over.
   setAllianceClock(() => Date.parse("2025-11-01T12:00:00Z"));
   // And with nothing scouted, assigned or picked yet.
-  for (const t of ["scout_alliances", "workspace_scout_entries", "workspace_entry_versions", "workspace_assignments", "workspace_picklist", "workspace_picklist_versions"]) await run(`DELETE FROM ${t}`);
+  for (const t of ["scout_alliances", "scout_alliance_copy_queue", "scout_alliance_copies", "workspace_scout_entries", "workspace_entry_versions", "workspace_assignments", "workspace_picklist", "workspace_picklist_versions"]) await run(`DELETE FROM ${t}`);
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
 afterEach(() => { setAllianceClock(null); });
@@ -276,6 +277,28 @@ describe("linked for the event: the shared reads", () => {
     expect((await p.ada("GET", `/api/scout/workspaces/${B}/picklist?season=${S}`)).status).toBe(403);
   });
 
+  it("each entry's answers read under the questions of its own template", async () => {
+    const p = await cast();
+    const id = await link();
+    const [f1, f2] = builtinTemplate(S, "match").fields;
+    await pushOk(p.ben, B, [entry({ team: 101, data: { [f1.id]: f1.type === "toggle" ? true : 2, [f2.id]: f2.type === "toggle" ? false : 3 } })]);
+    const e = (await sharedOf(p.abe, A, id)).json.entries[0];
+    expect(e.answers.map((x: any) => x.label)).toEqual([f1.label, f2.label]);
+    expect(e).not.toHaveProperty("data");
+    expect(answersOf([{ id: "r", label: "Driving", type: "rating", phase: "overall", max: 5 }, { id: "t", label: "Parked", type: "toggle", phase: "endgame" }, { id: "x", label: "Unanswered", type: "text", phase: "overall" }],
+      { r: 4, t: true })).toEqual([{ label: "Driving", text: "4 / 5" }, { label: "Parked", text: "Yes" }]);
+  });
+
+  it("an event with no team list yet shares none of the partner's picks", async () => {
+    const p = await cast();
+    const i = await invite(p.ada, A, { eventCode: OTHER_EV });
+    const id = (await accept(p.bea, B, i.json.code)).json.alliance.id;
+    expect((await p.bea("POST", `/api/scout/workspaces/${B}/picklist`, { season: S, op: "add", team: 102 })).status).toBe(200);
+    const r = await picklistOf(p.abe, A, id);
+    expect(r.status).toBe(200);
+    expect(r.json).toMatchObject({ teamsKnown: false, list: { picks: [] } });
+  });
+
   it("partner admins get no edit rights: B's entries stay B's, and pushing to B is refused", async () => {
     const p = await cast();
     await link();
@@ -317,7 +340,7 @@ describe("coverage: each side's contribution, shown not policed", () => {
 
   it("coverageOf: a team scouted that isn't on the list still shows", () => {
     const c = coverageOf({ workspaceId: "x", name: "X" }, { workspaceId: "y", name: "Y" },
-      [{ uuid: "u1", side: "you", workspaceId: "x", team: 9, kind: "match", matchLabel: "q1", notes: "", data: {}, updatedAt: 1, authorAccountId: 1, authorDisplayName: "" }], []);
+      [{ uuid: "u1", side: "you", workspaceId: "x", team: 9, kind: "match", matchLabel: "q1", notes: "", answers: [], updatedAt: 1, authorAccountId: 1, authorDisplayName: "" }], []);
     expect(c.teams).toEqual([{ team: 9, name: null, you: 1, partner: 0 }]);
     expect(c.you.matches).toBe(1);
   });
@@ -337,7 +360,7 @@ describe("ending: the link expires, copies only when both agreed", () => {
     const a = (await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries;
     expect(a.map((e: any) => e.notes).sort()).toEqual(["from A", "from B"]);
     const copy = a.find((e: any) => e.notes === "from B");
-    expect(copy).toMatchObject({ uuid: copyUuid(id, B, fromB.uuid), authorDisplayName: "Ben", team: 102, eventCode: EV });
+    expect(copy).toMatchObject({ uuid: copyUuid(B, fromB.uuid), authorDisplayName: "Ben", team: 102, eventCode: EV });
     const b = (await p.ben("GET", `/api/scout/sync?workspaceId=${B}`)).json.entries;
     expect(b.map((e: any) => e.notes).sort()).toEqual(["B elsewhere", "from A", "from B"]);
     expect((await list(p.ada, A)).json.alliances[0]).toMatchObject({ status: "ended", endedReason: "event_over", copiesKept: true });
@@ -371,6 +394,24 @@ describe("ending: the link expires, copies only when both agreed", () => {
     expect((await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries.filter((e: any) => e.notes === "B early")).toHaveLength(1);
     // The workspace can link again at the event.
     expect((await invite(p.ada, A)).status).toBe(201);
+  });
+
+  it("linking again at the same event: each observation counts once, and nothing is copied twice or copied back", async () => {
+    const p = await cast();
+    const first = await link(true, true);
+    const a1 = entry({ team: 101, notes: "A1" }), b1 = entry({ team: 101, notes: "B1" });
+    await pushOk(p.abe, A, [a1]);
+    await pushOk(p.ben, B, [b1]);
+    await end(p.ada, A, first); // copies: A gets B1, B gets A1
+    const second = await link(true, true);
+    const shared = (await sharedOf(p.abe, A, second)).json;
+    expect(shared.entries.map((e: any) => `${e.side}:${e.notes}`).sort()).toEqual(["partner:B1", "you:A1"]);
+    expect(shared.coverage.you.entries).toBe(1);
+    expect((await consensusOf(p.abe, A, second)).json.teams[0].entries).toBe(2);
+    await end(p.bea, B, second);
+    const notes = async (call: Call, ws: string) => (await call("GET", `/api/scout/sync?workspaceId=${ws}`)).json.entries.filter((e: any) => !e.deleted).map((e: any) => e.notes).sort();
+    expect(await notes(p.abe, A)).toEqual(["A1", "B1"]);
+    expect(await notes(p.ben, B)).toEqual(["A1", "B1"]);
   });
 
   it("the inviter can cancel a pending invite, and its code stops working", async () => {
@@ -428,7 +469,7 @@ describe("the owner's switch: scoutingAlliances off", () => {
     } finally { await setWorkspaceOverride("scoutingAlliances", A, null, "owner@test"); }
   });
 
-  it("copies wait while it's off, and are made once it's back on", async () => {
+  it("copies wait while it's off, and are made once it's back on: only what was shared when the link ended", async () => {
     const p = await cast();
     const id = await link(true, true);
     const fromB = entry({ team: 102, notes: "B copy later" });
@@ -438,9 +479,11 @@ describe("the owner's switch: scoutingAlliances off", () => {
       setAllianceClock(() => allianceEndsAt(ENDS) + 1);
       await settleAlliances();
       expect((await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries.map((e: any) => e.notes)).toEqual([]);
+      // Scouted after the link ended: never shared, whenever the copies are made.
+      await pushOk(p.ben, B, [entry({ team: 103, notes: "B after the end" })]);
     } finally { await setFlag("scoutingAlliances", true, "owner@test"); }
     await settleAlliances();
     const a = (await p.abe("GET", `/api/scout/sync?workspaceId=${A}`)).json.entries;
-    expect(a.map((e: any) => e.uuid)).toEqual([copyUuid(id, B, fromB.uuid)]);
+    expect(a.map((e: any) => e.uuid)).toEqual([copyUuid(B, fromB.uuid)]);
   });
 });

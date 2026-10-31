@@ -34,8 +34,19 @@ const CACHE_MAX = 5_000;
  * two linked by a scouting alliance, alliances.ts), only those at `eventCode` when it's set. The caller has
  * already checked the reader may see every workspace in it, for that event.
  */
-export interface ConsensusScope { workspaces: string[]; eventCode?: string }
-const scopeKey = (s: ConsensusScope) => `${[...new Set(s.workspaces)].sort().join("+")}@${s.eventCode?.toUpperCase() ?? ""}`;
+export interface ConsensusScope {
+  workspaces: string[]; eventCode?: string;
+  /** Read each observation once: a workspace's copy (kept from an earlier alliance) of an entry from another workspace in the scope is skipped. */
+  oneEach?: boolean;
+}
+const scopeKey = (s: ConsensusScope) => `${[...new Set(s.workspaces)].sort().join("+")}@${s.eventCode?.toUpperCase() ?? ""}${s.oneEach ? "#1" : ""}`;
+
+/**
+ * SQL: the row isn't a copy (kept when an alliance ended: scout_alliance_copies) of an entry that came from one of
+ * these workspaces, whose original is read instead. Its `n` placeholders are the workspaces.
+ */
+export const notACopyWithin = (wsCol: string, uuidCol: string, n: number) =>
+  `NOT EXISTS (SELECT 1 FROM scout_alliance_copies c WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${uuidCol} AND c.origin_ws IN (${Array(n).fill("?").join(", ")}))`;
 
 /** scope key -> "season:team" -> computed consensus. */
 const cache = new Map<string, { workspaces: string[]; teams: Map<string, { at: number; value: TeamConsensus }> }>();
@@ -111,8 +122,8 @@ async function compute(scope: ConsensusScope, season: number, teams: number[]): 
     `SELECT ws.cp_workspace_id, w.team, w.kind, w.author_account_id, w.updated_at, w.data, w.template_id, w.template_version
        FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
       WHERE ws.cp_workspace_id IN (${spaces.map(() => "?").join(", ")}) AND w.season = ? AND w.deleted = 0${event ? " AND UPPER(w.event_code) = ?" : ""}
-        AND w.team IN (${teams.map(() => "?").join(", ")})`,
-    [...spaces, season, ...(event ? [event] : []), ...teams]);
+        AND w.team IN (${teams.map(() => "?").join(", ")})${scope.oneEach ? ` AND ${notACopyWithin("ws.cp_workspace_id", "w.uuid", spaces.length)}` : ""}`,
+    [...spaces, season, ...(event ? [event] : []), ...teams, ...(scope.oneEach ? spaces : [])]);
   const readers = new Map(spaces.map((w) => [w, fieldReader(w)]));
   const byTeam = new Map<number, ConsensusEntry[]>();
   for (const r of rows) {
