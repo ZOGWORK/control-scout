@@ -95,8 +95,8 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
   },
   seasonRoadMap: {
     label: "Season road map",
-    on: "Team pages show the season road map: every event in date order with its advancement, official advancement points where the region's rules are encoded, and what the next stop takes.",
-    off: "Team pages leave the road map out and its data is refused. Advancement points keep being stored with each event, so switching back on shows them at once.",
+    on: "The season road map API answers. Team pages no longer show a road map section; their event list is titled Season Road Map.",
+    off: "The road map API refuses. Advancement points keep being stored with each event, so switching back on shows them at once.",
   },
   advancementOdds: {
     label: "Advancement odds",
