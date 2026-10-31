@@ -7,7 +7,7 @@
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
-  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode",
+  "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -34,6 +34,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   workspaceScouting: { group: "feature", scope: "workspace" },
   scoutingAlliances: { group: "feature", scope: "workspace" },
   scoutingCommons: { group: "feature", scope: "workspace" },
+  scheduleDifficulty: { group: "feature", scope: "global" },
   rulesReference: { group: "feature", scope: "global" },
   venueLightMode: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
@@ -74,6 +75,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
   venueLightMode: "The light version is switched off for now. Here's the full page.",
+  scheduleDifficulty: "Schedule difficulty is switched off for now. The rest of this page still works.",
 };
 export const featureOffMessage = (flag: string): string => FEATURE_OFF_MESSAGE[flag as Flag] ?? "This is switched off for now.";
 
@@ -137,6 +139,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Scouting commons",
     on: "Workspaces that joined can share pit entries at the events you open for it under Moderation (one event at a time), and signed-in users read them on team pages. Overriding it off for one workspace hides what it shared and stops it sharing.",
     off: "Nothing is shared or read anywhere, whatever each event's switch says: team pages, the share switch and the Settings opt-in disappear. Every share, opt-in and event switch is kept, so switching back on restores them as they were.",
+  },
+  scheduleDifficulty: {
+    label: "Schedule difficulty",
+    on: "Event pages (Rankings tab) and team pages show how hard each team's qualification schedule is next to the field (\"3rd-hardest of 24\"), and the event and team answers carry it for other features.",
+    off: "The schedule difficulty card and team page section disappear, and the event and team answers leave it out. Nothing else on those pages changes; switching back on shows it at once (it's worked out with each page, nothing is lost).",
   },
   errorReporting: {
     label: "Error reports",

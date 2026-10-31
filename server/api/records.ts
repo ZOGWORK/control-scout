@@ -77,6 +77,7 @@ function teamEventSource(): Source {
       rank: "r.rank", rp: "r.rp", tb1: "r.tb1", qualMatchesPlayed: "r.played", wins: "r.wins", losses: "r.losses", ties: "r.ties",
       ...scoreCols("r"),
       predictedWinPctAvg: "r.pred_win_avg", predictedScoreAvg: "r.pred_score_avg", advancementOdds: ADVANCEMENT_ODDS,
+      scheduleDifficulty: "r.schedule", scheduleLeft: "r.schedule_left", scheduleOpponents: "r.schedule_opp", schedulePartners: "r.schedule_part",
     },
     identity: { season: "r.season", team: "r.team", eventCode: "r.code", eventName: "r.event_name", eventType: "r.event_type", eventStart: "r.event_start" },
     tiebreak: "r.team, r.code",

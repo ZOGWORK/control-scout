@@ -5,7 +5,8 @@
 // Statistics column toggle (multi, with checkboxes).
 import { useMemo, useState, type ReactNode } from "react";
 import { Check, Search, Sparkles } from "lucide-react";
-import { AGGREGATES, AGGREGATE_LABELS, SCORE_STATS, STAT_CATEGORIES, statsFor, type RecordScope, type StatCategory, type StatDef } from "../../shared/statCatalog";
+import { AGGREGATES, AGGREGATE_LABELS, SCHEDULE_STAT_KEYS, SCORE_STATS, STAT_CATEGORIES, statsFor, type RecordScope, type StatCategory, type StatDef } from "../../shared/statCatalog";
+import { flagOn, useFlag } from "../../lib/flags";
 import { TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { cn } from "../cn";
 
@@ -17,9 +18,10 @@ const CATEGORY_HINT: Partial<Record<StatCategory, string>> = {
   "Control Scout Exclusives": "From Control Scout predictions.",
 };
 
-/** Stats a table can show/filter: the scope's catalog, minus prediction stats in seasons without predictions. */
-export function pickableStats(scope: RecordScope, predictable: boolean): StatDef[] {
-  return statsFor(scope).filter((s) => predictable || s.category !== "Control Scout Exclusives");
+/** Stats a table can show/filter: the scope's catalog, minus prediction stats in seasons without predictions, and
+ *  minus the schedule difficulty stats while the owner's scheduleDifficulty toggle is off (the server refuses them). */
+export function pickableStats(scope: RecordScope, predictable: boolean, scheduleOn = flagOn("scheduleDifficulty")): StatDef[] {
+  return statsFor(scope).filter((s) => (predictable || s.category !== "Control Scout Exclusives") && (scheduleOn || !SCHEDULE_STAT_KEYS.includes(s.key)));
 }
 
 const words = (q: string) => q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -38,7 +40,8 @@ interface Props {
 export function StatPicker({ scope, predictable, mode, selected, onPick, autoFocus, className }: Props) {
   const [q, setQ] = useState("");
   const ws = words(q);
-  const stats = useMemo(() => pickableStats(scope, predictable), [scope, predictable]);
+  const scheduleOn = useFlag("scheduleDifficulty");
+  const stats = useMemo(() => pickableStats(scope, predictable, scheduleOn), [scope, predictable, scheduleOn]);
   const cats = STAT_CATEGORIES.filter((c) => stats.some((s) => s.category === c));
   let shown = 0;
   const sections = cats.map((cat) => {
