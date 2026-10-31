@@ -49,13 +49,48 @@ export interface SearchHit {
   atEvent?: string;
   /** The team's events with their OPRs, to pick from ("hypnotic OPR", "… at this event"). */
   events?: SearchEventPick[];
+  /** A feature this result opens instead of the team's page ("hypnotic versus bad wolf" → Compare): a site path. */
+  href?: string;
+}
+
+/** A site page a whole query word names ("records" → the records pages): listed apart, below the results. */
+export interface SearchPageLink { title: string; href: string }
+
+/**
+ * GET /api/search's answer (docs/search.md): the results and which step of the chain produced them.
+ *   deterministic  the query matched as typed (or a team number, or a feature it names)
+ *   did-you-mean   a correction or closest match: `didYouMean` says what it was read as
+ *   ai             Bruno AI refined the query and search ran again on his words (`refined`); every number is search's own
+ *   recovery       nothing matched: `recovery` says what was understood, the closest matches if any, and where to browse
+ */
+export interface SearchAnswer {
+  q: string;
+  hits: SearchHit[];
+  pages: SearchPageLink[];
+  step: "deterministic" | "did-you-mean" | "ai" | "recovery";
+  didYouMean?: string;
+  /** "ai": Bruno AI's reading of the query. */
+  refined?: string;
+  recovery?: SearchRecovery;
+  /** Whether a Bruno AI refinement may help (the results are a guess or there are none): the app then asks /api/search/refine. */
+  weak: boolean;
+}
+
+export interface SearchRecovery {
+  /** What the query was read as, in words ("a team number: 99999", "a question about OPR"). */
+  understood: string[];
+  /** Near matches that didn't make the cut (a registered team that never played, a partial name). */
+  closest: SearchHit[];
+  /** Bruno AI's reading, when he was asked: a query, or null when he found nothing to search for. */
+  ai?: { refined: string | null };
+  browse: SearchPageLink[];
 }
 
 /** One of a team's events in a search answer, with its event OPR. */
 export interface SearchEventPick { season: number; code: string; name: string; opr: number | null }
 
 /** A team page's part (#id) or an event's tab (?tab=). */
-export type SearchSection = "awards" | "matches" | "events" | "rankings" | "odds" | "playoffs";
+export type SearchSection = "awards" | "matches" | "events" | "schedule-difficulty" | "rankings" | "odds" | "playoffs";
 
 /** One number in a search answer: "Ranking score" "2.45 at NJ Championship". */
 export interface SearchFact { label: string; value: string }

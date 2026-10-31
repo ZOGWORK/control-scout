@@ -1,30 +1,44 @@
 // Inline search: a field with a results dropdown under it. The page behind it
 // stays fully usable (no modal, no focus trap). Content only: teams, events
-// and matches — navigation lives in the nav.
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+// and matches, plus the site pages a whole word names (docs/search.md) —
+// navigation lives in the nav.
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { CalendarDays, ChevronDown, Loader2, MapPin, Search, Swords, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Compass, FileText, Loader2, MapPin, Search, Sparkles, Swords, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
-import type { SearchFact, SearchHit } from "../../shared/api";
+import { useServerFlag } from "../../lib/flags";
+import type { SearchAnswer, SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
+import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
 
 export type HitKind = SearchHit["kind"];
 
 export { hitHref } from "../../shared/search";
 
+/** How long typing pauses before search asks (each key doesn't send a request). */
+export const SEARCH_DEBOUNCE_MS = 200;
+
+type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer };
+
 /** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches.
+ *  Without `kinds` it asks for the whole answer (step, pages, recovery), and when that answer is weak and Bruno AI
+ *  is on, asks him after the answer is on screen (never before: his reading can't slow the first results).
  *  `initial`: results already on screen (the server's, on /search), shown while the first request refreshes them. */
 export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null) {
   // Results remember the query they answer, so a pick can never come from a previous query.
-  const [res, setRes] = useState<{ q: string; hits: SearchHit[] }>(() => initial ?? { q: "", hits: [] });
+  const [res, setRes] = useState<Answered>(() => (initial ? { q: initial.q, hits: initial.hits, answer: isAnswer(initial) ? initial : undefined } : { q: "", hits: [] }));
+  const [ai, setAi] = useState<{ q: string; answer: SearchAnswer | null } | null>(null);
+  const [refining, setRefining] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
+  const brunoOn = useServerFlag("brunoSearch");
+  const learnOn = useServerFlag("searchLearning");
   const { state } = usePersonal();
   const prefer = useMemo(() => [...new Set([
     ...(state.myTeam ? [`team:${state.myTeam}`] : []),
@@ -36,23 +50,81 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   useEffect(() => {
     const query = q.trim();
     const id = ++seq.current;
+    setRefining(false);
     if (!query) { setRes({ q: "", hits: [] }); setError(null); setBusy(false); return; }
     setBusy(true);
     const t = setTimeout(() => {
       // A box limited to some kinds asks the server for only those, so other kinds (often teams) can't crowd its own out.
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : ""}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
-        .then((r) => { if (id === seq.current) { setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits }); setError(null); } })
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
+        .then((r) => {
+          if (id !== seq.current) return;
+          // Offline (saved data) answers plain hits: the plain list, as before.
+          const answer = !kindKey && isAnswer(r) ? r : undefined;
+          setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer });
+          setError(null);
+          if (answer?.weak && brunoOn) {
+            setRefining(true);
+            // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
+            apiFetch<SearchAnswer | null>(`/api/search/refine?q=${encodeURIComponent(query)}&limit=${limit}`)
+              .then((a) => { if (id === seq.current) setAi({ q: query, answer: isAnswer(a) ? a : null }); })
+              .catch(() => {})
+              .finally(() => { if (id === seq.current) setRefining(false); });
+          }
+        })
         .catch((e) => { if (id === seq.current) { setRes({ q: query, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
         .finally(() => { if (id === seq.current) setBusy(false); });
-    }, 140);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [q, prefer, kindKey, limit]);
+  }, [q, prefer, kindKey, limit, brunoOn]);
   const current = res.q === q.trim();
-  return { hits: current ? res.hits : [], busy: busy || (!!q.trim() && !current), error };
+  // One opened result, counted for search's learning (aggregate only: the query and the result, nothing about who).
+  const logPick = useCallback((h: SearchHit) => {
+    if (!learnOn || h.href || !res.answer || !current) return;
+    const body = JSON.stringify({ q: res.q, kind: h.kind, ref: h.ref });
+    try {
+      if (!navigator.sendBeacon?.("/api/search/click", new Blob([body], { type: "application/json" }))) {
+        void fetch("/api/search/click", { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
+      }
+    } catch { /* counting a click is never worth an error */ }
+  }, [learnOn, res, current]);
+  return {
+    hits: current ? res.hits : [], answer: current ? res.answer : undefined,
+    ai: current && ai?.q === res.q ? ai.answer : null, refining: current && refining,
+    busy: busy || (!!q.trim() && !current), error, logPick,
+  };
 }
 
 const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event: CalendarDays, match: Swords };
 export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
+
+/** A row's icon: its kind's, or its section's for pages, browsing and Bruno AI's suggestion. */
+export function rowIcon(section: SectionId, row: AnswerRow): typeof Users {
+  if (section === "pages") return FileText;
+  if (section === "browse") return Compass;
+  if (row.sub) return CalendarDays;
+  return ICONS[row.hit.kind];
+}
+
+/** The sections a search lists: the whole answer's, or the plain kinds (offline, or a box limited to some kinds). */
+export function useSections(hits: SearchHit[], answer: SearchAnswer | undefined, ai: SearchAnswer | null): { sections: AnswerSection[]; notes: AnswerNotes } {
+  return useMemo(() => (answer ? answerSections({ ...answer, hits }, ai) : { sections: plainSections(hits), notes: { understood: [] } }), [hits, answer, ai]);
+}
+
+/** What the query was read as, above the rows: a correction, Bruno AI's reading, or what was understood. */
+export function AnswerNotesView({ notes, refining, className }: { notes: AnswerNotes; refining?: boolean; className?: string }) {
+  const lines: ReactNode[] = [];
+  if (notes.didYouMean) lines.push(<>Showing results for <b className="font-medium text-foreground">“{notes.didYouMean}”</b></>);
+  for (const u of notes.understood) lines.push(u);
+  if (notes.ai) {
+    lines.push(<span className="inline-flex items-center gap-1"><Sparkles className="size-3 shrink-0 text-accent" />{notes.ai.refined
+      ? <>Bruno AI read this as <b className="font-medium text-foreground">“{notes.ai.refined}”</b>{notes.ai.found ? "" : ", and nothing matched that either"}</>
+      : "Bruno AI found nothing more to search for"}</span>);
+  } else if (refining) {
+    lines.push(<span className="inline-flex items-center gap-1"><Loader2 className="size-3 shrink-0 animate-spin" />Asking Bruno AI for a better reading…</span>);
+  }
+  if (!lines.length) return null;
+  return <div className={cn("space-y-0.5 text-xs text-muted-foreground", className)}>{lines.map((l, i) => <p key={i}>{l}</p>)}</div>;
+}
 
 /** The numbers a search asked about ("hypnotic ranking points"), under the top team's name. */
 export function HitFacts({ facts }: { facts: SearchFact[] }) {
@@ -63,6 +135,22 @@ export function HitFacts({ facts }: { facts: SearchFact[] }) {
           <span className="shrink-0 text-muted-foreground">{f.label}</span><span className="truncate font-medium tabular-nums text-foreground">{f.value}</span>
         </span>
       ))}
+    </span>
+  );
+}
+
+/** One row's text: the name (wrapping before it cuts: event divisions differ only at the end), then season and details. */
+export function HitText({ h }: { h: SearchHit }) {
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="line-clamp-2 break-words">{h.title}</span>
+      {(h.subtitle || h.season != null) && (
+        <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          {(h.kind === "event" || h.kind === "match" || h.atEvent) && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
+          <span className="truncate">{h.subtitle}</span>
+        </span>
+      )}
+      {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
     </span>
   );
 }
@@ -92,7 +180,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const [q, setQ] = useState(initialQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const [active, setActive] = useState(0);
-  const { hits, busy, error } = useSearchHits(q, kinds);
+  const { hits, answer, ai, refining, busy, error, logPick } = useSearchHits(q, kinds);
+  const { sections, notes } = useSections(hits, answer, ai);
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -105,11 +194,13 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     setBelow(el.scrollHeight - bottom > 6 ? [...el.querySelectorAll<HTMLElement>("[role=option]")].filter((o) => o.offsetTop + o.offsetHeight / 2 > bottom).length : 0);
   };
   const listId = useId();
-  // Group order matches what's shown, so arrow keys walk the list top to bottom.
-  const ordered = useMemo(() => GROUPS.flatMap(([k]) => hits.filter((h) => h.kind === k)), [hits]);
+  // In the order shown, so arrow keys walk the list top to bottom.
+  const ordered = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
+  // Bruno AI's suggestion arriving never moves the highlight off what the visitor is on (only new results reset it).
   useEffect(() => setActive(0), [hits]);
+  useEffect(() => { if (active >= ordered.length) setActive(0); }, [ordered, active]);
   // Re-measure the "more below" cue whenever the list's contents change.
-  useEffect(() => { measure(); }, [hits, open, q, busy]);
+  useEffect(() => { measure(); }, [sections, open, q, busy]);
   // …and when the list's own size changes (window resized, phone rotated).
   useEffect(() => {
     const el = list.current;
@@ -125,7 +216,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
-  const pick = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  const pick = (h: SearchHit) => { logPick(h); onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
   const query = q.trim();
   const showList = open && (query ? true : !!emptyHint);
   const lg = size === "lg";
@@ -138,11 +229,12 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
-            if (e.key === "Escape") { if (q) setQ(""); else { setOpen(false); (e.target as HTMLInputElement).blur(); onClose?.(); } return; }
+            // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
+            if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); } return; }
             if (!ordered.length) return;
-            if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => (i + 1) % ordered.length); }
+            if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % ordered.length); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i - 1 + ordered.length) % ordered.length); }
-            else if (e.key === "Enter") { e.preventDefault(); pick(ordered[active]); }
+            else if (e.key === "Enter" && showList) { e.preventDefault(); pick(ordered[active].hit); }
           }}
           placeholder={placeholder} aria-label={label}
           role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list"
@@ -160,38 +252,35 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
-            ) : GROUPS.map(([kind, title, Icon]) => {
-              const hs = ordered.filter((h) => h.kind === kind);
-              if (!hs.length) return null;
-              return (
-                <div key={kind} role="group" aria-label={title}>
-                  <p className="flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{hs.length}</span></p>
-                  {hs.map((h) => {
-                    const i = ordered.indexOf(h);
-                    return (
-                      <div
-                        key={`${h.kind}:${h.ref}`} id={`${listId}-${i}`} role="option" aria-selected={i === active}
-                        // Keep focus in the field so the list doesn't close before the click lands. Both are needed:
-                        // on an iPhone a tap still sends mousedown after a cancelled pointerdown, and that blurs the field.
-                        onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(h)} onPointerMove={() => setActive(i)}
-                        className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
-                      >
-                        <Icon className={cn("size-4 shrink-0", h.kind === "place" ? "text-accent" : "text-muted-foreground")} />
-                        {/* The whole name gets the width and wraps before it cuts (event divisions differ only at the end); then season and details. */}
-                        <span className="min-w-0 flex-1">
-                          <span className="line-clamp-2 break-words">{h.title}</span>
-                          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                            {(h.kind === "event" || h.kind === "match") && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
-                            <span className="truncate">{h.subtitle}</span>
-                          </span>
-                          {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+            ) : (
+              <>
+                <AnswerNotesView notes={notes} refining={refining} className="px-3 pb-1 pt-1.5" />
+                {sections.map((s) => (
+                  <div key={s.id} role="group" aria-label={s.title}>
+                    <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
+                      {s.id === "ai" && <Sparkles className="size-3" />}{s.title}
+                      {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{s.rows.filter((r) => !r.sub).length}</span>}
+                    </p>
+                    {s.rows.map((r) => {
+                      const i = ordered.indexOf(r);
+                      const Icon = rowIcon(s.id, r);
+                      return (
+                        <div
+                          key={r.key} id={`${listId}-${i}`} role="option" aria-selected={i === active}
+                          // Keep focus in the field so the list doesn't close before the click lands. Both are needed:
+                          // on an iPhone a tap still sends mousedown after a cancelled pointerdown, and that blurs the field.
+                          onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => pick(r.hit)} onPointerMove={() => setActive(i)}
+                          className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", r.sub && "pl-9", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
+                        >
+                          <Icon className={cn("size-4 shrink-0", r.hit.kind === "place" && !r.hit.href ? "text-accent" : "text-muted-foreground")} />
+                          <HitText h={r.hit} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </>
+            )}
         </div>
         {below > 0 && (
           // The cue: results continue below. Fades the last row and offers a one-tap scroll.

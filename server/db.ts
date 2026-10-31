@@ -1719,6 +1719,20 @@ CREATE TABLE advancement_points (
 CREATE INDEX advancement_points_team ON advancement_points (team, season);
 `,
   },
+  {
+    version: 64,
+    name: "search learning",
+    sql: `
+-- Search's learned click weights (server/api/searchLearn.ts): how often a result was opened for a query, or for a word
+-- in one, counted per season. Aggregate counts only: no account, device, IP or time of any one search is kept.
+-- term: "q:<the query, normalized>" or "w:<one word>".
+CREATE TABLE search_clicks (
+  season INTEGER NOT NULL, term TEXT NOT NULL, kind TEXT NOT NULL, ref TEXT NOT NULL,
+  clicks REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (season, term, kind, ref)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;

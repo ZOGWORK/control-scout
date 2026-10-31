@@ -4,19 +4,19 @@
 // searchMeta) and hands them over (src/lib/searchBoot.ts), and the query lives in the address, so a direct
 // visit never waits on the header's state.
 import { Link, useSearchParams } from "react-router-dom";
-import { Loader2, Search } from "lucide-react";
-import { GROUPS, HitFacts, hitHref, useSearchHits } from "../components/search/SearchBox";
+import { Loader2, Search, Sparkles } from "lucide-react";
+import { AnswerNotesView, HitText, hitHref, rowIcon, useSearchHits, useSections } from "../components/search/SearchBox";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import { BOOT_HITS } from "../lib/searchBoot";
 import { useTitle, useMeta } from "../lib/meta";
-import { seasonLabel } from "../lib/format";
 import { cn } from "../components/cn";
 
 export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, busy, error } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS);
+  const { hits, answer, ai, refining, busy, error, logPick } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS);
+  const { sections, notes } = useSections(hits, answer, ai);
   const meta = useMeta();
   useTitle(query ? `Search: ${query}` : "Search");
   // Typing replaces the address (no history entry per letter), so Back leaves the page.
@@ -31,7 +31,7 @@ export default function SearchPage() {
           {busy ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <Search className="size-4 shrink-0 text-accent" />}
           <input
             type="search" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search teams, events and matches"
-            placeholder="Team number, team or event name, or a match like USNJQ1 Q12"
+            placeholder="Team number, team or event name, or a match like USNJCMP Q12"
             className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
         </label>
@@ -39,36 +39,34 @@ export default function SearchPage() {
       <div className="mt-5" aria-live="polite">
         {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match.</p>
           : error ? <p className="text-sm text-destructive">{error}</p>
-          : !hits.length ? (
+          : !sections.length ? (
             <p className="text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
-          ) : GROUPS.map(([kind, title, Icon]) => {
-            const hs = hits.filter((h) => h.kind === kind);
-            if (!hs.length) return null;
-            return (
-              <section key={kind} aria-label={title} className="mb-5">
-                <h2 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{hs.length}</span>
-                </h2>
-                <ul className="overflow-hidden rounded-xl border border-border bg-card">
-                  {hs.map((h) => (
-                    <li key={`${h.kind}:${h.ref}`} className="border-b border-border last:border-b-0">
-                      <Link to={hitHref(h)} className="flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground/90 hover:bg-accent/[0.08] hover:text-foreground">
-                        <Icon className={cn("size-4 shrink-0", h.kind === "place" ? "text-accent" : "text-muted-foreground")} />
-                        <span className="min-w-0 flex-1">
-                          <span className="line-clamp-2 break-words">{h.title}</span>
-                          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                            {(h.kind === "event" || h.kind === "match") && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
-                            <span className="truncate">{h.subtitle}</span>
-                          </span>
-                          {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
+          ) : (
+            <>
+              <AnswerNotesView notes={notes} refining={refining} className="mb-4 text-sm" />
+              {sections.map((s) => (
+                <section key={s.id} aria-label={s.title} className="mb-5">
+                  <h2 className={cn("mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
+                    {s.id === "ai" && <Sparkles className="size-3" />}{s.title}
+                    {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{s.rows.filter((r) => !r.sub).length}</span>}
+                  </h2>
+                  <ul className="overflow-hidden rounded-xl border border-border bg-card">
+                    {s.rows.map((r) => {
+                      const Icon = rowIcon(s.id, r);
+                      return (
+                        <li key={r.key} className="border-b border-border last:border-b-0">
+                          <Link to={hitHref(r.hit)} onClick={() => logPick(r.hit)} className={cn("flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground/90 hover:bg-accent/[0.08] hover:text-foreground", r.sub && "pl-9")}>
+                            <Icon className={cn("size-4 shrink-0", r.hit.kind === "place" && !r.hit.href ? "text-accent" : "text-muted-foreground")} />
+                            <HitText h={r.hit} />
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </>
+          )}
       </div>
     </div>
   );

@@ -3,13 +3,13 @@
 //   server (403 {error: "feature_disabled", feature}); public team and event data is never behind one.
 // - "kill": operational kill switches (live updates, error reports, photos, ...), listed below the toggles.
 // Scope "workspace" flags also take per-workspace overrides (migration 53). Resolution: the workspace's
-// override, else the global switch, else on. A key that isn't registered here is never gated.
+// override, else the global switch, else its default: on, except the few in OFF_BY_DEFAULT. A key that isn't registered here is never gated.
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
-  "seasonRoadMap",
+  "seasonRoadMap", "brunoSearch", "searchLearning",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -18,8 +18,12 @@ export type FlagScope = "global" | "workspace";
 
 export const isFlag = (x: unknown): x is Flag => typeof x === "string" && (FLAGS as readonly string[]).includes(x);
 
-/** Every flag on: what a fresh server, or one whose flags can't be read, runs with. */
-export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, true])) as FlagSet;
+/** Flags a fresh server starts with off, until the owner turns them on: Bruno AI in search waits on the owner's pick
+ *  from its experiment report (docs/search.md). */
+export const OFF_BY_DEFAULT: readonly Flag[] = ["brunoSearch"];
+
+/** Every flag on but OFF_BY_DEFAULT: what a fresh server, or one whose flags can't be read, runs with. */
+export const DEFAULT_FLAGS: FlagSet = Object.fromEntries(FLAGS.map((f) => [f, !OFF_BY_DEFAULT.includes(f)])) as FlagSet;
 
 /** Which group each flag is in, and whether it also takes per-workspace overrides. */
 export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
@@ -46,6 +50,8 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   dailyPowerRankings: { group: "kill", scope: "global" },
   weeklyDigest: { group: "kill", scope: "global" },
   seasonRoadMap: { group: "feature", scope: "global" },
+  brunoSearch: { group: "feature", scope: "global" },
+  searchLearning: { group: "feature", scope: "global" },
 };
 
 /** The owner console's feature toggles, in the order its Features tab lists them. */
@@ -74,6 +80,8 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   discordBot: "The Discord bot is turned off by the owner for now.",
   rulesReference: "The rules quick reference is switched off for now. Check the official game manual instead.",
   seasonRoadMap: "The season road map is switched off for now. The rest of this team's page still works.",
+  brunoSearch: "Bruno's search help is switched off for now. Search works as normal.",
+  searchLearning: "Search learning is switched off for now. Search works as normal.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
   scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
@@ -92,6 +100,16 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Live predictions",
     on: "Anyone can ask for a match prediction, the upcoming matches list, an event forecast, partner scenarios and match share cards.",
     off: "Those calls answer that predictions are switched off for now, and Predict says so. The track record and every logged prediction are kept, and team and event pages still load.",
+  },
+  brunoSearch: {
+    label: "Bruno AI in search",
+    on: "When search finds nothing or only a guess, Bruno AI (Control Point) rewrites the query and search runs again on his words. He never supplies a result or a number: everything shown still comes from search. Shown apart, labelled as his reading.",
+    off: "Search never asks Bruno: corrections and the recovery state are search's own. Starts off (migration 64) until the experiment report is decided.",
+  },
+  searchLearning: {
+    label: "Search learning",
+    on: "Search re-orders its own results by which ones people open for each query (aggregate counts per season, kept on this server). It never adds a result, and needs 3 opens before it moves one.",
+    off: "Search shows its deterministic order exactly. The counts are kept, so switching back on resumes where it was.",
   },
   seasonRoadMap: {
     label: "Season road map",

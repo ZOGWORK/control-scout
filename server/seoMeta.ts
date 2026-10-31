@@ -27,9 +27,11 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { TrackRecord } from "../src/shared/api.js";
-import { ensureSearchIndex, search } from "./api/search.js";
+import { ensureSearchIndex } from "./api/search.js";
+import { searchAnswer } from "./api/searchAnswer.js";
+import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_GROUPS, SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -435,15 +437,16 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website" };
   // The same readiness check as /api/search (typo matches on an upgraded database).
   await ensureSearchIndex(rebuildSearch);
-  const hits = await search(q, SEARCH_PAGE_LIMIT);
-  const body = hits.length
-    ? SEARCH_GROUPS.map(([kind, name]) => {
-      const hs = hits.filter((h) => h.kind === kind);
-      return hs.length ? `<h2>${name} <small>${hs.length}</small></h2><ul>${hs.map((h) => `<li><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>` : "";
-    }).join("")
-    : `<p>Nothing matches “${esc(q)}”.</p>`;
-  const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ q, hits }).replace(/</g, "\\u003c")}</script>`;
-  const n = hits.length;
+  const answer = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
+  const { sections, notes } = answerSections(answer);
+  const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...notes.understood.map(esc)].filter(Boolean);
+  const body = (said.length ? `<p>${said.join("<br>")}</p>` : "") + sections.map((sec) => {
+    const n = sec.rows.filter((r) => !r.sub).length;
+    return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
+  }).join("");
+  // As typed: the app matches it against its own query (the answer's q has punctuation dropped).
+  const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
+  const n = answer.hits.length;
   return {
     title: `Search: ${q}`, heading: `Results for “${q}”`, type: "website", bodyHtml: body + data,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,

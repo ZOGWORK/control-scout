@@ -77,7 +77,9 @@ describe("OpenSearch", () => {
     const ev = await (await fetch(`${base}/search?q=${encodeURIComponent("northern league")}`)).text();
     expect(ev).toContain('<a href="/events/2025/USNJNOM3">P1-4 PM Northern League Meet</a>');
     const none = await (await fetch(`${base}/search?q=${encodeURIComponent("<zzqx>")}`)).text();
-    expect(none).toContain("Nothing matches “&lt;zzqx&gt;”.");
+    // Never a bare dead end: what was read, and where to browse.
+    expect(none).toContain("No team, event or match matched &quot;zzqx&quot;");
+    expect(none).toContain('<a href="/teams">Browse all teams</a>');
     expect(none).not.toContain("<zzqx>");
     expect(none).toContain('"q":"\\u003czzqx>"');
   });

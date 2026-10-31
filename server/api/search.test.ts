@@ -173,7 +173,7 @@ describe("search with a topic", () => {
     const [rp] = await search("4215 ranking points", 5);
     // A league meet's own numbers, not the league's running standings. (No best rank: 4215 played no match at
     // AUSYQ1, whose Q12 was played, so its one ranked event is the meet.)
-    expect(rp.facts).toEqual([{ label: "Ranking score", value: "3.50 at Northern League Meet 1" }, { label: "Event rank", value: "#1 of 1" }, { label: "Season", value: "2025–26" }]);
+    expect(rp.facts).toEqual([{ label: "Ranking score", value: "3.50 at Northern League Meet 1" }, { label: "Event rank", value: "#1 of 1" }, { label: "Record", value: "26-6-0" }, { label: "Season", value: "2025–26" }]);
     expect((await search("hypnotic opr", 5))[0].facts).toEqual([{ label: "OPR", value: "101.6" }, { label: "OPR rank", value: "#616 of 8,375" }, { label: "Season", value: "2025–26" }]);
     expect((await search("hypnotic record", 5))[0].facts?.slice(0, 2)).toEqual([{ label: "Record", value: "26-6-0" }, { label: "Win rate", value: "81%" }]);
   });

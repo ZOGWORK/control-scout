@@ -5,7 +5,9 @@ import type { SearchEventPick, SearchFact } from "../../src/shared/api.js";
 import { fuzzyScore } from "./fuzzy.js";
 import type { SearchTopic } from "../../src/shared/search.js";
 import { awardLabel, seasonLabel } from "../../src/shared/format.js";
-import { ATTENDED } from "./teams.js";
+import { ATTENDED, teamSchedule } from "./teams.js";
+import { isEnabled } from "../flags.js";
+import { scheduleRankText } from "../../src/shared/scheduleDifficulty.js";
 
 const fixed = (x: number | null | undefined, d: number) => (x == null || !Number.isFinite(Number(x)) ? null : Number(x).toFixed(d));
 const of = (rank: number | null | undefined, n: number | null | undefined) => (rank ? `#${rank}${n ? ` of ${Number(n).toLocaleString("en-US")}` : ""}` : null);
@@ -81,6 +83,16 @@ export async function teamFacts(team: number, topic: SearchTopic): Promise<{ fac
     events = await teamEvents(team, season);
     const last = [...events].reverse().find((e) => e.opr != null);
     out = [...fact("OPR", fixed(s?.opr_np, 1)), ...worldRank, ...(last ? fact("Event OPR", `${last.opr!.toFixed(1)} at ${last.name}`) : [])];
+  }
+  // Schedule difficulty (the team page's section, behind its own switch): the latest event's, and the hardest one's.
+  else if (topic === "difficulty") {
+    if (await isEnabled("scheduleDifficulty").catch(() => false)) {
+      const rated = (await teamSchedule(season, team)).filter((x) => x.full);
+      const names = new Map((await teamEvents(team, season)).map((e) => [e.code, e.name]));
+      const at = (x: (typeof rated)[number]) => `${scheduleRankText(x.full!)} at ${names.get(x.code) ?? x.code}`;
+      const last = rated.at(-1), hardest = rated.reduce<(typeof rated)[number] | undefined>((a, b) => (!a || b.full!.z > a.full!.z ? b : a), undefined);
+      out = last ? [...fact("Latest", at(last)), ...(hardest && hardest !== last ? fact("Hardest", at(hardest)) : []), ...fact("Events rated", String(rated.length))] : [];
+    }
   }
   else if (topic === "record") out = [...record, ...(games ? fact("Win rate", `${Math.round((Number(s.wins) / games) * 100)}%`) : [])];
   else if (topic === "rankings") out = [...worldRank, ...eventRank];
