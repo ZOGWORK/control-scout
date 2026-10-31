@@ -100,7 +100,7 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
             {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
           </Fragment>
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
-            <Section title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
+            <Section id="events" title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
               {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-muted-foreground">Records count {RECORD_RULE_LOWER}</p>}
             </Section>
@@ -481,7 +481,7 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
   const names = Object.fromEntries(events.map((e) => [e.code, e.name]));
   const [all, setAll] = useState(false);
   return (
-    <Section title="Matches" description={predictable ? "Every match this season with the prediction made for it. Hover a bar for details." : "Every match this season with its score breakdown."}>
+    <Section id="matches" title="Matches" description={predictable ? "Every match this season with the prediction made for it. Hover a bar for details." : "Every match this season with its score breakdown."}>
       <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>
         {(d) => {
           const ms = [...d.matches].reverse();
@@ -501,7 +501,7 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
 function AwardsAllTime({ p }: { p: TeamProfile }) {
   if (!p.awardsAllTime.length) return null;
   return (
-    <Section title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
+    <Section id="awards" title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
       <div className="flex flex-wrap gap-2">
         {p.awardsAllTime.map((a, i) => (
           <Tooltip key={i}>

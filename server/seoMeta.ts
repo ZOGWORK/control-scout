@@ -439,7 +439,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const body = hits.length
     ? SEARCH_GROUPS.map(([kind, name]) => {
       const hs = hits.filter((h) => h.kind === kind);
-      return hs.length ? `<h2>${name} <small>${hs.length}</small></h2><ul>${hs.map((h) => `<li><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}</li>`).join("")}</ul>` : "";
+      return hs.length ? `<h2>${name} <small>${hs.length}</small></h2><ul>${hs.map((h) => `<li><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>` : "";
     }).join("")
     : `<p>Nothing matches “${esc(q)}”.</p>`;
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ q, hits }).replace(/</g, "\\u003c")}</script>`;

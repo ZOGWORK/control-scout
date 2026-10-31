@@ -67,7 +67,7 @@ export function Section({ title, description, action, stackAction = false, child
   if (collapsible) return <FoldedSection id={id} title={title} description={description} className={className} delay={delay}>{children}</FoldedSection>;
   return (
     <Reveal delay={delay} className={cn('mb-8', className)}>
-      <section id={id}>
+      <section id={id} className={id ? 'scroll-mt-16' : undefined}>
         {(title || action) && (
           <div className={cn('mb-4 flex items-end justify-between gap-3 border-b border-border pb-3', stackAction && 'max-sm:flex-col max-sm:items-start')}>
             <div className="min-w-0">

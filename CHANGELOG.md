@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.6.9 — 2026-10-31
+
+Search understands what you're asking about a team or event: "hypnotic awards" or "4215 ranking points" finds the team and answers with its numbers.
+
+### Highlights
+- [teams] Ask search about a team: "4215 awards", "hypnotic opr"
+- [teams] The top team answers with its own numbers right in the results
+- [teams] Results open on what you asked about: awards, events, odds
+- [fixes] Misspelled words like "awrds" still find the answer
+
+### Search
+- **Ask about something.** Add a topic to a team or event: awards, matches, ranking points, OPR, record, stats, rankings, odds or playoffs ("hypnotic awards", "4215 ranking points", "new jersey championship odds"). Before, any extra word made the search come back empty.
+- **Numbers in the answer.** The top team shows the numbers asked about, from its newest season: ranking score and rank at its latest event, OPR and OPR rank, record and win rate, awards and the latest one, matches and average score. A number that isn't stored is left out, never estimated.
+- **Opens in the right place.** A team opens at its awards, season road map or matches; an event opens on that tab (rankings, awards, odds, playoffs, matches).
+- **Typos.** A misspelled topic word is forgiven when the query would otherwise find nothing, and words like "team" no longer stop a search ("violet fusion team").
+- The same answers in the search box at the top and on the address-bar search page. A plain name, number or match query ("AUSYQ1 Q12") works exactly as before, and a team whose own name has the word ("Match Point") still comes first (#366).
+
 ## 1.6.8 — 2026-10-31
 
 Search Control Scout straight from the browser's address bar: type controlscout.org, press Tab, then a team number or name.

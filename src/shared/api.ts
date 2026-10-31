@@ -39,7 +39,19 @@ export interface SearchHit {
   title: string;
   subtitle: string;
   season: number | null;
+  /** The part of the page the query asked for ("4215 awards"): src/shared/search.ts SEARCH_TOPICS. */
+  section?: SearchSection;
+  /** The numbers the query asked about, for the top team ("hypnotic ranking points"): a few, real, never guessed. */
+  facts?: SearchFact[];
+  /** The season the facts are from: the link opens the team page on it. */
+  linkSeason?: number;
 }
+
+/** A team page's part (#id) or an event's tab (?tab=). */
+export type SearchSection = "awards" | "matches" | "events" | "rankings" | "odds" | "playoffs";
+
+/** One number in a search answer: "Ranking score" "2.45 at NJ Championship". */
+export interface SearchFact { label: string; value: string }
 
 export interface OprStat { value: number | null; rank: number | null; of: number | null }
 
