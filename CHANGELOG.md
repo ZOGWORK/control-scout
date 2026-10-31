@@ -15,7 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-<<<<<<< HEAD
+## 1.6.1 — 2026-10-31
+
+One tap before you leave for the venue saves the whole event on your phone: the schedule, rankings, your match reports and your pick list, each saying what time it's from (#361).
+
+### Highlights
+- [offline] Event-day bundle: one small download per event, its size on the button
+- [report] Your matches' Know your match reports, frozen for when there's no signal
+- [picklist] Your pick list too, clearly marked "Snapshot from 07:12, may be stale"
+- [offline] No signal? The event page answers from it; live wins again
+
+### Event-day bundle
+- **One tap, one download.** The Download page builds a bundle for your event (your team's events and the ones you track are offered; every upcoming event page has an Event-day bundle button): the event's teams, schedule, rankings and predictions, the event teams' ratings so predictions still run on the phone, a Know your match report for each of your team's matches, your workspace's pick list (members only) and a venue card with the address and dates. A typical event is 15 to 35 KB.
+- **Honest about its age.** Everything from a bundle says what time its data is from and how old it is, and past two hours it tells you to check the live version first. The snapshots print their time inside too.
+- **Live first.** A bundle is only used with no signal (or no answer in 4 seconds); the moment the server answers, the live page takes over, as with saved seasons.
+- **Kept tidy.** One bundle per event on the device. The Download page shows each one's data time, offers Update and Update all when newer data is out, and removes finished events' bundles in one tap.
+- **Owner switch.** The owner console's Features tab has an Event-day bundles toggle; off (or with offline packs paused) the builder hides and new bundles are refused, while bundles already on a phone keep working.
+
 ## 1.6.0 — 2026-10-31
 
 Every prediction now opens up into its full why: each factor behind the call, with how much of it that factor carries.
@@ -76,24 +92,6 @@ A rules quick reference for the question box: the most-cited BIOBUZZ rules and Q
 - **Search that works offline.** Type a rule number (G421, g 421, G-421) or a word (pin, opponent nectar, question box); it runs in the browser over the copy built into the app, so it answers at a venue with no signal.
 - **Q&A rulings, labelled unofficial guidance.** 23 answered Q&A questions, summarised, each linked from the rules it is about.
 - **Stamped and honest.** The page names the manual revision and date it follows and says plainly that these are unofficial summaries, with links to the official manual and Q&A (#354).
-=======
-## 1.5.7 — 2026-10-31
-
-One tap before you leave for the venue saves the whole event on your phone: the schedule, rankings, your match reports and your pick list, each saying what time it's from (#361).
-
-### Highlights
-- [offline] Event-day bundle: one small download per event, its size on the button
-- [report] Your matches' Know your match reports, frozen for when there's no signal
-- [picklist] Your pick list too, clearly marked "Snapshot from 07:12, may be stale"
-- [offline] No signal? The event page answers from it; live wins again
-
-### Event-day bundle
-- **One tap, one download.** The Download page builds a bundle for your event (your team's events and the ones you track are offered; every upcoming event page has an Event-day bundle button): the event's teams, schedule, rankings and predictions, the event teams' ratings so predictions still run on the phone, a Know your match report for each of your team's matches, your workspace's pick list (members only) and a venue card with the address and dates. A typical event is 15 to 35 KB.
-- **Honest about its age.** Everything from a bundle says what time its data is from and how old it is, and past two hours it tells you to check the live version first. The snapshots print their time inside too.
-- **Live first.** A bundle is only used with no signal (or no answer in 4 seconds); the moment the server answers, the live page takes over, as with saved seasons.
-- **Kept tidy.** One bundle per event on the device. The Download page shows each one's data time, offers Update and Update all when newer data is out, and removes finished events' bundles in one tap.
-- **Owner switch.** The owner console's Features tab has an Event-day bundles toggle; off (or with offline packs paused) the builder hides and new bundles are refused, while bundles already on a phone keep working.
->>>>>>> 18965ce7 (Release 1.5.5: event-day bundle; docs/event-bundle.md)
 
 ## 1.5.6 — 2026-10-30
 
