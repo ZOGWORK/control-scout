@@ -15,6 +15,36 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.8 — 2026-10-31
+
+The Playoffs tab now predicts the bracket: a call for every series, each alliance's odds of winning the event, and the match most likely to knock it out.
+
+### Highlights
+- [predict] Championship odds for every alliance once alliances are posted
+- [predict] Every playoff series shows its favourite and how likely it is to win
+- [predict] A danger match per alliance: the series it's most likely to lose
+- [live] The odds update after every playoff result
+
+### Playoffs
+- **Bracket predictor.** Each series card names the favourite and its chance, with the series score for best-of-3s. A series whose alliances aren't known yet shows who's likely to fill each side. Each alliance shows its odds of winning the event and reaching the final, and its danger match. Every number comes from the engine's own playoff-match predictions, run through the event's real bracket and the results posted so far (#356).
+- **Any format.** 2-alliance finals, 2023–24 semifinals and finals, and 4-, 6- and 8-alliance double-elimination brackets, read from what the event posted. For a format we can't map, each series still gets its own call.
+- **Measured.** Replayed on 10,598 past playoff series with only what was known before each one, the favourite won 77.9% (the higher seed: 71.7%), Brier 0.151, and the championship odds come out calibrated (docs/bracket-predictor.md).
+- **Clean states.** Before alliance selection, the tab says so. With alliances posted but no playoff schedule yet, a banner says the odds come from the alliances alone.
+## 1.5.7 — 2026-10-31
+
+A rules quick reference for the question box: the most-cited BIOBUZZ rules and Q&A rulings, searchable with no signal.
+
+### Highlights
+- [offline] Rules quick reference: search BIOBUZZ rules, even offline
+- [live] Penalties at a glance: minor, major and card for each rule
+- [report] Q&A rulings summarised next to the rules they answer
+
+### Rules quick reference
+- **New page: Rules.** In the menu under More, and a Rules button on every BIOBUZZ event page. The owner can switch it off (Features › Rules quick reference). It summarises 79 of the most-cited rules in our own words, grouped by manual section: fouls and cards, pre-match, AUTO, scoring elements, robot and opponent contact, humans, robot construction, and the question box itself.
+- **Search that works offline.** Type a rule number (G421, g 421, G-421) or a word (pin, opponent nectar, question box); it runs in the browser over the copy built into the app, so it answers at a venue with no signal.
+- **Q&A rulings, labelled unofficial guidance.** 23 answered Q&A questions, summarised, each linked from the rules it is about.
+- **Stamped and honest.** The page names the manual revision and date it follows and says plainly that these are unofficial summaries, with links to the official manual and Q&A (#354).
+
 ## 1.5.6 — 2026-10-30
 
 Something wrong in the scouting commons? Report it, or mute a workspace you don't want to see.

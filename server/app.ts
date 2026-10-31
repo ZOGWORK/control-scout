@@ -13,6 +13,7 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
 import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
+import { withBracketGate } from "./api/bracket.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips } from "./videos/recordings.js";
 
@@ -420,7 +421,7 @@ export function createApp(opts: { dist?: string } = {}) {
   api.get("/events/:season/:code", h(async (req, res) => {
     const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
     if (!cached) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
-    const d = await withStream(cached);
+    const d = await withBracketGate(await withStream(cached));
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;
@@ -435,7 +436,7 @@ export function createApp(opts: { dist?: string } = {}) {
     if (out.status === "not-live") throw new HttpError(409, "Only events that are on today (in their time zone) can be refreshed. Other events update with the regular sync.");
     const detail = await eventDetail(s, c);
     if (!detail) throw new HttpError(404, `No event ${c} in ${s}`);
-    return { outcome: out.status, message: refreshMessage(out), detail: await withStream(detail) };
+    return { outcome: out.status, message: refreshMessage(out), detail: await withBracketGate(await withStream(detail)) };
   }));
 
   api.get("/events/:season/:code/matches/:key", h(async (req) => {
