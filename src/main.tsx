@@ -67,6 +67,7 @@ const PAGES = {
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
   FaqPage: lazyPage(() => import("./pages/FaqPage")),
+  RulesPage: lazyPage(() => import("./pages/RulesPage")),
   MatchReportPage: lazyPage(() => import("./pages/MatchReportPage")),
   PowerRankingsPage: lazyPage(() => import("./pages/PowerRankingsPage")),
   EventDisplayPage: lazyPage(() => import("./pages/EventDisplayPage")),
@@ -75,7 +76,7 @@ const PAGES = {
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, FaqPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, DigestUnsubscribedPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, DigestUnsubscribedPage, NotFound } = PAGES;
 
 // Offline: the service worker precaches the app so it opens with no signal.
 // Production builds only (dev serves unbundled modules).
@@ -167,6 +168,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/terms" element={<TermsPage />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/faq" element={<FaqPage />} />
+                  <Route path="/rules" element={<RulesPage />} />
                   <Route path="/power-rankings" element={<PowerRankingsPage />} />
                   <Route path="/power-rankings/:week" element={<PowerRankingsPage />} />
                   <Route path="/digest/unsubscribed" element={<DigestUnsubscribedPage />} />

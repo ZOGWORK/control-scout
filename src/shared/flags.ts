@@ -7,7 +7,7 @@
 // The server reads them through server/flags.ts (cached for a few seconds), the app through GET /api/flags.
 
 export const FLAGS = [
-  "livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons",
+  "livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "rulesReference",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -30,6 +30,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   discordBot: { group: "feature", scope: "global" },
   workspaceScouting: { group: "feature", scope: "workspace" },
   scoutingCommons: { group: "feature", scope: "workspace" },
+  rulesReference: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
   photos: { group: "kill", scope: "global" },
@@ -60,6 +61,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   coinFlips: "Coin flips are switched off for now.",
   offlinePacks: "Offline packs are paused right now. Packs already on this device keep working.",
   discordBot: "The Discord bot is turned off by the owner for now.",
+  rulesReference: "The rules quick reference is switched off for now. Check the official game manual instead.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
   scoutingCommons: "The scouting commons is switched off for now. Your workspace's own scouting carries on as normal.",
 };
@@ -110,6 +112,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Error reports",
     on: "The app offers to report crashes, and Settings has a bug report box.",
     off: "The app stops asking, and any report that still arrives is accepted and dropped.",
+  },
+  rulesReference: {
+    label: "Rules quick reference",
+    on: "The Rules page (summaries of the season's most-cited game rules and Q&A rulings, searchable offline) is in the menu and on every event page of a season it covers.",
+    off: "The menu row and the event pages' Rules button disappear, and the page says it's switched off. A device that has been offline since before the switch keeps its copy until it's back online.",
   },
   offlinePacks: {
     label: "Offline pack auto-updates",
