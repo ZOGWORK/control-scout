@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.5.9 — 2026-10-31
+## 1.6.0 — 2026-10-31
 
 Every event's rankings get a Schedule column: how strong each team's opponents and partners are next to the rest of the field.
 
@@ -33,6 +33,20 @@ Every event's rankings get a Schedule column: how strong each team's opponents a
 - **Offline and for other features.** Season packs carry it as a team stat, and the event and team API answers include it.
 - **Tidier Rankings tab.** Model vs field starts folded to one line with its count of gaps; tap it to open. On a phone, the standings table shows team numbers only, and a tap on a number gives the name and a link to the team page.
 - **An owner switch.** The owner console's Features tab has a Schedule difficulty toggle: off hides it on event and team pages and leaves it out of the event and team answers.
+
+## 1.5.9 — 2026-10-31
+
+My teams cards fold away: tap a team's number and name to hide the rest of its card.
+
+### Highlights
+
+- [teams] Tap a team on My teams to fold its card down to the header
+- [teams] Folded teams stay folded on this device, each one separately
+- [speed] A folded team skips loading its matches until you open it
+
+### Teams
+
+- My teams: each team's number and name is now a button that folds its card to the header (number, name, workspace, season, Full team page) and opens it again, with a chevron that turns; remembered per team on this device (#362)
 
 ## 1.5.8 — 2026-10-31
 
