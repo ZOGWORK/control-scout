@@ -80,7 +80,9 @@ for (const season of seasons) {
         return { p: x.winProbA, tier: x.confidence.tier };
       };
       const strength = (team: number) => (book.ratings.has(team) ? book.allianceExpectation([team], "playoff").np : null);
-      const posted = k.playoffs.map((m) => toBracket(m, m.time < t));
+      // What was posted by then: results of earlier matches, and the line-up of the series starting now. Later
+      // series' line-ups weren't known yet (they name who got there), so they're left out.
+      const posted = k.playoffs.filter((m) => m.time < t || m.series === k.series || m.time === t).map((m) => toBracket(m, m.time < t));
       const o = bracketOdds({ season, alliances: k.alliances, matches: posted, price, strength, runs, seed: textSeed(`${season}|${k.ev.code}|${t}`) });
       // The series starting now: its call, against who really won it.
       const view = o.series.find((s) => s.series === k.series && !s.skipped);

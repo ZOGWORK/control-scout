@@ -47,7 +47,10 @@ export function eventBracket(season: number, code: string, f: ScoutForecaster | 
   if (!alliances.length) return null;
   const posted = bracketMatches(matches);
   const state = bracketStateKey(alliances, posted);
-  const key = `${season}|${code}|${ratings}|${state}`;
+  // Cached by the whole posted schedule too (series numbers and line-ups of unplayed matches shape the bracket);
+  // the seed stays on the results alone.
+  const schedule = JSON.stringify(posted.map((m) => [m.series, m.number, m.red, m.blue]).sort((x, y) => (x[0] as number) - (y[0] as number) || (x[1] as number) - (y[1] as number)));
+  const key = `${season}|${code}|${ratings}|${state}|${schedule}`;
   if (cache.has(key)) return cache.get(key)!;
   const strength = new Map(field.map((r) => [r.team, r.rating?.np ?? null]));
   const odds = bracketOdds({

@@ -85,7 +85,8 @@ export interface BracketAllianceOdds {
   pChampion: number;
   /** P(plays in the final). */
   pFinal: number;
-  /** Its toughest likely series still to play: where it most often loses, the opponent there and its chance to win it if they meet. */
+  /** Its toughest likely series still to play: where it most often loses (over every opponent there), its likeliest
+   *  opponent in it, how often it plays that series, and its chance to win the series when it does. */
   danger: { index: number; label: string; opponent: number; pMeet: number; pWin: number } | null;
 }
 
@@ -341,11 +342,12 @@ export function bracketOdds(input: BracketInput): BracketOdds {
     const status = resolved.champion === n ? "champion" : resolved.alive.has(n) ? "alive" : "out";
     let danger: BracketAllianceOdds["danger"] = null;
     if (status === "alive") {
+      // The series it loses most often, over every opponent it can meet there; then its likeliest opponent in it.
       let best = 0;
       meet.get(n)!.forEach((m, k) => {
-        for (const [opp, [met, lost]] of m) {
-          if (lost / runs > best) { best = lost / runs; danger = { index: k + 1, label: shape.nodes[k].label, opponent: opp, pMeet: met / runs, pWin: 1 - lost / met }; }
-        }
+        let met = 0, lost = 0, opp = 0, oppMet = 0;
+        for (const [o, [c, l]] of m) { met += c; lost += l; if (c > oppMet || (c === oppMet && o < opp)) { opp = o; oppMet = c; } }
+        if (lost > best) { best = lost; danger = { index: k + 1, label: shape.nodes[k].label, opponent: opp, pMeet: met / runs, pWin: 1 - lost / met }; }
       });
     }
     return {
