@@ -36,7 +36,7 @@ export const isFeatureDisabled = (e: unknown, feature?: string): boolean => {
 export const isAccessDenied = (e: unknown): boolean => (e as { status?: unknown } | null)?.status === 403 && !isFeatureDisabled(e);
 
 /** The reads a saved season can answer (see lib/offline). */
-const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search)(\?|$)/;
+const OFFLINE_PATHS = /^\/api\/(teams\/\d+(\/matches|\/schedule)?|events\/\d{4}\/[^/?]+|projections\/\d{4}\/[^/?]+|search)(\?|$)/;
 /** The read the lite pack can answer (the Predict page runs the engine on it: PredictPage's useOfflineFallback). */
 const PACK_PREDICT_PATH = /^\/api\/predict\/match(\?|$)/;
 /** No answer in this long, for a read this device could answer itself: treat it as no signal. */

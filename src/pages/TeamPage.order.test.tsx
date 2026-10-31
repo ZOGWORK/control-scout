@@ -129,6 +129,18 @@ describe("collapsed sections", () => {
     expect([...asked].some((x) => x.includes("/schedule"))).toBe(false);
   });
 
+  it("start closed and unasked again on another season, even one opened before", () => {
+    current = profile([EVENT]);
+    const { rerender } = mount();
+    fireEvent.click(fold("Prediction report card"));
+    fireEvent.click(fold("Prediction report card")); // opened once, then closed
+    current = { ...profile([{ ...EVENT, season: 2024 }]), season: 2024 } as TeamProfile;
+    asked.clear();
+    rerender(<TooltipProvider><MemoryRouter initialEntries={["/teams/4215"]}><Routes><Route path="/teams/:number" element={<TeamPage />} /></Routes></MemoryRouter></TooltipProvider>);
+    for (const name of FOLDED) expect(fold(name).getAttribute("aria-expanded")).toBe("false");
+    expect(sectionAsks()).toEqual([]);
+  });
+
   it("opens the section a link points at", () => {
     current = profile([EVENT]);
     mount("/teams/4215#schedule-difficulty");

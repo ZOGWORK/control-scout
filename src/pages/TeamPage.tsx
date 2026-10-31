@@ -1,7 +1,7 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
@@ -93,10 +93,12 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
             <OprSection p={p} />
             <TrendChart events={p.events} season={p.season} />
           </div>
-          {/* Closed at first, each asked for (or drawn) only when opened. */}
-          {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
-          {predictable && <ReportCardSection team={p.team.number} season={p.season} />}
-          {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
+          {/* Closed at first, each asked for (or drawn) only when opened; closed again for another team or season. */}
+          <Fragment key={`${p.team.number}-${p.season}`}>
+            {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
+            {predictable && <ReportCardSection team={p.team.number} season={p.season} />}
+            {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
+          </Fragment>
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
             <Section title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
