@@ -10,7 +10,7 @@ import { teamPageSql } from "../src/shared/teamPages.js";
 
 // /teams is the team directory and stats tables, /matches the match records (both RecordsPage). /records only
 // redirects to /teams, so it's left out.
-const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact", "/faq"];
+const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact", "/faq", "/rules"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }

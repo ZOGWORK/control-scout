@@ -17,6 +17,8 @@ import { ownerRouter } from "./portal/routes";
 import { publishNow, autoPowerRankingsTick } from "./powerRankings/auto";
 import { dailyRefreshTick } from "./powerRankings/refresh";
 import { invalidateGenerated } from "./powerRankings/generated";
+import { withBracketGate } from "./api/bracket";
+import type { BracketOdds } from "../src/shared/bracketOdds";
 
 let server: Server;
 let base = "";
@@ -103,11 +105,11 @@ beforeEach(async () => {
 });
 
 describe("the registry", () => {
-  it("has exactly the feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
+  it("has exactly the registered feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(16);
+    expect(FLAGS.length).toBe(18);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {
@@ -317,5 +319,25 @@ describe("GET /api/flags", () => {
     expect(r.headers.get("cache-control")).toBe("private, max-age=15");
     expect(r.json.workspaces).toBeUndefined(); // signed out: no workspaces of its own
     expect(r.json.flags.workspaceScouting).toBe(true);
+  });
+});
+
+describe("the bracket odds toggle", () => {
+  const odds = { format: "double", runs: 10, tier: "confident", series: [], alliances: [], note: null } as BracketOdds;
+  const detail = { event: { code: "USNJQ1" }, bracket: odds };
+
+  it("leaves the odds out of an event's detail while it's off, and never touches the shared copy", async () => {
+    await setFlag("bracketOdds", false, "owner@example.com");
+    const off = await withBracketGate(detail);
+    expect(off.bracket).toBeNull();
+    expect(off.event).toBe(detail.event);
+    expect(detail.bracket).toBe(odds);
+  });
+
+  it("keeps them while it's on (the default)", async () => {
+    expect(await withBracketGate(detail)).toBe(detail);
+    await setFlag("bracketOdds", false, "owner@example.com");
+    await setFlag("bracketOdds", true, "owner@example.com");
+    expect((await withBracketGate(detail)).bracket).toBe(odds);
   });
 });

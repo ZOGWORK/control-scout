@@ -3,7 +3,7 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Info, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, Loader2, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
 import { useProjections } from "../lib/projections";
@@ -38,6 +38,7 @@ import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
 import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
+import { hasRuleReference } from "../shared/rules/seasons";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
 import { HeaderActions } from "../components/EventActions";
 import { EventStatusChip, EventTypeChip } from "../components/EventChips";
@@ -48,6 +49,7 @@ import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
 import { hasTeamPage } from "../shared/teamPages";
+import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 
 export default function EventPage() {
   const { season, code } = useParams();
@@ -107,6 +109,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const livePanel = useRef<HTMLDivElement>(null);
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
   const oddsOn = useFlag("advancementOdds");
+  const rulesOn = useFlag("rulesReference");
   const oddsOpen = predictable && !d.forecastUnsupported;
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
   const slim = useArrivedOnTab(sp.has("tab") && validTab);
@@ -136,6 +139,8 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
         {predictable && <Button variant="outline" size="sm" asChild><Link to={labHref}>Open in what-if lab</Link></Button>}
         {/* A fullscreen screen for the pit TV: no sign-in, no chrome (pages/EventDisplayPage.tsx). Every season: history seasons show results and rankings without odds. */}
         <Button variant="outline" size="sm" asChild><Link to={`/events/${e.season}/${encodeURIComponent(e.code)}/display`} data-pit-display-link><Tv /> Pit display</Link></Button>
+        {/* The question-box quick reference for this season, where one exists (pages/RulesPage.tsx; built in, so it opens offline). */}
+        {rulesOn && hasRuleReference(e.season) && <Button variant="outline" size="sm" asChild><Link to={`/rules?season=${e.season}`} data-rules-link><Gavel /> Rules</Link></Button>}
       </HeaderActions>
       {/* Before FIRST posts the event: the regional site's hosts, times and format, labelled provisional. */}
       {d.provisional && <ProvisionalDetails p={d.provisional} />}
@@ -644,51 +649,69 @@ function Playoffs({ d }: { d: EventDetail }) {
   const al = d.alliances;
   if (!al.length) return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches." />;
   const playoff = d.matches.filter((m) => m.level === "playoff");
-  const bracket = BRACKETS[al.length];
   const bySeries = new Map<number, MatchView[]>();
   for (const m of playoff) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
-  const allianceOf = (teams: number[]) => al.find((a) => [a.captain, a.pick1, a.pick2, a.backup].some((t) => t && teams.includes(t)))?.number;
+  // The owner's bracketOdds toggle: off shows the bracket and results without odds (the server leaves them out too).
+  const bracketOn = useFlag("bracketOdds");
+  const bracket = bracketOn ? d.bracket ?? null : null;
+  const oddsBy = new Map((bracket?.alliances ?? []).map((o) => [o.alliance, o]));
   return (
     <div className="space-y-6 max-sm:space-y-4">
       {/* The tab's heading for screen readers (named like the tab): the bracket's h3 and the match list's sit under it.
           Absolutely placed, so the stack's spacing doesn't change. */}
       <h2 className="sr-only">Playoffs</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {al.map((a) => (
-          <div key={a.number} className="rounded-xl border border-border bg-card p-4">
-            <p className="text-xs text-muted-foreground">Alliance {a.number}</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {[a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null).map((t, i) => (
-                <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink" : "bg-muted")}>{t}</TeamPageLink>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      {bracket ? (
-        <div>
-          <h3 className="mb-3 text-base font-semibold">Double-elimination bracket</h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {bracket.matches.map((bm, i) => {
-              const ms = bySeries.get(i + 1) ?? [];
-              const last = ms.filter((m) => m.played).at(-1);
-              const winnerAl = last && last.red.score && last.blue.score ? allianceOf((last.red.score.total > last.blue.score.total ? last.red : last.blue).teams.map((t) => t.number)) : null;
-              const isFinal = i === bracket.matches.length - 1;
-              return (
-                <div key={i} className={cn("rounded-xl border border-border bg-card p-3", isFinal && "border-accent/40")}>
-                  <p className="text-xs font-medium text-muted-foreground">M{i + 1}{isFinal ? " · Grand final" : ""}</p>
-                  <p className="mt-1 text-sm">{slotLabel(bm.red)} <span className="text-muted-foreground">vs</span> {slotLabel(bm.blue)}</p>
-                  {ms.length ? ms.map((m) => (
-                    <p key={m.key} className="mt-1 text-xs tabular-nums text-muted-foreground">{m.label}: {m.played && m.red.score && m.blue.score ? <><span className="text-red-alliance">{m.red.score.total}</span>–<span className="text-blue-alliance">{m.blue.score.total}</span></> : "not played yet"}</p>
-                  )) : <p className="mt-1 text-xs text-muted-foreground">Not scheduled yet</p>}
-                  {winnerAl && <Badge variant="soft" className="mt-2"><Trophy /> Alliance {winnerAl}</Badge>}
-                </div>
-              );
-            })}
-          </div>
+      {bracket && !playoff.length && (
+        <p className="rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-sm">Alliances are set; the playoff schedule isn't posted yet. The odds below come from the alliances alone and update after every series.</p>
+      )}
+      <div className="space-y-3">
+        {bracket && bracket.alliances.length > 0 && <OddsHeading bracket={bracket} />}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {al.map((a) => (
+            <AllianceOddsCard key={a.number} odds={oddsBy.get(a.number)}>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">{bracket ? <AllianceChip alliance={a.number} /> : null}Alliance {a.number}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {[a.captain, a.pick1, a.pick2, a.backup].filter((t): t is number => t != null).map((t, i) => (
+                  <TeamPageLink key={t} team={t} name={d.field.find((f) => f.team === t)?.name} season={d.event.season} className={cn("rounded-md px-2 py-0.5 font-mono text-sm", i === 0 ? "bg-accent text-accent-ink" : "bg-muted")}>{t}</TeamPageLink>
+                ))}
+              </div>
+            </AllianceOddsCard>
+          ))}
         </div>
-      ) : null}
+        {bracket && <BracketAccuracyNote />}
+      </div>
+      {bracket ? <BracketSeries bracket={bracket} bySeries={bySeries} /> : <LegacyBracket d={d} bySeries={bySeries} />}
       <MatchList matches={playoff} empty="No playoff matches yet." />
+    </div>
+  );
+}
+
+/** The bracket without odds (a server or saved pack from before the predictor, or a season without predictions). */
+function LegacyBracket({ d, bySeries }: { d: EventDetail; bySeries: Map<number, MatchView[]> }) {
+  const al = d.alliances;
+  const bracket = BRACKETS[al.length];
+  if (!bracket) return null;
+  const allianceOf = (teams: number[]) => al.find((a) => [a.captain, a.pick1, a.pick2, a.backup].some((t) => t && teams.includes(t)))?.number;
+  return (
+    <div>
+      <h3 className="mb-3 text-base font-semibold">Double-elimination bracket</h3>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {bracket.matches.map((bm, i) => {
+          const ms = bySeries.get(i + 1) ?? [];
+          const last = ms.filter((m) => m.played).at(-1);
+          const winnerAl = last && last.red.score && last.blue.score ? allianceOf((last.red.score.total > last.blue.score.total ? last.red : last.blue).teams.map((t) => t.number)) : null;
+          const isFinal = i === bracket.matches.length - 1;
+          return (
+            <div key={i} className={cn("rounded-xl border border-border bg-card p-3", isFinal && "border-accent/40")}>
+              <p className="text-xs font-medium text-muted-foreground">M{i + 1}{isFinal ? " · Grand final" : ""}</p>
+              <p className="mt-1 text-sm">{slotLabel(bm.red)} <span className="text-muted-foreground">vs</span> {slotLabel(bm.blue)}</p>
+              {ms.length ? ms.map((m) => (
+                <p key={m.key} className="mt-1 text-xs tabular-nums text-muted-foreground">{m.label}: {m.played && m.red.score && m.blue.score ? <><span className="text-red-alliance">{m.red.score.total}</span>–<span className="text-blue-alliance">{m.blue.score.total}</span></> : "not played yet"}</p>
+              )) : <p className="mt-1 text-xs text-muted-foreground">Not scheduled yet</p>}
+              {winnerAl && <Badge variant="soft" className="mt-2"><Trophy /> Alliance {winnerAl}</Badge>}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "1.5.7",
+  "version": "1.5.9",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -36,6 +36,7 @@
     "slices": "tsx scripts/engine-slices.ts",
     "projections": "tsx scripts/projections.ts",
     "projections:replay": "tsx scripts/projections-replay.ts",
+    "bracket:replay": "tsx scripts/bracket-replay.ts",
     "shots": "tsx scripts/shots.ts",
     "audit": "tsx scripts/audit.ts",
     "audit:flows": "tsx scripts/audit-flows.ts",
