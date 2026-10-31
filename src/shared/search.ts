@@ -15,3 +15,6 @@ export function hitHref(h: SearchHit): string {
   const [s, c, level, series, number] = h.ref.split(":");
   return `/events/${s}/${c}?match=${level}:${series}:${number}`;
 }
+
+/** The id of /search's first-paint JSON block: the query and the hits the server listed (server/seoMeta.ts). */
+export const SEARCH_HITS_ID = "cs-search-hits";

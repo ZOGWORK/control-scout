@@ -17,10 +17,11 @@ export type HitKind = SearchHit["kind"];
 
 export { hitHref } from "../../shared/search";
 
-/** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches. */
-export function useSearchHits(q: string, kinds?: HitKind[], limit = 15) {
+/** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches.
+ *  `initial`: results already on screen (the server's, on /search), shown while the first request refreshes them. */
+export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null) {
   // Results remember the query they answer, so a pick can never come from a previous query.
-  const [res, setRes] = useState<{ q: string; hits: SearchHit[] }>({ q: "", hits: [] });
+  const [res, setRes] = useState<{ q: string; hits: SearchHit[] }>(() => initial ?? { q: "", hits: [] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);

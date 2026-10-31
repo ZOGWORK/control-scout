@@ -27,8 +27,9 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { TrackRecord } from "../src/shared/api.js";
-import { search } from "./api/search.js";
-import { SEARCH_GROUPS, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
+import { ensureSearchIndex, search } from "./api/search.js";
+import { rebuildSearch } from "./stats/job.js";
+import { SEARCH_GROUPS, SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -426,11 +427,14 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
 /**
  * /search?q=…: where the address bar's search lands (server/openSearch.ts). The results are in the first paint as
  * plain links, grouped as the app lists them (src/pages/SearchPage.tsx), so a visit shows them before the app has
- * loaded (or without JavaScript). Never indexed: a results page isn't content of its own.
+ * loaded (or without JavaScript), and as data the app starts from (src/lib/searchBoot.ts). Kept out of search
+ * engines by robots.txt (a noindex tag here would stay in the head after a click through to a result).
  */
 async function searchMeta(raw: string): Promise<PageMeta> {
   const q = raw.trim().slice(0, 80);
-  if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website", noindex: true };
+  if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website" };
+  // The same readiness check as /api/search (typo matches on an upgraded database).
+  await ensureSearchIndex(rebuildSearch);
   const hits = await search(q, SEARCH_PAGE_LIMIT);
   const body = hits.length
     ? SEARCH_GROUPS.map(([kind, name]) => {
@@ -438,9 +442,10 @@ async function searchMeta(raw: string): Promise<PageMeta> {
       return hs.length ? `<h2>${name} <small>${hs.length}</small></h2><ul>${hs.map((h) => `<li><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}</li>`).join("")}</ul>` : "";
     }).join("")
     : `<p>Nothing matches “${esc(q)}”.</p>`;
+  const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ q, hits }).replace(/</g, "\\u003c")}</script>`;
   const n = hits.length;
   return {
-    title: `Search: ${q}`, heading: `Results for “${q}”`, type: "website", noindex: true, bodyHtml: body,
+    title: `Search: ${q}`, heading: `Results for “${q}”`, type: "website", bodyHtml: body + data,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

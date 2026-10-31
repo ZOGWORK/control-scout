@@ -26,6 +26,8 @@ import { isBareRoute, pageModule, type PageModule } from "./shared/routes";
 import { APP_CSS_ID } from "./shared/boot";
 import { installPrefetch } from "./lib/prefetch";
 import { MotionFeatures } from "./components/motion";
+// Read /search's first-paint results now, before the first render replaces them.
+import "./lib/searchBoot";
 
 /** A lazily loaded page that can also be loaded ahead of its first render: once loaded,
  *  it renders straight away (React.lazy would still suspend for one round). */

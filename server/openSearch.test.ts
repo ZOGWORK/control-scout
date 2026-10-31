@@ -59,7 +59,13 @@ describe("OpenSearch", () => {
     expect(r.status).toBe(200);
     const html = await r.text();
     expect(html).toContain("<title>Search: 4215 · Control Scout</title>");
-    expect(html).toContain('<meta name="robots" content="noindex"');
+    // Kept out of search engines by robots.txt, not a tag that would stay in the head after a click through.
+    expect(html).not.toContain('<meta name="robots"');
+    expect(readFileSync(join(process.cwd(), "public", "robots.txt"), "utf8")).toMatch(/^Disallow: \/search$/m);
+    // The hits as data too, for the app to start from (src/lib/searchBoot.ts).
+    const boot = JSON.parse(/<script type="application\/json" id="cs-search-hits">(.*?)<\/script>/.exec(html)![1]);
+    expect(boot.q).toBe("4215");
+    expect(boot.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     expect(html).toContain("Results for “4215”");
     expect(html).toContain('<a href="/teams/4215">4215 Hypnotic Robotics</a>');
     // The app's own route for it, so the page stays when the app takes over.
@@ -73,5 +79,6 @@ describe("OpenSearch", () => {
     const none = await (await fetch(`${base}/search?q=${encodeURIComponent("<zzqx>")}`)).text();
     expect(none).toContain("Nothing matches “&lt;zzqx&gt;”.");
     expect(none).not.toContain("<zzqx>");
+    expect(none).toContain('"q":"\\u003czzqx>"');
   });
 });

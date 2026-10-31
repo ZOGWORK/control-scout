@@ -1,11 +1,13 @@
 // /search?q=…: where the browser's address-bar search lands ("Press Tab to search Control Scout",
 // server/openSearch.ts). The same results as the header's box (useSearchHits, content only: teams, events,
 // matches and places), as a page of links. The server already lists them in the first paint (server/seoMeta.ts
-// searchMeta), and the query lives in the address, so a direct visit never waits on the header's state.
+// searchMeta) and hands them over (src/lib/searchBoot.ts), and the query lives in the address, so a direct
+// visit never waits on the header's state.
 import { Link, useSearchParams } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
 import { GROUPS, hitHref, useSearchHits } from "../components/search/SearchBox";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
+import { BOOT_HITS } from "../lib/searchBoot";
 import { useTitle, useMeta } from "../lib/meta";
 import { seasonLabel } from "../lib/format";
 import { cn } from "../components/cn";
@@ -14,7 +16,7 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, busy, error } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT);
+  const { hits, busy, error } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS);
   const meta = useMeta();
   useTitle(query ? `Search: ${query}` : "Search");
   // Typing replaces the address (no history entry per letter), so Back leaves the page.
