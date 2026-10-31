@@ -70,6 +70,18 @@ describe("FactorSheetPanel", () => {
     expect(screen.queryByText("Pointed right")).toBeNull();
   });
 
+  it("draws what the call leans on as one bar: each side's segments fill exactly its share", () => {
+    const { s } = sheet();
+    render(<FactorSheetPanel sheet={s} />);
+    const bar = within(screen.getByTestId("sheet-tug")).getByRole("img");
+    const widths = [...bar.children].map((c) => parseFloat((c as HTMLElement).style.width));
+    expect(widths.reduce((a, w) => a + w, 0)).toBeCloseTo(100, 6);
+    const lean = (side: string) => [...s.phases, ...s.model].filter((f) => f.favors === side).reduce((a, f) => a + f.weight, 0);
+    const blueShare = lean("B") / (lean("A") + lean("B"));
+    const blueSegs = [...bar.children].filter((c) => (c as HTMLElement).className.includes("bg-blue-alliance"));
+    expect(blueSegs.reduce((a, c) => a + parseFloat((c as HTMLElement).style.width), 0)).toBeCloseTo(blueShare * 100, 6);
+  });
+
   it("is hidden while the owner has the full why breakdown switched off", () => {
     flag.on = false;
     const { container } = render(<FactorSheetPanel sheet={sheet().s} winner="A" defaultOpen />);

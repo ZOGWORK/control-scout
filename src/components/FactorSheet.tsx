@@ -109,8 +109,10 @@ function TugOfWar({ sheet }: { sheet: FactorSheet }) {
         <span className="font-semibold text-blue-alliance">pulls for blue <span className="tabular-nums text-sm">{pctOf(sum(blue) / total)}</span></span>
       </div>
       <div className="mt-1.5 flex h-3 overflow-hidden rounded-full bg-muted" role="img" aria-label={`Factors leaning red carry ${pctOf(sum(red) / total)} of the call, blue ${pctOf(sum(blue) / total)}`}>
+        {/* Every segment sits in the track itself, its width its share of the whole: red's from the left, blue's
+            (largest last) reaching the right end. The two sides add up to the full bar. */}
         {red.map((f, i) => seg(f, i, "A"))}
-        <div className="flex flex-1 flex-row-reverse">{blue.map((f, i) => seg(f, i, "B"))}</div>
+        {[...blue].reverse().map((f, i) => seg(f, blue.length - 1 - i, "B"))}
       </div>
     </div>
   );
