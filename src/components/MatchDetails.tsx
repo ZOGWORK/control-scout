@@ -250,14 +250,14 @@ function BreakdownLine({ x, sheet }: { x: BreakdownRow; sheet: boolean }) {
     <li className={cn("px-3", sub ? "py-1.5 pl-6" : "py-2.5", x.total && "bg-text-base/[0.03]", !sub && sheet && !x.total && "bg-text-base/[0.02]")}
       title={x.note} data-depth={x.depth ?? 0} data-label={x.label} data-red={x.red ?? ""} data-blue={x.blue ?? ""}>
       {sub ? (
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_auto] sm:gap-3">
+        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_4.75rem] items-center gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_8.5rem] sm:gap-3">
           {label}
           <div className="space-y-0.5">{bar("red")}{bar("blue")}</div>
-          {chip}
+          <span className="justify-self-end">{chip}</span>
         </div>
       ) : (
         // Phone: name and lead on one line, the bars below. Wider: name, bars, lead in one line.
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[9.5rem_minmax(0,1fr)_auto]">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[9.5rem_minmax(0,1fr)_8.5rem]">
           {label}
           <span className="justify-self-end sm:col-start-3 sm:row-start-1">{chip}</span>
           <div className="col-span-2 space-y-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">{bar("red")}{bar("blue")}</div>
