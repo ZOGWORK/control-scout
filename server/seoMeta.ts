@@ -27,6 +27,8 @@ import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/p
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
 import type { TrackRecord } from "../src/shared/api.js";
+import { search } from "./api/search.js";
+import { SEARCH_GROUPS, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -421,6 +423,28 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
   return { title, description, type: "website", path, ...(list ? { jsonLd: list } : {}) };
 }
 
+/**
+ * /search?q=…: where the address bar's search lands (server/openSearch.ts). The results are in the first paint as
+ * plain links, grouped as the app lists them (src/pages/SearchPage.tsx), so a visit shows them before the app has
+ * loaded (or without JavaScript). Never indexed: a results page isn't content of its own.
+ */
+async function searchMeta(raw: string): Promise<PageMeta> {
+  const q = raw.trim().slice(0, 80);
+  if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website", noindex: true };
+  const hits = await search(q, SEARCH_PAGE_LIMIT);
+  const body = hits.length
+    ? SEARCH_GROUPS.map(([kind, name]) => {
+      const hs = hits.filter((h) => h.kind === kind);
+      return hs.length ? `<h2>${name} <small>${hs.length}</small></h2><ul>${hs.map((h) => `<li><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}</li>`).join("")}</ul>` : "";
+    }).join("")
+    : `<p>Nothing matches “${esc(q)}”.</p>`;
+  const n = hits.length;
+  return {
+    title: `Search: ${q}`, heading: `Results for “${q}”`, type: "website", noindex: true, bodyHtml: body,
+    description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
+  };
+}
+
 /** The head values for a page path: the page's own, the home ones when it has none, or notFound for no such page. */
 export async function pageMeta(path: string, query: Record<string, unknown> = {}): Promise<PageMeta> {
   // A shared matchup reads its parameters as text (/predict?…red=…&blue=…, /events/…?match=…).
@@ -456,6 +480,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: `/events/${Number(m[1])}/${m[2].toUpperCase()}`, jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
+    if (/^\/search$/i.test(p)) return await searchMeta(sp.get("q") ?? "");
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
     // Database not ready: the generic values, never a 404 (the page may well exist).

@@ -97,6 +97,7 @@ import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
 import { liteRouter, liteSwitch } from "./lite/routes.js";
+import { openSearchRoute } from "./openSearch.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -799,6 +800,8 @@ export function createApp(opts: { dist?: string } = {}) {
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));
   app.get("/sitemap-:n.xml", h(sitemapChunkRoute));
+  // The address-bar search descriptor (server/openSearch.ts).
+  app.get("/opensearch.xml", openSearchRoute);
   // /records was never a page: the records tables live at /teams (and /matches). Old links land there, query and all.
   app.get("/records", (req, res) => {
     const q = req.originalUrl.indexOf("?");

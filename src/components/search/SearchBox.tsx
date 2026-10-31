@@ -9,21 +9,16 @@ import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import type { SearchHit } from "../../shared/api";
+import { SEARCH_GROUPS } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
 
 export type HitKind = SearchHit["kind"];
 
-export function hitHref(h: SearchHit): string {
-  if (h.kind === "team") return `/teams/${h.ref}`;
-  if (h.kind === "event") { const [s, c] = h.ref.split(":"); return `/events/${s}/${c}`; }
-  if (h.kind === "place") return `/events?region=${encodeURIComponent(h.ref)}`;
-  const [s, c, level, series, number] = h.ref.split(":");
-  return `/events/${s}/${c}?match=${level}:${series}:${number}`;
-}
+export { hitHref } from "../../shared/search";
 
 /** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches. */
-export function useSearchHits(q: string, kinds?: HitKind[]) {
+export function useSearchHits(q: string, kinds?: HitKind[], limit = 15) {
   // Results remember the query they answer, so a pick can never come from a previous query.
   const [res, setRes] = useState<{ q: string; hits: SearchHit[] }>({ q: "", hits: [] });
   const [busy, setBusy] = useState(false);
@@ -44,18 +39,19 @@ export function useSearchHits(q: string, kinds?: HitKind[]) {
     setBusy(true);
     const t = setTimeout(() => {
       // A box limited to some kinds asks the server for only those, so other kinds (often teams) can't crowd its own out.
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=15${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : ""}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : ""}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
         .then((r) => { if (id === seq.current) { setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits }); setError(null); } })
         .catch((e) => { if (id === seq.current) { setRes({ q: query, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
         .finally(() => { if (id === seq.current) setBusy(false); });
     }, 140);
     return () => clearTimeout(t);
-  }, [q, prefer, kindKey]);
+  }, [q, prefer, kindKey, limit]);
   const current = res.q === q.trim();
   return { hits: current ? res.hits : [], busy: busy || (!!q.trim() && !current), error };
 }
 
-const GROUPS: [HitKind, string, typeof Users][] = [["place", "Places", MapPin], ["team", "Teams", Users], ["event", "Events", CalendarDays], ["match", "Matches", Swords]];
+const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event: CalendarDays, match: Swords };
+export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
 
 export interface SearchBoxProps {
   onPick: (h: SearchHit) => void;
