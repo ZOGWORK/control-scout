@@ -135,7 +135,7 @@ async function compute(scope: ConsensusScope, season: number, teams: number[]): 
  * The fields an entry was made with: its workspace template version (the entry's own workspace only), else the
  * built-in default of its season. Each version is read once per computation.
  */
-function fieldReader(workspaceId: string) {
+export function fieldReader(workspaceId: string) {
   const versions = new Map<string, Promise<Awaited<ReturnType<typeof templateVersion>>>>();
   return async (season: number, kind: TemplateKind, templateId: string | null, version: number): Promise<ScoutField[]> => {
     const ws = parseWorkspaceTemplateId(templateId);

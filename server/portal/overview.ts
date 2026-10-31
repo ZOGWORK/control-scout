@@ -99,6 +99,7 @@ export async function ownerOverview(now = Date.now()): Promise<OwnerOverview> {
   const personal = await count("SELECT COUNT(*) n FROM scout_entries WHERE deleted = 0");
   const workspaces = tables.has("workspaces") ? await count("SELECT COUNT(*) n FROM workspaces") : null;
   const orphanedWorkspaces = tables.has("workspaces") && tables.has("workspace_former_members") ? await count("SELECT COUNT(*) n FROM workspaces WHERE orphaned_at IS NOT NULL") : null;
+  const commonsReports = tables.has("commons_reports") ? await count("SELECT COUNT(DISTINCT workspace_id || ':' || entry_uuid) n FROM commons_reports WHERE resolved_at IS NULL") : null;
   const workspaceEntries = tables.has("workspace_scout_entries") ? await count("SELECT COUNT(*) n FROM workspace_scout_entries WHERE deleted = 0") : null;
   const [openFeedback, errorReports, unfiledErrors] = await Promise.all([
     count("SELECT COUNT(*) n FROM contact_messages WHERE status = 'open'"),
@@ -117,6 +118,7 @@ export async function ownerOverview(now = Date.now()): Promise<OwnerOverview> {
     controlPointLinked: linked,
     workspaces,
     orphanedWorkspaces,
+    commonsReports,
     scoutEntries: { personal, workspace: workspaceEntries },
     storage: { databaseBytes: await databaseBytes(), databaseLocal: !!localDbPath(), packsBytes: packs.bytes, packFiles: packs.files },
     inbox: { openFeedback, errorReports, unfiledErrors },

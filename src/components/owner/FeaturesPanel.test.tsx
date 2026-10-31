@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Owner console › Features: the feature toggles as cards (label, on/off, scope), the kill switches below,
+// Owner console › Features: exactly the feature toggles as cards (label, on/off, scope), the kill switches below,
 // a global flip that asks first (saying what turns off and that nothing is deleted) and sends {confirm: true}, and
 // a workspace's own setting that applies at once with a toast.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,6 +41,7 @@ describe("FeaturesPanel", () => {
     expect(within(ws).getByText("Per workspace", { selector: "span" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Kill switches" })).toBeTruthy();
     expect(screen.getByText(new RegExp(`1 of ${FEATURE_FLAGS.length} off right now`))).toBeTruthy();
+    expect(within(container.querySelector('li[data-flag="scoutingCommons"]') as HTMLElement).getByText("Scouting commons")).toBeTruthy();
   });
 
   it("a global flip asks first, says what turns off and that nothing is deleted, then sends confirm", async () => {
@@ -79,9 +80,10 @@ describe("FeaturesPanel", () => {
 
   it("searches the workspaces (each per-workspace flag has its own list)", () => {
     const { container } = render(<FeaturesPanel />);
+    // Each workspace-scoped toggle has its own list; this one is workspace scouting's.
     const card = within(container.querySelector('li[data-flag="workspaceScouting"]') as HTMLElement);
     fireEvent.change(card.getByPlaceholderText("Search workspaces"), { target: { value: "beta" } });
-    expect([...container.querySelectorAll('li[data-flag="workspaceScouting"] li[data-workspace]')].map((li) => li.getAttribute("data-workspace"))).toEqual(["ws-b"]);
+    expect([...(container.querySelector('li[data-flag="workspaceScouting"]') as HTMLElement).querySelectorAll("li[data-workspace]")].map((li) => li.getAttribute("data-workspace"))).toEqual(["ws-b"]);
     fireEvent.change(card.getByPlaceholderText("Search workspaces"), { target: { value: "zzz" } });
     expect(card.getByText(/No workspace matches/)).toBeTruthy();
   });

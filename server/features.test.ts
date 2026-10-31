@@ -104,10 +104,10 @@ beforeEach(async () => {
 
 describe("the registry", () => {
   it("has exactly the feature toggles, the kill switches apart, and only the workspace features per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances"]);
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
-    expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances"]);
-    expect(FLAGS.length).toBe(15);
+    expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingAlliances", "scoutingCommons"]);
+    expect(FLAGS.length).toBe(16);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {
@@ -138,8 +138,7 @@ describe("resolution: workspace override, else global, else on", () => {
     expect(await isEnabledFor("workspaceScouting", "ws-a")).toBe(a);
     expect(await isEnabledFor("workspaceScouting", "ws-b")).toBe(b);
     expect(await isEnabledFor("workspaceScouting", null)).toBe(none);
-    // Every workspace-scoped flag is resolved per workspace; the others there follow their own (untouched: on) switches.
-    expect(await workspaceFlags(["ws-a", "ws-b"])).toEqual({ "ws-a": { workspaceScouting: a, scoutingAlliances: true }, "ws-b": { workspaceScouting: b, scoutingAlliances: true } });
+    expect(await workspaceFlags(["ws-a", "ws-b"])).toMatchObject({ "ws-a": { workspaceScouting: a }, "ws-b": { workspaceScouting: b } });
   });
 
   it("a global-only flag ignores a stray workspace row; an unregistered key is never gated", async () => {

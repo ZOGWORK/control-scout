@@ -3,7 +3,7 @@
 Two workspaces link for one event. While linked they share a union of entries and assignments and one
 consensus; when the event ends they split again.
 
-- Server: `server/scout/alliances.ts` (table `scout_alliances`, migration 58), tests in `alliances.test.ts`.
+- Server: `server/scout/alliances.ts` (table `scout_alliances`, migration 60), tests in `alliances.test.ts`.
 - Shared types: `src/shared/alliances.ts`.
 - Consensus over the union: `consensusForScope` in `server/scout/consensus.ts`.
 
