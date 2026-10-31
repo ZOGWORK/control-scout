@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-// Scouting session setup: events on today first, then the account's team's, then by date; the suggested
-// event is chosen to start with but nothing is handed over until Start; the choices are radio groups.
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+// Scouting session setup: one event picker (a search box over a short list: events on today first, then the
+// account's team's, then by date). A pick folds it to a "Scouting at … · Change" row; the suggested event starts
+// folded, but nothing is handed over until Start; the choices are radio groups.
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EventListItem } from "../../../shared/api";
 
@@ -35,6 +36,9 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 const eventRadios = () => within(screen.getByRole("radiogroup", { name: "Where are you scouting?" })).getAllByRole("radio");
+const folded = (name: string) => screen.findByRole("group", { name: `Scouting at ${name}` });
+const change = () => fireEvent.click(screen.getByRole("button", { name: "Change event" }));
+const start = () => screen.getByRole("button", { name: /Start scouting/ }) as HTMLButtonElement;
 const names = () => eventRadios().map((r) => r.textContent?.split(/USNJ|USNY|USPA|Today/)[0]);
 
 describe("orderEvents", () => {
@@ -62,10 +66,14 @@ describe("SessionSetup", () => {
     expect(calls.some((c) => c.startsWith("/api/teams/4215"))).toBe(true);
   });
 
-  it("chooses the suggested event to start with but hands nothing over until Start", async () => {
+  it("chooses the suggested event to start with, folded, but hands nothing over until Start", async () => {
     const onStart = vi.fn();
     render(<SessionSetup season={2026} suggestedEvent="USNJQ3" onStart={onStart} />);
-    await waitFor(() => expect(eventRadios()).toHaveLength(4));
+    expect((await folded("NJ Qualifier 3")).textContent).toContain("USNJQ3");
+    expect(screen.queryByRole("radiogroup", { name: "Where are you scouting?" })).toBeNull();
+    expect(start().disabled).toBe(false);
+    expect(start().closest("[data-sticky-actions]")).toBeTruthy(); // pinned in reach
+    change();
     const q3 = eventRadios().find((r) => r.textContent?.includes("NJ Qualifier 3"))!;
     expect(q3.getAttribute("aria-checked")).toBe("true");
     expect(onStart).not.toHaveBeenCalled();
@@ -81,7 +89,7 @@ describe("SessionSetup", () => {
     await waitFor(() => expect(checked(/^Red 2$/)).toBe("true"));
     fireEvent.click(screen.getByRole("radio", { name: /^All 4 teams/ }));
     rerender(<SessionSetup season={2026} initial={at({ kind: "alliance", side: "blue" })} onStart={() => {}} />);
-    await waitFor(() => expect(eventRadios()).toHaveLength(4));
+    await folded("NJ Qualifier 3");
     expect(checked(/^All 4 teams/)).toBe("true"); // the scout's pick stays
   });
 
@@ -89,15 +97,19 @@ describe("SessionSetup", () => {
     const { rerender } = render(<SessionSetup season={2026} suggestedEvent={null} onStart={() => {}} />);
     await waitFor(() => expect(eventRadios()).toHaveLength(4));
     rerender(<SessionSetup season={2026} suggestedEvent="USNJQ3" onStart={() => {}} />);
-    await waitFor(() => expect(eventRadios().find((r) => r.textContent?.includes("NJ Qualifier 3"))!.getAttribute("aria-checked")).toBe("true"));
+    await folded("NJ Qualifier 3");
+    change();
     fireEvent.click(eventRadios()[0]);
+    await folded("NY Qualifier 1");
     rerender(<SessionSetup season={2026} suggestedEvent="USNJCMP" onStart={() => {}} />);
-    await waitFor(() => expect(eventRadios()).toHaveLength(4));
-    expect(eventRadios()[0].getAttribute("aria-checked")).toBe("true");
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(await folded("NY Qualifier 1")).toBeTruthy();
   });
 
   it("shows a suggested event that's already over first in the list, looked up by its code", async () => {
     render(<SessionSetup season={2026} suggestedEvent="usnjq1" onStart={() => {}} />);
+    await folded("NJ Qualifier 1");
+    change();
     await waitFor(() => expect(eventRadios()).toHaveLength(5));
     expect(eventRadios()[0].textContent).toContain("NJ Qualifier 1");
     expect(eventRadios()[0].getAttribute("aria-checked")).toBe("true");
@@ -107,8 +119,14 @@ describe("SessionSetup", () => {
     const onStart = vi.fn();
     render(<SessionSetup season={2026} onStart={onStart} />);
     await waitFor(() => expect(eventRadios()).toHaveLength(4));
-    expect((screen.getByRole("button", { name: /Start scouting/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(start().disabled).toBe(true);
+    expect(start().closest("[data-sticky-actions]")).toBeNull(); // nothing to pin yet
     fireEvent.click(eventRadios()[2]);
+    // The list folds to one row and the scout is moved on: focus lands on it, the picker is gone, Start is ready.
+    const row = await folded("NJ Qualifier 2");
+    expect(document.activeElement).toBe(row);
+    expect(screen.queryByRole("radiogroup", { name: "Where are you scouting?" })).toBeNull();
+    expect(start().disabled).toBe(false);
     fireEvent.click(screen.getByRole("radio", { name: /One team each match/ }));
     fireEvent.click(screen.getByRole("radio", { name: "Blue 2" }));
     expect(screen.getByRole("radio", { name: "Blue 2" }).getAttribute("aria-checked")).toBe("true");
@@ -119,7 +137,7 @@ describe("SessionSetup", () => {
   it("opens on a running session; the arrow keys move through the choices", async () => {
     const onStart = vi.fn();
     render(<SessionSetup season={2026} initial={{ eventCode: "USNYQ1", watching: { kind: "alliance", side: "blue" } }} onStart={onStart} onCancel={() => {}} />);
-    await waitFor(() => expect(eventRadios()).toHaveLength(4));
+    await folded("NY Qualifier 1");
     const alliance = screen.getByRole("radio", { name: /One alliance/ });
     expect(alliance.getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("radio", { name: "Blue" }).getAttribute("aria-checked")).toBe("true");
@@ -132,6 +150,8 @@ describe("SessionSetup", () => {
     expect(screen.queryByRole("radio", { name: "Blue" })).toBeNull();
     fireEvent.click(all); // choosing it again keeps it chosen
     expect(all.getAttribute("aria-checked")).toBe("true");
+    change();
+    await waitFor(() => expect(eventRadios()).toHaveLength(4));
     fireEvent.click(eventRadios()[1]);
     fireEvent.click(screen.getByRole("button", { name: /Start scouting/ }));
     expect(onStart).toHaveBeenCalledWith("USNJQ3", { kind: "all" });
@@ -142,13 +162,32 @@ describe("SessionSetup", () => {
     const onStart = vi.fn();
     render(<SessionSetup season={2026} onStart={onStart} />);
     await waitFor(() => expect(eventRadios()).toHaveLength(4));
-    fireEvent.change(screen.getByLabelText("Search all events"), { target: { value: "phila" } });
+    // One picker: the search box sits on top of the list, and filters it.
+    const box = screen.getByRole("searchbox", { name: "Search events" });
+    expect(box.compareDocumentPosition(screen.getByRole("radiogroup", { name: "Where are you scouting?" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(box, { target: { value: "phila" } });
     await waitFor(() => expect(names()).toEqual(["Philadelphia Qualifier"]));
     expect(screen.getByRole("status").textContent).toBe("1 event found");
     fireEvent.click(eventRadios()[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    await folded("Philadelphia Qualifier");
+    change();
+    const again = screen.getByRole("searchbox", { name: "Search events" }) as HTMLInputElement;
+    expect(again.value).toBe(""); // the search is cleared
+    await waitFor(() => expect(document.activeElement).toBe(again));
     expect(eventRadios()).toHaveLength(5); // the chosen event stays on screen, first
-    fireEvent.click(screen.getByRole("button", { name: /Start scouting/ }));
+    expect(eventRadios()[0].textContent).toContain("Philadelphia Qualifier");
+    fireEvent.click(screen.getByRole("button", { name: "Keep USPAQ1" }));
+    await folded("Philadelphia Qualifier");
+    fireEvent.click(start());
     expect(onStart).toHaveBeenCalledWith("USPAQ1", { kind: "alliance", side: "red" });
+  });
+
+  it("tapping the event already chosen folds the picker again", async () => {
+    render(<SessionSetup season={2026} suggestedEvent="USNJQ3" onStart={() => {}} />);
+    await folded("NJ Qualifier 3");
+    change();
+    await waitFor(() => expect(eventRadios()).toHaveLength(4));
+    fireEvent.click(eventRadios().find((r) => r.getAttribute("aria-checked") === "true")!);
+    expect(await folded("NJ Qualifier 3")).toBeTruthy();
   });
 });

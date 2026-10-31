@@ -1,4 +1,4 @@
-// The Scout page's Match tab: the session's event, its schedule, and one match at a time for the teams this
+// The Scout page's Scout tab: the session's event, its schedule, and one match at a time for the teams this
 // scout watches (team tabs, one phase at a time, the match timer), saved as one entry per team with one Save
 // that moves on to the next match. The pieces are the redesign's own (MatchHeader, TeamTabs, PhaseForm,
 // SaveMatchBar, useMatchDraft); this joins them to the page's state.
@@ -116,7 +116,7 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   );
 }
 
-/** The Matches tab: every match at the session's event with how far this scout is, from the same schedule and entries. */
+/** The match list (under "All matches" on the Scout tab, beside the match on wide screens): every match at the session's event with how far this scout is, from the same schedule and entries. */
 export function MatchesTab({ season, session, entries, matchLabel, onMatch, onManual, assignments, me }: Pick<MatchScoutProps, "season" | "session" | "entries" | "matchLabel" | "onMatch" | "onManual"> & {
   /** A workspace's match assignments (useMatchAssignments): each row says who has the other teams. */
   assignments?: readonly MatchAssignment[];

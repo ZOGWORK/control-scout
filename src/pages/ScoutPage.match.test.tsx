@@ -3,7 +3,7 @@
 // next match from the schedule, both alliance teams as tabs, and one Save makes one entry per team at that
 // event and match, then moves to the next match. Data still holds the entry list.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { localScoutEntries, saveScoutEntry } from "../lib/scouting";
 import { writeScoutSession } from "../lib/scoutSession";
@@ -122,7 +122,32 @@ describe("the Match tab", () => {
     writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
     show("/scout?season=2025&view=recordings");
     fireEvent.click(await screen.findByRole("button", { name: /Change event or teams/ }));
-    expect(await screen.findByText("Where are you scouting?")).toBeTruthy();
+    // The running session's event, folded to one row, with Start in reach.
+    expect(await screen.findByRole("group", { name: /^Scouting at / })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Start scouting/ })).toBeTruthy();
+  });
+
+  it("one Scout tab: All matches shows the event's match list in place of the match, and a match opens it again", async () => {
+    writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    show("/scout?season=2025");
+    expect(within(screen.getByRole("tablist", { name: "Scout sections" })).getAllByRole("tab").map((t) => t.textContent)).toEqual(["Scout", "Data"]);
+    expect(await screen.findByRole("button", { name: /Save Q1/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /All matches/ }));
+    await waitFor(() => expect(param("list")).toBe("1"));
+    const list = await screen.findByRole("region", { name: "Matches at this event" });
+    fireEvent.click(within(within(list).getByRole("list", { name: "Matches" })).getAllByRole("button")[1]);
+    await waitFor(() => expect(param("list")).toBeNull());
+    expect(param("at")).toBe("Q2");
+    expect(await screen.findByRole("button", { name: /Save Q2/ })).toBeTruthy();
+  });
+
+  it("an old ?tab=matches link opens Scout with the match list", async () => {
+    writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    show("/scout?season=2025&tab=matches");
+    expect(await screen.findByRole("region", { name: "Matches at this event" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Scout" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: /Back to the match/ }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Matches at this event" })).toBeNull());
   });
 
   it("Pit scouting starts a new pit entry, never the edit still named in the URL", async () => {
