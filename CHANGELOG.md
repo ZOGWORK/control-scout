@@ -28,7 +28,7 @@ The Scout page's Data tab is sorted into a few large cards instead of one long l
 - **Grouped cards.** The Data tab's nine rows are now three groups. "Your data" holds Entries, Pit scouting and Match recordings; "Team planning" (workspaces only) holds Pick list, Assignments and Scouting alliance. Entries and Pick list are the wide cards, first in their group. On a phone the wide card fills the row and the others sit two to a row.
 - **One fact per card.** Each card shows a count it already has: entries in the season, pit progress at the session's event (or robots written up), videos on this device, and assignments open for you.
 - **Empty says what to do.** A card with nothing in it yet says how to start rather than showing 0, and the empty Entries card has a Start scouting button that opens the Match tab. A read-only workspace shows no button.
-- **Manage, kept quiet.** Activity, Template (admins) and Export CSV are plain buttons at the bottom. Export CSV still carries the entry list's filters. Every view the old list opened is still there.
+- **Manage, kept quiet.** Activity, Template (admins) and Export CSV are plain buttons at the bottom. Export CSV still carries the entry list's filters. Every view the old list opened is still there (#370).
 
 ## 1.7.0 — 2026-10-31
 
