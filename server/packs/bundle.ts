@@ -58,9 +58,10 @@ function venueOf(ev: EventDetail): VenueCard {
     start: e.start, end: e.end, timezone: e.timezone, website: e.website, livestream: e.livestream };
 }
 
-function section(id: BundleSectionId, label: string, value: unknown, items: number, note: string | null = null): BundleSection {
+/** `value` is what the version hashes; `stored` (default: the same) is what ships, whose size the manifest shows. */
+function section(id: BundleSectionId, label: string, value: unknown, items: number, note: string | null = null, stored: unknown = value): BundleSection {
   const text = stableJson(value ?? null);
-  return { id, label, version: sha(text).slice(0, 10), bytes: Buffer.byteLength(text), items, note };
+  return { id, label, version: sha(text).slice(0, 10), bytes: Buffer.byteLength(JSON.stringify(stored ?? null)), items, note };
 }
 
 /** Build one bundle (access to the workspace already checked). Null: no such event. */
@@ -116,8 +117,8 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     // The book's clock (`now`) moves with every build; the ratings themselves only with new results.
     section("ratings", "Ratings for offline predictions", ratings && { ...ratings, now: 0 }, ratings?.ratings.length ?? 0, ratings ? null : "No ratings for this season yet."),
     section("reports", "Know your match reports", reportData, reports.length,
-      team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null),
-    section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list."),
+      team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null, reports),
+    section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list.", picklist),
     section("rules", "Rules reference", rules, rules ? 1 : 0, rules ? null : "The rules reference isn't in bundles yet."),
     section("venue", "Venue card", venue, 1),
   ];

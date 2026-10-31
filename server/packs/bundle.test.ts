@@ -161,6 +161,8 @@ describe("a public bundle", () => {
     expect(body.venue.name).toBe("Report Qualifier");
     expect(body.picklist).toBeNull();
     expect(body.rules).toBeNull();
+    // Sizes are of what ships (the reports' HTML), not of what their version hashes.
+    expect(m.sections.find((s) => s.id === "reports")!.bytes).toBe(Buffer.byteLength(JSON.stringify(body.reports)));
   });
 
   it("frozen reports are static HTML: the snapshot time inside, no scripts, nothing to fetch", async () => {
