@@ -27,7 +27,7 @@ Team pages open faster: Reliability, the prediction report card and schedule dif
 ### Team pages
 - **Closed until opened.** Reliability, the prediction report card and schedule difficulty each start as a single header with a chevron and "Show". Tap or click it (or press Enter or Space) to open it, and again to close it. A link to `#reliability`, `#report-card` or `#schedule-difficulty` opens that section.
 - **Loaded when opened.** The report card and schedule difficulty are asked for the first time a section opens, with a loading placeholder until they arrive. They stay loaded after that, so closing and reopening doesn't ask again. The team's own answer no longer carries them, so the page's first load does less work. Every number is the same as before.
-- **One event list.** The separate road map section is gone: it showed the same events as the event history in the other order. The event history keeps its place, cards and matches, newest first, under the heading Season Road Map.
+- **One event list.** The separate road map section is gone: it showed the same events as the event history in the other order. The event history keeps its place, cards and matches, newest first, under the heading Season Road Map (#365).
 
 ## 1.6.6 — 2026-10-31
 
