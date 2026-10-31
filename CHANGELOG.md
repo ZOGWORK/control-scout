@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.6.6 — 2026-10-31
+
+A played match's score breakdown now compares red and blue at a glance, and every bonus RP has its own icon.
+
+### Highlights
+- [live] Match breakdowns: red and blue bars side by side on one scale
+- [live] Who won each phase, and by how much, on every row
+- [live] Bonus RPs with their own icons, marked earned or missed
+
+### Match breakdown
+- **One glance per row.** Auto, TeleOp, endgame, no-penalty points, fouls and the total each show red's bar above blue's, on the same baseline and scale, with both scores beside them. A chip names the leader and the gap ("Red +33", or "Even"); for fouls it says who gave away more.
+- **Icons with labels.** Each row has its own icon next to its name, and so does each part of FIRST's full score sheet (leave, park, hive, flower, garden, major and minor fouls).
+- **Bonus RPs.** Swarm, Pollinator 1 and Pollinator 2 (and last season's Movement, Goal and Pattern) each have their own original icon. Earned or missed is shown three ways: a solid or dashed outline, a ✓ or ✗ mark, and the word, so it reads without colour.
+- Display only: every score, OPR, RP and prediction is the same as before, and the margin line still closes the breakdown.
+
 ## 1.6.5 — 2026-10-31
 
 Team pages now show a season road map: every event in date order, how the team is advancing, and what its next stop takes.
