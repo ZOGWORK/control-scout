@@ -9,7 +9,7 @@ Code: `src/shared/bracketOdds.ts` (the model, pure), `server/api/bracket.ts` (li
 - **No new model.** A single playoff match is the engine's own call at level `playoff`: the forecaster's `explain`, the same number the match rows show. At that level alliances add up with no overlap. Each pair is priced both ways round and averaged, so red/blue order doesn't matter. A three-robot alliance fields its two strongest robots by rating, as the engine's event simulator does.
 - **Series.** A best-of-N series is priced from that single-match chance and the current series score. Ties are replayed, so they don't count.
 - **Championship odds.** 10,000 simulated runs over the bracket. Series already decided keep their real winners, and a series in progress starts from its real score. Runs are seeded from the posted results, so a page refresh with nothing new shows the same numbers. The server caches the result per posted state and ratings version. The 30-second live refresh only simulates again when a result or the ratings change.
-- **Danger match.** Among an alliance's series still to play, the one where it most often loses across the simulations. The card shows the opponent there and the alliance's chance of winning if they meet.
+- **Danger match.** Among an alliance's series still to play, the one it most often loses across the simulations, counting every opponent it could meet there. The card names its likeliest opponent in that series and the alliance's chance of winning the series when it plays it.
 
 ## Formats, read from what was posted
 
@@ -24,33 +24,35 @@ A double-elimination event that numbers its series from 0 is shifted to the brac
 
 ## Measured accuracy (walk-forward)
 
-`npm run bracket:replay -- 2023 2024 2025 --runs 2000` replays every finished playoff of 2023–24, 2024–25 and 2025–26 in the local database. Before each series' first match it uses the ratings rebuilt from earlier matches only, including that event's quals and earlier playoff series. The bracket is conditioned only on results posted by then. The data covers 1,566 events and 10,598 series. Eight events had a format the predictor can't map, and one bracket never finished.
+`npm run bracket:replay -- 2023 2024 2025 --runs 2000` replays every finished playoff of 2023–24, 2024–25 and 2025–26 in the local database. Before each series' first match it uses the ratings rebuilt from earlier matches only, including that event's quals and earlier playoff series. The bracket sees only what was posted by then: earlier results, and the line-up of the series about to start. Later series' line-ups would give away who got there, so they're left out. The data covers 1,566 events and 10,597 series. Eight events had a format the predictor can't map, and one bracket never finished.
 
 **Series calls**
 
 | | Series | Favourite won | Brier | Higher seed won |
 |---|---:|---:|---:|---:|
-| All | 10,598 | **77.9%** | **0.151** | 71.8% |
-| First round | 3,695 | 81.5% | 0.128 | 76.3% |
-| Later rounds | 6,903 | 76.0% | 0.163 | 69.3% |
-| Double elimination (2024–25 on) | 9,084 | 77.5% | 0.154 | 71.1% |
+| All | 10,597 | **77.9%** | **0.151** | 71.8% |
+| First round | 3,699 | 81.5% | 0.128 | 76.3% |
+| Later rounds | 6,898 | 76.0% | 0.163 | 69.3% |
+| Double elimination (2024–25 on) | 9,108 | 77.5% | 0.154 | 71.0% |
 | Semifinals + final (2023–24) | 1,269 | 81.5% | 0.123 | 78.0% |
 | 2-alliance final | 133 | 74.4% | 0.159 | 70.7% |
-| Unknown format (calls only) | 112 | 70.5% | 0.193 | 58.9% |
+| Unknown format (calls only) | 87 | 69.0% | 0.188 | 57.5% |
 
 "Higher seed won" is the naive call for comparison: the model beats it by about six points.
 
-**Championship odds.** Calibration before the first playoff match: 7,370 alliance-events, Brier 0.055.
+**Championship odds.** Calibration before the first playoff match: 7,370 alliance-events, Brier 0.072.
 
 | Predicted | Alliances | Mean predicted | Won the event |
 |---|---:|---:|---:|
-| 0–5% | 4,664 | 0.2% | 0.4% |
-| 5–15% | 443 | 9.5% | 9.7% |
-| 15–30% | 351 | 22.1% | 21.7% |
-| 30–50% | 359 | 40.1% | 46.0% |
-| 50–70% | 365 | 59.9% | 54.0% |
-| 70–100% | 1,188 | 89.6% | 89.1% |
+| 0–5% | 4,111 | 0.8% | 1.2% |
+| 5–15% | 827 | 9.2% | 10.8% |
+| 15–30% | 559 | 21.7% | 21.1% |
+| 30–50% | 431 | 39.4% | 38.3% |
+| 50–70% | 411 | 59.8% | 58.4% |
+| 70–100% | 1,031 | 88.6% | 86.7% |
 
-Taken again before every later series (45,062 alliance-snapshots, Brier 0.054), the odds stay as well calibrated: 89.8% predicted vs 90.4% won in the top bucket.
+Taken again before every later series (45,062 alliance-snapshots, Brier 0.066), the odds stay calibrated: 90.1% predicted vs 89.0% won in the top bucket.
+
+An earlier version of the replay passed later series' line-ups to the bracket with their scores hidden. That leaked who reached each round and flattered the championship numbers (Brier 0.055). The figures above are from the corrected replay.
 
 **Caveats.** The engine's fitted parameters were fitted on these seasons. This is the same in-sample caveat as the engine's own backtest track record. The replay prices matches without the partnership history (the live page has it), and it runs 2,000 simulations per snapshot instead of 10,000. Rerun `npm run bracket:replay -- --write` after an engine change. It regenerates `src/shared/bracketAccuracy.ts`, the line the Playoffs tab shows.

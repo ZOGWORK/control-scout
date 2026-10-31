@@ -28,7 +28,7 @@ The Playoffs tab now predicts the bracket: a call for every series, each allianc
 ### Playoffs
 - **Bracket predictor.** Each series card names the favourite and its chance, with the series score for best-of-3s. A series whose alliances aren't known yet shows who's likely to fill each side. Each alliance shows its odds of winning the event and reaching the final, and its danger match. Every number comes from the engine's own playoff-match predictions, run through the event's real bracket and the results posted so far (#356).
 - **Any format.** 2-alliance finals, 2023–24 semifinals and finals, and 4-, 6- and 8-alliance double-elimination brackets, read from what the event posted. For a format we can't map, each series still gets its own call.
-- **Measured.** Replayed on 10,598 past playoff series with only what was known before each one, the favourite won 77.9% (the higher seed: 71.8%), Brier 0.151, and the championship odds come out calibrated (docs/bracket-predictor.md).
+- **Measured.** Replayed on 10,597 past playoff series with only what was known before each one, the favourite won 77.9% (the higher seed: 71.8%), Brier 0.151, and the championship odds come out calibrated (docs/bracket-predictor.md).
 - **Clean states.** Before alliance selection, the tab says so. With alliances posted but no playoff schedule yet, a banner says the odds come from the alliances alone.
 
 ## 1.5.4 — 2026-10-30
