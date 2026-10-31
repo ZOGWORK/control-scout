@@ -1,9 +1,10 @@
 // My teams: the FTC teams the signed-in account is on or manages in Control Point (src/lib/myTeams.ts),
 // each with its season at a glance: OPR and rank, prediction rating, record, events, and its next and
 // latest matches. Every team links to its full team page; each workspace to its shared scout space.
-import { useMemo } from "react";
+// Tapping a team's number and name folds its card down to the header, remembered per team on this device.
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarDays, ClipboardList, ExternalLink, Hash, LogIn, RefreshCw, Sparkles, Star, Target, Trophy, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Hash, LogIn, RefreshCw, Sparkles, Star, Target, Trophy, Users } from "lucide-react";
 import { qs, useApi } from "../lib/api";
 import { useCurrentSeason, useMeta, useTitle } from "../lib/meta";
 import { useFlag } from "../lib/flags";
@@ -19,11 +20,25 @@ import { Meter, RecordMeter, StatTile, TONES, rankPc } from "../components/StatT
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
 import { DiscordCard } from "../components/DiscordCard";
 import { dateRange, num, rankPct, seasonLabel } from "../lib/format";
 
 const CP_FALLBACK = "https://tryctrlpoint.org";
+
+/** The teams folded down on this device (Tier 3, device-only: DEVICE_ONLY_KEYS). */
+export const COLLAPSED_KEY = "cs-my-teams-collapsed";
+function loadCollapsed(): number[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "[]");
+    return Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+  } catch { return []; }
+}
+function saveCollapsed(team: number, collapsed: boolean) {
+  const rest = loadCollapsed().filter((n) => n !== team);
+  try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(collapsed ? [...rest, team] : rest)); } catch { /* blocked */ }
+}
 
 export default function MyTeamsPage() {
   useTitle("My teams");
@@ -111,24 +126,31 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
   const probe = useApi<TeamProfile>(`/api/teams/${team}${qs({ season: current })}`);
   const probed = probe.data?.team.number === team && probe.data.season === current ? probe.data : undefined;
   const season = probed ? defaultSeason(probed, offered) : null;
-  const shown = useApi<TeamProfile>(season != null && season !== current ? `/api/teams/${team}${qs({ season })}` : null);
+  // Folded down, the card shows only its header (number, name, season), so the rest isn't fetched until it opens.
+  const [open, setOpen] = useState(() => !loadCollapsed().includes(team));
+  const toggle = (o: boolean) => { setOpen(o); saveCollapsed(team, !o); };
+  const shown = useApi<TeamProfile>(open && season != null && season !== current ? `/api/teams/${team}${qs({ season })}` : null);
   const profile = season === current ? probe : season == null ? { ...probe, data: undefined } : shown;
-  const matches = useApi<{ matches: MatchView[] }>(season != null ? `/api/teams/${team}/matches${qs({ season })}` : null);
+  const matches = useApi<{ matches: MatchView[] }>(open && season != null ? `/api/teams/${team}/matches${qs({ season })}` : null);
   const p = profile.data?.team.number === team ? profile.data : undefined;
   const name = probe.data?.team.number === team ? probe.data.team.name : undefined;
   const isCurrent = season === current;
 
   return (
     <Reveal fade={false} delay={delay} className="overflow-hidden rounded-2xl border border-border bg-card">
+      <Collapsible asChild open={open} onOpenChange={toggle}>
       <article aria-label={`Team ${team}`}>
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-4 sm:p-6">
+        <header className={`flex flex-wrap items-start justify-between gap-4 p-4 sm:p-6 ${open ? "border-b border-border" : ""}`}>
           <div className="min-w-0">
-            <Link to={season != null ? `/teams/${team}?season=${season}` : `/teams/${team}`} className="group block">
-              <span className="font-display text-4xl font-semibold leading-none tracking-tight transition-colors group-hover:text-accent-text">{team}</span>
+            <CollapsibleTrigger className="group block max-w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+              <span className="flex items-center gap-2">
+                <span className="font-display text-4xl font-semibold leading-none tracking-tight transition-colors group-hover:text-accent-text">{team}</span>
+                <ChevronDown className="size-5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90 motion-reduce:transition-none" aria-hidden />
+              </span>
               <span className="mt-1.5 block break-words text-lg text-foreground/90">
                 {name === undefined ? (probe.error ? "Name not loaded" : <span className="skeleton inline-block h-5 w-44 rounded-md align-middle" />) : name ?? "Name not on file"}
               </span>
-            </Link>
+            </CollapsibleTrigger>
             <div className="mt-3 flex flex-wrap gap-2">{mine.workspaces.map((w) => <WorkspaceChip key={w.id} w={w} />)}</div>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -138,7 +160,7 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
             </Button>
           </div>
         </header>
-        <div className="p-4 sm:p-6">
+        <CollapsibleContent className="p-4 sm:p-6 data-[state=open]:animate-in data-[state=open]:fade-in-0 motion-reduce:animate-none">
           <Async state={profile} loading={<div className="skeleton h-28 rounded-xl" />}>
             {() => (p ? <Season p={p} isCurrent={isCurrent} current={current} /> : <div className="skeleton h-28 rounded-xl" />)}
           </Async>
@@ -147,8 +169,9 @@ function TeamCard({ mine, delay = 0 }: { mine: MyTeam; delay?: number }) {
               {(d) => <Matches team={team} matches={d.matches} events={p?.events ?? []} isCurrent={isCurrent} />}
             </Async>
           )}
-        </div>
+        </CollapsibleContent>
       </article>
+      </Collapsible>
     </Reveal>
   );
 }
