@@ -24,6 +24,7 @@ import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
 import { cn } from "./cn";
 import { hasTeamPage } from "../shared/teamPages";
+import { rowIcon, rpIcon } from "./BreakdownIcons";
 
 type Side = "red" | "blue";
 const SIDES: Side[] = ["red", "blue"];
@@ -144,8 +145,11 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
         {expected != null && <span>Event OPRs add up to <span className="text-text-base">{r1(expected)}</span>{a.score ? <> · scored {a.score.np} without penalties (<span className={cn(a.score.np - expected >= 0 ? "text-success" : "text-warning")}>{signed(a.score.np - expected)}</span>)</> : null}</span>}
       </div>
       {bonus && d.bonus && (
-        <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Bonus ranking points">
-          {d.bonus.labels.map((l, i) => <span key={l} className={cn("rounded-full border px-1.5 py-0.5 text-[10px]", bonus[i] ? "border-success/40 bg-success/10 text-success" : "border-border opacity-60")}>{l} RP {bonus[i] ? "✓" : "✗"}</span>)}
+        <div className="mt-3">
+          <p className="mb-1 text-[11px] text-text-muted">Bonus ranking points</p>
+          <ul className="grid grid-cols-3 gap-1.5" aria-label="Bonus ranking points">
+            {d.bonus.labels.map((l, i) => <RpChip key={l} label={l} earned={bonus[i]} />)}
+          </ul>
         </div>
       )}
     </section>
@@ -154,49 +158,131 @@ function Alliance({ d, side }: { d: MatchDetail; side: Side }) {
 
 const FOULS_NOTE = "Penalty points this alliance committed (they go to the other side).";
 
-/** The score side by side. With the season's full sheet (FIRST's breakdown: each group, then what it's made of,
- *  indented), that; otherwise the engine's split (auto, TeleOp, endgame). Both end on the total. */
-function Breakdown({ d }: { d: MatchDetail }) {
+export type BreakdownRow = { label: string; red: number | null; blue: number | null; note?: string; depth?: 0 | 1; count?: boolean; total?: boolean; fouls?: boolean };
+
+/** The rows the breakdown shows, straight from the match's data (display only: nothing is recomputed). With the
+ *  season's full sheet (FIRST's breakdown: each group, then what it's made of, indented), that; otherwise the
+ *  engine's split (auto, TeleOp, endgame). Both end on the total. */
+export function breakdownRows(d: MatchDetail): BreakdownRow[] {
   const r = d.match.red.score!, b = d.match.blue.score!;
-  type Row = { label: string; red: number | null; blue: number | null; note?: string; depth?: 0 | 1; count?: boolean; total?: boolean };
-  const rows: Row[] = d.sheet
-    ? [...d.sheet.map((x) => ({ ...x, note: x.label === "Fouls given away" ? FOULS_NOTE : x.count ? "How many this alliance committed" : undefined })), { label: "Total", red: r.total, blue: b.total, total: true }]
+  return d.sheet
+    ? [...d.sheet.map((x) => ({ ...x, fouls: x.label === "Fouls given away" || !!x.count, note: x.label === "Fouls given away" ? FOULS_NOTE : x.count ? "How many this alliance committed" : undefined })), { label: "Total", red: r.total, blue: b.total, total: true }]
     : [
       { label: "Auto", red: r.auto, blue: b.auto },
       { label: "TeleOp", red: r.teleop, blue: b.teleop },
       { label: "Endgame", red: r.endgame, blue: b.endgame },
       { label: "No penalties", red: r.np, blue: b.np },
-      { label: "Fouls given away", red: r.pen, blue: b.pen, note: FOULS_NOTE },
+      { label: "Fouls given away", red: r.pen, blue: b.pen, note: FOULS_NOTE, fouls: true },
       { label: "Total", red: r.total, blue: b.total, total: true },
     ];
+}
+
+/** Who's ahead on one row and by how much, in words (never colour alone). Fouls: who gave away more. */
+export function rowLead(x: BreakdownRow): { side: Side | null; text: string } {
+  // A value FIRST didn't report: no gap to name.
+  if (x.red == null || x.blue == null) return { side: null, text: "—" };
+  const diff = x.red - x.blue;
+  if (diff === 0) return { side: null, text: "Even" };
+  const side: Side = diff > 0 ? "red" : "blue", by = Math.abs(diff), who = side === "red" ? "Red" : "Blue";
+  if (x.fouls) return { side, text: x.count ? `${who} ${by} more` : `${who} gave ${by} more` };
+  return { side, text: `${who} +${by}` };
+}
+
+/** The score side by side: each row is a pair of bars on one baseline and one scale (red on top, blue below),
+ *  with both values, who's ahead and by how much. Ends on the margin. */
+export function Breakdown({ d }: { d: MatchDetail }) {
+  const r = d.match.red.score!, b = d.match.blue.score!;
+  const rows = breakdownRows(d);
   const diff = r.total - b.total;
   return (
     <section className="rounded-xl border border-border bg-card" aria-label="Score breakdown">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 text-[11px] text-text-muted">
+        <span>Score breakdown</span>
+        <span className="flex items-center gap-3" aria-hidden>
+          <span className="flex items-center gap-1"><span className={cn("h-1.5 w-4 rounded-full", TONE.red.bar)} />Red, top</span>
+          <span className="flex items-center gap-1"><span className={cn("h-1.5 w-4 rounded-full", TONE.blue.bar)} />Blue, below</span>
+        </span>
+      </div>
       <ul className="divide-y divide-border">
-        {rows.map((x, i) => {
-          const max = Math.max(Math.abs(x.red ?? 0), Math.abs(x.blue ?? 0), 1);
-          const sub = x.depth === 1;
-          // A zero fades back, so the rows that scored stand out (as on a paper score sheet).
-          const num = (v: number | null, side: Side) => cn("w-9 shrink-0 tabular-nums", sub ? "text-xs" : "text-sm", side === "blue" && "text-right", v ? TONE[side].text : "text-text-muted");
-          return (
-            <li key={`${x.label}:${i}`} className={cn("grid grid-cols-[minmax(0,1fr)_7.5rem_minmax(0,1fr)] items-center gap-2 px-3", sub ? "py-1.5" : "py-2", x.total && "font-semibold", !sub && d.sheet && !x.total && "bg-text-base/[0.03] font-medium")} title={x.note} data-depth={x.depth ?? 0}>
-              <span className="flex items-center gap-2">
-                <span className={num(x.red, "red")}>{x.red ?? "—"}</span>
-                <span className="flex flex-1 justify-end"><span className={cn("rounded-full", sub ? "h-1 opacity-70" : "h-1.5", TONE.red.bar)} style={{ width: `${(Math.abs(x.red ?? 0) / max) * 100}%` }} /></span>
-              </span>
-              <span className={cn("text-center text-xs", sub ? "text-text-muted" : "text-text-base")}>{sub ? <span className="text-text-muted/70" aria-hidden>· </span> : null}{x.label}{x.count && <span className="sr-only"> (count)</span>}</span>
-              <span className="flex items-center gap-2">
-                <span className="flex flex-1"><span className={cn("rounded-full", sub ? "h-1 opacity-70" : "h-1.5", TONE.blue.bar)} style={{ width: `${(Math.abs(x.blue ?? 0) / max) * 100}%` }} /></span>
-                <span className={num(x.blue, "blue")}>{x.blue ?? "—"}</span>
-              </span>
-            </li>
-          );
-        })}
+        {rows.map((x, i) => <BreakdownLine key={`${x.label}:${i}`} x={x} sheet={!!d.sheet} />)}
       </ul>
-      <p className="border-t border-border px-3 py-2 text-xs text-text-muted">
-        {diff === 0 ? "Tie." : <>{diff > 0 ? "Red" : "Blue"} by <span className="text-text-base">{Math.abs(diff)}</span>{Math.sign(r.np - b.np) !== Math.sign(diff) ? " — decided by penalties." : "."}</>}
+      <p className="flex flex-wrap items-baseline gap-x-2 border-t border-border px-3 py-2.5 text-sm" data-testid="breakdown-margin">
+        {diff === 0
+          ? <span className="font-semibold">Tie, {r.total}–{b.total}.</span>
+          : <><span className={cn("font-semibold", TONE[diff > 0 ? "red" : "blue"].text)}>{diff > 0 ? "Red" : "Blue"} by {Math.abs(diff)}</span>
+            <span className="text-xs text-text-muted">{r.total}–{b.total}{Math.sign(r.np - b.np) !== Math.sign(diff) ? " — decided by penalties." : "."}</span></>}
       </p>
     </section>
+  );
+}
+
+function BreakdownLine({ x, sheet }: { x: BreakdownRow; sheet: boolean }) {
+  const sub = x.depth === 1;
+  const Icon = rowIcon(x.label);
+  const lead = rowLead(x);
+  // One scale per row: the larger value fills the track, so the two lengths compare directly.
+  const max = Math.max(Math.abs(x.red ?? 0), Math.abs(x.blue ?? 0), 1);
+  const bar = (side: Side) => {
+    const v = x[side];
+    return (
+      <div className="grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-2" data-side={side}>
+        <span className={cn("text-right tabular-nums", x.total ? "text-base font-bold" : sub ? "text-xs" : "text-sm font-semibold", v ? TONE[side].text : "text-text-muted")} data-testid={`value-${side}`}>{v ?? "—"}</span>
+        <span className={cn("relative block overflow-hidden rounded-full bg-text-base/[0.07]", x.total ? "h-3" : sub ? "h-1.5" : "h-2.5")}>
+          <span className={cn("absolute inset-y-0 left-0 rounded-full", TONE[side].bar, sub && "opacity-75")} style={{ width: `${(Math.abs(v ?? 0) / max) * 100}%` }} />
+        </span>
+      </div>
+    );
+  };
+  const tone = lead.side === "red" ? "red-alliance" : "blue-alliance";
+  const chip = (
+    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums", sub && "px-1.5 text-[10px]",
+      !lead.side ? "border border-border text-text-muted"
+        // Fouls: an outlined chip, so "gave away more" never reads like a lead.
+        : x.fouls ? (tone === "red-alliance" ? "border border-dashed border-red-alliance/50 text-red-alliance" : "border border-dashed border-blue-alliance/50 text-blue-alliance")
+        : tone === "red-alliance" ? "bg-red-alliance/15 text-red-alliance" : "bg-blue-alliance/15 text-blue-alliance")} data-testid="lead">{lead.text}</span>
+  );
+  const label = (
+    <span className={cn("flex min-w-0 items-center gap-1.5", sub ? "text-xs text-text-muted" : "text-sm", x.total && "font-semibold")}>
+      <Icon size={sub ? 14 : 18} className={cn("shrink-0", sub ? "opacity-80" : "text-accent-text")} />
+      <span className="truncate">{x.label}</span>{x.count && <span className="sr-only"> (count)</span>}
+    </span>
+  );
+  return (
+    <li className={cn("px-3", sub ? "py-1.5 pl-6" : "py-2.5", x.total && "bg-text-base/[0.03]", !sub && sheet && !x.total && "bg-text-base/[0.02]")}
+      title={x.note} data-depth={x.depth ?? 0} data-label={x.label} data-red={x.red ?? ""} data-blue={x.blue ?? ""}>
+      {sub ? (
+        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_4.75rem] items-center gap-2 sm:grid-cols-[8rem_minmax(0,1fr)_8.5rem] sm:gap-3">
+          {label}
+          <div className="space-y-0.5">{bar("red")}{bar("blue")}</div>
+          <span className="justify-self-end">{chip}</span>
+        </div>
+      ) : (
+        // Phone: name and lead on one line, the bars below. Wider: name, bars, lead in one line.
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[9.5rem_minmax(0,1fr)_8.5rem]">
+          {label}
+          <span className="justify-self-end sm:col-start-3 sm:row-start-1">{chip}</span>
+          <div className="col-span-2 space-y-1 sm:col-span-1 sm:col-start-2 sm:row-start-1">{bar("red")}{bar("blue")}</div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** One bonus RP: its icon and name, and earned or missed said by a mark and a word as well as by colour.
+ *  The icon only names the RP; `earned` comes straight from the match data. */
+export function RpChip({ label, earned }: { label: string; earned: boolean }) {
+  const Icon = rpIcon(label);
+  return (
+    <li className={cn("relative flex min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center",
+      earned ? "border-success/50 bg-success/10" : "border-dashed border-border")}
+      data-earned={earned}>
+      <span className="sr-only">{label} RP {earned ? "earned" : "missed"}</span>
+      <span className={cn("absolute right-1 top-1 grid size-4 place-items-center rounded-full text-[10px] font-bold leading-none",
+        earned ? "bg-success text-card" : "border border-text-muted/60 text-text-muted")} aria-hidden>{earned ? "✓" : "✗"}</span>
+      <Icon size={34} className={earned ? "text-success" : "text-text-muted opacity-55"} />
+      <span className={cn("mt-0.5 w-full truncate text-[11px] leading-tight", earned ? "font-semibold text-text-base" : "text-text-muted")} aria-hidden>{label}</span>
+      <span className={cn("text-[10px] leading-tight", earned ? "font-semibold text-success" : "text-text-muted")} aria-hidden>{earned ? "✓ Earned" : "✗ Missed"}</span>
+    </li>
   );
 }
 
