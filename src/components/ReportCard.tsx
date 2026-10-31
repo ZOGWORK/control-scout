@@ -4,7 +4,9 @@
 // toward the field average, with the sample size and the raw numbers beside.
 import { Link } from "react-router-dom";
 import { Activity, Crosshair, Waves } from "lucide-react";
-import type { ReportCard, TeamReportCards } from "../shared/api";
+import type { ReportCard, TeamReportCardAnswer, TeamReportCards } from "../shared/api";
+import { useApi } from "../lib/api";
+import { Async } from "./states";
 import { Section } from "./page";
 import { StatTile } from "./StatTile";
 import { num, pct } from "../lib/format";
@@ -16,18 +18,28 @@ const calls = (n: number) => `${n} live call${n === 1 ? "" : "s"}`;
 /** Below this many calls the card says plainly that it leans on the field average. */
 export const SMALL_SAMPLE = 10;
 
-export function ReportCardSection({ team, season, data }: { team: number; season: number; data: TeamReportCards | null | undefined }) {
-  const s = data?.season;
+/** The team page's section: closed at first, and its card asked for only when it's first opened. */
+export function ReportCardSection({ team, season }: { team: number; season: number }) {
   return (
-    <Section title="Prediction report card"
+    <Section collapsible id="report-card" title="Prediction report card"
       description={<>How the engine's pre-match calls on {team}'s matches turned out this season. Live calls only, each logged before its match. <Link to="/methodology#report-cards" className="underline">How it's computed</Link></>}>
-      {!s || !data ? (
-        <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground max-sm:py-4">
-          No scored live calls on {team}'s matches this season yet. The card fills in once matches the engine called beforehand have results.
-        </p>
-      ) : <Card s={s} data={data} season={season} />}
+      <ReportCardBody team={team} season={season} />
     </Section>
   );
+}
+
+function ReportCardBody({ team, season }: { team: number; season: number }) {
+  const state = useApi<TeamReportCardAnswer>(`/api/teams/${team}/report-card?season=${season}`);
+  return <Async state={state} loading={<div className="skeleton h-48 rounded-xl" />}>{(a) => <ReportCardView team={team} season={season} data={a.reportCards} />}</Async>;
+}
+
+export function ReportCardView({ team, season, data }: { team: number; season: number; data: TeamReportCards | null | undefined }) {
+  const s = data?.season;
+  return !s || !data ? (
+    <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground max-sm:py-4">
+      No scored live calls on {team}'s matches this season yet. The card fills in once matches the engine called beforehand have results.
+    </p>
+  ) : <Card s={s} data={data} season={season} />;
 }
 
 /** An event's miss number: none at all without a scored call (it would be the field average alone), else shrunk with the raw value under it. */
