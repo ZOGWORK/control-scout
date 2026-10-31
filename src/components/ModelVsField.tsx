@@ -45,6 +45,8 @@ const isView = (x: unknown): x is DisagreementsView =>
   !!x && typeof x === "object" && Array.isArray((x as DisagreementsView).rows) && typeof (x as DisagreementsView).compared === "number" && !!(x as DisagreementsView).rules;
 
 export function ModelVsField({ season, code, refreshKey }: { season: number; code: string; refreshKey?: string }) {
+  // Collapsed by default: one line with the count, so the rankings below stay close; a tap opens the full comparison.
+  const [open, setOpen] = useState(false);
   const { data } = useApi<DisagreementsView>(`/api/events/${season}/${encodeURIComponent(code)}/disagreements${refreshKey ? `?v=${encodeURIComponent(refreshKey)}` : ""}`, isView);
   if (!isView(data)) return null; // loading, unavailable or misshapen: the rankings below stand on their own
   if (data.hidden) {
@@ -65,11 +67,16 @@ export function ModelVsField({ season, code, refreshKey }: { season: number; cod
       <div aria-hidden className="pointer-events-none absolute -left-16 -top-24 size-60 rounded-full bg-success opacity-10 blur-3xl" />
       <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 size-60 rounded-full bg-info opacity-10 blur-3xl" />
       <div className="relative">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <button type="button" className="group flex w-full flex-wrap items-center gap-x-3 gap-y-2 text-left" aria-expanded={open} aria-controls="model-vs-field-body" onClick={() => setOpen(!open)} data-mvf-toggle>
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent-text"><Radar className="size-4" aria-hidden /></span>
           <h2 id="model-vs-field" className="font-display text-lg font-semibold text-foreground">Model vs field</h2>
           <span className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground" data-mvf-mode={data.mode}>{MODE_LABEL[data.mode]}</span>
-        </div>
+          <span className="text-sm text-muted-foreground" data-mvf-count>
+            {data.rows.length === 0 ? "They agree" : `${data.rows.length} ${data.rows.length === 1 ? "gap" : "gaps"}: ${up.length} rated higher, ${down.length} seeded higher`}
+          </span>
+          <ChevronDown className={cn("ml-auto size-5 text-muted-foreground transition-transform group-hover:text-foreground motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
+        </button>
+        {open && <div id="model-vs-field-body">
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
           Where the model's rating order and the seeding disagree most, across {data.compared} teams. {basis(data)} Seeding also rewards the schedule, partners and ranking points, which a rating of points scored doesn't see.
         </p>
@@ -84,6 +91,7 @@ export function ModelVsField({ season, code, refreshKey }: { season: number; cod
           </div>
         )}
         <Footer v={data} />
+        </div>}
       </div>
     </section>
   );

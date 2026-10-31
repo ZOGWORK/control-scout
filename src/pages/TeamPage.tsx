@@ -41,6 +41,7 @@ import { TeamConsensusSection } from "../components/ScoutConsensus";
 import { CommonsSection } from "../components/CommonsSection";
 import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
+import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
 
 /** The record rule, mid-sentence ("Records count every match played, …"). */
@@ -94,6 +95,7 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
           </div>
           {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
           {predictable && <ReportCardSection team={p.team.number} season={p.season} data={p.reportCards} />}
+          {predictable && p.schedule && <TeamScheduleSection team={p.team.number} schedule={p.schedule} events={p.events} />}
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
             <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />

@@ -1,7 +1,7 @@
 // Test fixture: tiny season packs built with the real pack schema
 // (src/shared/packSchema.ts) in sql.js, for the offline reader tests.
 import initSqlJs, { type Database, type SqlValue } from "sql.js";
-import { PACK_INDEXES, PACK_TABLES, PACK_TEAMS_DDL } from "../../shared/packSchema";
+import { PACK_INDEXES, PACK_TABLES, PACK_TEAMS_DDL, SCHEDULE_TABLE } from "../../shared/packSchema";
 import { wrap, type SeasonDb } from "./readers";
 
 type Rows = Record<string, Record<string, SqlValue>[]>;
@@ -13,6 +13,7 @@ export async function packDb(season: number, rows: Rows): Promise<Database> {
   db.run("INSERT INTO pack_info VALUES ('format', '1'), ('season', ?)", [String(season)]);
   db.run(PACK_TEAMS_DDL);
   for (const t of PACK_TABLES) db.run(t.ddl);
+  db.run(SCHEDULE_TABLE.ddl);
   for (const ix of PACK_INDEXES) db.run(ix);
   for (const [table, list] of Object.entries(rows)) {
     for (const r of list) {

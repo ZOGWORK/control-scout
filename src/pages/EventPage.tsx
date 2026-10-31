@@ -36,6 +36,10 @@ import { EventGlance } from "../components/EventGlance";
 import { ProvisionalDetails, ProvisionalTeams, SharedSessionTeams } from "../components/ProvisionalInfo";
 import { SimulatedRankings } from "../components/SimulatedRankings";
 import { ModelVsField } from "../components/ModelVsField";
+import { schedulePlaces, ScheduleValue } from "../components/ScheduleDifficulty";
+import { TeamNumber } from "../components/records/RecordsTable";
+import { usePhone } from "../components/records/MatchSummary";
+import type { ScheduleDifficulty } from "../shared/scheduleDifficulty";
 import { callRecord } from "../lib/eventGlance";
 import { NotFoundView } from "../components/NotFoundView";
 import { hasRuleReference } from "../shared/rules/seasons";
@@ -109,6 +113,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
   const livePanel = useRef<HTMLDivElement>(null);
   const toLivePanel = () => { if (livePanel.current) scrollToElement(livePanel.current, smoothBehavior()); };
   const oddsOn = useFlag("advancementOdds");
+  // Schedule difficulty (the owner's scheduleDifficulty toggle; the server also leaves it out when off): a column of
+  // the rankings, live from the event's own data in the standings tables, from the stats cycle in the records table.
+  const scheduleOn = useFlag("scheduleDifficulty");
+  const schedule = scheduleOn && predictable ? d.scheduleDifficulty ?? null : null;
   const rulesOn = useFlag("rulesReference");
   const oddsOpen = predictable && !d.forecastUnsupported;
   // Opened on a panel (?tab= in the address it arrived at): a slim bar, with the summary behind "Event details".
@@ -237,7 +245,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
             <>
               {/* While the event is on, the ranking comes from the event itself (refreshed every minute or so);
                   the records table below is rebuilt by the stats cycle, so it says how old it is. */}
-              {e.status === "live" && <LiveStandings field={d.field} season={e.season} team={teamParam} code={e.code} />}
+              {e.status === "live" && <LiveStandings field={d.field} season={e.season} team={teamParam} code={e.code} schedule={schedule} />}
               {e.status === "live" && <StatsAsOf />}
               {/* Model vs field: the biggest gaps between the model's rating order and the seeding (components/ModelVsField.tsx). */}
               {predictable && <ModelVsField season={e.season} code={e.code} refreshKey={d.live?.checkedAt ?? undefined} />}
@@ -246,9 +254,10 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
               {unofficial && <UnofficialNote text={unofficial} />}
               <RecordsTable scope="teamEvent" season={e.season} code={e.code} predictable={predictable} refreshKey={recordsKey} defaultSort="rank" storageKey="event-rankings" noun="teams"
                 defaultCols={RANKING_COLS.filter((k) => k !== "advancementOdds" || !d.forecastUnsupported)} selectable highlightTeam={teamParam} emptyColumnNotes={EMPTY_COLUMN_NOTES}
+                schedulePlaces={schedulePlaces(schedule)}
                 aboveRows={<RankingNotes d={d} advOdds={predictable && !d.forecastUnsupported} refreshKey={recordsKey} />}
-                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} />}
-                offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} />} />
+                emptyFallback={e.status === "live" ? <EmptyState icon={Swords} title="Full stats arrive with the next stats update" description="The live standings above are current." /> : <Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_NO_RECORDS} schedule={schedule} />}
+                offlineFallback={<Rankings field={d.field} season={e.season} team={teamParam} code={e.code} note={NOTE_OFFLINE} schedule={schedule} />} />
             </>
           )}
         </TabsContent>
@@ -465,7 +474,7 @@ function Matches({ d, team, live }: { d: EventDetail; team: number | null; live:
 }
 
 /** Rankings tab columns (FTC Scout's: RS, TBP, played, record, np OPR / AVG / MAX) plus Control Scout's win % and odds. */
-const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
+const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "scheduleDifficulty", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
 const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
 const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
 /** An unofficial event (a scrimmage…): its records are real, but the ratings never learn from them. */
@@ -476,6 +485,8 @@ function UnofficialNote({ text }: { text: string }) {
 const EMPTY_COLUMN_NOTES: Partial<Record<string, string>> = {
   predictedWinPctAvg: "No pre-match win odds are on record for this event's qualification matches, so there is no average to show.",
   predictedScoreAvg: "No pre-match predicted scores are on record for this event's qualification matches, so there is no average to show.",
+  scheduleDifficulty: "No schedule difficulty is stored for this event yet: it needs a posted qualification schedule and arrives with the next stats update.",
+  scheduleLeft: "Only while qualification matches are under way: the difficulty of the matches still to play.",
   advancementOdds: "No pre-event advancement forecast is stored for this event; the Odds tab simulates it on demand. Teams already qualified elsewhere, or not eligible here, are always empty.",
 };
 
@@ -506,14 +517,14 @@ const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endga
  * OPR — refreshed with the event, every minute or so), first. The records table
  * under it is rebuilt by the stats cycle, so it can lag a few matches behind.
  */
-function LiveStandings({ field, season, team, code }: { field: FieldRow[]; season: number; team: number | null; code: string }) {
+function LiveStandings({ field, season, team, code, schedule }: { field: FieldRow[]; season: number; team: number | null; code: string; schedule: ScheduleDifficulty | null }) {
   return (
     <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
         <Radio className="size-4 text-red-500" /> Live standings
         <span className="font-normal text-muted-foreground">· updated as matches are scored</span>
       </h2>
-      <Rankings field={field} season={season} team={team} code={code} />
+      <Rankings field={field} season={season} team={team} code={code} schedule={schedule} />
     </section>
   );
 }
@@ -530,22 +541,26 @@ function StatsAsOf() {
   );
 }
 
-function Rankings({ field, season, team, code, note }: { field: FieldRow[]; season: number; team: number | null; code: string; note?: string }) {
+function Rankings({ field, season, team, code, note, schedule = null }: { field: FieldRow[]; season: number; team: number | null; code: string; note?: string; schedule?: ScheduleDifficulty | null }) {
   if (note) return (
     <div className="space-y-3">
       <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
         {note}
       </p>
-      <Rankings field={field} season={season} team={team} code={code} />
+      <Rankings field={field} season={season} team={team} code={code} schedule={schedule} />
     </div>
   );
-  return <RankingTable field={field} season={season} team={team} code={code} />;
+  return <RankingTable field={field} season={season} team={team} code={code} schedule={schedule} />;
 }
 
 /** The standings table. At a league meet it ranks the meet on its own matches (FieldRow.meet), with FIRST's
  *  league standing a tap away: there FIRST's rank and ranking score are the league's running totals. */
-function RankingTable({ field, season, team, code }: { field: FieldRow[]; season: number; team: number | null; code: string }) {
+function RankingTable({ field, season, team, code, schedule }: { field: FieldRow[]; season: number; team: number | null; code: string; schedule: ScheduleDifficulty | null }) {
   const league = field.some((r) => "meet" in r);
+  // Phones: the Team column shows just the number (more stats fit); a tap gives the name and the team page.
+  const phone = usePhone();
+  const sched = new Map((schedule?.teams ?? []).map((t) => [t.team, t]));
+  const left = schedule?.teams.some((t) => t.remaining) ?? false;
   const [view, setView] = useState<"meet" | "league">("meet");
   const meet = league && view === "meet";
   const rank = (r: FieldRow) => (meet ? r.meet?.rank ?? null : r.rank);
@@ -553,9 +568,19 @@ function RankingTable({ field, season, team, code }: { field: FieldRow[]; season
   const rec = (r: FieldRow): (number | null)[] => (meet ? (r.meet ? [r.meet.wins, r.meet.losses, r.meet.ties] : [null, null, null]) : [r.wins, r.losses, r.ties]);
   const cols: Col<FieldRow>[] = [
     { key: "rank", label: "Rank", value: rank, asc: true, align: "right", render: (r) => rank(r) ?? "—" },
-    { key: "team", label: "Team", value: (r) => r.team, render: (r) => <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
+    { key: "team", label: "Team", value: (r) => r.team, render: (r) => phone && hasTeamPage(r.team, r.name)
+      ? <TeamNumber team={r.team} name={r.name ?? ""} href={`/teams/${r.team}?season=${season}`} />
+      : <TeamPageLink team={r.team} name={r.name} season={season} className="hover:underline"><span className="font-mono font-medium">{r.team}</span> <span className="text-muted-foreground">{r.name}</span></TeamPageLink> },
     { key: "rs", label: "RS", title: meet ? "Ranking score at this meet (average ranking points per match)" : "Ranking score (average ranking points)", value: rs, align: "right", render: (r) => num(rs(r), 2), heat: true },
     { key: "wlt", label: "W-L-T", value: (r) => { const [w, l] = rec(r); return w == null ? null : w - (l ?? 0); }, align: "right", render: (r) => { const [w, l, t] = rec(r); return `${w ?? "–"}-${l ?? "–"}-${t ?? "–"}`; }, heat: true },
+    // Schedule difficulty (src/shared/scheduleDifficulty.ts), next to the record it helps explain (and in view on a
+    // phone): red = a hard draw. Tap a value for it in words.
+    ...(schedule ? [{ key: "schedule", label: "Schedule", title: "Schedule difficulty: opponents' average rating over the field's, minus partners' (points; + = harder). Tap a value for the plain-words version.",
+      value: (r: FieldRow) => sched.get(r.team)?.full?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
+      render: (r: FieldRow) => { const x = sched.get(r.team)?.full; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
+    ...(left ? [{ key: "scheduleLeft", label: "Sched. left", title: "Schedule difficulty of the qualification matches still to play. Tap a value for the plain-words version.",
+      value: (r: FieldRow) => sched.get(r.team)?.remaining?.difficulty ?? null, asc: true, align: "right" as const, heat: true,
+      render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
     ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
     { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
     { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
