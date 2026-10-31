@@ -134,7 +134,7 @@ export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number
   ));
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
-    season: s, seasons, stats: seasonStats(at.db, s, number), events, schedule: teamSchedules(at.db, s, number, events),
+    season: s, seasons, stats: seasonStats(at.db, s, number), events,
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
   };
 }
@@ -223,6 +223,11 @@ function asOfNow(db: Db, season: number, code: string, rows: Record<string, unkn
   const sd = scheduleFromRows(rows);
   const cal = one<EventCalendar>(db, 'SELECT start, "end", timezone FROM events WHERE season = ? AND code = ?', [season, code]);
   return sd && cal && eventOver(cal) ? withoutRemaining(sd) : sd;
+}
+
+/** A team's schedule difficulty at each of its events in the pack that has a figure, in event order (GET /api/teams/:n/schedule). */
+export function readTeamSchedule(sdb: SeasonDb, team: number): TeamSchedule[] {
+  return teamSchedules(sdb.db, sdb.season, team, teamEvents(sdb.db, sdb.season, team));
 }
 
 /** A team's schedule difficulty at each event of `events` that has a figure, in that order. */

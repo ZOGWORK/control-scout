@@ -4,7 +4,9 @@
 // rating against the field's, and where that puts it ("3rd-hardest of 24"). Mid-event, what's left of the
 // schedule leads and the full schedule sits next to it.
 import { Link } from "react-router-dom";
-import type { TeamEventRow, TeamSchedule } from "../shared/api";
+import type { TeamEventRow, TeamSchedule, TeamScheduleAnswer } from "../shared/api";
+import { isFeatureDisabled, useApi } from "../lib/api";
+import { Async } from "./states";
 import { scheduleLine, scheduleRankText, scheduleWord, type ScheduleDifficulty, type ScheduleSide } from "../shared/scheduleDifficulty";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/overlay";
 import { SCHEDULE_STAT_KEYS } from "../shared/statCatalog";
@@ -94,19 +96,36 @@ const cap = (x: string) => `${x[0].toUpperCase()}${x.slice(1)}`;
 // Team page
 // ---------------------------------------------------------------------------
 
-export function TeamScheduleSection({ team, schedule, events }: { team: number; schedule: TeamSchedule[]; events: TeamEventRow[] }) {
+/** The team page's section: closed at first, and the team's schedules asked for only when it's first opened. */
+export function TeamScheduleSection({ team, season, events }: { team: number; season: number; events: TeamEventRow[] }) {
   const on = useFlag("scheduleDifficulty");
-  if (!schedule.length || !on) return null;
+  if (!on) return null;
+  return (
+    <Section collapsible id="schedule-difficulty" title="Schedule difficulty" description="How hard this team's qualification draw is at each event, next to the rest of the field">
+      <TeamScheduleBody team={team} season={season} events={events} />
+    </Section>
+  );
+}
+
+function TeamScheduleBody({ team, season, events }: { team: number; season: number; events: TeamEventRow[] }) {
+  const state = useApi<TeamScheduleAnswer>(`/api/teams/${team}/schedule?season=${season}`);
+  // Switched off since the page loaded: the server's own word.
+  if (isFeatureDisabled(state.error)) return <p className="text-sm text-muted-foreground">{state.error!.message}</p>;
+  return <Async state={state} loading={<div className="skeleton h-40 rounded-xl" />}>{(a) => <TeamScheduleList team={team} schedule={a.schedule} events={events} />}</Async>;
+}
+
+export function TeamScheduleList({ team, schedule, events }: { team: number; schedule: TeamSchedule[]; events: TeamEventRow[] }) {
+  if (!schedule.length) return <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground max-sm:py-4">No posted qualification schedule for this team this season yet.</p>;
   const evBy = new Map(events.map((e) => [e.code, e]));
   // Newest event first, as the event history.
   const rows = [...schedule].reverse();
   return (
-    <Section title="Schedule difficulty" description="How hard this team's qualification draw is at each event, next to the rest of the field">
+    <>
       <div className="grid gap-3 lg:grid-cols-2" data-team-schedule>
         {rows.map((s) => <TeamRow key={s.code} s={s} ev={evBy.get(s.code)} team={team} />)}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">Ratings are the model's non-penalty points per robot; a team with no result yet this season starts from last season's. {EVIDENCE}</p>
-    </Section>
+    </>
   );
 }
 

@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { TeamEventRow } from "../shared/api";
 import { scheduleDifficulty } from "../shared/scheduleDifficulty";
-import { placeFor, schedulePlaces, ScheduleValue, TeamScheduleSection } from "./ScheduleDifficulty";
+import { placeFor, schedulePlaces, ScheduleValue, TeamScheduleList, TeamScheduleSection } from "./ScheduleDifficulty";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 
@@ -59,7 +59,7 @@ describe("TeamScheduleSection", () => {
   const sd = scheduleDifficulty(rating, quals)!;
   const t4 = sd.teams.find((t) => t.team === 4)!;
   const ev = { season: 2025, code: "USNJQ1", name: "New Jersey Qualifier 1" } as TeamEventRow;
-  const section = () => <MemoryRouter><TeamScheduleSection team={4} schedule={[{ ...t4, code: "USNJQ1", scheduled: 4, played: 2 }]} events={[ev]} /></MemoryRouter>;
+  const section = () => <MemoryRouter><TeamScheduleList team={4} schedule={[{ ...t4, code: "USNJQ1", scheduled: 4, played: 2 }]} events={[ev]} /></MemoryRouter>;
 
   it("says where the team's draw sits at each event, in a plain line", () => {
     render(section());
@@ -73,7 +73,7 @@ describe("TeamScheduleSection", () => {
 
   it("is hidden while the owner's scheduleDifficulty toggle is off", () => {
     resetFlags({ ...DEFAULT_FLAGS, scheduleDifficulty: false }, true);
-    const { container } = render(section());
+    const { container } = render(<MemoryRouter><TeamScheduleSection team={4} season={2025} events={[ev]} /></MemoryRouter>);
     expect(container.innerHTML).toBe("");
   });
 });

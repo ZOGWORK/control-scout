@@ -69,6 +69,16 @@ describe("online: the packs never run", () => {
     expect(mode.result.current).toBe(false);
   });
 
+  it("a team's schedule difficulty (its collapsed section, opened with no signal) comes from the saved season", async () => {
+    writeSaved([saved]);
+    networkDown();
+    offlineAnswer.mockResolvedValue(markOffline({ team: 100, season: 2025, schedule: [] }, src));
+    const data = await apiFetch("/api/teams/100/schedule?season=2025");
+    expect(offlineAnswer).toHaveBeenCalledWith("/api/teams/100/schedule?season=2025");
+    expect(data).toMatchObject({ team: 100, season: 2025, schedule: [] });
+    expect(offlineSource(data)).toEqual(src);
+  });
+
   it("a slow server isn't 'offline' for a read the device can't answer: no timeout", async () => {
     vi.useFakeTimers();
     writeSaved([saved]);

@@ -165,15 +165,16 @@ export interface TeamProfile {
   /** Seasons this team has data for (newest first). */
   seasons: number[];
   stats: TeamSeasonStats | null;
-  /** Predictability report card from live calls (null: no scored live call for this team this season). */
-  reportCards?: TeamReportCards | null;
   events: TeamEventRow[];
   /** Awards across all seasons we hold (newest first). */
   awardsAllTime: { season: number; code: string; event: string; type: string; placement: number; name: string | null }[];
-  /** The team's schedule difficulty at each of the season's events with a posted schedule (in `events` order).
-   *  Absent from older servers and packs. */
-  schedule?: TeamSchedule[];
 }
+
+/** GET /api/teams/:n/report-card: the predictability report card from live calls (null: no scored live call this season). */
+export interface TeamReportCardAnswer { team: number; season: number; reportCards: TeamReportCards | null }
+
+/** GET /api/teams/:n/schedule: the team's schedule difficulty at each of the season's events with a posted schedule (in event order). */
+export interface TeamScheduleAnswer { team: number; season: number; schedule: TeamSchedule[] }
 
 /** One event's schedule difficulty for one team (src/shared/scheduleDifficulty.ts). */
 export interface TeamSchedule extends ScheduleDifficultyTeam {

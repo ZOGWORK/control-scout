@@ -1,7 +1,7 @@
 // Team profile + compare.
 import { all, get, kvGet } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
-import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
+import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
 import { reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
@@ -9,7 +9,6 @@ import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecor
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventSchedule } from "../predict/scheduleDifficulty.js";
-import { isEnabled } from "../flags.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -149,25 +148,29 @@ export async function teamProfile(number: number, season?: number): Promise<Team
     const entered = !!(await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]));
     s = entered || withResults?.season === CURRENT_SEASON ? CURRENT_SEASON : seasons.find((x) => x !== CURRENT_SEASON) ?? CURRENT_SEASON;
   }
-  const [stats, events, awardsAllTime, reportCards] = await Promise.all([
+  // Report cards and schedule difficulty are their own requests (teamReportCards, teamSchedule), asked for when
+  // the team page's collapsed sections are first opened.
+  const [stats, events, awardsAllTime] = await Promise.all([
     seasonStats(s, number),
     teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
-    teamReportCards(s, number),
   ]);
-  // Schedule difficulty at each event with a posted schedule (cached per event and data version); left out while the
-  // owner's scheduleDifficulty toggle is off.
-  const scheduleOn = await isEnabled("scheduleDifficulty");
-  const schedule = !scheduleOn ? undefined : (await Promise.all(events.map(async (e) => {
-    const sd = await eventSchedule(s, e.code).catch(() => null);
-    const mine = sd?.teams.find((t) => t.team === number);
-    return mine && sd ? [{ ...mine, code: e.code, scheduled: sd.scheduled, played: sd.played }] : [];
-  }))).flat();
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
-    season: s, seasons, stats, events, reportCards, ...(schedule ? { schedule } : {}),
+    season: s, seasons, stats, events,
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
   };
+}
+
+/** A team's schedule difficulty at each of the season's events with a posted schedule (cached per event and data
+ *  version), in event order. */
+export async function teamSchedule(season: number, team: number): Promise<TeamSchedule[]> {
+  const events = await teamEvents(season, team);
+  return (await Promise.all(events.map(async (e) => {
+    const sd = await eventSchedule(season, e.code).catch(() => null);
+    const mine = sd?.teams.find((t) => t.team === team);
+    return mine && sd ? [{ ...mine, code: e.code, scheduled: sd.scheduled, played: sd.played }] : [];
+  }))).flat();
 }
 
 /** Schedule order, as matchViews returns matches: by time (none first), event, quals before playoffs, series, number. */

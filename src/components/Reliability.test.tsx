@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The reliability section is labelled an estimate with its parts and sample size; the blended number appears
 // only when a workspace's notes are given, marked as including them.
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { Reliability } from "../shared/reliability";
@@ -13,7 +13,11 @@ const r: Reliability = {
   index: 63, matches: 15, noShows: 1, dqs: 0, nearZero: 6, recent: { matches: 10, noShows: 1, nearZero: 6 },
   parts: { noShowRate: 0.04, dqRate: 0.001, nearZeroRate: 0.2, swing: 0.4, penaltyRatio: 0.77, predictabilityRatio: 1 }, fieldIndex: 75,
 };
-const show = (notes?: { matchEntries: number; flagged: number }) => render(<MemoryRouter><ReliabilitySection r={r} notes={notes} workspaceName="Pyro" /></MemoryRouter>);
+// Closed at first (the team page's collapsed sections): opened here to read it.
+const show = (notes?: { matchEntries: number; flagged: number }) => {
+  render(<MemoryRouter><ReliabilitySection r={r} notes={notes} workspaceName="Pyro" /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("button", { name: "Reliability" }));
+};
 
 describe("reliability section", () => {
   it("is an estimate with its parts, sample size and the near-zero caveat", () => {
