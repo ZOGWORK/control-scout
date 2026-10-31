@@ -4,6 +4,8 @@ import type { ScheduleDifficulty, ScheduleDifficultyTeam } from "./scheduleDiffi
 import type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
+import type { BracketOdds } from "./bracketOdds";
+export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
  *  two of them played together, or met as opponents, in an earlier match. A reason shown
@@ -316,6 +318,9 @@ export interface EventDetail {
   /** Each team's qualification schedule next to the field's (src/shared/scheduleDifficulty.ts): the full schedule, and
    *  what's left once quals are under way. Null without a posted schedule or ratings; absent from older servers and packs. */
   scheduleDifficulty?: ScheduleDifficulty | null;
+  /** The playoff bracket predictor (src/shared/bracketOdds.ts): series calls and championship odds once alliances are
+   *  posted; null before that or without ratings. Absent from older servers and saved packs. */
+  bracket?: BracketOdds | null;
 }
 
 /** FIRST's registered teams for both sessions of an AM/PM event (server/data/registrations.ts markSharedSessions). */

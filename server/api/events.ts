@@ -14,6 +14,7 @@ import { toEventInput } from "../../src/shared/eventInput.js";
 import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventOver, eventScheduleDifficulty, postedQuals } from "../../src/shared/scheduleDifficulty.js";
+import { eventBracket } from "./bracket.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -124,6 +125,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     field,
     matches,
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
+    bracket: f ? eventBracket(season, code, f, await liveVersion(season), field, matches, alliances) : null,
     awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
     advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
     forecastUnsupported: isLegacy(season) ? LEGACY_NOTE : f ? f.unsupportedReason(input) : "Predictions are still loading.",
