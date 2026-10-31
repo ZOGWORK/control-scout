@@ -50,10 +50,21 @@ function Strip({ z }: { z: number }) {
 export const SCHEDULE_STATS: ReadonlySet<string> = new Set(SCHEDULE_STAT_KEYS);
 
 /** Each team's place in its event's field by full-schedule difficulty ("3rd-hardest of 24"), from the event's own
- *  figures (the whole field, teams yet to play included), for the Schedule cells of that event's table. */
-export type SchedulePlaces = ReadonlyMap<number, Pick<ScheduleSide, "rank" | "of" | "easyRank">>;
+ *  figures (the whole field, teams yet to play included), for the Schedule cells of that event's table. Carries the
+ *  difficulty it was ranked on, so a cell only uses a place that describes its own number (placeFor). */
+export type SchedulePlaces = ReadonlyMap<number, Pick<ScheduleSide, "rank" | "of" | "easyRank" | "difficulty">>;
 export const schedulePlaces = (sd: ScheduleDifficulty | null | undefined): SchedulePlaces =>
   new Map((sd?.teams ?? []).flatMap((t) => (t.full ? [[t.team, t.full] as const] : [])));
+
+/**
+ * The place for a cell showing `v`: only when the event's live figure is the same number. The records table is
+ * rebuilt by the stats cycle, so after a new result the live place can describe a newer figure than the cell
+ * shows; the cell then gives its line without a place rather than a place that contradicts it.
+ */
+export function placeFor(places: SchedulePlaces | undefined, team: number | null | undefined, v: unknown) {
+  const p = team != null ? places?.get(team) : undefined;
+  return p && typeof v === "number" && Math.abs(p.difficulty - v) < 0.05 ? p : undefined;
+}
 
 /**
  * One Schedule cell: the signed points, and for the full schedule a tap (or hover) for the plain line, so the

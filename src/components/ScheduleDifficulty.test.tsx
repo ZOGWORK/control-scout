@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { TeamEventRow } from "../shared/api";
 import { scheduleDifficulty } from "../shared/scheduleDifficulty";
-import { schedulePlaces, ScheduleValue, TeamScheduleSection } from "./ScheduleDifficulty";
+import { placeFor, schedulePlaces, ScheduleValue, TeamScheduleSection } from "./ScheduleDifficulty";
 import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 
@@ -43,6 +43,15 @@ describe("schedulePlaces (the records table's place in the field)", () => {
     expect(p.size).toBe(8);
     expect(p.get(4)).toMatchObject({ rank: 1, of: 8 });
     expect(schedulePlaces(null).size).toBe(0);
+  });
+
+  it("a cell only takes a place that describes its own number (the records can lag the live figures)", () => {
+    const p = schedulePlaces(scheduleDifficulty(rating, quals)!);
+    const v = p.get(4)!.difficulty;
+    expect(placeFor(p, 4, v)).toMatchObject({ rank: 1 });
+    expect(placeFor(p, 4, v - 3)).toBeUndefined();
+    expect(placeFor(p, 99, v)).toBeUndefined();
+    expect(placeFor(undefined, 4, v)).toBeUndefined();
   });
 });
 
