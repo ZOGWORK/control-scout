@@ -6,6 +6,8 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ruleReference } from "../shared/rules";
+import { resetFlags } from "../lib/flags";
+import { DEFAULT_FLAGS } from "../shared/flags";
 
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 const { default: RulesPage } = await import("./RulesPage");
@@ -13,7 +15,7 @@ const mount = (url = "/rules") => render(<MemoryRouter initialEntries={[url]}><R
 const ref = ruleReference(2026);
 const fetchSpy = vi.fn();
 beforeEach(() => { fetchSpy.mockReset(); vi.stubGlobal("fetch", fetchSpy); });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetFlags(); });
 
 describe("Rules page", () => {
   it("shows the revision stamp and the unofficial note linking the official manual", () => {
@@ -58,6 +60,14 @@ describe("Rules page", () => {
     fireEvent.change(screen.getByLabelText("Search the rules"), { target: { value: "zzqx" } });
     expect(screen.getByText(/Nothing matches/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Open the manual/ }).getAttribute("href")).toBe(ref.manual.htmlUrl);
+  });
+
+  it("switched off by the owner (rulesReference): the page says so and shows no rules", () => {
+    resetFlags({ ...DEFAULT_FLAGS, rulesReference: false }, true);
+    mount("/rules#G421");
+    expect(screen.getByText(/rules quick reference is switched off/i)).toBeTruthy();
+    expect(document.getElementById("G421")).toBeNull();
+    expect(screen.queryByLabelText("Search the rules")).toBeNull();
   });
 
   it("an unknown season says so and shows the newest reference", () => {

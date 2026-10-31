@@ -7,6 +7,8 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { AlertTriangle, BookOpen, ExternalLink, FileCheck2, MessagesSquare, Search, WifiOff, X } from "lucide-react";
 import { useTitle } from "../lib/meta";
 import { PageHeader } from "../components/page";
+import { FeatureOffState } from "../components/states";
+import { useFlag } from "../lib/flags";
 import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
@@ -159,6 +161,13 @@ export default function RulesPage() {
   const follow = (id: string) => (e: MouseEvent) => { e.preventDefault(); history.replaceState(history.state, "", `#${id}`); go(id); };
 
   const jump = (id: string) => { const el = document.getElementById(id); if (el) scrollToElement(el); };
+  // Switched off by the owner (the rulesReference feature toggle): the page says so, a deep link too.
+  if (!useFlag("rulesReference")) return (
+    <div>
+      <PageHeader title="Rules quick reference" />
+      <FeatureOffState feature="rulesReference" />
+    </div>
+  );
   const sectionLabel = (r: RuleEntry) => { const s = sectionOf.get(r.section); return s ? `${s.id} ${s.title}` : r.section; };
 
   return (
