@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.6.2 — 2026-10-31
+
+Two teams can now scout one event together: link workspaces, share the scouting, and split again when it ends.
+
+### Highlights
+- [workspace] Scouting alliances: share your scouting with another team for one meet
+- [scout] Both teams see each other's entries and share one consensus
+- [picklist] Pick lists stay your own, with a switch to view your partner's
+- [workspace] Coverage shows what each side added, side by side
+
+### Scouting alliances
+- **Invite and accept.** A workspace admin picks an event and gets a one-time code; the other team's admin enters it to link. It's a link for that meet only: nobody joins the other team. Either admin can unlink at any time. Find it under Scout, Data, Scouting alliance (#353).
+- **One event, shared.** While linked, every member of both workspaces sees both sides' entries and assignments at that event, and one consensus built from all of them. Nothing from other events is shared.
+- **Your entries stay yours.** Each entry stays in its own workspace and only that workspace can edit it; the partner's admins can't change or delete it.
+- **Coverage.** Each side's entries, teams, matches and scouts, with a per-team split. A side that hasn't added anything shows zeros rather than disappearing.
+- **When the event ends** the link ends by itself. Each workspace keeps its own entries, and if both admins ticked "keep a copy" when linking, each also keeps a copy of the other side's entries.
+
 ## 1.6.1 — 2026-10-31
 
 A light version of the pages you open at a venue, for when the signal is down to one bar.
