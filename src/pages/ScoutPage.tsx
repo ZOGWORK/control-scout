@@ -304,8 +304,8 @@ export default function ScoutPage() {
             {!sub ? (
               <>
                 <DataHub workspace={workspace ? { id: workspace.id, name: spaceName ?? "" } : null} readOnly={!!readOnly} isAdmin={isAdmin} season={season} eventCode={session?.eventCode ?? null}
-                  entryCount={entries.length} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
-                  onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} />
+                  entryCount={entries.length} pitCount={entries.filter((e) => e.kind === "pit").length} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
+                  onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} onStartScouting={() => setTab("match")} />
               </>
             ) : <>
               <Button variant="ghost" size="sm" className="-ml-2 mb-3 text-muted-foreground" onClick={() => openView(null)}><ChevronLeft /> Data</Button>

@@ -1,5 +1,5 @@
 // Preview: the redesign's header, section tabs and Data hub, for Personal (?space=personal) or an admin of a
-// workspace (the default). Sample props only (dev-only route); the Scout page passes the real ones.
+// workspace (the default); ?empty shows a space with nothing scouted yet. Sample props only (dev-only route); the Scout page passes the real ones.
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Cloud } from "lucide-react";
@@ -10,6 +10,7 @@ import { DataHub, type DataView } from "../../components/scout/redesign/DataHub"
 export default function DataPreview() {
   const [sp] = useSearchParams();
   const personal = sp.get("space") === "personal";
+  const empty = sp.has("empty");
   const [tab, setTab] = useState<ScoutTab>("data");
   const [opened, setOpened] = useState<DataView | null>(null);
   return (
@@ -19,7 +20,8 @@ export default function DataPreview() {
       <ScoutTabs tab={tab} onTab={setTab}>
         {tab === "data" ? <>
           <DataHub workspace={personal ? null : { id: "w1", name: "Riverside Robotics" }} isAdmin={!personal} season={2025} eventCode="USNJQ1"
-            entryCount={personal ? 12 : 84} openForYou={personal ? 0 : 1} pit={personal ? null : { done: 18, total: 24 }} onOpen={setOpened} className="max-w-2xl" />
+            entryCount={empty ? 0 : personal ? 12 : 84} pitCount={empty ? 0 : 5} openForYou={personal ? 0 : 1} pit={personal || empty ? null : { done: 18, total: 24 }}
+            recordingCount={empty ? 0 : 3} onOpen={setOpened} onStartScouting={() => setTab("match")} className="max-w-5xl" />
           {opened && <p role="status" className="mt-2 text-xs text-muted-foreground">Opens: {opened}</p>}
         </> : <p className="py-8 text-center text-sm text-muted-foreground">The {tab} tab is another piece.</p>}
       </ScoutTabs>
