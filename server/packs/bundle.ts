@@ -18,6 +18,7 @@ import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { kvGet } from "../db.js";
 import { SEASON_NUMBERS } from "../data/seasons.js";
 import { cachedEventDetail } from "../api/events.js";
+import { gatedEventDetail } from "../api/eventGates.js";
 import { matchReport } from "../api/matchReport.js";
 import { liveForecaster } from "../predict/engine.js";
 import { isWorkspaceId } from "../auth/controlPoint.js";
@@ -75,8 +76,11 @@ function section(id: BundleSectionId, label: string, value: unknown, items: numb
 /** Build one bundle (access to the workspace already checked). Null: no such event. */
 export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null> {
   const { season, code, team, workspace } = input;
-  const ev = await cachedEventDetail(season, code);
-  if (!ev) return null;
+  // The event page's own answer, owner switches applied (bracket odds, schedule difficulty): a bundle never
+  // carries what the page hides.
+  const cached = await cachedEventDetail(season, code);
+  if (!cached) return null;
+  const ev = await gatedEventDetail(cached);
   const builtAt = new Date().toISOString();
   const sync = await kvGet<{ at: string }>("sync:last");
   const dataAsOf = ev.live?.checkedAt ?? sync?.at ?? null;

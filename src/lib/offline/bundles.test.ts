@@ -5,7 +5,7 @@ import "fake-indexeddb/auto";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadBundle, loadBundle, pruneFinished, removeBundle } from "./bundles";
+import { downloadBundle, loadBundle, pruneFinished, removeBundle, removeOtherAccounts } from "./bundles";
 import { put } from "../packs";
 import { bundleFor, savedBundles, writeBundles } from "./bundleMeta";
 import { offlineAnswer } from "./answer";
@@ -19,9 +19,9 @@ const bundle = (version: string): EventBundle => ({
   ratings: null, reports: [{ key: "qual:0:1", label: "Q1", time: null, html: "<!doctype html><p>Q1</p>" }], picklist: null, rules: null,
   venue: { name: "Texas Qualifier" } as never,
 });
-function serve(version: string) {
+function serve(version: string, workspace: { id: string; name: string } | null = null) {
   const gz = new Uint8Array(gzipSync(JSON.stringify(bundle(version))));
-  const m = { ...bundle(version).manifest, url: "/api/bundles/2025/USTXQ1/file", bytes: gz.length, sha256: createHash("sha256").update(gz).digest("hex") } as BundleManifest;
+  const m = { ...bundle(version).manifest, workspace, url: "/api/bundles/2025/USTXQ1/file", bytes: gz.length, sha256: createHash("sha256").update(gz).digest("hex") } as BundleManifest;
   vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(gz))));
   return m;
 }
@@ -78,6 +78,22 @@ describe("event-day bundles on the device", () => {
     expect((d as { event: { name: string } }).event.name).toBe("Texas Qualifier");
     expect(offlineSource(d)).toMatchObject({ dataAsOf: "2026-11-01T11:58:00Z", bundle: { name: "Texas Qualifier" } });
     expect(await offlineAnswer("/api/events/2025/OTHER1")).toBeNull();
+  });
+
+  it("a workspace bundle is only the downloading account's: another account on the device neither sees nor keeps it", async () => {
+    const ws = serve("v1", { id: "3101", name: "Space" });
+    localStorage.setItem("cs-personal-owner", "41");
+    await downloadBundle({ season: 2025, code: "USTXQ1", team: 13, workspace: "3101", account: 41 }, undefined, ws);
+    expect(bundleFor(2025, "USTXQ1")?.accountId).toBe(41);
+    // Another account signs in on this device.
+    localStorage.setItem("cs-personal-owner", "77");
+    expect(bundleFor(2025, "USTXQ1")).toBeNull();
+    expect(savedBundles()).toEqual([]);
+    expect(await offlineAnswer("/api/events/2025/USTXQ1")).toBeNull();
+    expect(await removeOtherAccounts()).toBe(1);
+    localStorage.setItem("cs-personal-owner", "41");
+    expect(bundleFor(2025, "USTXQ1")).toBeNull(); // gone from the device, not just hidden
+    localStorage.removeItem("cs-personal-owner");
   });
 
   it("removes finished events' bundles", async () => {

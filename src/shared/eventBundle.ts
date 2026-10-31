@@ -119,6 +119,8 @@ export interface SavedBundle {
   dataAsOf: string | null;
   team: number | null;
   workspace: { id: string; name: string } | null;
+  /** The account that downloaded a workspace bundle (its pick list and scouting are that member's to see). */
+  accountId?: number | null;
   reports: number;
   /** Which matches' reports it holds (bundles saved before this was noted: absent). */
   reportKeys?: string[];

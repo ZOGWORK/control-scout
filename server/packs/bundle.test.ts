@@ -17,6 +17,7 @@ import { closeAllStreams } from "../scout/stream";
 import { clearConsensusCache } from "../scout/consensus";
 import { clearCutoffCache } from "../api/matchReport";
 import { clearBundleCache, defaultRulesProvider, setRulesProvider } from "./bundle";
+import { setFlag } from "../flags";
 import type { BundleManifest, EventBundle } from "../../src/shared/eventBundle";
 
 const KEY = "k".repeat(40);
@@ -202,6 +203,17 @@ describe("a public bundle", () => {
     const b = (await manifest(anon, "?team=13")).json;
     expect(b.dataAsOf).not.toBe(a.dataAsOf);
     expect(b.version).toBe(a.version);
+  });
+
+  it("carries what the event page shows: with schedule difficulty switched off, its figures stay out", async () => {
+    const on = (await file((await manifest(anon, "?team=13")).json)).body.event;
+    expect("scheduleDifficulty" in on).toBe(true);
+    await setFlag("scheduleDifficulty", false, "owner@example.com");
+    try {
+      clearBundleCache();
+      const off = (await file((await manifest(anon, "?team=13")).json)).body.event;
+      expect("scheduleDifficulty" in off).toBe(false);
+    } finally { await setFlag("scheduleDifficulty", true, "owner@example.com"); clearBundleCache(); }
   });
 
   it("no team: event data only, and it says how to add your matches", async () => {

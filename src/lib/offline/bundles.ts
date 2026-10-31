@@ -5,9 +5,10 @@
 import { del, fetchVerified, getv, put, type PackFile } from "../packs";
 import { FEATURE_DISABLED, featureOffMessage } from "../../shared/flags";
 import { BUNDLE_FORMAT, bundleFinished, bundleKey, type BundleManifest, type EventBundle, type SavedBundle } from "../../shared/eventBundle";
-import { bundleFor, savedBundles, writeBundles } from "./bundleMeta";
+import { allBundles, bundleFor, bundleVisible, savedBundles, writeBundles } from "./bundleMeta";
 
-export interface BundleRequest { season: number; code: string; team: number | null; workspace: string | null }
+/** `account`: the signed-in account, which a workspace bundle belongs to (only it reads the pick list and scouting). */
+export interface BundleRequest { season: number; code: string; team: number | null; workspace: string | null; account?: number | null }
 
 const query = (r: Pick<BundleRequest, "team" | "workspace">) => {
   const q = new URLSearchParams();
@@ -48,11 +49,11 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
   await put(key, { bytes, version: m.version });
   const saved: SavedBundle = {
     season: m.season, code: m.code, name: m.name, end: m.end, version: m.version, sha256: m.sha256, bytes: bytes.length,
-    savedAt: Date.now(), builtAt: m.builtAt, dataAsOf: m.dataAsOf, team: m.team, workspace: m.workspace,
+    savedAt: Date.now(), builtAt: m.builtAt, dataAsOf: m.dataAsOf, team: m.team, workspace: m.workspace, accountId: m.workspace ? r.account ?? null : null,
     // A workspace bundle always holds its pick list (empty or not); a public one never does.
     reports: m.sections.find((s) => s.id === "reports")?.items ?? 0, reportKeys: m.reportKeys ?? [], teams: m.field.map(([t]) => t), picklist: !!m.workspace,
   };
-  try { writeBundles([...savedBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]); }
+  try { writeBundles([...allBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]); }
   catch (e) {
     await (previous ? put(key, previous) : del(key)).catch(() => {});
     throw new Error(`Couldn't save the bundle on this device (${(e as Error).message || "storage full"}). The copy already here is kept.`);
@@ -91,7 +92,7 @@ export async function removeBundle(season: number, code: string): Promise<void> 
   const key = bundleKey(meta.season, meta.code);
   await del(key);
   for (const k of memo.keys()) if (k.startsWith(`${key}@`)) memo.delete(k);
-  writeBundles(savedBundles().filter((b) => !(b.season === meta.season && b.code === meta.code)));
+  writeBundles(allBundles().filter((b) => !(b.season === meta.season && b.code === meta.code)));
 }
 
 /** Remove every bundle whose event is over. Returns how many went. */
@@ -101,5 +102,18 @@ export async function pruneFinished(now = new Date()): Promise<number> {
   return done.length;
 }
 
-/** The request that made a saved bundle (same team and workspace), for its update. */
-export const requestOf = (b: SavedBundle): BundleRequest => ({ season: b.season, code: b.code, team: b.team, workspace: b.workspace?.id ?? null });
+/** The request that made a saved bundle (same team, workspace and account), for its update. */
+export const requestOf = (b: SavedBundle): BundleRequest => ({ season: b.season, code: b.code, team: b.team, workspace: b.workspace?.id ?? null, account: b.accountId ?? null });
+
+/** Delete every workspace bundle another account downloaded on this device (another account signed in here):
+ *  their pick lists and scouting are theirs. Returns how many went. */
+export async function removeOtherAccounts(): Promise<number> {
+  const theirs = allBundles().filter((b) => !bundleVisible(b));
+  for (const b of theirs) {
+    const key = bundleKey(b.season, b.code);
+    await del(key).catch(() => {});
+    for (const k of memo.keys()) if (k.startsWith(`${key}@`)) memo.delete(k);
+  }
+  if (theirs.length) writeBundles(allBundles().filter((b) => bundleVisible(b)));
+  return theirs.length;
+}

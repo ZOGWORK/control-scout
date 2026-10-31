@@ -53,6 +53,9 @@ export function EventBundles() {
   const packsOn = useFlag("offlinePacks");
   const on = bundlesOn && packsOn;
   const saved = useSavedBundles();
+  const { user } = usePersonal();
+  // Another account signed in on this device: the previous one's workspace bundles (its picks and scouting) go.
+  useEffect(() => { void bundles().then((b) => b.removeOtherAccounts()).catch(() => {}); }, [user?.id]);
   if (!on && !saved.length) return null;
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-accent/35 bg-card max-sm:mb-4" aria-labelledby="bundle-title" data-event-bundles>
@@ -86,7 +89,7 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
   const field = ev && fieldOf?.code === ev.code ? fieldOf.field : [];
   const myHere = state.myTeam != null && field.some(([t]) => t === state.myTeam) ? state.myTeam : null;
   const teamNow = team === undefined ? myHere : team;
-  const req: BundleRequest | null = ev ? { season: ev.season, code: ev.code, team: teamNow, workspace: workspace?.id ?? null } : null;
+  const req: BundleRequest | null = ev ? { season: ev.season, code: ev.code, team: teamNow, workspace: workspace?.id ?? null, account: user?.id ?? null } : null;
   const reqKey = req ? `${req.season}|${req.code}|${req.team ?? ""}|${req.workspace ?? ""}` : "";
 
   useEffect(() => {
