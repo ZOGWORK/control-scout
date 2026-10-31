@@ -10,8 +10,10 @@
 // - consensusFor(workspaceId, season, teams) is the same answer for server code that has already checked
 //   membership (the pre-match report). It reads one workspace only: entries, and the template versions
 //   they were made with, of that workspace; a template id naming another workspace is read as the built-in.
-// - Cache: per workspace, season and team, for CACHE_TTL_MS. Every accepted entry write to a workspace
-//   (bus.ts onEntriesWritten: adds, edits, deletes, restores) drops that workspace's cached teams at once,
+// - consensusForScope(scope, season, teams) widens that to a ConsensusScope: several workspaces' entries, each
+//   read with its own workspace's templates, optionally at one event only (a scouting alliance: alliances.ts).
+// - Cache: per scope, season and team, for CACHE_TTL_MS. Every accepted entry write to a workspace
+//   (bus.ts onEntriesWritten: adds, edits, deletes, restores) drops every cached scope with that workspace at once,
 //   so the TTL only bounds what nothing announced (it's a backstop, ~60 s as the brief allows).
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { all } from "../db.js";
@@ -19,7 +21,7 @@ import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { builtinTemplate } from "../../src/shared/scoutDefaults.js";
 import { parseWorkspaceTemplateId, type ScoutField, type TemplateKind } from "../../src/shared/scoutTemplate.js";
-import { aggregateConsensus, CONSENSUS_MAX_TEAMS, type ConsensusEntry, type ConsensusResponse, type TeamConsensus } from "../../src/shared/consensus.js";
+import { aggregateConsensus, CONSENSUS_MAX_TEAMS, fieldGrouper, type ConsensusEntry, type ConsensusResponse, type TeamConsensus } from "../../src/shared/consensus.js";
 import { accessError, workspaceAccess, workspacePaused } from "./entries.js";
 import { onEntriesWritten } from "./bus.js";
 import { templateVersion } from "./templates.js";
@@ -27,8 +29,42 @@ import { templateVersion } from "./templates.js";
 export const CACHE_TTL_MS = 60_000;
 const CACHE_MAX = 5_000;
 
-/** workspace -> "season:team" -> computed consensus. */
-const cache = new Map<string, Map<string, { at: number; value: TeamConsensus }>>();
+/**
+ * Which entries a consensus reads: the live entries of these workspaces (one, for a workspace's own consensus;
+ * two linked by a scouting alliance, alliances.ts), only those at `eventCode` when it's set. The caller has
+ * already checked the reader may see every workspace in it, for that event.
+ */
+export interface ConsensusScope {
+  workspaces: string[]; eventCode?: string;
+  /** Read each observation once: of an original and the copies workspaces kept of it (earlier alliances), one is read (notACopyWithin). */
+  oneEach?: boolean;
+}
+const scopeKey = (s: ConsensusScope) => `${[...new Set(s.workspaces)].sort().join("+")}@${s.eventCode?.toUpperCase() ?? ""}${s.oneEach ? "#1" : ""}`;
+
+/**
+ * SQL: the entry row `w` (in workspace `wsCol`) is the one copy of its observation read in this scope. A copy (kept
+ * when an alliance ended: scout_alliance_copies) is skipped while its original, in one of these workspaces, is live at
+ * the same season and event (the original is read instead), and while another live copy of the same original is in
+ * an earlier workspace of the scope (by id: one representative, however many workspaces kept a copy). A copy whose
+ * original was deleted or moved since is the only one left of that observation, and is read. Takes the workspaces
+ * twice as its placeholders: `[...workspaces, ...workspaces]`.
+ */
+export const notACopyWithin = (w: string, wsCol: string, n: number) => {
+  const list = Array(n).fill("?").join(", ");
+  const sameEvent = (e: string) => `${e}.deleted = 0 AND ${e}.season = ${w}.season AND UPPER(${e}.event_code) = UPPER(${w}.event_code)`;
+  return `NOT EXISTS (SELECT 1 FROM scout_alliance_copies c
+      JOIN workspaces ow ON ow.cp_workspace_id = c.origin_ws
+      JOIN workspace_scout_entries o ON o.workspace_id = ow.id AND o.uuid = c.origin_uuid AND ${sameEvent("o")}
+     WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${w}.uuid AND c.origin_ws IN (${list}))
+    AND NOT EXISTS (SELECT 1 FROM scout_alliance_copies c
+      JOIN scout_alliance_copies c2 ON c2.origin_ws = c.origin_ws AND c2.origin_uuid = c.origin_uuid AND c2.to_ws < c.to_ws AND c2.to_ws IN (${list})
+      JOIN workspaces w2 ON w2.cp_workspace_id = c2.to_ws
+      JOIN workspace_scout_entries e2 ON e2.workspace_id = w2.id AND e2.uuid = c2.copy_uuid AND ${sameEvent("e2")}
+     WHERE c.to_ws = ${wsCol} AND c.copy_uuid = ${w}.uuid)`;
+};
+
+/** scope key -> "season:team" -> computed consensus. */
+const cache = new Map<string, { workspaces: string[]; teams: Map<string, { at: number; value: TeamConsensus }> }>();
 /** Bumped on every write to a workspace: a computation that started before it is never cached. */
 const generation = new Map<string, number>();
 let cached = 0;
@@ -38,21 +74,23 @@ let now = () => Date.now();
 export function setConsensusClock(fn: (() => number) | null) { now = fn ?? (() => Date.now()); }
 /** Tests and the owner portal: drop everything. */
 export function clearConsensusCache() { cache.clear(); generation.clear(); cached = 0; }
-/** Drop a workspace's cached consensus (all its seasons and teams). */
+/** Drop a workspace's cached consensus (all its seasons and teams, and every scope it's part of). */
 export function invalidateConsensus(workspaceId: string) {
   generation.set(workspaceId, (generation.get(workspaceId) ?? 0) + 1);
-  const m = cache.get(workspaceId);
-  if (m) { cached -= m.size; cache.delete(workspaceId); }
+  for (const [key, c] of cache) if (c.workspaces.includes(workspaceId)) { cached -= c.teams.size; cache.delete(key); }
 }
 // An edit can move an entry from one team (or season) to another, so a write drops the whole workspace.
 onEntriesWritten((workspaceId) => invalidateConsensus(workspaceId));
 
-function remember(workspaceId: string, key: string, value: TeamConsensus) {
+const generationOf = (s: ConsensusScope) => s.workspaces.map((w) => generation.get(w) ?? 0).join(",");
+
+function remember(scope: ConsensusScope, key: string, value: TeamConsensus) {
   if (cached >= CACHE_MAX) { clearConsensusCache(); } // rare: far more teams looked at than a minute's worth; start over
-  let m = cache.get(workspaceId);
-  if (!m) { m = new Map(); cache.set(workspaceId, m); }
-  if (!m.has(key)) cached++;
-  m.set(key, { at: now(), value });
+  const k = scopeKey(scope);
+  let c = cache.get(k);
+  if (!c) { c = { workspaces: [...new Set(scope.workspaces)], teams: new Map() }; cache.set(k, c); }
+  if (!c.teams.has(key)) cached++;
+  c.teams.set(key, { at: now(), value });
 }
 
 /** How many teams are cached now (tests). */
@@ -62,11 +100,16 @@ export const consensusCacheSize = () => cached;
  * The consensus of `workspaceId`'s live entries on each of `teams` in `season`, in the order given (a team
  * with none: entries 0). The caller has already checked the reader is a member (workspaceAccess).
  */
-export async function consensusFor(workspaceId: string, season: number, teams: number[]): Promise<TeamConsensus[]> {
+export function consensusFor(workspaceId: string, season: number, teams: number[]): Promise<TeamConsensus[]> {
+  return consensusForScope({ workspaces: [workspaceId] }, season, teams);
+}
+
+/** consensusFor over a scope (ConsensusScope): one consensus over every entry in it. */
+export async function consensusForScope(scope: ConsensusScope, season: number, teams: number[]): Promise<TeamConsensus[]> {
   const wanted = [...new Set(teams)];
   const out = new Map<number, TeamConsensus>();
   const t = now();
-  const m = cache.get(workspaceId);
+  const m = cache.get(scopeKey(scope))?.teams;
   const missing: number[] = [];
   for (const team of wanted) {
     const hit = m?.get(`${season}:${team}`);
@@ -74,33 +117,40 @@ export async function consensusFor(workspaceId: string, season: number, teams: n
     else missing.push(team);
   }
   if (missing.length) {
-    const gen = generation.get(workspaceId) ?? 0;
-    const computed = await compute(workspaceId, season, missing);
-    const fresh = (generation.get(workspaceId) ?? 0) === gen; // no write landed while reading
+    const gen = generationOf(scope);
+    const computed = await compute(scope, season, missing);
+    const fresh = generationOf(scope) === gen; // no write landed while reading
     for (const team of missing) {
       const value = computed.get(team) ?? aggregateConsensus(team, []);
       out.set(team, value);
-      if (fresh) remember(workspaceId, `${season}:${team}`, value);
+      if (fresh) remember(scope, `${season}:${team}`, value);
     }
   }
   return teams.map((team) => out.get(team)!);
 }
 
-async function compute(workspaceId: string, season: number, teams: number[]): Promise<Map<number, TeamConsensus>> {
+async function compute(scope: ConsensusScope, season: number, teams: number[]): Promise<Map<number, TeamConsensus>> {
+  const spaces = [...new Set(scope.workspaces)];
+  if (!spaces.length) return new Map();
+  const event = scope.eventCode?.toUpperCase();
   const rows = await all<any>(
-    `SELECT w.team, w.kind, w.author_account_id, w.updated_at, w.data, w.template_id, w.template_version
+    `SELECT ws.cp_workspace_id, w.team, w.kind, w.author_account_id, w.updated_at, w.data, w.template_id, w.template_version
        FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
-      WHERE ws.cp_workspace_id = ? AND w.season = ? AND w.deleted = 0 AND w.team IN (${teams.map(() => "?").join(", ")})`,
-    [workspaceId, season, ...teams]);
-  const fields = fieldReader(workspaceId);
+      WHERE ws.cp_workspace_id IN (${spaces.map(() => "?").join(", ")}) AND w.season = ? AND w.deleted = 0${event ? " AND UPPER(w.event_code) = ?" : ""}
+        AND w.team IN (${teams.map(() => "?").join(", ")})${scope.oneEach ? ` AND ${notACopyWithin("w", "ws.cp_workspace_id", spaces.length)}` : ""}`,
+    [...spaces, season, ...(event ? [event] : []), ...teams, ...(scope.oneEach ? [...spaces, ...spaces] : [])]);
+  const readers = new Map(spaces.map((w) => [w, fieldReader(w)]));
+  // Several workspaces: each has its own templates, so a field id is only averaged with fields asking the same question.
+  const group = spaces.length > 1 ? fieldGrouper() : null;
   const byTeam = new Map<number, ConsensusEntry[]>();
   for (const r of rows) {
     const kind: TemplateKind = r.kind === "pit" ? "pit" : "match";
     let data: Record<string, unknown> = {};
     try { const d = JSON.parse(r.data); if (d && typeof d === "object" && !Array.isArray(d)) data = d; } catch { /* unreadable: no answers */ }
+    const own = await readers.get(String(r.cp_workspace_id))!(season, kind, r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version));
+    const read = group ? group(own, data) : { fields: own, data };
     const e: ConsensusEntry = {
-      team: Number(r.team), kind, authorAccountId: Number(r.author_account_id), updatedAt: Number(r.updated_at), data,
-      fields: await fields(season, kind, r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version)),
+      team: Number(r.team), kind, authorAccountId: Number(r.author_account_id), updatedAt: Number(r.updated_at), data: read.data, fields: read.fields,
     };
     const list = byTeam.get(e.team) ?? [];
     list.push(e);
@@ -110,7 +160,7 @@ async function compute(workspaceId: string, season: number, teams: number[]): Pr
 }
 
 /**
- * The fields an entry was made with: its workspace template version (this workspace's only), else the
+ * The fields an entry was made with: its workspace template version (the entry's own workspace only), else the
  * built-in default of its season. Each version is read once per computation.
  */
 export function fieldReader(workspaceId: string) {

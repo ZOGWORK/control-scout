@@ -9,9 +9,9 @@ venue when the signal drops, and says everywhere what time its data is from.
 | --- | --- | --- |
 | `event` | The event detail exactly as `/api/events/:season/:code` serves it: teams, schedule, rankings, alliances, the predictions made for its matches | The event page (`lib/offline/answer.ts` answers the read from the bundle) |
 | `ratings` | The season's rating book cut to the event's teams (`sliceBook`) | Predictions in the browser with the lite pack's engine, when the lite pack isn't on the device (`lib/offline/predict.ts`) |
-| `reports` | A frozen Know your match report for each of your team's matches (up to 24), static HTML | `/events/:season/:code/match/:key` with no signal (or no answer in 4 s) |
+| `reports` | A frozen Know your match report for each of your team's matches (up to 24), static HTML | `/events/:season/:code/match/:key` with no signal (or, for a report the bundle holds, no answer in 4 s) |
 | `picklist` | The workspace pick list, static HTML (members only) | `/bundle/:season/:code/picklist` when the live list doesn't load |
-| `rules` | The rules reference, pluggable (`setRulesProvider` in `server/packs/bundle.ts`) | The bundle page; absent until the rules reference plugs in |
+| `rules` | The question-box rules reference for the season (`src/shared/rules`), static HTML, while the `rulesReference` switch is on; pluggable (`setRulesProvider`) | The bundle page |
 | `venue` | Venue card: name, venue and address, dates, time zone, event site (from the event's own data) | The bundle page |
 
 A typical event measured on the local data: 20 teams, 31 matches, 8 reports, 16 KB gzipped; 28 teams, 46 matches,

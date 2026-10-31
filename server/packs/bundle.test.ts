@@ -16,7 +16,7 @@ import { clearInfoCache } from "../auth/controlPoint";
 import { closeAllStreams } from "../scout/stream";
 import { clearConsensusCache } from "../scout/consensus";
 import { clearCutoffCache } from "../api/matchReport";
-import { clearBundleCache, setRulesProvider } from "./bundle";
+import { clearBundleCache, defaultRulesProvider, setRulesProvider } from "./bundle";
 import type { BundleManifest, EventBundle } from "../../src/shared/eventBundle";
 
 const KEY = "k".repeat(40);
@@ -168,6 +168,7 @@ describe("a public bundle", () => {
   it("frozen reports are static HTML: the snapshot time inside, no scripts, nothing to fetch", async () => {
     const { body } = await file((await manifest(anon, "?team=13")).json);
     expect(body.reports.map((x) => x.label)).toEqual(["Q1", "Q2", "Q3"]);
+    expect((await manifest(anon, "?team=13")).json.reportKeys).toEqual(body.reports.map((x) => x.key));
     for (const x of body.reports) {
       expect(x.html).toMatch(/^<!doctype html>/);
       expect(x.html).toMatch(/Snapshot from .* may be stale/);
@@ -214,13 +215,22 @@ describe("a public bundle", () => {
     expect((await anon("GET", `/api/bundles/${S}/${EV}/manifest?team=abc`)).status).toBe(400);
   });
 
+  it("the question-box rules reference ships for a season it covers, as static HTML", async () => {
+    const r = await defaultRulesProvider(2026, "X");
+    expect(r?.title).toMatch(/rules reference/);
+    expect(r!.html).toMatch(/^<!doctype html>/);
+    expect(r!.html).not.toMatch(/<script|<link|src=/i);
+    expect(r!.html).toContain("G4");
+    expect(await defaultRulesProvider(2019, "X")).toBeNull();
+  });
+
   it("the rules reference plugs in", async () => {
     setRulesProvider(async (season) => ({ title: `Rules ${season}`, version: "r1", html: "<!doctype html><p>Q&amp;A</p>" }));
     try {
       const m = (await manifest(anon)).json;
       expect(m.sections.find((s) => s.id === "rules")).toMatchObject({ items: 1, note: null });
       expect((await file(m)).body.rules?.title).toBe(`Rules ${S}`);
-    } finally { setRulesProvider(async () => null); }
+    } finally { setRulesProvider(defaultRulesProvider); }
   });
 });
 

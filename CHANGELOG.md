@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.6.1 — 2026-10-31
+## 1.6.3 — 2026-10-31
 
 One tap before you leave for the venue saves the whole event on your phone: the schedule, rankings, your match reports and your pick list, each saying what time it's from (#361).
 
@@ -26,11 +26,44 @@ One tap before you leave for the venue saves the whole event on your phone: the 
 - [offline] No signal? The event page answers from it; live wins again
 
 ### Event-day bundle
-- **One tap, one download.** The Download page builds a bundle for your event (your team's events and the ones you track are offered; every upcoming event page has an Event-day bundle button): the event's teams, schedule, rankings and predictions, the event teams' ratings so predictions still run on the phone, a Know your match report for each of your team's matches, your workspace's pick list (members only) and a venue card with the address and dates. A typical event is 15 to 35 KB.
+- **One tap, one download.** The Download page builds a bundle for your event (your team's events and the ones you track are offered; every upcoming event page has an Event-day bundle button): the event's teams, schedule, rankings and predictions, the event teams' ratings so predictions still run on the phone, a Know your match report for each of your team's matches, your workspace's pick list (members only), the season's question-box rules reference and a venue card with the address and dates. A typical event is 15 to 35 KB.
 - **Honest about its age.** Everything from a bundle says what time its data is from and how old it is, and past two hours it tells you to check the live version first. The snapshots print their time inside too.
 - **Live first.** A bundle is only used with no signal (or no answer in 4 seconds); the moment the server answers, the live page takes over, as with saved seasons.
 - **Kept tidy.** One bundle per event on the device. The Download page shows each one's data time, offers Update and Update all when newer data is out, and removes finished events' bundles in one tap.
 - **Owner switch.** The owner console's Features tab has an Event-day bundles toggle; off (or with offline packs paused) the builder hides and new bundles are refused, while bundles already on a phone keep working.
+
+## 1.6.2 — 2026-10-31
+
+Two teams can now scout one event together: link workspaces, share the scouting, and split again when it ends.
+
+### Highlights
+- [workspace] Scouting alliances: share your scouting with another team for one meet
+- [scout] Both teams see each other's entries and share one consensus
+- [picklist] Pick lists stay your own, with a switch to view your partner's
+- [workspace] Coverage shows what each side added, side by side
+
+### Scouting alliances
+- **Invite and accept.** A workspace admin picks an event and gets a one-time code; the other team's admin enters it to link. It's a link for that meet only: nobody joins the other team. Either admin can unlink at any time. Find it under Scout, Data, Scouting alliance (#353).
+- **One event, shared.** While linked, every member of both workspaces sees both sides' entries and assignments at that event, and one consensus built from all of them. Nothing from other events is shared.
+- **Your entries stay yours.** Each entry stays in its own workspace and only that workspace can edit it; the partner's admins can't change or delete it.
+- **Coverage.** Each side's entries, teams, matches and scouts, with a per-team split. A side that hasn't added anything shows zeros rather than disappearing.
+- **When the event ends** the link ends by itself. Each workspace keeps its own entries, and if both admins ticked "keep a copy" when linking, each also keeps a copy of the other side's entries.
+
+## 1.6.1 — 2026-10-31
+
+A light version of the pages you open at a venue, for when the signal is down to one bar.
+
+### Highlights
+- [speed] Light, text-only event, team, match and pick list pages
+- [speed] Offered by itself when a page crawls, and from every page's footer
+- [speed] One tap back to the full version, always
+
+### Light version
+- **Text first.** `/lite/…` pages are plain server-rendered HTML: no images, no charts (tables instead), no scripts, the device's own fonts. An event's rankings and whole schedule, a team's next matches, latest results and events, a match's lineup, score sheet and call, and your workspace's pick list (read-only, members only, as in the full app) (#358).
+- **Getting there.** "Light version" in the footer of those pages; add `?lite=1` to any of their addresses; while the app's code is still loading after 10 seconds the first paint offers it; and when a page's data hasn't arrived after 8 seconds, or three requests fail within a minute while you're online, a small card asks. "Not now" keeps it away for the rest of the visit.
+- **Never stuck.** Every light page has a Full version button at the top right. With no signal at all, the offline pack still takes over as before (a light page's address opens its full page from the saved app).
+- **Same numbers.** Both versions format numbers, dates and win odds with the same helpers, and predictions keep their confidence words.
+- **Owner switch.** The owner console's Features tab can turn the light version off; its addresses then open the full pages.
 
 ## 1.6.0 — 2026-10-31
 

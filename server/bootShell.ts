@@ -12,6 +12,7 @@ import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
 import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
+import { LITE_BOOT_S } from "../src/shared/lite.js";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -61,6 +62,9 @@ export const BOOT_STYLE = `<style>
       .csb-page h1{margin:0;font:600 24px/1.25 "Space Grotesk",sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere}
       .csb-page>p{margin:6px 0 0;max-width:42rem;font-size:14px;line-height:1.45;color:var(--b-mut)}
       .csb-main.csb-scroll{padding-bottom:96px}
+      .csb-lite{visibility:hidden;margin:20px 0 0;font-size:14px;color:var(--b-mut);animation:csb-lite 0s ${LITE_BOOT_S}s forwards}
+      .csb-lite a{color:var(--b-acc);font-weight:600;text-decoration:underline;text-underline-offset:2px}
+      @keyframes csb-lite{to{visibility:visible}}
       .csb-body{max-width:48rem;margin-top:8px;font-size:14px;line-height:1.55;color:var(--b-mut)}
       .csb-body a{color:var(--b-fg);text-decoration:underline;text-underline-offset:2px}
       .csb-body h2{margin:20px 0 4px;font:600 16px/1.3 "Space Grotesk",sans-serif;color:var(--b-fg)}
@@ -149,8 +153,9 @@ const link = (path: string, it: Item) =>
   `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
 
 /** The static first paint for a page path (see the top of this file). `path` is the request path; `hero`: the
- *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default. */
-export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse = { lines: [...DEFAULT_HERO_LINES], custom: false }): string {
+ *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default; `lite`: the page's
+ *  light twin (src/shared/lite.ts), offered when the app's code still hasn't run after LITE_BOOT_S seconds. */
+export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse = { lines: [...DEFAULT_HERO_LINES], custom: false }, lite: string | null = null): string {
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
@@ -166,7 +171,9 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).
       // A page whose own markup has its H1 (How it works, prerendered) keeps that one: one H1 per page.
-      ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}">${meta.bodyHtml && /<h1[\s>]/.test(meta.bodyHtml) ? "" : `<h1>${esc(meta.heading ?? meta.title)}</h1>`}${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}</div>` : "";
+      ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}">${meta.bodyHtml && /<h1[\s>]/.test(meta.bodyHtml) ? "" : `<h1>${esc(meta.heading ?? meta.title)}</h1>`}${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}`
+        // Still here after LITE_BOOT_S seconds (CSS alone: no script needed, and the app's first render removes it): the light version.
+        + (lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open the light version</a>: text only, a fraction of the data.</p>` : "") + `</div>` : "";
   // The owner's own hero lines (not the built-in ones the app already has), on every page: the app reads them
   // before its first render (src/lib/heroLines.ts), so Home draws the same lines whichever page it opens from.
   const heroJson = hero.custom ? `<script type="application/json" id="${HERO_LINES_ID}">${JSON.stringify(lines).replace(/</g, "\\u003c")}</script>` : "";

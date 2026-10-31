@@ -38,6 +38,7 @@ import { RecoverableChanges } from "../components/scout/RecoverableChanges";
 import { announceCommentsResync, useCommentCounts } from "../lib/scoutComments";
 import { useWorkspaceActivity } from "../lib/scoutActivity";
 import { SharedPicklist } from "../components/scout/SharedPicklist";
+import { AllianceView, PicklistWithPartner } from "../components/scout/Alliance";
 import { announcePicklistResync } from "../lib/sharedPicklist";
 import { AssignmentsView } from "../components/scout/Assignments";
 import { assignedLabel, useAssignmentIndex, useAssignments } from "../lib/assignments";
@@ -189,6 +190,10 @@ export default function ScoutPage() {
     return () => clearTimeout(t);
   }, [entries, status]);
   const showAssignments = !!workspace && !spaces.resolving && sp.get("view") === "assignments";
+  // A scouting alliance (?view=alliance, docs/alliances.md): link with another team's workspace for one event.
+  // Off (the owner's scoutingAlliances switch, for this workspace): no row, no view, no partner's pick list.
+  const alliancesOn = useWorkspaceFlag("scoutingAlliances", space);
+  const showAlliance = !!workspace && !spaces.resolving && alliancesOn && sp.get("view") === "alliance";
   const myOpen = workspace && me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open").length : 0;
   // Scout an assigned team: the list filtered to that team at that event, and a new entry for it there.
   // The event of the assignment Scout was tapped on: only for that space and season (a switch falls back to the defaults).
@@ -299,7 +304,7 @@ export default function ScoutPage() {
             {!sub ? (
               <>
                 <DataHub workspace={workspace ? { id: workspace.id, name: spaceName ?? "" } : null} readOnly={!!readOnly} isAdmin={isAdmin} season={season} eventCode={session?.eventCode ?? null}
-                  entryCount={entries.length} openForYou={myOpen} filters={sp} filteredCount={filtering ? feed.shown.length : null}
+                  entryCount={entries.length} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
                   onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} />
               </>
             ) : <>
@@ -309,7 +314,13 @@ export default function ScoutPage() {
               ) : showAssignments && workspace && space != null ? (
                 <AssignmentsView space={space} workspaceName={workspaceLabel(workspace)} season={season} defaultEvent={newEntryEventCode(space, wss.defaults, season)}
                   state={assignments} matchState={matchAssignments} live={live} myAccountId={me?.accountId ?? null} isAdmin={isAdmin} localEntries={entries} onScout={scoutAssigned} readOnly={!!readOnly} />
-              ) : showPicklist && workspace ? <SharedPicklist key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} readOnly={!!readOnly} />
+              ) : showAlliance && workspace ? (
+                <AllianceView key={`${workspace.id}:${season}`} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null} isAdmin={isAdmin} readOnly={!!readOnly} />
+              ) : showPicklist && workspace ? (
+                <PicklistWithPartner key={`${workspace.id}:${season}`} enabled={alliancesOn} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null}>
+                  <SharedPicklist workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks} readOnly={!!readOnly} />
+                </PicklistWithPartner>
+              )
                 : showActivity && workspace ? <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} />
                 : sub === "recordings" ? (
                   <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">

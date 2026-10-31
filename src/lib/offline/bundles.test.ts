@@ -14,7 +14,7 @@ import { bundleKey, type BundleManifest, type EventBundle } from "../../shared/e
 
 const bundle = (version: string): EventBundle => ({
   format: 1,
-  manifest: { format: 1, season: 2025, code: "USTXQ1", name: "Texas Qualifier", end: "2026-11-01", version, builtAt: "2026-11-01T12:00:00Z", dataAsOf: "2026-11-01T11:58:00Z", engineVersion: "3.0.0", team: 13, workspace: null, sections: [{ id: "reports", label: "", version: "x", bytes: 1, items: 1, note: null }], field: [[13, "Climbers"]] },
+  manifest: { format: 1, season: 2025, code: "USTXQ1", name: "Texas Qualifier", end: "2026-11-01", version, builtAt: "2026-11-01T12:00:00Z", dataAsOf: "2026-11-01T11:58:00Z", engineVersion: "3.0.0", team: 13, workspace: null, sections: [{ id: "reports", label: "", version: "x", bytes: 1, items: 1, note: null }], field: [[13, "Climbers"]], reportKeys: ["qual:0:1"] },
   event: { event: { season: 2025, code: "USTXQ1", name: "Texas Qualifier" }, field: [], matches: [] } as never,
   ratings: null, reports: [{ key: "qual:0:1", label: "Q1", time: null, html: "<!doctype html><p>Q1</p>" }], picklist: null, rules: null,
   venue: { name: "Texas Qualifier" } as never,
@@ -33,7 +33,7 @@ describe("event-day bundles on the device", () => {
     serve("v1");
     const req = { season: 2025, code: "USTXQ1", team: 13, workspace: null };
     const a = await downloadBundle(req);
-    expect(a).toMatchObject({ version: "v1", team: 13, reports: 1, dataAsOf: "2026-11-01T11:58:00Z" });
+    expect(a).toMatchObject({ version: "v1", team: 13, reports: 1, reportKeys: ["qual:0:1"], dataAsOf: "2026-11-01T11:58:00Z" });
     serve("v2");
     await downloadBundle(req);
     expect(savedBundles().map((b) => b.version)).toEqual(["v2"]);

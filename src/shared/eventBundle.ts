@@ -11,7 +11,7 @@
 //   - reports:  frozen "Know your match" reports for your team's matches, rendered by the server to
 //               self-contained static HTML (no scripts, no data fetches);
 //   - picklist: the workspace pick list, frozen the same way (members only);
-//   - rules:    the rules reference (pluggable: absent until that section ships);
+//   - rules:    the question-box rules reference for the season (src/shared/rules), when it covers it;
 //   - venue:    a venue card (event name, venue and address, dates) from the event's own data.
 //
 // Freshness: the bundle says what time its data is from, everywhere it renders. Live data always takes over the
@@ -61,6 +61,8 @@ export interface BundleManifest {
   sections: BundleSection[];
   /** The event's teams [number, name], so the builder can offer "your team". */
   field: [number, string | null][];
+  /** Match keys of the frozen reports inside (qual:0:12 …). */
+  reportKeys: string[];
 }
 
 /** One frozen report: static HTML, readable with zero JS data fetches. */
@@ -118,6 +120,8 @@ export interface SavedBundle {
   team: number | null;
   workspace: { id: string; name: string } | null;
   reports: number;
+  /** Which matches' reports it holds (bundles saved before this was noted: absent). */
+  reportKeys?: string[];
   picklist: boolean;
 }
 

@@ -17,6 +17,16 @@ import { liveHeroLines } from "./heroLines.js";
 import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
 import { COIN_FLIPS_META, hasFlips } from "../src/shared/coinFlips.js";
+import { liteHref } from "../src/shared/lite.js";
+import { isEnabled } from "./flags.js";
+
+/** The request's query as "?a=b" (repeated or nested values left out). */
+const queryString = (query: Record<string, unknown>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(query)) if (typeof v === "string") q.set(k, v);
+  const s = q.toString();
+  return s ? `?${s}` : "";
+};
 
 /** The canonical origin, e.g. "https://controlscout.org" (no trailing slash). */
 export const canonicalOrigin = () => new URL(env.canonicalUrl).origin;
@@ -148,13 +158,14 @@ export async function renderPage(file: string, path: string, query: Record<strin
   const { pageMeta, headTags } = await import("./seoMeta.js");
   // The home page's hero lines too (the owner's, or the built-in ones): every page carries them (server/bootShell.ts).
   // And on /events, whether today has coin flips (coinFlipsHint).
-  const [meta, hero, flips] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path)]);
+  // And whether the light version is on (the first paint offers it on a slow load: server/bootShell.ts).
+  const [meta, hero, flips, lite] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false)]);
   const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = afterFirstPaint(nonBlockingCss(indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
-    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero)}</div>${isBareRoute(path) ? "" : bootConsent()}`);
+    .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   return { status: meta.notFound ? 404 : 200, html };
 }
 

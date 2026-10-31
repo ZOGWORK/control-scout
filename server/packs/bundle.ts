@@ -1,7 +1,7 @@
 // Event-day bundles (docs/event-bundle.md; types and rules: src/shared/eventBundle.ts). One download before
 // leaving for the venue: an event's slice of the data, the event teams' ratings for the in-browser engine, frozen
 // "Know your match" reports for your team's matches and your workspace's pick list (static HTML, snapshotHtml.ts),
-// the rules reference (pluggable) and a venue card, stamped with a manifest of contents, versions and sizes.
+// the question-box rules reference (pluggable; src/shared/rules by default) and a venue card, stamped with a manifest of contents, versions and sizes.
 //
 //   GET /api/bundles/:season/:code/manifest?team=N&workspace=ID  what the download holds, its size and SHA-256
 //   GET /api/bundles/:season/:code/file?team=N&workspace=ID&v=VERSION  the bundle (gzipped JSON)
@@ -30,7 +30,8 @@ import type { MatchReportWorkspace } from "../../src/shared/matchReport.js";
 import { accessError, workspaceAccess, workspacePaused } from "../scout/entries.js";
 import { consensusFor } from "../scout/consensus.js";
 import { readPickList } from "../scout/picklist.js";
-import { matchReportHtml, picklistHtml } from "./snapshotHtml.js";
+import { matchReportHtml, picklistHtml, rulesHtml } from "./snapshotHtml.js";
+import { hasRuleReference, ruleReference } from "../../src/shared/rules/index.js";
 
 /** A build answers the same asker this long (the manifest, then its file). */
 export const BUNDLE_TTL_MS = 5 * 60_000;
@@ -41,7 +42,14 @@ export const MAX_REPORTS = 24;
 // --- The rules reference: pluggable ------------------------------------------------------------------------
 /** Gives the rules reference for an event's season, or null when there's none to ship yet. */
 export type RulesProvider = (season: number, code: string) => Promise<RulesSection | null>;
-let rulesProvider: RulesProvider = async () => null;
+/** The question-box rules reference (src/shared/rules) for the season, while its owner switch is on; null for a
+ *  season it doesn't cover. */
+export const defaultRulesProvider: RulesProvider = async (season) => {
+  if (!hasRuleReference(season) || !(await isEnabled("rulesReference"))) return null;
+  const ref = ruleReference(season);
+  return { title: `${ref.game} rules reference`, version: `${ref.manual.revision}|${ref.qa.readOn}|${ref.rules.length}|${ref.rulings.length}`, html: rulesHtml(ref) };
+};
+let rulesProvider: RulesProvider = defaultRulesProvider;
 /** The rules reference's own module plugs in here (and tests). */
 export function setRulesProvider(fn: RulesProvider) { rulesProvider = fn; }
 
@@ -119,13 +127,13 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
     section("reports", "Know your match reports", reportData, reports.length,
       team == null ? "Pick your team to include its matches." : !mine.length ? `Team ${team} has no matches scheduled here yet.` : null, reports),
     section("picklist", "Pick list", wsPart ? { picks: wsPart.picks, field: ev.field.map((f) => [f.team, f.name, f.rank, f.opr.np]) } : null, picklist?.count ?? 0, workspace ? null : "Sign in with a scouting workspace to include its pick list.", picklist),
-    section("rules", "Rules reference", rules, rules ? 1 : 0, rules ? null : "The rules reference isn't in bundles yet."),
+    section("rules", "Rules reference", rules, rules ? 1 : 0, rules ? null : "No rules reference for this season yet."),
     section("venue", "Venue card", venue, 1),
   ];
   const version = sha(sections.map((s) => `${s.id}:${s.version}`).join("|") + `|${team ?? ""}|${workspace?.id ?? ""}|${BUNDLE_FORMAT}`).slice(0, 12);
   const head: EventBundle["manifest"] = {
     format: BUNDLE_FORMAT, season, code: ev.event.code, name: ev.event.name, end: ev.event.end ?? ev.event.start, version, builtAt, dataAsOf,
-    engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]),
+    engineVersion: ENGINE_VERSION, team, workspace, sections, field: ev.field.map((f) => [f.team, f.name]), reportKeys: reports.map((r) => r.key),
   };
   const body: EventBundle = { format: BUNDLE_FORMAT, manifest: head, event: ev, ratings, reports, picklist, rules, venue };
   const gz = gzipSync(Buffer.from(JSON.stringify(body)), { level: 9 });

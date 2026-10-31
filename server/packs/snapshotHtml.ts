@@ -12,6 +12,7 @@ import type { MatchReport, MatchReportWorkspace, OprSplit, ReportTeam } from "..
 import type { PickList } from "../../src/shared/picklist.js";
 import { oddsPct } from "../../src/shared/share.js";
 import { TIER_WORD } from "../../src/shared/tierWords.js";
+import type { SeasonReference } from "../../src/shared/rules/types.js";
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 /** Text for HTML: every value from data goes through this. */
@@ -141,4 +142,27 @@ export function picklistHtml(list: PickList, ev: EventDetail, opts: { asOf: stri
     + (list.picks.length
       ? `<div class="card"><table><thead><tr><th>#</th><th>Team</th><th>Here (as of the snapshot)</th></tr></thead><tbody>${rows}</tbody></table></div>`
       : `<div class="card mut">The pick list was empty when the bundle was built.</div>`));
+}
+
+/** The question-box rules reference (src/shared/rules), frozen: every rule summary and Q&A ruling, in our own words,
+ *  always pointing at the official manual. Static like the rest; it isn't data that goes stale during an event, so
+ *  it carries its manual revision instead of a snapshot time. */
+export function rulesHtml(ref: SeasonReference): string {
+  const bySection = ref.sections.map((sec) => {
+    const rules = ref.rules.filter((r) => r.section === sec.id);
+    if (!rules.length) return "";
+    return `<div class="card"><h2>${esc(sec.id)} ${esc(sec.title)}</h2>${rules.map((r) =>
+      `<div class="team"><div><b>${esc(r.id)}</b> ${esc(r.title)}${r.penalty ? ` <span class="chip flag">${esc(r.penalty)}</span>` : ""}</div><div class="sm">${esc(r.summary)}</div></div>`).join("")}</div>`;
+  }).join("");
+  const rulings = ref.rulings.length
+    ? `<div class="card"><h2>Q&amp;A rulings (unofficial summaries)</h2>${ref.rulings.map((q) =>
+      `<div class="team"><div><b>Q${q.n}</b> ${esc(q.title)} <span class="mut sm">${esc(q.rules.join(", "))} · ${esc(q.answered)}</span></div><div class="sm">${esc(q.summary)}</div></div>`).join("")}</div>`
+    : "";
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
+    + `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">`
+    + `<title>${esc(ref.game)} rules reference</title><style>${CSS}</style></head><body>`
+    + `<span class="stamp">Manual ${esc(ref.manual.revision)} (${esc(ref.manual.date)}) · Q&amp;A read ${esc(ref.qa.readOn)}</span>`
+    + `<h1>${esc(ref.game)} rules, quick reference</h1>`
+    + `<p class="sm" style="color:var(--warn)">Summaries in our own words, not the official text. Check the official game manual (${esc(ref.manual.url)}) before you rely on a ruling.</p>`
+    + bySection + rulings + `</body></html>`;
 }
