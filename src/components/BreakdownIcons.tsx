@@ -34,15 +34,15 @@ const hex = (x: number, y: number, r: number) =>
 
 /** BIOBUZZ SWARM: three bees flying together, no honeycomb cell. */
 export const SwarmIcon = (p: IconProps) => (
-  <Svg {...p}><Bee x={7.5} y={7.5} s={0.78} /><Bee x={18} y={10.5} s={0.78} /><Bee x={10.5} y={18.5} s={0.78} /></Svg>
+  <Svg {...p}><Bee x={7} y={7.5} s={0.95} /><Bee x={17.6} y={9.6} s={0.95} /><Bee x={10} y={18.4} s={0.95} /></Svg>
 );
 /** BIOBUZZ POLLINATOR 1: one bee over a single honeycomb cell. */
 export const Pollinator1Icon = (p: IconProps) => (
-  <Svg {...p}><polygon points={hex(12, 16.5, 6)} /><Bee x={12.5} y={5.5} s={0.8} /></Svg>
+  <Svg {...p}><polygon points={hex(12, 17.6, 5.2)} /><Bee x={12.5} y={6.6} s={1.05} /></Svg>
 );
 /** BIOBUZZ POLLINATOR 2: one bee over two joined honeycomb cells. */
 export const Pollinator2Icon = (p: IconProps) => (
-  <Svg {...p}><polygon points={hex(6.5, 17, 4.3)} /><polygon points={hex(17.5, 17, 4.3)} /><Bee x={12.5} y={5.5} s={0.8} /></Svg>
+  <Svg {...p}><polygon points={hex(6.8, 18, 4)} /><polygon points={hex(17.2, 18, 4)} /><Bee x={12.5} y={6.6} s={1.05} /></Svg>
 );
 /** DECODE MOVEMENT: a robot base moving off its line. */
 export const MovementIcon = (p: IconProps) => (
