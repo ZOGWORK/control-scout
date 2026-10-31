@@ -52,6 +52,18 @@ describe("event-day bundles on the device", () => {
     expect((await loadBundle(2025, "USTXQ1"))?.manifest.version).toBe("v2");
   });
 
+  it("an update that can't be recorded (storage full) keeps the bundle already here", async () => {
+    serve("v1");
+    const req = { season: 2025, code: "USTXQ1", team: 13, workspace: null };
+    await downloadBundle(req);
+    serve("v2");
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new DOMException("full", "QuotaExceededError"); });
+    await expect(downloadBundle(req)).rejects.toThrow(/kept/);
+    setItem.mockRestore();
+    expect(savedBundles().map((b) => b.version)).toEqual(["v1"]);
+    expect((await loadBundle(2025, "USTXQ1"))?.manifest.version).toBe("v1");
+  });
+
   it("refuses bytes that don't match the manifest", async () => {
     const m = serve("v1");
     vi.stubGlobal("fetch", vi.fn(async (url: string) => (String(url).includes("/manifest") ? new Response(JSON.stringify(m)) : new Response(new Uint8Array([1, 2])))));

@@ -41,14 +41,22 @@ export async function downloadBundle(r: BundleRequest, onProgress?: (done: numbe
     m = await fetchBundleManifest(r);
     bytes = await fetchVerified(asFile(m), onProgress);
   }
-  await put(bundleKey(m.season, m.code), { bytes, version: m.version });
+  // The previous copy is put back if the list can't be written (storage full): a failed update never loses the
+  // bundle already here.
+  const key = bundleKey(m.season, m.code);
+  const previous = await getv<{ bytes: Uint8Array; version: string }>(key).catch(() => undefined);
+  await put(key, { bytes, version: m.version });
   const saved: SavedBundle = {
     season: m.season, code: m.code, name: m.name, end: m.end, version: m.version, sha256: m.sha256, bytes: bytes.length,
     savedAt: Date.now(), builtAt: m.builtAt, dataAsOf: m.dataAsOf, team: m.team, workspace: m.workspace,
     // A workspace bundle always holds its pick list (empty or not); a public one never does.
     reports: m.sections.find((s) => s.id === "reports")?.items ?? 0, picklist: !!m.workspace,
   };
-  writeBundles([...savedBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]);
+  try { writeBundles([...savedBundles().filter((b) => !(b.season === m.season && b.code === m.code)), saved]); }
+  catch (e) {
+    await (previous ? put(key, previous) : del(key)).catch(() => {});
+    throw new Error(`Couldn't save the bundle on this device (${(e as Error).message || "storage full"}). The copy already here is kept.`);
+  }
   for (const k of memo.keys()) if (k.startsWith(`${bundleKey(m.season, m.code)}@`)) memo.delete(k);
   return saved;
 }
