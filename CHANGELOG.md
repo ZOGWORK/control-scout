@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.5.9 — 2026-10-31
+
+My teams cards fold away: tap a team's number and name to hide the rest of its card.
+
+### Highlights
+
+- [teams] Tap a team on My teams to fold its card down to the header
+- [teams] Folded teams stay folded on this device, each one separately
+- [speed] A folded team skips loading its matches until you open it
+
+### Teams
+
+- My teams: each team's number and name is now a button that folds its card to the header (number, name, workspace, season, Full team page) and opens it again, with a chevron that turns; remembered per team on this device (#PR)
+
 ## 1.5.8 — 2026-10-31
 
 The Playoffs tab now predicts the bracket: a call for every series, each alliance's odds of winning the event, and the match most likely to knock it out.
