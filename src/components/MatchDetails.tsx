@@ -270,14 +270,13 @@ function BreakdownLine({ x, sheet }: { x: BreakdownRow; sheet: boolean }) {
 export function RpChip({ label, earned }: { label: string; earned: boolean }) {
   const Icon = rpIcon(label);
   return (
-    <li className={cn("flex min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center",
+    <li className={cn("relative flex min-w-0 flex-col items-center gap-0.5 rounded-lg border px-1 py-1.5 text-center",
       earned ? "border-success/50 bg-success/10" : "border-dashed border-border")}
-      data-earned={earned} aria-label={`${label} RP ${earned ? "earned" : "missed"}`}>
-      <span className="relative">
-        <Icon size={26} className={earned ? "text-success" : "text-text-muted opacity-60"} />
-        <span className={cn("absolute -bottom-1 -right-1.5 grid size-3.5 place-items-center rounded-full text-[9px] font-bold leading-none ring-2 ring-card",
-          earned ? "bg-success text-card" : "bg-text-muted text-card")} aria-hidden>{earned ? "✓" : "✗"}</span>
-      </span>
+      data-earned={earned}>
+      <span className="sr-only">{label} RP {earned ? "earned" : "missed"}</span>
+      <span className={cn("absolute right-1 top-1 grid size-4 place-items-center rounded-full text-[10px] font-bold leading-none",
+        earned ? "bg-success text-card" : "border border-text-muted/60 text-text-muted")} aria-hidden>{earned ? "✓" : "✗"}</span>
+      <Icon size={30} className={earned ? "text-success" : "text-text-muted opacity-55"} />
       <span className={cn("mt-0.5 w-full truncate text-[11px] leading-tight", earned ? "font-semibold text-text-base" : "text-text-muted")} aria-hidden>{label}</span>
       <span className={cn("text-[10px] leading-tight", earned ? "font-semibold text-success" : "text-text-muted")} aria-hidden>{earned ? "✓ Earned" : "✗ Missed"}</span>
     </li>

@@ -17,10 +17,11 @@ function Svg({ size = 18, children, ...rest }: IconProps & { children: ReactNode
 function Bee({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
   return (
     <g transform={`translate(${x} ${y}) scale(${s})`}>
-      <ellipse cx={-1.4} cy={-2.4} rx={1.7} ry={1.3} strokeWidth={1.4} />
-      <ellipse cx={1.4} cy={-2.4} rx={1.7} ry={1.3} strokeWidth={1.4} />
-      <ellipse cx={0} cy={0.6} rx={3.2} ry={2.1} fill="currentColor" stroke="none" />
-      <path d="M-0.9 -1.2v3.6M1.1 -1.2v3.6" stroke="var(--color-card, #111)" strokeWidth={0.8} />
+      <ellipse cx={-0.9} cy={-4} rx={1.6} ry={2.6} transform="rotate(-28 -0.9 -4)" strokeWidth={1.2} />
+      <ellipse cx={2.3} cy={-4} rx={1.6} ry={2.6} transform="rotate(28 2.3 -4)" strokeWidth={1.2} />
+      <ellipse cx={0.4} cy={0.6} rx={4.2} ry={2.6} fill="currentColor" stroke="none" />
+      <circle cx={-4.6} cy={0.6} r={1.6} fill="currentColor" stroke="none" />
+      <path d="M-0.4 -1.6v4.4M2 -1.6v4.4" stroke="var(--color-card, #111)" strokeWidth={1} />
     </g>
   );
 }
@@ -31,17 +32,17 @@ const hex = (x: number, y: number, r: number) =>
 
 // ---- Bonus ranking points -------------------------------------------------------------------------------
 
-/** BIOBUZZ SWARM: three bees flying together, no honeycomb. */
+/** BIOBUZZ SWARM: three bees flying together, no honeycomb cell. */
 export const SwarmIcon = (p: IconProps) => (
-  <Svg {...p}><Bee x={6.5} y={17} s={0.95} /><Bee x={17.5} y={17} s={0.95} /><Bee x={12} y={8} s={0.95} /><path d="M3 9.5c1.5-3 4-4.5 5-4.5M21 9.5c-1.5-3-4-4.5-5-4.5" strokeWidth={1.4} strokeDasharray="1.5 2" /></Svg>
+  <Svg {...p}><Bee x={7.5} y={7.5} s={0.78} /><Bee x={18} y={10.5} s={0.78} /><Bee x={10.5} y={18.5} s={0.78} /></Svg>
 );
 /** BIOBUZZ POLLINATOR 1: one bee over a single honeycomb cell. */
 export const Pollinator1Icon = (p: IconProps) => (
-  <Svg {...p}><polygon points={hex(12, 15.5, 6.5)} /><Bee x={12} y={6.2} s={0.9} /></Svg>
+  <Svg {...p}><polygon points={hex(12, 16.5, 6)} /><Bee x={12.5} y={5.5} s={0.8} /></Svg>
 );
 /** BIOBUZZ POLLINATOR 2: one bee over two joined honeycomb cells. */
 export const Pollinator2Icon = (p: IconProps) => (
-  <Svg {...p}><polygon points={hex(7, 16, 4.6)} /><polygon points={hex(17, 16, 4.6)} /><Bee x={12} y={6.2} s={0.9} /></Svg>
+  <Svg {...p}><polygon points={hex(6.5, 17, 4.3)} /><polygon points={hex(17.5, 17, 4.3)} /><Bee x={12.5} y={5.5} s={0.8} /></Svg>
 );
 /** DECODE MOVEMENT: a robot base moving off its line. */
 export const MovementIcon = (p: IconProps) => (
