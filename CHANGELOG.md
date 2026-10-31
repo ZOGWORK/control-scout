@@ -26,6 +26,7 @@ Every prediction now opens up into its full why: each factor behind the call, wi
 
 ### Predictions
 - **Full why breakdown.** Below the top 3 reasons in the Lab, on the match page and in Know your match, an expander lists every factor behind the call with its share: the four game phases (auto, TeleOp, endgame, penalties), then what else the win model weighs (form, momentum, reliability, partner balance, experience and rest, and how sure the data is). The shares add up to 100%.
+- **At a glance.** A red-vs-blue bar shows how much of the call leans each way. Every factor has its own icon, and on a wide screen the breakdown spans the whole result, with the game phases beside the rest.
 - **Reasons that don't move the odds** are listed at 0%: these robots' history together or against each other, and schedule strength (ratings already account for every partner and opponent faced).
 - **Post-match review.** Each call logged before a match now keeps its breakdown. Once the match is played, every factor that leaned one way says whether it pointed to the winner, with how much of the call those factors carried.
 - Works offline too: a prediction made on your device from the lite pack shows the same breakdown.
