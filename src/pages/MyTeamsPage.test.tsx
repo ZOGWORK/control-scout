@@ -15,6 +15,7 @@ const { default: MyTeamsPage } = await import("./MyTeamsPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
 const { resetFlags } = await import("../lib/flags");
 const { DEFAULT_FLAGS } = await import("../shared/flags");
+const { invalidate } = await import("../lib/api");
 
 const user = (workspaces: { id: string; name: string; role: "admin" | "member" }[] | undefined, teams: { teamNumber: number | null; name: string }[] = []): AccountUser => ({
   id: 1, email: "a@scout.test", displayName: "Ada", createdAt: "", controlPointLinked: true,
@@ -110,17 +111,19 @@ describe("MyTeamsPage", () => {
     expect(card.getByRole("link", { name: /Full team page/ })).toBeTruthy();
     expect(JSON.parse(localStorage.getItem("cs-my-teams-collapsed")!)).toEqual([18360]);
 
-    // A fresh visit keeps it folded, and doesn't fetch what it can't show.
-    cleanup(); paths = [];
+    // A fresh visit (nothing cached) keeps it folded, and doesn't fetch what it can't show.
+    cleanup(); invalidate("/api/"); paths = [];
     page();
     const again = within(await screen.findByRole("article", { name: "Team 18360" }));
     const toggle2 = again.getByRole("button", { name: /18360/ });
     expect(toggle2.getAttribute("aria-expanded")).toBe("false");
     await waitFor(() => expect(again.getByText(/2025–26/)).toBeTruthy());
-    expect(paths).not.toContain("/api/teams/18360/matches?season=2025");
+    expect(paths).toEqual(["/api/teams/18360?season=2026"]);
     fireEvent.click(toggle2);
     expect(toggle2.getAttribute("aria-expanded")).toBe("true");
     await waitFor(() => expect(again.getByText("101.6")).toBeTruthy());
+    await waitFor(() => expect(paths).toContain("/api/teams/18360/matches?season=2025"));
+    expect(paths).toContain("/api/teams/18360?season=2025");
     expect(JSON.parse(localStorage.getItem("cs-my-teams-collapsed")!)).toEqual([]);
   });
 
