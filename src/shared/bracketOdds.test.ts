@@ -146,6 +146,15 @@ describe("bracketOdds", () => {
     expect(o.note).toMatch(/earlier result/);
   });
 
+  it("keeps a zero-based double bracket's single-match rounds while a result is missing", () => {
+    // Series numbered from 0: M1 is series 0 (decided), M4 (series 3) posted while M2 (series 1) has no result yet.
+    const m2 = { ...played(1, 2, 3), redScore: null, blueScore: null };
+    const o = bracketOdds({ season: 2025, alliances: alliances(4), matches: [played(0, 1, 4), m2, { ...played(3, 1, 2), redScore: null, blueScore: null }], price, strength });
+    expect(o.format).toBe("unknown");
+    expect(o.series[0]).toMatchObject({ series: 0, label: "M1", stage: "Upper bracket", bestOf: 1, winner: 1, call: null });
+    expect(o.series.map((s) => s.label)).toEqual(["M1", "M2", "M4"]);
+  });
+
   it("keeps 2023–24 series best-of-3 in the calls-only fallback", () => {
     // Seeds 2 and 3 in series 1 doesn't fit the 1 v 4 semifinal: calls only, and one win doesn't end the series.
     const o = bracketOdds({ season: 2023, alliances: alliances(4), matches: [played(1, 2, 3, 1), { ...played(1, 2, 3, 2), redScore: null, blueScore: null }], price, strength });
