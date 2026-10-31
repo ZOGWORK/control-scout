@@ -38,7 +38,6 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
   const brunoOn = useServerFlag("brunoSearch");
-  const learnOn = useServerFlag("searchLearning");
   const { state } = usePersonal();
   const prefer = useMemo(() => [...new Set([
     ...(state.myTeam ? [`team:${state.myTeam}`] : []),
@@ -50,7 +49,9 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   useEffect(() => {
     const query = q.trim();
     const id = ++seq.current;
+    // A new request: an earlier query's Bruno AI suggestion goes (it never reappears for a retyped query or a failed one).
     setRefining(false);
+    setAi(null);
     if (!query) { setRes({ q: "", hits: [] }); setError(null); setBusy(false); return; }
     setBusy(true);
     const t = setTimeout(() => {
@@ -77,19 +78,20 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     return () => clearTimeout(t);
   }, [q, prefer, kindKey, limit, brunoOn]);
   const current = res.q === q.trim();
-  // One opened result, counted for search's learning (aggregate only: the query and the result, nothing about who).
+  // One opened result from a whole answer, sent with its query: the server counts what the query asked for, and (when
+  // learning is on) the pick. Aggregate only: the query and the result, nothing about who.
   const logPick = useCallback((h: SearchHit) => {
-    if (!learnOn || h.href || !res.answer || !current) return;
+    if (!res.answer || !current) return;
     const body = JSON.stringify({ q: res.q, kind: h.kind, ref: h.ref });
     try {
       if (!navigator.sendBeacon?.("/api/search/click", new Blob([body], { type: "application/json" }))) {
         void fetch("/api/search/click", { method: "POST", body, headers: { "Content-Type": "application/json" }, keepalive: true }).catch(() => {});
       }
     } catch { /* counting a click is never worth an error */ }
-  }, [learnOn, res, current]);
+  }, [res, current]);
   return {
     hits: current ? res.hits : [], answer: current ? res.answer : undefined,
-    ai: current && ai?.q === res.q ? ai.answer : null, refining: current && refining,
+    ai: brunoOn && current && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
     busy: busy || (!!q.trim() && !current), error, logPick,
   };
 }
@@ -197,9 +199,18 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const listId = useId();
   // In the order shown, so arrow keys walk the list top to bottom.
   const ordered = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
-  // Bruno AI's suggestion arriving never moves the highlight off what the visitor is on (only new results reset it).
-  useEffect(() => setActive(0), [hits]);
-  useEffect(() => { if (active >= ordered.length) setActive(0); }, [ordered, active]);
+  // The highlight follows its row, not its place: Bruno AI's group arriving above never moves it to another result
+  // (Enter still opens what was highlighted). A row that's gone: back to the top.
+  // New results (another query) start at their top.
+  const activeKey = useRef<string | null>(null);
+  const shownHits = useRef(hits);
+  useEffect(() => {
+    const fresh = shownHits.current !== hits;
+    shownHits.current = hits;
+    const i = !fresh && activeKey.current ? ordered.findIndex((r) => r.key === activeKey.current) : -1;
+    setActive(i >= 0 ? i : 0);
+  }, [ordered, hits]);
+  useEffect(() => { activeKey.current = ordered[active]?.key ?? null; }, [ordered, active]);
   // Re-measure the "more below" cue whenever the list's contents change.
   useEffect(() => { measure(); }, [sections, open, q, busy]);
   // …and when the list's own size changes (window resized, phone rotated).

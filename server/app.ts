@@ -10,7 +10,7 @@ import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
-import { cleanQuery, searchAnswer } from "./api/searchAnswer.js";
+import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { refine } from "./api/searchBruno.js";
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
@@ -374,7 +374,7 @@ export function createApp(opts: { dist?: string } = {}) {
       const hit = a.hits.find((x) => x.kind === kind && x.ref === ref);
       // What the query asked for, counted from search's own reading of it (server/api/searchIntents.ts).
       if (hit) await recordIntent(a.intent);
-      if (hit && !hit.href && (await isEnabled("searchLearning").catch(() => false))) await recordClick(q, hit);
+      if (hit && !hit.href && (await isEnabled("searchLearning").catch(() => false))) await recordClick(learnQuery(q), hit);
     }
     res.status(204).end();
     return undefined;

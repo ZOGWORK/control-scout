@@ -108,6 +108,24 @@ describe("the answer's parts", () => {
     expect(screen.getByText(/Bruno AI read this as/)).toBeTruthy();
     expect(screen.getByRole("option", { name: /Dread Pirate Robots/ })).toBeTruthy();
   });
+  it("Bruno AI's group arriving keeps the highlight on its row; a new query drops his old suggestion", async () => {
+    const onPick = vi.fn();
+    const { input } = mount(onPick);
+    await type(input, "robots that hypnotise");
+    const base = [t("11545", "Dread Pirate Robots"), t("7", "Robot Seven")];
+    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // on "Robot Seven"
+    await reply(/\/api\/search\/refine/, answer("robots that hypnotise", { step: "ai", refined: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
+    const selected = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");
+    expect(selected?.textContent).toContain("Robot Seven");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(base[1]);
+    // Typed again: his old suggestion is gone until he answers the new query.
+    act(() => input.focus());
+    await type(input, "robots that hypnotise");
+    await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
+    expect(screen.queryByRole("group", { name: "Bruno AI suggestion" })).toBeNull();
+  });
   it("Bruno AI off: never asked", async () => {
     flags.brunoSearch = false;
     try {
@@ -147,5 +165,12 @@ describe("the answer's parts", () => {
     const [url, blob] = beacon.mock.calls[0] as unknown as [string, Blob];
     expect(url).toBe("/api/search/click");
     expect(JSON.parse(await blob.text())).toEqual({ q: "hypnotic", kind: "team", ref: "4215" });
+  });
+  it("a pick that opens a feature (Compare) is sent too, so its question is counted", async () => {
+    const { input } = mount();
+    await type(input, "hypnotic vs bad wolf reputation");
+    await reply(/q=hypnotic/, answer("hypnotic vs bad wolf reputation", { step: "closest", hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
+    fireEvent.click(screen.getByRole("option", { name: /vs 6980/ }));
+    expect(beacon).toHaveBeenCalledTimes(1);
   });
 });

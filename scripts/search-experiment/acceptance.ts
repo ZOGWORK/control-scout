@@ -299,6 +299,26 @@ try {
     return hitHref(a.hits[0]).endsWith("#awards") && hitHref(m.hits[0]).endsWith("#matches");
   });
 
+  // Review fixes on real data: a named season's own numbers, a tied event never guessed, an event name holding a state
+  await test("R1", "a named season's numbers are that season's (typed or in words)", async (ev) => {
+    const a = await ask("hypnotic opr 2024-25", ev), b = await ask("hypnotic opr last season", ev);
+    const s24 = await get<{ opr_np: number }>("SELECT opr_np FROM team_season_stats WHERE team = 4215 AND season = 2024");
+    ev.push(`2024-25 facts ${facts(a.hits[0])} (database ${s24?.opr_np}) link ${hitHref(a.hits[0])}`, `last season facts ${facts(b.hits[0])} link ${hitHref(b.hits[0])}`);
+    return a.hits[0].facts!.some((f) => f.label === "OPR" && f.value === Number(s24!.opr_np).toFixed(1)) && hitHref(a.hits[0]).includes("season=2024")
+      && b.hits[0].facts!.some((f) => f.label === "Season" && f.value === "2025–26") && hitHref(b.hits[0]).includes("season=2025");
+  });
+  await test("R2", "several of a team's events match: a pick, not a guess", async (ev) => {
+    const a = await ask("hypnotic opr at northern league meet", ev);
+    ev.push(`facts ${facts(a.hits[0])}, events to pick ${a.hits[0].events?.length}`);
+    return !a.hits[0].atEvent && a.hits[0].facts!.some((f) => f.value.startsWith("Several of its events match")) && (a.hits[0].events?.length ?? 0) > 1;
+  });
+  await test("R3", "\"New Jersey Championship rankings\" is the event's rankings, not the state's", async (ev) => {
+    const a = await ask("New Jersey Championship rankings", ev);
+    ev.push(`link ${hitHref(a.hits[0])}`);
+    return a.hits[0]?.kind === "event" && hitHref(a.hits[0]).endsWith("?tab=rankings") && !a.intent;
+  });
+  await test("R4", "versus with a season in words opens Compare on it", async (ev) => hitHref((await ask("hypnotic versus bad wolf reputation last season", ev)).hits[0]) === "/compare?teams=4215,6980&season=2025");
+
   // T62–T64 security and privacy (T61's page and T63/T64's fixtures: the HTTP block below and vitest)
   await test("T62", "\"4215 OR 1=1\" is text", async (ev) => {
     const before = await get<{ n: number }>("SELECT COUNT(*) n FROM teams");

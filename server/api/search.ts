@@ -10,6 +10,7 @@ import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic
 import { teamAtEvent, teamEvents, teamFacts, teamSeason } from "./searchFacts.js";
 import { allowedEdits, editDistance, fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
+import { isEnabled } from "../flags.js";
 import { findRegions } from "../../src/shared/regions.js";
 import { registerCache } from "../caches.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
@@ -67,8 +68,9 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
  *  rest names, each hit opening on that part of its page (SearchHit.section), and the top team carries the numbers
  *  asked about (SearchHit.facts). A team or event whose own name has the words ("Match Point") still comes first.
  *  Words like "team", and misspelled topic words ("hypnotic awrds"), count only when the whole query finds nothing. */
-export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
-  const at = await teamAtEventAnswer(q, limit, prefer, kinds);
+/** `season`: the season a query named ("last season", "2024-25"): a team's numbers and links are that season's. */
+export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>, season?: number | null): Promise<SearchHit[]> {
+  const at = await teamAtEventAnswer(q, limit, prefer, kinds, season);
   if (at) return at;
   const full = await searchWords(q, limit, prefer, kinds);
   // A match query ("USNJQ1 match 3") means that match, not the event's matches.
@@ -78,12 +80,14 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
   const readings = [searchIntent(q), full.length ? null : searchIntent(q, true)];
   for (const intent of readings) {
     if (!intent || (!intent.topic && full.length)) continue;
-    const { topic, phrase } = intent;
+    const { phrase } = intent;
+    // Schedule difficulty switched off: its section shows nothing, so the query is read without that topic.
+    const topic = intent.topic === "difficulty" && !(await isEnabled("scheduleDifficulty").catch(() => false)) ? null : intent.topic;
     const hits = await searchWords(intent.rest, limit, prefer, kinds);
     if (!hits.length) continue;
     // The top team answers with its numbers ("Ranking score 3.40 at …"); the rest name the topic.
     const top = topic ? hits.find((h) => h.kind === "team") : undefined;
-    const answer: Awaited<ReturnType<typeof teamFacts>> = top && topic ? await teamFacts(Number(top.ref), topic) : { facts: [], season: null };
+    const answer: Awaited<ReturnType<typeof teamFacts>> = top && topic ? await teamFacts(Number(top.ref), topic, season) : { facts: [], season: null };
     const found = hits.map((h): SearchHit => {
       // An event before predictions has no odds tab: nothing to open on, so no topic to name either.
       if (!topic || (topic === "odds" && h.kind === "event" && (h.season == null || isLegacy(h.season)))) return h;
@@ -104,7 +108,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
  * linking to the event opened on the team. "… at this event", or an event none of the team's matches: the team with
  * its events and their OPRs, for the visitor to pick: never a guessed event. Null when the query isn't one of these.
  */
-async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[] | null> {
+async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked?: number | null): Promise<SearchHit[] | null> {
   const m = /^(.+?)\s+at\s+(.+)$/i.exec(q.trim());
   if (!m || MATCH_RE.test(q.trim()) || (kinds?.size && !kinds.has("team"))) return null;
   const intent = searchIntent(m[1]) ?? searchIntent(m[1], true);
@@ -116,13 +120,15 @@ async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<s
   if (!team) return null;
   const where = m[2].trim();
   const vague = /^(?:this|that|the|an?|my|our)?\s*(?:event|meet|tournament|competition|one|comp)?$/i.test(where);
-  const pick = vague ? null : await teamAtEvent(Number(team.ref), where);
+  const found = vague ? null : await teamAtEvent(Number(team.ref), where, asked);
+  const pick = found && "event" in found ? found : null;
   if (!intent?.topic && (!pick || (fuzzyScore(named, team.title.replace(/^\d+\s+/, "")) < 0.75 && !named.split(" ").includes(team.ref)))) return null;
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
   if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts }, ...others];
-  const { season } = await teamSeason(Number(team.ref));
+  const { season } = await teamSeason(Number(team.ref), asked);
   const events = season == null ? [] : await teamEvents(Number(team.ref), season);
-  const note = vague ? "Pick an event below" : `None of its events matches "${where}": pick one below`;
+  // Several of its events match equally ("Northern League Meet"): the visitor picks; search never guesses one.
+  const note = vague ? "Pick an event below" : found ? `Several of its events match "${where}": pick one below` : `None of its events matches "${where}": pick one below`;
   return [{ ...team, section: "events", ...(season != null ? { linkSeason: season } : {}), facts: [{ label: "Which event?", value: note }], ...(events.length ? { events } : {}) }, ...others];
 }
 

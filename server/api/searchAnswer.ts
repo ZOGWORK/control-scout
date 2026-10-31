@@ -25,7 +25,13 @@ export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
 export const WEAK_SCORE = 0.9;
 
-export interface AnswerOptions { limit?: number; prefer?: ReadonlySet<string>; learn?: boolean; /** Read seasons, regions and missing views (./searchIntents.ts): off for the core of an intent. */ intents?: boolean }
+export interface AnswerOptions {
+  limit?: number; prefer?: ReadonlySet<string>; learn?: boolean;
+  /** Read seasons, regions and missing views (./searchIntents.ts): off for the core of an intent. */
+  intents?: boolean;
+  /** A season the query named in words ("last season", read by ./searchIntents.ts): as if typed as "2024-25". */
+  season?: number | null;
+}
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
 export function cleanQuery(raw: string): string {
@@ -75,7 +81,7 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
   answer(q, { hits: [], step: "recovery", recovery: { understood, closest, browse: SEARCH_BROWSE } satisfies SearchRecovery });
 
 /** "hypnotic versus bad wolf history": Compare for the teams named (2–4, in number order), or null when it isn't one. */
-async function versus(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
+async function versus(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
   const sides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
   if (sides.length < 2) return null;
   const found: SearchHit[] = [], missing: string[] = [];
@@ -90,7 +96,7 @@ async function versus(q: string, prefer: ReadonlySet<string>): Promise<SearchAns
     const nums = shown.map((t) => Number(t.ref)).sort((a, b) => a - b);
     const extra = found.length > 4 ? ` (Compare holds 4: ${found.length - 4} left out)` : "";
     const top: SearchHit = {
-      ...shown.find((t) => Number(t.ref) === nums[0])!, href: `/compare?teams=${nums.join(",")}`,
+      ...shown.find((t) => Number(t.ref) === nums[0])!, href: `/compare?teams=${nums.join(",")}${season != null ? `&season=${season}` : ""}`,
       title: nums.map((n) => shown.find((t) => Number(t.ref) === n)!.title).join(" vs "), subtitle: `Compare side by side: records, OPR and event history${extra}`,
     };
     return answer(q, { hits: [top, ...shown], step: "deterministic" });
@@ -109,27 +115,37 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const num = /^(?:team)?[\s#-]*(\d{1,6})[.\s]*$/i.exec(q);
   if (num) {
     const n = String(Number(num[1]));
-    const team = (await search(n, 5, prefer)).find((h) => h.kind === "team" && h.ref === n);
+    const found = (await search(n, 5, prefer)).find((h) => h.kind === "team" && h.ref === n);
+    // A season named in words ("4215 last season"): the team opens on it, as with a typed year.
+    const team = found && opts.season != null ? { ...found, linkSeason: opts.season, subtitle: [seasonLabel(opts.season), found.subtitle].filter(Boolean).join(" · ") } : found;
     return team ? answer(q, { hits: [team], step: "deterministic" }) : recovery(q, [`A team number: ${n}`, `No FTC team ${n} on record`]);
   }
 
   // 1b. A season, a region, a ranking or a view that doesn't exist yet: the closest real view, and what's missing.
-  const it = opts.intents === false ? null : parseIntent(q);
+  let it = opts.intents === false ? null : parseIntent(q);
+  // A region read from a bare name ("New Jersey Championship rankings") that's really part of an event's name: the event.
+  if (it?.regionBare) {
+    const asEvent = await search(it.withoutRanking, 5, prefer);
+    if (asEvent[0]?.kind === "event" && topScore(it.withoutRanking, asEvent) >= WEAK_SCORE) it = null;
+  }
   if (it && it.core !== q) {
-    const a = await intentAnswer(q, it, await searchAnswer(it.core, { ...opts, intents: false }));
+    const a = await intentAnswer(q, it, await searchAnswer(it.core, { ...opts, intents: false, season: it.season ?? opts.season }));
     if (a) return a;
   }
 
-  // 2. Teams side by side.
-  const vs = await versus(q, prefer);
+  // 2. Teams side by side (in a season, when one is named).
+  const vsSeason = seasonOf(q);
+  const vs = await versus(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;
 
   // 3. The search, on the season-free, short-forms-expanded query; the name-and-topic reading when it fits better.
-  const { season, rest } = seasonOf(expandShortForms(q));
-  let hits = await search(rest, limit, prefer);
+  // A season named makes a team's numbers and link that season's.
+  const typed = seasonOf(expandShortForms(q));
+  const rest = typed.rest, season = typed.season ?? opts.season ?? null;
+  let hits = await search(rest, limit, prefer, undefined, season);
   const intent = searchIntent(rest);
   if (hits.length && intent && !intent.topic) {
-    const alt = await search(intent.rest, limit, prefer);
+    const alt = await search(intent.rest, limit, prefer, undefined, season);
     if (topScore(rest, alt) > topScore(rest, hits)) hits = alt;
   }
 
@@ -138,7 +154,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (!hits.length) {
     const ws = words(rest).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !SEARCH_FILLER.has(w) && !isTopicWord(w));
     const count = new Map<string, { h: SearchHit; n: number; first: number }>();
-    for (const [i, w] of ws.entries()) for (const h of await search(w, limit, prefer)) {
+    for (const [i, w] of ws.entries()) for (const h of await search(w, limit, prefer, undefined, season)) {
       const c = count.get(key(h)) ?? { h, n: 0, first: i };
       c.n++; count.set(key(h), c);
     }
@@ -149,7 +165,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // A season in the query: its events first, and teams open on it.
   if (season != null) {
     hits = [...hits.filter((h) => h.kind !== "event" || h.season === season), ...hits.filter((h) => h.kind === "event" && h.season !== season)]
-      .map((h) => (h.kind === "team" ? { ...h, linkSeason: h.linkSeason ?? season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
+      .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }
 
   if (!hits.length) {
@@ -163,8 +179,17 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
   }
+  // Learned order, read under the same key a pick is counted under (learnQuery).
   if (opts.learn !== false) hits = await rerank(rest, hits, { pinTop: exact });
   if (score >= WEAK_SCORE && !byWords) return answer(q, { hits: uniq(hits), step: "deterministic" });
   const topic = (intent ?? searchIntent(rest, true))?.phrase;
   return answer(q, { hits: uniq(hits), step: "did-you-mean", didYouMean: `${nameOf(hits[0])}${topic ? ` ${topic}` : ""}` });
+}
+
+/** The query a pick of `raw`'s results is learned under: what the ranking read (an intent's core, short forms spelled
+ *  out, the season taken off), so "champs" and "championship" teach the same order. */
+export function learnQuery(raw: string): string {
+  const q = cleanQuery(raw);
+  const it = parseIntent(q);
+  return seasonOf(expandShortForms(it && it.core !== q && it.core ? it.core : q)).rest;
 }

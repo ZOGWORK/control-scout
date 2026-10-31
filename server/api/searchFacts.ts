@@ -32,8 +32,9 @@ export async function teamEvents(team: number, season: number): Promise<SearchEv
   return rows.map((r) => ({ season: Number(r.season), code: r.code, name: r.name, opr: r.opr == null ? null : Math.round(Number(r.opr) * 10) / 10 }));
 }
 
-/** The team's newest season with stats (or registration). */
-export async function teamSeason(team: number): Promise<{ s: any; season: number | null }> {
+/** The team's newest season with stats (or registration), or `asked`, the season a query named. */
+export async function teamSeason(team: number, asked?: number | null): Promise<{ s: any; season: number | null }> {
+  if (asked != null) return { s: await get<any>("SELECT * FROM team_season_stats WHERE team = ? AND season = ?", [team, asked]), season: asked };
   const s = await get<any>("SELECT * FROM team_season_stats WHERE team = ? ORDER BY season DESC LIMIT 1", [team]);
   return { s, season: s?.season ?? (await get<{ s: number | null }>("SELECT MAX(season) s FROM event_teams WHERE team = ?", [team]))?.s ?? null };
 }
@@ -43,12 +44,14 @@ export async function teamSeason(team: number): Promise<{ s: any; season: number
  * `eventWords` (its event OPR, rank and ranking score). Null when no event of the team's matches: the caller then
  * lists its events for the visitor to pick, never a guess.
  */
-export async function teamAtEvent(team: number, eventWords: string): Promise<{ event: SearchEventPick; facts: SearchFact[] } | null> {
-  const { season } = await teamSeason(team);
+export async function teamAtEvent(team: number, eventWords: string, asked?: number | null): Promise<{ event: SearchEventPick; facts: SearchFact[] } | { ambiguous: true } | null> {
+  const { season } = await teamSeason(team, asked);
   if (season == null) return null;
   const evs = await teamEvents(team, season);
-  const best = evs.map((e) => ({ e, s: Math.max(fuzzyScore(eventWords, e.name), fuzzyScore(eventWords, e.code)) })).sort((a, b) => b.s - a.s)[0];
+  const [best, next] = evs.map((e) => ({ e, s: Math.max(fuzzyScore(eventWords, e.name), fuzzyScore(eventWords, e.code)) })).sort((a, b) => b.s - a.s);
   if (!best || best.s < 0.75) return null;
+  // Two events match about as well ("Northern League Meet" names every meet): not a pick to make for the visitor.
+  if (next && next.s >= 0.75 && best.s - next.s < 0.05) return { ambiguous: true };
   const at = await get<any>(`SELECT ${RANK} rank, ${RP} rp ${ROWS.replace("AND et.season = ?", "AND et.season = ? AND et.code = ?")}`, [team, season, best.e.code]);
   return {
     event: best.e,
@@ -59,10 +62,10 @@ export async function teamAtEvent(team: number, eventWords: string): Promise<{ e
 
 /** Up to four facts about `team` for `topic`, from its newest season with stats (that season named last), and that
  *  season, for the result's link (the team page opens on it). OPR also lists each event's OPR (`events`). */
-export async function teamFacts(team: number, topic: SearchTopic): Promise<{ facts: SearchFact[]; season: number | null; events?: SearchEventPick[] }> {
+export async function teamFacts(team: number, topic: SearchTopic, asked?: number | null): Promise<{ facts: SearchFact[]; season: number | null; events?: SearchEventPick[] }> {
   const none = { facts: [], season: null };
   if (topic === "odds" || topic === "playoffs") return none;
-  const { s, season } = await teamSeason(team);
+  const { s, season } = await teamSeason(team, asked);
   if (season == null) return none;
   // The newest event this season the team played and was ranked at (its ranking score, and how many teams were ranked).
   const ev = await get<any>(

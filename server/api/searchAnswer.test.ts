@@ -147,6 +147,29 @@ describe("intents and their counts (T71–T75)", () => {
   });
 });
 
+describe("review fixes", () => {
+  it("a season named in words opens Compare on it", async () => {
+    expect(hitHref((await searchAnswer("hypnotic versus bad wolf reputation last season")).hits[0])).toBe(`/compare?teams=4215,6980&season=${S - 1}`);
+    expect(hitHref((await searchAnswer(`hypnotic vs bad wolf ${S - 1}-${String(S % 100).padStart(2, "0")}`)).hits[0])).toBe(`/compare?teams=4215,6980&season=${S - 1}`);
+  });
+  it("a team with a season named in words opens on that season", async () => {
+    const a = await searchAnswer("hypnotic last season");
+    expect(a.hits[0]).toMatchObject({ ref: "4215", linkSeason: S - 1 });
+    expect(a.hits[0].subtitle.match(/–/g)).toHaveLength(1); // the season named once
+  });
+  it("picks are learned under the key the ranking reads", async () => {
+    const { learnQuery } = await import("./searchAnswer");
+    expect(learnQuery("champs")).toBe(learnQuery("championship"));
+    expect(learnQuery("gear last season")).toBe(learnQuery("gear"));
+  });
+  it("schedule difficulty switched off: no link to a section that shows nothing", async () => {
+    expect(hitHref((await searchAnswer("hypnotic difficulty")).hits[0])).toContain("#schedule-difficulty");
+    await setFlag("scheduleDifficulty", false, "test");
+    invalidateFlags();
+    expect(hitHref((await searchAnswer("hypnotic difficulty")).hits[0])).not.toContain("#schedule-difficulty");
+  });
+});
+
 describe("what search never reads (T63, T64)", () => {
   it("a Scout space's name is never a result", async () => {
     const a = await searchAnswer("zebrasecret");

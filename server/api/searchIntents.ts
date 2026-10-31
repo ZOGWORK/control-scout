@@ -58,6 +58,10 @@ export interface ParsedIntent {
   missing: (typeof MISSING)[number] | null;
   /** The query without the words read here: what names the team(s) or event. */
   core: string;
+  /** The region came from a bare name, with no "in"/"state of" ("New Jersey Championship rankings"): it may be part
+   *  of an event's name, which the caller checks (`withoutRanking`: the query without the ranking words). */
+  regionBare: boolean;
+  withoutRanking: string;
 }
 
 /** The season a query names: "last year's" / "last season", "this season", or a game ("DECODE season", "in INTO THE DEEP"). */
@@ -82,7 +86,7 @@ function seasonIn(q: string): { season: number; game: string | null; rest: strin
 
 /** The region a query names: "state of New Jersey", "in Texas", "from NJ", "New Jersey state", or (with a ranking
  *  word) a region's full name anywhere. Only exact names: "new" is no region. */
-function regionIn(q: string, ranking: boolean): { region: Region; rest: string } | null {
+function regionIn(q: string, ranking: boolean): { region: Region; rest: string; bare: boolean } | null {
   const exact = (cand: string): Region | null => {
     const c = cand.trim();
     if (!c) return null;
@@ -95,14 +99,14 @@ function regionIn(q: string, ranking: boolean): { region: Region; rest: string }
     for (let n = 4; n >= 1; n--) {
       const cand = tokens.slice(i + marker, i + marker + n).join(" ");
       const r = exact(cand);
-      if (r) return { region: r, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + marker + n)].join(" ")) };
+      if (r) return { region: r, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + marker + n)].join(" ")), bare: false };
     }
   }
   for (let i = 0; i < tokens.length; i++) for (let n = 3; n >= 1; n--) {
     const cand = tokens.slice(i, i + n).join(" ");
     const stateAfter = /^state$/i.test(tokens[i + n] ?? "");
     if ((stateAfter || (ranking && cand.length >= 4)) && exact(cand)) {
-      return { region: exact(cand)!, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + n + (stateAfter ? 1 : 0))].join(" ")) };
+      return { region: exact(cand)!, rest: squash([...tokens.slice(0, i), ...tokens.slice(i + n + (stateAfter ? 1 : 0))].join(" ")), bare: !stateAfter };
     }
   }
   return null;
@@ -117,11 +121,12 @@ export function parseIntent(q: string): ParsedIntent | null {
   const ranking = RANKING.test(rest);
   const r = regionIn(rest, ranking);
   if (r) rest = r.rest;
-  // A season alone ("hypnotic 2025-26") is search's own rule; here only with a region, a ranking or a missing view.
-  if (!missing && !r && !(s && ranking)) return null;
+  // A typed year ("hypnotic 2025-26") is search's own rule (searchAnswer's seasonOf); one in words ("last season",
+  // "DECODE season") is read here and passed on the same way.
+  if (!missing && !r && !s) return null;
   if (ranking) rest = squash(rest.replace(new RegExp(RANKING.source, "gi"), " "));
   rest = squash(rest.replace(/\b(?:at|in|of|for|the|on|state|during|and|with|vs\.?|versus)$/i, "").replace(/^(?:at|in|of|for|the|on)\b/i, ""));
-  return { season: s?.season ?? null, game: s?.game ?? null, region: r?.region ?? null, ranking, missing, core: rest };
+  return { season: s?.season ?? null, game: s?.game ?? null, region: r?.region ?? null, ranking, missing, core: rest, regionBare: !!r?.bare, withoutRanking: squash(q.replace(new RegExp(RANKING.source, "gi"), " ")) };
 }
 
 /** The answer for a parsed intent: `base` is search's answer for the core (the team, the teams, or nothing). */
@@ -161,11 +166,13 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
       else gap ??= `${team.title} isn't ranked in ${it.region.name} for ${seasonLabel(s)}.`;
     }
     // The team's page on that season first (its events, ranks and records), then the region's rankings.
-    if (team) hits.push({ ...team, linkSeason: s, section: "events", subtitle: [seasonLabel(s), team.subtitle].filter(Boolean).join(" · "), facts: undefined, events: undefined });
+    // (A season named in the query is already on the team's subtitle and link: searchAnswer's own season rule.)
+    if (team) hits.push({ ...team, linkSeason: s, section: "events", subtitle: season != null ? team.subtitle : [seasonLabel(s), team.subtitle].filter(Boolean).join(" · "), facts: undefined, events: undefined });
     hits.push(view);
   } else if (compare || team) {
     const top = base.hits[0];
-    hits.push(season != null && team ? { ...top, linkSeason: season, subtitle: [seasonLabel(season), top.subtitle].filter(Boolean).join(" · ") } : top);
+    // The season, when one was named, is already in the link (Compare's ?season=, a team's ?season=) and facts.
+    hits.push(top);
   }
   if (!hits.length) return null;
   const rest = base.hits.filter((h) => !hits.some((x) => x.kind === h.kind && x.ref === h.ref));
