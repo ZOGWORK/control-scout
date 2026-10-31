@@ -21,8 +21,8 @@ Closed sections on team pages now show there's more inside.
 
 ### Highlights
 
-- [teams] Reliability, Prediction report card and Schedule difficulty are framed cards with a line on what's inside
-- [teams] A "Show details" button on each, which turns to "Hide" once open
+- [teams] Closed team sections are cards with a line on what's inside
+- [teams] A "Show details" button that turns to "Hide" once open
 - [teams] Rows light up under the pointer, so it's clear they open
 
 ### Team pages
