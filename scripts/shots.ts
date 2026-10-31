@@ -11,7 +11,9 @@
 // (goto: open another route of the same app in the same tab, e.g. after saving a season on /download;
 // scrollTo: bring an element to the top of the viewport, for a --viewport shot of one section;
 // hold: press the pointer on an element for ms, default 1600, e.g. a hold-to-confirm button;
-// upload: put local files into a file input, e.g. a photo to attach);
+// upload: put local files into a file input, e.g. a photo to attach;
+// offline: true / false switches the network off or on, e.g. a venue with no signal: take the page online
+// first so the service worker caches the app, on a production build with --base);
 // selectors are Playwright's (role=button[name="Filters"], text=Apply, css).
 // --name <label> goes in the file name, to tell several states of one route apart.
 // --tour lets the first-run tour show (it's kept out of shots otherwise).
@@ -44,7 +46,7 @@ const COOKIE = (() => {
   if (!name || !rest.length) { console.error("--cookie-file: the file must hold name=value"); process.exit(1); }
   return { name, value: rest.join("=") };
 })();
-type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string };
+type Step = { click?: string; hold?: string; ms?: number; fill?: string; value?: string; type?: string; press?: string; wait?: number; waitFor?: string; reload?: boolean; upload?: string; files?: string[]; goto?: string; scrollTo?: string; offline?: boolean };
 const STEPS: Step[] = (() => {
   const f = opt("steps");
   if (!f) return [];
@@ -58,7 +60,8 @@ const LABEL = opt("name") ? `-${opt("name")!.replace(/[^\w-]+/g, "_")}` : "";
 /** Run --steps in order (a pause after each, so a video shows what happened). */
 async function runSteps(page: Page, slow: boolean) {
   for (const s of STEPS) {
-    if (s.click) await page.locator(s.click).first().click();
+    if (s.offline != null) await page.context().setOffline(s.offline);
+    else if (s.click) await page.locator(s.click).first().click();
     else if (s.hold) { await page.locator(s.hold).first().hover(); await page.mouse.down(); await page.waitForTimeout(s.ms ?? 1600); await page.mouse.up(); }
     else if (s.fill) await page.locator(s.fill).first().fill(s.value ?? "");
     else if (s.upload) await page.locator(s.upload).first().setInputFiles(s.files ?? []);

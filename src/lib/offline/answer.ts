@@ -14,6 +14,9 @@ import { rangesOf } from "../../shared/scoreRange";
 import { compactSheet } from "../../shared/factorSheet";
 import { markOffline, savedSeasons, type OfflineSource } from "./saved";
 import { readSaved } from "./seasons";
+import { bundleFor } from "./bundleMeta";
+import { loadBundle } from "./bundles";
+import { bundleTime } from "../../shared/eventBundle";
 import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
@@ -75,11 +78,27 @@ export async function offlineTeamMatches(number: number, season?: number): Promi
 }
 
 export async function offlineEventDetail(season: number, code: string): Promise<EventDetail | null> {
+  // An event-day bundle for this event is usually newer than the saved season (it's made the morning of the
+  // event): the newer of the two answers.
+  const b = bundleFor(season, code);
   const src = source(season);
+  if (b && (!src || bundleTime(b) >= (src.dataAsOf ?? new Date(src.savedAt).toISOString()))) {
+    const fromBundle = await bundleEventDetail(season, code);
+    if (fromBundle) return fromBundle;
+  }
   if (!src) return null;
   const opts = await liteOpts();
   const d = await readSaved(season, ([sdb]) => (sdb ? readEventDetail(sdb, code.toUpperCase(), opts) : null));
   return d ? markOffline(d, src) : null;
+}
+
+/** The event page from its event-day bundle: the server's own answer as of the bundle, marked with its time. */
+async function bundleEventDetail(season: number, code: string): Promise<EventDetail | null> {
+  const meta = bundleFor(season, code);
+  const bundle = meta && await loadBundle(season, code);
+  if (!meta || !bundle) return null;
+  // A copy: the mark goes on the answer, never on the decoded bundle other reads share.
+  return markOffline({ ...bundle.event }, { season, savedAt: meta.savedAt, dataAsOf: meta.dataAsOf, bundle: { builtAt: meta.builtAt, name: meta.name } });
 }
 
 /** An event's stored projections from its saved season pack (they're as of the pack's build). */

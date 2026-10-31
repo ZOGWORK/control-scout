@@ -15,6 +15,7 @@ import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMa
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
+import { scheduleGate } from "./api/eventGates.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips } from "./videos/recordings.js";
 
@@ -67,6 +68,7 @@ import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
+import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
@@ -425,12 +427,6 @@ export function createApp(opts: { dist?: string } = {}) {
     };
   }));
 
-  /** The owner's scheduleDifficulty toggle off: the event answer leaves the figures out (a copy; the cached detail is shared). */
-  const scheduleGate = async <T extends { scheduleDifficulty?: unknown }>(d: T): Promise<T> => {
-    if (await isEnabled("scheduleDifficulty")) return d;
-    const { scheduleDifficulty: _off, ...rest } = d;
-    return rest as T;
-  };
 
   api.get("/events/:season/:code", h(async (req, res) => {
     const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
@@ -774,6 +770,8 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/scout", alliancesRouter());
   // The pre-match report's workspace half (v1.6 Task 2): consensus, pick list and assignments; members only.
   api.use("/scout", matchReportRouter());
+  // Event-day bundles (docs/event-bundle.md): one download per event before the venue; the workspace parts members only.
+  api.use("/bundles", limiter(30), bundleRouter());
   // The owner's switches: with realtime off the stream answers 503 and the app polls instead; with workspace
   // scouting off for the workspace it answers 403 feature_disabled (stream.ts), since its catch-up reads shared entries like a pull.
   api.use("/scout", streamRouter({ enabled: () => isEnabled("realtime") }));
