@@ -21,7 +21,7 @@ import { isWorkspaceId } from "../auth/controlPoint.js";
 import { currentUser } from "../auth/session.js";
 import { builtinTemplate } from "../../src/shared/scoutDefaults.js";
 import { parseWorkspaceTemplateId, type ScoutField, type TemplateKind } from "../../src/shared/scoutTemplate.js";
-import { aggregateConsensus, CONSENSUS_MAX_TEAMS, type ConsensusEntry, type ConsensusResponse, type TeamConsensus } from "../../src/shared/consensus.js";
+import { aggregateConsensus, CONSENSUS_MAX_TEAMS, fieldGrouper, type ConsensusEntry, type ConsensusResponse, type TeamConsensus } from "../../src/shared/consensus.js";
 import { accessError, workspaceAccess, workspacePaused } from "./entries.js";
 import { onEntriesWritten } from "./bus.js";
 import { templateVersion } from "./templates.js";
@@ -125,15 +125,17 @@ async function compute(scope: ConsensusScope, season: number, teams: number[]): 
         AND w.team IN (${teams.map(() => "?").join(", ")})${scope.oneEach ? ` AND ${notACopyWithin("ws.cp_workspace_id", "w.uuid", spaces.length)}` : ""}`,
     [...spaces, season, ...(event ? [event] : []), ...teams, ...(scope.oneEach ? spaces : [])]);
   const readers = new Map(spaces.map((w) => [w, fieldReader(w)]));
+  // Several workspaces: each has its own templates, so a field id is only averaged with fields asking the same question.
+  const group = spaces.length > 1 ? fieldGrouper() : null;
   const byTeam = new Map<number, ConsensusEntry[]>();
   for (const r of rows) {
     const kind: TemplateKind = r.kind === "pit" ? "pit" : "match";
     let data: Record<string, unknown> = {};
     try { const d = JSON.parse(r.data); if (d && typeof d === "object" && !Array.isArray(d)) data = d; } catch { /* unreadable: no answers */ }
-    const fields = readers.get(String(r.cp_workspace_id))!;
+    const own = await readers.get(String(r.cp_workspace_id))!(season, kind, r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version));
+    const read = group ? group(own, data) : { fields: own, data };
     const e: ConsensusEntry = {
-      team: Number(r.team), kind, authorAccountId: Number(r.author_account_id), updatedAt: Number(r.updated_at), data,
-      fields: await fields(season, kind, r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version)),
+      team: Number(r.team), kind, authorAccountId: Number(r.author_account_id), updatedAt: Number(r.updated_at), data: read.data, fields: read.fields,
     };
     const list = byTeam.get(e.team) ?? [];
     list.push(e);

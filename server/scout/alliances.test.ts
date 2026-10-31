@@ -16,6 +16,7 @@ import { closeAllStreams } from "./stream";
 import { clearConsensusCache } from "./consensus";
 import { answersOf, copyUuid, coverageOf, setAllianceClock, settleAlliances } from "./alliances";
 import { builtinTemplate } from "../../src/shared/scoutDefaults";
+import { workspaceTemplateId } from "../../src/shared/scoutTemplate";
 import { allianceEndsAt, normalInviteCode } from "../../src/shared/alliances";
 
 const KEY = "k".repeat(40);
@@ -72,7 +73,7 @@ beforeEach(async () => {
   // Each test starts with the event not yet over.
   setAllianceClock(() => Date.parse("2025-11-01T12:00:00Z"));
   // And with nothing scouted, assigned or picked yet.
-  for (const t of ["scout_alliances", "scout_alliance_copy_queue", "scout_alliance_copies", "workspace_scout_entries", "workspace_entry_versions", "workspace_assignments", "workspace_picklist", "workspace_picklist_versions"]) await run(`DELETE FROM ${t}`);
+  for (const t of ["scout_alliances", "scout_alliance_copy_queue", "scout_alliance_copies", "workspace_template_versions", "workspace_scout_entries", "workspace_entry_versions", "workspace_assignments", "workspace_picklist", "workspace_picklist_versions"]) await run(`DELETE FROM ${t}`);
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
 afterEach(() => { setAllianceClock(null); });
@@ -250,6 +251,21 @@ describe("linked for the event: the shared reads", () => {
     await pushOk(p.ben, B, [entry({ team: 101 })]);
     expect((await consensusOf(p.abe, A, id)).json.teams[0].entries).toBe(4);
     expect((await consensusOf(p.abe, A, id, "abc")).status).toBe(400);
+  });
+
+  it("one field id asking different questions on each side is never averaged together", async () => {
+    const p = await cast();
+    const id = await link();
+    // Both admins use the id "speed", for different questions on different scales.
+    expect((await p.ada("PUT", `/api/scout/workspaces/${A}/template`, { season: S, match: [{ id: "speed", label: "Cycle speed", type: "rating", phase: "overall", max: 5 }] })).status).toBe(200);
+    expect((await p.bea("PUT", `/api/scout/workspaces/${B}/template`, { season: S, match: [{ id: "speed", label: "Drive speed", type: "rating", phase: "overall", max: 9 }] })).status).toBe(200);
+    await pushOk(p.abe, A, [entry({ team: 101, templateId: workspaceTemplateId(A, S, "match"), templateVersion: 1, data: { speed: 5 } })]);
+    await pushOk(p.ben, B, [entry({ team: 101, templateId: workspaceTemplateId(B, S, "match"), templateVersion: 1, data: { speed: 1 } })]);
+    const t = (await consensusOf(p.abe, A, id)).json.teams[0];
+    const speeds = t.ratings.filter((r: any) => r.id.startsWith("speed")).map((r: any) => [r.label, r.avg, r.max, r.n]).sort();
+    expect(speeds).toEqual([["Cycle speed", 5, 5, 1], ["Drive speed", 1, 9, 1]]);
+    // Same answer from B's side.
+    expect((await consensusOf(p.ben, B, id)).json.teams[0].ratings.length).toBe(t.ratings.length);
   });
 
   it("each side's assignments at the event, tagged with its side", async () => {
