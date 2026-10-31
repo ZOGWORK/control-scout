@@ -74,7 +74,10 @@ function offlineKind(path: string, method: string | undefined): "saved" | "lite"
   // that names no season) waits for the server, as the pack might not answer it. A bundle holds its
   // event's teams' ratings for its season.
   if (asked == null) return null;
-  return (lite?.seasons?.includes(asked) || savedBundles().some((b) => b.season === asked)) ? "lite" : null;
+  if (lite?.seasons?.includes(asked)) return "lite";
+  // A bundle predicts only a matchup of its own event's teams: any other waits for the server.
+  const lineup = ["red", "blue"].flatMap((k) => (url.searchParams.get(k) ?? "").split(",")).filter(Boolean).map(Number);
+  return lineup.length && savedBundles().some((b) => b.season === asked && lineup.every((t) => b.teams?.includes(t))) ? "lite" : null;
 }
 
 // "Offline mode": something on screen came from data saved on this device. The

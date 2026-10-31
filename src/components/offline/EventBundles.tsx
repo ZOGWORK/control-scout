@@ -48,12 +48,12 @@ function useEventOptions(): EventOption[] {
 
 export function EventBundles() {
   // The owner's switches (GET /api/flags): event-day bundles, and offline packs (paused, bundles pause too). Off, the
-  // builder hides; bundles already here still open from their own page and answer with no signal.
+  // builder and updates hide; bundles already here stay listed (open, remove) and still answer with no signal.
   const bundlesOn = useFlag("eventBundle");
   const packsOn = useFlag("offlinePacks");
   const on = bundlesOn && packsOn;
   const saved = useSavedBundles();
-  if (!on) return null;
+  if (!on && !saved.length) return null;
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border border-accent/35 bg-card max-sm:mb-4" aria-labelledby="bundle-title" data-event-bundles>
       <div className="border-b border-border bg-accent/[0.07] p-4 sm:p-6">
@@ -63,8 +63,8 @@ export function EventBundles() {
           frozen with the time they're from, plus a venue card. Small enough for any phone; with no signal the event page and your reports answer from it.
         </p>
       </div>
-      <Builder saved={saved} />
-      {saved.length > 0 && <SavedList saved={saved} />}
+      {on ? <Builder saved={saved} /> : <p className="p-4 text-sm text-muted-foreground sm:p-6" data-bundles-off>New bundles are switched off for now. The ones on this device keep working.</p>}
+      {saved.length > 0 && <SavedList saved={saved} canUpdate={on} />}
     </section>
   );
 }
@@ -173,13 +173,15 @@ function Builder({ saved }: { saved: SavedBundle[] }) {
 }
 
 /** The bundles on this device: data time and age, update state, and pruning. */
-function SavedList({ saved }: { saved: SavedBundle[] }) {
+/** `canUpdate`: the owner's switches are on, so newer versions are looked for and offered. */
+function SavedList({ saved, canUpdate }: { saved: SavedBundle[]; canUpdate: boolean }) {
   const now = useMinuteNow();
   const [latest, setLatest] = useState<Record<string, BundleManifest | "error">>({});
   const [busy, setBusy] = useState<string | null>(null);
   const savedKey = saved.map((b) => `${evKey(b.season, b.code)}@${b.version}`).join(",");
   // Asked once per look, like the season packs' manifest: a different version means an update is out.
   useEffect(() => {
+    if (!canUpdate) { setLatest({}); return; }
     let live = true;
     void bundles().then(async (b) => {
       for (const s of saved) {
@@ -189,7 +191,7 @@ function SavedList({ saved }: { saved: SavedBundle[] }) {
       }
     });
     return () => { live = false; };
-  }, [savedKey]);
+  }, [savedKey, canUpdate]);
   const updatable = saved.filter((b) => { const m = latest[evKey(b.season, b.code)]; return m && m !== "error" && m.version !== b.version; });
   const finished = saved.filter((b) => bundleFinished(b, new Date(now)));
 

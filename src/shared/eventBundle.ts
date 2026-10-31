@@ -122,6 +122,8 @@ export interface SavedBundle {
   reports: number;
   /** Which matches' reports it holds (bundles saved before this was noted: absent). */
   reportKeys?: string[];
+  /** The event's teams (the ratings inside cover them; bundles saved before this was noted: absent). */
+  teams?: number[];
   picklist: boolean;
 }
 
