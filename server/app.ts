@@ -92,6 +92,7 @@ import { MATCH_KEY, ShareError, cachedCard, cardKey, matchCard } from "./share/m
 import { env } from "./env.js";
 import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
+import { liteRouter, liteSwitch } from "./lite/routes.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -772,6 +773,9 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use(CSP_REPORT_PATH, cspReportRouter());
   app.use("/api", api);
   app.use("/packs", packsRouter());
+  // Light pages for a weak signal (server/lite/, docs/lite.md): /lite/…, and ?lite=1 on a rich page's address.
+  app.use(liteSwitch);
+  app.use("/lite", liteRouter());
   // The sitemap, from the database (server/sitemap.ts).
   app.get("/sitemap.xml", h(sitemapRoute));
   app.get("/sitemap-:n.xml", h(sitemapChunkRoute));

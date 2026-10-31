@@ -13,7 +13,7 @@ import { clearInfoCache } from "../auth/controlPoint";
 import { subscribePicklist, type PicklistNotice } from "./bus";
 import { closeAllStreams } from "./stream";
 import { inboxSettled } from "../inbox/inbox";
-import { setFlag } from "../flags";
+import { setFlag, setWorkspaceOverride } from "../flags";
 
 const KEY = "k".repeat(40);
 const S = 2025;
@@ -460,5 +460,82 @@ describe("shared pick list: op ids (a change kept on the device and sent again)"
     await run("UPDATE workspace_picklist_ops SET created_at = ? WHERE op_id = ?", [Date.now() - 31 * 24 * 60 * 60 * 1000, "old-op-6666"]);
     await op(priya, "1136", { op: "add", team: 102, opId: "new-op-7777" });
     expect((await all("SELECT op_id FROM workspace_picklist_ops o JOIN workspaces w ON w.id = o.workspace_id WHERE w.cp_workspace_id = ?", ["1136"])).map((r: any) => r.op_id)).toEqual(["new-op-7777"]);
+  });
+});
+
+// The light pick list (docs/lite.md): the same gate as the API, as a page.
+describe("light pick list", () => {
+  const page = async (call: Call | null, path: string) => {
+    const r = await fetch(base + path, { redirect: "manual", headers: call ? { Cookie: call.cookie() } : {} });
+    return { status: r.status, cache: r.headers.get("cache-control"), location: r.headers.get("location"), html: await r.text() };
+  };
+
+  it("members read the list with its notes; outsiders get 403; never cached", async () => {
+    const { priya, marcus, olly } = await team("1190");
+    await op(priya, "1190", { op: "add", team: 101 });
+    await op(priya, "1190", { op: "add", team: 102 });
+    await op(marcus, "1190", { op: "note", team: 101, note: "Fast <auto>" });
+    const r = await page(marcus, `/lite/picklist?space=1190&season=${S}`);
+    expect(r.status).toBe(200);
+    expect(r.cache).toBe("private, no-store");
+    expect(r.html).toContain("Gearheads");
+    const [a, b] = [`<a href="/lite/teams/101?season=${S}">101</a>`, `<a href="/lite/teams/102?season=${S}">102</a>`].map((x) => r.html.indexOf(x));
+    expect(a).toBeGreaterThan(-1);
+    expect(b).toBeGreaterThan(a);
+    expect(r.html).toContain("Fast &lt;auto&gt; <span class=\"m s\">· Marcus</span>");
+    expect(r.html).toContain(`<a class="full" href="/scout?space=1190&amp;tab=data&amp;view=picklist&amp;season=${S}">Full version</a>`);
+    expect(r.html).not.toMatch(/<script|<img/);
+    const out = await page(olly, `/lite/picklist?space=1190&season=${S}`);
+    expect(out.status).toBe(403);
+    expect(out.cache).toBe("no-store");
+    expect(out.html).not.toContain("Fast");
+  });
+
+  it("no workspace named: straight to the only one, or a choice", async () => {
+    const { priya } = await team("1191");
+    const r = await page(priya, `/lite/picklist?season=${S}`);
+    // Priya is in several test workspaces by now: a list to pick from, each a light link.
+    expect(r.status).toBe(200);
+    expect(r.html).toContain(`href="/lite/picklist?space=1191&amp;season=${S}"`);
+    // Without a season asked for, each workspace's own default applies.
+    expect((await page(priya, "/lite/picklist")).html).toContain(`href="/lite/picklist?space=1191"`);
+    expect((await page(null, "/lite/picklist")).status).toBe(401);
+  });
+
+  it("no season asked: the workspace's default season, as the full page opens on; team links keep the season", async () => {
+    const { coach, priya } = await team("1193");
+    for (const season of [S, S - 1]) await priya("POST", url("1193"), { season, op: "add", team: season === S ? 101 : 103 });
+    expect((await coach("PUT", "/api/scout/workspaces/1193/settings", { defaults: { season: S - 1 }, baseVersion: 0 })).status).toBe(200);
+    const r = await page(priya, "/lite/picklist?space=1193");
+    expect(r.status).toBe(200);
+    expect(r.html).toContain(`<a href="/lite/teams/103?season=${S - 1}">103</a>`);
+    expect(r.html).not.toContain(`/lite/teams/101`);
+    expect((await page(priya, `/lite/picklist?space=1193&season=${S}`)).html).toContain(`<a href="/lite/teams/101?season=${S}">101</a>`);
+  });
+
+  it("the workspace choice lists what the account reads, as the app does", async () => {
+    const { olly } = await team("1194");
+    // Olly is in no workspace: Control Point lists none.
+    expect((await page(olly, "/lite/picklist")).html).toContain("No workspace");
+  });
+
+  it("Control Point away: the choice falls back to the workspaces saved from its last answer", async () => {
+    const { marcus } = await team("1195");
+    clearInfoCache();
+    process.env.CONTROL_POINT_INTERNAL_URL = "http://127.0.0.1:9"; // nothing answers there
+    const r = await page(marcus, "/lite/picklist");
+    expect(r.status).toBe(200);
+    expect(r.html).not.toContain("No workspace");
+    expect(r.html).toContain(`href="/lite/picklist?space=1195"`);
+  });
+
+  it("paused for the workspace: a page saying so, not the list", async () => {
+    const { priya } = await team("1192");
+    await setWorkspaceOverride("workspaceScouting", "1192", false, "owner@test");
+    try {
+      const r = await page(priya, `/lite/picklist?space=1192&season=${S}`);
+      expect(r.status).toBe(403);
+      expect(r.html).toContain("paused");
+    } finally { await setWorkspaceOverride("workspaceScouting", "1192", null, "owner@test"); }
   });
 });
