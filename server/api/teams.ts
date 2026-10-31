@@ -9,6 +9,7 @@ import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecor
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventSchedule } from "../predict/scheduleDifficulty.js";
+import { isEnabled } from "../flags.js";
 
 /**
  * Many teams' stored season reliability, in the order asked (null: none stored). Public match data only; also
@@ -154,15 +155,17 @@ export async function teamProfile(number: number, season?: number): Promise<Team
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
     teamReportCards(s, number),
   ]);
-  // Schedule difficulty at each event with a posted schedule (cached per event and data version).
-  const schedule = (await Promise.all(events.map(async (e) => {
+  // Schedule difficulty at each event with a posted schedule (cached per event and data version); left out while the
+  // owner's scheduleDifficulty toggle is off.
+  const scheduleOn = await isEnabled("scheduleDifficulty");
+  const schedule = !scheduleOn ? undefined : (await Promise.all(events.map(async (e) => {
     const sd = await eventSchedule(s, e.code).catch(() => null);
     const mine = sd?.teams.find((t) => t.team === number);
     return mine && sd ? [{ ...mine, code: e.code, scheduled: sd.scheduled, played: sd.played }] : [];
   }))).flat();
   return {
     team: team ?? { number, name: null, fullName: null, school: null, sponsors: [], city: null, state: null, country: null, rookieYear: null, website: null, homeRegion: null },
-    season: s, seasons, stats, events, reportCards, schedule,
+    season: s, seasons, stats, events, reportCards, ...(schedule ? { schedule } : {}),
     awardsAllTime: awardsAllTime.map((a) => ({ season: a.season, code: a.code, event: a.event, type: a.type, placement: a.placement, name: a.name })),
   };
 }

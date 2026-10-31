@@ -13,6 +13,7 @@ import { Button } from "./ui/button";
 import { Section } from "./page";
 import { TeamNo } from "./EventGlance";
 import { cn } from "./cn";
+import { useFlag } from "../lib/flags";
 
 /** Rows shown before "Show all". */
 const FIRST = 8;
@@ -58,7 +59,9 @@ export function ScheduleDifficultyCard({ d, team }: { d: EventDetail; team: numb
   const open = !!sd && sd.played > 0 && sd.played < sd.scheduled && sd.teams.some((t) => t.remaining);
   const [view, setView] = useState<View>("remaining");
   const [all, setAll] = useState(false);
-  if (!sd) return null;
+  // The owner's scheduleDifficulty toggle (src/shared/flags.ts): off hides the card (the server also leaves it out).
+  const on = useFlag("scheduleDifficulty");
+  if (!sd || !on) return null;
   const v: View = open ? view : "full";
   const sideOf = (t: ScheduleDifficulty["teams"][number]) => (v === "remaining" ? t.remaining : t.full);
   const rows = sd.teams.filter((t) => sideOf(t)).sort((a, b) => sideOf(a)!.rank - sideOf(b)!.rank || a.team - b.team);
@@ -137,7 +140,8 @@ const cap = (x: string) => `${x[0].toUpperCase()}${x.slice(1)}`;
 // ---------------------------------------------------------------------------
 
 export function TeamScheduleSection({ team, schedule, events }: { team: number; schedule: TeamSchedule[]; events: TeamEventRow[] }) {
-  if (!schedule.length) return null;
+  const on = useFlag("scheduleDifficulty");
+  if (!schedule.length || !on) return null;
   const evBy = new Map(events.map((e) => [e.code, e]));
   // Newest event first, as the event history.
   const rows = [...schedule].reverse();

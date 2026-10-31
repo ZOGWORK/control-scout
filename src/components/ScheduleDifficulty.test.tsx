@@ -7,8 +7,10 @@ import { MemoryRouter } from "react-router-dom";
 import type { EventDetail, TeamEventRow } from "../shared/api";
 import { scheduleDifficulty } from "../shared/scheduleDifficulty";
 import { ScheduleDifficultyCard, TeamScheduleSection } from "./ScheduleDifficulty";
+import { resetFlags } from "../lib/flags";
+import { DEFAULT_FLAGS } from "../shared/flags";
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); resetFlags(); });
 
 const rating = new Map([[1, 60], [2, 60], [3, 20], [4, 20], [5, 20], [6, 20], [7, 20], [8, 20]]);
 const quals = [
@@ -56,5 +58,18 @@ describe("TeamScheduleSection", () => {
     // Mid-event: what's left leads, and the full schedule is said too.
     expect(row.textContent).toMatch(/1 still to play/);
     expect(row.textContent).toMatch(/Full schedule: hardest of 8/);
+  });
+});
+
+describe("the owner's scheduleDifficulty toggle", () => {
+  it("off hides the event card and the team section", () => {
+    resetFlags({ ...DEFAULT_FLAGS, scheduleDifficulty: false }, true);
+    const sd = scheduleDifficulty(rating, quals)!;
+    const t4 = sd.teams.find((t) => t.team === 4)!;
+    const { container } = render(<MemoryRouter>
+      <ScheduleDifficultyCard d={detail(sd)} team={null} />
+      <TeamScheduleSection team={4} schedule={[{ ...t4, code: "USNJQ1", scheduled: 4, played: 2 }]} events={[]} />
+    </MemoryRouter>);
+    expect(container.innerHTML).toBe("");
   });
 });

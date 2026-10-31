@@ -104,10 +104,10 @@ beforeEach(async () => {
 
 describe("the registry", () => {
   it("has exactly the seven v1 feature toggles, the kill switches apart, and only workspace scouting per workspace", () => {
-    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons"]);
+    expect([...FEATURE_FLAGS]).toEqual(["livePredictions", "advancementOdds", "powerRankings", "coinFlips", "offlinePacks", "discordBot", "workspaceScouting", "scoutingCommons", "scheduleDifficulty"]);
     expect([...KILL_SWITCHES]).toEqual(["realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest"]);
     expect([...WORKSPACE_FLAGS]).toEqual(["workspaceScouting", "scoutingCommons"]);
-    expect(FLAGS.length).toBe(15);
+    expect(FLAGS.length).toBe(16);
   });
 
   it("keeps the stored values of the switches that already existed", async () => {
@@ -189,6 +189,22 @@ describe("gated routes", () => {
     const friday = Date.parse("2026-10-23T05:00:00Z");
     expect((await autoPowerRankingsTick(friday))?.status).toBe("off");
     expect((await dailyRefreshTick(Date.parse("2026-10-24T05:00:00Z"))).status).toBe("off");
+  });
+
+  it("schedule difficulty off: the event and team answers leave it out, and still load", async () => {
+    await run("INSERT OR IGNORE INTO teams (number, name) VALUES (1, 'One')");
+    await run("INSERT OR IGNORE INTO events (season, code, name, type, start, \"end\", timezone, source) VALUES (2025, 'USSDQ1', 'Schedule Qualifier', 'Qualifier', '2025-11-01', '2025-11-01', 'UTC', 'first')");
+    await run("INSERT OR IGNORE INTO event_teams (season, code, team) VALUES (2025, 'USSDQ1', 1)");
+    const ev = () => call("GET", "/api/events/2025/USSDQ1"), team = () => call("GET", "/api/teams/1?season=2025");
+    const first = await ev();
+    expect(first.status, JSON.stringify(first.json).slice(0, 300)).toBe(200);
+    expect("scheduleDifficulty" in first.json).toBe(true);
+    expect("schedule" in (await team()).json).toBe(true);
+    await setFlag("scheduleDifficulty", false, "owner@example.com");
+    const [e, t] = [await ev(), await team()];
+    expect([e.status, t.status]).toEqual([200, 200]);
+    expect("scheduleDifficulty" in e.json).toBe(false);
+    expect("schedule" in t.json).toBe(false);
   });
 
   it("the track record, public team and event data and the home headlines are never gated", async () => {

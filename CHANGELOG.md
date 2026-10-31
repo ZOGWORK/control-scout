@@ -31,6 +31,7 @@ Every team's qualification schedule now gets a difficulty rating: how strong its
 - **Every team rated.** Teams with no result yet this season start from last season's rating, as everywhere else on the site.
 - **It matters.** Across the 2023–2025 seasons, a schedule one step harder than average cost a team about 2 places in the final ranking against its rating (docs/schedule-difficulty.md) (#357).
 - **Offline and for other features.** Season packs carry it as a team stat, and the event and team API answers include it.
+- **An owner switch.** The owner console's Features tab has a Schedule difficulty toggle: off hides it on event and team pages and leaves it out of the event and team answers.
 ## 1.5.6 — 2026-10-30
 
 Something wrong in the scouting commons? Report it, or mute a workspace you don't want to see.
