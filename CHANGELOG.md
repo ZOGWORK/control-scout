@@ -27,7 +27,7 @@ Closed sections on team pages now show there's more inside.
 
 ### Team pages
 
-- A closed section shows its one-line summary and a pill button instead of a small grey "Show" at the edge of the row. Screen readers hear the section name as the button and the summary as its description. (#PR)
+- A closed section shows its one-line summary and a pill button instead of a small grey "Show" at the edge of the row. Screen readers hear the section name as the button and the summary as its description. (#368)
 
 ## 1.7.0 — 2026-10-31
 
