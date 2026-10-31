@@ -3,6 +3,8 @@ import type { Reliability } from "./reliability";
 import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
+import type { BracketOdds } from "./bracketOdds";
+export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
  *  two of them played together, or met as opponents, in an earlier match. A reason shown
@@ -304,6 +306,9 @@ export interface EventDetail {
   /** This event is one session of an AM/PM pair and FIRST lists the pair's registrations together, with no word on
    *  who plays which session: never this session's `field`. Null otherwise. Absent from older servers and saved packs. */
   sharedSessions?: SharedSessions | null;
+  /** The playoff bracket predictor (src/shared/bracketOdds.ts): series calls and championship odds once alliances are
+   *  posted; null before that or without ratings. Absent from older servers and saved packs. */
+  bracket?: BracketOdds | null;
 }
 
 /** FIRST's registered teams for both sessions of an AM/PM event (server/data/registrations.ts markSharedSessions). */

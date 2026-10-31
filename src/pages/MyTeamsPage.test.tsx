@@ -2,7 +2,7 @@
 // My teams: the account's FTC teams from Control Point, each with its season's stats and a link to its
 // team page; honest empty states for signed out, Control Point unreachable, and no teams.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { AccountUser } from "../lib/personal";
 import type { TeamProfile } from "../shared/api";
@@ -15,6 +15,7 @@ const { default: MyTeamsPage } = await import("./MyTeamsPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
 const { resetFlags } = await import("../lib/flags");
 const { DEFAULT_FLAGS } = await import("../shared/flags");
+const { invalidate } = await import("../lib/api");
 
 const user = (workspaces: { id: string; name: string; role: "admin" | "member" }[] | undefined, teams: { teamNumber: number | null; name: string }[] = []): AccountUser => ({
   id: 1, email: "a@scout.test", displayName: "Ada", createdAt: "", controlPointLinked: true,
@@ -86,11 +87,44 @@ describe("MyTeamsPage", () => {
     const now = await waitFor(() => card.getAllByRole("link", { name: /Today Qualifier/ })[0]);
     expect(now.textContent).toContain("3-1-0");
     expect(now.textContent).not.toContain("Upcoming");
-    // The team's own header link (a match row's bare "4215" link can be there too, depending on the time of day).
-    expect(card.getByRole("link", { name: /^4215\s*Live Bots/ }).getAttribute("href")).toBe("/teams/4215?season=2026");
+    expect(card.getByRole("link", { name: /Full team page/ }).getAttribute("href")).toBe("/teams/4215?season=2026");
     const upcoming = (await waitFor(() => card.getByText("Upcoming matches"))).parentElement!;
     await waitFor(() => expect(upcoming.textContent).toContain("Today Qualifier"));
     expect(upcoming.textContent).not.toContain("Old Qualifier");
+  });
+
+  it("tapping a team's number and name folds its card to the header and back, remembered on this device", async () => {
+    h.user = user([{ id: "77", name: "Hypnotic Robotics", role: "admin" }], [{ teamNumber: 18360, name: "Hypnotic Robotics" }]);
+    page();
+    const card = within(await screen.findByRole("article", { name: "Team 18360" }));
+    await waitFor(() => expect(card.getByText("101.6")).toBeTruthy());
+    const toggle = card.getByRole("button", { name: /18360/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)).toBeTruthy();
+    // The Full team page link is not the toggle.
+    fireEvent.click(card.getByRole("link", { name: /Full team page/ }));
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(card.queryByText("101.6")).toBeNull();
+    expect(card.getByText("Hypnotic Robotics", { selector: "span" })).toBeTruthy();
+    expect(card.getByRole("link", { name: /Full team page/ })).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem("cs-my-teams-collapsed")!)).toEqual([18360]);
+
+    // A fresh visit (nothing cached) keeps it folded, and doesn't fetch what it can't show.
+    cleanup(); invalidate("/api/"); paths = [];
+    page();
+    const again = within(await screen.findByRole("article", { name: "Team 18360" }));
+    const toggle2 = again.getByRole("button", { name: /18360/ });
+    expect(toggle2.getAttribute("aria-expanded")).toBe("false");
+    await waitFor(() => expect(again.getByText(/2025–26/)).toBeTruthy());
+    expect(paths).toEqual(["/api/teams/18360?season=2026"]);
+    fireEvent.click(toggle2);
+    expect(toggle2.getAttribute("aria-expanded")).toBe("true");
+    await waitFor(() => expect(again.getByText("101.6")).toBeTruthy());
+    await waitFor(() => expect(paths).toContain("/api/teams/18360/matches?season=2025"));
+    expect(paths).toContain("/api/teams/18360?season=2025");
+    expect(JSON.parse(localStorage.getItem("cs-my-teams-collapsed")!)).toEqual([]);
   });
 
   it("a workspace with no FTC number says so instead of showing empty stats", () => {
