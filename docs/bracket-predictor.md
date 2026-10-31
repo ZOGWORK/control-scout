@@ -24,19 +24,19 @@ A double-elimination event that numbers its series from 0 is shifted to the brac
 
 ## Measured accuracy (walk-forward)
 
-`npm run bracket:replay -- 2023 2024 2025 --runs 2000` replays every finished playoff of 2023–24, 2024–25 and 2025–26 in the local database. Before each series' first match it uses the ratings rebuilt from earlier matches only, including that event's quals and earlier playoff series. The bracket sees only what was posted by then: earlier results, and the line-up of the series about to start. Later series' line-ups would give away who got there, so they're left out. The data covers 1,566 events and 10,597 series. Eight events had a format the predictor can't map, and one bracket never finished.
+`npm run bracket:replay -- 2023 2024 2025 --runs 2000` replays every finished playoff of 2023–24, 2024–25 and 2025–26 in the local database. Before each series' first match it uses the ratings rebuilt from earlier matches only, including that event's quals and earlier playoff series. The bracket sees only what was posted by then: earlier results, and the line-up of the series about to start. Later series' line-ups would give away who got there, so they're left out. The data covers 1,566 events and 10,598 series. Eight events had a format the predictor can't map, and one bracket never finished.
 
 **Series calls**
 
 | | Series | Favourite won | Brier | Higher seed won |
 |---|---:|---:|---:|---:|
-| All | 10,597 | **77.9%** | **0.151** | 71.8% |
-| First round | 3,699 | 81.5% | 0.128 | 76.3% |
+| All | 10,598 | **77.9%** | **0.151** | 71.8% |
+| First round | 3,700 | 81.5% | 0.128 | 76.3% |
 | Later rounds | 6,898 | 76.0% | 0.163 | 69.3% |
-| Double elimination (2024–25 on) | 9,108 | 77.5% | 0.154 | 71.0% |
+| Double elimination (2024–25 on) | 9,106 | 77.5% | 0.154 | 71.0% |
 | Semifinals + final (2023–24) | 1,269 | 81.5% | 0.123 | 78.0% |
 | 2-alliance final | 133 | 74.4% | 0.159 | 70.7% |
-| Unknown format (calls only) | 87 | 69.0% | 0.188 | 57.5% |
+| Unknown format (calls only) | 90 | 70.0% | 0.182 | 57.8% |
 
 "Higher seed won" is the naive call for comparison: the model beats it by about six points.
 
