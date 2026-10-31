@@ -5,7 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { ReportCard, TeamReportCards } from "../shared/api";
-import { ReportCardSection } from "./ReportCard";
+import { ReportCardView } from "./ReportCard";
 
 afterEach(cleanup);
 
@@ -18,7 +18,7 @@ const card = (o: Partial<ReportCard>): ReportCard => ({
 const data = (season: ReportCard, events: ReportCard[] = []): TeamReportCards => ({
   season, events, prior: 10, field: { calls: 4000, decided: 3900, scored: 3800, hitRate: 0.69, errMean: 0, errAbs: 7, errSd: 10 },
 });
-const show = (d: TeamReportCards | null) => render(<MemoryRouter><ReportCardSection team={4215} season={2026} data={d} /></MemoryRouter>);
+const show = (d: TeamReportCards | null) => render(<MemoryRouter><ReportCardView team={4215} season={2026} data={d} /></MemoryRouter>);
 
 describe("report card", () => {
   it("shows the shrunk numbers, the sample size and the raw ones, flagging a small sample", () => {

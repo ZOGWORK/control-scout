@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, wrap, type SeasonDb } from "./readers";
+import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, wrap, type SeasonDb } from "./readers";
 import { packDb, season2024, season2025 } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
 import { SCHEDULE_COLUMNS, scheduleDifficulty, scheduleRows, withoutRemaining } from "../../shared/scheduleDifficulty";
@@ -285,8 +285,7 @@ describe("offline schedule difficulty (a team stat in the pack)", () => {
     }
     // USNJQ1 ended in 2025.
     expect(readEventDetail({ season: 2025, db }, "USNJQ1")!.scheduleDifficulty).toEqual(withoutRemaining(sd));
-    const p = readTeamProfile([{ season: 2025, db }], 300)!;
-    expect(p.schedule).toEqual([{ ...sd.teams.find((t) => t.team === 300), remaining: null, code: "USNJQ1", scheduled: 3, played: 1 }]);
+    expect(readTeamSchedule({ season: 2025, db }, 300)).toEqual([{ ...sd.teams.find((t) => t.team === 300), remaining: null, code: "USNJQ1", scheduled: 3, played: 1 }]);
   });
 
   it("an older pack without the table shows no figure", async () => {

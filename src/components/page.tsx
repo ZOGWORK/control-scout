@@ -2,7 +2,9 @@
 // Page-level compositions for Modern screens (built from the shadcn kit):
 // one PageHeader per page, Sections separated by headings + hairlines, and
 // consistent empty / error states.
-import type { ComponentType, ReactNode } from 'react';
+import { useEffect, useId, useState, type ComponentType, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { cn } from './cn';
 import { Reveal } from './motion';
 
@@ -47,7 +49,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
   );
 }
 
-export function Section({ title, description, action, stackAction = false, children, className, delay = 0 }: {
+export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, id }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -56,10 +58,16 @@ export function Section({ title, description, action, stackAction = false, child
   children: ReactNode;
   className?: string;
   delay?: number;
+  /** Closed until its header is pressed, and its children mount only then (a section that fetches its own data asks
+   *  for nothing until it is first opened). Kept mounted after, so closing and reopening never asks again. */
+  collapsible?: boolean;
+  /** The section's anchor: a link to #id opens a collapsible section. */
+  id?: string;
 }) {
+  if (collapsible) return <FoldedSection id={id} title={title} description={description} className={className} delay={delay}>{children}</FoldedSection>;
   return (
     <Reveal delay={delay} className={cn('mb-8', className)}>
-      <section>
+      <section id={id}>
         {(title || action) && (
           <div className={cn('mb-4 flex items-end justify-between gap-3 border-b border-border pb-3', stackAction && 'max-sm:flex-col max-sm:items-start')}>
             <div className="min-w-0">
@@ -70,6 +78,36 @@ export function Section({ title, description, action, stackAction = false, child
           </div>
         )}
         {children}
+      </section>
+    </Reveal>
+  );
+}
+
+function FoldedSection({ id, title, description, children, className, delay }: { id?: string; title?: ReactNode; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
+  const { hash } = useLocation();
+  const linked = !!id && hash === `#${id}`;
+  const [open, setOpen] = useState(linked);
+  // Opened once: the children stay mounted (and their data cached) from then on.
+  const [opened, setOpened] = useState(linked);
+  useEffect(() => { if (linked) { setOpen(true); setOpened(true); } }, [linked]);
+  const body = useId();
+  return (
+    <Reveal delay={delay} className={cn(open ? 'mb-8' : 'mb-4', className)}>
+      <section id={id}>
+        <h2 className={cn('border-b border-border', open && 'mb-4')}>
+          <button type="button" aria-expanded={open} aria-controls={body} onClick={() => { setOpen((o) => !o); setOpened(true); }}
+            className="group flex w-full items-center justify-between gap-3 py-3 text-left">
+            <span className="min-w-0 text-base font-semibold text-foreground">{title}</span>
+            {/* The words are for the eye; a screen reader hears aria-expanded. */}
+            <span aria-hidden className="flex shrink-0 items-center gap-1 text-sm font-normal text-muted-foreground group-hover:text-foreground">
+              {open ? 'Hide' : 'Show'}
+              <ChevronDown className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')} />
+            </span>
+          </button>
+        </h2>
+        <div id={body} hidden={!open}>
+          {opened && <>{description && <p className="-mt-2 mb-4 text-sm text-muted-foreground">{description}</p>}{children}</>}
+        </div>
       </section>
     </Reveal>
   );

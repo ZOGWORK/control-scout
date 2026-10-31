@@ -5,7 +5,7 @@
 // Unplayed matches get win odds from the lite pack (same engine, ratings as of
 // its build), like the what-if lab offline; played ones show none.
 import { FITTED_MODEL, RatingBook, explainMatch } from "@control-scout/predict-engine";
-import type { EventDetail, MatchView, SearchHit, TeamProfile } from "../../shared/api";
+import type { EventDetail, MatchView, SearchHit, TeamProfile, TeamScheduleAnswer } from "../../shared/api";
 import type { ProjectionsView } from "../../shared/projections";
 import { loadLite, type LitePack } from "../packs";
 import { partnershipFor } from "./partnerships";
@@ -17,7 +17,7 @@ import { readSaved } from "./seasons";
 import { bundleFor } from "./bundleMeta";
 import { loadBundle } from "./bundles";
 import { bundleTime } from "../../shared/eventBundle";
-import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, type ReadOpts } from "./readers";
+import { readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, type ReadOpts } from "./readers";
 
 let books: { pack: LitePack | null; bySeason: Map<number, RatingBook | null> } | null = null;
 
@@ -77,6 +77,14 @@ export async function offlineTeamMatches(number: number, season?: number): Promi
   return readSaved(s, ([sdb]) => (sdb ? markOffline({ team: number, season: s, matches: readMatchViews(sdb, { team: number }, opts) }, src) : null));
 }
 
+/** A team's schedule difficulty from its saved season pack (the team page's collapsed section). */
+export async function offlineTeamSchedule(number: number, season?: number): Promise<TeamScheduleAnswer | null> {
+  const s = season ?? savedSeasons()[0]?.season;
+  const src = s != null ? source(s) : null;
+  if (s == null || !src) return null;
+  return readSaved(s, ([sdb]) => (sdb ? markOffline({ team: number, season: s, schedule: readTeamSchedule(sdb, number) }, src) : null));
+}
+
 export async function offlineEventDetail(season: number, code: string): Promise<EventDetail | null> {
   // An event-day bundle for this event is usually newer than the saved season (it's made the morning of the
   // event): the newer of the two answers.
@@ -125,6 +133,7 @@ export async function offlineAnswer(path: string): Promise<unknown | null> {
   let m: RegExpExecArray | null;
   if ((m = /^\/api\/teams\/(\d{1,6})$/.exec(url.pathname))) return offlineTeamProfile(Number(m[1]), season);
   if ((m = /^\/api\/teams\/(\d{1,6})\/matches$/.exec(url.pathname))) return offlineTeamMatches(Number(m[1]), season);
+  if ((m = /^\/api\/teams\/(\d{1,6})\/schedule$/.exec(url.pathname))) return offlineTeamSchedule(Number(m[1]), season);
   if ((m = /^\/api\/events\/(\d{4})\/([^/]+)$/.exec(url.pathname))) return offlineEventDetail(Number(m[1]), decodeURIComponent(m[2]));
   if ((m = /^\/api\/projections\/(\d{4})\/([^/]+)$/.exec(url.pathname))) return offlineProjections(Number(m[1]), decodeURIComponent(m[2]));
   if (url.pathname === "/api/search") {

@@ -11,7 +11,7 @@ import { hasFirst } from "./env.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { rebuildSearch } from "./stats/job.js";
-import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany } from "./api/teams.js";
+import { teamProfile, compareTeams, teamSummaries, shortlistTeams, reliabilityMany, teamReportCards, teamSchedule } from "./api/teams.js";
 import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
@@ -369,6 +369,16 @@ export function createApp(opts: { dist?: string } = {}) {
     const p = await teamProfile(int(req.params.number, "team", { min: 1, max: 999999 }), req.query.season ? season(req.query.season) : undefined);
     if (!p) throw new HttpError(404, `No FTC team ${req.params.number} in our data`);
     return p;
+  }));
+
+  // The team page's collapsed sections, each asked for when first opened: report cards and schedule difficulty.
+  api.get("/teams/:number/report-card", h(async (req) => {
+    const team = int(req.params.number, "team", { min: 1, max: 999999 }), s = season(req.query.season);
+    return { team, season: s, reportCards: await teamReportCards(s, team) };
+  }));
+  api.get("/teams/:number/schedule", requireFeature("scheduleDifficulty"), h(async (req) => {
+    const team = int(req.params.number, "team", { min: 1, max: 999999 }), s = season(req.query.season);
+    return { team, season: s, schedule: await teamSchedule(s, team) };
   }));
 
   // The team page's season road map (server/api/roadmap.ts).

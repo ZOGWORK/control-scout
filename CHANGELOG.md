@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.6.7 — 2026-10-31
+## 1.6.8 — 2026-10-31
 
 Search Control Scout straight from the browser's address bar: type controlscout.org, press Tab, then a team number or name.
 
@@ -28,6 +28,20 @@ Search Control Scout straight from the browser's address bar: type controlscout.
 - **Press Tab to search.** After one visit, typing controlscout.org in Chrome or Edge's address bar offers "Search Control Scout"; press Tab and type a team number, team name, event or match. Firefox can add Control Scout as a search engine from the same description (`/opensearch.xml`).
 - **A results page.** The search lands on `/search?q=…`, which lists the same teams, events and matches as the search box at the top, grouped the same way, with a field to change the query. The results are in the page's first load, so they show straight away, signed in or not.
 - The search box at the top works exactly as before (#364).
+
+## 1.6.7 — 2026-10-31
+
+Team pages open faster: Reliability, the prediction report card and schedule difficulty start closed and load when opened, and the event list is now titled Season Road Map.
+
+### Highlights
+- [speed] Team pages load less up front: three detail sections open on a tap
+- [teams] Reliability, report card and schedule difficulty start closed
+- [teams] One event list, titled Season Road Map, newest first
+
+### Team pages
+- **Closed until opened.** Reliability, the prediction report card and schedule difficulty each start as a single header with a chevron and "Show". Tap or click it (or press Enter or Space) to open it, and again to close it. A link to `#reliability`, `#report-card` or `#schedule-difficulty` opens that section.
+- **Loaded when opened.** The report card and schedule difficulty are asked for the first time a section opens, with a loading placeholder until they arrive. They stay loaded after that, so closing and reopening doesn't ask again. The team's own answer no longer carries them, so the page's first load does less work. Every number is the same as before.
+- **One event list.** The separate road map section is gone: it showed the same events as the event history in the other order. The event history keeps its place, cards and matches, newest first, under the heading Season Road Map (#365).
 
 ## 1.6.6 — 2026-10-31
 

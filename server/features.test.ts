@@ -198,20 +198,26 @@ describe("gated routes", () => {
     expect((await dailyRefreshTick(Date.parse("2026-10-24T05:00:00Z"))).status).toBe("off");
   });
 
-  it("schedule difficulty off: the event and team answers leave it out, and still load", async () => {
+  it("schedule difficulty off: the event answer leaves it out, the team's own schedule request refuses, and both pages still load", async () => {
     await run("INSERT OR IGNORE INTO teams (number, name) VALUES (1, 'One')");
     await run("INSERT OR IGNORE INTO events (season, code, name, type, start, \"end\", timezone, source) VALUES (2025, 'USSDQ1', 'Schedule Qualifier', 'Qualifier', '2025-11-01', '2025-11-01', 'UTC', 'first')");
     await run("INSERT OR IGNORE INTO event_teams (season, code, team) VALUES (2025, 'USSDQ1', 1)");
     const ev = () => call("GET", "/api/events/2025/USSDQ1"), team = () => call("GET", "/api/teams/1?season=2025");
+    const schedule = () => call("GET", "/api/teams/1/schedule?season=2025");
     const first = await ev();
     expect(first.status, JSON.stringify(first.json).slice(0, 300)).toBe(200);
     expect("scheduleDifficulty" in first.json).toBe(true);
-    expect("schedule" in (await team()).json).toBe(true);
+    // The team page asks for its schedule on its own (its section opens closed): never in the profile.
+    expect("schedule" in (await team()).json).toBe(false);
+    expect((await schedule()).json).toMatchObject({ team: 1, season: 2025, schedule: [] });
+    // Its report card, the same way (none scored here).
+    expect("reportCards" in (await team()).json).toBe(false);
+    expect((await call("GET", "/api/teams/1/report-card?season=2025")).json).toEqual({ team: 1, season: 2025, reportCards: null });
     await setFlag("scheduleDifficulty", false, "owner@example.com");
-    const [e, t] = [await ev(), await team()];
-    expect([e.status, t.status]).toEqual([200, 200]);
+    const [e, t, s] = [await ev(), await team(), await schedule()];
+    expect([e.status, t.status, s.status]).toEqual([200, 200, 403]);
     expect("scheduleDifficulty" in e.json).toBe(false);
-    expect("schedule" in t.json).toBe(false);
+    expect(s.json).toMatchObject({ error: "feature_disabled", feature: "scheduleDifficulty" });
   });
 
   it("schedule difficulty off: the records refuse its columns, sort and filter, and the default leaves them out", async () => {

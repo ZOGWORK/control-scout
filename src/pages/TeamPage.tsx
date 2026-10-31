@@ -1,7 +1,7 @@
 // Team profile — any team, any season. Control Point's Team Stats design
 // (hero, OPR cards with world rank, one trend chart, event history),
 // generalised from "my team" to every team.
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
@@ -43,7 +43,6 @@ import { ReportCardSection } from "../components/ReportCard";
 import { ReliabilitySection } from "../components/Reliability";
 import { TeamScheduleSection } from "../components/ScheduleDifficulty";
 import { predictHref } from "../shared/predictUrl";
-import { RoadMapSection } from "../components/RoadMap";
 
 /** The record rule, mid-sentence ("Records count every match played, …"). */
 const RECORD_RULE_LOWER = RECORD_RULE.charAt(0).toLowerCase() + RECORD_RULE.slice(1);
@@ -94,12 +93,14 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
             <OprSection p={p} />
             <TrendChart events={p.events} season={p.season} />
           </div>
-          {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
-          {predictable && <ReportCardSection team={p.team.number} season={p.season} data={p.reportCards} />}
-          {predictable && p.schedule && <TeamScheduleSection team={p.team.number} schedule={p.schedule} events={p.events} />}
-          <RoadMapSection team={p.team.number} season={p.season} />
+          {/* Closed at first, each asked for (or drawn) only when opened; closed again for another team or season. */}
+          <Fragment key={`${p.team.number}-${p.season}`}>
+            {p.stats?.reliability !== undefined && <ReliabilitySection r={p.stats.reliability} />}
+            {predictable && <ReportCardSection team={p.team.number} season={p.season} />}
+            {predictable && <TeamScheduleSection team={p.team.number} season={p.season} events={p.events} />}
+          </Fragment>
           <div className="min-[1700px]:grid min-[1700px]:grid-cols-2 min-[1700px]:items-start min-[1700px]:gap-x-8">
-            <Section title={`Event history (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
+            <Section title={`Season Road Map (${p.events.length})`} description={`${seasonLabel(p.season)}, newest first`}>
               <EventHistory events={p.events} team={p.team.number} />
               {p.events.some((e) => e.played) && <p className="mt-2 text-xs text-muted-foreground">Records count {RECORD_RULE_LOWER}</p>}
             </Section>
@@ -111,7 +112,7 @@ function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSea
           <MatchesSection team={p.team.number} season={p.season} events={p.events} predictable={predictable} />
         </>
       )}
-      {rest && !hasResults && <><RoadMapSection team={p.team.number} season={p.season} quiet /><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
+      {rest && !hasResults && <><AwardsAllTime p={p} />{predictable && <ScoutNotes team={p.team.number} season={p.season} />}</>}
       {/* Workspace members only: their workspace's scouting on this team (nothing for anyone else). Last, after
           the team's own numbers and matches: it's the members' take, not the first thing a search opens on. */}
       {rest && predictable && <TeamConsensusSection team={p.team.number} season={p.season} reliability={p.stats?.reliability} />}
