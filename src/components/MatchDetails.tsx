@@ -179,8 +179,9 @@ export function breakdownRows(d: MatchDetail): BreakdownRow[] {
 
 /** Who's ahead on one row and by how much, in words (never colour alone). Fouls: who gave away more. */
 export function rowLead(x: BreakdownRow): { side: Side | null; text: string } {
-  if (x.red == null && x.blue == null) return { side: null, text: "—" };
-  const diff = (x.red ?? 0) - (x.blue ?? 0);
+  // A value FIRST didn't report: no gap to name.
+  if (x.red == null || x.blue == null) return { side: null, text: "—" };
+  const diff = x.red - x.blue;
   if (diff === 0) return { side: null, text: "Even" };
   const side: Side = diff > 0 ? "red" : "blue", by = Math.abs(diff), who = side === "red" ? "Red" : "Blue";
   if (x.fouls) return { side, text: x.count ? `${who} ${by} more` : `${who} gave ${by} more` };

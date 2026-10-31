@@ -57,14 +57,15 @@ describe("match breakdown", () => {
     sheet.forEach((x, i) => expect([rows[i].red, rows[i].blue]).toEqual([shown(x.red), shown(x.blue)]));
     expect(rows.at(-1)).toMatchObject({ red: "124", blue: "82" });
     expect(rows.find((x) => x.label === "Major fouls")!.lead).toBe("Red 1 more");
-    expect(rows.find((x) => x.label === "Flower")!.lead).toBe("Blue +12");
+    expect(rows.find((x) => x.label === "Flower")!.lead).toBe("—");
     expect(breakdownRows(d).at(-1)).toMatchObject({ red: d.match.red.score!.total, blue: d.match.blue.score!.total, total: true });
   });
 
-  it("says a tie in words, and who leads never depends on colour", () => {
+  it("says a tie in words, names no lead when a value is missing, and never relies on colour", () => {
     expect(rowLead({ label: "Auto", red: 10, blue: 10 })).toEqual({ side: null, text: "Even" });
     expect(rowLead({ label: "Auto", red: 4, blue: 9 })).toEqual({ side: "blue", text: "Blue +5" });
     expect(rowLead({ label: "Auto", red: null, blue: null })).toEqual({ side: null, text: "—" });
+    expect(rowLead({ label: "Flower", red: null, blue: 12 })).toEqual({ side: null, text: "—" });
   });
 
   it("shows each RP as earned or missed exactly as the data says, with a word and a mark", () => {
