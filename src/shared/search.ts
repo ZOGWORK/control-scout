@@ -25,8 +25,13 @@ export const SEARCH_TOPICS: [string, SearchTopic][] = ([
   ["playoff", "playoffs"], ["playoffs", "playoffs"], ["bracket", "playoffs"], ["elims", "playoffs"],
 ] as [string, SearchTopic][]).sort((a, b) => b[0].split(" ").length - a[0].split(" ").length);
 
-/** Words that say nothing about which team or event ("ultra violet team"): dropped when the whole query finds nothing. */
-export const SEARCH_FILLER = new Set(["team", "teams", "ftc", "the", "of", "for", "page", "info"]);
+/** Words that say nothing about which team or event ("ultra violet team", "how many awards did hypnotic win"):
+ *  dropped when the whole query finds nothing. A question reads as its name and topic. */
+export const SEARCH_FILLER = new Set([
+  "team", "teams", "ftc", "the", "of", "for", "page", "info", "a", "an", "in", "at", "on", "this", "season", "year",
+  "how", "many", "much", "what", "whats", "which", "who", "when", "where", "is", "are", "was", "were", "do", "does", "did",
+  "has", "have", "had", "get", "got", "win", "won", "show", "me", "find", "their", "its", "my", "to",
+]);
 
 /** Where each topic opens a page: a team page's part (#awards, #events, #matches) or an event's tab (?tab=). */
 const TOPIC_SECTION: Record<SearchTopic, Partial<Record<SearchHit["kind"], SearchSection>>> = {

@@ -45,7 +45,8 @@ async function matchHit(q: string): Promise<SearchHit | null> {
  *  canonical ("ranking points"), and the words left to search for. Null when nothing would be left, or nothing dropped.
  *  `typos`: a topic word may be misspelled ("awrds", "ranking ponts"), within the name search's own edit allowance. */
 export function searchIntent(q: string, typos = false): { topic: SearchTopic | null; phrase: string | null; rest: string } | null {
-  const ws = q.trim().split(/\s+/).filter(Boolean);
+  // A question's punctuation and possessives go ("what are 4215's ranking points?" reads as "4215 ranking points").
+  const ws = q.trim().replace(/[?!,]/g, " ").replace(/['’]s\b/gi, "").split(/\s+/).filter(Boolean);
   const lower = ws.map((w) => w.toLowerCase());
   let topic: SearchTopic | null = null, phrase: string | null = null, at = -1, len = 0;
   for (const [p, t] of SEARCH_TOPICS) {

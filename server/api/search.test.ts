@@ -155,6 +155,9 @@ describe("search with a topic", () => {
     expect(searchIntent("hypnotic awrds", true)).toMatchObject({ topic: "awards", rest: "hypnotic" });
     expect(searchIntent("awards")).toBeNull(); // nothing left to search for
     expect(searchIntent("hypnotic")).toBeNull(); // nothing dropped
+    // Questions read as their name and topic.
+    expect(searchIntent("how many awards did hypnotic robotics win?")).toMatchObject({ topic: "awards", rest: "hypnotic robotics" });
+    expect(searchIntent("what are 4215's ranking points")).toMatchObject({ topic: "rp", rest: "4215" });
   });
 
   it("opens the team on what was asked, with its own numbers", async () => {
