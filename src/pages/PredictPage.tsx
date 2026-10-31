@@ -512,7 +512,6 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           <FactorList factors={x.factors} reasons={x.reasons} />
           {x.history ? <PairHistoryLine history={x.history} className="mt-1.5" /> : null}
           <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
-          {x.factorSheet && <FactorSheetPanel sheet={x.factorSheet} className="mt-3" />}
         </div>
         <details className="group rounded-2xl border border-border bg-card p-5 max-sm:p-4 md:open:row-span-1">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold [&::-webkit-details-marker]:hidden">
@@ -533,6 +532,8 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           </table>
         </details>
       </div>
+      {/* Full width under both cards: on a wide screen its sections sit side by side (it sizes by its container). */}
+      {x.factorSheet && <FactorSheetPanel sheet={x.factorSheet} className="rounded-2xl bg-card" />}
     </div>
   );
 }
