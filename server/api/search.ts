@@ -7,7 +7,7 @@ import { all, get } from "../db.js";
 import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
-import { teamFacts } from "./searchFacts.js";
+import { teamAtEvent, teamEvents, teamFacts, teamSeason } from "./searchFacts.js";
 import { allowedEdits, editDistance, fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
 import { findRegions } from "../../src/shared/regions.js";
@@ -68,6 +68,8 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
  *  asked about (SearchHit.facts). A team or event whose own name has the words ("Match Point") still comes first.
  *  Words like "team", and misspelled topic words ("hypnotic awrds"), count only when the whole query finds nothing. */
 export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
+  const at = await teamAtEventAnswer(q, limit, prefer, kinds);
+  if (at) return at;
   const full = await searchWords(q, limit, prefer, kinds);
   // A match query ("USNJQ1 match 3") means that match, not the event's matches.
   if (MATCH_RE.test(q.trim())) return full;
@@ -81,20 +83,44 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     if (!hits.length) continue;
     // The top team answers with its numbers ("Ranking score 3.40 at …"); the rest name the topic.
     const top = topic ? hits.find((h) => h.kind === "team") : undefined;
-    const answer = top && topic ? await teamFacts(Number(top.ref), topic) : { facts: [], season: null };
+    const answer: Awaited<ReturnType<typeof teamFacts>> = top && topic ? await teamFacts(Number(top.ref), topic) : { facts: [], season: null };
     const found = hits.map((h): SearchHit => {
       // An event before predictions has no odds tab: nothing to open on, so no topic to name either.
       if (!topic || (topic === "odds" && h.kind === "event" && (h.season == null || isLegacy(h.season)))) return h;
       const section = sectionFor(h.kind, topic);
       // The answer's numbers, and its season in the link, so the page opens on what they describe.
       const withFacts = h === top && answer.facts.length > 0;
-      return { ...h, ...(section ? { section } : {}), ...(withFacts ? { facts: answer.facts, linkSeason: answer.season! } : { subtitle: [TOPIC_LABEL[topic], h.subtitle].filter(Boolean).join(" · ") }) };
+      return { ...h, ...(section ? { section } : {}), ...(withFacts ? { facts: answer.facts, linkSeason: answer.season!, ...(answer.events ? { events: answer.events } : {}) } : { subtitle: [TOPIC_LABEL[topic], h.subtitle].filter(Boolean).join(" · ") }) };
     });
     const named = phrase ? full.filter((h) => ` ${normalize(h.title)} `.includes(` ${normalize(phrase)} `)) : [];
     const seen = new Set<string>();
     return [...named, ...found, ...full].filter((h) => { const k = `${h.kind}:${h.ref}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, limit);
   }
   return full;
+}
+
+/**
+ * "hypnotic OPR at New Jersey Championship": the team at that one of its events (event OPR, rank, ranking score),
+ * linking to the event opened on the team. "… at this event", or an event none of the team's matches: the team with
+ * its events and their OPRs, for the visitor to pick: never a guessed event. Null when the query isn't one of these.
+ */
+async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[] | null> {
+  const m = /^(.+?)\s+at\s+(.+)$/i.exec(q.trim());
+  if (!m || MATCH_RE.test(q.trim()) || (kinds?.size && !kinds.has("team"))) return null;
+  const intent = searchIntent(m[1]) ?? searchIntent(m[1], true);
+  if (!intent?.topic) return null;
+  const hits = await searchWords(intent.rest, limit, prefer, kinds);
+  const team = hits.find((h) => h.kind === "team");
+  if (!team) return null;
+  const where = m[2].trim();
+  const vague = /^(?:this|that|the|an?|my|our)?\s*(?:event|meet|tournament|competition|one|comp)?$/i.test(where);
+  const pick = vague ? null : await teamAtEvent(Number(team.ref), where);
+  const others = hits.filter((h) => h !== team).slice(0, limit - 1);
+  if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts }, ...others];
+  const { season } = await teamSeason(Number(team.ref));
+  const events = season == null ? [] : await teamEvents(Number(team.ref), season);
+  const note = vague ? "Pick an event below" : `None of its events matches "${where}": pick one below`;
+  return [{ ...team, section: "events", ...(season != null ? { linkSeason: season } : {}), facts: [{ label: "Which event?", value: note }], ...(events.length ? { events } : {}) }, ...others];
 }
 
 async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {

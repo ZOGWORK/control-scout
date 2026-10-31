@@ -45,7 +45,14 @@ export interface SearchHit {
   facts?: SearchFact[];
   /** The season the facts are from: the link opens the team page on it. */
   linkSeason?: number;
+  /** "OPR at <event>": the team at that event ("season:CODE"); the link opens the event on the team. */
+  atEvent?: string;
+  /** The team's events with their OPRs, to pick from ("hypnotic OPR", "… at this event"). */
+  events?: SearchEventPick[];
 }
+
+/** One of a team's events in a search answer, with its event OPR. */
+export interface SearchEventPick { season: number; code: string; name: string; opr: number | null }
 
 /** A team page's part (#id) or an event's tab (?tab=). */
 export type SearchSection = "awards" | "matches" | "events" | "rankings" | "odds" | "playoffs";
