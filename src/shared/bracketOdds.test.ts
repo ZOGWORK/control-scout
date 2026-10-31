@@ -137,6 +137,23 @@ describe("bracketOdds", () => {
     expect(o.series[0].call?.alliance).toBe(1);
   });
 
+  it("withholds championship odds while a later series is posted ahead of an earlier result", () => {
+    // M4's line-up (winner M1 v winner M2) is posted, but M1's result isn't in yet.
+    const m1 = { ...played(1, 1, 4), redScore: null, blueScore: null };
+    const o = bracketOdds({ season: 2025, alliances: alliances(4), matches: [m1, played(2, 2, 3), { ...played(4, 1, 2), redScore: null, blueScore: null }], price, strength });
+    expect(o.format).toBe("unknown");
+    expect(o.alliances).toEqual([]);
+    expect(o.note).toMatch(/earlier result/);
+  });
+
+  it("keeps 2023–24 series best-of-3 in the calls-only fallback", () => {
+    // Seeds 2 and 3 in series 1 doesn't fit the 1 v 4 semifinal: calls only, and one win doesn't end the series.
+    const o = bracketOdds({ season: 2023, alliances: alliances(4), matches: [played(1, 2, 3, 1), { ...played(1, 2, 3, 2), redScore: null, blueScore: null }], price, strength });
+    expect(o.format).toBe("unknown");
+    expect(o.series[0]).toMatchObject({ bestOf: 3, winner: null, wins: [1, 0] });
+    expect(o.series[0].call?.alliance).toBe(2);
+  });
+
   it("falls back when a posted series contradicts the bracket", () => {
     // M1 is seed 1 v seed 4, but 2 and 3 played it.
     const o = bracketOdds({ season: 2025, alliances: alliances(4), matches: [played(1, 2, 3)], price, strength });

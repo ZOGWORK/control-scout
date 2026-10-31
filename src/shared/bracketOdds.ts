@@ -255,7 +255,9 @@ export function bracketOdds(input: BracketInput): BracketOdds {
   const numbered = alliances.every((a, i) => a.number === i + 1);
   const shape = numbered ? bracketShape(input.season, alliances.length, [...bySeries.keys()]) : null;
   const resolved = shape ? resolve(shape, bySeries, allianceOf, byNumber) : null;
-  if (!shape || !resolved) return unknownOdds(bySeries, allianceOf, pMatch, shape ? "The posted playoff results don't fit the usual bracket, so only each series' own call shows." : alliances.length === 2 || BRACKETS[alliances.length] || input.season < DOUBLE_ELIM_FROM
+  if (!shape || !resolved || resolved === "ahead") return unknownOdds(input.season, bySeries, allianceOf, pMatch, resolved === "ahead"
+    ? "A later series is posted before an earlier result, so only each series' own call shows until that result is in."
+    : shape ? "The posted playoff results don't fit the usual bracket, so only each series' own call shows." : alliances.length === 2 || BRACKETS[alliances.length] || input.season < DOUBLE_ELIM_FROM
     ? "This event's playoff format isn't one we can map, so only each series' own call shows."
     : `A ${alliances.length}-alliance bracket isn't one we can map, so only each series' own call shows.`);
 
@@ -365,9 +367,10 @@ type Resolved = NodeState[] & { alive: Set<number>; champion: number | null };
 
 /**
  * The bracket as it stands: each node's known sides, series score and winner. Null when a posted result
- * contradicts the shape (a series played by alliances other than the ones its slots hold).
+ * contradicts the shape (a series played by alliances other than the ones its slots hold); "ahead" when a series
+ * is posted before the result that decides who plays it (the simulation couldn't keep both consistent).
  */
-function resolve(shape: Shape, bySeries: Map<number, BracketMatch[]>, allianceOf: (teams: number[]) => number | null, byNumber: Map<number, BracketAlliance>): Resolved | null {
+function resolve(shape: Shape, bySeries: Map<number, BracketMatch[]>, allianceOf: (teams: number[]) => number | null, byNumber: Map<number, BracketAlliance>): Resolved | "ahead" | null {
   const win: (number | null)[] = [], lose: (number | null)[] = [];
   const who = (s: Slot) => ("seed" in s ? (byNumber.has(s.seed) ? s.seed : null) : "winnerOf" in s ? win[s.winnerOf] ?? null : lose[s.loserOf] ?? null);
   const states: NodeState[] = [];
@@ -381,8 +384,8 @@ function resolve(shape: Shape, bySeries: Map<number, BracketMatch[]>, allianceOf
     if (posted) {
       // A posted series must be between the alliances its slots hold (either colour).
       if ((a != null && !posted.includes(a)) || (b != null && !posted.includes(b))) return null;
-      if (a == null) a = posted.find((x) => x !== b) ?? null;
-      if (b == null) b = posted.find((x) => x !== a) ?? null;
+      // Its line-up is posted but an earlier result that feeds it isn't in yet.
+      if (a == null || b == null) return "ahead";
     }
     const wins = seriesWins(ms, allianceOf);
     const need = Math.ceil(node.bestOf / 2);
@@ -412,14 +415,16 @@ function resolve(shape: Shape, bySeries: Map<number, BracketMatch[]>, allianceOf
 }
 
 /** Unknown format: each posted series priced on its own (who's in it, its score), no bracket. */
-function unknownOdds(bySeries: Map<number, BracketMatch[]>, allianceOf: (teams: number[]) => number | null, pMatch: (a: number, b: number) => { p: number; tier: ConfidenceTier }, note: string): BracketOdds {
+function unknownOdds(season: number, bySeries: Map<number, BracketMatch[]>, allianceOf: (teams: number[]) => number | null, pMatch: (a: number, b: number) => { p: number; tier: ConfidenceTier }, note: string): BracketOdds {
   const tiers: ConfidenceTier[] = [];
   const series: BracketSeriesView[] = [...bySeries.entries()].sort((x, y) => (x[0] || Infinity) - (y[0] || Infinity)).map(([s, ms], i) => {
     const sides = seriesSides(ms, allianceOf);
     const wins = seriesWins(ms, allianceOf);
-    // Best-of-3 when the series has two decisive results already or is the final (series 0), else a single match.
+    // Best-of-3: every series before double elimination (2023–24's semifinals and finals), the final (series 0), and a
+    // series with two decisive results or more than one game posted without a tie to replay. Else a single match.
     const decisive = [...wins.values()].reduce((x, y) => x + y, 0);
-    const bestOf = decisive >= 2 || s === 0 ? 3 : 1;
+    const tie = ms.some((m) => m.redScore != null && m.redScore === m.blueScore);
+    const bestOf = season < DOUBLE_ELIM_FROM || s === 0 || decisive >= 2 || (ms.length > 1 && !tie) ? 3 : 1;
     const need = Math.ceil(bestOf / 2);
     let winner: number | null = null;
     for (const [x, c] of wins) if (c >= need) winner = x;
