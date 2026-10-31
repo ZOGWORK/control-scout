@@ -12,6 +12,7 @@ import { Toaster } from "./components/ui/sonner";
 import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider } from "./lib/meta";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
+import { LiteSuggest } from "./components/layout/LiteSuggest";
 import { PageViews } from "./lib/analytics";
 import { installErrorReporting, setReportingPaused } from "./lib/errorReporting";
 import { onFlags, startFlags } from "./lib/flags";
@@ -183,6 +184,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             <CanonicalSync />
             {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), tour, nudge or alerts. */}
             <NotOnBareRoute><ConsentBanner /></NotOnBareRoute>
+            {/* In the main bundle, not a chunk of its own: it's for when chunks are crawling (src/lib/liteSuggest.ts). */}
+            <NotOnBareRoute><LiteSuggest /></NotOnBareRoute>
             <PageViews />
             <OptionalParts>
               <NotOnBareRoute><ErrorReportPrompt /></NotOnBareRoute>

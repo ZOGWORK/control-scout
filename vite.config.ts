@@ -59,6 +59,8 @@ export default defineConfig({
     proxy: {
       "/api": `http://localhost:${process.env.PORT || 3000}`,
       "/packs": `http://localhost:${process.env.PORT || 3000}`,
+      // Light pages (server/lite/) are the server's own HTML.
+      "/lite": `http://localhost:${process.env.PORT || 3000}`,
     },
   },
   build: {
