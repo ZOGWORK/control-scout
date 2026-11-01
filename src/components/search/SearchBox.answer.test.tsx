@@ -42,6 +42,13 @@ const reply = async (match: RegExp, body: unknown) => {
 };
 
 describe("live search", () => {
+  it("a whole season's card (no team, no other results) shows in the dropdown, not \"nothing matches\"", async () => {
+    const { input } = mount();
+    await type(input, "world record score decode");
+    await reply(/q=world/, answer("world record score decode", { card: { kind: "high-scores", title: "Highest scores in 2025–26 (DECODE)", lines: [{ text: "714 points: Q49 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:49" }] } }));
+    expect(screen.getByRole("note", { name: "Highest scores in 2025–26 (DECODE)" }).textContent).toContain("714 points");
+    expect(screen.queryByText(/No team, event or match matches/)).toBeNull();
+  });
   it("asks once typing pauses, shows that it's searching, and never opens anything on its own (T15, T21)", async () => {
     const { input, onPick } = mount();
     fireEvent.change(input, { target: { value: "hyp" } });
