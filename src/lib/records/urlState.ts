@@ -116,8 +116,8 @@ export interface RecordsRequest {
   pageSize?: number;
 }
 
-/** /api/records/… for a table (JSON page) or its CSV export (every filtered, sorted row; visible columns). */
-export function recordsUrl(r: RecordsRequest, format: "json" | "csv" = "json"): string {
+/** /api/records/… for a table (JSON page) or its CSV / Excel export (every filtered, sorted row; visible columns). */
+export function recordsUrl(r: RecordsRequest, format: "json" | "csv" | "xlsx" = "json"): string {
   const kind = r.scope === "match" ? "matches" : "teams";
   const p = new URLSearchParams();
   if (r.scope === "teamSeason") p.set("scope", "season");
@@ -132,7 +132,7 @@ export function recordsUrl(r: RecordsRequest, format: "json" | "csv" = "json"): 
   if (r.state.to) p.set("to", r.state.to);
   if (r.state.country && r.scope !== "match") p.set("country", r.state.country);
   if (r.code) p.set("code", r.code);
-  if (format === "csv") p.set("format", "csv");
+  if (format !== "json") p.set("format", format);
   else { p.set("page", String(r.state.page)); p.set("pageSize", String(r.pageSize ?? 50)); }
   return `/api/records/${r.season}/${kind}?${p.toString()}`;
 }
