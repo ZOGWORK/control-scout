@@ -85,6 +85,15 @@ describe("AddTeamBox", () => {
     expect(onAdd).toHaveBeenCalledWith(12345, null);
   });
 
+  it("says the list is full instead of adding past its limit", async () => {
+    const { input, onAdd } = mount(Array.from({ length: 500 }, (_, i) => i + 1));
+    await type(input, "4215");
+    await reply({ hits: [t("4215", "Hypnotic Robotics")] });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("status").textContent).toMatch(/full \(500 teams\)/);
+  });
+
   it("reads a plain team number", () => {
     expect(exactNumber(" 4215 ")).toBe(4215);
     expect(exactNumber("4215 hyp")).toBeNull();

@@ -7,6 +7,7 @@ import type { SearchHit } from "../../shared/api";
 import { useSearchHits, HitText } from "../search/SearchBox";
 import { Button } from "../ui/button";
 import { cn } from "../cn";
+import { MAX_BOOKMARKS } from "../../shared/personal";
 
 const SUGGESTIONS = 8;
 
@@ -46,6 +47,7 @@ export function AddTeamBox({ listed, onAdd, className }: {
 
   const add = (team: number, hit: SearchHit | null) => {
     if (has(team)) { setNote(`${hit?.title ?? `Team ${team}`} is already on your shortlist.`); return; }
+    if (listed.length >= MAX_BOOKMARKS) { setNote(`Your shortlist is full (${MAX_BOOKMARKS} teams). Remove one to add another.`); return; }
     onAdd(team, hit);
     setQ(""); setOpen(false);
     input.current?.focus();
