@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.1 — 2026-11-01
+
+Compare's head-to-head names each event instead of showing its code.
+
+### Highlights
+- [teams] Head-to-head matches on Compare are grouped under the event's name
+- [teams] The brief's head-to-head sources name the match and event, like "Q25 at P1-4 PM Northern League Meet"
+- [fixes] An event no compared team lists still falls back to its code
+
+### Compare
+- The head-to-head list on /compare groups matches under each event's name (from the compared teams' seasons), still linking to the event; it showed codes like USNJNOM5 before
+- The brief's head-to-head sources name the match and its event ("Q25 at P1-4 PM Northern League Meet") instead of "USNJNOM5 Q25"
+
 ## 2.0.0 — 2026-11-01
 
 Search answers are easier to read: spaced out, with bullet points.
