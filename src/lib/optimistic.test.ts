@@ -1,0 +1,184 @@
+// The shared optimistic-change helper: shown before the answer, the server's copy taken when it comes, and a failure
+// put back and reported ("Didn't save"), with only the newest change to a key deciding what shows.
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("../components/ui/sonner", () => ({ toast: { error: vi.fn() } }));
+const { toast } = await import("../components/ui/sonner");
+const { ApiError } = await import("./api");
+const { didntSave, optimistic, resetOptimistic, setOptimisticAccount } = await import("./optimistic");
+
+afterEach(() => { resetOptimistic(); vi.mocked(toast.error).mockClear(); });
+
+/** A request answered when the test says. */
+function deferred<T>() {
+  let resolve!: (v: T) => void, reject!: (e: unknown) => void;
+  const promise = new Promise<T>((a, b) => { resolve = a; reject = b; });
+  return { promise, resolve, reject };
+}
+
+/** One value on "screen", changed by `set`. */
+function screenValue<T>(v: T) {
+  const s = { v };
+  const set = (to: T) => () => { const was = s.v; s.v = to; return () => { s.v = was; }; };
+  return { s, set };
+}
+
+describe("optimistic", () => {
+  it("success: shows at once, before the answer, and keeps it", async () => {
+    const { s, set } = screenValue("open");
+    const req = deferred<{ status: string }>();
+    const done = optimistic({ key: "a1", apply: set("done"), send: () => req.promise, reconcile: () => {}, what: "team 1 marked done" });
+    expect(s.v).toBe("done"); // before any answer
+    req.resolve({ status: "done" });
+    expect(await done).toEqual({ ok: true, value: { status: "done" }, current: true });
+    expect(s.v).toBe("done");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("reconcile: the server's copy replaces the guess", async () => {
+    const { s, set } = screenValue({ status: "open", version: 1 });
+    const done = optimistic({
+      key: "a1", apply: set({ status: "done", version: 1 }), send: async () => ({ status: "done", version: 2 }),
+      reconcile: (r) => { s.v = r; }, what: "team 1 marked done",
+    });
+    expect(s.v).toEqual({ status: "done", version: 1 });
+    await done;
+    expect(s.v).toEqual({ status: "done", version: 2 });
+  });
+
+  it("failure: rolls back and says it didn't save", async () => {
+    const { s, set } = screenValue("open");
+    const report = vi.fn();
+    const r = await optimistic({ key: "a1", apply: set("done"), send: async () => { throw new ApiError(500, "Server error"); }, reconcile: () => {}, what: "team 1 marked done", report });
+    expect(r.ok).toBe(false);
+    expect(s.v).toBe("open");
+    expect(report).toHaveBeenCalledWith("Didn't save: team 1 marked done. Server error. It's back as it was.", expect.any(ApiError));
+  });
+
+  it("failure with no report given: an error toast", async () => {
+    const { set } = screenValue(false);
+    await optimistic({ key: "s1", apply: set(true), send: async () => { throw new ApiError(0, "Offline", true); }, reconcile: () => {}, what: "shared" });
+    expect(toast.error).toHaveBeenCalledWith("Didn't save: shared. No connection reached the server. It's back as it was.");
+  });
+
+  it("sends a key's changes in order, one at a time", async () => {
+    const { set } = screenValue("open");
+    const order: string[] = [];
+    const first = deferred<string>();
+    const a = optimistic({ key: "a1", apply: set("done"), send: () => { order.push("done"); return first.promise; }, reconcile: () => {}, what: "x" });
+    const b = optimistic({ key: "a1", apply: set("open"), send: async () => { order.push("open"); return "open"; }, reconcile: () => {}, what: "x" });
+    await Promise.resolve();
+    expect(order).toEqual(["done"]); // the second waits for the first's answer
+    first.resolve("done");
+    await Promise.all([a, b]);
+    expect(order).toEqual(["done", "open"]);
+  });
+
+  it("an older change's answer never overwrites a newer change on screen", async () => {
+    const { s, set } = screenValue("open");
+    const reconcile = vi.fn((r: string) => { s.v = r; });
+    const a = optimistic({ key: "a1", apply: set("done"), send: async () => "done", reconcile, what: "x" });
+    const b = optimistic({ key: "a1", apply: set("open"), send: async () => "open", reconcile, what: "x" });
+    expect((await a).current).toBe(false);
+    expect(s.v).toBe("open");
+    await b;
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(s.v).toBe("open");
+  });
+
+  it("a newer change that fails goes back to what the server last took, not to before both", async () => {
+    const { s, set } = screenValue("open");
+    const report = vi.fn();
+    const a = optimistic({ key: "a1", apply: set("done"), send: async () => "done", reconcile: (r) => { s.v = r; }, what: "x" });
+    const b = optimistic({ key: "a1", apply: set("open"), send: async () => { throw new Error("nope"); }, reconcile: (r) => { s.v = r; }, what: "reopened", report });
+    await Promise.all([a, b]);
+    expect(s.v).toBe("done");
+    expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it("both fail: back to before the first, said once", async () => {
+    const { s, set } = screenValue("open");
+    const report = vi.fn();
+    const fail = async () => { throw new Error("nope"); };
+    await Promise.all([
+      optimistic({ key: "a1", apply: set("done"), send: fail, reconcile: () => {}, what: "x", report }),
+      optimistic({ key: "a1", apply: set("open"), send: fail, reconcile: () => {}, what: "x", report }),
+      optimistic({ key: "a1", apply: set("done"), send: fail, reconcile: () => {}, what: "x", report }),
+    ]);
+    expect(s.v).toBe("open");
+    expect(report).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys are independent", async () => {
+    const one = screenValue("open"), two = screenValue("open");
+    await Promise.all([
+      optimistic({ key: "a1", apply: one.set("done"), send: async () => { throw new Error("nope"); }, reconcile: () => {}, what: "x", report: () => {} }),
+      optimistic({ key: "a2", apply: two.set("done"), send: async () => "done", reconcile: () => {}, what: "x" }),
+    ]);
+    expect(one.s.v).toBe("open");
+    expect(two.s.v).toBe("done");
+  });
+
+  it("a newer change that fails after an older one saved puts that answer through its own view, not the older one's", async () => {
+    const oldView = vi.fn(), newView = vi.fn();
+    const a = optimistic({ key: "d", apply: () => () => {}, send: async () => "off", reconcile: oldView, what: "x" });
+    const b = optimistic({ key: "d", apply: () => () => {}, send: async () => { throw new Error("nope"); }, reconcile: newView, what: "x", report: () => {} });
+    await Promise.all([a, b]);
+    expect(oldView).not.toHaveBeenCalled();
+    expect(newView).toHaveBeenCalledWith("off");
+  });
+
+  it("a change that went stale while it waited is dropped unsent and quietly", async () => {
+    const { s, set } = screenValue("off");
+    const first = deferred<string>();
+    let account = 1;
+    const sent: string[] = [];
+    const report = vi.fn();
+    const a = optimistic({ key: "d", apply: set("on"), send: () => { sent.push("on"); return first.promise; }, reconcile: (r) => { s.v = r; }, what: "x", report });
+    const mine = account;
+    const b = optimistic({ key: "d", apply: set("off"), send: async () => { sent.push("off"); return "off"; }, reconcile: (r) => { s.v = r; }, what: "x", report, stale: () => account !== mine });
+    account = 2; // signed in as someone else while the first was on its way
+    first.resolve("on");
+    expect(await b).toMatchObject({ ok: false, dropped: true });
+    await a;
+    expect(sent).toEqual(["on"]);
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("an answer that comes after the change went stale touches nothing and says nothing", async () => {
+    const reconcile = vi.fn(), report = vi.fn();
+    let account = 1;
+    const req = deferred<string>(), fails = deferred<string>();
+    const ok = optimistic({ key: "d1", apply: () => () => {}, send: () => req.promise, reconcile, what: "x", report, stale: () => account !== 1 });
+    const bad = optimistic({ key: "d2", apply: () => () => { throw new Error("rolled back a screen that isn't there"); }, send: () => fails.promise, reconcile, what: "x", report, stale: () => account !== 1 });
+    await Promise.resolve();
+    account = 2; // signed in as someone else while both were on their way
+    req.resolve("on");
+    fails.reject(new Error("nope"));
+    expect(await ok).toMatchObject({ ok: false, dropped: true });
+    expect(await bad).toMatchObject({ ok: false, dropped: true });
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("a change of signed-in account drops a queued change unsent, with no stale check of the caller's own", async () => {
+    setOptimisticAccount(1);
+    const first = deferred<string>();
+    const sent: string[] = [];
+    const report = vi.fn();
+    const a = optimistic({ key: "c", apply: () => () => {}, send: () => { sent.push("share"); return first.promise; }, reconcile: () => {}, what: "x", report });
+    const b = optimistic({ key: "c", apply: () => () => {}, send: async () => { sent.push("unshare"); return "x"; }, reconcile: () => {}, what: "x", report });
+    await Promise.resolve(); // the first is sent; the second waits for its answer
+    setOptimisticAccount(2); // signed in as someone else meanwhile
+    first.resolve("shared");
+    expect(await a).toMatchObject({ dropped: true });
+    expect(await b).toMatchObject({ dropped: true });
+    expect(sent).toEqual(["share"]);
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("didntSave words a plain error and an unknown throw", () => {
+    expect(didntSave("note", new Error("Too long"))).toBe("Didn't save: note. Too long. It's back as it was.");
+    expect(didntSave("note", "??")).toBe("Didn't save: note. Something went wrong. It's back as it was.");
+  });
+});

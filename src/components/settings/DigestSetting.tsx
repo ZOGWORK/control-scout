@@ -7,6 +7,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "../../lib/api";
+import { optimistic } from "../../lib/optimistic";
 import { usePersonal } from "../../lib/personal";
 import { DIGEST_DESCRIPTION, type DigestStatus } from "../../shared/digest";
 import { Switch } from "../ui/controls";
@@ -17,7 +18,6 @@ export function DigestSetting() {
   const { user, state } = usePersonal();
   const [status, setStatus] = useState<DigestStatus | null>(null);
   const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!user) { setStatus(null); return; }
     let live = true;
@@ -28,19 +28,18 @@ export function DigestSetting() {
 
   // What this device follows right now (synced to the account), so the hint updates the moment a team is followed.
   const follows = new Set([...(state.myTeam ? [state.myTeam] : []), ...state.tracked.teams]).size;
-  const change = async (on: boolean) => {
+  const change = (on: boolean) => {
     if (!status) return;
-    const before = status;
-    setStatus({ ...status, enabled: on });
-    setBusy(true);
-    try {
-      const next = await apiFetch<DigestStatus>("/api/digest", { method: "PUT", json: { enabled: on } });
-      setStatus(next);
-      toast(!on ? "Email digest off. Nothing more will be sent." : next.welcomeSent ? "Email digest on. A welcome email is on its way." : "Email digest on. You'll get the first one within a few days.");
-    } catch (e) {
-      setStatus(before);
-      toast.error(`Couldn't change the email digest: ${(e as Error).message}`);
-    } finally { setBusy(false); }
+    // Per account; a tap still queued when the account changes is dropped by optimistic itself.
+    void optimistic({
+      key: `digest:${user?.id}`,
+      apply: () => { const before = status; setStatus({ ...status, enabled: on }); return () => setStatus(before); },
+      send: () => apiFetch<DigestStatus>("/api/digest", { method: "PUT", json: { enabled: on } }),
+      reconcile: setStatus,
+      what: on ? "email digest on" : "email digest off",
+    }).then((r) => {
+      if (r.ok && r.current) toast(!on ? "Email digest off. Nothing more will be sent." : r.value.welcomeSent ? "Email digest on. A welcome email is on its way." : "Email digest on. You'll get the first one within a few days.");
+    });
   };
 
   let note: ReactNode = null;
@@ -55,7 +54,7 @@ export function DigestSetting() {
   return (
     <Group title="Email" description="Opt-in. Besides this, Control Scout only ever emails you sign-in codes.">
       <Row label="Email digest" htmlFor="digest-weekly" description={<>{DIGEST_DESCRIPTION}{note && <span className="mt-1 block">{note}</span>}</>}>
-        <Switch id="digest-weekly" checked={!!status?.enabled} disabled={!user || !status || busy || (!status.available && !status.enabled)} onCheckedChange={change} />
+        <Switch id="digest-weekly" checked={!!status?.enabled} disabled={!user || !status || (!status.available && !status.enabled)} onCheckedChange={change} />
       </Row>
     </Group>
   );
