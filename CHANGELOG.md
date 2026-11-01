@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.3 — 2026-11-01
+## 2.0.5 — 2026-11-01
 
 Matches link to their moment in the event's video again when the stream was left running after the event.
 
@@ -27,6 +27,32 @@ Matches link to their moment in the event's video again when the stream was left
 ### Live
 - **Trimmed recordings get timestamps.** A stream left running for hours after an event, then cut where the event ended, made its video much shorter than its broadcast. That looked the same as a stream that dropped out mid-event, so every match lost its timestamp (Salk League Meet: 10 h 26 min broadcast, 5 h 10 min video). The event's matches now tell the two apart. When the video ends within 15 minutes of the last match's start, and the stream ran on afterwards for longer than all the matches took, the missing time is all after the event and every match keeps its second, on the event page and on each match's own page. A video that loses time during the event still gets no timestamps, so no match lands on the wrong one (#406).
 
+## 2.0.4 — 2026-11-01
+
+Search answers "world record score bio buzz" and "4215 high score".
+
+### Highlights
+- [rankings] Ask for a season's record score, by game name or season
+- [teams] Ask for a team's highest scores, with the alliance it played on
+- [fixes] Before a season's first official match, scrimmage bests show
+
+### Search
+- "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#401)
+- A game's name is read with any spacing ("bio buzz", "BIOBUZZ", "into the deep"); with no season named, the latest one played
+- With no official match played yet in that season, the card says there's no record yet and lists the best scrimmage scores instead
+## 2.0.3 — 2026-11-01
+
+Search waits for you to stop typing, and Enter works the first time.
+
+### Highlights
+- [speed] Search waits a second after your last letter before it looks
+- [speed] A newer search cancels the older one still on its way
+- [fixes] Enter searches at once and closes the phone keyboard
+
+### Search
+- Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
+- Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
+- In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.
