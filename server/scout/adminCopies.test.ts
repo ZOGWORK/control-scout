@@ -332,6 +332,10 @@ describe("mapAnswers", () => {
     const pit = [f({ id: "weight", type: "number", phase: "pit", max: 200 }), f({ id: "endgame", type: "toggleDetail", phase: "pit" })];
     expect(mapAnswers({ weight: 35.5, endgame: true, endgame__detail: "Hangs every time" }, pit, pit))
       .toEqual({ weight: 35.5, endgame: true, endgame__detail: "Hangs every time" });
+    // A measurement in another unit isn't copied (and the copy's own answer stays).
+    const lb = [f({ id: "weight", type: "number", phase: "pit", unit: "lb" })], kg = [f({ id: "weight", type: "number", phase: "pit", unit: "kg" })];
+    expect(mapAnswers({ weight: 40 }, lb, kg)).toEqual({});
+    expect(mapAnswers({ weight: 40 }, lb, kg, { weight: 18 })).toEqual({ weight: 18 });
     // A detail the sender cleared is cleared in the copy too.
     expect(mapAnswers({ endgame: false }, pit, pit, { endgame: true, endgame__detail: "old" })).toEqual({ endgame: false });
   });

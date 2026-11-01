@@ -201,7 +201,7 @@ describe("scouting commons", () => {
     const all2 = await read(loner);
     expect(all2.entries.map((x) => x.source.name)).toEqual(["Robo Owls", "Pyro Scouts"]); // newest scouted first
     expect(all2.layer).toMatchObject({ team: 18360, entries: 2, pitEntries: 2, matchEntries: 0, scouts: 2 });
-    expect(all2.layer.counters.find((r) => r.id === "weight")).toMatchObject({ kind: "pit", label: "Robot weight (lb)", avg: 35, n: 2 });
+    expect(all2.layer.counters.find((r) => r.id === "weight:lb")).toMatchObject({ kind: "pit", label: "Robot weight (lb)", avg: 35, n: 2 });
     expect(all2.layer.tags.map((t) => t.label).sort()).toEqual(["Drivetrain: Mecanum", "Drivetrain: Tank"]);
     // Asking for one event reads that event only.
     expect((await read(loner, `season=${S}&team=18360&event=USCMQ2`)).entries).toEqual([]);
