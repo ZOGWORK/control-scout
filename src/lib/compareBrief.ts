@@ -62,6 +62,13 @@ const eventHref = (season: number, code: string) => `/events/${season}/${encodeU
 const teamHref = (season: number, team: number) => `/teams/${team}?season=${season}`;
 const matchHref = (m: MatchView) => `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`;
 
+/** Event names by code from every compared team's season, so a match names its event rather than its code. */
+export function compareEventNames(d: CompareView): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const x of d.teams) for (const e of x.events) if (e.name && !out[e.code]) out[e.code] = e.name;
+  return out;
+}
+
 /** The season value of a phase: the table's number. */
 function seasonValue(x: CompareTeam, k: Phase): number | null {
   const v = x.stats?.opr[k].value;
@@ -88,6 +95,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
   const season = d.season;
   const n = (x: CompareTeam) => String(x.team.number);
   const enough = t.filter((x) => matches(x) >= BRIEF.minMatches);
+  const names = compareEventNames(d);
 
   // Sample size: one sentence for everyone, then a plain one for each team too thin or with nothing.
   const played = t.filter((x) => matches(x) > 0);
@@ -244,7 +252,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
       out.push({
         topic: "Head to head", kind: "fact",
         text: `${first} met ${others} in ${plural(met.length, "played match", "played matches")} (opponents in ${against.length}, partners in ${together}${against.length + together > met.length ? "; a match can be both" : ""})${record}.`,
-        sources: met.slice(0, BRIEF.maxMatchLinks).map((m) => ({ label: `${m.code} ${m.label}`, href: matchHref(m) })),
+        sources: met.slice(0, BRIEF.maxMatchLinks).map((m) => ({ label: `${m.label} at ${names[m.code] ?? m.code}`, href: matchHref(m) })),
       });
     }
   }
