@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.9.2 — 2026-11-01
+## 1.9.3 — 2026-11-01
 
 Easier to tap on a phone: buttons, links and chips get a full fingertip of room, and a match's call opens its detail on a tap.
 
@@ -32,7 +32,7 @@ Easier to tap on a phone: buttons, links and chips get a full fingertip of room,
 - **Escape from search.** Ctrl K (or /) then Escape left the keyboard focus nowhere; it now returns to where you were, from the top-bar field, the phone's search button and a page's own search box.
 - **Checked, unchanged.** Enter in the header search opens the full results page and the arrow keys pick one result; deep links like a team's #opr open and expand the section; Back returns to the page before; the current section is marked in the menu on every page; Tab reaches every control on thirteen pages with a visible focus ring and no trap (#391).
 
-## 1.9.1 — 2026-11-01
+## 1.9.2 — 2026-11-01
 
 Records no longer jumps while it loads, a server that doesn't answer is no longer called "you're offline", and a failed search can be tried again.
 
@@ -49,7 +49,7 @@ Records no longer jumps while it loads, a server that doesn't answer is no longe
 - **Broken images.** Pit photos in the scouting commons and the stream thumbnail on an event's watch card hide the browser's broken-image icon: the photo shows a "Photo not available" tile and the stream keeps its play button on the card's own background.
 - **Checked, unchanged.** Cold loads of a team and an event page (no flash, no layout shift, at full speed and on a slow 4G line), empty pages (a meet with no schedule, a team with no results this season, no followed teams, an empty shortlist, a search with no matches), fourteen pages with the server cut off mid-visit at both widths (every one shows an error with Try again, or keeps working from data on the device), and the offline venue mode (#389).
 
-## 1.9.0 — 2026-11-01
+## 1.9.1 — 2026-11-01
 
 Folded cards say what's inside, a team's OPR says how fresh it is, and dates read the same everywhere.
 
@@ -64,6 +64,20 @@ Folded cards say what's inside, a team's OPR says how fresh it is, and dates rea
 - **Terms explained.** The team hero's OPR and Rating labels, and an event's Top OPR, carry a one-line definition on hover or long-press, like Record and Reliability already did.
 - **Folded cards advertise themselves.** The robots' ratings under a prediction (with how many robots), a team's earlier matches on Predict (with how many), the bot's command list and an event bundle's rules each say what's inside before you open them.
 - **One date format.** Seven stamps (pack release dates, offline "results as of", saved predictions, scouting data) used the browser's 10/31/2026; they now read Oct 31, 2026 like every event date (#388).
+
+## 1.9.0 — 2026-11-01
+
+Entries is one list you can scan, and the pick list keeps your assignments and the latest activity in view.
+
+### Highlights
+- [scout] Entries is one list: team, match, event, who and when on each row
+- [offline] Each entry says where it stands: Synced, Waiting or On this device
+- [picklist] Your assignments and the latest activity sit right under the pick list
+
+### Scout
+- **Entries as one list.** The cards are now rows in one filtered list: the team, the match (or Pit), the event, who saved it and when, a line of its answers and its notes, with Edit, history and Delete on the right. On a phone each row is two short lines. Filters, sorting, Recordings and Export CSV are where they were.
+- **Sync state on every entry.** Each row says whether that entry has synced, is waiting (offline, or paused by the owner), needs attention, or lives on this device only (Personal without an account).
+- **Pick list & planning.** Under the shared pick list: your open assignments with Scout on each, the workspace's latest activity, and the scouting alliance when it's on, each linking to its full view (#386).
 
 ## 1.8.9 — 2026-11-01
 

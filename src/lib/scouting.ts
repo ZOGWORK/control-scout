@@ -327,6 +327,24 @@ export function scoutDraftBase(e: ScoutEntry): number | undefined {
 /** Is this entry waiting to sync on this device? */
 export const isScoutQueued = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => dirty(e.workspaceId).has(e.uuid);
 
+// Entries the server turned down for good (invalid: a clock far ahead, a value out of range), per space: each with
+// the version turned down (its updatedAt). They leave the queue (no retrying forever) but never count as synced:
+// Entries says so while that version is the one on the device. A server copy pulled over it, or a later save that
+// goes through, is another version, so the warning goes with it. Cleared with the account's data on sign-out.
+const REJECTED = "cs-scout-rejected:";
+const rejectedKey = (space: ScoutSpace) => `${REJECTED}${space ?? "personal"}`;
+function rejected(space: ScoutSpace): Record<string, number> {
+  try { const r = JSON.parse(localStorage.getItem(rejectedKey(space)) ?? "{}"); return r && typeof r === "object" && !Array.isArray(r) ? r : {}; } catch { return {}; }
+}
+/** False when it couldn't be written (storage full). */
+function markRejected(space: ScoutSpace, uuid: string, version: number | null): boolean {
+  const r = rejected(space);
+  if (version == null) { if (!(uuid in r)) return true; delete r[uuid]; } else if (r[uuid] === version) return true; else r[uuid] = version;
+  try { if (Object.keys(r).length) localStorage.setItem(rejectedKey(space), JSON.stringify(r)); else localStorage.removeItem(rejectedKey(space)); return true; } catch { return false; }
+}
+/** The server turned down this version of the entry for good: it isn't stored anywhere but this device. */
+export const isScoutRejected = (e: Pick<ScoutEntry, "uuid" | "workspaceId" | "updatedAt">) => rejected(e.workspaceId)[e.uuid] === e.updatedAt;
+
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
 
 /** Entries waiting to sync, per space. */
@@ -361,7 +379,8 @@ export async function syncQueuedScouting(workspaces: string[]): Promise<void> {
   await Promise.all(spaces.map((s) => syncScouting(s).catch(() => undefined)));
 }
 
-interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number }
+/** `rejected`: versions the server turned down for good (uuid → updatedAt), so they never come back as Synced. */
+interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number; rejected?: Record<string, number> }
 /** Workspace templates kept on the device (scoutTemplates.ts): current ones and the versions entries were made with. */
 const TEMPLATE_KEY = /^cs-scout-tplv?:[A-Za-z0-9_-]{1,64}:\d{4}(:\d+)?$/;
 const LOST_KEY = /^cs-scout-lost:[A-Za-z0-9_-]{1,64}$/;
@@ -398,8 +417,8 @@ export function exportLocalScouting(): ScoutingExport {
     }
   } catch { /* storage blocked */ }
   return {
-    entries: localScoutEntries(), dirty: [...dirty()],
-    spaces: Object.fromEntries(localSpaces().map((w) => [w, { entries: localScoutEntries(w), dirty: [...dirty(w)], cursor: readCursor(w) }])),
+    entries: localScoutEntries(), dirty: [...dirty()], rejected: rejected(null),
+    spaces: Object.fromEntries(localSpaces().map((w) => [w, { entries: localScoutEntries(w), dirty: [...dirty(w)], cursor: readCursor(w), rejected: rejected(w) }])),
     templates,
     // Edits this device lost to newer ones (lostEdits.ts): they belong to this account, so they go aside with it.
     lost: exportLostEdits(),
@@ -421,15 +440,23 @@ export function importLocalScouting(data: ScoutingExport) {
       if (cur && cur.updatedAt >= (Number(e.updatedAt) || 0)) continue;
       try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ }
     }
+    // Turned-down versions come back with their entries; any that can't be written (storage full) are handed back.
+    // An older one never replaces the device's: once the entry here is newer (or has a newer marker), it's stale.
+    const rejectedMissed: Record<string, number> = {};
+    const here = rejected(space);
+    for (const [u, v] of Object.entries(s.rejected ?? {})) {
+      if (typeof v !== "number" || (here[u] ?? 0) > v || (readEntry(space, u)?.updatedAt ?? 0) > v) continue;
+      if (!markRejected(space, u, v)) rejectedMissed[u] = v;
+    }
     let queueKept = true;
     try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
     if (space != null) { if (!missed.length && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
-    if (!missed.length && queueKept) return;
+    if (!missed.length && queueKept && !Object.keys(rejectedMissed).length) return;
     // Hand back the entries that didn't make it, and (if the queue couldn't be written) every queued one.
     const queued = new Set(s.dirty ?? []);
     const back = queueKept ? missed : [...missed, ...(s.entries ?? []).filter((e) => queued.has(e.uuid) && !missed.includes(e))];
-    const out = { entries: back, dirty: back.map((e) => e.uuid).filter((u) => queued.has(u)) };
+    const out = { entries: back, dirty: back.map((e) => e.uuid).filter((u) => queued.has(u)), ...(Object.keys(rejectedMissed).length ? { rejected: rejectedMissed } : {}) };
     if (space == null) Object.assign(failed, out); else failed.spaces[space] = out;
   };
   put(null, data);
@@ -448,7 +475,7 @@ export function importLocalScouting(data: ScoutingExport) {
   }
   window.dispatchEvent(new Event(EVT));
   if (lostBack) window.dispatchEvent(new Event(SCOUT_OVERWRITTEN)); // open notices show what came back
-  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length || Object.keys(failed.unreadable).length;
+  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length || Object.keys(failed.unreadable).length || Object.keys(failed.rejected ?? {}).length;
   return { failed: any ? failed : null };
 }
 
@@ -459,7 +486,7 @@ export function clearLocalScouting() {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       // (cs-scout-tpl…: workspace templates kept for offline forms, scoutTemplates.ts; cs-scout-wss: workspace settings, workspaceSettings.ts.)
-      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:") || k.startsWith(LOST_PREFIX))) keys.push(k);
+      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith(REJECTED) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:") || k.startsWith(LOST_PREFIX))) keys.push(k);
     }
     for (const k of keys) localStorage.removeItem(k);
     localStorage.removeItem(DIRTY);
@@ -595,7 +622,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // If that copy can't be stored, ours stays on the device, queued, until it can.
         if (space != null && server && lostTo(current, server, true) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
         if (server) { try { writeEntry(withNewerPhotos(server, current)); } catch { saved = false; } }
-        if (saved) now.delete(res.uuid);
+        if (saved) { now.delete(res.uuid); markRejected(space, res.uuid, null); }
         // A restore that landed: the lost version it brought back is no longer lost.
         if (space != null && sentVersion?.restoredFrom != null && server?.updatedAt === sentVersion.updatedAt) dropRestored(space, res.uuid, sentVersion.restoredFrom);
       }
@@ -614,7 +641,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // Deleting something already deleted (by its author or an admin) needs no message.
         if (!(kind === "delete" && res.entry.deleted)) refused.push({ space, uuid: res.uuid, kind });
       }
-      else if (!res.ok) now.delete(res.uuid); // rejected for good (invalid): don't retry forever
+      else if (!res.ok) { now.delete(res.uuid); markRejected(space, res.uuid, sentVersion?.updatedAt ?? 0); } // rejected for good (invalid): don't retry forever
     }
     setDirty(now, space);
     sent += batch.length;
