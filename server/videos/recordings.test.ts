@@ -13,7 +13,7 @@ let server: Server;
 let base = "";
 const S = 2025;
 const DAY = "2026-05-02";
-const FIRST_ID = "WQUBVjbh-hM", GONE_ID = "SXVDvK3XiOM", UPLOAD_ID = "dQw4w9WgXcQ", OWNER_ID = "9i15Y3g5BqQ", GAPPED_ID = "KjjznpzWGmo";
+const FIRST_ID = "WQUBVjbh-hM", GONE_ID = "SXVDvK3XiOM", UPLOAD_ID = "dQw4w9WgXcQ", OWNER_ID = "9i15Y3g5BqQ", GAPPED_ID = "KjjznpzWGmo", TRIMMED_ID = "7VF5ax17flg";
 
 // What each video's watch page says.
 const pages: Record<string, string> = {
@@ -21,6 +21,8 @@ const pages: Record<string, string> = {
   [GONE_ID]: `"playabilityStatus":{"status":"ERROR"}`,
   [UPLOAD_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"213"`,
   [GAPPED_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"30807","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T10:00:00+00:00","endTimestamp":"${DAY}T20:12:31+00:00"}`,
+  // Left running 7 h after the event, the archive cut 10 min after the last match: 11 h broadcast, 4 h 10 min video.
+  [TRIMMED_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"15000","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T23:00:00+00:00"}`,
   [OWNER_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"30807","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T20:33:00+00:00"}`,
 };
 const read: string[] = [];
@@ -57,6 +59,9 @@ beforeAll(async () => {
   await match("UPLOAD", 1, `${DAY}T13:00:13`);
   await event("GAPPED", `https://www.youtube.com/watch?v=${GAPPED_ID}`); // dropped out: the video is 1 h 41 min short
   await match("GAPPED", 1, `${DAY}T10:30:00`);
+  await event("TRIMMED", `https://www.youtube.com/watch?v=${TRIMMED_ID}`);
+  await match("TRIMMED", 1, `${DAY}T12:30:00.5`);
+  await match("TRIMMED", 2, `${DAY}T16:00:00.5`);       // the last match: 4 h in, 10 min before the video ends
   await event("CHANNEL", "https://www.youtube.com/@XPR-v4m/streams");
   await event("TWITCH", "https://twitch.tv/tbtaonline");
   await event("OWNER", `https://www.youtube.com/watch?v=${FIRST_ID}`); // the owner's stream wins over FIRST's
@@ -79,8 +84,8 @@ describe("event recordings", () => {
   });
 
   it("reads each linked YouTube video once, and nothing for channel pages or Twitch", async () => {
-    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(5);
-    expect(read.sort()).toEqual([FIRST_ID, GAPPED_ID, GONE_ID, OWNER_ID, UPLOAD_ID].sort());
+    expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(6);
+    expect(read.sort()).toEqual([FIRST_ID, GAPPED_ID, GONE_ID, OWNER_ID, TRIMMED_ID, UPLOAD_ID].sort());
     expect(await backfillVideoMeta(() => {}, { apiKey: null, gapMs: 0, fetchImpl: fakeFetch })).toBe(0); // nothing due again
     expect(await get("SELECT status FROM video_meta WHERE video_id = ?", [GONE_ID])).toEqual({ status: "unavailable" });
     clearAllCaches();
@@ -105,6 +110,13 @@ describe("event recordings", () => {
     expect(d.matches[0].clip.t).toBe(3620 - 20);
   });
 
+  it("a stream left running after the event, its archive cut at the end, still puts each match on its second", async () => {
+    const d = await getJson(`/api/events/${S}/TRIMMED`);
+    expect(d.matches.map((m: any) => m.clip?.t ?? null)).toEqual([1800 - 20, 14400 - 20]);
+    // One match on its own gets the same second: the event's first and last matches are read for it.
+    expect((await getJson(`/api/events/${S}/TRIMMED/matches/qual:0:1`)).match.clip.t).toBe(1800 - 20);
+  });
+
   it("an upload, or a broadcast with a gap, plays but has no clips; a removed video, a channel page and Twitch give no player", async () => {
     for (const [code, id] of [["UPLOAD", UPLOAD_ID], ["GAPPED", GAPPED_ID]]) {
       const d = await getJson(`/api/events/${S}/${code}`);
@@ -117,7 +129,7 @@ describe("event recordings", () => {
   it("the events list says what there is to watch (match clips only when a played match gets one)", async () => {
     const { events } = await getJson(`/api/events?season=${S}`);
     const by = Object.fromEntries(events.map((e: any) => [e.code, e.video ?? null]));
-    expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", ELSEWHEN: "recording", GONE: null, CHANNEL: null, TWITCH: null });
+    expect(by).toEqual({ CLIPS: "clips", OWNER: "clips", OFFICIAL: "clips", UPLOAD: "recording", GAPPED: "recording", TRIMMED: "clips", ELSEWHEN: "recording", GONE: null, CHANNEL: null, TWITCH: null });
   });
 });
 

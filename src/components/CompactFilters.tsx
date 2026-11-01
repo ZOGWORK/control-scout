@@ -2,7 +2,8 @@
 // The row holds the season, the filters that are on (each a chip that removes it) and a Filters button
 // opening a bottom sheet with every control the wide layout shows inline. The controls are the same
 // components either way, so the URL state, Back / Forward and the saved filters behave alike. The sheet is
-// the ui-kit's: focus stays inside it, Escape closes it and focus goes back to the Filters button.
+// the ui-kit's: focus starts on the sheet (no keyboard popping up), stays inside it, Escape closes it and focus
+// goes back to the Filters button.
 // Used by /teams (every view), /matches, /events and /rankings.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
@@ -97,16 +98,20 @@ export function CompactFilters({ lead, chips, search, title = "Filters", summary
             </ul>
           )}
         </div>
-        {/* With chips on, the button is its icon and count (its name stays "Filters, n on"). */}
-        <Button ref={button} variant="outline" className={cn("h-11 shrink-0", n ? "px-3" : "px-3.5")} onClick={() => setOpen(true)} aria-haspopup="dialog"
+        {/* The page's main control on a phone, so it's the filled accent button and always says "Filters";
+            with chips on it adds their count (its name is then "Filters, n on"). */}
+        <Button ref={button} className="h-11 shrink-0 px-3.5" onClick={() => setOpen(true)} aria-haspopup="dialog"
           aria-label={n ? `Filters, ${n} on` : "Filters"}>
-          <SlidersHorizontal className="text-accent" /><span className={cn(n > 0 && "sr-only")}>Filters</span>
-          {n > 0 && <span aria-hidden className="grid min-w-5 place-items-center rounded-full bg-accent px-1 text-[11px] font-bold tabular-nums text-accent-ink">{n}</span>}
+          <SlidersHorizontal />Filters
+          {n > 0 && <span aria-hidden className="grid min-w-5 place-items-center rounded-full bg-accent-ink px-1 text-[11px] font-bold tabular-nums text-accent">{n}</span>}
         </Button>
       </div>
       {search}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="bottom" className="gap-0 p-0" returnFocus={() => button.current}
+          // Focus starts on the sheet itself, not its first control: on a phone a focused search box pulls the
+          // keyboard up over the filters before anyone asked to type. Tab still moves into the controls.
+          onOpenAutoFocus={(e) => { e.preventDefault(); (e.target as HTMLElement | null)?.focus({ preventScroll: true }); }}
           onCloseAutoFocus={() => {
             // Runs just before focus goes back to the Filters button: the follow-up waits a frame for it.
             const then = after.current;

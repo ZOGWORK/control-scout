@@ -110,7 +110,8 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
     </button>
   </Cell>);
 
-  const oddsButton = predictable && e.status !== "finished";
+  // Match predictions need a schedule: with none yet (and no advancement odds) the button led to an empty tab.
+  const oddsButton = predictable && e.status !== "finished" && !(d.forecastUnsupported && !s.progress);
   return (
     <div className="@container flex min-w-0 flex-col rounded-xl border border-border/70 bg-background/40 p-4 backdrop-blur-sm" data-glance-card>
       <div className="flex items-center justify-between gap-2">
@@ -130,11 +131,12 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
           ))}
           <span className="sr-only">: see the matches</span>
         </button>
-      ) : (
+      ) : (!predictable || e.status === "upcoming") ? (
+        // Nothing decided yet on a started event says nothing: no line rather than "none yet".
         <p className="mt-2 text-sm text-muted-foreground">
-          {!predictable ? "Results, rankings and awards from the official record." : e.status === "upcoming" ? "Every match here gets a prediction before it's played, scored afterwards on the public track record." : "No decided matches with predictions here yet."}
+          {!predictable ? "Results, rankings and awards from the official record." : "Every match here gets a prediction before it's played, scored afterwards on the public track record."}
         </p>
-      )}
+      ) : null}
       {(s.progress || s.teams > 0) && (
         <div data-glance="progress" className="mt-3">
           <p className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">

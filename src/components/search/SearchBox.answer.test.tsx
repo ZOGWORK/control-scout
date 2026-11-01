@@ -42,6 +42,13 @@ const reply = async (match: RegExp, body: unknown) => {
 };
 
 describe("live search", () => {
+  it("a whole season's card (no team, no other results) shows in the dropdown, not \"nothing matches\"", async () => {
+    const { input } = mount();
+    await type(input, "world record score decode");
+    await reply(/q=world/, answer("world record score decode", { card: { kind: "high-scores", title: "Highest scores in 2025–26 (DECODE)", lines: [{ text: "714 points: Q49 at Carolinas Premier Event", href: "/events/2025/FPECAR?match=qual:0:49" }] } }));
+    expect(screen.getByRole("note", { name: "Highest scores in 2025–26 (DECODE)" }).textContent).toContain("714 points");
+    expect(screen.queryByText(/No team, event or match matches/)).toBeNull();
+  });
   it("asks once typing pauses, shows that it's searching, and never opens anything on its own (T15, T21)", async () => {
     const { input, onPick } = mount();
     fireEvent.change(input, { target: { value: "hyp" } });
@@ -52,6 +59,46 @@ describe("live search", () => {
     expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=hypno&limit=15&answer=1")]);
     await reply(/q=hypno/, answer("hypno", { hits: [t("4215", "Hypnotic Robotics")] }));
     expect(screen.getByRole("option", { name: /4215 Hypnotic Robotics/ })).toBeTruthy();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+  it("waits for typing to pause: nothing is asked letter by letter, and a pause shorter than the wait asks nothing", async () => {
+    const { input } = mount();
+    for (const v of ["w", "wo", "wor", "worl", "world"]) {
+      fireEvent.change(input, { target: { value: v } });
+      await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 100); });
+    }
+    expect(pending).toHaveLength(0);
+    await act(async () => { vi.advanceTimersByTime(105); });
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=world&")]);
+  });
+  it("Enter before the pause is over opens the full results page with one press", async () => {
+    const { input, onPick } = mount();
+    fireEvent.change(input, { target: { value: "bio buzz record" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick.mock.calls[0][0].href).toBe("/search?q=bio%20buzz%20record");
+  });
+  it("a picker box (no results page): one Enter before its results are in asks now and opens the top one when they arrive", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} kinds={["team"]} seeAll={false} placeholder="Find a team" label="Find a team" />);
+    const input = screen.getByRole("combobox", { name: "Find a team" }) as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "hypno" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=hypno&")]); // no pause
+    expect(onPick).not.toHaveBeenCalled();
+    await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
+  });
+  it("a picker's pending Enter is dropped when it closes (Escape): the late reply opens nothing", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} kinds={["team"]} seeAll={false} placeholder="Find a team" label="Find a team" />);
+    const input = screen.getByRole("combobox", { name: "Find a team" }) as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "hypno" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
     expect(onPick).not.toHaveBeenCalled();
   });
   it("an older reply arriving last never replaces the newer one (T15)", async () => {

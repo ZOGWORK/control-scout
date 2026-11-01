@@ -27,6 +27,9 @@ describe("search boot hits", () => {
     expect(same.result.current.hits).toEqual([hit]);
     const other = renderHook(() => useSearchHits("4216", undefined, 25, { q: "4215", hits: [hit] }), { wrapper });
     expect(other.result.current.hits).toEqual([]);
+    // Unmount before the environment goes: the hook's typing pause would otherwise fire after teardown.
+    same.unmount();
+    other.unmount();
     vi.unstubAllGlobals();
   });
 });
