@@ -13,7 +13,7 @@
 // The row holding keyboard focus stays rendered when it scrolls away, so focus is never dropped.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { flushSync } from "react-dom";
-import { defaultRangeExtractor, useWindowVirtualizer, type Range } from "@tanstack/react-virtual";
+import { defaultRangeExtractor, useWindowVirtualizer, type Range, type VirtualItem } from "@tanstack/react-virtual";
 import { jumpPageTo, pageTop } from "../../lib/pageScroll";
 
 /** Lists at or below this many rows render without windowing (Control Point's threshold). */
@@ -73,13 +73,18 @@ export interface VirtualRows<E extends HTMLElement = HTMLElement> {
   jumpTo(index: number): void;
 }
 
+// Measured row heights by list (`cache`), kept for this page load: a list mounting again (Back to it) places
+// its rows where they were, so the restored scroll position lands on the same row, not on estimates.
+const MAX_CACHED_LISTS = 20;
+const sizes = new Map<string, VirtualItem[]>();
+
 /**
- * Windows a single-column list of `count` rows (variable heights are measured; `estimate` is a typical row's
- * height in px, for rows not measured yet). `key` names row `index` (keeps measured heights with their rows
- * across a sort or filter).
+ * Windows a single-column list of `count` rows (variable heights are measured; `estimate` is a row's height in
+ * px, for rows not measured yet). `key` names row `index` (keeps measured heights with their rows across a sort
+ * or filter). `cache` names the list on its page, so its measured heights outlive it (see `sizes`).
  */
-export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: number, estimate: number, opts: { threshold?: number; key?: (index: number) => string | number } = {}): VirtualRows<E> {
-  const { threshold = WINDOW_THRESHOLD, key } = opts;
+export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: number, estimate: number | ((index: number) => number), opts: { threshold?: number; key?: (index: number) => string | number; cache?: string } = {}): VirtualRows<E> {
+  const { threshold = WINDOW_THRESHOLD, key, cache } = opts;
   const ref = useRef<E | null>(null);
   const every = useEveryRow();
   const browser = useInBrowser();
@@ -119,7 +124,8 @@ export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: numbe
   }, [focused]);
   const v = useWindowVirtualizer<HTMLElement>({
     count: enabled ? count : 0,
-    estimateSize: () => estimate,
+    estimateSize: typeof estimate === "number" ? () => estimate : estimate,
+    ...(cache && sizes.has(cache) ? { initialMeasurementsCache: sizes.get(cache) } : {}),
     overscan: 8,
     scrollMargin: margin,
     rangeExtractor,
@@ -127,6 +133,20 @@ export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: numbe
     // Before the first measurement, assume the window's height.
     initialRect: { width: 0, height: typeof window === "undefined" ? 800 : window.innerHeight },
   });
+  // The list's measured heights are kept as it goes (a re-mount reads them back).
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+  useEffect(() => {
+    if (!enabled) return;
+    return () => {
+      const name = cacheRef.current;
+      const snap = v.takeSnapshot();
+      if (!name || !snap.length) return;
+      sizes.delete(name);
+      sizes.set(name, snap);
+      while (sizes.size > MAX_CACHED_LISTS) sizes.delete(sizes.keys().next().value as string);
+    };
+  }, [enabled, v]);
   if (!enabled) {
     return {
       ref, windowed: false, paddingTop: 0, paddingBottom: 0, jumpTo: () => {},

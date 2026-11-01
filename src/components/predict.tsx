@@ -1,6 +1,6 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
@@ -426,8 +426,15 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
 
 type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
 type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
-/** A match row's height (desktop / phone), for rows not measured yet. */
-const ROW_H = 71, ROW_H_PHONE = 105;
+/** Heights for rows not measured yet (desktop / phone, measured on real rows): a match, a level heading, an event's heading. */
+const ROW_H = 71, ROW_H_PHONE = 105, HEAD_H = 29, EVENT_HEAD_H = 41, EVENT_HEAD_H_PHONE = 57;
+
+/** A match list's row. Memoized: a windowed list renders again at each step of a scroll, and then only the rows
+ *  that change, or arrive, render. */
+const ListRow = memo(function ListRow({ k, index, measure, toggle, ...row }: Omit<Parameters<typeof MatchRow>[0], "onToggle" | "rowProps"> & { k: string; index: number; measure?: unknown; toggle: (k: string) => void }) {
+  const rowProps = useMemo(() => (measure ? { ref: measure, "data-index": index } : undefined), [measure, index]);
+  return <MatchRow {...row} rowProps={rowProps} onToggle={() => toggle(k)} />;
+});
 
 /** A group's heading in a match list: an event (its name, linked, and dates) or Qualifications / Playoffs. */
 function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unknown> }) {
@@ -484,8 +491,14 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     ...(groups.length > 1 || g.href ? [{ kind: "head" as const, gi, key: `head:${g.key}:${gi}` }] : []),
     ...g.ms.map((m) => ({ kind: "match" as const, gi, m, key: id(m) })),
   ]), [groups]);
-  const [estimate] = useState(() => (typeof window !== "undefined" && window.matchMedia?.(PHONE).matches ? ROW_H_PHONE : ROW_H));
-  const vr = useVirtualRows<HTMLDivElement>(flat.length, estimate, { key: (i) => flat[i].key });
+  const [phone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(PHONE).matches);
+  const estimate = (i: number) => {
+    const x = flat[i];
+    return x.kind === "match" ? (phone ? ROW_H_PHONE : ROW_H) : groups[x.gi].date ? (phone ? EVENT_HEAD_H_PHONE : EVENT_HEAD_H) : HEAD_H;
+  };
+  const loc = useLocation();
+  // Named by page and kind of list, so coming Back to it finds its rows' measured heights.
+  const vr = useVirtualRows<HTMLDivElement>(flat.length, estimate, { key: (i) => flat[i].key, cache: `${loc.pathname}|${newestFirst ? "recent" : "list"}|${eventNames ? "events" : matches[0]?.code ?? ""}` });
   // Brings a match's row into view. Off a long list's window it isn't rendered: the page jumps near it first
   // (so it renders), then places it.
   const bring = (key: string, behavior?: ScrollBehavior) => requestAnimationFrame(() => {
@@ -502,7 +515,6 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   // The match a link asked for is brought into view once per visit (history entry): a live update that
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
   // nor may Back/Forward, which return to where the reader actually was (src/lib/pageScroll.ts).
-  const loc = useLocation();
   usePointerRow(box, matches.length > 0);
   const shownFor = useRef<string | null>(null);
   useEffect(() => {
@@ -529,11 +541,11 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     // Only when the live match first shows in a visit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, loc.key]);
+  const toggle = useCallback((k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; }), []);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
-  const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // The rows to render now, in their groups' sections (a group the window doesn't reach isn't rendered).
   const parts: { gi: number; kids: ReactNode[] }[] = [];
-  for (const { item, rowProps, gapBefore } of vr.rows(flat)) {
+  for (const { item, index, rowProps, gapBefore } of vr.rows(flat)) {
     const gap = gapBefore > 0 ? <Spacer as="div" key={`gap:${item.key}`} height={gapBefore} /> : null;
     let part = parts[parts.length - 1];
     if (!part || part.gi !== item.gi) {
@@ -544,7 +556,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     if (item.kind === "head") part.kids.push(<GroupHeading key={item.key} g={groups[item.gi]} rowProps={rowProps} />);
     else {
       const m = item.m;
-      part.kids.push(<MatchRow key={item.key} rowProps={rowProps} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(item.key)} onToggle={() => toggle(item.key)} live={!!live && m.key === live} />);
+      part.kids.push(<ListRow key={item.key} k={item.key} index={index} measure={rowProps.ref} toggle={toggle} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(item.key)} live={!!live && m.key === live} />);
     }
   }
   const rec = highlight ? teamRecord(matches, highlight) : null;
