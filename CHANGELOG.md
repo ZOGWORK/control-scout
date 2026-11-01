@@ -24,7 +24,7 @@ A lighter install: one unused library gone, and the brand images are WebP.
 - [offline] The offline copy stores the WebP brand images, a little smaller
 
 ### Speed
-- **Brand images as WebP.** The bare mark (404 page) and the wordmark are now WebP like the rest of the app's images: 19 KB → 14.5 KB and 14 KB → 12.7 KB. The PNG mark stays for the share-card renderer. (#PR)
+- **Brand images as WebP.** The bare mark (404 page) and the wordmark are now WebP like the rest of the app's images: 19 KB → 14.5 KB and 14 KB → 12.7 KB. The PNG mark stays for the share-card renderer. (#411)
 - **One unused library removed.** The command-menu package was left over from the old search box; nothing used it.
 
 ## 2.1.2 — 2026-11-01
