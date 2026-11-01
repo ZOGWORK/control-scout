@@ -145,68 +145,98 @@ function copyPairs(from: Member[], to: Member[]): [Member, Member][] {
 }
 
 /**
- * End an alliance for everyone (only from the status it's in, so two callers can't both end it). An active one saves
- * what each two workspaces that both agreed to keep copies get, in the same write: each one's live entries at the
- * event as they are now (scout_alliance_copy_queue), so a retry later never copies anything added after the end.
- * Then the copies are made. True if this call ended it.
+ * One alliance's changes run one at a time (ending, leaving, removal, joining), each reading the alliance and its
+ * members again inside: a member list read before another change finished is never acted on.
  */
-async function endLink(r: Row, reason: AllianceEndReason): Promise<boolean> {
-  const t = now();
-  const inNow = (await membersOne(r.id)).filter(isIn);
-  const pairs = r.status === "active" ? copyPairs(inNow, inNow) : [];
-  const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)", args: [r.id, t] };
-  await writeBatch([
-    { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL, copies_wanted = ? WHERE id = ? AND status = ?", args: [reason, t, pairs.length ? 1 : 0, r.id, r.status] },
-    ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, guard)),
-  ]);
-  const after = await rowById(r.id);
-  if (!after || after.status !== "ended" || after.ended_at !== t || after.ended_reason !== reason) return false; // someone else ended it
-  if (pairs.length) await makeCopies(after);
+const locked = <T>(id: number, fn: () => Promise<T>) => serialized(`alliance:${id}`, fn);
+
+/** Is `ws` in the alliance now, and its creator? Checked inside the lock by the creator's routes. */
+const isCreator = (r: Row, members: Member[], ws: string) => r.inviter_ws === ws && members.some((m) => m.ws === ws && isIn(m));
+
+/**
+ * End an alliance for everyone (only from the status it's in now, so two callers can't both end it). `by`: the
+ * workspace asking, which must still be its creator. `reason`: why, from the alliance as it is now (null: don't end it). An active one saves what each two workspaces still in it that
+ * both agreed to keep copies get, in the same write: each one's live entries at the event as they are now
+ * (scout_alliance_copy_queue), so a retry later never copies anything added after the end. Then the copies are made.
+ * True if this call ended it.
+ */
+async function endLink(id: number, reason: (r: Row) => AllianceEndReason | null, by?: string): Promise<boolean> {
+  const ended = await locked(id, async () => {
+    const r = await rowById(id);
+    if (!r || r.status === "ended") return null;
+    const members = await membersOne(id);
+    if (by != null && !isCreator(r, members, by)) return null;
+    const t = now();
+    const why = reason(r);
+    if (!why) return null; // not due after all (someone joined meanwhile)
+    const inNow = members.filter(isIn);
+    const pairs = r.status === "active" ? copyPairs(inNow, inNow) : [];
+    const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)", args: [r.id, t] };
+    await writeBatch([
+      { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL, copies_wanted = ? WHERE id = ? AND status = ?", args: [why, t, pairs.length ? 1 : 0, r.id, r.status] },
+      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, guard)),
+    ]);
+    const after = await rowById(r.id);
+    if (!after || after.status !== "ended" || after.ended_at !== t || after.ended_reason !== why) return null; // someone else ended it
+    return pairs.length ? after : undefined;
+  });
+  if (ended === null) return false;
+  if (ended) await makeCopies(ended);
   return true;
 }
 
 /**
- * A member is out: it left, or the creator removed it. Copies between it and every member still in that both agreed
- * (a removed one gets none), as at the end. Fewer than two left: the alliance ends for everyone in the same write.
- * The creator leaving passes the creator's part to the workspace that joined next. True if this call took it out.
+ * A member is out: it left, or the creator removed it (`by`: the workspace removing it, which must still be its
+ * creator). Copies between it and every member still in that both agreed (a removed one gets none), as at the end.
+ * Fewer than two left: the alliance ends for everyone in the same write. The creator leaving passes the creator's
+ * part to the workspace that joined next. True if this call took it out.
  */
-async function leaveLink(r: Row, ws: string, why: "left" | "removed"): Promise<boolean> {
-  const t = now();
-  const inNow = (await membersOne(r.id)).filter(isIn);
-  const leaver = inNow.find((m) => m.ws === ws);
-  if (!leaver) return false;
-  const rest = inNow.filter((m) => m.ws !== ws);
-  const ends = rest.length < 2;
-  const pairs = r.status === "active" ? [...copyPairs([leaver], rest), ...(why === "left" ? copyPairs(rest, [leaver]) : [])] : [];
-  const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)", args: [r.id, ws, t] };
-  const next = rest[0];
-  await writeBatch([
-    {
-      sql: `UPDATE scout_alliance_members SET left_at = ?, left_reason = ? WHERE alliance_id = ? AND ws = ? AND left_at IS NULL
-              AND EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = ?)`,
-      args: [t, why, r.id, ws, r.id, r.status],
-    },
-    // The new creator makes its own code: the old one was the leaver's to hand out.
-    ...(r.inviter_ws === ws && next ? [{ sql: "UPDATE scout_alliances SET inviter_ws = ?, inviter_name = ?, code_hash = NULL WHERE id = ? AND inviter_ws = ?", args: [next.ws, next.name, r.id, ws] }] : []),
-    ...(ends ? [{
-      sql: `UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?
-              AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)`,
-      args: [r.status === "pending" ? "cancelled" : "unlinked", t, r.id, r.status, r.id, ws, t],
-    }] : []),
-    ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, guard)),
-  ]);
-  const me = (await membersOne(r.id)).find((m) => m.ws === ws);
-  if (me?.left_at !== t) return false; // it was out already, or the alliance ended meanwhile
-  if (pairs.length) await makeCopies((await rowById(r.id))!);
+async function leaveLink(id: number, ws: string, why: "left" | "removed", by?: string): Promise<boolean> {
+  const done = await locked(id, async () => {
+    const r = await rowById(id);
+    if (!r || r.status === "ended") return null;
+    const members = await membersOne(id);
+    if (by != null && (by === ws || !isCreator(r, members, by))) return null;
+    const t = now();
+    const inNow = members.filter(isIn);
+    const leaver = inNow.find((m) => m.ws === ws);
+    if (!leaver) return null;
+    const rest = inNow.filter((m) => m.ws !== ws);
+    const ends = rest.length < 2;
+    const pairs = r.status === "active" ? [...copyPairs([leaver], rest), ...(why === "left" ? copyPairs(rest, [leaver]) : [])] : [];
+    const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)", args: [r.id, ws, t] };
+    const next = rest[0];
+    await writeBatch([
+      {
+        sql: `UPDATE scout_alliance_members SET left_at = ?, left_reason = ? WHERE alliance_id = ? AND ws = ? AND left_at IS NULL
+                AND EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = ?)`,
+        args: [t, why, r.id, ws, r.id, r.status],
+      },
+      // The new creator makes its own code: the old one was the leaver's to hand out.
+      ...(r.inviter_ws === ws && next ? [{ sql: "UPDATE scout_alliances SET inviter_ws = ?, inviter_name = ?, code_hash = NULL WHERE id = ? AND inviter_ws = ?", args: [next.ws, next.name, r.id, ws] }] : []),
+      ...(ends ? [{
+        sql: `UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?
+                AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)`,
+        args: [r.status === "pending" ? "cancelled" : "unlinked", t, r.id, r.status, r.id, ws, t],
+      }] : []),
+      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, guard)),
+    ]);
+    const me = (await membersOne(r.id)).find((m) => m.ws === ws);
+    if (me?.left_at !== t) return null; // it was out already, or the alliance ended meanwhile
+    return pairs.length ? (await rowById(r.id))! : undefined;
+  });
+  if (done === null) return false;
+  if (done) await makeCopies(done);
   return true;
 }
 
 /**
  * Queue `from`'s live entries at the event for `to`, as they are now (runs in the ending's own write, and only if
  * `guard` says that write took effect). Each keeps where it first came from: an entry that's itself a copy names its
- * origin, and one that came from `to` in the first place (a copy from an earlier link) is never sent back.
+ * origin, and one that came from `to` in the first place (a copy from an earlier link) is never sent back. `to` must be
+ * in the alliance still, or be leaving in this very write (left_at = `t`), and never one the creator removed.
  */
-function queueCopies(r: Row, from: string, to: string, guard: { sql: string; args: (string | number)[] }): InStatement {
+function queueCopies(r: Row, from: string, to: string, t: number, guard: { sql: string; args: (string | number)[] }): InStatement {
   return {
     sql: `INSERT OR IGNORE INTO scout_alliance_copy_queue
             (alliance_id, to_ws, from_ws, origin_ws, origin_uuid, season, team, event_code, match_label, kind, data, notes, updated_at,
@@ -218,8 +248,10 @@ function queueCopies(r: Row, from: string, to: string, guard: { sql: string; arg
             LEFT JOIN scout_alliance_copies c ON c.to_ws = ws.cp_workspace_id AND c.copy_uuid = w.uuid
            WHERE ws.cp_workspace_id = ? AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
              AND COALESCE(c.origin_ws, '') <> ?
+             AND EXISTS (SELECT 1 FROM scout_alliance_members rm WHERE rm.alliance_id = ? AND rm.ws = ? AND rm.left_reason IS NOT 'removed'
+                           AND (rm.left_at IS NULL OR rm.left_at = ?))
              AND ${guard.sql}`,
-    args: [r.id, to, from, from, r.season, r.event_code, to, ...guard.args],
+    args: [r.id, to, from, from, r.season, r.event_code, to, r.id, to, t, ...guard.args],
   };
 }
 
@@ -300,6 +332,13 @@ async function copyQueued(r: Row, to: string, toName: string, rows: any[]): Prom
   });
 }
 
+/** Why an alliance ends now, or null: a pending one past its code's life or its event, an active one past its event. */
+function due(r: Row, t: number): AllianceEndReason | null {
+  const over = allianceEndsAt(r.ends_on) <= t;
+  if (r.status === "pending" && (over || (r.invite_expires_at != null && r.invite_expires_at <= t))) return "expired";
+  return r.status === "active" && over ? "event_over" : null;
+}
+
 /**
  * End every alliance that's due: pending ones past their code's life or their event, active ones whose event is
  * over. Then retry copies that didn't finish (only what was queued when it ended). Cheap when nothing is due; run by
@@ -310,9 +349,7 @@ export async function settleAlliances(): Promise<number> {
   let ended = 0;
   for (const raw of await all<any>(`SELECT * FROM scout_alliances WHERE status IN ${LIVE}`)) {
     const r = toRow(raw);
-    const over = allianceEndsAt(r.ends_on) <= t;
-    if (r.status === "pending" && (over || (r.invite_expires_at != null && r.invite_expires_at <= t))) ended += Number(await endLink(r, "expired"));
-    else if (r.status === "active" && over) ended += Number(await endLink(r, "event_over"));
+    if (due(r, t)) ended += Number(await endLink(r.id, (x) => due(x, now())));
   }
   for (const raw of await all<any>(
     `SELECT * FROM scout_alliances WHERE id IN (SELECT alliance_id FROM scout_alliance_copy_queue)
@@ -334,7 +371,7 @@ export async function settleWorkspace(workspaceId: string): Promise<void> {
       WHERE m.ws = ? AND m.left_at IS NULL AND a.status = 'active'`, [workspaceId]);
   for (const raw of rows) {
     const r = toRow(raw);
-    if (allianceEndsAt(r.ends_on) <= t) await endLink(r, "event_over");
+    if (due(r, t)) await endLink(r.id, (x) => due(x, now()));
   }
 }
 onBeforeEntriesWrite(settleWorkspace);
@@ -573,7 +610,8 @@ export function alliancesRouter(): Router {
     const inv = toRow(found);
     // Switched off for the workspace that made the code: nobody joins through it.
     if (await alliancesOff(res, inv.inviter_ws)) return;
-    return serialized(`alliance:${inv.season}:${inv.event_code}`, async () => {
+    // The event's lock (one live alliance per workspace there), then the alliance's (its members, against leaving or ending).
+    return serialized(`alliance:${inv.season}:${inv.event_code}`, () => locked(inv.id, async () => {
       const before = await membersOne(inv.id);
       const was = before.find((x) => x.ws === m.workspaceId);
       if (was && isIn(was)) { res.status(400).json({ error: "This workspace is already in this alliance: send the code to another team's admin." }); return; }
@@ -597,7 +635,7 @@ export function alliancesRouter(): Router {
       const me = (await membersOne(inv.id)).find((x) => x.ws === m.workspaceId);
       if (!me || !isIn(me) || me.joined_at !== t) { res.status(404).json({ error: BAD_CODE }); return; }
       return { alliance: await viewOf((await rowById(inv.id))!, m.workspaceId) };
-    });
+    }));
   }));
 
   /** The alliance in the URL, for an admin route: 404 unless this workspace is in it now; with `creator`, it must be its creator. */
@@ -638,7 +676,9 @@ export function alliancesRouter(): Router {
     const x = await managed(req, res, true);
     if (!x) return;
     const { m, row } = x;
-    if (!(await endLink(row, row.status === "pending" ? "cancelled" : "unlinked"))) { res.status(409).json({ error: "This alliance has already ended.", code: ALLIANCE_ENDED }); return; }
+    if (!(await endLink(row.id, (x) => (x.status === "pending" ? "cancelled" : "unlinked"), m.workspaceId))) {
+      res.status(409).json({ error: "This alliance has already ended, or this workspace no longer started it.", code: ALLIANCE_ENDED }); return;
+    }
     return { alliance: await viewOf((await rowById(row.id))!, m.workspaceId) };
   }));
 
@@ -647,7 +687,7 @@ export function alliancesRouter(): Router {
     const x = await managed(req, res, false);
     if (!x) return;
     const { m, row } = x;
-    const done = await serialized(`alliance:${row.season}:${row.event_code}`, async () => leaveLink((await rowById(row.id))!, m.workspaceId, "left"));
+    const done = await leaveLink(row.id, m.workspaceId, "left");
     if (!done) { res.status(409).json({ error: "This workspace isn't in this alliance any more.", code: ALLIANCE_ENDED }); return; }
     return { alliance: await viewOf((await rowById(row.id))!, m.workspaceId) };
   }));
@@ -660,8 +700,9 @@ export function alliancesRouter(): Router {
     const target = req.params.memberId;
     if (target === m.workspaceId) { res.status(400).json({ error: "To take this workspace out, leave the alliance instead." }); return; }
     if (!(await membersOne(row.id)).some((y) => y.ws === target && isIn(y))) { res.status(404).json({ error: "That team isn't in this alliance." }); return; }
-    const done = await serialized(`alliance:${row.season}:${row.event_code}`, async () => leaveLink((await rowById(row.id))!, target, "removed"));
-    if (!done) { res.status(409).json({ error: "That team isn't in this alliance any more." }); return; }
+    // Checked again inside the alliance's lock: the caller must still be its creator when the removal runs.
+    const done = await leaveLink(row.id, target, "removed", m.workspaceId);
+    if (!done) { res.status(409).json({ error: "That team isn't in this alliance any more, or this workspace no longer started it." }); return; }
     return { alliance: await viewOf((await rowById(row.id))!, m.workspaceId) };
   }));
 

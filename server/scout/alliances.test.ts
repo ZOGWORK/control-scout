@@ -665,6 +665,25 @@ describe("more than two teams", () => {
     expect((await end(p.bea, B, id)).json.alliance).toMatchObject({ status: "ended", endedReason: "unlinked" });
   });
 
+  it("the creator leaving and removing at once: the removal runs after the hand-over and is refused", async () => {
+    const p = await cast();
+    const { id } = await three();
+    const [left, removed] = await Promise.all([leave(p.ada, A, id), remove(p.ada, A, id, B)]);
+    expect(left.status).toBe(200);
+    expect(removed.status).toBe(409);
+    expect((await list(p.bea, B)).json.alliances[0]).toMatchObject({ status: "active", you: { creator: true }, members: [{ workspaceId: B }, { workspaceId: C }] });
+  });
+
+  it("ending while a team is being removed never copies anything to the removed team", async () => {
+    const p = await cast();
+    const { id } = await three();
+    await pushOk(p.abe, A, [entry({ team: 101, notes: "from A" })]);
+    await pushOk(p.ben, B, [entry({ team: 101, notes: "from B" })]);
+    await Promise.all([remove(p.ada, A, id, C), end(p.ada, A, id)]);
+    expect(await notesIn(p.cal, C)).toEqual([]);
+    expect((await list(p.cal, C)).json.alliances[0]).toMatchObject({ status: "ended" });
+  });
+
   it("is full at MAX_ALLIANCE_MEMBERS", async () => {
     const p = await cast();
     const i = await invite(p.ada, A);
