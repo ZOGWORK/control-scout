@@ -44,6 +44,9 @@ interface Row {
   entries: string; packet: string; generated_at: string; edited_by: string | null; edited_at: string | null; rev: number;
 }
 
+/** Every power_rankings_generated column (a Row). */
+const ROW_COLUMNS = "season, week, published, status, intro, intro_source, entries, packet, generated_at, edited_by, edited_at, rev, updated, parked";
+
 const parse = <T>(s: string, fallback: T): T => { try { return JSON.parse(s) as T; } catch { return fallback; } };
 
 function fromRow(r: Row): GeneratedWeek {
@@ -57,11 +60,11 @@ function fromRow(r: Row): GeneratedWeek {
 
 /** Every generated week (any status), oldest first. */
 export async function listGenerated(): Promise<GeneratedWeek[]> {
-  return (await all<Row>("SELECT * FROM power_rankings_generated ORDER BY week, season")).map(fromRow);
+  return (await all<Row>(`SELECT ${ROW_COLUMNS} FROM power_rankings_generated ORDER BY week, season`)).map(fromRow);
 }
 
 export async function getGenerated(season: number, week: string): Promise<GeneratedWeek | null> {
-  const r = await get<Row>("SELECT * FROM power_rankings_generated WHERE season = ? AND week = ?", [season, week]);
+  const r = await get<Row>(`SELECT ${ROW_COLUMNS} FROM power_rankings_generated WHERE season = ? AND week = ?`, [season, week]);
   return r ? fromRow(r) : null;
 }
 
@@ -119,7 +122,7 @@ registerCache("Generated power rankings", invalidateGenerated);
 /** The published generated weeks as RankingDocs, oldest first. */
 export function generatedDocs(): Promise<RankingDoc[]> {
   if (cache && Date.now() - cache.at < 15_000) return cache.docs;
-  const docs = all<Row>("SELECT * FROM power_rankings_generated WHERE status = 'published' ORDER BY week, season")
+  const docs = all<Row>(`SELECT ${ROW_COLUMNS} FROM power_rankings_generated WHERE status = 'published' ORDER BY week, season`)
     .then((rows) => rows.map((r) => toDoc(fromRow(r))))
     // No table yet (a database before migration 28) or a read error: no generated weeks, never a broken page.
     .catch((e) => { console.warn(`[power-rankings] generated weeks unavailable: ${(e as Error).message}`); cache = null; return [] as RankingDoc[]; });
@@ -156,7 +159,7 @@ export async function editGenerated(season: number, week: string, change: { intr
 /** Owner: hide a published week, or show a hidden one again. The week as it was (`was`, its status before) and
  *  as it is are read in the same transaction as the change, so the audit log records exactly what this one did. */
 export async function setGeneratedStatus(season: number, week: string, status: "published" | "hidden", at = new Date().toISOString()): Promise<(GeneratedWeek & { was: GeneratedStatus }) | null> {
-  const read = { sql: "SELECT * FROM power_rankings_generated WHERE season = ? AND week = ?", args: [season, week] };
+  const read = { sql: `SELECT ${ROW_COLUMNS} FROM power_rankings_generated WHERE season = ? AND week = ?`, args: [season, week] };
   const [before, upd, after] = await db().batch([
     read,
     { sql: "UPDATE power_rankings_generated SET status = ?, edited_by = 'owner', edited_at = ?, rev = rev + 1 WHERE season = ? AND week = ? AND status IN ('published', 'hidden')", args: [status, at, season, week] },

@@ -87,6 +87,7 @@ export async function highScoreCard(it: HighScoreQuestion, team: { number: numbe
 async function best(season: number, team: number | null, types: string[]): Promise<SearchCardLine[]> {
   const args = (side: "red" | "blue") => [...(team != null ? [team] : []), season, ...types];
   const rows = await all<ScoreRow>(
+    // select-star: the derived table's own columns (sideSql names each one), not a table's.
     `SELECT * FROM (${sideSql("red", team != null, types.length)} UNION ALL ${sideSql("blue", team != null, types.length)}) ORDER BY COALESCE(np, total) DESC, total DESC, start, code, label LIMIT ?`,
     [...args("red"), ...args("blue"), HIGH_SCORE_LINES]);
   const lineups = await alliances(rows);

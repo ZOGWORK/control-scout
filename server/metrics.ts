@@ -169,7 +169,7 @@ export type UsageSummary = Omit<OwnerUsage, "live" | "pageViews" | "vitals">;
 /** Requests per day, sync volume and per-route latency over the last `days` UTC days (today included). */
 export async function usageSummary(days = 14, now = Date.now()): Promise<UsageSummary> {
   const to = dayOf(now), from = dayOf(now - (days - 1) * 86_400_000);
-  const rows = await all<Record<string, unknown>>(`SELECT * FROM request_metrics_daily WHERE day BETWEEN ? AND ?`, [from, to]);
+  const rows = await all<Record<string, unknown>>(`SELECT day, route, count, errors, total_ms, max_ms, ${BCOLS.join(", ")} FROM request_metrics_daily WHERE day BETWEEN ? AND ?`, [from, to]);
   const byDay = new Map<string, { requests: number; sync: number; errors: number }>();
   for (let i = days - 1; i >= 0; i--) byDay.set(dayOf(now - i * 86_400_000), { requests: 0, sync: 0, errors: 0 });
   const byRoute = new Map<string, { count: number; errors: number; total: number; max: number; b: number[] }>();

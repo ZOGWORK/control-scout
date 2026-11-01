@@ -1,0 +1,2916 @@
+{
+ "/api/events?season=2026": {
+  "status": 200,
+  "bytes": 516,
+  "body": {
+   "events": [
+    {
+     "season": 2026,
+     "code": "DONE",
+     "name": "Event DONE",
+     "type": "Qualifier",
+     "typeLabel": "Qualifier",
+     "city": "Trenton",
+     "state": "NJ",
+     "country": "USA",
+     "start": "2025-11-08",
+     "end": "2025-11-08",
+     "teams": 4,
+     "matchesPlayed": 2,
+     "matchesTotal": 2,
+     "status": "finished",
+     "video": "clips"
+    },
+    {
+     "season": 2026,
+     "code": "NEXT",
+     "name": "Event NEXT",
+     "type": "Qualifier",
+     "typeLabel": "Qualifier",
+     "city": "Trenton",
+     "state": "NJ",
+     "country": "USA",
+     "start": "2026-01-10",
+     "end": "2026-01-10",
+     "teams": 4,
+     "matchesPlayed": 0,
+     "matchesTotal": 2,
+     "status": "upcoming"
+    }
+   ]
+  }
+ },
+ "/api/events/2026/DONE": {
+  "status": 200,
+  "bytes": 4177,
+  "body": {
+   "event": {
+    "season": 2026,
+    "code": "DONE",
+    "name": "Event DONE",
+    "type": "Qualifier",
+    "typeLabel": "Qualifier",
+    "divisionCode": null,
+    "region": "USNJ",
+    "city": "Trenton",
+    "state": "NJ",
+    "country": "USA",
+    "venue": "Gym",
+    "start": "2025-11-08",
+    "end": "2025-11-08",
+    "remote": false,
+    "teams": 4,
+    "matchesPlayed": 2,
+    "matchesTotal": 2,
+    "status": "finished",
+    "address": "1 Main St",
+    "website": "https://example.org/e",
+    "livestream": "https://youtube.com/watch?v=abc",
+    "timezone": "America/New_York",
+    "source": "first"
+   },
+   "field": [
+    {
+     "team": 101,
+     "name": "Team 101",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": 1,
+     "rp": 4,
+     "tbp": 20,
+     "wins": 2,
+     "losses": 0,
+     "ties": 0,
+     "qualPlayed": 2,
+     "opr": {
+      "np": 40,
+      "auto": 10.5,
+      "teleop": 20.25,
+      "endgame": 5.5,
+      "pen": 1.5
+     },
+     "avgNp": 60.25,
+     "rating": {
+      "np": 56.8,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 40
+    },
+    {
+     "team": 102,
+     "name": "Team 102",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": 2,
+     "rp": 3,
+     "tbp": 21,
+     "wins": 1,
+     "losses": 1,
+     "ties": 0,
+     "qualPlayed": 2,
+     "opr": {
+      "np": 39,
+      "auto": 10.5,
+      "teleop": 20.25,
+      "endgame": 5.5,
+      "pen": 1.5
+     },
+     "avgNp": 60.25,
+     "rating": {
+      "np": 56.8,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 39
+    },
+    {
+     "team": 103,
+     "name": "Team 103",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": 3,
+     "rp": 2,
+     "tbp": 22,
+     "wins": 0,
+     "losses": 2,
+     "ties": 0,
+     "qualPlayed": 2,
+     "opr": {
+      "np": 38,
+      "auto": 10.5,
+      "teleop": 20.25,
+      "endgame": 5.5,
+      "pen": 1.5
+     },
+     "avgNp": 60.25,
+     "rating": {
+      "np": 43.9,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 38
+    },
+    {
+     "team": 104,
+     "name": "Team 104",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": 4,
+     "rp": 1,
+     "tbp": 23,
+     "wins": 0,
+     "losses": 2,
+     "ties": 0,
+     "qualPlayed": 2,
+     "opr": {
+      "np": 37,
+      "auto": 10.5,
+      "teleop": 20.25,
+      "endgame": 5.5,
+      "pen": 1.5
+     },
+     "avgNp": 60.25,
+     "rating": {
+      "np": 43.9,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 37
+    }
+   ],
+   "matches": [
+    {
+     "season": 2026,
+     "code": "DONE",
+     "key": "qual:0:1",
+     "level": "qual",
+     "series": 0,
+     "number": 1,
+     "label": "Q1",
+     "time": "2025-11-08T10:01:00",
+     "startsAt": "2025-11-08T15:01:00.000Z",
+     "played": true,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": {
+       "total": 120,
+       "np": 110,
+       "auto": 30,
+       "teleop": 60,
+       "endgame": 20,
+       "pen": 10,
+       "tips": 3
+      }
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": {
+       "total": 90,
+       "np": 85,
+       "auto": 25,
+       "teleop": 45,
+       "endgame": 15,
+       "pen": 5,
+       "tips": 2
+      }
+     },
+     "video": "https://youtube.com/watch?v=m1",
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2025-11-08T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    },
+    {
+     "season": 2026,
+     "code": "DONE",
+     "key": "qual:0:2",
+     "level": "qual",
+     "series": 0,
+     "number": 2,
+     "label": "Q2",
+     "time": "2025-11-08T10:02:00",
+     "startsAt": "2025-11-08T15:02:00.000Z",
+     "played": true,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": {
+       "total": 120,
+       "np": 110,
+       "auto": 30,
+       "teleop": 60,
+       "endgame": 20,
+       "pen": 10,
+       "tips": 3
+      }
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": {
+       "total": 90,
+       "np": 85,
+       "auto": 25,
+       "teleop": 45,
+       "endgame": 15,
+       "pen": 5,
+       "tips": 2
+      }
+     },
+     "video": "https://youtube.com/watch?v=m2",
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2025-11-08T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    }
+   ],
+   "alliances": [
+    {
+     "number": 1,
+     "name": "Alliance 1",
+     "captain": 101,
+     "pick1": 102,
+     "pick2": null,
+     "backup": 103
+    }
+   ],
+   "bracket": {
+    "format": "unknown",
+    "runs": 0,
+    "tier": "confident",
+    "series": [],
+    "alliances": [],
+    "note": "A 1-alliance bracket isn't one we can map, so only each series' own call shows."
+   },
+   "awards": [
+    {
+     "type": "Inspire",
+     "placement": 1,
+     "team": 101,
+     "name": "Inspire Award"
+    },
+    {
+     "type": "Winner",
+     "placement": 1,
+     "team": 102,
+     "name": "Winning Alliance"
+    }
+   ],
+   "advancement": {
+    "slots": 2,
+    "advancesTo": "NJ State",
+    "rows": [
+     {
+      "team": 101,
+      "advances": true
+     }
+    ]
+   },
+   "forecastUnsupported": null,
+   "live": null,
+   "registered": null,
+   "provisional": null,
+   "sharedSessions": null,
+   "scheduleDifficulty": null
+  }
+ },
+ "/api/events/2026/NEXT": {
+  "status": 200,
+  "bytes": 3461,
+  "body": {
+   "event": {
+    "season": 2026,
+    "code": "NEXT",
+    "name": "Event NEXT",
+    "type": "Qualifier",
+    "typeLabel": "Qualifier",
+    "divisionCode": null,
+    "region": "USNJ",
+    "city": "Trenton",
+    "state": "NJ",
+    "country": "USA",
+    "venue": "Gym",
+    "start": "2026-01-10",
+    "end": "2026-01-10",
+    "remote": false,
+    "teams": 4,
+    "matchesPlayed": 0,
+    "matchesTotal": 2,
+    "status": "upcoming",
+    "address": "1 Main St",
+    "website": "https://example.org/e",
+    "livestream": "https://youtube.com/watch?v=abc",
+    "timezone": "America/New_York",
+    "source": "first"
+   },
+   "field": [
+    {
+     "team": 101,
+     "name": "Team 101",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": null,
+     "rp": null,
+     "tbp": null,
+     "wins": null,
+     "losses": null,
+     "ties": 0,
+     "qualPlayed": 0,
+     "opr": {
+      "np": null,
+      "auto": null,
+      "teleop": null,
+      "endgame": null,
+      "pen": null
+     },
+     "avgNp": null,
+     "rating": {
+      "np": 56.8,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 40
+    },
+    {
+     "team": 102,
+     "name": "Team 102",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": null,
+     "rp": null,
+     "tbp": null,
+     "wins": null,
+     "losses": null,
+     "ties": 0,
+     "qualPlayed": 0,
+     "opr": {
+      "np": null,
+      "auto": null,
+      "teleop": null,
+      "endgame": null,
+      "pen": null
+     },
+     "avgNp": null,
+     "rating": {
+      "np": 56.8,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 39
+    },
+    {
+     "team": 103,
+     "name": "Team 103",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": null,
+     "rp": null,
+     "tbp": null,
+     "wins": null,
+     "losses": null,
+     "ties": 0,
+     "qualPlayed": 0,
+     "opr": {
+      "np": null,
+      "auto": null,
+      "teleop": null,
+      "endgame": null,
+      "pen": null
+     },
+     "avgNp": null,
+     "rating": {
+      "np": 43.9,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 38
+    },
+    {
+     "team": 104,
+     "name": "Team 104",
+     "city": "Trenton",
+     "state": "NJ",
+     "rank": null,
+     "rp": null,
+     "tbp": null,
+     "wins": null,
+     "losses": null,
+     "ties": 0,
+     "qualPlayed": 0,
+     "opr": {
+      "np": null,
+      "auto": null,
+      "teleop": null,
+      "endgame": null,
+      "pen": null
+     },
+     "avgNp": null,
+     "rating": {
+      "np": 43.9,
+      "sd": 11.9,
+      "matches": 2
+     },
+     "seasonOpr": 37
+    }
+   ],
+   "matches": [
+    {
+     "season": 2026,
+     "code": "NEXT",
+     "key": "qual:0:1",
+     "level": "qual",
+     "series": 0,
+     "number": 1,
+     "label": "Q1",
+     "time": "2026-01-10T10:01:00",
+     "startsAt": "2026-01-10T15:01:00.000Z",
+     "played": false,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": null
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": null
+     },
+     "video": null,
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2026-01-10T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    },
+    {
+     "season": 2026,
+     "code": "NEXT",
+     "key": "qual:0:2",
+     "level": "qual",
+     "series": 0,
+     "number": 2,
+     "label": "Q2",
+     "time": "2026-01-10T10:02:00",
+     "startsAt": "2026-01-10T15:02:00.000Z",
+     "played": false,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": null
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": null
+     },
+     "video": null,
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2026-01-10T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    }
+   ],
+   "alliances": [],
+   "bracket": null,
+   "awards": [],
+   "advancement": null,
+   "forecastUnsupported": null,
+   "live": null,
+   "registered": null,
+   "provisional": null,
+   "sharedSessions": null,
+   "scheduleDifficulty": null
+  }
+ },
+ "/api/events/2026/DONE/matches/qual:0:1": {
+  "status": 200,
+  "bytes": 2426,
+  "body": {
+   "event": {
+    "season": 2026,
+    "code": "DONE",
+    "name": "Event DONE",
+    "status": "finished"
+   },
+   "match": {
+    "season": 2026,
+    "code": "DONE",
+    "key": "qual:0:1",
+    "level": "qual",
+    "series": 0,
+    "number": 1,
+    "label": "Q1",
+    "time": "2025-11-08T10:01:00",
+    "startsAt": "2025-11-08T15:01:00.000Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 101,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 101"
+      },
+      {
+       "number": 102,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 102"
+      }
+     ],
+     "score": {
+      "total": 120,
+      "np": 110,
+      "auto": 30,
+      "teleop": 60,
+      "endgame": 20,
+      "pen": 10,
+      "tips": 3
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 103,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 103"
+      },
+      {
+       "number": 104,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 104"
+      }
+     ],
+     "score": {
+      "total": 90,
+      "np": 85,
+      "auto": 25,
+      "teleop": 45,
+      "endgame": 15,
+      "pen": 5,
+      "tips": 2
+     }
+    },
+    "video": "https://youtube.com/watch?v=m1",
+    "prediction": {
+     "pRed": 0.62,
+     "redMean": 101.5,
+     "blueMean": 92.5,
+     "tier": "moderate",
+     "kind": "live",
+     "predictedAt": "2025-11-08T09:00:00Z",
+     "redRange": [
+      80,
+      120
+     ],
+     "blueRange": [
+      70,
+      110
+     ],
+     "rangeLevel": 0.8,
+     "factors": [
+      {
+       "label": "Stronger auto",
+       "side": "red"
+      }
+     ],
+     "history": {
+      "pairs": []
+     }
+    }
+   },
+   "description": "Qualification 1",
+   "stations": {
+    "101": 1,
+    "102": 2,
+    "103": 1,
+    "104": 2
+   },
+   "bonus": {
+    "labels": [
+     "Swarm",
+     "Pollinator 1",
+     "Pollinator 2"
+    ],
+    "red": [
+     true,
+     false,
+     false
+    ],
+    "blue": [
+     false,
+     false,
+     false
+    ]
+   },
+   "teams": {
+    "101": {
+     "name": "Team 101",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 1,
+      "rp": 4,
+      "wins": 2,
+      "losses": 0,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 40,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      },
+      "rating": {
+       "np": 56.8,
+       "sd": 11.9,
+       "matches": 2
+      }
+     },
+     "season": {
+      "opr": 40,
+      "rank": 1,
+      "of": 4
+     }
+    },
+    "102": {
+     "name": "Team 102",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 2,
+      "rp": 3,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 39,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      },
+      "rating": {
+       "np": 56.8,
+       "sd": 11.9,
+       "matches": 2
+      }
+     },
+     "season": {
+      "opr": 39,
+      "rank": 2,
+      "of": 4
+     }
+    },
+    "103": {
+     "name": "Team 103",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 3,
+      "rp": 2,
+      "wins": 0,
+      "losses": 2,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 38,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      },
+      "rating": {
+       "np": 43.9,
+       "sd": 11.9,
+       "matches": 2
+      }
+     },
+     "season": {
+      "opr": 38,
+      "rank": 3,
+      "of": 4
+     }
+    },
+    "104": {
+     "name": "Team 104",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 4,
+      "rp": 1,
+      "wins": 0,
+      "losses": 2,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 37,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      },
+      "rating": {
+       "np": 43.9,
+       "sd": 11.9,
+       "matches": 2
+      }
+     },
+     "season": {
+      "opr": 37,
+      "rank": 4,
+      "of": 4
+     }
+    }
+   },
+   "sheet": null,
+   "prev": null,
+   "next": {
+    "key": "qual:0:2",
+    "label": "Q2"
+   }
+  }
+ },
+ "/api/events/2026/DONE/matches/qual:0:1/report": {
+  "status": 200,
+  "bytes": 4077,
+  "body": {
+   "event": {
+    "season": 2026,
+    "code": "DONE",
+    "name": "Event DONE",
+    "type": "Qualifier",
+    "typeLabel": "Qualifier",
+    "divisionCode": null,
+    "region": "USNJ",
+    "city": "Trenton",
+    "state": "NJ",
+    "country": "USA",
+    "venue": "Gym",
+    "start": "2025-11-08",
+    "end": "2025-11-08",
+    "remote": false,
+    "teams": 4,
+    "matchesPlayed": 2,
+    "matchesTotal": 2,
+    "status": "finished",
+    "address": "1 Main St",
+    "website": "https://example.org/e",
+    "livestream": "https://youtube.com/watch?v=abc",
+    "timezone": "America/New_York",
+    "source": "first"
+   },
+   "live": null,
+   "match": {
+    "season": 2026,
+    "code": "DONE",
+    "key": "qual:0:1",
+    "level": "qual",
+    "series": 0,
+    "number": 1,
+    "label": "Q1",
+    "time": "2025-11-08T10:01:00",
+    "startsAt": "2025-11-08T15:01:00.000Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 101,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 101"
+      },
+      {
+       "number": 102,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 102"
+      }
+     ],
+     "score": {
+      "total": 120,
+      "np": 110,
+      "auto": 30,
+      "teleop": 60,
+      "endgame": 20,
+      "pen": 10,
+      "tips": 3
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 103,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 103"
+      },
+      {
+       "number": 104,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 104"
+      }
+     ],
+     "score": {
+      "total": 90,
+      "np": 85,
+      "auto": 25,
+      "teleop": 45,
+      "endgame": 15,
+      "pen": 5,
+      "tips": 2
+     }
+    },
+    "video": "https://youtube.com/watch?v=m1",
+    "prediction": {
+     "pRed": 0.62,
+     "redMean": 101.5,
+     "blueMean": 92.5,
+     "tier": "moderate",
+     "kind": "live",
+     "predictedAt": "2025-11-08T09:00:00Z",
+     "redRange": [
+      80,
+      120
+     ],
+     "blueRange": [
+      70,
+      110
+     ],
+     "rangeLevel": 0.8,
+     "factors": [
+      {
+       "label": "Stronger auto",
+       "side": "red"
+      }
+     ],
+     "history": {
+      "pairs": []
+     }
+    }
+   },
+   "description": "Qualification 1",
+   "bonus": {
+    "labels": [
+     "Swarm",
+     "Pollinator 1",
+     "Pollinator 2"
+    ],
+    "red": [
+     true,
+     false,
+     false
+    ],
+    "blue": [
+     false,
+     false,
+     false
+    ]
+   },
+   "teams": [
+    {
+     "team": 101,
+     "name": "Team 101",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 1,
+      "wins": 2,
+      "losses": 0,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 40,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 40,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 1,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 51,
+      "matches": 10,
+      "noShows": 1,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 1,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    },
+    {
+     "team": 102,
+     "name": "Team 102",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 39,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 39,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 2,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 52,
+      "matches": 10,
+      "noShows": 0,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 0,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    },
+    {
+     "team": 103,
+     "name": "Team 103",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 3,
+      "wins": 0,
+      "losses": 2,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 38,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 38,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 3,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 53,
+      "matches": 10,
+      "noShows": 1,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 1,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    },
+    {
+     "team": 104,
+     "name": "Team 104",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": 4,
+      "wins": 0,
+      "losses": 2,
+      "ties": 0,
+      "qualPlayed": 2,
+      "opr": {
+       "np": 37,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1.5
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 37,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 4,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 54,
+      "matches": 10,
+      "noShows": 0,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 0,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    }
+   ],
+   "prev": null,
+   "next": {
+    "key": "qual:0:2",
+    "label": "Q2"
+   }
+  }
+ },
+ "/api/events/2026/NEXT/matches/qual:0:1/report": {
+  "status": 200,
+  "bytes": 3861,
+  "body": {
+   "event": {
+    "season": 2026,
+    "code": "NEXT",
+    "name": "Event NEXT",
+    "type": "Qualifier",
+    "typeLabel": "Qualifier",
+    "divisionCode": null,
+    "region": "USNJ",
+    "city": "Trenton",
+    "state": "NJ",
+    "country": "USA",
+    "venue": "Gym",
+    "start": "2026-01-10",
+    "end": "2026-01-10",
+    "remote": false,
+    "teams": 4,
+    "matchesPlayed": 0,
+    "matchesTotal": 2,
+    "status": "upcoming",
+    "address": "1 Main St",
+    "website": "https://example.org/e",
+    "livestream": "https://youtube.com/watch?v=abc",
+    "timezone": "America/New_York",
+    "source": "first"
+   },
+   "live": null,
+   "match": {
+    "season": 2026,
+    "code": "NEXT",
+    "key": "qual:0:1",
+    "level": "qual",
+    "series": 0,
+    "number": 1,
+    "label": "Q1",
+    "time": "2026-01-10T10:01:00",
+    "startsAt": "2026-01-10T15:01:00.000Z",
+    "played": false,
+    "red": {
+     "teams": [
+      {
+       "number": 101,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 101"
+      },
+      {
+       "number": 102,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 102"
+      }
+     ],
+     "score": null
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 103,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 103"
+      },
+      {
+       "number": 104,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Team 104"
+      }
+     ],
+     "score": null
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.62,
+     "redMean": 101.5,
+     "blueMean": 92.5,
+     "tier": "moderate",
+     "kind": "live",
+     "predictedAt": "2026-01-10T09:00:00Z",
+     "redRange": [
+      80,
+      120
+     ],
+     "blueRange": [
+      70,
+      110
+     ],
+     "rangeLevel": 0.8,
+     "factors": [
+      {
+       "label": "Stronger auto",
+       "side": "red"
+      }
+     ],
+     "history": {
+      "pairs": []
+     }
+    }
+   },
+   "description": "Qualification 1",
+   "bonus": null,
+   "teams": [
+    {
+     "team": 101,
+     "name": "Team 101",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": null,
+      "wins": null,
+      "losses": null,
+      "ties": 0,
+      "qualPlayed": 0,
+      "opr": {
+       "np": null,
+       "auto": null,
+       "teleop": null,
+       "endgame": null,
+       "pen": null
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 40,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 1,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 51,
+      "matches": 10,
+      "noShows": 1,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 1,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    },
+    {
+     "team": 102,
+     "name": "Team 102",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": null,
+      "wins": null,
+      "losses": null,
+      "ties": 0,
+      "qualPlayed": 0,
+      "opr": {
+       "np": null,
+       "auto": null,
+       "teleop": null,
+       "endgame": null,
+       "pen": null
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 39,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 2,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 52,
+      "matches": 10,
+      "noShows": 0,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 0,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    },
+    {
+     "team": 103,
+     "name": "Team 103",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": null,
+      "wins": null,
+      "losses": null,
+      "ties": 0,
+      "qualPlayed": 0,
+      "opr": {
+       "np": null,
+       "auto": null,
+       "teleop": null,
+       "endgame": null,
+       "pen": null
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 38,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 3,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 53,
+      "matches": 10,
+      "noShows": 1,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 1,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    },
+    {
+     "team": 104,
+     "name": "Team 104",
+     "city": "Trenton",
+     "state": "NJ",
+     "event": {
+      "rank": null,
+      "wins": null,
+      "losses": null,
+      "ties": 0,
+      "qualPlayed": 0,
+      "opr": {
+       "np": null,
+       "auto": null,
+       "teleop": null,
+       "endgame": null,
+       "pen": null
+      }
+     },
+     "season": {
+      "opr": {
+       "np": 37,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "pen": 1
+      },
+      "rank": 4,
+      "of": 4,
+      "matches": 2,
+      "wins": 1,
+      "losses": 1,
+      "ties": 0
+     },
+     "trend": [],
+     "reliability": {
+      "index": 54,
+      "matches": 10,
+      "noShows": 0,
+      "dqs": 0,
+      "nearZero": 1,
+      "recent": {
+       "matches": 10,
+       "noShows": 0,
+       "nearZero": 1
+      },
+      "parts": {
+       "noShowRate": 0.1,
+       "dqRate": 0,
+       "nearZeroRate": 0.1,
+       "swing": 12.5,
+       "penaltyRatio": 0.2,
+       "predictabilityRatio": 0.9
+      },
+      "fieldIndex": 50
+     },
+     "flags": []
+    }
+   ],
+   "prev": null,
+   "next": {
+    "key": "qual:0:2",
+    "label": "Q2"
+   }
+  }
+ },
+ "/api/teams/101?season=2026": {
+  "status": 200,
+  "bytes": 1936,
+  "body": {
+   "team": {
+    "number": 101,
+    "name": "Team 101",
+    "fullName": "Full Team 101",
+    "school": "School 101",
+    "sponsors": [
+     "Acme",
+     "Globex"
+    ],
+    "city": "Trenton",
+    "state": "NJ",
+    "country": "USA",
+    "rookieYear": 2015,
+    "website": "https://example.org",
+    "homeRegion": "USNJ"
+   },
+   "season": 2026,
+   "seasons": [
+    2026
+   ],
+   "stats": {
+    "opr": {
+     "np": {
+      "value": 40,
+      "rank": 1,
+      "of": 4
+     },
+     "auto": {
+      "value": 10,
+      "rank": 1,
+      "of": 4
+     },
+     "teleop": {
+      "value": 20,
+      "rank": 1,
+      "of": 4
+     },
+     "endgame": {
+      "value": 5,
+      "rank": 1,
+      "of": 4
+     },
+     "pen": 1
+    },
+    "rating": {
+     "np": 45,
+     "auto": 11,
+     "teleop": 21,
+     "endgame": 6,
+     "pen": 2,
+     "sd": 4.5,
+     "matches": 2,
+     "rank": 1
+    },
+    "record": {
+     "wins": 1,
+     "losses": 1,
+     "ties": 0,
+     "matches": 2,
+     "events": 1
+    },
+    "avg": {
+     "np": 60,
+     "score": 70,
+     "pen": 3
+    },
+    "reliability": {
+     "index": 51,
+     "matches": 10,
+     "noShows": 1,
+     "dqs": 0,
+     "nearZero": 1,
+     "recent": {
+      "matches": 10,
+      "noShows": 1,
+      "nearZero": 1
+     },
+     "parts": {
+      "noShowRate": 0.1,
+      "dqRate": 0,
+      "nearZeroRate": 0.1,
+      "swing": 12.5,
+      "penaltyRatio": 0.2,
+      "predictabilityRatio": 0.9
+     },
+     "fieldIndex": 50
+    }
+   },
+   "events": [
+    {
+     "season": 2026,
+     "code": "DONE",
+     "name": "Event DONE",
+     "type": "Qualifier",
+     "start": "2025-11-08",
+     "end": "2025-11-08",
+     "city": "Trenton",
+     "state": "NJ",
+     "country": "USA",
+     "rank": 1,
+     "rp": 4,
+     "wins": 2,
+     "losses": 0,
+     "ties": 0,
+     "played": 2,
+     "qualPlayed": 2,
+     "qual": {
+      "wins": 2,
+      "losses": 0,
+      "ties": 0,
+      "played": 2
+     },
+     "onField": true,
+     "opr": {
+      "np": 40,
+      "auto": 10.5,
+      "teleop": 20.25,
+      "endgame": 5.5,
+      "pen": 1.5
+     },
+     "avg": {
+      "score": 70.5,
+      "np": 60.25,
+      "pen": 3.5
+     },
+     "awards": [
+      {
+       "type": "Inspire",
+       "placement": 1,
+       "name": "Inspire Award"
+      }
+     ],
+     "alliance": {
+      "number": 1,
+      "seat": "captain"
+     }
+    },
+    {
+     "season": 2026,
+     "code": "NEXT",
+     "name": "Event NEXT",
+     "type": "Qualifier",
+     "start": "2026-01-10",
+     "end": "2026-01-10",
+     "city": "Trenton",
+     "state": "NJ",
+     "country": "USA",
+     "rank": null,
+     "rp": null,
+     "wins": null,
+     "losses": null,
+     "ties": null,
+     "played": null,
+     "qualPlayed": null,
+     "qual": null,
+     "onField": false,
+     "opr": {
+      "np": null,
+      "auto": null,
+      "teleop": null,
+      "endgame": null,
+      "pen": null
+     },
+     "avg": {
+      "score": null,
+      "np": null,
+      "pen": null
+     },
+     "awards": [],
+     "alliance": null
+    }
+   ],
+   "awardsAllTime": [
+    {
+     "season": 2026,
+     "code": "DONE",
+     "event": "Event DONE",
+     "type": "Inspire",
+     "placement": 1,
+     "name": "Inspire Award"
+    }
+   ]
+  }
+ },
+ "/api/teams/101/report-card?season=2026": {
+  "status": 200,
+  "bytes": 594,
+  "body": {
+   "team": 101,
+   "season": 2026,
+   "reportCards": {
+    "season": {
+     "code": null,
+     "name": null,
+     "start": null,
+     "final": true,
+     "calls": 2,
+     "decided": 2,
+     "hits": 1,
+     "scored": 2,
+     "raw": {
+      "hitRate": 0.5,
+      "errMean": 1.5,
+      "errAbs": 8.5,
+      "errSd": 4.47213595499958
+     },
+     "shrunk": {
+      "hitRate": 0.55,
+      "errMean": 1.2,
+      "errAbs": 8,
+      "errSd": 4.242640687119285
+     }
+    },
+    "events": [
+     {
+      "code": "DONE",
+      "name": "Event DONE",
+      "start": "2025-11-08",
+      "final": true,
+      "calls": 2,
+      "decided": 2,
+      "hits": 1,
+      "scored": 2,
+      "raw": {
+       "hitRate": 0.5,
+       "errMean": 1.5,
+       "errAbs": 8.5,
+       "errSd": 4.47213595499958
+      },
+      "shrunk": {
+       "hitRate": 0.55,
+       "errMean": 1.2,
+       "errAbs": 8,
+       "errSd": 4.242640687119285
+      }
+     }
+    ],
+    "field": null,
+    "prior": 10
+   }
+  }
+ },
+ "/api/teams/101/matches?season=2026": {
+  "status": 200,
+  "bytes": 3662,
+  "body": {
+   "team": 101,
+   "season": 2026,
+   "matches": [
+    {
+     "season": 2026,
+     "code": "DONE",
+     "key": "qual:0:1",
+     "level": "qual",
+     "series": 0,
+     "number": 1,
+     "label": "Q1",
+     "time": "2025-11-08T10:01:00",
+     "startsAt": "2025-11-08T15:01:00.000Z",
+     "played": true,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": {
+       "total": 120,
+       "np": 110,
+       "auto": 30,
+       "teleop": 60,
+       "endgame": 20,
+       "pen": 10,
+       "tips": 3
+      }
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": {
+       "total": 90,
+       "np": 85,
+       "auto": 25,
+       "teleop": 45,
+       "endgame": 15,
+       "pen": 5,
+       "tips": 2
+      }
+     },
+     "video": "https://youtube.com/watch?v=m1",
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2025-11-08T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    },
+    {
+     "season": 2026,
+     "code": "DONE",
+     "key": "qual:0:2",
+     "level": "qual",
+     "series": 0,
+     "number": 2,
+     "label": "Q2",
+     "time": "2025-11-08T10:02:00",
+     "startsAt": "2025-11-08T15:02:00.000Z",
+     "played": true,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": {
+       "total": 120,
+       "np": 110,
+       "auto": 30,
+       "teleop": 60,
+       "endgame": 20,
+       "pen": 10,
+       "tips": 3
+      }
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": {
+       "total": 90,
+       "np": 85,
+       "auto": 25,
+       "teleop": 45,
+       "endgame": 15,
+       "pen": 5,
+       "tips": 2
+      }
+     },
+     "video": "https://youtube.com/watch?v=m2",
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2025-11-08T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    },
+    {
+     "season": 2026,
+     "code": "NEXT",
+     "key": "qual:0:1",
+     "level": "qual",
+     "series": 0,
+     "number": 1,
+     "label": "Q1",
+     "time": "2026-01-10T10:01:00",
+     "startsAt": "2026-01-10T15:01:00.000Z",
+     "played": false,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": null
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": null
+     },
+     "video": null,
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2026-01-10T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    },
+    {
+     "season": 2026,
+     "code": "NEXT",
+     "key": "qual:0:2",
+     "level": "qual",
+     "series": 0,
+     "number": 2,
+     "label": "Q2",
+     "time": "2026-01-10T10:02:00",
+     "startsAt": "2026-01-10T15:02:00.000Z",
+     "played": false,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": null
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": null
+     },
+     "video": null,
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2026-01-10T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     }
+    }
+   ]
+  }
+ },
+ "/api/teams-summary?season=2026&teams=101,102,103,104": {
+  "status": 200,
+  "bytes": 1621,
+  "body": {
+   "season": 2026,
+   "teams": [
+    {
+     "team": 101,
+     "name": "Team 101",
+     "place": "Trenton, NJ, USA",
+     "opr": 40,
+     "oprRank": 1,
+     "of": 4,
+     "rating": 45,
+     "ratingSd": 4.5,
+     "record": "1-1-0",
+     "reliability": 51,
+     "reliabilityMatches": 10,
+     "lastEvent": {
+      "code": "DONE",
+      "name": "Event DONE",
+      "start": "2025-11-08",
+      "end": "2025-11-08",
+      "rank": 1,
+      "record": "2-0-0"
+     },
+     "nextEvent": {
+      "code": "NEXT",
+      "name": "Event NEXT",
+      "start": "2026-01-10",
+      "end": "2026-01-10",
+      "rank": null,
+      "record": null
+     }
+    },
+    {
+     "team": 102,
+     "name": "Team 102",
+     "place": "Trenton, NJ, USA",
+     "opr": 39,
+     "oprRank": 2,
+     "of": 4,
+     "rating": 44,
+     "ratingSd": 4.5,
+     "record": "1-1-0",
+     "reliability": 52,
+     "reliabilityMatches": 10,
+     "lastEvent": {
+      "code": "DONE",
+      "name": "Event DONE",
+      "start": "2025-11-08",
+      "end": "2025-11-08",
+      "rank": 2,
+      "record": "2-0-0"
+     },
+     "nextEvent": {
+      "code": "NEXT",
+      "name": "Event NEXT",
+      "start": "2026-01-10",
+      "end": "2026-01-10",
+      "rank": null,
+      "record": null
+     }
+    },
+    {
+     "team": 103,
+     "name": "Team 103",
+     "place": "Trenton, NJ, USA",
+     "opr": 38,
+     "oprRank": 3,
+     "of": 4,
+     "rating": 43,
+     "ratingSd": 4.5,
+     "record": "1-1-0",
+     "reliability": 53,
+     "reliabilityMatches": 10,
+     "lastEvent": {
+      "code": "DONE",
+      "name": "Event DONE",
+      "start": "2025-11-08",
+      "end": "2025-11-08",
+      "rank": 3,
+      "record": "0-2-0"
+     },
+     "nextEvent": {
+      "code": "NEXT",
+      "name": "Event NEXT",
+      "start": "2026-01-10",
+      "end": "2026-01-10",
+      "rank": null,
+      "record": null
+     }
+    },
+    {
+     "team": 104,
+     "name": "Team 104",
+     "place": "Trenton, NJ, USA",
+     "opr": 37,
+     "oprRank": 4,
+     "of": 4,
+     "rating": 42,
+     "ratingSd": 4.5,
+     "record": "1-1-0",
+     "reliability": 54,
+     "reliabilityMatches": 10,
+     "lastEvent": {
+      "code": "DONE",
+      "name": "Event DONE",
+      "start": "2025-11-08",
+      "end": "2025-11-08",
+      "rank": 4,
+      "record": "0-2-0"
+     },
+     "nextEvent": {
+      "code": "NEXT",
+      "name": "Event NEXT",
+      "start": "2026-01-10",
+      "end": "2026-01-10",
+      "rank": null,
+      "record": null
+     }
+    }
+   ]
+  }
+ },
+ "/api/compare?season=2026&teams=101,102": {
+  "status": 200,
+  "bytes": 4413,
+  "body": {
+   "season": 2026,
+   "teams": [
+    {
+     "team": {
+      "number": 101,
+      "name": "Team 101",
+      "fullName": "Full Team 101",
+      "school": "School 101",
+      "sponsors": [
+       "Acme",
+       "Globex"
+      ],
+      "city": "Trenton",
+      "state": "NJ",
+      "country": "USA",
+      "rookieYear": 2015,
+      "website": "https://example.org",
+      "homeRegion": "USNJ"
+     },
+     "stats": {
+      "opr": {
+       "np": {
+        "value": 40,
+        "rank": 1,
+        "of": 4
+       },
+       "auto": {
+        "value": 10,
+        "rank": 1,
+        "of": 4
+       },
+       "teleop": {
+        "value": 20,
+        "rank": 1,
+        "of": 4
+       },
+       "endgame": {
+        "value": 5,
+        "rank": 1,
+        "of": 4
+       },
+       "pen": 1
+      },
+      "rating": {
+       "np": 45,
+       "auto": 11,
+       "teleop": 21,
+       "endgame": 6,
+       "pen": 2,
+       "sd": 4.5,
+       "matches": 2,
+       "rank": 1
+      },
+      "record": {
+       "wins": 1,
+       "losses": 1,
+       "ties": 0,
+       "matches": 2,
+       "events": 1
+      },
+      "avg": {
+       "np": 60,
+       "score": 70,
+       "pen": 3
+      },
+      "reliability": {
+       "index": 51,
+       "matches": 10,
+       "noShows": 1,
+       "dqs": 0,
+       "nearZero": 1,
+       "recent": {
+        "matches": 10,
+        "noShows": 1,
+        "nearZero": 1
+       },
+       "parts": {
+        "noShowRate": 0.1,
+        "dqRate": 0,
+        "nearZeroRate": 0.1,
+        "swing": 12.5,
+        "penaltyRatio": 0.2,
+        "predictabilityRatio": 0.9
+       },
+       "fieldIndex": 50
+      }
+     },
+     "events": [
+      {
+       "code": "DONE",
+       "name": "Event DONE",
+       "start": "2025-11-08",
+       "opr": 40,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "rank": 1
+      },
+      {
+       "code": "NEXT",
+       "name": "Event NEXT",
+       "start": "2026-01-10",
+       "opr": null,
+       "auto": null,
+       "teleop": null,
+       "endgame": null,
+       "rank": null
+      }
+     ],
+     "awards": [
+      {
+       "code": "DONE",
+       "event": "Event DONE",
+       "type": "Inspire",
+       "placement": 1
+      }
+     ]
+    },
+    {
+     "team": {
+      "number": 102,
+      "name": "Team 102",
+      "fullName": "Full Team 102",
+      "school": "School 102",
+      "sponsors": [
+       "Acme",
+       "Globex"
+      ],
+      "city": "Trenton",
+      "state": "NJ",
+      "country": "USA",
+      "rookieYear": 2015,
+      "website": "https://example.org",
+      "homeRegion": "USNJ"
+     },
+     "stats": {
+      "opr": {
+       "np": {
+        "value": 39,
+        "rank": 2,
+        "of": 4
+       },
+       "auto": {
+        "value": 10,
+        "rank": 2,
+        "of": 4
+       },
+       "teleop": {
+        "value": 20,
+        "rank": 2,
+        "of": 4
+       },
+       "endgame": {
+        "value": 5,
+        "rank": 2,
+        "of": 4
+       },
+       "pen": 1
+      },
+      "rating": {
+       "np": 44,
+       "auto": 11,
+       "teleop": 21,
+       "endgame": 6,
+       "pen": 2,
+       "sd": 4.5,
+       "matches": 2,
+       "rank": 2
+      },
+      "record": {
+       "wins": 1,
+       "losses": 1,
+       "ties": 0,
+       "matches": 2,
+       "events": 1
+      },
+      "avg": {
+       "np": 60,
+       "score": 70,
+       "pen": 3
+      },
+      "reliability": {
+       "index": 52,
+       "matches": 10,
+       "noShows": 0,
+       "dqs": 0,
+       "nearZero": 1,
+       "recent": {
+        "matches": 10,
+        "noShows": 0,
+        "nearZero": 1
+       },
+       "parts": {
+        "noShowRate": 0.1,
+        "dqRate": 0,
+        "nearZeroRate": 0.1,
+        "swing": 12.5,
+        "penaltyRatio": 0.2,
+        "predictabilityRatio": 0.9
+       },
+       "fieldIndex": 50
+      }
+     },
+     "events": [
+      {
+       "code": "DONE",
+       "name": "Event DONE",
+       "start": "2025-11-08",
+       "opr": 39,
+       "auto": 10.5,
+       "teleop": 20.25,
+       "endgame": 5.5,
+       "rank": 2
+      },
+      {
+       "code": "NEXT",
+       "name": "Event NEXT",
+       "start": "2026-01-10",
+       "opr": null,
+       "auto": null,
+       "teleop": null,
+       "endgame": null,
+       "rank": null
+      }
+     ],
+     "awards": [
+      {
+       "code": "DONE",
+       "event": "Event DONE",
+       "type": "Winner",
+       "placement": 1
+      }
+     ]
+    }
+   ],
+   "meetings": [
+    {
+     "season": 2026,
+     "code": "DONE",
+     "key": "qual:0:1",
+     "level": "qual",
+     "series": 0,
+     "number": 1,
+     "label": "Q1",
+     "time": "2025-11-08T10:01:00",
+     "startsAt": "2025-11-08T15:01:00.000Z",
+     "played": true,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": {
+       "total": 120,
+       "np": 110,
+       "auto": 30,
+       "teleop": 60,
+       "endgame": 20,
+       "pen": 10,
+       "tips": 3
+      }
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": {
+       "total": 90,
+       "np": 85,
+       "auto": 25,
+       "teleop": 45,
+       "endgame": 15,
+       "pen": 5,
+       "tips": 2
+      }
+     },
+     "video": "https://youtube.com/watch?v=m1",
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2025-11-08T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     },
+     "relation": "partners"
+    },
+    {
+     "season": 2026,
+     "code": "DONE",
+     "key": "qual:0:2",
+     "level": "qual",
+     "series": 0,
+     "number": 2,
+     "label": "Q2",
+     "time": "2025-11-08T10:02:00",
+     "startsAt": "2025-11-08T15:02:00.000Z",
+     "played": true,
+     "red": {
+      "teams": [
+       {
+        "number": 101,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 101"
+       },
+       {
+        "number": 102,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 102"
+       }
+      ],
+      "score": {
+       "total": 120,
+       "np": 110,
+       "auto": 30,
+       "teleop": 60,
+       "endgame": 20,
+       "pen": 10,
+       "tips": 3
+      }
+     },
+     "blue": {
+      "teams": [
+       {
+        "number": 103,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 103"
+       },
+       {
+        "number": 104,
+        "surrogate": false,
+        "dq": false,
+        "onField": true,
+        "name": "Team 104"
+       }
+      ],
+      "score": {
+       "total": 90,
+       "np": 85,
+       "auto": 25,
+       "teleop": 45,
+       "endgame": 15,
+       "pen": 5,
+       "tips": 2
+      }
+     },
+     "video": "https://youtube.com/watch?v=m2",
+     "prediction": {
+      "pRed": 0.62,
+      "redMean": 101.5,
+      "blueMean": 92.5,
+      "tier": "moderate",
+      "kind": "live",
+      "predictedAt": "2025-11-08T09:00:00Z",
+      "redRange": [
+       80,
+       120
+      ],
+      "blueRange": [
+       70,
+       110
+      ],
+      "rangeLevel": 0.8,
+      "factors": [
+       {
+        "label": "Stronger auto",
+        "side": "red"
+       }
+      ],
+      "history": {
+       "pairs": []
+      }
+     },
+     "relation": "partners"
+    }
+   ]
+  }
+ },
+ "/api/rankings?season=2026": {
+  "status": 200,
+  "bytes": 142,
+  "body": {
+   "season": 2026,
+   "week": null,
+   "asOf": "v1",
+   "baseline": null,
+   "weeks": [],
+   "places": [],
+   "ranked": 0,
+   "total": 0,
+   "page": 1,
+   "pages": 1,
+   "pageSize": 50,
+   "rows": []
+  }
+ },
+ "/api/home/overview?season=2026": {
+  "status": 200,
+  "bytes": 320,
+  "body": {
+   "season": 2026,
+   "generatedAt": "2025-12-01T15:00:00.000Z",
+   "dataAsOf": null,
+   "statsAt": null,
+   "coverage": {
+    "teamListings": 4,
+    "events": 2,
+    "matchScores": 2
+   },
+   "readiness": {
+    "state": "preparing",
+    "resultsAt": null,
+    "statsAt": null
+   },
+   "countries": [
+    {
+     "code": "US",
+     "numeric": "840",
+     "name": "United States",
+     "listings": 4,
+     "withResults": 0
+    }
+   ],
+   "unmapped": []
+  }
+ }
+}

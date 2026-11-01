@@ -105,9 +105,9 @@ export async function buildFull(season: number, version: string, dir: string, lo
   let rows = 0;
   for (const t of FULL_TABLES) {
     await out.execute(t.ddl);
-    const data = await all<any>(`SELECT * FROM ${t.name} WHERE season = ?`, [season]);
-    // Column names: everything between "(" and ", PRIMARY KEY".
+    // Column names: everything between "(" and ", PRIMARY KEY". Only those are read (not, say, the matches' score sheets).
     const cols = t.ddl.slice(t.ddl.indexOf("(") + 1, t.ddl.indexOf(", PRIMARY KEY")).split(",").map((c) => c.trim().split(" ")[0].replace(/"/g, ""));
+    const data = await all<any>(`SELECT ${cols.map((c) => `"${c}"`).join(", ")} FROM ${t.name} WHERE season = ?`, [season]);
     for (let i = 0; i < data.length; i += 1000) {
       await out.batch(data.slice(i, i + 1000).map((r) => ({ sql: `INSERT INTO ${t.name} (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`, args: cols.map((c) => r[c] ?? null) })), "write");
     }
@@ -124,7 +124,7 @@ export async function buildFull(season: number, version: string, dir: string, lo
     }
     rows += sched.length;
   }
-  const teams = await all<any>(`SELECT * FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ?)`, [season, season]);
+  const teams = await all<any>(`SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number IN (SELECT team FROM team_seasons WHERE season = ? UNION SELECT team FROM event_teams WHERE season = ?)`, [season, season]);
   for (let i = 0; i < teams.length; i += 1000) {
     await out.batch(teams.slice(i, i + 1000).map((r) => ({ sql: "INSERT INTO teams VALUES (?,?,?,?,?,?,?,?,?,?,?)", args: [r.number, r.name, r.full_name, r.school, r.sponsors, r.city, r.state, r.country, r.rookie_year, r.website, r.home_region] })), "write");
   }

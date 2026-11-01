@@ -28,6 +28,8 @@ export function firstVideoId(url: string | null | undefined): string | null {
   return p.ok ? p.videoId : null;
 }
 
+/** The video_meta columns metaOf reads (all of them). */
+const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at";
 const metaOf = (r: any): VideoMeta => ({
   videoId: String(r.video_id), status: r.status, start: r.start ?? null, end: r.end ?? null,
   length: r.duration == null ? null : Number(r.duration), live: !!r.live, checkedAt: String(r.checked_at),
@@ -54,7 +56,7 @@ function seasonData(season: number, now = Date.now()) {
     const meta = new Map<string, VideoMeta>();
     for (let i = 0; i < ids.length; i += 200) {
       const part = ids.slice(i, i + 200);
-      for (const r of await all<any>(`SELECT * FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
+      for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) meta.set(String(r.video_id), metaOf(r));
     }
     return { first, official: new Set(official.map((o) => String(o.code))), meta };
   })();
@@ -208,7 +210,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
     const known = new Map<string, VideoMeta>();
     for (let i = 0; i < ids.length; i += 200) {
       const part = ids.slice(i, i + 200);
-      for (const r of await all<any>(`SELECT * FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) known.set(String(r.video_id), metaOf(r));
+      for (const r of await all<any>(`SELECT ${META_COLUMNS} FROM video_meta WHERE video_id IN (${part.map(() => "?").join(",")})`, part)) known.set(String(r.video_id), metaOf(r));
     }
     const key = opts.apiKey === undefined ? env.youtubeApiKey : opts.apiKey;
     // With the API, 50 a request (1 quota unit each, of 10,000 a day); without it, one watch page at a time.

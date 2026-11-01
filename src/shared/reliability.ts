@@ -94,6 +94,9 @@ export function reliabilityIndex(p: ReliabilityParts, workspaceRate?: number): n
 export const shrinkTo = (x: number | null, n: number, f: number, k = RELIABILITY_PRIOR) => (x == null || n <= 0 ? f : (n * x + k * f) / (n + k));
 
 /** Stored row (team_reliability) → Reliability. */
+/** The team_reliability columns reliabilityFromRow reads, and the team (0: the field). */
+export const RELIABILITY_COLUMNS = "team, idx, matches, no_shows, dqs, near_zero, recent_matches, recent_no_shows, recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio";
+
 export function reliabilityFromRow(r: Record<string, unknown>, fieldIndex: number | null): Reliability {
   const n = (k: string) => Number(r[k] ?? 0);
   return {

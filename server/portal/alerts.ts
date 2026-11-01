@@ -38,6 +38,6 @@ export async function resolveAlert(kind: string): Promise<boolean> {
 }
 
 export async function openAlert(kind: string): Promise<OwnerAlert | null> {
-  const r = await get<any>("SELECT * FROM owner_alerts WHERE kind = ? AND resolved_at IS NULL", [kind]);
+  const r = await get<any>("SELECT id, kind, level, title, body, created_at, resolved_at FROM owner_alerts WHERE kind = ? AND resolved_at IS NULL", [kind]);
   return r ? toAlert(r) : null;
 }

@@ -63,7 +63,7 @@ export async function startEmailSignIn(rawEmail: string): Promise<StartResult> {
   const email = normalizeEmail(rawEmail);
   if (!validEmail(email)) return { ok: false, reason: "invalid" };
   const now = Date.now();
-  const prev = await get<any>("SELECT * FROM email_codes WHERE email = ?", [email]);
+  const prev = await get<any>("SELECT expires_at, sent_count, window_start FROM email_codes WHERE email = ?", [email]);
   let sent = 1, windowStart = new Date(now).toISOString();
   if (prev) {
     const lastSent = Date.parse(prev.expires_at) - CODE_TTL_MS;

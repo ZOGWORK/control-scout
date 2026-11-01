@@ -20,6 +20,8 @@ export const canTriage = (from: TriageState | null, to: TriageState | null) => T
 /** The inbox list a triage decision files the message under. */
 export const statusForTriage = (t: TriageState | null): FeedbackStatus => (t === "fixed" || t === "rejected" ? "resolved" : "open");
 
+/** The contact_messages columns toMessage reads (all of them). */
+const MESSAGE_COLUMNS = "id, created_at, topic, name, email, message, emailed, status, status_at, triage, triage_at";
 const toMessage = (r: any): FeedbackMessage => ({
   id: Number(r.id), createdAt: r.created_at, topic: r.topic, name: r.name ?? null, email: r.email, message: r.message,
   emailed: Number(r.emailed) === 1, status: isFeedbackStatus(r.status) ? r.status : "open", statusAt: r.status_at ?? null,
@@ -35,7 +37,7 @@ export async function listFeedback(status: FeedbackStatus | "all" = "open", limi
   const where = [status === "all" ? null : "status = ?", before ? "id < ?" : null].filter(Boolean);
   const args = [...(status === "all" ? [] : [status]), ...(before ? [before] : []), n + 1];
   // Ids grow with time, so id order is newest first and a stable cursor.
-  const rows = await all(`SELECT * FROM contact_messages${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ?`, args);
+  const rows = await all(`SELECT ${MESSAGE_COLUMNS} FROM contact_messages${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT ?`, args);
   const counts = { open: 0, resolved: 0, archived: 0 } as Record<FeedbackStatus, number>;
   for (const r of await all<{ status: string; n: number }>("SELECT status, COUNT(*) n FROM contact_messages GROUP BY status")) {
     if (isFeedbackStatus(r.status)) counts[r.status] = Number(r.n);
@@ -53,7 +55,7 @@ const TOPIC_SQL = `topic IN (${TRIAGE_TOPICS.map(() => "?").join(", ")})`;
 export async function triageQueue(state: "untriaged" | "accepted" = "untriaged", limit = 100): Promise<TriageQueue> {
   const n = Math.min(500, Math.max(1, Math.floor(limit) || 100));
   const rows = await all(
-    `SELECT * FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' AND ${state === "accepted" ? "triage = 'accepted'" : "triage IS NULL"}
+    `SELECT ${MESSAGE_COLUMNS} FROM contact_messages WHERE ${TOPIC_SQL} AND status <> 'archived' AND ${state === "accepted" ? "triage = 'accepted'" : "triage IS NULL"}
      ORDER BY id DESC LIMIT ?`, [...TRIAGE_TOPICS, n + 1]);
   const counts: TriageQueue["counts"] = { untriaged: 0, accepted: 0, rejected: 0, fixed: 0 };
   for (const r of await all<{ triage: string | null; n: number }>(
@@ -66,7 +68,7 @@ export async function triageQueue(state: "untriaged" | "accepted" = "untriaged",
 
 /** One message (null: no such message). */
 export async function feedbackMessage(id: number): Promise<FeedbackMessage | null> {
-  const r = await get("SELECT * FROM contact_messages WHERE id = ?", [id]);
+  const r = await get(`SELECT ${MESSAGE_COLUMNS} FROM contact_messages WHERE id = ?`, [id]);
   return r ? toMessage(r) : null;
 }
 

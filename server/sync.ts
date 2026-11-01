@@ -54,7 +54,9 @@ export async function syncTeams(season: number, force = false, log: SyncLog = ()
 
 /** Events whose detail (matches, rankings, awards…) should be fetched now. */
 export async function planDetail(season: number, opts: { force?: boolean; upgradeScout?: boolean } = {}): Promise<EventRow[]> {
-  const rows = await all<any>("SELECT * FROM events WHERE season = ? ORDER BY start, code", [season]);
+  const rows = await all<any>(
+    `SELECT season, code, name, type, division_code, region, league, venue, address, city, state, country, start, end, timezone, remote, hybrid,
+       website, livestream, source, upstream_updated, detail_synced_at FROM events WHERE season = ? ORDER BY start, code`, [season]);
   const t = today();
   const out: EventRow[] = [];
   for (const r of rows) {
