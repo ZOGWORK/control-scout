@@ -441,8 +441,13 @@ export function importLocalScouting(data: ScoutingExport) {
       try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ }
     }
     // Turned-down versions come back with their entries; any that can't be written (storage full) are handed back.
+    // An older one never replaces the device's: once the entry here is newer (or has a newer marker), it's stale.
     const rejectedMissed: Record<string, number> = {};
-    for (const [u, v] of Object.entries(s.rejected ?? {})) if (typeof v === "number" && !markRejected(space, u, v)) rejectedMissed[u] = v;
+    const here = rejected(space);
+    for (const [u, v] of Object.entries(s.rejected ?? {})) {
+      if (typeof v !== "number" || (here[u] ?? 0) > v || (readEntry(space, u)?.updatedAt ?? 0) > v) continue;
+      if (!markRejected(space, u, v)) rejectedMissed[u] = v;
+    }
     let queueKept = true;
     try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
