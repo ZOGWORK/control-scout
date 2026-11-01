@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.8 — 2026-11-01
+
+Event pages on phones: bigger tabs that only scroll sideways, a tidier odds box, and no "none yet" lines.
+
+### Highlights
+- [home] Event tabs on phones are bigger and only slide sideways
+- [home] No scrollbar drawn over the tabs, and no sliding past the ends
+- [predict] "Odds for team" box matches the other search boxes
+- [home] At a glance hides empty lines and buttons that lead nowhere
+
+### Event page
+- **Tabs on phones.** Every tab is a full 44px button. The strip scrolls sideways only (the tabs' touch areas no longer give it room to move up and down), stops at its ends instead of bouncing past them, and no longer draws its scrollbar across the tabs; the faded edge shows there are more. Same tabs component everywhere it's used.
+- **Text boxes.** On touch screens a box's hint text is the page's own size (typed text stays 16px so iPhones don't zoom in), so an empty box no longer looks a size bigger than everything around it. The Odds tab's team box now reads "Team number or name" with a search icon, like the other search boxes, and fills the row on phones.
+- **At a glance.** A started event with nothing decided yet no longer says "No decided matches with predictions here yet", and "See the match predictions" only shows once there's a schedule to predict. (#404)
+
 ## 2.0.7 — 2026-11-01
 
 Matches link to their moment in the event's video again when the stream was left running after the event.
