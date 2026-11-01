@@ -54,15 +54,17 @@ export function fits(f: ScoutField, v: unknown): v is ScoutAnswer {
 
 /**
  * The answers a copy holds: each of `data` whose field (by id) the receiving template has and fits there, over the
- * copy's own answers for fields the sending template doesn't ask (`from`: the sending entry's fields).
+ * copy's own answers that the sending entry couldn't have shown (`from`: the sending entry's fields): for a field it
+ * doesn't ask, or whose question there can't hold that answer (a copy left out of a smaller range or other choices
+ * doesn't clear the answer where it fits). A field the sender asks and could show, left blank there, is cleared.
  */
 export function mapAnswers(data: Record<string, unknown>, from: ScoutField[], to: ScoutField[], existing: Record<string, unknown> = {}): Record<string, ScoutAnswer> {
   const target = new Map(to.map((f) => [f.id, f]));
-  const asked = new Set(from.map((f) => f.id));
+  const asked = new Map(from.map((f) => [f.id, f]));
   const out: Record<string, ScoutAnswer> = {};
   for (const [k, v] of Object.entries(existing)) {
-    const f = target.get(k);
-    if (!asked.has(k) && f && fits(f, v)) out[k] = v;
+    const f = target.get(k), sent = asked.get(k);
+    if (f && fits(f, v) && (!sent || !fits(sent, v))) out[k] = v;
   }
   for (const [k, v] of Object.entries(data)) {
     const f = target.get(k);
@@ -80,17 +82,22 @@ async function templateOf(workspaceId: string, season: number, kind: TemplateKin
   return { id: b.id, version: 0, fields: b.fields };
 }
 
-/** The other workspaces this user may copy into now: admin there, scouting on, not read-only. */
-export async function otherAdminSpaces(user: User, m: Membership): Promise<Membership[]> {
+/**
+ * The other workspaces this user may copy into now (`targets`: admin there, scouting on, not read-only), and every
+ * workspace they're an admin of (`admin`, paused or read-only ones too: an entry whose origin is one of them still
+ * belongs to their family, and its other copies still follow each other).
+ */
+export async function otherAdminSpaces(user: User, m: Membership): Promise<{ targets: Membership[]; admin: Set<string> }> {
   const info = await controlPointInfo(m.accountId);
-  const ids = (info?.workspaces ?? []).filter((w) => w.role === "admin" && !w.orphaned && w.id !== m.workspaceId).map((w) => w.id);
+  const admins = (info?.workspaces ?? []).filter((w) => w.role === "admin");
+  const ids = admins.filter((w) => !w.orphaned && w.id !== m.workspaceId).map((w) => w.id);
   const out: Membership[] = [];
   for (const id of [...new Set(ids)]) {
     if (!(await isEnabledFor("workspaceScouting", id))) continue;
     const a = await workspaceAdminAccess(user, id, { write: true });
     if (a.ok && a.membership.role === "admin") out.push(a.membership);
   }
-  return out;
+  return { targets: out, admin: new Set([m.workspaceId, ...admins.map((w) => w.id)]) };
 }
 
 /** Where each entry first came from: a copy (alliance or fan-out) names its origin, anything else is its own. */
@@ -115,11 +122,12 @@ const parseData = (raw: string | undefined): Record<string, unknown> => {
  */
 export async function copyToAdminSpaces(user: User, m: Membership, results: PushResult[]): Promise<PushResult[]> {
   if (m.role !== "admin") return results;
-  const mine = results.filter((r) => r.ok && r.entry && !r.entry.deleted && r.entry.authorAccountId === m.accountId);
+  // The stored version must be the writer's own work: made by them and last changed by them. A stale resend beaten by
+  // a teammate's newer edit comes back ok with the teammate's version, which stays where it is.
+  const mine = results.filter((r) => r.ok && r.entry && !r.entry.deleted && r.entry.authorAccountId === m.accountId && r.entry.editorAccountId === m.accountId);
   if (!mine.length) return results;
-  const targets = await otherAdminSpaces(user, m);
+  const { targets, admin } = await otherAdminSpaces(user, m);
   if (!targets.length) return results;
-  const admin = new Set([m.workspaceId, ...targets.map((t) => t.workspaceId)]);
   const origins = await originsOf(m.workspaceId, mine.map((r) => r.uuid));
   // An entry copied in from a workspace this user isn't an admin of (an alliance partner's) stays where it is.
   const family = mine.filter((r) => admin.has(origins.get(r.uuid)!.ws));

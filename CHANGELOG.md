@@ -21,7 +21,7 @@ Scout once for all your teams: an admin of several team workspaces has every ent
 
 ### Highlights
 - [workspace] Admin of several teams? Each entry you save goes to all of them
-- [scout] After Save, a line says which teams it was saved to
+- [scout] After Save, a line names every team it goes to
 - [workspace] Edit it in any of those teams and the others follow
 
 ### Scouting

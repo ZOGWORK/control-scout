@@ -65,10 +65,10 @@ describe("SaveMatchBar", () => {
   });
 
   it("says where else it's saved, for an admin of several workspaces", () => {
-    render(<SaveMatchBar label="Q14" teamCount={2} nextLabel="Q15" nextIndex={14} emptyTeams={[]} savedTo="Saved to Hypnotic Robotics and Bad Wolf" onSave={() => ok(2)} onSaved={() => {}} />);
+    render(<SaveMatchBar label="Q14" teamCount={2} nextLabel="Q15" nextIndex={14} emptyTeams={[]} savedTo="Saving to Hypnotic Robotics and Bad Wolf" onSave={() => ok(2)} onSaved={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /Save Q14/ }));
     expect(toasts).toEqual(["Saved Q14 · 2 entries. Now Q15."]);
-    expect(descriptions).toEqual(["Saved to Hypnotic Robotics and Bad Wolf"]);
+    expect(descriptions).toEqual(["Saving to Hypnotic Robotics and Bad Wolf"]);
   });
 
   it("asks about a team with nothing yet: save anyway, or skip it", () => {

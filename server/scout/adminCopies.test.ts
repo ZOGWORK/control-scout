@@ -63,7 +63,7 @@ afterAll(() => {
 beforeEach(async () => {
   clearInfoCache();
   clearConsensusCache();
-  for (const t of ["scout_alliance_copies", "workspace_scout_entries", "workspace_entry_versions", "workspace_activity", "scout_entries"]) await run(`DELETE FROM ${t}`);
+  for (const t of ["scout_alliance_copies", "workspace_scout_entries", "workspace_entry_versions", "workspace_activity", "scout_entries", "workspace_template_versions"]) await run(`DELETE FROM ${t}`);
   await run("UPDATE workspaces SET settings = NULL");
   Object.assign(process.env, { CONTROL_POINT_INTERNAL_URL: cpBase, CONTROL_POINT_PUBLIC_URL: "https://cp.test", CONTROL_POINT_INTERNAL_KEY: KEY, APP_URL: "http://127.0.0.1" });
 });
@@ -202,6 +202,40 @@ describe("an admin of several workspaces", () => {
     expect((await pull(sam, H))[0].notes).toBe("third look");
   });
 
+  it("a stale resend beaten by a teammate's newer edit doesn't spread the teammate's edit", async () => {
+    const { sam, mia } = await cast();
+    const e = entry();
+    await pushOk(sam, H, [e]);
+    await pushOk(mia, H, [{ ...e, notes: "edited by Mia", updatedAt: e.updatedAt + 10 }]);
+    const [r] = await pushOk(sam, H, [e]); // Sam's queued original, sent again
+    expect(r.copiedTo).toBeUndefined();
+    expect((await pull(sam, F))[0].notes).toBe(e.notes);
+  });
+
+  it("a paused origin doesn't stop its copies following each other", async () => {
+    const { sam } = await cast();
+    const e = entry();
+    await pushOk(sam, H, [e]);
+    await setWorkspaceOverride("workspaceScouting", H, false, "test");
+    try {
+      const [r] = await pushOk(sam, F, [{ ...e, uuid: copyUuid(H, e.uuid), notes: "while H is paused", updatedAt: e.updatedAt + 10 }]);
+      expect(r.copiedTo?.map((c) => c.workspaceId)).toEqual([W]);
+      expect((await pull(sam, W))[0].notes).toBe("while H is paused");
+    } finally { await setWorkspaceOverride("workspaceScouting", H, null, "test"); }
+    expect((await pull(sam, H))[0].notes).toBe(e.notes);
+  });
+
+  it("a copy's edit keeps the original's answers the copy couldn't hold", async () => {
+    const { sam } = await cast();
+    const fFields = [{ id: "artifacts", label: "Artifacts", type: "counter", phase: "teleop", max: 10 }];
+    expect((await sam("PUT", `/api/scout/workspaces/${F}/template`, { season: S, match: fFields })).json).toMatchObject({ template: { version: 1 } });
+    const e = entry({ data: { artifacts: 12 } });
+    await pushOk(sam, H, [e]);
+    expect((await pull(sam, F))[0].data).toEqual({});
+    await pushOk(sam, F, [{ ...e, uuid: copyUuid(H, e.uuid), data: {}, notes: "notes only", templateId: workspaceTemplateId(F, S, "match"), templateVersion: 1, updatedAt: e.updatedAt + 10 }]);
+    expect((await pull(sam, H))[0]).toMatchObject({ notes: "notes only", data: { artifacts: 12 } });
+  });
+
   it("only their own entries: an admin fixing a teammate's entry fixes it where it is", async () => {
     const { sam, mia } = await cast();
     const e = entry();
@@ -288,5 +322,7 @@ describe("mapAnswers", () => {
     expect(mapAnswers({ a: 2, b: 3 }, from, to, { a: 9, c: "kept", b: 1 })).toEqual({ a: 2, c: "kept" });
     // A field the sender asks, cleared there, is cleared in the copy too.
     expect(mapAnswers({}, from, to, { a: 9 })).toEqual({});
+    // But not an answer the sender's question couldn't hold (a copy with a smaller range left it out).
+    expect(mapAnswers({}, [f({ id: "a", max: 10 })], to, { a: 12 })).toEqual({ a: 12 });
   });
 });

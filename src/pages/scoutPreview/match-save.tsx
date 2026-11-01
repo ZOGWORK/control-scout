@@ -70,7 +70,7 @@ export default function MatchSavePreview() {
           );
         }} />
       <SaveMatchBar className="mt-4" label={match.label} teamCount={teams.length} nextLabel={next !== index ? SCHEDULE[next].label : null} nextIndex={next}
-        emptyTeams={draft.emptyTeams} savedTo={sp.get("admin") === "3" ? "Saved to Hypnotic Robotics, First Street Kids and Bad Wolf" : null} onSave={dryRun} onSaved={(i) => { setIndex(i); setActive(teamsWatched(SCHEDULE[i], watching)[0].team); }} />
+        emptyTeams={draft.emptyTeams} savedTo={sp.get("admin") === "3" ? "Saving to Hypnotic Robotics, First Street Kids and Bad Wolf" : null} onSave={dryRun} onSaved={(i) => { setIndex(i); setActive(teamsWatched(SCHEDULE[i], watching)[0].team); }} />
     </div>
   );
 }
