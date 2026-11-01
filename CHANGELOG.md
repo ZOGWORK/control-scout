@@ -30,7 +30,7 @@ Easier to tap on a phone: buttons, links and chips get a full fingertip of room,
 - **Tap to see the detail.** A match's call ("Picked Red 58%") and a confidence badge opened their detail only on a mouse hover, so a phone could never show it. A tap now opens it; a tap elsewhere closes it.
 - **Sort arrows on touch.** Records and rankings columns showed their sort arrows only on hover; a touch screen now shows them faintly.
 - **Escape from search.** Ctrl K (or /) then Escape left the keyboard focus nowhere; it now returns to where you were.
-- **Checked, unchanged.** Enter in the header search opens the full results page and the arrow keys pick one result; deep links like a team's #opr open and expand the section; Back returns to the page before; the current section is marked in the menu on every page; Tab reaches every control on thirteen pages with a visible focus ring and no trap (#390).
+- **Checked, unchanged.** Enter in the header search opens the full results page and the arrow keys pick one result; deep links like a team's #opr open and expand the section; Back returns to the page before; the current section is marked in the menu on every page; Tab reaches every control on thirteen pages with a visible focus ring and no trap (#391).
 
 ## 1.8.9 — 2026-11-01
 
