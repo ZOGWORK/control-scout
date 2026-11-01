@@ -1,4 +1,4 @@
-// The Scout redesign's Matches tab ("Your matches", docs/mockups/scout-redesign.html step 5): every match
+// The Scout redesign's match list ("Your matches", docs/mockups/scout-redesign.html step 5; All matches on the Scout tab): every match
 // at the event with what this scout has done in it (Done, Partly done, Skipped, Now, or its time), a
 // summary on top, and All / To do / Skipped chips. Tapping a row opens that match. In a workspace the
 // page can pass who has the other teams (`others`), shown under each row.
