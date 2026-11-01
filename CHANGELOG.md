@@ -28,6 +28,18 @@ Search waits for you to stop typing, and Enter works the first time.
 - Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
 - Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
 - In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
+## 2.0.0 — 2026-11-01
+
+Search answers are easier to read: spaced out, with bullet points.
+
+### Highlights
+- [fixes] Bruno AI answers in a sentence, then a bullet per record
+- [fixes] Worlds and states rows are divided, each result its own bullet
+- [fixes] The "how many times" count shows as a badge in the card title
+
+### Search
+- Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#399)
+- The Worlds and states cards on /search put a line between events: the name, then when and where, then rank, record, OPR and awards as bullets. The search dropdown keeps each event to two lines
 
 ## 1.9.9 — 2026-11-01
 

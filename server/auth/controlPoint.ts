@@ -110,8 +110,8 @@ export async function brunoSearchQuery(query: string, timeoutMs: number): Promis
  * the facts Scout sends and nothing else (server/api/searchBrunoAnswer.ts), or null when they don't answer it.
  * Throws on network errors, timeouts and non-2xx answers.
  */
-export async function brunoSearchAnswer(question: string, facts: string[], timeoutMs: number): Promise<{ text: string | null }> {
-  return internal<{ text: string | null }>("/internal/bruno/search-answer", { method: "POST", body: { question, facts } }, timeoutMs);
+export async function brunoSearchAnswer(question: string, facts: string[], timeoutMs: number): Promise<{ text: string | null; points?: unknown }> {
+  return internal<{ text: string | null; points?: unknown }>("/internal/bruno/search-answer", { method: "POST", body: { question, facts } }, timeoutMs);
 }
 
 /** When each account answer was asked for: an answer asked before Scout dropped a membership can't restore it (withoutDropped). */

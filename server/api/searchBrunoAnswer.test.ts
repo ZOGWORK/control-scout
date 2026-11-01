@@ -75,10 +75,20 @@ describe("grounding", () => {
   });
 });
 
+/** What brunoAnswer gives for a reply: his points, or none. */
+const withPoints = (r: unknown) => ({ points: [], ...(r as object) });
+
 describe("asking Bruno", () => {
+  it("passes his points through, each checked with the sentence: one made-up number drops the answer", async () => {
+    reply = { text: "Hypnotic Robotics (4215) went to states 2 times since 2023–24.", points: ["2023–24: ranked #3, OPR 111.5", " 2024–25:  ranked #7 ", ""] };
+    expect(await brunoAnswer(Q)).toEqual({ text: "Hypnotic Robotics (4215) went to states 2 times since 2023–24.", points: ["2023–24: ranked #3, OPR 111.5", "2024–25: ranked #7"] });
+    resetBrunoAnswerCache();
+    reply = { text: "Hypnotic Robotics (4215) went to states 2 times since 2023–24.", points: ["2023–24: ranked #3, OPR 999.9"] };
+    expect(await brunoAnswer(Q)).toBeNull();
+  });
   it("sends the question and the facts, and answers his text", async () => {
     reply = { text: "Hypnotic Robotics (4215) went to states 2 times since 2023–24: ranked #3 in 2023–24 (OPR 111.5) and #7 in 2024–25 (OPR 117.3)." };
-    expect(await brunoAnswer(Q)).toEqual(reply);
+    expect(await brunoAnswer(Q)).toEqual(withPoints(reply));
     expect(asked).toHaveLength(1);
     expect(asked[0].question).toBe(Q);
     expect(asked[0].facts).toEqual(await answerFacts(await searchAnswer(Q, { learn: false })));
@@ -89,14 +99,14 @@ describe("asking Bruno", () => {
   });
   it("a question by its \"?\" alone is one too (read before cleaning drops it)", async () => {
     reply = { text: "Hypnotic Robotics (4215) has an OPR of 101.6 in 2025–26." };
-    expect(await brunoAnswer("hypnotic opr?")).toEqual(reply);
+    expect(await brunoAnswer("hypnotic opr?")).toEqual(withPoints(reply));
     expect(asked[0].question).toBe("hypnotic opr");
   });
   it("two asks at once for the same question share one call", async () => {
     reply = { text: "4215 went to states 2 times." };
     const [a, b] = await Promise.all([brunoAnswer(Q), brunoAnswer(Q)]);
-    expect(a).toEqual(reply);
-    expect(b).toEqual(reply);
+    expect(a).toEqual(withPoints(reply));
+    expect(b).toEqual(withPoints(reply));
     expect(asked).toHaveLength(1);
   });
   it("reads with the page's own preferred teams, each set cached apart", async () => {
@@ -132,6 +142,6 @@ describe("asking Bruno", () => {
     }
     mode = "ok";
     reply = { text: "4215 went to states 2 times." };
-    expect(await brunoAnswer(Q)).toEqual(reply);
+    expect(await brunoAnswer(Q)).toEqual(withPoints(reply));
   }, 30_000);
 });

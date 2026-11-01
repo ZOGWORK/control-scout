@@ -16,7 +16,7 @@ const Q = "how many times did 4215 go to states";
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); flags.brunoAnswers = true; });
 afterEach(() => { cleanup(); pending.length = 0; vi.useRealTimers(); });
 const settle = () => act(async () => { vi.advanceTimersByTime(BRUNO_SETTLE_MS + 5); });
-const answer = (text: string | null) => act(async () => { pending.shift()!.resolve(text ? { text } : null); });
+const answer = (text: string | null, points?: string[]) => act(async () => { pending.shift()!.resolve(text ? { text, points } : null); });
 
 describe("Bruno's answer on /search", () => {
   it("asks once the question settles and the results are in, then shows his answer, labelled", async () => {
@@ -32,6 +32,13 @@ describe("Bruno's answer on /search", () => {
     expect(note.textContent).toContain("Bruno AI");
     expect(note.textContent).toContain("went to states 3 times since 2023–24.");
     expect(note.textContent).toContain("Written by Bruno AI from the records below");
+  });
+  it("shows his points as a bulleted list under the sentence", async () => {
+    render(<BrunoAnswer q={Q} ready />);
+    await settle();
+    await answer("Hypnotic Robotics (4215) went to states 2 times since 2023–24.", ["2023–24: ranked #3, OPR 111.5", "2024–25: ranked #7"]);
+    const items = screen.getByRole("note", { name: "Bruno AI's answer" }).querySelectorAll("ul > li");
+    expect([...items].map((li) => li.textContent)).toEqual(["2023–24: ranked #3, OPR 111.5", "2024–25: ranked #7"]);
   });
   it("asks with the page's own preferred teams", async () => {
     render(<BrunoAnswer q={Q} prefer="team:4215,team:6980" ready />);

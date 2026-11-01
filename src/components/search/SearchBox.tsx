@@ -223,18 +223,29 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   const who = card.team.name ? `${card.team.name} (${card.team.number})` : `Team ${card.team.number}`;
   return (
     <div role="note" aria-label={`${card.title}: ${who}`} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
-      <p className={cn("flex items-center gap-1.5 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}><Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}{card.count ? ` · ${card.count} ${card.count === 1 ? "time" : "times"}` : ""}</p>
+      <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>
+        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}
+        {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text">{card.count} {card.count === 1 ? "time" : "times"}</span>}
+      </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
       {!!shown.length && (
         <>
           {card.none && <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Closest records</p>}
-          <ul className={cn("mt-1 space-y-1", compact ? "text-xs" : "text-sm")}>
+          {/* Full page: a row per record, divided by lines, how it went as bullets. The dropdown keeps it to a line. */}
+          <ul className={cn(compact ? "mt-1 space-y-1 text-xs" : "mt-2 divide-y divide-accent/15 text-sm")}>
             {shown.map((l, i) => (
-              <li key={i}>
+              <li key={i} className={cn(!compact && "py-2.5 first:pt-1 last:pb-0.5")}>
                 {l.href
                   ? <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline">{l.text}</a>
                   : <span className="font-medium text-foreground">{l.text}</span>}
-                {l.detail && <span className="block text-muted-foreground">{l.detail}</span>}
+                {l.detail && <span className={cn("block text-muted-foreground", !compact && "mt-0.5 text-xs")}>{l.detail}</span>}
+                {!!l.results?.length && (compact
+                  ? <span className="block text-muted-foreground">{l.results.join(" · ")}</span>
+                  : (
+                    <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-foreground/90 marker:text-accent">
+                      {l.results.map((r, j) => <li key={j}>{r}</li>)}
+                    </ul>
+                  ))}
               </li>
             ))}
           </ul>
