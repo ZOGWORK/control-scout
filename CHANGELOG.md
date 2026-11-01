@@ -25,8 +25,8 @@ Watch livestream plays on the event page again for events whose stream is a shor
 - [live] Each league meet keeps its own broadcast, even on a shared link
 
 ### Live
-- **Short links followed.** Some regions give FIRST a short link for their stream (ftcwa.live/bardeen) that redirects to the meet's YouTube broadcast. The event page only recognised direct YouTube links, so Watch livestream opened YouTube in a new tab. The server now follows those links while the event is on, from the day before to the day after, and keeps the video they lead to. The page then plays it in Watch live with the live predictions beside it, and matches get their place in the recording. Each link is checked again every 15 minutes while it leads to a video, in case the broadcast restarts. Only redirects are followed, never a page's content, and never to a private address (#369).
-- **Each meet keeps its own video.** A league reuses one short link for every meet, pointing it at the new broadcast each time. The video is kept per event, so last month's meet still plays last month's broadcast.
+- **Short links followed.** Some regions give FIRST a short link for their stream (ftcwa.live/bardeen) that redirects to the meet's YouTube broadcast. The event page only recognised direct YouTube links, so Watch livestream opened YouTube in a new tab. The server now follows those links on the event's own dates (at the venue) and keeps the video they lead to. The page then plays it in Watch live with the live predictions beside it, and matches get their place in the recording. Each link is checked again every 15 minutes while it leads to a video, in case the broadcast restarts; a check that fails keeps the video found before. Only redirects are followed, never a page's content, and only to public addresses (#369).
+- **Each meet keeps its own video.** A league reuses one short link for every meet, pointing it at the new broadcast each time. The video is kept per event, so last month's meet still plays last month's broadcast, and a meet the next day never takes the one before's broadcast while the link still points at it.
 
 ## 1.7.0 — 2026-10-31
 
