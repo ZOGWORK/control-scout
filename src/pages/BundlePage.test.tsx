@@ -43,7 +43,7 @@ describe("BundlePage", () => {
   it("with no team set, shows every match (never an empty card asking to pick one)", () => {
     setUp();
     mount();
-    expect(screen.getByRole("heading", { name: "All matches" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Schedule" })).toBeTruthy();
     expect(document.querySelectorAll("[data-bundle-match]")).toHaveLength(3);
     expect(screen.queryByText(/Pick your team/)).toBeNull();
     expect(screen.getByRole("combobox", { name: "Show matches for" })).toBeTruthy();

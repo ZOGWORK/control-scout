@@ -6,7 +6,7 @@
 // then the live one takes over.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
-import { BookOpen, CalendarDays, ClipboardList, ExternalLink, HardDriveDownload, ListOrdered, MapPin, Swords, Trash2, Trophy } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronDown, ClipboardList, ExternalLink, HardDriveDownload, ListOrdered, MapPin, Swords, Trash2, Trophy } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { useBundle } from "../lib/offline/useBundle";
@@ -50,6 +50,8 @@ const dateRange = (v: VenueCard) => {
 /** How many of the pick list's teams show on the page (the rest are one tap away). */
 const PICK_PREVIEW = 5;
 const teamsOf = (m: MatchView) => [...m.red.teams, ...m.blue.teams].map((t) => t.number);
+/** Played with a score to show (a row then shows the score, not its time). */
+const scored = (m: MatchView) => m.played && !!m.red.score && !!m.blue.score;
 
 /** The venue card: where and when, from the event's own data (times carry their zone where they're shown). */
 export function VenueCardView({ v, children }: { v: VenueCard; children?: ReactNode }) {
@@ -133,7 +135,7 @@ function MatchesCard({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
     <section className="rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="b-matches">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="b-matches" className="flex items-center gap-2 font-display text-lg font-semibold">
-          <Swords className="size-4 text-red-alliance" />{shown === ALL ? "All matches" : `Team ${shown}'s matches`}
+          <Swords className="size-4 text-red-alliance" />{shown === ALL ? "Schedule" : `Team ${shown}'s matches`}
         </h2>
         {field.length > 0 && (
           <Select value={String(shown)} onValueChange={(v) => setShown(v === ALL ? ALL : Number(v))}>
@@ -147,7 +149,7 @@ function MatchesCard({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
       </div>
       {matches.length ? (
         <>
-          {zone && matches.some((m) => m.time) && <p className="mt-1 text-xs text-muted-foreground">Times in {zone}</p>}
+          {zone && matches.some((m) => !scored(m) && matchClock(m.time)) && <p className="mt-1 text-xs text-muted-foreground">Times in {zone}</p>}
           <ul className="mt-2 divide-y divide-border">
             {matches.map((m) => (
               <li key={m.key}>
@@ -160,7 +162,7 @@ function MatchesCard({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
                   </span>
                   <span className="flex items-center justify-end gap-2 text-xs tabular-nums text-muted-foreground">
                     {m.key === next && <Badge variant="outline" className="border-accent/50 text-accent">Next</Badge>}
-                    {m.played && m.red.score && m.blue.score ? <span className="text-foreground">{m.red.score.total}–{m.blue.score.total}</span> : matchClock(m.time) ?? ""}
+                    {scored(m) && m.red.score && m.blue.score ? <span className="text-foreground">{m.red.score.total}–{m.blue.score.total}</span> : matchClock(m.time) ?? ""}
                   </span>
                 </Link>
               </li>
@@ -218,9 +220,10 @@ function RulesSection({ b }: { b: EventBundle }) {
   const [open, setOpen] = useState(false);
   if (!b.rules) return null;
   return (
-    <details className="rounded-2xl border border-border bg-card" onToggle={(e) => setOpen(e.currentTarget.open)} data-bundle-rules>
-      <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3 text-sm font-medium sm:px-5">
+    <details className="group rounded-2xl border border-border bg-card" onToggle={(e) => setOpen(e.currentTarget.open)} data-bundle-rules>
+      <summary className="flex min-h-11 cursor-pointer select-none list-none items-center gap-2 px-4 py-3 text-sm font-medium sm:px-5 [&::-webkit-details-marker]:hidden">
         <BookOpen className="size-4 text-success" aria-hidden />{b.rules.title}
+        <ChevronDown className="ml-auto size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       {open && <div className="border-t border-border p-3 sm:p-4"><SnapshotFrame html={b.rules.html} title={b.rules.title} /></div>}
     </details>
