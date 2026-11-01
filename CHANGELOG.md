@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.2 — 2026-11-01
+## 1.8.4 — 2026-11-01
 
 Scout is rebuilt around event day: pick your event once, then see what's left to scout, matches and pits side by side.
 
@@ -30,6 +30,35 @@ Scout is rebuilt around event day: pick your event once, then see what's left to
 - **The event stays picked.** Its name, dates, place, match and team counts are the page's header, with the sync state and Change event beside them.
 - **Event day.** What you watch (one team, one alliance or all four) is a strip you can change any time, not a setup screen. Under it: the next match, matches scouted, pit scouting and entries today, then the match queue (next match marked, one tap to scout it) and the pit queue (to do and done, the next team first in line), side by side on a wide screen and stacked on a phone. Your own teams at the event show with their rank and next match.
 - **Sections.** Scout and Data are now Event day, Entries (the entry list, recordings and Export CSV) and Pick list & planning (the pick list, assignments, alliance, activity and, for admins, the template). Personal has the first two. Old links (?tab=match, ?tab=matches, ?tab=data, ?view=…) open the section they meant (#380).
+## 1.8.3 — 2026-11-01
+
+What's new stays in view at the foot of the sidebar, and Settings has one place.
+
+### Highlights
+- [home] What's new sits right above Sign in, always in view
+- [home] Settings is the gear beside Sign in, no longer a second row under More
+- [home] The phone's menu puts What's new just above your account too
+
+### Navigation
+- **What's new** moved out of the folded More group to the foot of the sidebar, beside the fold button and right above Sign in, so a new release's dot shows without opening More. On the icon rail and in the phone's menu it sits just above the account controls too.
+- **Settings** is the gear beside Sign in (or your name) only; the duplicate Settings row under More is gone. (#382)
+
+## 1.8.2 — 2026-11-01
+
+A scouting alliance can now link more than two teams at a meet.
+
+### Highlights
+- [scout] Link three, four or more teams for shared scouting at one meet
+- [scout] One invite code or link lets every team join; each team is listed
+- [scout] Coverage shows one card per team, each in its own colour
+- [scout] Any team can leave; the team that started it can remove one
+
+### Scouting alliances
+- **Any number of teams.** The team that starts an alliance gets an invite code and a link (Copy link). Any team's admin joins with either, until the code runs out (7 days, or the event's end) or the starter makes a new one. Up to 8 teams. The same rules hold for every team in it: everyone reads everyone's entries and assignments at that event and shares one consensus, nobody joins another team, each team's entries stay editable only in its own workspace, and it ends by itself after the event.
+- **Each team listed, in its colour.** The alliance card lists every team (you, and who started it). Coverage has one card per team in that team's colour, and the per-team bars split by team. The pick list toggle has a View button for each other team.
+- **Leaving and removing.** Any team's admin can leave: the others carry on while at least two are left, and the team that leaves keeps a copy of the others' entries (and they of its), if both agreed. The team that started it can remove a team (it keeps no copies, and can't come back with the same code) or end it for everyone. If the starter leaves, the team that joined next takes over.
+- **Copies.** When it ends, each two teams that both ticked "keep a copy" get each other's entries; a team that didn't tick it neither gives nor gets copies.
+- Existing two-team links carry over unchanged (migration 68) (#379).
 
 ## 1.8.1 — 2026-11-01
 

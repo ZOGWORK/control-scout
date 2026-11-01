@@ -1,5 +1,5 @@
 // Scouting alliances on the Scout page (docs/alliances.md; the server: server/scout/alliances.ts). Every request
-// names the reader's own workspace; the server checks membership there and that the link is active.
+// names the reader's own workspace; the server checks membership there and that it's in the active alliance.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, apiFetch, load, markStale, qs, useApi, type ApiState } from "./api";
 import type {
@@ -10,7 +10,7 @@ const base = (ws: string) => `/api/scout/workspaces/${encodeURIComponent(ws)}/al
 export const alliancesPath = (ws: string, season: number) => `${base(ws)}${qs({ season })}`;
 export const allianceSharedPath = (ws: string, id: number) => `${base(ws)}/${id}/shared`;
 export const allianceConsensusPath = (ws: string, id: number, teams: number[]) => `${base(ws)}/${id}/consensus${qs({ teams: teams.join(",") })}`;
-export const alliancePicklistPath = (ws: string, id: number) => `${base(ws)}/${id}/picklist`;
+export const alliancePicklistPath = (ws: string, id: number, of: string) => `${base(ws)}/${id}/picklist${qs({ workspace: of })}`;
 
 /** How often an open alliance view asks again: the partner's scouting doesn't reach this workspace's stream. */
 export const ALLIANCE_REFRESH_MS = 30_000;
@@ -62,7 +62,8 @@ export function useAlliances(ws: string | null, season: number): ApiState<Allian
 export const useAllianceShared = (ws: string | null, id: number | null) => usePolled<AllianceShared>(ws && id ? allianceSharedPath(ws, id) : null);
 export const useAllianceConsensus = (ws: string | null, id: number | null, teams: number[]) =>
   usePolled<AllianceConsensusResponse>(ws && id && teams.length ? allianceConsensusPath(ws, id, teams) : null);
-export const useAlliancePicklist = (ws: string | null, id: number | null) => usePolled<AlliancePicklistResponse>(ws && id ? alliancePicklistPath(ws, id) : null);
+export const useAlliancePicklist = (ws: string | null, id: number | null, of: string | null) =>
+  usePolled<AlliancePicklistResponse>(ws && id && of ? alliancePicklistPath(ws, id, of) : null);
 
 /** After a change: what's on screen asks again, keeping what it shows meanwhile (never back to loading). */
 const changed = (ws: string) => markStale(base(ws));
@@ -77,8 +78,22 @@ export async function acceptAlliance(ws: string, code: string, keepCopies: boole
   changed(ws);
   return r;
 }
-export async function endAlliance(ws: string, id: number): Promise<{ alliance: Alliance }> {
-  const r = await apiFetch<{ alliance: Alliance }>(`${base(ws)}/${id}/end`, { method: "POST", json: {} });
+const post = async (ws: string, path: string): Promise<{ alliance: Alliance }> => {
+  const r = await apiFetch<{ alliance: Alliance }>(`${base(ws)}/${path}`, { method: "POST", json: {} });
+  changed(ws);
+  return r;
+};
+/** The creator: ends it for everyone (a pending one is cancelled). */
+export const endAlliance = (ws: string, id: number) => post(ws, `${id}/end`);
+/** Any member's admin: this workspace leaves; the others carry on while two or more are left. */
+export const leaveAlliance = (ws: string, id: number) => post(ws, `${id}/leave`);
+/** The creator: takes another workspace out. */
+export const removeAllianceMember = (ws: string, id: number, member: string) => post(ws, `${id}/members/${encodeURIComponent(member)}/remove`);
+/** The creator: a new invite code (the old one stops working). */
+export async function newAllianceCode(ws: string, id: number): Promise<AllianceInviteResponse> {
+  const r = await apiFetch<AllianceInviteResponse>(`${base(ws)}/${id}/invite`, { method: "POST", json: {} });
   changed(ws);
   return r;
 }
+/** A link that opens the Scout page's Alliance view with the code filled in. */
+export const allianceJoinLink = (code: string) => `${window.location.origin}/scout?view=alliance&join=${encodeURIComponent(code)}`;
