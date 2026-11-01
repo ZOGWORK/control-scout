@@ -8,7 +8,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { ChevronRight, ClipboardCheck, ClipboardList, Download, Handshake, History, LayoutList, ListOrdered, Video, Wrench } from "lucide-react";
 import { workspaceExportUrl } from "../../../shared/scoutExport";
 import { seasonLabel } from "../../../shared/format";
-import { CHANGED, listRecordings } from "../../../lib/recordings";
+import { CHANGED, countRecordings } from "../../../lib/recordings";
 import { Badge } from "../../ui/basic";
 import { Button } from "../../ui/button";
 import { cn } from "../../cn";
@@ -21,6 +21,11 @@ export function dataHubExportUrl(workspaceId: string, sp: URLSearchParams, seaso
   const out = new URLSearchParams(sp);
   out.set("season", String(season));
   return workspaceExportUrl(workspaceId, out);
+}
+
+/** Teams with a pit entry: a robot written up twice is still one robot. */
+export function pitTeams(entries: readonly { kind: string; team: number }[]): number {
+  return new Set(entries.filter((e) => e.kind === "pit").map((e) => e.team)).size;
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -37,7 +42,7 @@ export interface DataHubProps {
   eventCode?: string | null;
   /** Entries in the list Entries opens (the space's, this season). */
   entryCount: number;
-  /** How many of those are pit entries (Pit scouting's fact when the event's teams aren't known). */
+  /** How many teams those pit entries cover (Pit scouting's fact when the event's teams aren't known). */
   pitCount?: number;
   /** Scouting alliances on for this workspace (the owner's scoutingAlliances switch). Absent: on. */
   alliances?: boolean;
@@ -110,7 +115,7 @@ function useRecordingCount(skip: boolean): number | null {
   useEffect(() => {
     if (skip) return;
     let live = true;
-    const count = () => { listRecordings().then((all) => { if (live) setN(all.length); }, () => { if (live) setN(null); }); };
+    const count = () => { countRecordings().then((c) => { if (live) setN(c); }, () => { if (live) setN(null); }); };
     count();
     window.addEventListener(CHANGED, count);
     return () => { live = false; window.removeEventListener(CHANGED, count); };

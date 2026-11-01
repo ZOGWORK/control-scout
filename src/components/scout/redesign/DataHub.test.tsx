@@ -3,7 +3,10 @@
 // fact or, empty, what to do, and Export CSV is the same download link the page builds today.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { DataHub, dataHubExportUrl, dataHubLayout, type DataHubProps } from "./DataHub";
+import { DataHub, dataHubExportUrl, dataHubLayout, pitTeams, type DataHubProps } from "./DataHub";
+
+const recs = vi.hoisted(() => ({ count: vi.fn(async () => 4), list: vi.fn() }));
+vi.mock("../../../lib/recordings", () => ({ CHANGED: "cs-recordings-changed", countRecordings: recs.count, listRecordings: recs.list }));
 import { workspaceExportUrl } from "../../../shared/scoutExport";
 
 afterEach(cleanup);
@@ -74,6 +77,20 @@ describe("Data hub facts", () => {
     render(<DataHub {...base} workspace={WS} readOnly entryCount={0} onOpen={vi.fn()} onStartScouting={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Start scouting" })).toBeNull();
     expect(card("entries").textContent).toContain("No entries in 2025–26");
+  });
+});
+
+describe("Data hub counting", () => {
+  it("pit teams: a robot written up twice counts once; match entries don't count", () => {
+    expect(pitTeams([{ kind: "pit", team: 1 }, { kind: "pit", team: 1 }, { kind: "pit", team: 2 }, { kind: "match", team: 3 }])).toBe(2);
+  });
+  it("recordings are counted on the device without reading them, and recounted when they change", async () => {
+    render(<DataHub {...base} recordingCount={undefined} onOpen={vi.fn()} />);
+    expect(await screen.findByText("4 videos on this device")).toBeTruthy();
+    expect(recs.list).not.toHaveBeenCalled();
+    recs.count.mockResolvedValueOnce(5);
+    window.dispatchEvent(new Event("cs-recordings-changed"));
+    expect(await screen.findByText("5 videos on this device")).toBeTruthy();
   });
 });
 
