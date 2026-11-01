@@ -63,7 +63,7 @@ let now = () => Date.now();
 /** Tests: a fake clock. */
 export function setAllianceClock(fn: (() => number) | null) { now = fn ?? (() => Date.now()); }
 
-/** The alliance itself. inviter_ws/inviter_name: its creator (migration 67); the invitee_* columns aren't read. */
+/** The alliance itself. inviter_ws/inviter_name: its creator (migration 68); the invitee_* columns aren't read. */
 interface Row {
   id: number; season: number; event_code: string; ends_on: string;
   inviter_ws: string; inviter_name: string;
@@ -284,7 +284,7 @@ async function makeCopies(r: Row): Promise<void> {
     if (!(await isOn(to))) continue;
     const ready: any[] = [];
     for (const e of rows) {
-      // Queued before migration 67 (no from_ws): it came from one of the alliance's workspaces, so all of them must be on.
+      // Queued before migration 68 (no from_ws): it came from one of the alliance's workspaces, so all of them must be on.
       const from = e.from_ws ? [String(e.from_ws)] : members.map((m) => m.ws);
       if ((await Promise.all(from.map(isOn))).every(Boolean)) ready.push(e);
     }

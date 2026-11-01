@@ -4,7 +4,7 @@ Any number of teams' workspaces link for one meet. While linked they share a uni
 one consensus; when the event ends they split again. It's a Scout-only link for that event: nobody joins another
 team's workspace and nothing changes in Control Point.
 
-- Server: `server/scout/alliances.ts` (tables `scout_alliances` and `scout_alliance_members`, migrations 61 and 67),
+- Server: `server/scout/alliances.ts` (tables `scout_alliances` and `scout_alliance_members`, migrations 61 and 68),
   tests in `alliances.test.ts`.
 - Shared types: `src/shared/alliances.ts`.
 - Consensus over the union: `consensusForScope` in `server/scout/consensus.ts`.
@@ -80,7 +80,7 @@ Coverage shows each member's contribution, one card each in its own colour (this
 entries (match and pit), teams, matches and scouts, and per team how many entries each member made. A member that
 contributes nothing shows zeros. It is shown, never enforced: every member reads everything either way.
 
-## Carrying over (migration 67)
+## Carrying over (migration 68)
 
 Two-team links from before became alliances with two members: the inviter (its creator, joined when it invited) and,
 once accepted, the invitee (joined when it accepted). The `invitee_*` columns are no longer read. An ended link where

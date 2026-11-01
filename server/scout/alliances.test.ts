@@ -748,16 +748,16 @@ describe("more than two teams", () => {
   });
 });
 
-describe("migration 67: two-team links carry over", () => {
+describe("migration 68: two-team links carry over", () => {
   it("each link's inviter and invitee become its members, and an ended link that kept copies says so", async () => {
     const c = openDb(":memory:");
-    await migrate(c, 66);
+    await migrate(c, 67);
     const ins = `INSERT INTO scout_alliances (season, event_code, ends_on, inviter_ws, inviter_name, inviter_keeps, invited_by_account_id,
       invitee_ws, invitee_name, invitee_keeps, accepted_by_account_id, status, ended_reason, created_at, accepted_at, ended_at, copies_made) VALUES `;
     await c.execute(`${ins} (2025, 'X1', '2025-11-08', 'w1', 'One', 1, 11, 'w2', 'Two', 0, 22, 'active', NULL, 100, 200, NULL, 0)`);
     await c.execute(`${ins} (2025, 'X2', '2025-11-08', 'w1', 'One', 1, 11, 'w3', 'Three', 1, 33, 'ended', 'unlinked', 100, 200, 300, 1)`);
     await c.execute(`${ins} (2025, 'X3', '2025-11-08', 'w4', 'Four', 1, 44, NULL, NULL, NULL, NULL, 'pending', NULL, 100, NULL, NULL, 0)`);
-    expect(await migrate(c)).toContain(67);
+    expect(await migrate(c)).toContain(68);
     const members = (await c.execute("SELECT alliance_id, ws, name, keeps, joined_by_account_id, joined_at, left_at FROM scout_alliance_members ORDER BY alliance_id, joined_at")).rows.map((r) => ({ ...r }));
     expect(members).toEqual([
       { alliance_id: 1, ws: "w1", name: "One", keeps: 1, joined_by_account_id: 11, joined_at: 100, left_at: null },

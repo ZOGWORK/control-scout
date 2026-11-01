@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.0 — 2026-11-01
+## 1.8.1 — 2026-11-01
 
 A scouting alliance can now link more than two teams at a meet.
 
@@ -30,7 +30,20 @@ A scouting alliance can now link more than two teams at a meet.
 - **Each team listed, in its colour.** The alliance card lists every team (you, and who started it). Coverage has one card per team in that team's colour, and the per-team bars split by team. The pick list toggle has a View button for each other team.
 - **Leaving and removing.** Any team's admin can leave: the others carry on while at least two are left, and the team that leaves keeps a copy of the others' entries (and they of its), if both agreed. The team that started it can remove a team (it keeps no copies, and can't come back with the same code) or end it for everyone. If the starter leaves, the team that joined next takes over.
 - **Copies.** When it ends, each two teams that both ticked "keep a copy" get each other's entries; a team that didn't tick it neither gives nor gets copies.
-- Existing two-team links carry over unchanged (migration 67) (#379).
+- Existing two-team links carry over unchanged (migration 68) (#379).
+
+## 1.8.0 — 2026-11-01
+
+The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.
+
+### Highlights
+- [fixes] Slowest routes no longer lists live streams that stayed open for hours
+- [speed] Live streams count how long they took to open, like any request
+- [workspace] Workspace live streams now show in Busiest routes too
+
+### Owner portal
+- **Live streams are timed to the moment they open.** The notification inbox, advancement odds and workspace live streams stay open as long as their page does, so timing them until they closed put hours-long "latencies" at the top of Slowest routes. They now count how long they took to open. Errors are unchanged: a reader leaving was never one, and a stream refused before it opens (as when live updates are switched off) still is. The workspace stream, left out before, is counted the same way. Stream rows counted the old way are cleared once, so the last 14 days aren't skewed by them. (#377)
+
 ## 1.7.9 — 2026-11-01
 
 Every search result shows where it goes, and a link to a team's OPR or ranking opens right on it.
