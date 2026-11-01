@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.1.3 — 2026-11-01
+
+Long lists scroll smoothly on phones.
+
+### Highlights
+- [speed] A big event's match list scrolls smoothly, even on a mid-range phone
+- [speed] So do long standings tables and a busy team's season
+- [speed] Find in page and printing still see every row
+
+### Speed
+- **Long lists render only what's on screen.** Match lists (an event's schedule, a team's season), an event's standings and its records tables, once past 60 rows, now draw the rows in view plus a few either side; spacers keep the page its full height, so the scrollbar and Back to where you were behave as before. Short lists are unchanged. Find in page (Ctrl/⌘+F) and printing still get every row, keyboard focus is never dropped, and screen readers still hear the table's full row count.
 ## 2.1.2 — 2026-11-01
 
 The Download page says how offline updates work now.
