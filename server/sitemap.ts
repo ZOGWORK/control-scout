@@ -1,5 +1,5 @@
 // sitemap.xml, built from the database (never a fixed list): the public
-// pages, every team page and every event page, at their canonical apex URLs.
+// pages, every team that has played and every event page, at their canonical apex URLs.
 // Personal pages (noindex) and /api are left out. Past the sitemaps.org
 // limits (50,000 URLs / 50 MB) it becomes an index of numbered chunks.
 import type { Request, Response } from "express";
@@ -9,8 +9,9 @@ import { publishedWeeks } from "./powerRankings/store.js";
 import { teamPageSql } from "../src/shared/teamPages.js";
 
 // /teams is the team directory and stats tables, /matches the match records (both RecordsPage). /records only
-// redirects to /teams, so it's left out.
-const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/compare", "/methodology", "/download", "/privacy", "/terms", "/contact", "/faq", "/rules"];
+// redirects to /teams, so it's left out. Compare is left out too: it's empty until teams are picked, and a picked
+// pair (/compare?teams=…) is a view of two team pages, not a page of its own. /search is noindex.
+const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/methodology", "/download", "/privacy", "/terms", "/contact", "/faq", "/rules"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }
@@ -28,6 +29,8 @@ export async function sitemapEntries(): Promise<Entry[]> {
     // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
     // played): the rule of api/teams.ts ATTENDED (on the field in a played match of any level, or the event has no played
     // matches yet, as a remote one), read set-wise: the per-row EXISTS took seconds over every team, this about one.
+    // The thin-page rule: a team that has never taken part in an event that has started (no lastmod) is left out. Its
+    // page is only a name and a number until it plays, and it joins the sitemap the day its first event starts.
     all<{ number: number; lastmod: string | null }>(
       `WITH took AS (
          SELECT x.season, x.code, x.team FROM matches m JOIN match_teams x
@@ -38,7 +41,7 @@ export async function sitemapEntries(): Promise<Entry[]> {
        SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
        FROM teams t LEFT JOIN took k ON k.team = t.number LEFT JOIN events e ON e.season = k.season AND e.code = k.code
        WHERE ${teamPageSql("t.number", "t.name")}
-       GROUP BY t.number ORDER BY t.number`, [today, today, today]),
+       GROUP BY t.number HAVING lastmod IS NOT NULL ORDER BY t.number`, [today, today, today]),
     all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
   ]);
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).

@@ -131,7 +131,7 @@ describe("page head in the first HTML", () => {
     writeFileSync(file, '<html><head><title>FTC Control Scout — free</title>\n<meta name="description" content="generic" />\n<meta property="og:title" content="generic" />\n</head><body></body></html>');
 
     const team = await renderIndex(file, "/teams/4215");
-    expect(team).toContain("<title>4215 Hypnotic Robotics — FTC team stats, OPR &amp; predictions · Control Scout</title>");
+    expect(team).toContain("<title>4215 Hypnotic Robotics | FTC Team Stats, OPR &amp; Rankings | Control Scout</title>");
     expect(team).toContain('<link rel="canonical" href="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta property="og:url" content="https://controlscout.org/teams/4215" />');
     expect(team).toContain('<meta name="twitter:card" content="summary_large_image" />');
@@ -428,7 +428,8 @@ describe("the site's name for search engines", () => {
       const html = (await renderPage(file, p)).html;
       const titles = [...html.matchAll(/<title>([^<]*)<\/title>/g)].map((m) => m[1]);
       expect(titles, p).toHaveLength(1);
-      expect(titles[0], p).toMatch(p === "/" ? /^Control Scout — / : / · Control Scout$/);
+      // A title that already has " | " parts (a team page) ends " | Control Scout"; the rest " · Control Scout".
+      expect(titles[0], p).toMatch(p === "/" ? /^Control Scout — / : / [·|] Control Scout$/);
       expect(titles[0], p).not.toContain("FTC Control Scout");
       expect([...html.matchAll(/<meta property="og:site_name" content="([^"]*)"/g)].map((m) => m[1]), p).toEqual(["Control Scout"]);
     }
