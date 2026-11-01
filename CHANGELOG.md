@@ -25,7 +25,7 @@ Search answers "world record score bio buzz" and "4215 high score".
 - [fixes] Before a season's first official match, scrimmage bests show
 
 ### Search
-- "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#PRNUM)
+- "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#401)
 - A game's name is read with any spacing ("bio buzz", "BIOBUZZ", "into the deep"); with no season named, the latest one played
 - With no official match played yet in that season, the card says there's no record yet and lists the best scrimmage scores instead
 
