@@ -29,7 +29,7 @@ Scout is rebuilt around event day: pick your event once, then see what's left to
 - **One event picker.** With no event picked, the picker is the page: events on today first, then the ones your teams are at, then the rest by date, with a search by name, city or code. Each card says whether your teams compete there, how many pits and matches this space has scouted there, and has one button, Scout this event. The old "Pick an event" button in the top corner is gone.
 - **The event stays picked.** Its name, dates, place, match and team counts are the page's header, with the sync state and Change event beside them.
 - **Event day.** What you watch (one team, one alliance or all four) is a strip you can change any time, not a setup screen. Under it: the next match, matches scouted, pit scouting and entries today, then the match queue (next match marked, one tap to scout it) and the pit queue (to do and done, the next team first in line), side by side on a wide screen and stacked on a phone. Your own teams at the event show with their rank and next match.
-- **Sections.** Scout and Data are now Event day, Entries (the entry list, recordings and Export CSV) and Pick list & planning (the pick list, assignments, alliance, activity and, for admins, the template). Personal has the first two. Old links (?tab=match, ?tab=matches, ?tab=data, ?view=…) open the section they meant.
+- **Sections.** Scout and Data are now Event day, Entries (the entry list, recordings and Export CSV) and Pick list & planning (the pick list, assignments, alliance, activity and, for admins, the template). Personal has the first two. Old links (?tab=match, ?tab=matches, ?tab=data, ?view=…) open the section they meant (#380).
 
 ## 1.8.0 — 2026-11-01
 
