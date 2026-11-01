@@ -378,7 +378,8 @@ export async function syncQueuedScouting(workspaces: string[]): Promise<void> {
   await Promise.all(spaces.map((s) => syncScouting(s).catch(() => undefined)));
 }
 
-interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number }
+/** `rejected`: versions the server turned down for good (uuid → updatedAt), so they never come back as Synced. */
+interface SpaceExport { entries: ScoutEntry[]; dirty: string[]; cursor?: number; rejected?: Record<string, number> }
 /** Workspace templates kept on the device (scoutTemplates.ts): current ones and the versions entries were made with. */
 const TEMPLATE_KEY = /^cs-scout-tplv?:[A-Za-z0-9_-]{1,64}:\d{4}(:\d+)?$/;
 const LOST_KEY = /^cs-scout-lost:[A-Za-z0-9_-]{1,64}$/;
@@ -415,8 +416,8 @@ export function exportLocalScouting(): ScoutingExport {
     }
   } catch { /* storage blocked */ }
   return {
-    entries: localScoutEntries(), dirty: [...dirty()],
-    spaces: Object.fromEntries(localSpaces().map((w) => [w, { entries: localScoutEntries(w), dirty: [...dirty(w)], cursor: readCursor(w) }])),
+    entries: localScoutEntries(), dirty: [...dirty()], rejected: rejected(null),
+    spaces: Object.fromEntries(localSpaces().map((w) => [w, { entries: localScoutEntries(w), dirty: [...dirty(w)], cursor: readCursor(w), rejected: rejected(w) }])),
     templates,
     // Edits this device lost to newer ones (lostEdits.ts): they belong to this account, so they go aside with it.
     lost: exportLostEdits(),
@@ -438,6 +439,8 @@ export function importLocalScouting(data: ScoutingExport) {
       if (cur && cur.updatedAt >= (Number(e.updatedAt) || 0)) continue;
       try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ }
     }
+    // Turned-down versions come back with their entries (a device too full for these just shows them as before).
+    for (const [u, v] of Object.entries(s.rejected ?? {})) if (typeof v === "number") markRejected(space, u, v);
     let queueKept = true;
     try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.

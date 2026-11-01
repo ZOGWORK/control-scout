@@ -252,6 +252,18 @@ describe("restoring a lost version", () => {
   });
 });
 
+describe("an account's turned-down versions", () => {
+  it("go aside with its scouting data and come back with it", () => {
+    localStorage.setItem("cs-scout-rejected:w1", JSON.stringify({ abc: 123 }));
+    localStorage.setItem("cs-scout-ws:w1:abc", JSON.stringify({ uuid: "abc", season: 2025, team: 1, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt: 123, workspaceId: "w1" }));
+    const stash = exportLocalScouting();
+    clearLocalScouting();
+    expect(localStorage.getItem("cs-scout-rejected:w1")).toBeNull();
+    importLocalScouting(stash);
+    expect(JSON.parse(localStorage.getItem("cs-scout-rejected:w1")!)).toEqual({ abc: 123 });
+  });
+});
+
 describe("field-level diffs", () => {
   const fields = builtinTemplate(2025, "match").fields;
   it("labels each changed answer with the template's label and shows values as the form does", () => {
