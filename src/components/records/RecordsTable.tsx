@@ -9,7 +9,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, C
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
-import { NO_PAGE_TITLE } from "../../shared/teamPages";
+import { NoPageTeam } from "./NoPageTeam";
 import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
@@ -842,7 +842,7 @@ function Alliance({ teams, season, side, noPage }: { teams: number[]; season: nu
     <span className="inline-flex gap-1">
       {/* A placeholder (an off-season demo team) has no page: its number shows, unlinked, as on event pages. */}
       {teams.map((t) => noPage?.includes(t)
-        ? <span key={t} className={cls} title={NO_PAGE_TITLE}>{t}</span>
+        ? <NoPageTeam key={t} team={t} className={cls} />
         : <Link key={t} to={`/teams/${t}?season=${season}`} className={cn(cls, "still-hover:brightness-125")}>{t}</Link>)}
     </span>
   );

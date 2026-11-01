@@ -156,6 +156,9 @@ describe("match records on a phone", () => {
     const blue = within(card("Q3")).getByRole("list", { name: "Blue alliance" });
     expect(within(blue).getAllByRole("link").map((a) => a.textContent)).toEqual(["4"]);
     expect(within(blue).getByText("3").closest("a")).toBeNull();
+    // Why, on a tap (no hover on a phone).
+    fireEvent.click(within(blue).getByRole("button", { name: /^3: No team page/ }));
+    expect(screen.getAllByText(/No team page: a placeholder entry/).length).toBeGreaterThan(0);
     cleanup();
     phone = false;
     mount("/matches?season=2025");
