@@ -548,6 +548,14 @@ const td = "density-row px-3 py-1.5 max-sm:px-2.5 max-sm:py-2 sm:pointer-coarse:
 // Grid lines a step stronger than the app's hairlines: rows and columns stay easy to follow across a wide table.
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
+// The row under the pointer lights up in the accent, sticky first column included (it has its own background),
+// with an accent bar at its left edge, so one team's numbers are easy to follow across the table. 14% keeps the
+// heat colours at 4.5:1 or more even on the sorted column's own tint (RecordsTable.hover.contrast.test.ts).
+// Red alliance scores use the alliance's ink (a lighter red on dark, a deeper one on light): the plain alliance
+// red drops under 4.5:1 on a hovered row's tint (RecordsTable.hover.contrast.test.ts).
+const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
+const rowHover = "still-hover:bg-accent/[0.14]";
+const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
 function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
   const on = k != null && state.sort === k;
@@ -704,10 +712,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
             const sel = team != null && selected.includes(team);
             return (
               <tr key={"key" in r ? `${r.eventCode}:${r.key}` : `${team}:${"eventCode" in r ? r.eventCode : ""}`}
-                className={cn("group/row border-b last:border-b-0", grid, "still-hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
+                className={cn("group/row border-b last:border-b-0", grid, rowHover, hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
                 {"key" in r ? (
                   <>
-                    <td className={cn(sticky, td, "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
+                    <td className={cn(sticky, td, stickyHover)}>
                       <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text max-sm:max-w-[7.5rem] sm:flex sm:max-w-[20rem] sm:items-baseline sm:gap-2">
                         <span className="shrink-0 font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted" title={r.eventName}>{r.eventName}</span>
@@ -718,7 +726,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   </>
                 ) : (
                   <>
-                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
+                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]", stickyHover)}>
                       <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
                           // In a label so a touch screen's 44px tap area (tap-44) toggles it too.
@@ -755,7 +763,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   const band = heat.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}
@@ -847,7 +855,7 @@ function useMoreToTheRight() {
 }
 
 function Alliance({ teams, season, side, noPage }: { teams: number[]; season: number; side: "red" | "blue"; noPage?: number[] }) {
-  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance");
+  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance-ink" : "bg-blue-alliance/12 text-blue-alliance");
   return (
     <span className="inline-flex gap-1">
       {/* A placeholder (an off-season demo team) has no page: its number shows, unlinked, as on event pages. */}
