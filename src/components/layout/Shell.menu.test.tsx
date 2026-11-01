@@ -120,7 +120,7 @@ describe("the phone's top bar and tab bar", () => {
     const { sheet } = await openMenu();
     expect(button.getAttribute("aria-expanded")).toBe("true");
     const pages = within(sheet).getByRole("navigation", { name: "All pages" });
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works", "Settings"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
   });
 
   it("the Rules row is there while the rulesReference toggle is on, and gone when the owner switches it off", async () => {
@@ -178,7 +178,10 @@ describe("the desktop sidebar", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(morePages().hidden).toBe(false);
-    for (const name of ["Power rankings", "Compare", "Shortlist", "Download", "How it works", "Settings"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Power rankings", "Compare", "Shortlist", "Download", "How it works"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    // Settings is the footer's gear alone; What's new sits in the footer, in view with More folded.
+    expect(within(morePages()).queryByRole("link", { name: "Settings" })).toBeNull();
+    expect(within(morePages()).queryByRole("button", { name: /What's new/ })).toBeNull();
     expect(localStorage.getItem("cs-nav-more")).toBe("1");
   });
 
@@ -186,9 +189,9 @@ describe("the desktop sidebar", () => {
     wide(true);
     shell();
     fireEvent.click(moreButton());
-    const settings = within(morePages()).getByRole("link", { name: "Settings" });
-    act(() => settings.focus());
-    fireEvent.keyDown(settings, { key: "Escape" });
+    const download = within(morePages()).getByRole("link", { name: "Download" });
+    act(() => download.focus());
+    fireEvent.keyDown(download, { key: "Escape" });
     expect(moreButton().getAttribute("aria-expanded")).toBe("false");
     expect(document.activeElement).toBe(moreButton());
     expect(localStorage.getItem("cs-nav-more")).toBe("0");
@@ -196,20 +199,30 @@ describe("the desktop sidebar", () => {
 
   it("closed by hand on one of its pages, opens again on the way to another of them", async () => {
     wide(true);
-    shell("/settings");
+    shell("/download");
     fireEvent.click(moreButton());
     expect(moreButton().getAttribute("aria-expanded")).toBe("false");
     // A link to another of its pages from elsewhere (the folded group's own row stands in for it).
-    fireEvent.click(within(morePages()).getByRole("link", { name: "Download", hidden: true }));
-    await waitFor(() => expect(where).toBe("/download"));
+    fireEvent.click(within(morePages()).getByRole("link", { name: "Compare", hidden: true }));
+    await waitFor(() => expect(where).toBe("/compare"));
     expect(moreButton().getAttribute("aria-expanded")).toBe("true");
   });
 
   it("opens More by itself on one of its pages, so the lit row shows", () => {
     wide(true);
-    shell("/settings");
+    shell("/download");
     expect(moreButton().getAttribute("aria-expanded")).toBe("true");
-    expect(within(morePages()).getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+    expect(within(morePages()).getByRole("link", { name: "Download" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("keeps What's new in view at its foot, above Sign in, with More folded", () => {
+    wide(true);
+    shell();
+    expect(moreButton().getAttribute("aria-expanded")).toBe("false");
+    const row = within(sidebar()).getByRole("button", { name: /What's new/ });
+    expect(row.closest("nav")).toBeNull();
+    const signIn = within(sidebar()).getByRole("button", { name: "Sign in" });
+    expect(row.compareDocumentPosition(signIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("is an icon rail under 1280 px whose rows keep their names, and its button opens the labelled menu", async () => {
@@ -302,7 +315,7 @@ describe("the account footer", () => {
   it("the sheet footer's Settings closes the sheet, even on Settings already", async () => {
     shell("/settings");
     const { sheet } = await openMenu();
-    const gear = within(sheet).getAllByRole("link", { name: "Settings" }).find((l) => !l.closest("nav"))!;
+    const gear = within(sheet).getByRole("link", { name: "Settings" });
     fireEvent.click(gear);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
