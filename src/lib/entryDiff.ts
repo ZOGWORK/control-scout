@@ -3,7 +3,7 @@
 // labelled with the template each version was made with (an answer only the
 // older template had keeps its label), and shown as the form shows them: a
 // yes/no left unanswered reads "No", an untouched counter its lowest value.
-import type { ScoutField } from "../shared/scoutTemplate";
+import { detailKey, type ScoutField } from "../shared/scoutTemplate";
 import type { ScoutValue } from "./scouting";
 
 /** The text of an entry version (an entry, a kept version, or an edit kept on this device). */
@@ -23,10 +23,11 @@ export const NONE = "—";
 /** One answer as the form shows it. */
 /** True when formatAnswer would show NONE because there's no answer (not because the answer is a literal "—"). */
 const noAnswer = (v: ScoutValue | undefined, f?: Pick<ScoutField, "type">) =>
-  f?.type !== "toggle" && !(f?.type === "counter" && v === undefined) && (v === undefined || v === null || v === "");
+  f?.type !== "toggle" && f?.type !== "toggleDetail" && !(f?.type === "counter" && v === undefined) && (v === undefined || v === null || v === "");
 
-export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "type" | "min" | "max">): string {
-  if (f?.type === "toggle") return v === true ? "Yes" : "No";
+export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "type" | "min" | "max" | "unit">): string {
+  if (f?.type === "toggle" || f?.type === "toggleDetail") return v === true ? "Yes" : "No";
+  if (f?.type === "number" && typeof v === "number" && f.unit) return `${v} ${f.unit}`;
   if (f?.type === "counter" && v === undefined) return String(f.min ?? 0);
   if (v === undefined || v === null || v === "") return NONE;
   if (v === true) return "Yes";
@@ -34,6 +35,10 @@ export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "ty
   if (f?.type === "rating" && typeof v === "number" && f.max) return `${v} / ${f.max}`;
   return String(v);
 }
+
+/** A Yes / no + detail field's detail is an answer of its own, named for its question ("Can do the endgame: details"). */
+const withDetails = (fields: ScoutField[]): ScoutField[] =>
+  fields.flatMap((f) => (f.type === "toggleDetail" ? [f, { id: detailKey(f.id), label: `${f.label}: details`, type: "text" as const, phase: f.phase }] : [f]));
 
 const blank = (v: string | null | undefined) => !(v && v.trim());
 const text = (v: string | null | undefined) => (blank(v) ? NONE : v!);
@@ -55,7 +60,7 @@ export function entryDiff(before: EntryText, after: EntryText, beforeFields: Sco
   add("kind", "Type", before.kind === "pit" ? "Pit" : "Match", after.kind === "pit" ? "Pit" : "Match");
   add("event", "Event", text(before.eventCode), text(after.eventCode), blank(before.eventCode), blank(after.eventCode));
   add("match", "Match", text(before.matchLabel), text(after.matchLabel), blank(before.matchLabel), blank(after.matchLabel));
-  const oldDefs = new Map(beforeFields.map((f) => [f.id, f])), newDefs = new Map(afterFields.map((f) => [f.id, f]));
+  const oldDefs = new Map(withDetails(beforeFields).map((f) => [f.id, f])), newDefs = new Map(withDetails(afterFields).map((f) => [f.id, f]));
   const known = [...new Set([...newDefs.keys(), ...oldDefs.keys()])];
   const answered = new Set([...Object.keys(before.data ?? {}), ...Object.keys(after.data ?? {})]);
   const ids = [...known, ...[...answered].filter((k) => !newDefs.has(k) && !oldDefs.has(k)).sort()];

@@ -12,7 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import type { Assignment } from "../shared/assignments";
 import { TooltipProvider } from "../components/ui/overlay";
-import { asEntries } from "./scoutTestUrl";
+import { asEntries, fillTeam, formEvent } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -80,18 +80,23 @@ afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGloba
 
 const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 const myCards = () => within(screen.getByRole("list", { name: "My assignments" })).getAllByRole("listitem");
+/** The event picker: the test event is past, so it's found by search, then picked. */
+async function pickTestEvent() {
+  fireEvent.change(await screen.findByPlaceholderText("Search by event name, city or code"), { target: { value: "Test" } });
+  fireEvent.click(await screen.findByRole("button", { name: "Scout Test Qualifier" }));
+}
 
 describe("assignments on the Scout page", () => {
   it("entry cards carry an \"Assigned to\" badge for the team at that event", async () => {
     saveScoutEntry({ uuid: "assigned0001", season: 2025, team: 2222, eventCode: EV, matchLabel: "Q1", kind: "match", data: {}, notes: "", workspaceId: WS });
     saveScoutEntry({ uuid: "assigned0002", season: 2025, team: 1234, eventCode: EV, matchLabel: "Q2", kind: "match", data: {}, notes: "", workspaceId: WS });
     saveScoutEntry({ uuid: "assigned0003", season: 2025, team: 1234, eventCode: "OTHER", matchLabel: "Q3", kind: "match", data: {}, notes: "", workspaceId: WS });
-    show(`/scout?space=${WS}&season=2025`);
+    show(`/scout?space=${WS}&season=2025&tab=entries`);
     await waitFor(() => expect(screen.getByText("Assigned to Sam")).toBeTruthy());
     expect(screen.getAllByText("Assigned to you")).toHaveLength(1); // not on the entry at another event
-    // Data's Assignments row counts my open assignments.
-    fireEvent.click(screen.getByRole("button", { name: "Data" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: /Assignments/ }).textContent).toContain("2"));
+    // Pick list & planning's Assignments counts my open assignments.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Pick list & planning" }));
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Assignments/ }).textContent).toContain("2"));
   });
 
   it("My assignments: my teams with progress (this device's unsynced entries count), Done, and live changes", async () => {
@@ -123,41 +128,48 @@ describe("assignments on the Scout page", () => {
     show(`/scout?space=${WS}&season=2025&view=assignments`);
     await waitFor(() => expect(myCards()).toHaveLength(2));
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
-    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
-    expect((screen.getByLabelText(/^Team/) as HTMLInputElement).value).toBe("5678");
-    // A draft for the same team with another event typed in: Scout again starts afresh at the assignment's event.
-    fireEvent.change(screen.getByLabelText("Event code"), { target: { value: "ELSEWHERE" } });
-    fireEvent.click(screen.getByRole("button", { name: "Data" }));
-    fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
+    await waitFor(() => expect(formEvent()).toBe(EV));
+    expect(screen.getByRole("group", { name: /^Team: 5678/ })).toBeTruthy();
+    // A draft with another team picked: Scout again starts afresh, that team at the assignment's event.
+    fillTeam("4321");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Pick list & planning" }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Assignments/ }));
     await waitFor(() => expect(myCards()).toHaveLength(2));
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
-    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
+    await waitFor(() => expect(formEvent()).toBe(EV));
+    expect(screen.getByRole("group", { name: /^Team: 5678/ })).toBeTruthy();
   });
 
-  it("Scout on an assignment opens a match entry, even after a pit entry was started and cancelled", async () => {
-    show(`/scout?space=${WS}&season=2025&tab=data`);
-    fireEvent.click(await screen.findByRole("button", { name: /Pit scouting/ }));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "Pit" }).getAttribute("aria-checked")).toBe("true"));
+  it("Scout on an assignment opens a match entry for its team, even after another typed-in match was started and cancelled", async () => {
+    show(`/scout?space=${WS}&season=2025&tab=entries`);
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    fillTeam("4321");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Pick list & planning" }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Assignments/ }));
     await waitFor(() => expect(myCards()).toHaveLength(2));
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "Match" }).getAttribute("aria-checked")).toBe("true"));
+    await waitFor(() => expect(screen.getByRole("form", { name: "Match entry" })).toBeTruthy());
+    expect(screen.getByRole("group", { name: /^Team: 5678/ })).toBeTruthy();
   });
 
-  it("match scouting: your assignment prefills the session setup", async () => {
+  it("match scouting: picking the event of your assignment starts watching what it says", async () => {
     matchList = [masg(11, ME, { kind: "slot", slot: "red2" })];
-    show(`/scout?space=${WS}&season=2025&tab=match`);
+    show(`/scout?space=${WS}&season=2025&tab=event`);
+    await pickTestEvent();
     await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
   });
 
   it("match scouting: setup choices made in one workspace don't carry into another", async () => {
     h.personal.user = { ...userAs("member"), controlPoint: { ...userAs("member").controlPoint!, workspaces: [{ id: WS, name: "Gearheads", role: "member" }, { id: "904", name: "Bolt Bots", role: "member" }] } };
     matchList = [masg(11, ME, { kind: "slot", slot: "red2" })];
-    show(`/scout?space=${WS}&season=2025&tab=match`);
+    show(`/scout?space=${WS}&season=2025&tab=event`);
+    await pickTestEvent();
     await waitFor(() => expect(screen.getByRole("radio", { name: /Red 2/ }).getAttribute("aria-checked")).toBe("true"));
     fireEvent.click(screen.getByRole("radio", { name: /^All 4 teams/ }));
     fireEvent.click(screen.getByRole("button", { name: /Bolt Bots/ }));
+    // Bolt Bots has no event picked yet: its own picker, and its own watching once picked (the default).
+    await pickTestEvent();
     await waitFor(() => expect(screen.getByRole("radio", { name: /^One alliance/ }).getAttribute("aria-checked")).toBe("true")); // the default, not the other workspace's pick
   });
 
@@ -176,9 +188,9 @@ describe("assignments on the Scout page", () => {
     show(`/scout?space=${WS}&season=2025&view=assignments`);
     await waitFor(() => expect(myCards()).toHaveLength(2));
     fireEvent.click(within(myCards()[1]).getByRole("button", { name: /Scout/ }));
-    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(EV));
+    await waitFor(() => expect(formEvent()).toBe(EV));
     fireEvent.click(within(screen.getByRole("group", { name: "Scout space" })).getByRole("button", { name: /Bolt Bots/ }));
-    await waitFor(() => expect((screen.getByLabelText("Event code") as HTMLInputElement).value).toBe(""));
+    await waitFor(() => expect(formEvent()).toBe(""));
   });
 
   it("an entry change asks the server for progress again (so a deleted entry stops counting)", async () => {

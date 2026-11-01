@@ -1,14 +1,15 @@
-// One scout field sized for watching the field, not the screen (the redesigned scout form,
-// docs/mockups/scout-redesign.html): a counter is one big tap target that adds 1, a yes/no is a
-// full-width row, a choice or rating is a row of equal buttons. Values are the old form's
-// (ScoutFieldInput): a counter or rating is a number, a yes/no a boolean, a choice or text a string.
+// One scout field sized for watching the field, not the screen (the match and pit forms): a counter is one big
+// tap target that adds 1, a number (a weight, a size) is a box with its unit, a yes/no is a full-width row (a yes
+// + detail one opens a box for the detail on yes), a choice or rating is a row of equal buttons. Values: a
+// counter, number or rating is a number, a yes/no a boolean, a choice or text a string; a yes/no's detail is
+// its own string (`detail` / `onDetail`, kept under detailKey(id)).
 // `undefined` from onChange means "no answer" (a choice or rating tapped again).
 // Surfaces are the app's own: Card's rounded-xl hairline card, the chip/card toggles' accent pick
 // (src/components/ui/controls.tsx), the secondary button. Tap targets are px, not rem, so they stay
 // 44px+ on a phone's 14px base.
-import type { KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { Minus } from "lucide-react";
-import { Input, Label } from "../../ui/basic";
+import { Input, Label, Textarea } from "../../ui/basic";
 import { buttonVariants } from "../../ui/button";
 import { cn } from "../../cn";
 import type { ScoutField } from "../../../shared/scoutTemplate";
@@ -26,10 +27,76 @@ export function counterRange(f: ScoutField, value: ScoutValue | undefined) {
 const tap = "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50";
 const card = "rounded-xl border bg-card text-card-foreground";
 
-export function BigFieldInput({ f, value, onChange, tone = "default", disabled, idPrefix = "big" }: {
+/** A number field's label without its unit in brackets ("Robot weight (lb)" with unit lb reads "Robot weight"). */
+export function numberLabel(f: Pick<ScoutField, "label" | "unit">): string {
+  if (!f.unit) return f.label;
+  const tail = ` (${f.unit})`;
+  return f.label.toLowerCase().endsWith(tail.toLowerCase()) ? f.label.slice(0, -tail.length) : f.label;
+}
+
+/** What a typed number box holds as an answer: a finite number in range, or undefined while empty. */
+export function parseNumberAnswer(text: string, f: Pick<ScoutField, "min" | "max">): ScoutValue | undefined {
+  const t = text.trim().replace(",", ".");
+  if (!t) return undefined;
+  const n = Number(t);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(f.max ?? Number.MAX_SAFE_INTEGER, Math.max(f.min ?? 0, n));
+}
+
+/**
+ * A number field's box. What's typed is kept as typed ("35." on the way to 35.5) while the answer is the parsed
+ * number; an answer set elsewhere (an undo, another device) replaces the text. Tidied to the answer on blur.
+ */
+function NumberBox({ id, f, value, onChange, disabled }: { id: string; f: ScoutField; value: ScoutValue | undefined; onChange: (v: ScoutValue | undefined) => void; disabled?: boolean }) {
+  const [text, setText] = useState(typeof value === "number" ? String(value) : "");
+  const typed = parseNumberAnswer(text, f);
+  useEffect(() => {
+    if (value !== typed) setText(typeof value === "number" ? String(value) : "");
+    // Only an answer changed from outside resets the text (typing changes both together).
+  }, [value]);
+  return (
+    <Input id={id} type="text" inputMode="decimal" autoComplete="off" disabled={disabled} value={text} placeholder="—" aria-describedby={f.unit ? `${id}-unit` : undefined}
+      onChange={(e) => { setText(e.target.value); onChange(parseNumberAnswer(e.target.value, f)); }}
+      onBlur={() => setText(typed === undefined ? "" : String(typed))}
+      className="h-[44px] w-24 text-right font-mono text-lg tabular-nums" />
+  );
+}
+
+export function BigFieldInput({ f, value, onChange, tone = "default", disabled, idPrefix = "big", detail, onDetail }: {
   f: ScoutField; value: ScoutValue | undefined; onChange: (v: ScoutValue | undefined) => void; tone?: FieldTone; disabled?: boolean; idPrefix?: string;
+  /** A yes/no + detail field's detail, and its setter. */
+  detail?: string; onDetail?: (d: string) => void;
 }) {
   const id = `${idPrefix}-${f.id}`;
+  if (f.type === "number") {
+    return (
+      <div className={cn(card, "flex min-h-[56px] items-center justify-between gap-3 border-border px-4 py-2")}>
+        <Label htmlFor={id} className="min-w-0 font-semibold leading-snug">{numberLabel(f)}</Label>
+        <div className="flex shrink-0 items-center gap-2">
+          <NumberBox id={id} f={f} value={value} onChange={onChange} disabled={disabled} />
+          {f.unit && <span id={`${id}-unit`} className="w-8 text-sm text-muted-foreground">{f.unit}</span>}
+        </div>
+      </div>
+    );
+  }
+  if (f.type === "toggleDetail") {
+    const on = value === true;
+    return (
+      <div className={cn(card, "overflow-hidden", on ? "border-success/50" : "border-input")}>
+        <button type="button" aria-pressed={on} disabled={disabled} onClick={() => onChange(!on)}
+          className={cn(tap, "flex min-h-[56px] w-full items-center justify-between gap-3 px-4 text-left font-semibold", on ? "bg-success/10" : "hover:bg-text-base/[0.04]")}>
+          <span className="min-w-0 leading-snug">{f.label}</span>
+          <span className={cn("shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold", on ? "bg-success/15 text-success-text" : "bg-muted text-muted-foreground")} aria-hidden>{on ? "Yes" : "No"}</span>
+        </button>
+        {on && (
+          <div className="border-t border-border px-4 py-3">
+            <Label htmlFor={`${id}-detail`} className="text-xs text-muted-foreground">{f.detail || "Details"}</Label>
+            <Textarea id={`${id}-detail`} value={detail ?? ""} disabled={disabled} maxLength={500} rows={2} onChange={(e) => onDetail?.(e.target.value)} className="mt-1.5 min-h-[64px]" />
+          </div>
+        )}
+      </div>
+    );
+  }
   if (f.type === "counter") {
     const { lo, hi, n } = counterRange(f, value);
     return (

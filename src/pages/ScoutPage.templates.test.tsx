@@ -13,7 +13,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
 import type { ScoutField, WorkspaceTemplate } from "../shared/scoutTemplate";
-import { asEntries } from "./scoutTestUrl";
+import { asEntries, fillTeam, pickedEvent } from "./scoutTestUrl";
 import { writeScoutSession } from "../lib/scoutSession";
 
 const h = vi.hoisted(() => ({
@@ -73,6 +73,8 @@ const listed = () => screen.queryAllByRole("listitem").map((li) => li.textConten
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   localStorage.clear();
+  // An event picked in each space: a new entry is at it.
+  pickedEvent([null, "901", "902"]);
   fetched.length = 0;
   current = tpl(1, v1Fields);
   versions = { 1: tpl(1, v1Fields) };
@@ -83,8 +85,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
 async function newEntry(team = "4444") {
-  fireEvent.click(screen.getByRole("button", { name: /New entry/ }));
-  fireEvent.change(screen.getByLabelText("Team"), { target: { value: team } });
+  fireEvent.click(screen.getByRole("button", { name: /Type a match in/ }));
+  fillTeam(team);
 }
 
 describe("workspace templates on the Scout page", () => {
@@ -93,7 +95,7 @@ describe("workspace templates on the Scout page", () => {
     await newEntry();
     expect(await screen.findByText("Cones stacked")).toBeTruthy();
     expect(screen.queryByText("Artifacts classified (TeleOp)")).toBeNull(); // the built-in 2025 field
-    fireEvent.click(screen.getByRole("button", { name: "Cones stacked plus one" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Cones stacked: \d+\. Add one/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(localScoutEntries(WS).some((e) => e.team === 4444)).toBe(true));
     const saved = localScoutEntries(WS).find((e) => e.team === 4444)!;
@@ -139,7 +141,7 @@ describe("workspace templates on the Scout page", () => {
     current = tpl(2, v2Fields);
     versions[2] = current;
     show(`/scout?season=2025&space=${WS}&entry=madewithv1bb`);
-    expect(await screen.findByRole("button", { name: "Cones stacked plus one" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Cones stacked: \d+\. Add one/ })).toBeTruthy();
     expect(screen.queryByText("Climbed the bar")).toBeNull();
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "edited later" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -157,13 +159,13 @@ describe("workspace templates on the Scout page", () => {
   });
 
   it("members don't get the Template editor; admins do", async () => {
-    show(`/scout?season=2025&space=${WS}&tab=data`);
-    expect(await screen.findByRole("button", { name: /Pick list/ })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Template/ })).toBeNull();
+    show(`/scout?season=2025&space=${WS}&tab=planning`);
+    expect(await screen.findByRole("radio", { name: /Pick list/ })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /Template/ })).toBeNull();
     cleanup();
     h.personal.user = user("admin");
-    show(`/scout?season=2025&space=${WS}&tab=data`);
-    fireEvent.click(await screen.findByRole("button", { name: /Template/ }));
+    show(`/scout?season=2025&space=${WS}&tab=planning`);
+    fireEvent.click(await screen.findByRole("radio", { name: /Template/ }));
     expect(await screen.findByRole("heading", { name: /Scout template/ })).toBeTruthy();
   });
 
@@ -209,7 +211,7 @@ describe("workspace templates on the Scout page", () => {
       expect(await screen.findByText("Artifacts classified (TeleOp)")).toBeTruthy();
       expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
       // An answer given meanwhile keeps the questions it was given for, even when the template turns up late.
-      fireEvent.click(screen.getByRole("button", { name: "Overflow artifacts plus one" }));
+      fireEvent.click(screen.getByRole("button", { name: /^Overflow artifacts: \d+\. Add one/ }));
       await act(async () => { answer(new Response(JSON.stringify({ template: current }), { status: 200 })); });
       expect(screen.queryByText("Cones stacked")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -226,7 +228,7 @@ describe("workspace templates on the Scout page", () => {
     }));
     show();
     await newEntry();
-    fireEvent.click(await screen.findByRole("button", { name: "Cones stacked plus one" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Cones stacked: \d+\. Add one/ }));
     fireEvent.click(screen.getByRole("button", { name: /^Bolt Bots/ }));
     expect(await screen.findByText("Climbed the bar")).toBeTruthy();
     expect(screen.queryByText("Cones stacked")).toBeNull();
@@ -247,7 +249,7 @@ describe("workspace templates on the Scout page", () => {
   it("the Match tab: each match that comes on screen checks for newer questions", async () => {
     current = tpl(1, null);
     writeScoutSession(WS, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
-    show(`/scout?season=2025&space=${WS}&tab=match`);
+    show(`/scout?season=2025&space=${WS}&tab=event&at=Q1`);
     expect(await screen.findByRole("button", { name: /Save Q1/ })).toBeTruthy();
     current = tpl(2, v2Fields); // changed meanwhile, no notice
     fireEvent.click(screen.getByRole("button", { name: /^Next match/ }));

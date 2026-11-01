@@ -11,6 +11,8 @@ describe("cleanField", () => {
   });
   it("refuses what can't be used", () => {
     expect(cleanField({ id: "1bad", label: "A", type: "toggle", phase: "auto" }, "match")).toEqual({ reason: "bad id" });
+    // A Yes / no + detail field's detail answer lives at <id>__detail: no field may take that id.
+    expect(cleanField({ id: "climb__detail", label: "A", type: "text", phase: "auto" }, "match")).toEqual({ reason: "reserved id" });
     expect(cleanField({ id: "a", label: "   ", type: "toggle", phase: "auto" }, "match")).toEqual({ reason: "no label" });
     expect(cleanField({ id: "a", label: "A", type: "slider", phase: "auto" }, "match")).toEqual({ reason: "unknown type" });
     expect(cleanField({ id: "a", label: "A", type: "toggle", phase: "auto" }, "pit")).toEqual({ reason: "phase doesn't fit this kind" });

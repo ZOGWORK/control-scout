@@ -8,6 +8,7 @@ import { FieldError } from "../../ui/basic";
 import { toast } from "../../ui/sonner";
 import { cn } from "../../cn";
 import { savedMessage, type MatchSaveResult } from "../../../lib/matchDraft";
+import { SaveState, type SaveSync } from "../forms/SaveState";
 
 const list = (teams: number[]) => teams.length <= 2 ? teams.join(" and ") : `${teams.slice(0, -1).join(", ")} and ${teams[teams.length - 1]}`;
 
@@ -17,7 +18,7 @@ export function emptyHint(empty: number[]): string {
   return `${list(empty)} ${empty.length === 1 ? "has" : "have"} nothing yet. Save anyway, or fill ${empty.length === 1 ? "it" : "them"} in first.`;
 }
 
-export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeams, toPersonal = false, savedTo = null, onSave, onSaved, className }: {
+export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeams, toPersonal = false, savedTo = null, onSave, onSaved, sync, savedHere = false, className }: {
   /** This match's label, as the schedule spells it (Q14). */
   label: string;
   teamCount: number;
@@ -32,6 +33,9 @@ export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeam
   savedTo?: string | null;
   onSave: (opts: { includeEmpty?: boolean }) => MatchSaveResult;
   onSaved: (nextIndex: number) => void;
+  /** Where saving stands (the page's sync state): the line under Save says it. */
+  sync?: SaveSync;
+  savedHere?: boolean;
   className?: string;
 }) {
   const [asking, setAsking] = useState(false);
@@ -69,9 +73,14 @@ export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeam
             <Save />{toPersonal ? `Save ${label} to Personal` : `Save ${label}`}
             <span className="font-medium opacity-75">· {teamCount} {teamCount === 1 ? "team" : "teams"}{nextLabel ? ` → ${nextLabel}` : ""}</span>
           </Button>
-          <p className={cn("mt-1.5 text-center text-xs", emptyTeams.length ? "text-warning-text" : "text-muted-foreground")}>
-            {toPersonal ? "This workspace is read-only, so Save keeps what you typed in Personal." : emptyHint(emptyTeams)}
-          </p>
+          {/* No sync line to show (a preview): how saving works. */}
+          {(toPersonal || emptyTeams.length > 0 || !sync) && (
+            <p className={cn("mt-1.5 text-center text-xs", emptyTeams.length ? "text-warning-text" : "text-muted-foreground")}>
+              {toPersonal ? "This workspace is read-only, so Save keeps what you typed in Personal." : emptyHint(emptyTeams)}
+            </p>
+          )}
+          {/* Where the last saves stand shows even on a fresh match (they may still be waiting to sync). */}
+          {sync && !toPersonal && <SaveState sync={sync} savedHere={savedHere} className="mt-1 justify-center" />}
         </>
       )}
       <FieldError id={errId} className="text-center text-sm">{error}</FieldError>

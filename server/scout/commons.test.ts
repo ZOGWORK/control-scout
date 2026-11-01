@@ -201,7 +201,7 @@ describe("scouting commons", () => {
     const all2 = await read(loner);
     expect(all2.entries.map((x) => x.source.name)).toEqual(["Robo Owls", "Pyro Scouts"]); // newest scouted first
     expect(all2.layer).toMatchObject({ team: 18360, entries: 2, pitEntries: 2, matchEntries: 0, scouts: 2 });
-    expect(all2.layer.counters.find((r) => r.id === "weight")).toMatchObject({ kind: "pit", label: "Robot weight (lb)", avg: 35, n: 2 });
+    expect(all2.layer.counters.find((r) => r.id === "weight:lb")).toMatchObject({ kind: "pit", label: "Robot weight (lb)", avg: 35, n: 2 });
     expect(all2.layer.tags.map((t) => t.label).sort()).toEqual(["Drivetrain: Mecanum", "Drivetrain: Tank"]);
     // Asking for one event reads that event only.
     expect((await read(loner, `season=${S}&team=18360&event=USCMQ2`)).entries).toEqual([]);
@@ -314,6 +314,15 @@ describe("scouting commons: the layer and the owner's count", () => {
     expect(a).toEqual({ fields: [lb], data: { weight: 40 } });
     expect(b).toEqual({ fields: [{ ...kg, id: "weight~2" }], data: { "weight~2": 18 } });
     expect(c.data).toEqual({ weight: 42 }); // same question, other spacing and case
+  });
+
+  it("a number field in another unit (same id and label) stays apart", async () => {
+    const { fieldGrouper } = await import("./commons");
+    const group = fieldGrouper();
+    const w = { id: "weight", label: "Weight", type: "number" as const, phase: "pit" as const, max: 200 };
+    expect(group([{ ...w, unit: "lb" }], { weight: 40 }).data).toEqual({ weight: 40 });
+    expect(group([{ ...w, unit: "kg" }], { weight: 18 }).data).toEqual({ "weight~2": 18 });
+    expect(group([{ ...w, unit: " LB" }], { weight: 41 }).data).toEqual({ weight: 41 });
   });
 
   it("a reader who joins a workspace stops seeing its shares as commons within the refresh, no sign-in needed", async () => {

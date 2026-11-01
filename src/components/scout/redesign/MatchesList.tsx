@@ -1,6 +1,6 @@
-// The Scout redesign's match list ("Your matches", docs/mockups/scout-redesign.html step 5; All matches on the Scout tab): every match
-// at the event with what this scout has done in it (Done, Partly done, Skipped, Now, or its time), a
-// summary on top, and All / To do / Skipped chips. Tapping a row opens that match. In a workspace the
+// The match queue's list (Event day, and beside the match being scouted): every match at the event with what
+// this scout has done in it (Done, Partly done, Skipped, Now / Next up, or its time), and All / To do / Skipped
+// chips; the totals are Event day's header strip. Tapping a row opens that match. In a workspace the
 // page can pass who has the other teams (`others`), shown under each row.
 // Built for 30–120 rows: statuses are worked out once per input change, rows are memoized and skip
 // layout off screen (content-visibility), and "Jump to now" scrolls to the current match.
@@ -9,7 +9,7 @@ import { LocateFixed } from "lucide-react";
 import { Button } from "../../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../ui/controls";
 import { cn } from "../../cn";
-import { EmptyState, Stat } from "../../page";
+import { EmptyState } from "../../page";
 import {
   matchProgress, normalizeMatchLabel, slotLabel, teamsWatched,
   type AllianceSide, type ScheduleMatch, type SlotId, type Watching,
@@ -27,9 +27,14 @@ export interface MatchesListProps {
   currentIndex: number;
   /** Where scouting picks up (nextMatchIndex): matches before it that are still to do count as skipped. */
   nextIndex: number;
-  onOpen: (index: number) => void;
+  /** Open a match (none: read-only, the rows are just rows). */
+  onOpen?: (index: number) => void;
   /** Workspace only: who has the other teams, by normalized match label. Rows show it only when given. */
   others?: Map<string, OtherScout[]>;
+  /** The open match's word ("Now" on the match screen, "Next up" in Event day's queue). */
+  nowLabel?: string;
+  /** The list's own box: a height cap makes it scroll inside, opened on the current match. */
+  listClassName?: string;
 }
 
 export type MatchStatus = "done" | "partial" | "skipped" | "now" | "upcoming";
@@ -86,10 +91,10 @@ const STATUS_WORDS: Record<Exclude<MatchStatus, "upcoming">, string> = { done: "
 const sideName = (s: OtherScout["side"]) => (s === "red" ? "Red" : s === "blue" ? "Blue" : slotLabel(s));
 const teamsSpoken = (t: number[]) => (t.length ? t.join(" and ") : "no teams yet");
 
-function rowName(r: MatchRowInfo, others: OtherScout[] | undefined): string {
+function rowName(r: MatchRowInfo, others: OtherScout[] | undefined, nowLabel: string): string {
   const { match: m, status } = r;
   const time = shortTime(m.time);
-  const state = status === "upcoming" ? (time ? `about ${time}` : "to do") : STATUS_WORDS[status].toLowerCase();
+  const state = status === "upcoming" ? (time ? `about ${time}` : "to do") : (status === "now" ? nowLabel : STATUS_WORDS[status]).toLowerCase();
   const who = others?.map((o) => `${sideName(o.side)}: ${o.name}, ${o.done ? "done" : "assigned"}`) ?? [];
   return [m.label, `red ${teamsSpoken(m.red)}`, `blue ${teamsSpoken(m.blue)}`, state, ...who].join(", ");
 }
@@ -119,20 +124,22 @@ function AllianceBox({ side, teams, watched, mark }: { side: AllianceSide; teams
   );
 }
 
-const MatchRow = memo(function MatchRow({ row, others, current, mark, onOpen }: { row: MatchRowInfo; others?: OtherScout[]; current: boolean; mark: boolean; onOpen: (i: number) => void }) {
+const MatchRow = memo(function MatchRow({ row, others, current, mark, nowLabel, onOpen }: { row: MatchRowInfo; others?: OtherScout[]; current: boolean; mark: boolean; nowLabel: string; onOpen?: (i: number) => void }) {
   const { match: m, status } = row;
   const time = shortTime(m.time);
-  const pill = status === "upcoming" ? (time ? `~${time}` : "To do") : STATUS_WORDS[status];
+  // Read-only (nothing to open): the same row, not a button.
+  const Row = onOpen ? "button" : "div";
+  const pill = status === "upcoming" ? (time ? `~${time}` : "To do") : status === "now" ? nowLabel : STATUS_WORDS[status];
   return (
     // Off-screen rows skip layout and paint, so a 120-match event scrolls like a short one.
     <li className="@container border-b border-border [contain-intrinsic-size:auto_76px] [content-visibility:auto] last:border-b-0" data-index={row.index}>
-      <button
-        type="button"
-        onClick={() => onOpen(row.index)}
-        aria-label={rowName(row, others)}
+      <Row
+        {...(onOpen ? { type: "button" as const, onClick: () => onOpen(row.index) } : { role: "group" })}
+        aria-label={rowName(row, others, nowLabel)}
         aria-current={current ? "true" : undefined}
         className={cn(
-          "relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 text-left outline-none transition-[background-color] still-hover:bg-accent/[0.07] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
+          "relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 text-left outline-none",
+          onOpen && "transition-[background-color] still-hover:bg-accent/[0.07] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
           "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem]",
           current && "bg-accent/[0.05] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70",
         )}
@@ -150,14 +157,14 @@ const MatchRow = memo(function MatchRow({ row, others, current, mark, onOpen }: 
             {others.map((o, i) => <span key={`${o.side}-${o.name}`}>{i > 0 && " · "}{sideName(o.side)}: <span className="text-text-base">{o.name}</span> {o.done ? "✓" : "· assigned"}</span>)}
           </span>
         ) : null}
-      </button>
+      </Row>
     </li>
   );
 });
 
 const EMPTY: Record<MatchFilter, string> = { all: "No matches in the schedule yet.", todo: "Nothing left to scout.", skipped: "No skipped matches." };
 
-export function MatchesList({ schedule, watching, scouted, currentIndex, nextIndex, onOpen, others }: MatchesListProps) {
+export function MatchesList({ schedule, watching, scouted, currentIndex, nextIndex, onOpen, others, nowLabel = "Now", listClassName }: MatchesListProps) {
   const [filter, setFilter] = useState<MatchFilter>("all");
   const listRef = useRef<HTMLOListElement>(null);
   const rows = useMemo(() => matchRows(schedule, watching, scouted, currentIndex, nextIndex), [schedule, watching, scouted, currentIndex, nextIndex]);
@@ -179,14 +186,15 @@ export function MatchesList({ schedule, watching, scouted, currentIndex, nextInd
     if (jumps) listRef.current?.querySelector<HTMLElement>(`[data-index="${currentIndex}"]`)?.scrollIntoView?.({ block: "center", behavior: "smooth" });
     // Only a tap scrolls; a new current match doesn't move the list under the scout's finger.
   }, [jumps]);
+  // A list that scrolls inside its own box opens on the current match. Only the box moves, never the page.
+  useEffect(() => {
+    const box = listRef.current, row = box?.querySelector<HTMLElement>(`[data-index="${currentIndex}"]`);
+    if (box && row && box.scrollHeight > box.clientHeight) box.scrollTop = Math.max(0, row.offsetTop - box.clientHeight / 3);
+    // Once, when the list first has rows: later changes leave the scout's own scrolling alone.
+  }, [rows.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <section className="space-y-3" aria-label="Your matches">
-      <div className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-card">
-        <div className="p-3"><Stat label="Matches done" value={summary.done} /></div>
-        <div className="p-3"><Stat label="Team entries" value={summary.entries} /></div>
-        <div className="p-3"><Stat label="Skipped" value={summary.skipped} /></div>
-      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ToggleGroup type="single" variant="chips" value={filter} onValueChange={(v) => v && setFilter(v as MatchFilter)} aria-label="Show matches">
           <ToggleGroupItem value="all" className="max-sm:h-[44px]">All <span className="tabular-nums text-text-muted">{counts.all}</span></ToggleGroupItem>
@@ -196,8 +204,8 @@ export function MatchesList({ schedule, watching, scouted, currentIndex, nextInd
         {now && <Button variant="outline" size="sm" className="max-sm:h-[44px]" onClick={jump}><LocateFixed /> Jump to {now.match.label}</Button>}
       </div>
       {shown.length ? (
-        <ol ref={listRef} className="rounded-xl border border-border bg-card" aria-label="Matches">
-          {shown.map((r) => <MatchRow key={r.match.key} row={r} others={othersOf(r.match)} current={r.index === currentIndex} mark={mark} onOpen={onOpen} />)}
+        <ol ref={listRef} className={cn("relative rounded-xl border border-border bg-card", listClassName)} aria-label="Matches">
+          {shown.map((r) => <MatchRow key={r.match.key} row={r} others={othersOf(r.match)} current={r.index === currentIndex} mark={mark} nowLabel={nowLabel} onOpen={onOpen} />)}
         </ol>
       ) : (
         <EmptyState title={EMPTY[filter]} />

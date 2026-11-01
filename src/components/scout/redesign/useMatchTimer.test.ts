@@ -91,4 +91,29 @@ describe("useMatchTimer", () => {
     expect(seen).toEqual(["auto", "teleop", "auto"]);
     expect(vibrate).toHaveBeenCalledTimes(1);
   });
+
+  it("a kept match resumes its clock and phase when it's opened again this visit", () => {
+    const first = renderHook(() => useMatchTimer(undefined, "personal:USNJQ1:qual:0:1"));
+    act(() => first.result.current.start());
+    act(() => { vi.advanceTimersByTime(40_000); });
+    first.unmount();
+    const seen: string[] = [];
+    const again = renderHook(() => useMatchTimer((p) => seen.push(p), "personal:USNJQ1:qual:0:1"));
+    expect(again.result.current.running).toBe(true);
+    expect(again.result.current.elapsed).toBeGreaterThanOrEqual(40);
+    expect(seen.at(-1)).toBe("teleop");
+    // Another match starts from zero.
+    expect(renderHook(() => useMatchTimer(undefined, "personal:USNJQ1:qual:0:2")).result.current.startedAt).toBeNull();
+    act(() => again.result.current.reset());
+  });
+
+  it("another kept match under the same component loads its own clock", () => {
+    const { result, rerender } = renderHook(({ k }) => useMatchTimer(undefined, k), { initialProps: { k: "901:2025:USNJQ1:qual:0:1" } });
+    act(() => result.current.start());
+    rerender({ k: "902:2025:USNJQ1:qual:0:1" });
+    expect(result.current.startedAt).toBeNull();
+    rerender({ k: "901:2025:USNJQ1:qual:0:1" });
+    expect(result.current.running).toBe(true);
+    act(() => result.current.reset());
+  });
 });

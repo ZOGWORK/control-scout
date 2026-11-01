@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.8 — 2026-11-01
+## 1.9.0 — 2026-11-01
 
 Folded cards say what's inside, a team's OPR says how fresh it is, and dates read the same everywhere.
 
@@ -30,6 +30,40 @@ Folded cards say what's inside, a team's OPR says how fresh it is, and dates rea
 - **Terms explained.** The team hero's OPR and Rating labels, and an event's Top OPR, carry a one-line definition on hover or long-press, like Record and Reliability already did.
 - **Folded cards advertise themselves.** The robots' ratings under a prediction (with how many robots), a team's earlier matches on Predict (with how many), the bot's command list and an event bundle's rules each say what's inside before you open them.
 - **One date format.** Seven stamps (pack release dates, offline "results as of", saved predictions, scouting data) used the browser's 10/31/2026; they now read Oct 31, 2026 like every event date (#388).
+
+## 1.8.9 — 2026-11-01
+
+The pit and match forms are rebuilt: pick the team by name, see where you are in the queue, and always know whether your entry has synced.
+
+### Highlights
+- [scout] Pit scouting walks the queue: Pit 8 of 18, then the next team
+- [scout] Pick a team by number or name, confirmed by name before you save
+- [offline] Save says Saved, Saving…, Queued offline or Sync failed · Retry
+- [scout] Match scouting counts each robot's taps and the alliance total
+
+### Scout
+- **Pit form.** Opens from the pit queue with "Pit X of Y" and a progress bar, the team's rank, record and OPR beside it, and the rest of the queue next to it on a wide screen (under it on a phone). Saving moves on to the next team in line.
+- **One form for a match typed in by hand** (no schedule, a practice match, an assignment's team) and for any entry opened from Entries. The event is never typed any more: a new entry is at the event you picked (or your workspace's default event); an opened entry keeps its own. Team, event and, for a match, which match are required, with the reason shown right at the field.
+- **Fields fit their answers.** New field types for templates: Number + unit (the robot's weight in lb) and Yes / no + detail (yes asks "what, and how reliably?"). The built-in pit questions use them; their ids and labels are unchanged.
+- **Match form.** On a wide screen the robots you watch sit side by side with one timer; a strip on top counts each robot's taps and each alliance's total (taps only, no points).
+- **Save bar.** Stuck to the bottom of the screen on every form, saying where saving stands from the page's real sync state and how many entries wait to sync.
+- **Export.** The CSV keeps every column it had, in the same order; each Yes / no + detail question adds a "(details)" column right after its own (#383).
+
+## 1.8.8 — 2026-11-01
+
+Scout is rebuilt around event day: pick your event once, then see what's left to scout, matches and pits side by side.
+
+### Highlights
+- [scout] Pick your event once: it stays as the header until you change it
+- [scout] Event day shows the match queue and pit queue side by side
+- [scout] Progress at a glance: next match, matches and pits done, entries today
+- [scout] Sections named for the job: Event day, Entries, Pick list & planning
+
+### Scout
+- **One event picker.** With no event picked, the picker is the page: events on today first, then the ones your teams are at, then the rest by date, with a search by name, city or code. Each card says whether your teams compete there, how many pits and matches this space has scouted there, and has one button, Scout this event. The old "Pick an event" button in the top corner is gone.
+- **The event stays picked.** Its name, dates, place, match and team counts are the page's header, with the sync state and Change event beside them.
+- **Event day.** What you watch (one team, one alliance or all four) is a strip you can change any time, not a setup screen. Under it: the next match, matches scouted, pit scouting and entries today, then the match queue (next match marked, one tap to scout it) and the pit queue (to do and done, the next team first in line), side by side on a wide screen and stacked on a phone. Your own teams at the event show with their rank and next match.
+- **Sections.** Scout and Data are now Event day, Entries (the entry list, recordings and Export CSV) and Pick list & planning (the pick list, assignments, alliance, activity and, for admins, the template). Personal has the first two. Old links (?tab=match, ?tab=matches, ?tab=data, ?view=…) open the section they meant (#380).
 
 ## 1.8.7 — 2026-11-01
 

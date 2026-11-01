@@ -7,14 +7,24 @@
 // clamped, unknown properties are dropped, and one bad field is dropped on its
 // own; the rest of the template is never thrown away because of it.
 
-export type FieldType = "counter" | "toggle" | "choice" | "rating" | "text";
+/**
+ * counter: a small count (steppers); number: a measurement typed in, with a unit (weight, size); toggle: yes/no;
+ * toggleDetail: yes/no that, on yes, asks for a detail (its answer is the yes/no, the detail sits beside it under
+ * detailKey(id)); choice: one of a few options (chips); rating: 1..max; text: free text.
+ */
+export type FieldType = "counter" | "number" | "toggle" | "toggleDetail" | "choice" | "rating" | "text";
 export type FieldPhase = "auto" | "teleop" | "endgame" | "overall" | "pit";
 export type TemplateKind = "match" | "pit";
 /**
- * One field of a template. `max`: a counter's ceiling, a rating's number of
- * steps. `min`: a counter's floor (0 when absent). `options`: a choice's options.
+ * One field of a template. `max`: a counter's or number's ceiling, a rating's number of
+ * steps. `min`: a counter's or number's floor (0 when absent). `options`: a choice's options.
+ * `unit`: a number's unit ("lb", "in"). `detail`: what a yes/no + detail asks for on yes.
  */
-export interface ScoutField { id: string; label: string; type: FieldType; phase: FieldPhase; options?: string[]; min?: number; max?: number }
+export interface ScoutField { id: string; label: string; type: FieldType; phase: FieldPhase; options?: string[]; min?: number; max?: number; unit?: string; detail?: string }
+
+/** Where a yes/no + detail field keeps its detail in an entry's answers (beside the yes/no under its own id). */
+const DETAIL_SUFFIX = "__detail";
+export const detailKey = (id: string) => `${id}${DETAIL_SUFFIX}`;
 /**
  * A template as the form uses it. `id`: "match-<season>" / "pit" for the
  * built-in defaults, "ws:<workspace>:<season>:<kind>" for a workspace's own.
@@ -23,18 +33,18 @@ export interface ScoutField { id: string; label: string; type: FieldType; phase:
  */
 export interface ScoutTemplate { id: string; kind: TemplateKind; name: string; fields: ScoutField[]; version?: number }
 
-export const FIELD_TYPES: readonly FieldType[] = ["counter", "toggle", "choice", "rating", "text"];
+export const FIELD_TYPES: readonly FieldType[] = ["counter", "number", "toggle", "toggleDetail", "choice", "rating", "text"];
 export const MATCH_PHASES: readonly FieldPhase[] = ["auto", "teleop", "endgame", "overall"];
 export const PIT_PHASES: readonly FieldPhase[] = ["pit"];
 export const ALL_PHASES: readonly FieldPhase[] = [...MATCH_PHASES, ...PIT_PHASES];
 export const phasesFor = (kind: TemplateKind) => (kind === "pit" ? PIT_PHASES : MATCH_PHASES);
 export const phaseLabel = (p: FieldPhase) => (p === "teleop" ? "TeleOp" : p[0].toUpperCase() + p.slice(1));
-export const FIELD_TYPE_LABEL: Record<FieldType, string> = { counter: "Counter", toggle: "Yes / no", choice: "Choice", rating: "Rating", text: "Text" };
+export const FIELD_TYPE_LABEL: Record<FieldType, string> = { counter: "Counter", number: "Number + unit", toggle: "Yes / no", toggleDetail: "Yes / no + detail", choice: "Choice", rating: "Rating", text: "Text" };
 
 /** Limits a stored template keeps to (the editor uses the same ones). */
 export const TEMPLATE_LIMITS = {
-  fields: 60, label: 60, id: 40, options: 12, option: 40,
-  counterMax: 999, counterDefaultMax: 99, ratingMin: 2, ratingMax: 10, ratingDefault: 5,
+  fields: 60, label: 60, id: 40, options: 12, option: 40, unit: 12, detail: 60,
+  counterMax: 999, counterDefaultMax: 99, ratingMin: 2, ratingMax: 10, ratingDefault: 5, numberMax: 99999,
 } as const;
 
 const FIELD_ID = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -68,6 +78,8 @@ export function cleanField(x: unknown, kind: TemplateKind): { field: ScoutField 
   const f = x as Record<string, unknown>;
   const id = typeof f.id === "string" ? f.id.trim() : "";
   if (!id || id.length > TEMPLATE_LIMITS.id || !FIELD_ID.test(id)) return { reason: "bad id" };
+  // Ids ending in __detail are a Yes / no + detail field's own (detailKey): a field of its own there would share its answer.
+  if (id.endsWith(DETAIL_SUFFIX)) return { reason: "reserved id" };
   const label = cleanText(f.label, TEMPLATE_LIMITS.label);
   if (!label) return { reason: "no label" };
   if (!FIELD_TYPES.includes(f.type as FieldType)) return { reason: "unknown type" };
@@ -80,6 +92,16 @@ export function cleanField(x: unknown, kind: TemplateKind): { field: ScoutField 
     const min = clampInt(f.min, 0, max - 1, 0);
     out.max = max;
     if (min > 0) out.min = min;
+  } else if (type === "number") {
+    const max = clampInt(f.max, 1, TEMPLATE_LIMITS.numberMax, TEMPLATE_LIMITS.numberMax);
+    const min = clampInt(f.min, 0, max - 1, 0);
+    if (f.max !== undefined) out.max = max;
+    if (min > 0) out.min = min;
+    const unit = cleanText(f.unit, TEMPLATE_LIMITS.unit);
+    if (unit) out.unit = unit;
+  } else if (type === "toggleDetail") {
+    const detail = cleanText(f.detail, TEMPLATE_LIMITS.detail);
+    if (detail) out.detail = detail;
   } else if (type === "rating") {
     out.max = clampInt(f.max, TEMPLATE_LIMITS.ratingMin, TEMPLATE_LIMITS.ratingMax, TEMPLATE_LIMITS.ratingDefault);
   } else if (type === "choice") {
