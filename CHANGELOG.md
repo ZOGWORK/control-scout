@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Search answers "world record score bio buzz" and "4215 high score".
 
 ### Highlights
-- [records] Ask for a season's record score, by game name or season
+- [rankings] Ask for a season's record score, by game name or season
 - [teams] Ask for a team's highest scores, with the alliance it played on
 - [fixes] Before a season's first official match, scrimmage bests show
 
