@@ -405,7 +405,7 @@ export function RecordsTable(p: RecordsTableProps) {
         <div className={cn("ml-auto flex shrink-0 items-center gap-1.5", !presets.length && "ml-auto")}>
           {compareButton}
           <Button variant="outline" size="sm" className="max-sm:h-10" asChild={total > 0} disabled={!total}>
-            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span><Download /> <span className="max-sm:sr-only">Export CSV</span><span className="sr-only"> (no rows to export)</span></span>}
+            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> <span className="max-sm:sr-only">Export CSV</span><span className="sr-only"> (no rows to export)</span></span>}
           </Button>
         </div>
       </div>
@@ -542,9 +542,11 @@ function TableSkeleton() {
 
 // Header cells carry their own background and draw the line under them as a shadow (the floating copy of the
 // header row, FloatingHead, reuses them).
-const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-12 whitespace-nowrap px-5 pb-2.5 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2";
-// Body cells: roomy on a laptop, tight on a phone (more columns on screen, less scrolling).
-const td = "density-row px-5 py-3 max-sm:px-2.5 max-sm:py-2";
+const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-10 whitespace-nowrap px-3 pb-2 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2";
+// Body cells: dense on a laptop too (about twice the rows in the first screen at 1440x900, and more columns before
+// the table scrolls sideways); a phone keeps its own sizes (the max-sm: values). A touch screen wider than a phone
+// (a tablet) keeps rows 44px tall, so one row's compare box can't take a tap meant for the next (tap-44).
+const td = "density-row px-3 py-1.5 max-sm:px-2.5 max-sm:py-2 sm:pointer-coarse:py-3";
 // Grid lines a step stronger than the app's hairlines: rows and columns stay easy to follow across a wide table.
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
@@ -695,8 +697,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                 {"key" in r ? (
                   <>
                     <td className={cn(sticky, td, "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
-                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text max-sm:max-w-[7.5rem]">
-                        <span className="font-semibold">{r.label}</span>
+                      <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text max-sm:max-w-[7.5rem] sm:flex sm:max-w-[20rem] sm:items-baseline sm:gap-2">
+                        <span className="shrink-0 font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted" title={r.eventName}>{r.eventName}</span>
                       </Link>
                     </td>
@@ -719,16 +721,17 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                           : (
                             <Link to={`/teams/${team}?season=${r.season}`} className="flex min-w-0 items-baseline gap-2 still-hover:text-accent-text">
                               <span className="font-mono font-semibold tabular-nums">{team}</span>
-                              <span className="max-w-[13rem] truncate text-text-muted">{String(r.stats.teamName ?? "")}</span>
+                              <span className="max-w-[13rem] truncate text-text-muted" title={String(r.stats.teamName ?? "") || undefined}>{String(r.stats.teamName ?? "")}</span>
                             </Link>
                           )}
                       </div>
                     </td>
                     {showEvent && "eventCode" in r && (
                       <td className={td}>
-                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent-text max-sm:max-w-[9rem]">
+                        {/* One line on a laptop (name, then its date), two on a phone where the column is narrow. */}
+                        <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent-text max-sm:max-w-[9rem] sm:flex sm:max-w-[22rem] sm:items-baseline sm:gap-2">
                           <span className="block truncate" title={r.eventName}>{r.eventName}</span>
-                          <span className="block text-xs text-text-muted">{dateRange(r.eventStart)}</span>
+                          <span className="block text-xs text-text-muted sm:shrink-0">{dateRange(r.eventStart)}</span>
                         </Link>
                       </td>
                     )}
