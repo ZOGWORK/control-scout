@@ -31,7 +31,7 @@ The pit and match forms are rebuilt: pick the team by name, see where you are in
 - **Fields fit their answers.** New field types for templates: Number + unit (the robot's weight in lb) and Yes / no + detail (yes asks "what, and how reliably?"). The built-in pit questions use them; their ids and labels are unchanged.
 - **Match form.** On a wide screen the robots you watch sit side by side with one timer; a strip on top counts each robot's taps and each alliance's total (taps only, no points).
 - **Save bar.** Stuck to the bottom of the screen on every form, saying where saving stands from the page's real sync state and how many entries wait to sync.
-- **Export.** The CSV keeps every column it had, in the same order; each Yes / no + detail question adds a "(details)" column right after its own (#PRNUM).
+- **Export.** The CSV keeps every column it had, in the same order; each Yes / no + detail question adds a "(details)" column right after its own (#383).
 
 ## 1.8.4 — 2026-11-01
 
