@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.5 — 2026-11-01
+## 2.0.7 — 2026-11-01
 
 Matches link to their moment in the event's video again when the stream was left running after the event.
 
@@ -26,6 +26,30 @@ Matches link to their moment in the event's video again when the stream was left
 
 ### Live
 - **Trimmed recordings get timestamps.** A stream left running for hours after an event, then cut where the event ended, made its video much shorter than its broadcast. That looked the same as a stream that dropped out mid-event, so every match lost its timestamp (Salk League Meet: 10 h 26 min broadcast, 5 h 10 min video). The event's matches now tell the two apart. When the video ends within 15 minutes of the last match's start, and the stream ran on afterwards for longer than all the matches took, the missing time is all after the event and every match keeps its second, on the event page and on each match's own page. A video that loses time during the event still gets no timestamps, so no match lands on the wrong one (#406).
+
+## 2.0.6 — 2026-11-01
+
+On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
+
+### Highlights
+- [home] The Filters button on phone lists is the bright yellow one
+- [home] Opening Filters shows the filters, not the keyboard
+- [fixes] Tap the search box when you want to type
+- [fixes] Typing a place in Filters no longer jumps the sheet back to its top
+
+### Navigation
+- **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#402)
+## 2.0.5 — 2026-11-01
+
+Every finished event on /events shows it is done, even when no matches were posted.
+
+### Highlights
+- [fixes] Every finished event card has a full green bar
+- [fixes] Events with no results posted say Done instead of no bar or 0/12
+- [fixes] Finished events with some results missing still fill their bar
+
+### Fixes
+- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
 
 ## 2.0.4 — 2026-11-01
 

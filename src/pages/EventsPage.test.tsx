@@ -195,3 +195,25 @@ describe("Events page on a phone", () => {
     expect(screen.getByRole("button", { name: "Remove filter: Text: edison" })).toBeTruthy();
   });
 });
+
+describe("Events page cards", () => {
+  it("gives every finished event a full bar, with Done when it has no results posted", () => {
+    const kept = EVENTS.slice(0, 6);
+    EVENTS[0] = { ...kept[0], status: "finished" };
+    EVENTS[1] = { ...kept[1], status: "finished", matchesPlayed: 9, matchesTotal: 9 };
+    EVENTS[3] = { ...kept[3], status: "finished", matchesTotal: 12 };
+    EVENTS[4] = { ...kept[4], status: "live", matchesTotal: 12 };
+    EVENTS[2] = { ...kept[2], status: "finished", matchesPlayed: 1, matchesTotal: 2 };
+    try {
+      mount();
+      const bar = (code: string) => document.querySelector(`a[href="/events/2026/${code}"] [data-match-bar]`);
+      expect(bar("EV0")?.textContent).toBe("Done");
+      expect(bar("EV1")?.textContent).toBe("9/9");
+      expect(bar("EV2")?.textContent).toBe("1/2");
+      expect((bar("EV2")?.querySelector("[style]") as HTMLElement).style.width).toBe("100%");
+      expect(bar("EV5")).toBeNull();
+      expect(bar("EV3")?.textContent).toBe("Done");
+      expect(bar("EV4")?.textContent).toBe("0/12");
+    } finally { EVENTS.splice(0, 6, ...kept); }
+  });
+});
