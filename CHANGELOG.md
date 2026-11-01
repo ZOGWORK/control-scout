@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.1.2 — 2026-11-01
+
+The Download page says how offline updates work now.
+
+### Highlights
+- [offline] The Download page says saved seasons update by themselves
+- [offline] On Wi-Fi only, unless you allow mobile data
+- [offline] Ask me is still there if you'd rather be asked
+
+### Offline
+- **Download page wording.** Its "Updates" note said you were asked once per release; since 2.1.1 saved seasons update by themselves (on Wi-Fi only unless you allow mobile data), and you're only asked if you choose Ask me. (#PR)
+
 ## 2.1.1 — 2026-11-01
 
 Offline data updates itself on Wi-Fi: no more pop-ups asking you to update it.
