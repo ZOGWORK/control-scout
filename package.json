@@ -1,7 +1,7 @@
 {
   "name": "control-scout",
   "private": true,
-  "version": "2.1.6",
+  "version": "2.1.7",
   "description": "FTC Control Scout — free FTC scouting and prediction for every team.",
   "license": "GPL-3.0-only",
   "type": "module",
@@ -52,6 +52,7 @@
     "@control-scout/predict-engine": "*",
     "@libsql/client": "^0.18.0",
     "@resvg/resvg-wasm": "2.6.2",
+    "@tanstack/react-virtual": "^3.14.25",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "compression": "^1.8.1",

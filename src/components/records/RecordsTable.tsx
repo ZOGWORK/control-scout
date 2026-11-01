@@ -3,7 +3,7 @@
 // dropdowns, a plain-English line for the active filter, server-side sorting
 // and paging, and everything in the URL so a link reproduces the view.
 // Used by the event Rankings and Insights tabs, /teams and /matches.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
@@ -35,6 +35,7 @@ import { emptyColumns } from "../../lib/eventRankingNotes";
 import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "../ScheduleDifficulty";
 import { useFlag } from "../../lib/flags";
 import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
+import { Spacer, useSteadyColumns, useVirtualRows } from "../ui/windowing";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -653,6 +654,9 @@ export function heatBands(rows: { stats: Record<string, unknown> }[], cols: stri
   return out;
 }
 
+/** A table row's height, for rows not measured yet. */
+const ROW_H = 37;
+
 function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, selectable, selected, onSelect, pageSelection, onSelectAll }: {
   data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces;
   highlightTeam?: number | null; selectable: boolean; selected: number[]; onSelect: (t: number) => void;
@@ -667,8 +671,14 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
   const phone = usePhone();
   const { ref, more } = useMoreToTheRight();
   const tableRef = useRef<HTMLTableElement>(null);
+  // One event's whole field (up to RECORDS_MAX_PAGE_SIZE rows) renders only the rows on screen (src/components/ui/windowing.tsx).
+  const rowKey = (r: Resp["rows"][number]) => ("key" in r ? `${r.eventCode}:${r.key}` : `${r.team}:${"eventCode" in r ? r.eventCode : ""}`);
+  // Named by table, so Back finds its rows' measured heights (taller than the estimate on a touch screen or with bigger text).
+  const vr = useVirtualRows<HTMLTableSectionElement>(data.rows.length, ROW_H, { key: (i) => rowKey(data.rows[i]), cache: `records|${scope}|${code ?? ""}` });
+  useSteadyColumns(tableRef, vr.windowed, `${scope}:${showEvent}:${cols.join()}`);
+  const span = (scope === "match" ? 3 : showEvent ? 2 : 1) + cols.length;
   const headRow = (
-          <tr>
+          <tr aria-rowindex={vr.windowed ? 1 : undefined}>
             {scope === "match" ? (
               <>
                 <SortHead k="eventName" label="Match" state={state} sortBy={sortBy} align="left" className={sticky} />
@@ -701,17 +711,20 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
     <FloatingHead table={tableRef} scroller={ref}>{headRow}</FloatingHead>
     <TopScrollbar table={tableRef} scroller={ref} />
     <div ref={ref} className={cn("custom-scrollbar overflow-x-auto overscroll-x-contain rounded-xl border bg-card", grid)}>
-      <table ref={tableRef} className="w-full border-collapse text-sm">
+      <table ref={tableRef} className="w-full border-collapse text-sm" aria-rowcount={vr.windowed ? data.rows.length + 1 : undefined}>
         <thead>
 {headRow}
         </thead>
-        <tbody>
-          {data.rows.map((r) => {
+        <tbody ref={vr.ref}>
+          <Spacer height={vr.paddingTop} colSpan={span} />
+          {vr.rows(data.rows).map(({ item: r, index, rowProps, gapBefore }) => {
             const team = "team" in r ? r.team : null;
             const hl = team != null && team === highlightTeam;
             const sel = team != null && selected.includes(team);
             return (
-              <tr key={"key" in r ? `${r.eventCode}:${r.key}` : `${team}:${"eventCode" in r ? r.eventCode : ""}`}
+              <Fragment key={rowKey(r)}>
+              <Spacer height={gapBefore} colSpan={span} />
+              <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined}
                 className={cn("group/row border-b last:border-b-0", grid, rowHover, hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
                 {"key" in r ? (
                   <>
@@ -771,8 +784,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   );
                 })}
               </tr>
+              </Fragment>
             );
           })}
+          <Spacer height={vr.paddingBottom} colSpan={span} />
         </tbody>
       </table>
     </div>
