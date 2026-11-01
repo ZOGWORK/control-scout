@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.2 — 2026-11-01
+## 2.0.3 — 2026-11-01
 
 Every finished event on /events shows it is done, even when no matches were posted.
 
@@ -26,6 +26,9 @@ Every finished event on /events shows it is done, even when no matches were post
 
 ### Fixes
 - **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
+
+## 2.0.2 — 2026-11-01
+
 Compare's brief is spaced out and easier to scan.
 
 ### Highlights
