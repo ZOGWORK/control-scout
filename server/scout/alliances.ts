@@ -174,7 +174,7 @@ async function endLink(id: number, reason: (r: Row) => AllianceEndReason | null,
     const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)", args: [r.id, t] };
     await writeBatch([
       { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL, copies_wanted = ? WHERE id = ? AND status = ?", args: [why, t, pairs.length ? 1 : 0, r.id, r.status] },
-      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, inNow.map((m) => m.ws), guard)),
+      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, sendersTo(pairs, to.ws), guard)),
     ]);
     const after = await rowById(r.id);
     if (!after || after.status !== "ended" || after.ended_at !== t || after.ended_reason !== why) return null; // someone else ended it
@@ -224,7 +224,7 @@ async function leaveLink(id: number, ws: string, why: "left" | "removed", by?: s
         sql: "DELETE FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ? AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)",
         args: [r.id, ws, r.id, ws, t],
       }] : []),
-      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, inNow.map((m) => m.ws), guard)),
+      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, sendersTo(pairs, to.ws), guard)),
     ]);
     const me = (await membersOne(r.id)).find((m) => m.ws === ws);
     if (me?.left_at !== t) return null; // it was out already, or the alliance ended meanwhile
@@ -235,13 +235,16 @@ async function leaveLink(id: number, ws: string, why: "left" | "removed", by?: s
   return true;
 }
 
+/** The workspaces whose entries go to `to` in one write: their originals are queued for it, so their copies held elsewhere needn't be. */
+const sendersTo = (pairs: [Member, Member][], to: string) => pairs.filter(([, x]) => x.ws === to).map(([f]) => f.ws);
+
 /**
  * Queue `from`'s live entries at the event for `to`, as they are now (runs in the ending's own write, and only if
  * `guard` says that write took effect). Each keeps where it first came from: an entry that's itself a copy names its
  * origin, and one that came from `to` in the first place (a copy from an earlier link) is never sent back. `to` must be
  * in the alliance still, or be leaving in this very write (left_at = `t`), and never one the creator removed. A copy
- * whose original is live in a workspace of `group` (the ones copying to each other now) isn't sent: the original is,
- * so the receiver gets its latest answers, never an older copy of them.
+ * whose original is live in a workspace of `group` (the ones whose entries go to `to` in this same write) isn't sent:
+ * the original is, so the receiver gets its latest answers, never an older copy of them.
  */
 function queueCopies(r: Row, from: string, to: string, t: number, group: string[], guard: { sql: string; args: (string | number)[] }): InStatement {
   return {

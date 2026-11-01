@@ -720,6 +720,18 @@ describe("more than two teams", () => {
     expect(await notesIn(p.cal, C)).toEqual(["B edited"]);
   });
 
+  it("leaving forwards a held copy when its original isn't being sent to that team in the same write", async () => {
+    const p = await cast();
+    // A keeps a copy of B's entry.
+    const ab = await link(true, true);
+    await pushOk(p.ben, B, [entry({ team: 101, notes: "B1" })]);
+    await end(p.ada, A, ab);
+    // A, B and C link; A leaves: C gets A's copy of B1 (B's original goes to C only when B's own link to C ends).
+    const { id } = await three();
+    expect((await leave(p.ada, A, id)).status).toBe(200);
+    expect(await notesIn(p.cal, C)).toEqual(["B1"]);
+  });
+
   it("is full at MAX_ALLIANCE_MEMBERS", async () => {
     const p = await cast();
     const i = await invite(p.ada, A);
