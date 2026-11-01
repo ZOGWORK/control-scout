@@ -26,6 +26,18 @@ Every finished event on /events shows it is done, even when no matches were post
 
 ### Fixes
 - **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
+Compare's brief is spaced out and easier to scan.
+
+### Highlights
+- [teams] The brief is grouped: sample and overall, by phase, form and meetings
+- [teams] Topics get their own column on wide screens
+- [teams] Key numbers in the brief are in bold
+- [teams] Source links sit on a quieter line under each sentence
+
+### Compare
+- The brief on /compare groups its sentences under three small headings, with a divider and room between each one; the topic (Sample size, Overall, Auto …) is a label column at 640px and up and a heading above the sentence on phones
+- Gaps, OPRs, match and event counts and records are bold in each sentence; team numbers, seasons and dates stay plain. The sentences, sources and Copy brief text are unchanged (#405)
+
 ## 2.0.1 — 2026-11-01
 
 Compare's head-to-head names each event instead of showing its code.

@@ -4,13 +4,18 @@ import { useId, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown, Copy, FileText } from "lucide-react";
 import type { CompareView } from "../shared/api";
-import { BRIEF, briefText, compareBrief, type BriefSentence } from "../lib/compareBrief";
+import { BRIEF, briefGroups, briefText, compareBrief, keyNumbers, type BriefSentence } from "../lib/compareBrief";
 import { copyText } from "../lib/clipboard";
 import { Button } from "./ui/button";
 import { Reveal } from "./motion";
 import { cn } from "./cn";
 
 const DOT: Record<BriefSentence["kind"], string> = { fact: "bg-accent", thin: "bg-warning", missing: "bg-muted-foreground/60" };
+
+/** The sentence with its key numbers (gaps, OPRs, counts, records) in bold, so the figures stand out on a scan. */
+function emphasise(text: string) {
+  return keyNumbers(text).map((x, i) => (x.key ? <strong key={i} className="font-semibold tabular-nums text-foreground">{x.text}</strong> : x.text));
+}
 
 export function CompareBrief({ d }: { d: CompareView }) {
   const [sp, setSp] = useSearchParams();
@@ -39,25 +44,35 @@ export function CompareBrief({ d }: { d: CompareView }) {
         </div>
         {open && (
           <div id={panel} className="border-t border-border px-4 pb-4 pt-3">
-            <ul className="space-y-3">
-              {sentences.map((s, i) => (
-                <li key={i} className="flex gap-2.5 text-sm" data-kind={s.kind}>
-                  <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", DOT[s.kind])} aria-hidden />
-                  <div className="min-w-0">
-                    <p><span className="font-semibold">{s.topic}:</span> {s.text}</p>
-                    {s.sources.length > 0 && (
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        <span>Source{s.sources.length > 1 ? "s" : ""}: </span>
-                        {s.sources.map((x, j) => (
-                          <span key={x.href + j}>{j > 0 && ", "}<Link to={x.href} className="text-accent-text underline-offset-2 hover:underline">{x.label}</Link></span>
-                        ))}
-                      </p>
-                    )}
-                  </div>
-                </li>
+            <div className="space-y-5">
+              {briefGroups(sentences).map((g) => (
+                <div key={g.title}>
+                  <h3 className="mb-1 text-xs font-medium text-muted-foreground">{g.title}</h3>
+                  <ul className="divide-y divide-border/60">
+                    {g.items.map((s, i) => (
+                      <li key={i} className="grid gap-x-6 gap-y-1 py-3 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]" data-kind={s.kind}>
+                        <p className="flex items-center gap-2 font-semibold sm:items-start">
+                          <span className={cn("size-2 shrink-0 rounded-full sm:mt-1.5", DOT[s.kind])} aria-hidden />
+                          {s.topic}<span className="sr-only">: </span>
+                        </p>
+                        <div className="min-w-0">
+                          <p className="leading-relaxed text-foreground/90">{emphasise(s.text)}</p>
+                          {s.sources.length > 0 && (
+                            <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span>Source{s.sources.length > 1 ? "s" : ""}</span>
+                              {s.sources.map((x, j) => (
+                                <Link key={x.href + j} to={x.href} className="text-accent-text/90 underline-offset-2 hover:text-accent-text hover:underline">{x.label}</Link>
+                              ))}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
-            <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
+            </div>
+            <p className="mt-2 border-t border-border pt-3 text-xs text-muted-foreground">
               Built from the numbers above, by fixed rules: teams with fewer than {BRIEF.minMatches} matches aren't compared, gaps under {BRIEF.levelPoints} point
               count as level, and OPR is each team's best event this season. It describes results only; it uses no predictions.
             </p>
