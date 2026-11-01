@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 // build/, not dist/: the server serves dist/ as public files, and these are build-only (a second public copy
 // of the page, without its canonical link, would be indexable).
 const build = join(process.cwd(), "build");
-const { renderMethodology } = await import(pathToFileURL(join(build, "ssr", "methodology.js")).href);
+const { renderMethodology } = await import(pathToFileURL(join(build, "ssr", "index.js")).href);
 const html = renderMethodology()
   .replace(/<svg[\s\S]*?<\/svg>/g, "")
   .replace(/<input\b[^>]*>/g, "")

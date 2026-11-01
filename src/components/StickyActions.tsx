@@ -40,7 +40,11 @@ export function StickyActions({ after, label, children }: { after: Element | nul
   // Watched here, not by the page: the flag flips mid-scroll, and as page state each flip re-rendered the
   // whole page (on a big event, every match row) in the middle of the scroll.
   const show = useScrolledPast(after);
+  // Into the page body once mounted: a page the server draws (src/prerender/page.tsx) has no body to put it in, and
+  // the bar is hidden at first anyway.
+  const [body, setBody] = useState<HTMLElement | null>(null);
   useEffect(() => {
+    setBody(document.body);
     mounted++;
     document.documentElement.dataset.stickyActions = "";
     return () => { if (--mounted === 0) delete document.documentElement.dataset.stickyActions; };
@@ -49,6 +53,7 @@ export function StickyActions({ after, label, children }: { after: Element | nul
   // the bar waits until that choice is made, so the two never overlap.
   const { decided } = useConsent();
   const visible = show && decided;
+  if (!body) return null;
   return createPortal(
     <div
       role="region" aria-label={label} inert={!visible}
@@ -60,6 +65,6 @@ export function StickyActions({ after, label, children }: { after: Element | nul
     >
       {children}
     </div>,
-    document.body,
+    body,
   );
 }

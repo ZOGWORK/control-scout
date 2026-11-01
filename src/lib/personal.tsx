@@ -435,6 +435,17 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
 
+/** A fresh, signed-out device's personal data, fixed: for the server's render of a page (src/prerender/page.tsx),
+ *  where there's no device. Every change is a no-op. */
+const FRESH: PersonalApi = {
+  state: EMPTY_STATE, user: null, providers: null, offlineAccount: false, sync: "local", syncReady: false,
+  set: () => false, update: () => false, stored: () => undefined,
+  signedIn: async () => {}, signOut: async () => {}, refreshUser: async () => {}, clearLocal: () => {},
+};
+export function StaticPersonalProvider({ children }: { children: ReactNode }) {
+  return <Ctx.Provider value={FRESH}>{children}</Ctx.Provider>;
+}
+
 export function usePersonal(): PersonalApi {
   const c = useContext(Ctx);
   if (!c) throw new Error("usePersonal outside PersonalProvider");

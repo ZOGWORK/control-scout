@@ -5,10 +5,12 @@
 // can't paint until that task ends.
 import { useEffect, useState } from "react";
 
-/** False on the first render, true once the browser has painted it. */
-export function useAfterFirstPaint(): boolean {
-  const [ready, setReady] = useState(false);
+/** False on the first render, true once the browser has painted it. `already`: the page is on screen already (the
+ *  server drew it: src/lib/pageData.ts), so there's no first paint to wait for: true from the start. */
+export function useAfterFirstPaint(already = false): boolean {
+  const [ready, setReady] = useState(already);
   useEffect(() => {
+    if (ready) return;
     let timer = 0;
     const done = () => setReady(true);
     // A callback queued from rAF runs after that frame's paint. Background tabs
@@ -16,6 +18,6 @@ export function useAfterFirstPaint(): boolean {
     const frame = requestAnimationFrame(() => { clearTimeout(timer); timer = window.setTimeout(done, 0); });
     timer = window.setTimeout(done, 250);
     return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
-  }, []);
+  }, [ready]);
   return ready;
 }

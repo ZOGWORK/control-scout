@@ -40,3 +40,12 @@ export const HOME_ABOUT = "Control Scout is free FTC scouting and match predicti
 /** The id of the app's stylesheet <link>, which the server makes non-blocking (server/seo.ts nonBlockingCss):
  *  the app waits for it to load before its first render (src/main.tsx), so nothing ever shows unstyled. */
 export const APP_CSS_ID = "cs-css";
+
+/** The first paint's page data (server/seo.ts): a JSON block of API path → that path's answer, put in the app's API
+ *  cache before its first render (src/lib/pageData.ts), so a server-rendered page (a team's) draws the same content
+ *  straight away instead of a loading state. */
+export const PAGE_DATA_ID = "cs-page-data";
+
+/** The page frame the app's shell puts every page in (src/components/layout/Shell.tsx), shared with the first paint
+ *  of a page the server draws whole (server/bootShell.ts): the page sits exactly where the app will draw it. */
+export const PAGE_FRAME = "mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 max-sm:pt-5 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]";
