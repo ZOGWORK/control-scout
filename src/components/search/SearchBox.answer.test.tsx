@@ -103,6 +103,27 @@ describe("Enter and the full results page", () => {
     expect(screen.getByRole("option", { name: /See all results/ }).getAttribute("aria-selected")).toBe("true");
     expect(beacon).not.toHaveBeenCalled(); // the full page is no result: nothing counted
   });
+  it("typing again drops the highlight: Enter on the older list opens the full page for what's typed, never the old row", async () => {
+    const { input, onPick } = mount();
+    await type(input, "4215");
+    await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getAllByRole("option")[0].getAttribute("aria-selected")).toBe("true");
+    await type(input, "4215 vs 6980");
+    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // a row of the older list, still on screen
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
+  });
+  it("where Bruno AI's suggestion isn't shown (refine off), he's never asked", async () => {
+    const { useSearchHits } = await import("./SearchBox");
+    function Page() { const { hits } = useSearchHits("zz", undefined, 15, null, false); return <p>{hits.length}</p>; }
+    render(<Page />);
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await reply(/\/api\/search\?q=zz/, answer("zz", { step: "did-you-mean", weak: true, hits: [t("1", "Zz Bots")] }));
+    expect(pending.some((p) => p.url.includes("/refine"))).toBe(false);
+  });
   it("nothing found is never a bare dead end: a hint and the row to the full page", async () => {
     const { input } = mount();
     await type(input, "asdfgh");

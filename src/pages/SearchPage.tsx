@@ -17,7 +17,7 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, answer, busy, error, logPick, stale } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS);
+  const { hits, answer, busy, error, logPick, stale } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const nav = useNavigate();
   const showing = answer ? showingLine({ ...answer, hits }) : null;

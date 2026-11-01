@@ -15,7 +15,7 @@
 // Learned click weights (./searchLearn.ts) may re-rank the results, never add one. Bruno AI is never asked here:
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery } from "../../src/shared/api.js";
-import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, onlyPageWords, pagesFor } from "../../src/shared/search.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { get } from "../db.js";
 import { fuzzyScore, normalize, words } from "./fuzzy.js";
@@ -184,7 +184,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }
 
-  if (!hits.length && pagesFor(q).length) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
+  if (!hits.length && onlyPageWords(q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
   if (!hits.length) {
     const understood = intent?.topic ? [`A question about ${TOPIC_LABEL[intent.topic].toLowerCase()}`, `No team or event matched "${intent.rest}"`] : [`No team, event or match matched "${q}"`];
     return recovery(q, understood);
@@ -192,9 +192,9 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
 
   const score = topScore(rest, hits);
   const exact = score >= 0.999;
-  // A site page's word ("rankings", "rules") that only near-matches names ("Iron Hawkings"): the page is the answer,
-  // not a guess at a team.
-  if (score < WEAK_SCORE && pagesFor(q).length) return answer(q, { hits: [], step: "deterministic" });
+  // Only a site page's word ("rankings", "rules") that near-matches names ("Iron Hawkings"): the page is the answer,
+  // not a guess at a team. A name beside it ("hipnotic rankings") keeps its corrected results.
+  if (score < WEAK_SCORE && onlyPageWords(q)) return answer(q, { hits: [], step: "deterministic" });
   // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result.
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));

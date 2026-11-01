@@ -9,6 +9,7 @@
 // season, an event or a date is never made up, and a next event or match is only one FIRST has published.
 import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../src/shared/api.js";
 import { awardLabel, dateRange, matchTime, place, seasonLabel } from "../../src/shared/format.js";
+import { eventToday } from "../../src/shared/eventDay.js";
 import { all } from "../db.js";
 import { ROSTER } from "../data/registrations.js";
 import { ATTENDED } from "./teams.js";
@@ -37,8 +38,9 @@ export function parseQuestion(q: string): ParsedQuestion | null {
     return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null } : null;
   }
   if (WORLDS.test(q)) {
-    const y = /\b(20\d\d)\b/.exec(q.replace(/\b20\d\d\s*[-–/]\s*\d\d\b/, " "));
-    const core = coreOf(q.replace(new RegExp(WORLDS.source, "gi"), " ").replace(/\b20\d\d\b/g, " "));
+    // A year only as a date ("in 2025", "during 2024"): a bare 2000–2099 may be a team ("when did 2025 go to worlds").
+    const y = /\b(?:in|during)\s+(20\d\d)\b/i.exec(q);
+    const core = coreOf((y ? q.replace(y[0], " ") : q).replace(new RegExp(WORLDS.source, "gi"), " "));
     // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances"): "worlds"
     // on its own beside a name stays search's ("worlds" is the championship's events).
     const asked = /\b(?:when|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
@@ -63,7 +65,10 @@ const PATTERN: Record<QuestionKind, string> = {
 
 const eventHref = (season: number, code: string, team?: number) => `/events/${season}/${encodeURIComponent(code)}${team ? `?team=${team}` : ""}`;
 const rec = (w: number | null, l: number | null, t: number | null) => (w == null || l == null ? "" : `${w}-${l}-${t ?? 0} in quals`);
-const today = () => new Date().toISOString().slice(0, 10);
+// An event's dates are its venue's calendar (src/shared/eventDay.ts): the query keeps everything that could still be on
+// anywhere (from yesterday, UTC), then each event stays only while today at its venue is on or before its last day.
+const yesterday = () => new Date(Date.now() - 24 * 3600_000).toISOString().slice(0, 10);
+const notEnded = (e: { start: string | null; end: string | null; timezone: string | null }) => (e.end ?? e.start ?? "") >= eventToday(Date.now(), e.timezone).from;
 
 interface EvRow { season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; rank: number | null; wins: number | null; losses: number | null; ties: number | null }
 const EV_COLS = "e.season, e.code, e.name, e.start, e.end, e.city, e.state, et.rank, et.wins, et.losses, et.ties";
@@ -145,11 +150,11 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
 
   if (it.kind === "next-match") {
     // A match FIRST has scheduled and not yet played, at an event that hasn't ended.
-    const m = await all<{ season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; alliance: string }>(
-      `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, x.alliance
+    const m = (await all<{ season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; alliance: string; start: string | null; end: string | null; timezone: string | null }>(
+      `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, x.alliance, e.start, e.end, e.timezone
        FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
        JOIN events e ON e.season = m.season AND e.code = m.code
-       WHERE x.team = ? AND m.played = 0 AND COALESCE(e.end, e.start) >= ? ORDER BY m.time IS NULL, m.time, m.level = 'qual' DESC, m.series, m.number LIMIT 1`, [n, today()]);
+       WHERE x.team = ? AND m.played = 0 AND COALESCE(e.end, e.start) >= ? ORDER BY m.time IS NULL, m.time, m.level = 'qual' DESC, m.series, m.number LIMIT 20`, [n, yesterday()])).filter(notEnded);
     if (m[0]) {
       const r = m[0];
       card.lines = [{ text: `${r.label} at ${r.name}`, detail: [matchTime(r.time), `${r.alliance[0].toUpperCase()}${r.alliance.slice(1)} alliance`].filter(Boolean).join(" · "), href: `/events/${r.season}/${encodeURIComponent(r.code)}?match=${r.level}:${r.series}:${r.number}` }];
@@ -167,9 +172,9 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
 
 /** The team's published events that haven't ended, soonest first (a registration counts: it's FIRST's own list). */
 async function nextEvents(n: number): Promise<SearchCardLine[]> {
-  const rows = await all<{ season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null }>(
-    `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
-     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 3`, [n, today()]);
+  const rows = (await all<{ season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; timezone: string | null }>(
+    `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state, e.timezone FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
+     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 10`, [n, yesterday()])).filter(notEnded).slice(0, 3);
   return rows.map((e) => ({ text: e.name, detail: [dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, n) }));
 }
 

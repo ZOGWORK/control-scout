@@ -29,7 +29,8 @@ type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetch
  *  Without `kinds` it asks for the whole answer (step, pages, recovery), and when that answer is weak and Bruno AI
  *  is on, asks him after the answer is on screen (never before: his reading can't slow the first results).
  *  `initial`: results already on screen (the server's, on /search), shown while the first request refreshes them. */
-export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null) {
+/** `refine`: off where Bruno AI's suggestion isn't shown (the /search page), so he's never asked for nothing. */
+export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?: { q: string; hits: SearchHit[] } | null, refine = true) {
   // Results remember the query they answer, so a pick can never come from a previous query.
   const [res, setRes] = useState<Answered>(() => (initial ? { q: initial.q, hits: initial.hits, answer: isAnswer(initial) ? initial : undefined } : { q: "", hits: [] }));
   const [ai, setAi] = useState<{ q: string; answer: SearchAnswer | null } | null>(null);
@@ -63,7 +64,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           const answer = !kindKey && isAnswer(r) ? r : undefined;
           setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true });
           setError(null);
-          if (answer?.weak && brunoOn) {
+          if (answer?.weak && brunoOn && refine) {
             setRefining(true);
             // 204 (null): he had nothing to add. Failing or slow: search's own answer stands.
             apiFetch<SearchAnswer | null>(`/api/search/refine?q=${encodeURIComponent(query)}&limit=${limit}`)
@@ -76,7 +77,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
         .finally(() => { if (id === seq.current) setBusy(false); });
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [q, prefer, kindKey, limit, brunoOn]);
+  }, [q, prefer, kindKey, limit, brunoOn, refine]);
   const current = res.q === q.trim();
   // While a newer query is on its way, the last answer stays on screen (dimmed, marked stale) instead of the list
   // emptying at every keystroke: typing never flickers to a bare "Searching…" between replies.
@@ -251,6 +252,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     setActive(i >= 0 ? i : -1);
   }, [ordered, hits]);
   useEffect(() => { activeKey.current = ordered[active]?.key ?? null; }, [ordered, active]);
+  // Typing again: nothing highlighted (an older query's row is never Enter's pick).
+  useEffect(() => { setActive(-1); activeKey.current = null; }, [q]);
   // Re-measure the "more below" cue whenever the list's contents change.
   useEffect(() => { measure(); }, [sections, open, q, busy]);
   // …and when the list's own size changes (window resized, phone rotated).
@@ -291,7 +294,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
             if (e.key === "Enter" && query) {
               e.preventDefault();
-              if (active >= 0 && ordered[active]) pick(ordered[active].hit);
+              if (!stale && active >= 0 && ordered[active]) pick(ordered[active].hit);
               else if (full) openFull();
               else if (!stale && ordered[0]) pick(ordered[0].hit);
               return;

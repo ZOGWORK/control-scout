@@ -2,7 +2,7 @@
 // question, the Worlds card from FIRST Championship events only (and an honest "none found" with the closest real
 // records), wins and awards, next event and match only when published. Plus the versus fixes that came with them:
 // run-together names ("badwolf"), Compare opened on awards, and a never-played registration naming no team.
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
@@ -50,6 +50,10 @@ describe("what's read as a question", () => {
     expect(parseQuestion("when is hypnotic's next match")).toMatchObject({ kind: "next-match", core: "hypnotic" });
     expect(parseQuestion("when is hypnotic's next event")).toMatchObject({ kind: "next-event", core: "hypnotic" });
   });
+  it("a bare 2000–2099 is a team; only \"in/during <year>\" is a year", () => {
+    expect(parseQuestion("when did team 2025 go to worlds")).toEqual({ kind: "worlds", core: "2025", year: null });
+    expect(parseQuestion("did 2025 go to worlds in 2024")).toEqual({ kind: "worlds", core: "2025", year: 2024 });
+  });
   it("leaves names and plain searches alone", () => {
     for (const q of ["worlds", "world robot contest", "hypnotic robotics", "hypnotic awards", "4215 vs 6980", "hypnotic worlds"]) expect(parseQuestion(q), q).toBeNull();
   });
@@ -91,6 +95,28 @@ describe("the answer cards", () => {
     expect(none).toMatchObject({ lines: [], none: "No upcoming event is published for Hypnotic Robotics yet." });
     expect((await searchAnswer("when is hypnotic's next match")).card!.none).toMatch(/^No upcoming match is scheduled for Hypnotic Robotics yet/);
   });
+  it("an event is on until its last day ends at its venue, not in UTC", async () => {
+    // Bad Wolf plays in Los Angeles on Oct 18; at 02:00 UTC on the 19th it's still the 18th's evening there.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (2026, 'USCALA', 'Los Angeles Qualifier', 'Qualifier', 'Los Angeles', 'CA', 'USA', '2026-10-18', '2026-10-18', 'America/Los_Angeles', 't')");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2026, 'USCALA', 6980)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (2026, 'USCALA', 'qual', 0, 30, 'Q30', '2026-10-18T19:10:00', 0, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2026, 'USCALA', 'qual', 0, 30, 6980, 'blue', 1)");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-19T02:00:00Z"));
+      expect((await searchAnswer("when is bad wolf's next match")).card!.lines[0].text).toBe("Q30 at Los Angeles Qualifier");
+      expect((await searchAnswer("when is bad wolf's next event")).card!.lines[0].text).toBe("Los Angeles Qualifier");
+      vi.setSystemTime(new Date("2026-10-19T09:00:00Z")); // 02:00 on the 19th in Los Angeles: over
+      expect((await searchAnswer("when is bad wolf's next match")).card!.lines[0].text).toBe("Q7 at Bergen Qualifier");
+      expect((await searchAnswer("when is bad wolf's next event")).card!.lines[0].text).toBe("Bergen Qualifier");
+    } finally {
+      vi.useRealTimers();
+      await run("DELETE FROM match_teams WHERE code = 'USCALA'");
+      await run("DELETE FROM matches WHERE code = 'USCALA'");
+      await run("DELETE FROM event_teams WHERE code = 'USCALA'");
+      await run("DELETE FROM events WHERE code = 'USCALA'");
+    }
+  });
   it("a question whose team isn't found goes on as a plain search (no card about nobody)", async () => {
     const a = await searchAnswer("when did qqzzxx go to worlds");
     expect(a.card).toBeUndefined();
@@ -123,6 +149,10 @@ describe("site pages", () => {
     expect(a).toMatchObject({ hits: [], step: "deterministic", weak: false });
     expect(a.pages.map((p) => p.href)).toContain("/rankings");
     expect((await searchAnswer("rec")).pages).toEqual([]);
+    // A name beside the page word keeps its corrected result: the team first, the page below.
+    const t = await searchAnswer("hipnotic rankings");
+    expect(t.hits[0]?.ref).toBe("4215");
+    expect(t.pages.map((p) => p.href)).toContain("/rankings");
   });
 });
 

@@ -63,6 +63,12 @@ export function pagesFor(q: string): SearchPageLink[] {
   return SEARCH_PAGES.filter((p) => p.words.some((w) => tokens.has(w))).map((p) => p.page);
 }
 
+/** The query is only page words ("rankings", "rules", "records"): nothing in it can name a team or event. */
+export function onlyPageWords(q: string): boolean {
+  const tokens = q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return tokens.length > 0 && tokens.every((t) => SEARCH_PAGES.some((p) => p.words.includes(t)));
+}
+
 /** Where a visitor can always go next: every team, every event. */
 export const SEARCH_BROWSE: SearchPageLink[] = [{ title: "Browse all teams", href: "/teams" }, { title: "Browse all events", href: "/events" }];
 
