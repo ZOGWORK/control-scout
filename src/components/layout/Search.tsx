@@ -24,9 +24,11 @@ interface SearchCtx {
   /** A page has its own search box: the top-bar field hides. */
   pageClaimed: boolean;
   claim: () => () => void;
+  /** Escape out of the field: focus goes back to where it was when the field was opened (not to the page body). */
+  restoreFocus: () => void;
 }
 const noop = () => () => {};
-const Ctx = createContext<SearchCtx>({ open: () => {}, inputRef: { current: null }, pageRef: { current: null }, expanded: false, setExpanded: () => {}, pageClaimed: false, claim: noop });
+const Ctx = createContext<SearchCtx>({ open: () => {}, inputRef: { current: null }, pageRef: { current: null }, expanded: false, setExpanded: () => {}, pageClaimed: false, claim: noop, restoreFocus: () => {} });
 export const useSearch = () => useContext(Ctx);
 
 /** For a page whose main content is a search box: returns the ref for that box, and hides the top-bar field while the page is open. */
@@ -43,7 +45,15 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const [claims, setClaims] = useState(0);
   const claim = useCallback(() => { setClaims((n) => n + 1); return () => setClaims((n) => n - 1); }, []);
   const pageClaimed = claims > 0;
+  const returnTo = useRef<HTMLElement | null>(null);
+  const restoreFocus = useCallback(() => {
+    const el = returnTo.current;
+    returnTo.current = null;
+    if (el?.isConnected) el.focus({ preventScroll: true });
+  }, []);
   const open = useCallback(() => {
+    const was = document.activeElement;
+    returnTo.current = was instanceof HTMLElement && was !== document.body && was !== inputRef.current ? was : null;
     if (pageClaimed && pageRef.current) {
       pageRef.current.scrollIntoView({ block: "center", behavior: smoothBehavior() });
       pageRef.current.focus({ preventScroll: true });
@@ -62,7 +72,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
-  const value = useMemo(() => ({ open, inputRef, pageRef, expanded, setExpanded, pageClaimed, claim }), [open, expanded, pageClaimed, claim]);
+  const value = useMemo(() => ({ open, inputRef, pageRef, expanded, setExpanded, pageClaimed, claim, restoreFocus }), [open, expanded, pageClaimed, claim, restoreFocus]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -72,13 +82,13 @@ export const SEARCH_HINT = isMac ? "⌘K" : "Ctrl K";
 /** The top-bar search. Inline from md up; on phones a button that expands a full-width field under the header. Hidden on pages with their own search box.
  *  `part`: the phone's button and the field can sit in different places in the top bar (the button by the menu button, the field centred). */
 export function GlobalSearch({ part }: { part?: "button" | "field" }) {
-  const { open, inputRef, expanded, setExpanded, pageClaimed } = useSearch();
+  const { open, inputRef, expanded, setExpanded, pageClaimed, restoreFocus } = useSearch();
   const nav = useNavigate();
   if (pageClaimed) return null;
   return (
     <>
       {part !== "field" && (
-        <button type="button" onClick={open} className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search" data-tour="search">
+        <button type="button" onClick={open} className={cn("tap-44 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search" data-tour="search">
           <Search className="size-5" />
         </button>
       )}
@@ -90,6 +100,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
         tour="search"
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
+        onEscape={restoreFocus}
         className={cn(
           "w-full md:block md:max-w-xs lg:max-w-sm",
           expanded ? "absolute inset-x-0 top-full z-50 border-b border-line bg-primary p-2 md:relative md:inset-auto md:top-auto md:border-0 md:bg-transparent md:p-0" : "hidden",

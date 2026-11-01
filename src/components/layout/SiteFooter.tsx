@@ -16,7 +16,7 @@ export const FOOTER_LINKS: { to: string; label: string }[] = [
   { to: "/contact", label: "Contact" },
 ];
 
-const LINK = "rounded py-1 font-medium hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+const LINK = "tap-44 rounded py-1 font-medium hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
 export function SiteFooter({ discordInvite = discordInviteUrl(), release = currentRelease() }: { discordInvite?: string | null; release?: string | null } = {}) {
   const loc = useLocation();

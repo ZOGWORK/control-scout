@@ -184,6 +184,8 @@ export interface SearchBoxProps {
   autoFocus?: boolean;
   /** Called whenever the box closes on its own (Escape on an empty field, focus leaving, a pick). */
   onClose?: () => void;
+  /** Escape on an empty, closed field (after onClose): where focus goes next. Without it, focus leaves the field. */
+  onEscape?: () => void;
   /** Keyboard shortcut shown at the right while the field is empty (e.g. "⌘K"). */
   hint?: string;
   /** What the first-run tour calls this box (data-tour), e.g. "search". */
@@ -228,7 +230,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, hint, tour, initialQuery, seeAll = true }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
@@ -298,7 +300,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
             // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
-            if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); } return; }
+            if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); onEscape?.(); } return; }
             // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
             if (e.key === "Enter" && query) {
               e.preventDefault();

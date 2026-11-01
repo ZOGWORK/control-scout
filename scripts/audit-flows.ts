@@ -40,7 +40,19 @@ const flows: Flow[] = [
       await page.keyboard.press("Control+k");
       await page.getByRole("combobox", { name: "Search teams, events and matches" }).waitFor({ state: "visible" });
       await page.keyboard.type("X Drvie", { delay: 40 });
-      await page.getByRole("option", { name: /16321 X Drive/ }).waitFor({ timeout: 10_000 });
+      const xDrive = page.getByRole("option", { name: /16321 X Drive/ });
+      await xDrive.waitFor({ timeout: 10_000 });
+      // Enter with nothing highlighted opens the full results page; the list is for picking one result.
+      await page.keyboard.press("Enter");
+      await page.waitForURL(/\/search\?q=X(\+|%20)Drvie/);
+      await page.getByRole("heading", { level: 1, name: /X Drvie/ }).waitFor();
+      await page.waitForLoadState("networkidle");
+      await page.keyboard.press("Control+k");
+      await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "combobox");
+      await page.keyboard.type("X Drvie", { delay: 40 });
+      await xDrive.waitFor({ timeout: 10_000 });
+      // Arrow down to the team, then Enter: its page.
+      for (let i = 0; i < 10 && (await xDrive.getAttribute("aria-selected")) !== "true"; i++) await page.keyboard.press("ArrowDown");
       await page.keyboard.press("Enter");
       await page.waitForURL(/\/teams\/16321/);
       // Track 16321, then "16" should put it first (number-prefix matches otherwise sort by number).
@@ -63,7 +75,7 @@ const flows: Flow[] = [
       const rest = hits.filter((h) => !/^16\b/.test(h));
       assert(/16321/.test(rest[0] ?? ""), `after tracking 16321, "16" gave: ${hits.slice(0, 4).join(" | ")}`);
       await page.keyboard.press("Escape");
-      return `"X Drvie" → 16321 X Drive via Enter; for "16": exact team 16, then tracked 16321 ahead of other prefix matches`;
+      return `"X Drvie" + Enter → the results page; arrow down + Enter → 16321 X Drive; for "16": exact team 16, then tracked 16321 ahead of other prefix matches`;
     },
   },
   {

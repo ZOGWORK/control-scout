@@ -521,7 +521,7 @@ function AwardsAllTime({ p }: { p: TeamProfile }) {
         {p.awardsAllTime.map((a, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <Link to={`/events/${a.season}/${a.code}`} className="lift inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
+              <Link to={`/events/${a.season}/${a.code}`} className="tap-44 lift inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
                 <Award className="size-3.5 text-accent" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span>
               </Link>
             </TooltipTrigger>

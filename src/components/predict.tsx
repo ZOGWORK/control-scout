@@ -11,7 +11,7 @@ import { cn } from "./cn";
 import { ClipLink } from "./MatchClip";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct, predictedText } from "../shared/scoreRange";
-import { Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
+import { Popover, PopoverContent, PopoverTrigger, TapTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
 import { VIDEO_TONE } from "../lib/textTones";
 import { useVideoLinkCount } from "./MatchVideo";
@@ -39,10 +39,9 @@ export function ConfidenceBadge({ tier, reason, className }: { tier: ConfidenceT
     </span>
   );
   return (
-    <Tooltip>
-      <TooltipTrigger asChild><button type="button" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{badge}</button></TooltipTrigger>
-      <TooltipContent className="max-w-64">{reason ?? t.blurb} <Link to="/methodology#confidence" className="underline">How tiers work</Link></TooltipContent>
-    </Tooltip>
+    <TapTooltip className="max-w-64" trigger={<button type="button" className="tap-44 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60">{badge}</button>}>
+      {reason ?? t.blurb} <Link to="/methodology#confidence" className="underline">How tiers work</Link>
+    </TapTooltip>
   );
 }
 
@@ -68,7 +67,7 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn(STATUS_CHIP, "w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
+        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
           <t.icon aria-hidden /><span className="sr-only">Confidence: {t.label.toLowerCase()}</span>
         </button>
       </PopoverTrigger>
@@ -279,7 +278,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 @3xl:block" data-match-label>
         {onToggle ? (
-          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none row-still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
+          <button type="button" onClick={onToggle} aria-expanded={!!open} aria-controls={detailsId} aria-label={`${m.label} details`} className={cn("tap-44 flex items-center gap-0.5 rounded font-mono text-sm font-semibold outline-none row-still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60", open && "text-accent-text")}>
             {m.label}<ChevronDown className={cn("size-3.5 text-text-muted transition-transform row-still-hover:text-accent-text", open && "rotate-180 text-accent-text")} />
           </button>
         ) : <p className="font-mono text-sm font-semibold">{m.label}</p>}
@@ -302,22 +301,20 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
       {/* The call, in its own track so it never runs into the blue box: line 1 the pick and its bar, line 2 small status chips. */}
       <div className="col-start-2 row-start-1 flex min-w-0 flex-col items-end gap-1 text-right @3xl:col-start-4" data-call>
         {p && fav ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button type="button" className="flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+          // A tap shows the call's detail too (TapTooltip): the button does nothing else.
+          <TapTooltip className="max-w-72" trigger={
+              <button type="button" className="tap-44 flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                 {/* The name is the text ("Picked Red 58%"). Under 20rem of row the word is only for screen readers: the
                     label needs the room. The bar repeats the number, so it's hidden from them here. */}
                 <span className="text-text-muted @max-xs:sr-only">Picked</span>{" "}
                 <span className={cn("font-semibold tabular-nums", fav === "red" ? "text-red-alliance" : "text-blue-alliance")}>{fav === "red" ? "Red" : "Blue"} {oddsPct(fav === "red" ? p.pRed : 1 - p.pRed)}</span>
                 <WinBar pRed={p.pRed} size="sm" className="w-12 shrink-0" decorative />
               </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-72">
+            }>
               {KIND_LABEL[p.kind]} · {p.noScoreBasis ? "no predicted score: when this call was made, the season had no rated matches yet" : `predicted ${predictedText(p)}${p.redRange ? ` (± is the ${levelPct(p.rangeLevel)} range)` : ""}`} · {tierPhrase(p.tier)}
               {p.factors?.length ? <span className="mt-1 block opacity-80">{factorLabel(p.factors[0].label)}</span> : null}
               <CalibrationTip pRed={p.pRed} />
-            </TooltipContent>
-          </Tooltip>
+          </TapTooltip>
         ) : (
           !predictable ? null : <span className="whitespace-nowrap text-xs text-text-muted" title={missing && m.played ? "An alliance played with one robot. The engine predicts full 2-against-2 matches only." : undefined}>
             {m.played ? (missing ? "No call · a robot sat out" : "No call") : m.red.teams.length > 2 || m.blue.teams.length > 2 ? "Lineup TBD" : "—"}
@@ -344,10 +341,10 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
         )}
       </div>
       {/* One tap to the pre-match scouting report (v1.6 Task 2): an icon button in its own track, so it never takes the
-          call's width. 32px to look at, 40px to tap (the ::after). */}
+          call's width. 32px to look at, 44px to tap on a touch screen (tap-44). */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-accent bg-card text-text-muted outline-none transition-colors after:absolute after:-inset-1 still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
+          <Link to={matchReportHref(m)} className="relative col-start-3 row-start-1 inline-flex size-8 items-center justify-center justify-self-end rounded-md border border-accent bg-card text-text-muted outline-none transition-colors tap-44 still-hover:bg-accent-soft still-hover:text-accent-text focus-visible:ring-2 focus-visible:ring-ring/60 @3xl:col-start-5" aria-label={`Pre-match report for ${m.label}`} data-report-link>
             <ClipboardList className="size-4" aria-hidden />
           </Link>
         </TooltipTrigger>

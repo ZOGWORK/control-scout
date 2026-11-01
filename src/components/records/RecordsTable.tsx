@@ -556,9 +556,9 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
     <th scope="col" aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(th, align === "right" ? "text-right" : "text-left", className)}>
       {lead}
       {k ? (
-        <button type="button" onClick={() => sortBy(k)} title={title} className={cn("group inline-flex flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/60", align === "right" ? "items-end" : "items-start")}>
+        <button type="button" onClick={() => sortBy(k)} title={title} className={cn("tap-44 group inline-flex flex-col gap-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring/60", align === "right" ? "items-end" : "items-start")}>
           <span className={cn("inline-flex items-center gap-1", tone ?? "text-text-muted", "group-hover:brightness-125", align === "right" && "flex-row-reverse")}>
-            {iconOnly ? <span className="sr-only">{label}</span> : label}{Arrow ? <Arrow className="size-3.5 text-accent" strokeWidth={3} /> : <ArrowUpDown className={cn("size-3", iconOnly ? "opacity-60 group-hover:opacity-100" : "opacity-0 group-hover:opacity-60")} />}
+            {iconOnly ? <span className="sr-only">{label}</span> : label}{Arrow ? <Arrow className="size-3.5 text-accent" strokeWidth={3} /> : <ArrowUpDown className={cn("size-3", iconOnly ? "opacity-60 group-hover:opacity-100" : "opacity-0 group-hover:opacity-60 pointer-coarse:opacity-40")} />}
           </span>
         </button>
       ) : <span className="text-text-muted">{label}</span>}
@@ -571,7 +571,7 @@ function SortHead({ k, label, title, state, sortBy, className, tone, align = "ri
 export function TeamNumber({ team, name, href }: { team: number; name: string; href: string }) {
   return (
     <Popover>
-      <PopoverTrigger className="rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
+      <PopoverTrigger className="tap-44 rounded font-mono font-semibold tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring/60 still-hover:text-accent-text"
         aria-label={name ? `${team} ${name}` : `Team ${team}`}>
         {team}
       </PopoverTrigger>
@@ -590,7 +590,7 @@ function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => 
   // "indeterminate" is a property only (no attribute): set it after every render, as a click resets it.
   useEffect(() => { if (ref.current) ref.current.indeterminate = state === "some"; });
   return (
-    <label className="mr-1.5 inline-flex cursor-pointer items-center gap-2.5 max-sm:mr-1 align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
+    <label className="tap-44 mr-1.5 inline-flex cursor-pointer items-center gap-2.5 max-sm:mr-1 align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
       title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}>
       <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
         aria-label="Select all teams on this page" className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
@@ -707,8 +707,11 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                     <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
                       <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
-                          <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
-                            className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
+                          // In a label so a touch screen's 44px tap area (tap-44) toggles it too.
+                          <label className="tap-44 inline-flex shrink-0 cursor-pointer">
+                            <input type="checkbox" checked={sel} onChange={() => onSelect(team!)} aria-label={`Select ${team} to compare`}
+                              className="size-4 shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
+                          </label>
                         )}
                         {phone
                           ? <TeamNumber team={team!} name={String(r.stats.teamName ?? "")} href={`/teams/${team}?season=${r.season}`} />

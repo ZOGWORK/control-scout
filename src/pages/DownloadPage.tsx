@@ -227,7 +227,7 @@ function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSav
         {r.state !== "saved" && <Button size="sm" variant={r.state === "update" ? "secondary" : "default"} onClick={onSave} disabled={disabled}><HardDriveDownload /> {r.state === "update" ? "Update" : "Save offline"}</Button>}
         {/* Not while saving runs: a season waiting in the run would otherwise come back after being removed. */}
         {r.saved && <Button variant="outline" size="sm" onClick={onRemove} disabled={disabled || removing || progress != null}><Trash2 /> Remove</Button>}
-        <a href={r.file.url} download className="inline-flex min-h-8 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" title="The raw SQLite file, for your own analysis">
+        <a href={r.file.url} download className="tap-44 inline-flex min-h-8 items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" title="The raw SQLite file, for your own analysis">
           <Database className="size-3.5" />SQLite
         </a>
       </div>

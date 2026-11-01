@@ -284,12 +284,12 @@ export function Shell({ children }: { children: ReactNode }) {
               {/* Phones: the menu (every page) top left with search beside it, the logo centred, and the bell right. */}
               <div className="flex items-center gap-0.5 md:hidden">
                 <button ref={menuRef} type="button" onClick={() => openMenu(menuRef.current)} aria-label="Open menu" aria-expanded={menu}
-                  className="-ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
+                  className="tap-44 -ml-1.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
                   <PanelLeft className="size-5" />
                 </button>
                 <GlobalSearch part="button" />
               </div>
-              <Link to="/" className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>
+              <Link to="/" className="tap-44 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden" aria-label="Control Scout home"><BrandMark /></Link>
               <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               <OfflineStatus />
