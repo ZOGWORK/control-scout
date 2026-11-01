@@ -19,7 +19,7 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, answer, busy, error, logPick, stale } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const nav = useNavigate();
   const showing = answer ? showingLine({ ...answer, hits }) : null;
@@ -52,7 +52,7 @@ export default function SearchPage() {
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               <AnswerNotesView notes={notes} className="mb-4 text-sm" />
-              <BrunoAnswer q={q} ready={!busy && !stale} className="mb-4" />
+              <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" />
               {answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
               {sections.map((s) => (
                 <section key={s.id} aria-label={s.title} className="mb-5">

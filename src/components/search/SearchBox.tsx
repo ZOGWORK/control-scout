@@ -98,6 +98,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale,
     ai: brunoOn && shown && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
     busy: busy || (!!q.trim() && !current), error: current ? error : null, logPick,
+    /** The visitor's preferred teams and events, as sent with the search (Bruno's answer is asked with the same). */
+    prefer,
   };
 }
 

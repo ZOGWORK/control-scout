@@ -33,6 +33,11 @@ describe("Bruno's answer on /search", () => {
     expect(note.textContent).toContain("went to states 3 times since 2023–24.");
     expect(note.textContent).toContain("Written by Bruno AI from the records below");
   });
+  it("asks with the page's own preferred teams", async () => {
+    render(<BrunoAnswer q={Q} prefer="team:4215,team:6980" ready />);
+    await settle();
+    expect(pending[0].url).toBe(`/api/search/bruno?q=${encodeURIComponent(Q)}&prefer=${encodeURIComponent("team:4215,team:6980")}`);
+  });
   it("shows nothing when he has no answer", async () => {
     render(<BrunoAnswer q={Q} ready />);
     await settle();

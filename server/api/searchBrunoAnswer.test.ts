@@ -87,6 +87,24 @@ describe("asking Bruno", () => {
     reply = { text: "Hypnotic Robotics went to states 6 times." };
     expect(await brunoAnswer(Q)).toBeNull();
   });
+  it("a question by its \"?\" alone is one too (read before cleaning drops it)", async () => {
+    reply = { text: "Hypnotic Robotics (4215) has an OPR of 101.6 in 2025–26." };
+    expect(await brunoAnswer("hypnotic opr?")).toEqual(reply);
+    expect(asked[0].question).toBe("hypnotic opr");
+  });
+  it("two asks at once for the same question share one call", async () => {
+    reply = { text: "4215 went to states 2 times." };
+    const [a, b] = await Promise.all([brunoAnswer(Q), brunoAnswer(Q)]);
+    expect(a).toEqual(reply);
+    expect(b).toEqual(reply);
+    expect(asked).toHaveLength(1);
+  });
+  it("reads with the page's own preferred teams, each set cached apart", async () => {
+    reply = { text: "4215 went to states 2 times." };
+    await brunoAnswer(Q, { prefer: new Set(["team:4215"]) });
+    await brunoAnswer(Q);
+    expect(asked).toHaveLength(2);
+  });
   it("caches each question: asked once", async () => {
     reply = { text: "4215 went to states 2 times." };
     await brunoAnswer(Q);

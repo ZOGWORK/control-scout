@@ -12,7 +12,8 @@ import { cn } from "../cn";
 /** How long the question must stay unchanged before Bruno is asked. */
 export const BRUNO_SETTLE_MS = 600;
 
-export function BrunoAnswer({ q, ready, className }: { q: string; ready: boolean; className?: string }) {
+/** `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results. */
+export function BrunoAnswer({ q, prefer = "", ready, className }: { q: string; prefer?: string; ready: boolean; className?: string }) {
   const on = useServerFlag("brunoAnswers");
   const query = q.trim();
   const asks = on && ready && isBrunoQuestion(query);
@@ -22,12 +23,12 @@ export function BrunoAnswer({ q, ready, className }: { q: string; ready: boolean
     let live = true;
     const t = setTimeout(() => {
       setState({ q: query, text: null, busy: true });
-      apiFetch<{ text: string } | null>(`/api/search/bruno?q=${encodeURIComponent(query)}`)
+      apiFetch<{ text: string } | null>(`/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
         .then((r) => { if (live) setState({ q: query, text: r?.text ?? null, busy: false }); })
         .catch(() => { if (live) setState({ q: query, text: null, busy: false }); });
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); };
-  }, [asks, query]);
+  }, [asks, query, prefer]);
   if (!asks || state.q !== query || (!state.busy && !state.text)) return null;
   return (
     <div role="note" aria-label="Bruno AI's answer" aria-busy={state.busy || undefined} data-bruno-answer

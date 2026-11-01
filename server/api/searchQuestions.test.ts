@@ -82,6 +82,8 @@ describe("the answer cards", () => {
   it("states: \"how many times\" counts the team's state championships, each with its OPR there", async () => {
     expect(parseQuestion("how many times did 4215 go to states")).toEqual({ kind: "states", core: "4215", year: null });
     expect(parseQuestion("did bad wolf make the state championship in 2024")).toEqual({ kind: "states", core: "bad wolf", year: 2024 });
+    // A league championship is its own kind of event: never read as states.
+    expect(parseQuestion("did 4215 go to the league championship")).toBeNull();
     const a = await searchAnswer("how many times did hypnotic go to states");
     expect(a.card).toMatchObject({ kind: "states", title: "State championships", count: 1 });
     expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX · ranked #1 · 6-0-0 in quals · OPR 50.0 · Winning Alliance · Design 2nd", href: "/events/2023/USNJCMP?team=4215" });

@@ -14,6 +14,10 @@ import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
+import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
+
+/** A search's preferred teams and events (?prefer=team:4215,event:2025:USNJCMP), the visitor's own: ranked first. */
+const preferOf = (raw: unknown) => new Set(String(raw ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -325,7 +329,7 @@ export function createApp(opts: { dist?: string } = {}) {
 
   api.get("/search", h(async (req) => {
     await ensureSearchIndex(rebuildSearch);
-    const prefer = new Set(String(req.query.prefer ?? "").split(",").filter((k) => /^(team:\d{1,6}|event:\d{4}:[A-Z0-9_-]{2,24})$/i.test(k)).slice(0, 100));
+    const prefer = preferOf(req.query.prefer);
     // ?kinds=event,place: only those kinds, picked before the limit (unknown names are ignored).
     const kinds = new Set(String(req.query.kinds ?? "").split(",").filter((k): k is SearchHit["kind"] => k === "team" || k === "event" || k === "match" || k === "place"));
     const limit = boundedCount(req.query.limit, "limit", 12, 1, 25);
@@ -348,7 +352,8 @@ export function createApp(opts: { dist?: string } = {}) {
   // results are on screen. 204: no answer (not a question, off, unconfigured, failed, or nothing he could say from the facts).
   api.get("/search/bruno", limiter(20), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
-    const r = await brunoAnswer(String(req.query.q ?? ""));
+    // The page's own search choices (its preferred teams), so he reads the results the page shows.
+    const r = await brunoAnswer(String(req.query.q ?? ""), { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT });
     if (!r) { res.status(204).end(); return undefined; }
     return r;
   }));

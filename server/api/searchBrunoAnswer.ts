@@ -13,7 +13,7 @@ import { get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
 import { normalize } from "./fuzzy.js";
-import { cleanQuery, searchAnswer } from "./searchAnswer.js";
+import { cleanQuery, searchAnswer, type AnswerOptions } from "./searchAnswer.js";
 
 export const BRUNO_ANSWER_TIMEOUT_MS = 12_000;
 /** At most this many facts, and this much text in all: a small, fast prompt. */
@@ -26,7 +26,9 @@ export interface BrunoAnswer { text: string }
 
 /** Answers by normalized question (null: Bruno had nothing to say, or his answer failed the check). Failures aren't kept. */
 const cache = new Map<string, { at: number; answer: BrunoAnswer | null }>();
-export const resetBrunoAnswerCache = () => cache.clear();
+/** Questions being answered right now: a second ask while one is in flight shares it (one model call). */
+const pending = new Map<string, Promise<BrunoAnswer | null>>();
+export const resetBrunoAnswerCache = () => { cache.clear(); pending.clear(); };
 
 const lineText = (l: SearchCardLine) => (l.detail ? `${l.text}: ${l.detail}` : l.text);
 
@@ -79,15 +81,28 @@ export function grounded(text: string, facts: string[], question: string): boole
   return numbers(text).every((n) => known.has(n) || known.has(n.replace(/\.0+$/, "")));
 }
 
-/** Bruno's answer to the question `raw`, or null (not a question, off, unconfigured, nothing to say, failed the check). */
-export async function brunoAnswer(raw: string, now = Date.now()): Promise<BrunoAnswer | null> {
+/**
+ * Bruno's answer to the question `raw`, or null (not a question, off, unconfigured, nothing to say, failed the
+ * check). `opts`: the page's own search choices (its preferred teams, its limit), so he reads the results it shows.
+ */
+export async function brunoAnswer(raw: string, opts: Pick<AnswerOptions, "prefer" | "limit"> = {}, now = Date.now()): Promise<BrunoAnswer | null> {
+  // A question by its "?" too ("hypnotic opr?"): read before cleaning, which drops it.
   const q = cleanQuery(raw);
-  if (!q || !isBrunoQuestion(q)) return null;
+  if (!q || !isBrunoQuestion(raw.trim().slice(0, 200))) return null;
   if (!(await isEnabled("brunoAnswers").catch(() => false)) || !brunoAvailable()) return null;
-  const k = normalize(q);
+  const k = `${normalize(q)}|${[...(opts.prefer ?? [])].sort().join(",")}`;
   const hit = cache.get(k);
   if (hit && now - hit.at < CACHE_TTL_MS) return hit.answer;
-  const facts = await answerFacts(await searchAnswer(q, { learn: false }));
+  const inFlight = pending.get(k);
+  if (inFlight) return inFlight;
+  // Only its own entry: a reset while it ran may have let a newer ask take the key.
+  const p: Promise<BrunoAnswer | null> = ask(q, opts, k, now).finally(() => { if (pending.get(k) === p) pending.delete(k); });
+  pending.set(k, p);
+  return p;
+}
+
+async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit">, k: string, now: number): Promise<BrunoAnswer | null> {
+  const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: true }));
   let answer: BrunoAnswer | null = null;
   try {
     const { text } = await brunoSearchAnswer(q, facts, BRUNO_ANSWER_TIMEOUT_MS);
