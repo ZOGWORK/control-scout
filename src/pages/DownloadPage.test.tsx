@@ -35,7 +35,7 @@ vi.mock("../components/ui/sonner", () => ({ toast: Object.assign(vi.fn(), { succ
 vi.mock("../lib/personal", () => ({ usePersonal: () => ({ state: { settings: {} }, update: vi.fn() }) }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useTitle: () => {} }));
 
-const { default: DownloadPage } = await import("./DownloadPage");
+const { default: DownloadPage, seasonSpan } = await import("./DownloadPage");
 const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
 const { TooltipProvider } = await import("../components/ui/overlay");
 const mount = () => render(<MemoryRouter><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
@@ -118,5 +118,13 @@ describe("Download page seasons", () => {
     open();
     await waitFor(() => expect(toastOk).toHaveBeenCalled());
     expect(order).toEqual([2026, 2025, 2024, 2023]);
+  });
+});
+
+describe("the lite pack's seasons", () => {
+  it("says the span, one season, or nothing for a pack with none", () => {
+    expect(seasonSpan([2023, 2026, 2024])).toBe(", 2023–24 to 2026–27");
+    expect(seasonSpan([2025])).toBe(", 2025–26");
+    expect(seasonSpan([])).toBe("");
   });
 });
