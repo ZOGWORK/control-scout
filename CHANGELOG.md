@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.2 — 2026-11-01
+
+What's new stays in view at the foot of the sidebar, and Settings has one place.
+
+### Highlights
+- [home] What's new sits right above Sign in, always in view
+- [home] Settings is the gear beside Sign in, no longer a second row under More
+- [home] The phone's menu puts What's new just above your account too
+
+### Navigation
+- **What's new** moved out of the folded More group to the foot of the sidebar, beside the fold button and right above Sign in, so a new release's dot shows without opening More. On the icon rail and in the phone's menu it sits just above the account controls too.
+- **Settings** is the gear beside Sign in (or your name) only; the duplicate Settings row under More is gone.
+
 ## 1.8.1 — 2026-11-01
 
 Add teams to your shortlist right from the Shortlist page.
