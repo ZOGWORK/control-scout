@@ -199,6 +199,17 @@ describe("no signal: the packs answer", () => {
     expect(mode.result.current).toBe(true);
   });
 
+  it("a request its caller cancels (a newer search) fails as cancelled: no saved-data answer, no Offline badge", async () => {
+    writeSaved([saved]);
+    vi.stubGlobal("fetch", hanging());
+    const ctrl = new AbortController();
+    const p = apiFetch("/api/search?q=hyp", { signal: ctrl.signal });
+    ctrl.abort();
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    expect(offlineAnswer).not.toHaveBeenCalled();
+    expect(mode.result.current).toBe(false);
+  });
+
   it("no answer within the timeout counts as no signal, for a read a saved season can answer", async () => {
     vi.useFakeTimers();
     writeSaved([saved]);
