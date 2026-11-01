@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.0 — 2026-11-01
+
+Easier to tap on a phone: buttons, links and chips get a full fingertip of room, and a match's call opens its detail on a tap.
+
+### Highlights
+- [fixes] Buttons, tabs and icons are easier to tap on a phone
+- [predict] Tap a match's call ("Picked Red 58%") to see why
+- [fixes] Escape out of search puts you back where you were
+- [rankings] Sortable columns show their arrows on a touch screen
+
+### Navigation and interaction
+- **Tap areas.** On a touch screen, buttons, tabs, segmented controls, the header icons, footer links, a match row's label and report button, sort headers, team numbers and the compare boxes in tables now take a tap 44px around them, without changing how anything looks or where it sits. Measured on a phone-sized screen across fourteen pages: controls with a 44px tap area went from 117 of 1,241 (9%) to 466 of 1,021 (46%; the local data has fewer rows).
+- **Tap to see the detail.** A match's call ("Picked Red 58%") and a confidence badge opened their detail only on a mouse hover, so a phone could never show it. A tap now opens it; a tap elsewhere closes it.
+- **Sort arrows on touch.** Records and rankings columns showed their sort arrows only on hover; a touch screen now shows them faintly.
+- **Escape from search.** Ctrl K (or /) then Escape left the keyboard focus nowhere; it now returns to where you were.
+- **Checked, unchanged.** Enter in the header search opens the full results page and the arrow keys pick one result; deep links like a team's #opr open and expand the section; Back returns to the page before; the current section is marked in the menu on every page; Tab reaches every control on thirteen pages with a visible focus ring and no trap (#390).
+
 ## 1.8.9 — 2026-11-01
 
 Records no longer jumps while it loads, a server that doesn't answer is no longer called "you're offline", and a failed search can be tried again.
