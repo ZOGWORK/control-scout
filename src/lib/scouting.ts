@@ -327,19 +327,22 @@ export function scoutDraftBase(e: ScoutEntry): number | undefined {
 /** Is this entry waiting to sync on this device? */
 export const isScoutQueued = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => dirty(e.workspaceId).has(e.uuid);
 
-// Entries the server turned down for good (invalid: a clock far ahead, a value out of range), per space. They leave
-// the queue (no retrying forever) but never count as synced: Entries says so until a later save goes through.
+// Entries the server turned down for good (invalid: a clock far ahead, a value out of range), per space: each with
+// the version turned down (its updatedAt). They leave the queue (no retrying forever) but never count as synced:
+// Entries says so while that version is the one on the device. A server copy pulled over it, or a later save that
+// goes through, is another version, so the warning goes with it. Cleared with the account's data on sign-out.
 const REJECTED = "cs-scout-rejected:";
 const rejectedKey = (space: ScoutSpace) => `${REJECTED}${space ?? "personal"}`;
-function rejected(space: ScoutSpace): Set<string> { try { return new Set(JSON.parse(localStorage.getItem(rejectedKey(space)) ?? "[]")); } catch { return new Set(); } }
-function markRejected(space: ScoutSpace, uuid: string, on: boolean) {
-  const r = rejected(space);
-  if (r.has(uuid) === on) return;
-  if (on) r.add(uuid); else r.delete(uuid);
-  try { if (r.size) localStorage.setItem(rejectedKey(space), JSON.stringify([...r])); else localStorage.removeItem(rejectedKey(space)); } catch { /* storage full: shown as before */ }
+function rejected(space: ScoutSpace): Record<string, number> {
+  try { const r = JSON.parse(localStorage.getItem(rejectedKey(space)) ?? "{}"); return r && typeof r === "object" && !Array.isArray(r) ? r : {}; } catch { return {}; }
 }
-/** The server turned this entry's last save down for good: it isn't stored anywhere but this device. */
-export const isScoutRejected = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => rejected(e.workspaceId).has(e.uuid);
+function markRejected(space: ScoutSpace, uuid: string, version: number | null) {
+  const r = rejected(space);
+  if (version == null) { if (!(uuid in r)) return; delete r[uuid]; } else r[uuid] = version;
+  try { if (Object.keys(r).length) localStorage.setItem(rejectedKey(space), JSON.stringify(r)); else localStorage.removeItem(rejectedKey(space)); } catch { /* storage full: shown as before */ }
+}
+/** The server turned down this version of the entry for good: it isn't stored anywhere but this device. */
+export const isScoutRejected = (e: Pick<ScoutEntry, "uuid" | "workspaceId" | "updatedAt">) => rejected(e.workspaceId)[e.uuid] === e.updatedAt;
 
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
 
@@ -473,7 +476,7 @@ export function clearLocalScouting() {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       // (cs-scout-tpl…: workspace templates kept for offline forms, scoutTemplates.ts; cs-scout-wss: workspace settings, workspaceSettings.ts.)
-      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:") || k.startsWith(LOST_PREFIX))) keys.push(k);
+      if (k && (k.startsWith("cs-scout:") || k.startsWith(WS) || k.startsWith(WS_DIRTY) || k.startsWith(WS_CURSOR) || k.startsWith(REJECTED) || k.startsWith("cs-scout-tpl") || k.startsWith("cs-scout-wss:") || k.startsWith(LOST_PREFIX))) keys.push(k);
     }
     for (const k of keys) localStorage.removeItem(k);
     localStorage.removeItem(DIRTY);
@@ -609,7 +612,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // If that copy can't be stored, ours stays on the device, queued, until it can.
         if (space != null && server && lostTo(current, server, true) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
         if (server) { try { writeEntry(withNewerPhotos(server, current)); } catch { saved = false; } }
-        if (saved) { now.delete(res.uuid); markRejected(space, res.uuid, false); }
+        if (saved) { now.delete(res.uuid); markRejected(space, res.uuid, null); }
         // A restore that landed: the lost version it brought back is no longer lost.
         if (space != null && sentVersion?.restoredFrom != null && server?.updatedAt === sentVersion.updatedAt) dropRestored(space, res.uuid, sentVersion.restoredFrom);
       }
@@ -628,7 +631,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // Deleting something already deleted (by its author or an admin) needs no message.
         if (!(kind === "delete" && res.entry.deleted)) refused.push({ space, uuid: res.uuid, kind });
       }
-      else if (!res.ok) { now.delete(res.uuid); markRejected(space, res.uuid, true); } // rejected for good (invalid): don't retry forever
+      else if (!res.ok) { now.delete(res.uuid); markRejected(space, res.uuid, sentVersion?.updatedAt ?? 0); } // rejected for good (invalid): don't retry forever
     }
     setDirty(now, space);
     sent += batch.length;

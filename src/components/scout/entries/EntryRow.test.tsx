@@ -126,13 +126,22 @@ describe("a shared entry's attribution time", () => {
     expect(synced.textContent).toBe("Entry 18360 match Q12: Synced");
   });
 
-  it("an entry the server turned down for good never reads as Synced", () => {
+  it("an entry the server turned down for good never reads as Synced", async () => {
     const e = shared(Date.now());
-    localStorage.setItem("cs-scout-rejected:901", JSON.stringify([e.uuid]));
+    localStorage.setItem("cs-scout-rejected:901", JSON.stringify({ [e.uuid]: e.updatedAt }));
     showShared(e);
     const state = screen.getByRole("listitem").querySelector("[data-save-state]")!;
     expect(state.getAttribute("data-save-state")).toBe("attention");
     expect(state.textContent).toContain("Not synced: kept on this device");
+    cleanup();
+    // Another version (the server's copy pulled over it, another account's): no warning.
+    showShared({ ...e, updatedAt: (e.updatedAt as number) - 1000 } as ScoutEntry);
+    expect(screen.getByRole("listitem").querySelector("[data-save-state]")!.textContent).toContain("Synced");
+    cleanup();
+    // Signing out clears it with the rest of the account's scouting data.
+    const { clearLocalScouting } = await import("../../../lib/scouting");
+    clearLocalScouting();
+    expect(localStorage.getItem("cs-scout-rejected:901")).toBeNull();
     localStorage.clear();
   });
 
