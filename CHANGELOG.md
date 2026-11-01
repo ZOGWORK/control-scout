@@ -29,7 +29,7 @@ Team and event pages open as the finished page: no half-loaded screen, no sectio
 - **The app picks up where the page is.** The answers the page was drawn from come with it, so the app starts from them: no loading state, and no second request for the team, its matches, the event or the site's season list. The season picker no longer grows from one season to four once that list arrives.
 - **Styled from the first frame.** These pages wait for the stylesheet and the two text fonts before they paint, so text never shows in a stand-in font and then reflows. The app's code downloads meanwhile, at low priority.
 - **Search engines see the page.** The same HTML is what crawlers read: the full team or event page, not a header-only summary.
-- On a phone, the bottom tab bar of the first paint stays on top of the page.
+- On a phone, the bottom tab bar of the first paint stays on top of the page (#375).
 
 ## 1.7.5 — 2026-10-31
 
