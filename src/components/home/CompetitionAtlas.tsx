@@ -39,7 +39,7 @@ const fmt = (n: number) => n.toLocaleString();
  */
 function CountryPaths({ country, overview, currentSeason, side }: { country: CountryTotal; overview: HomeOverview; currentSeason: number; side: boolean }) {
   const line = resultsLine(country, overview.readiness);
-  const path = "group flex min-h-11 items-center gap-2.5 rounded-xl border px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+  const path = "group flex min-h-11 items-center gap-2.5 rounded-xl border px-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
   return (
     <div className={cn("mt-3 grid gap-2 text-sm @lg/atlas:grid-cols-2", side && "@xl/atlas:grid-cols-1")}>
       <Link to={countryHref(country.code, overview.season, currentSeason, "listed")} className={cn(path, "border-accent/30 bg-accent/[0.07] hover:bg-accent/[0.12]")}>
@@ -121,7 +121,7 @@ export function CompetitionAtlas({ overview, currentSeason, compact, homeCountry
         <div className="flex items-center gap-2">
         {mode === "globe" && !failed && drawn && (
           <button type="button" onClick={() => setPaused(!still)} aria-label={still ? "Turn the globe" : "Stop the globe turning"}
-            className="inline-flex size-9 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
+            className="inline-flex size-9 items-center justify-center rounded-lg border border-line text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring max-sm:size-10">
             {still ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
           </button>
         )}

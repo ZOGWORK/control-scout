@@ -194,10 +194,10 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
       <span className="font-mono font-semibold tabular-nums">{s.team}</span>{" "}
       {big ? (
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm">{name || (name === undefined ? "…" : "Unnamed team")}</span>{" "}
+          <span className="block truncate text-sm" title={name ?? undefined}>{name || (name === undefined ? "…" : "Unnamed team")}</span>{" "}
           <span className="block text-xs text-muted-foreground">{s.why}</span>
         </span>
-      ) : name ? <span className="max-w-[10rem] truncate text-muted-foreground">{name}</span> : null}
+      ) : name ? <span className="max-w-[10rem] truncate text-muted-foreground" title={name}>{name}</span> : null}
     </button>
   );
 }
@@ -367,7 +367,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                   {t.length > 1 && (
                     <button type="button" {...gripProps(x.team.number, i)}
                       aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing max-sm:h-10">
+                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
                       <GripVertical className="size-4" aria-hidden />
                     </button>
                   )}
@@ -422,6 +422,9 @@ function ChartCard({ title, description, delay = 0, children }: { title: string;
   );
 }
 
+/** The compare trend's line patterns, one per chosen team (four at most): solid, dashed, dotted, dash-dot. */
+const LINE_DASH = [undefined, "6 3", "2 3", "8 3 2 3"];
+
 function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
   const { colorOf } = useTeamColors();
@@ -459,7 +462,9 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
                   <XAxis dataKey="i" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} width={32} />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                  {t.map((x) => <Line key={x.team.number} dataKey={String(x.team.number)} stroke={`var(--color-${x.team.number})`} strokeWidth={2} connectNulls dot={{ r: 3 }} />)}
+                  <Legend iconType="plainline" />
+                  {/* Each line has its own dash and dot shape as well as its colour, so the teams tell apart without colour. */}
+                  {t.map((x, i) => <Line key={x.team.number} dataKey={String(x.team.number)} stroke={`var(--color-${x.team.number})`} strokeWidth={2} strokeDasharray={LINE_DASH[i % LINE_DASH.length]} connectNulls dot={{ r: 3 }} />)}
                 </LineChart>
               </ChartContainer>
             )}
@@ -478,7 +483,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
                   <li key={e.code} className="flex items-baseline gap-2">
-                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text">{e.name}</Link>
+                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text" title={e.name}>{e.name}</Link>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{e.rank ? `#${e.rank}` : "—"} · OPR {e.opr == null ? "—" : num(e.opr, 1)}</span>
                   </li>
                 )) : <li className="text-muted-foreground">No events this season.</li>}

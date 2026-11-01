@@ -13,6 +13,7 @@ import { ScoreRange } from "./ScoreRange";
 import { levelPct, predictedText } from "../shared/scoreRange";
 import { Popover, PopoverContent, PopoverTrigger, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
 import { matchTime, oddsPct } from "../lib/format";
+import { VIDEO_TONE } from "../lib/textTones";
 import { useVideoLinkCount } from "./MatchVideo";
 import { restoredSavedPosition, scrollToElement, smoothBehavior } from "../lib/pageScroll";
 
@@ -221,7 +222,7 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
         {a.teams.map((t) => <TeamChip key={t.number} t={t} side={side} season={m.season} highlight={highlight} />)}
       </div>
       {score != null ? (
-        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance" : "text-blue-alliance")}>
+        <span key={flash} className={cn("shrink-0 font-display text-lg font-bold tabular-nums", flash > 0 && "cs-score-flash -mx-1 px-1", outcome === "loss" ? FADED[side] : side === "red" ? "text-red-alliance-ink" : "text-blue-alliance")}>
           {score}{outcome === "win" && <span className="sr-only"> (won)</span>}
         </span>
       ) : forecast != null ? (
@@ -336,7 +337,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <span className="sr-only">{p.kind === "live" ? "pre-match" : "replayed"}: {KIND_LABEL[p.kind]}</span>
               </span>
             )}
-            {m.clip && <ClipLink clip={m.clip} className={cn(STATUS_CHIP, "bg-[#ff0033]/12 text-[#ff4d6d] still-hover:bg-[#ff0033]/20")}><span className="text-[10px]">Watch</span></ClipLink>}
+            {m.clip && <ClipLink clip={m.clip} className={cn(STATUS_CHIP, VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
             {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "still-hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>

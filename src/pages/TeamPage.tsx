@@ -200,7 +200,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
           {t.sponsors.length > 0 && (
             <Collapsible className="relative mt-3">
               <CollapsibleTrigger className="group inline-flex min-h-8 max-w-full items-center gap-1.5 rounded text-left text-sm text-muted-foreground hover:text-foreground max-sm:min-h-10">
-                <span className="font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
+                <span className="shrink-0 whitespace-nowrap font-medium text-foreground">Sponsors ({t.sponsors.length})</span>
                 <span className="truncate group-data-[state=open]:hidden">{t.sponsors.slice(0, 2).join(" · ")}{t.sponsors.length > 2 ? " …" : ""}</span>
                 <ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
               </CollapsibleTrigger>
@@ -266,7 +266,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
           <div className="mt-5 max-sm:mt-4 space-y-2 text-sm">
             {last && (
               <Link to={`/events/${last.season}/${last.code}?team=${t.number}`} className="lift flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2">
-                <span className="min-w-0 truncate"><span className="text-muted-foreground">Last · </span>{last.name}</span>
+                <span className="min-w-0 truncate" title={last.name}><span className="text-muted-foreground">Last · </span>{last.name}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">{last.rank ? `ranked #${last.rank}` : ""}{last.awards.length ? ` · ${last.awards.length} award${last.awards.length > 1 ? "s" : ""}` : ""}</span>
               </Link>
             )}
@@ -429,7 +429,7 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
 function RankMedal({ rank }: { rank: number | null }) {
   if (!rank) return <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border text-xs text-muted-foreground">—</span>;
   return <span className={cn("flex size-10 shrink-0 flex-col items-center justify-center rounded-xl border font-display text-sm font-bold tabular-nums", rank === 1 ? "border-accent/50 bg-accent/15 text-accent-text" : rank <= 4 ? "border-border bg-muted" : "border-border")}>
-    <span className="text-[9px] font-medium uppercase leading-none text-muted-foreground">rank</span>{rank}
+    <span className="text-[10px] font-medium uppercase leading-none text-muted-foreground">rank</span>{rank}
   </span>;
 }
 
@@ -461,7 +461,7 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
         <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className="lift flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap">
           <RankMedal rank={e.rank} />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{e.name}</p>
+            <p className="truncate font-medium" title={e.name}>{e.name}</p>
             <p className="truncate text-xs text-muted-foreground">{dateRange(e.start, e.end)} · {place(e.city, e.state)} · {eventTypeLabel(e.type)}</p>
             {(e.awards.length > 0 || e.alliance) && (
               <div className="mt-1.5 flex flex-wrap gap-1">

@@ -48,7 +48,8 @@ describe("Custom matchup", () => {
 
   it("the robots' ratings fold away; the three reasons stay in view", async () => {
     render(<TooltipProvider><MemoryRouter initialEntries={["/predict?mode=match&season=2025&red=1,2&blue=3,4"]}><PredictPage /></MemoryRouter></TooltipProvider>);
-    expect(await screen.findByRole("heading", { name: /Why: the top 3 factors/ })).toBeTruthy();
+    // A level-2 heading: it follows the page's h1 directly, so an h3 skipped a level (axe heading-order).
+    expect(await screen.findByRole("heading", { level: 2, name: /Why: the top 3 factors/ })).toBeTruthy();
     expect(screen.getByText(/The robots' ratings/).closest("details")?.open).toBe(false);
   });
 

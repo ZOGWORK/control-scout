@@ -9,7 +9,7 @@
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
   "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
-  "seasonRoadMap", "brunoSearch", "searchLearning",
+  "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
 export type FlagSet = Record<Flag, boolean>;
@@ -51,6 +51,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   weeklyDigest: { group: "kill", scope: "global" },
   seasonRoadMap: { group: "feature", scope: "global" },
   brunoSearch: { group: "feature", scope: "global" },
+  brunoAnswers: { group: "feature", scope: "global" },
   searchLearning: { group: "feature", scope: "global" },
 };
 
@@ -81,6 +82,7 @@ export const FEATURE_OFF_MESSAGE: Partial<Record<Flag, string>> = {
   rulesReference: "The rules quick reference is switched off for now. Check the official game manual instead.",
   seasonRoadMap: "The season road map is switched off for now. The rest of this team's page still works.",
   brunoSearch: "Bruno's search help is switched off for now. Search works as normal.",
+  brunoAnswers: "Bruno's answers are switched off for now. Search works as normal.",
   searchLearning: "Search learning is switched off for now. Search works as normal.",
   workspaceScouting: "Workspace scouting is paused by the owner right now. Your entries stay on this device and sync once it's back; personal scouting still syncs.",
   scoutingAlliances: "Scouting alliances are switched off for now. Each workspace sees only its own scouting; links and their entries are kept and come back when they do.",
@@ -105,6 +107,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Bruno AI in search",
     on: "When search finds nothing or only a guess, Bruno AI (Control Point) rewrites the query and search runs again on his words. He never supplies a result or a number: everything shown still comes from search. Shown apart, labelled as his reading.",
     off: "Search never asks Bruno: corrections and the recovery state are search's own. Starts off (migration 64) until the experiment report is decided.",
+  },
+  brunoAnswers: {
+    label: "Bruno answers on /search",
+    on: "A search that reads as a question gets a short written answer from Bruno AI (Control Point) above the results, written only from the records search found. An answer naming any number that isn't in those records is dropped. Cached per question for 6 hours.",
+    off: "/search shows search's own results and cards only; Bruno is never asked.",
   },
   searchLearning: {
     label: "Search learning",

@@ -528,9 +528,9 @@ const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endga
  */
 function LiveStandings({ field, season, team, code, schedule }: { field: FieldRow[]; season: number; team: number | null; code: string; schedule: ScheduleDifficulty | null }) {
   return (
-    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
+    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-danger/30 bg-danger/[0.04] p-3 sm:p-4">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
-        <Radio className="size-4 text-red-500" /> Live standings
+        <Radio className="size-4 text-danger" /> Live standings
         <span className="font-normal text-muted-foreground">· updated as matches are scored</span>
       </h2>
       <Rankings field={field} season={season} team={team} code={code} schedule={schedule} />
@@ -643,12 +643,12 @@ function TeamsGrid({ field, season, team, predictable, registered }: { field: Fi
                 {/* Registrations have no rank yet: no empty rank box. */}
                 {!registered && (
                   <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-lg bg-muted text-center">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Rank</span>
                     <span className={cn("font-display text-lg font-semibold leading-none tabular-nums", t.rank != null && t.rank <= 4 && "text-accent-text")}>{t.rank ?? "–"}</span>
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm">{t.name}</span></span>
+                  <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
                   <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
                   <span className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] tabular-nums">
                     {t.opr.np != null && <span className={cn("rounded-md px-1.5 py-0.5", ROSTER_CHIP_TONE.npOpr)}>npOPR {num(t.opr.np)}</span>}
