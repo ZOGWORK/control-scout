@@ -191,6 +191,9 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   // (fixed to the screen) is moved to the end of the page, where it belongs in a picture of the whole page.
   const full = !flag("viewport") && !q && !flag("pointer") && !STEPS.length;
   if (full) await page.addStyleTag({ content: "div.min-h-dvh.overflow-x-clip{position:relative!important} nav.fixed{position:absolute!important;left:0;right:0;bottom:0}" });
+  // A long list renders only the rows on screen (src/components/ui/windowing.tsx), and every row for print: a
+  // picture of the whole page asks for the same, so it has no blank spacers below the first screen.
+  if (full) { await page.evaluate(() => window.dispatchEvent(new Event("beforeprint"))); await page.waitForTimeout(400); }
   const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-${slug(route)}.png`;
   const file = join(out, name);
   await page.screenshot({ path: file, fullPage: full });
