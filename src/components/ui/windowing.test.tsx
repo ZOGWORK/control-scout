@@ -157,3 +157,36 @@ describe("keyboard focus", () => {
     expect(container.textContent).toContain("Item 501");
   });
 });
+
+describe("coming back to a list", () => {
+  function List({ n, cache }: { n: number; cache?: string }) {
+    const items = Array.from({ length: n }, (_, i) => `Item ${i + 1}`);
+    const vr = useVirtualRows<HTMLUListElement>(n, ROW_H, { cache });
+    const shown = vr.rows(items);
+    // The list's laid-out height: spacers plus the rows on screen (each really 100 px tall). It starts at the
+    // top of the page (jsdom's getBoundingClientRect ignores the scroll).
+    return (
+      <ul ref={(el) => { vr.ref.current = el; if (el) el.getBoundingClientRect = () => ({ top: -window.scrollY }) as DOMRect; }} data-height={vr.paddingTop + vr.paddingBottom + shown.length * 100}>
+        {shown.map(({ item, rowProps }) => <li key={item} {...rowProps}>{item}</li>)}
+      </ul>
+    );
+  }
+  // Rows really measure 100 px (more than the 40 px estimate).
+  const tall = () => Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+    configurable: true, get(this: HTMLElement) { return this.hasAttribute("data-index") ? 100 : 0; },
+  });
+  const height = (c: HTMLElement) => Number(c.querySelector("ul")!.getAttribute("data-height"));
+
+  it("places rows it measured before by those heights, not estimates (so Back lands on the same rows)", () => {
+    tall();
+    // The first visit measures the rows on the first screen (and the overscan), then the reader leaves.
+    for (const name of ["test:a", "test:b"]) render(<List n={1000} cache={name} />).unmount();
+    const measured = 28; // 768 px / 40 px estimate, plus 8 overscan
+    // Back, with the page restored further down: those rows are above the window now.
+    scrollPageTo(500 * ROW_H);
+    const cached = height(render(<List n={1000} cache="test:a" />).container);
+    cleanup();
+    const fresh = height(render(<List n={1000} />).container);
+    expect(cached - fresh).toBeGreaterThanOrEqual(measured * 60 - 100);
+  });
+});
