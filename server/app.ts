@@ -236,8 +236,9 @@ export function createApp(opts: { dist?: string } = {}) {
   // One host, one URL per page: www/alias hosts, trailing slashes and /team/… aliases 301 (server/seo.ts).
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
-  // Live streams (text/event-stream, server/scout/stream.ts) are never compressed: gzip would hold events back.
-  app.use(compression({ filter: (req, res) => !/^(text\/(csv|event-stream)|application\/vnd\.openxmlformats)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
+  // Live streams (text/event-stream, server/scout/stream.ts; Bruno's streamed answer, application/x-ndjson) are never
+  // compressed: gzip would hold events back.
+  app.use(compression({ filter: (req, res) => !/^(text\/(csv|event-stream)|application\/(vnd\.openxmlformats|x-ndjson))/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
   // /api/collect reads its own tiny body (1 KB cap), the digest's bounce webhook needs its raw body for the
   // signature, and CSP reports have their own 16 KB parser that never fails (server/securityHeaders.ts), so the
   // 2 MB JSON parser skips all three.
@@ -353,7 +354,25 @@ export function createApp(opts: { dist?: string } = {}) {
   api.get("/search/bruno", limiter(20), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     // The page's own search choices (its preferred teams), so he reads the results the page shows.
-    const r = await brunoAnswer(String(req.query.q ?? ""), { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT });
+    const q = String(req.query.q ?? "");
+    const opts = { prefer: preferOf(req.query.prefer), limit: SEARCH_PAGE_LIMIT };
+    if (req.query.stream !== "1") {
+      const r = await brunoAnswer(q, opts);
+      if (!r) { res.status(204).end(); return undefined; }
+      return r;
+    }
+    // ?stream=1: while he writes, NDJSON lines { p: { text, points } | null } (what's checked so far; null: drop it),
+    // then { done: answer | null }, the same answer the plain call gives. An answer that comes whole (cached, shared,
+    // nothing to show before it) is the plain call's own reply. Not compressed (gzip would hold the lines back).
+    const line = (o: unknown) => {
+      if (!res.headersSent) {
+        res.status(200).set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no" });
+        res.flushHeaders();
+      }
+      if (!res.destroyed) res.write(`${JSON.stringify(o)}\n`);
+    };
+    const r = await brunoAnswer(q, opts, Date.now(), (p) => line({ p }));
+    if (res.headersSent) { line({ done: r }); res.end(); return undefined; }
     if (!r) { res.status(204).end(); return undefined; }
     return r;
   }));
