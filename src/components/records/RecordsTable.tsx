@@ -554,6 +554,9 @@ const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var
 // The row under the pointer lights up in the accent, sticky first column included (it has its own background),
 // with an accent bar at its left edge, so one team's numbers are easy to follow across the table. 14% keeps the
 // heat colours at 4.5:1 or more even on the sorted column's own tint (RecordsTable.hover.contrast.test.ts).
+// Red alliance scores use the alliance's ink (a lighter red on dark, a deeper one on light): the plain alliance
+// red drops under 4.5:1 on a hovered row's tint (RecordsTable.hover.contrast.test.ts).
+const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
 const rowHover = "still-hover:bg-accent/[0.14]";
 const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
@@ -750,7 +753,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   const band = heat.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}

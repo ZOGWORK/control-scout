@@ -43,4 +43,16 @@ describe("Teams table hovered row contrast", () => {
       expect(ratio(rgb(token(block, ink)), bg), ink).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it.each([
+    ["dark", ":root", "@theme"],
+    ["light", "html.light", "html.light"],
+  ] as const)("%s: red alliance scores (the alliance ink) read at 4.5:1 or more on a hovered sorted cell", (_, cardBlock, colorBlock) => {
+    expect(table).toContain('tone === "redAlliance" ? "text-red-alliance-ink"');
+    const card = rgb(token(cardBlock, "sh-card")), accent = rgb(token(colorBlock, "color-accent"));
+    const bg = over(accent, SORTED, over(accent, tint, card));
+    expect(ratio(rgb(token(colorBlock, "color-red-alliance-ink")), bg)).toBeGreaterThanOrEqual(4.5);
+    // The plain alliance red is why: it doesn't make it on dark.
+    if (cardBlock === ":root") expect(ratio(rgb(token("@theme", "color-red-alliance")), bg)).toBeLessThan(4.5);
+  });
 });
