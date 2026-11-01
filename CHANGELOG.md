@@ -26,7 +26,7 @@ What's new stays in view at the foot of the sidebar, and Settings has one place.
 
 ### Navigation
 - **What's new** moved out of the folded More group to the foot of the sidebar, beside the fold button and right above Sign in, so a new release's dot shows without opening More. On the icon rail and in the phone's menu it sits just above the account controls too.
-- **Settings** is the gear beside Sign in (or your name) only; the duplicate Settings row under More is gone.
+- **Settings** is the gear beside Sign in (or your name) only; the duplicate Settings row under More is gone. (#382)
 
 ## 1.8.1 — 2026-11-01
 
