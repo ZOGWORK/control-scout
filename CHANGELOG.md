@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.5 — 2026-11-01
+## 2.0.7 — 2026-11-01
 
 Tables export to Excel in colour, like they look on the site.
 
@@ -28,6 +28,31 @@ Tables export to Excel in colour, like they look on the site.
 - Next to Export CSV, Export Excel downloads the same rows and columns as an .xlsx: each header in its stat's colour (violet totals, sky auto, orange driver-controlled, rose penalties, gold for Control Scout's own), a frozen header and team column, and a filter on every column
 - On team tables every number is banded from bold green (best fifth of the exported rows) to bold red (worst fifth), flipped for lower-is-better stats such as rank, penalties and schedule difficulty; match tables colour each score by its alliance
 - Event start dates are real dates (no more `#######` in a narrow column) and percentages show as percentages. The CSV is unchanged for scripts (#408)
+
+## 2.0.6 — 2026-11-01
+
+On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
+
+### Highlights
+- [home] The Filters button on phone lists is the bright yellow one
+- [home] Opening Filters shows the filters, not the keyboard
+- [fixes] Tap the search box when you want to type
+- [fixes] Typing a place in Filters no longer jumps the sheet back to its top
+
+### Navigation
+- **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#402)
+
+## 2.0.5 — 2026-11-01
+
+Every finished event on /events shows it is done, even when no matches were posted.
+
+### Highlights
+- [fixes] Every finished event card has a full green bar
+- [fixes] Events with no results posted say Done instead of no bar or 0/12
+- [fixes] Finished events with some results missing still fill their bar
+
+### Fixes
+- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
 
 ## 2.0.4 — 2026-11-01
 
