@@ -80,7 +80,8 @@ const toVersion = (r: any): EntryVersion => {
 /** An entry's kept versions, newest first (null: the workspace has no such entry). */
 export async function entryHistory(workspaceId: string, uuid: string): Promise<EntryVersion[] | null> {
   const rows = await all<any>(
-    `SELECT * FROM workspace_entry_versions WHERE workspace_id = ${WS} AND uuid = ? ORDER BY version_no DESC LIMIT ?`, [workspaceId, uuid, HISTORY_LIMIT]);
+    `SELECT uuid, version_no, season, team, event_code, match_label, kind, data, notes, deleted, updated_at, written_by_account_id, written_by_name,
+       template_id, template_version, restored, restored_from_version FROM workspace_entry_versions WHERE workspace_id = ${WS} AND uuid = ? ORDER BY version_no DESC LIMIT ?`, [workspaceId, uuid, HISTORY_LIMIT]);
   if (rows.length) return rows.map(toVersion);
   const exists = await all<any>(`SELECT 1 FROM workspace_scout_entries WHERE workspace_id = ${WS} AND uuid = ?`, [workspaceId, uuid]);
   return exists.length ? [] : null;

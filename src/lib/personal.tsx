@@ -10,6 +10,7 @@ import { clearLocalScouting, exportLocalScouting, importLocalScouting, localScou
 import { LOST_PREFIX, lostBackupFailed, mergeLostLists } from "./lostEdits";
 import { dropPushOnSignOut } from "./push";
 import { flagsAccountChanged } from "./flags";
+import { setOptimisticAccount } from "./optimistic";
 
 export interface AccountUser { id: number; email: string | null; displayName: string | null; createdAt: string; /** Tied to the shared account Control Point keeps (docs/shared-accounts.md). */ controlPointLinked?: boolean;
   /** Only present (true) for the owner (OWNER_EMAILS): shows the owner portal's nav item. The server enforces access. */
@@ -194,6 +195,8 @@ export function PersonalProvider({ children }: { children: ReactNode }) {
   userRef.current = user;
   // Scouting tells this account's own edits from other members' (an overwritten edit is a conflict only if it was yours).
   setScoutViewer(user?.controlPoint?.accountId);
+  // A change still on its way when the account changes is dropped, never sent or shown as the next account's.
+  setOptimisticAccount(user?.id);
   // The app's flags depend on the account once a workspace has its own setting (workspace scouting on or off for it):
   // a different account, or a different list of workspaces, asks for them again at once.
   const flagsKey = user ? `${user.id}:${(user.controlPoint?.workspaces ?? []).map((w) => w.id).join(",")}` : "";

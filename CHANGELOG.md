@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.1.4 — 2026-11-01
+## 2.1.6 — 2026-11-01
 
 Bruno's answer on Search shows up as he writes it.
 
@@ -26,6 +26,29 @@ Bruno's answer on Search shows up as he writes it.
 
 ### Search
 - **Bruno's answer streams in.** A question on /search used to show a placeholder until Bruno had written his whole answer; now his sentence and points appear as he writes them and end at exactly the answer he gave before. Every part is checked against the records before it shows (a number still being written waits for its last digit), and a part with a number the records don't have is taken back. If the stream breaks, the page keeps what it showed and fetches the answer the old way, once. Same model call, prompt and cache. (#415)
+
+## 2.1.5 — 2026-11-01
+
+Taps that change something show at once on slow venue Wi-Fi.
+
+### Highlights
+- [speed] Assignment Done and Reopen show at once, before the server answers
+- [speed] The commons share switch and email digest switch move at once
+- [fixes] If the server says no, it goes back and says "Didn't save"
+
+### Speed
+- **Changes show before the round trip.** Done and Reopen on an assignment, sharing a pit entry in the scouting commons, and the email digest switch now change on screen the moment you tap, then save in the background and take the server's answer when it comes. If it doesn't save, the screen goes back to what the server has and tells you "Didn't save" and why. Taps on the same thing go to the server in order, and only the newest decides what shows. Scouting entries, your lists, the pick list and notifications already worked this way. Deletes and owner or admin actions still wait for the server. (#413)
+## 2.1.4 — 2026-11-01
+
+Real-user speed: the owner can see how fast pages load for real visitors.
+
+### Highlights
+- [speed] Real page-load speed, measured on visitors' own devices
+- [speed] Only if you allowed usage statistics, never anything that identifies you
+- [speed] Measured after the page has loaded, so it never slows it down
+
+### Speed
+- **Real-user speed.** Visitors who allowed anonymous usage statistics now also send how fast each page loaded for them (largest paint, response to taps, layout shift, first input delay, server response time) to Control Scout's own server, with the same page path and screen-size group as a page view and nothing else. The measuring code loads after the page has finished loading, so it never slows the page it measures. The owner portal's Usage tab shows them by page next to the API route timings. The privacy page says so. (#412)
 
 ## 2.1.3 — 2026-11-01
 

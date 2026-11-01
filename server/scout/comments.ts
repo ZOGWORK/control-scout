@@ -150,7 +150,8 @@ function change(m: Membership, fn: (rev: number) => Promise<CommentEvent | Fail>
  */
 async function repeatOf(m: Membership, wsDbId: number, uuid: string, opId: string): Promise<CommentEvent | Fail | undefined> {
   const row = await get<any>(
-    `SELECT c.*, (SELECT COUNT(*) FROM workspace_entry_comments n WHERE n.workspace_id = c.workspace_id AND n.entry_uuid = c.entry_uuid AND n.deleted_at IS NULL) n
+    `SELECT c.id, c.entry_uuid, c.author_account_id, c.author_name, c.body, c.created_at, c.edited_at, c.client_op_id, c.deleted_at,
+       (SELECT COUNT(*) FROM workspace_entry_comments n WHERE n.workspace_id = c.workspace_id AND n.entry_uuid = c.entry_uuid AND n.deleted_at IS NULL) n
        FROM workspace_entry_comments c WHERE c.workspace_id = ? AND c.author_account_id = ? AND c.entry_uuid = ? AND c.client_op_id = ?`,
     [wsDbId, m.accountId, uuid, opId]);
   if (!row) return undefined;
@@ -197,7 +198,7 @@ export async function postComment(user: User, m: Membership, uuid: string, raw: 
 const commentId = (raw: unknown) => { const n = Number(raw); return typeof raw === "string" && /^\d{1,15}$/.test(raw) && Number.isSafeInteger(n) && n > 0 ? n : null; };
 
 async function commentRow(wsDbId: number, uuid: string, id: number) {
-  return get<any>("SELECT * FROM workspace_entry_comments WHERE id = ? AND workspace_id = ? AND entry_uuid = ? AND deleted_at IS NULL", [id, wsDbId, uuid]);
+  return get<any>("SELECT id, entry_uuid, author_account_id, author_name, body, created_at, edited_at, client_op_id FROM workspace_entry_comments WHERE id = ? AND workspace_id = ? AND entry_uuid = ? AND deleted_at IS NULL", [id, wsDbId, uuid]);
 }
 
 export async function editComment(m: Membership, uuid: string, rawId: unknown, raw: unknown, now = Date.now()): Promise<CommentEvent | Fail> {

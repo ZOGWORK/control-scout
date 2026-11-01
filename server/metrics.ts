@@ -144,8 +144,9 @@ export async function flushMetrics(): Promise<number> {
 /** Tests: drop whatever is held in memory. */
 export function resetMetrics(): void { pending = new Map(); routesDay = ""; routesSeen = new Set(); }
 
-/** The latency at quantile q (0–1) from bucket counts: linear within the bucket, the max caps the last one. */
-export function percentile(b: number[], q: number, max: number): number | null {
+/** The value at quantile q (0–1) from bucket counts: linear within the bucket, the max caps the last one.
+ *  `bounds`: the buckets' upper bounds (request latency's by default; web vitals pass their own). */
+export function percentile(b: number[], q: number, max: number, bounds: readonly number[] = METRIC_BUCKETS_MS): number | null {
   const n = b.reduce((s, x) => s + x, 0);
   if (!n) return null;
   const want = q * n;
@@ -153,8 +154,8 @@ export function percentile(b: number[], q: number, max: number): number | null {
   for (let i = 0; i < b.length; i++) {
     if (!b[i]) continue;
     if (seen + b[i] >= want) {
-      const lo = i === 0 ? 0 : METRIC_BUCKETS_MS[i - 1];
-      const hi = Math.max(lo, Math.min(Number.isFinite(METRIC_BUCKETS_MS[i]) ? METRIC_BUCKETS_MS[i] : max, max));
+      const lo = i === 0 ? 0 : bounds[i - 1];
+      const hi = Math.max(lo, Math.min(Number.isFinite(bounds[i]) ? bounds[i] : max, max));
       return lo + (hi - lo) * ((want - seen) / b[i]);
     }
     seen += b[i];
@@ -162,13 +163,13 @@ export function percentile(b: number[], q: number, max: number): number | null {
   return max;
 }
 
-/** The Usage panel's request numbers (it adds live connections and page views). */
-export type UsageSummary = Omit<OwnerUsage, "live" | "pageViews">;
+/** The Usage panel's request numbers (it adds live connections, page views and web vitals). */
+export type UsageSummary = Omit<OwnerUsage, "live" | "pageViews" | "vitals">;
 
 /** Requests per day, sync volume and per-route latency over the last `days` UTC days (today included). */
 export async function usageSummary(days = 14, now = Date.now()): Promise<UsageSummary> {
   const to = dayOf(now), from = dayOf(now - (days - 1) * 86_400_000);
-  const rows = await all<Record<string, unknown>>(`SELECT * FROM request_metrics_daily WHERE day BETWEEN ? AND ?`, [from, to]);
+  const rows = await all<Record<string, unknown>>(`SELECT day, route, count, errors, total_ms, max_ms, ${BCOLS.join(", ")} FROM request_metrics_daily WHERE day BETWEEN ? AND ?`, [from, to]);
   const byDay = new Map<string, { requests: number; sync: number; errors: number }>();
   for (let i = days - 1; i >= 0; i--) byDay.set(dayOf(now - i * 86_400_000), { requests: 0, sync: 0, errors: 0 });
   const byRoute = new Map<string, { count: number; errors: number; total: number; max: number; b: number[] }>();

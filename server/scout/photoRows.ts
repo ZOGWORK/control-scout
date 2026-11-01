@@ -15,7 +15,7 @@ export async function photosByEntry(workspaceDbId: number, uuids: string[]): Pro
   const out = new Map<string, EntryPhoto[]>();
   if (!uuids.length) return out;
   const rows = await all<any>(
-    `SELECT * FROM entry_photos WHERE workspace_id = ? AND entry_uuid IN (${uuids.map(() => "?").join(", ")}) AND status IN ('ready', 'expired') ORDER BY created_at, id`,
+    `SELECT id, entry_uuid, bytes, added_by_account_id, added_by_name, created_at, status FROM entry_photos WHERE workspace_id = ? AND entry_uuid IN (${uuids.map(() => "?").join(", ")}) AND status IN ('ready', 'expired') ORDER BY created_at, id`,
     [workspaceDbId, ...uuids]);
   for (const r of rows) {
     const list = out.get(String(r.entry_uuid)) ?? [];

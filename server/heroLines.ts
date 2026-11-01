@@ -12,6 +12,8 @@ import { DEFAULT_HERO_LINES, HERO_LINES_MAX, cleanHeroPart, type HeroLine, type 
 export const HERO_TTL_MS = 30_000;
 
 interface Row { id: number; position: number; plain: string; accent: string; enabled: number; updated_at: string }
+/** The hero_lines columns view reads. */
+const VIEW_COLUMNS = "id, position, plain, accent, enabled, updated_at";
 const view = (r: Row): HeroLineRow => ({ id: Number(r.id), position: Number(r.position), plain: r.plain, accent: r.accent, enabled: !!Number(r.enabled), updatedAt: r.updated_at });
 
 let cache: { at: number; v: Promise<HeroLinesResponse> } | null = null;
@@ -25,7 +27,7 @@ const DEFAULTS: HeroLinesResponse = { lines: DEFAULT_HERO_LINES.map(([a, b]) => 
 /** The lines the home page shows now: the saved lines that are on, in order, else the built-in ones. Never throws. */
 export function liveHeroLines(now = Date.now()): Promise<HeroLinesResponse> {
   if (cache && now - cache.at < HERO_TTL_MS) return cache.v;
-  const v = all<Row>("SELECT * FROM hero_lines WHERE enabled = 1 ORDER BY position, id")
+  const v = all<Row>("SELECT plain, accent FROM hero_lines WHERE enabled = 1 ORDER BY position, id")
     .then((rows): HeroLinesResponse => (rows.length ? { lines: rows.map((r) => [r.plain, r.accent] as HeroLine), custom: true } : DEFAULTS))
     .catch(() => {
       // Unreachable (or not migrated yet): the built-in lines, and ask again soon rather than keep the failure.
@@ -38,11 +40,11 @@ export function liveHeroLines(now = Date.now()): Promise<HeroLinesResponse> {
 
 /** Every saved line, on or off, in order. */
 export async function listHeroLines(): Promise<HeroLineRow[]> {
-  return (await all<Row>("SELECT * FROM hero_lines ORDER BY position, id")).map(view);
+  return (await all<Row>(`SELECT ${VIEW_COLUMNS} FROM hero_lines ORDER BY position, id`)).map(view);
 }
 
 export async function heroLine(id: number): Promise<HeroLineRow | null> {
-  const r = await get<Row>("SELECT * FROM hero_lines WHERE id = ?", [id]);
+  const r = await get<Row>(`SELECT ${VIEW_COLUMNS} FROM hero_lines WHERE id = ?`, [id]);
   return r ? view(r) : null;
 }
 
@@ -73,7 +75,7 @@ export async function updateHeroLine(id: number, change: { plain?: string; accen
   if (change.plain !== undefined) { sets.push("plain = ?"); args.push(cleanHeroPart(change.plain)); }
   if (change.accent !== undefined) { sets.push("accent = ?"); args.push(cleanHeroPart(change.accent)); }
   if (change.enabled !== undefined) { sets.push("enabled = ?"); args.push(change.enabled ? 1 : 0); }
-  const read = { sql: "SELECT * FROM hero_lines WHERE id = ?", args: [id] };
+  const read = { sql: `SELECT ${VIEW_COLUMNS} FROM hero_lines WHERE id = ?`, args: [id] };
   const [before, , after] = await db().batch([read, { sql: `UPDATE hero_lines SET ${[...sets, "updated_at = ?"].join(", ")} WHERE id = ?`, args: [...args, at, id] }, read], "write");
   invalidateHeroLines();
   const was = one(before), line = one(after);
@@ -82,7 +84,7 @@ export async function updateHeroLine(id: number, change: { plain?: string; accen
 
 /** Delete a line; returns it as it was (read in the same transaction), or null when there's no such line. */
 export async function deleteHeroLine(id: number): Promise<HeroLineRow | null> {
-  const [before] = await db().batch([{ sql: "SELECT * FROM hero_lines WHERE id = ?", args: [id] }, { sql: "DELETE FROM hero_lines WHERE id = ?", args: [id] }], "write");
+  const [before] = await db().batch([{ sql: `SELECT ${VIEW_COLUMNS} FROM hero_lines WHERE id = ?`, args: [id] }, { sql: "DELETE FROM hero_lines WHERE id = ?", args: [id] }], "write");
   invalidateHeroLines();
   return one(before);
 }
@@ -115,6 +117,7 @@ export async function reorderHeroLines(ids: number[], at = new Date().toISOStrin
 export async function seedHeroLines(at = new Date().toISOString()): Promise<boolean> {
   const rows = DEFAULT_HERO_LINES.map(() => "(?, ?, ?, 1, ?, ?)").join(", ");
   const n = await run(
+    // select-star: the VALUES list's own columns, in the INSERT's order.
     `INSERT INTO hero_lines (position, plain, accent, enabled, created_at, updated_at)
      SELECT * FROM (VALUES ${rows}) WHERE NOT EXISTS (SELECT 1 FROM hero_lines)`,
     DEFAULT_HERO_LINES.flatMap(([a, b], i) => [i, a, b, at, at]),
@@ -126,7 +129,7 @@ export async function seedHeroLines(at = new Date().toISOString()): Promise<bool
 
 /** Go back to the built-in lines: every saved line is removed (the audit log keeps what they were). */
 export async function resetHeroLines(): Promise<HeroLineRow[]> {
-  const [before] = await db().batch(["SELECT * FROM hero_lines ORDER BY position, id", "DELETE FROM hero_lines"], "write");
+  const [before] = await db().batch([`SELECT ${VIEW_COLUMNS} FROM hero_lines ORDER BY position, id`, "DELETE FROM hero_lines"], "write");
   invalidateHeroLines();
   return before.rows.map((r) => view(r as unknown as Row));
 }

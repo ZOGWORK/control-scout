@@ -156,7 +156,9 @@ export function held(base: StoredMatch[], matches: MatchRow[], source: Source): 
 
 /** Stored matches of one event. */
 export async function readStored(season: number, code: string): Promise<StoredMatch[]> {
-  const rows = await all<any>("SELECT * FROM matches WHERE season = ? AND code = ?", [season, code]);
+  const rows = await all<any>(
+    `SELECT level, series, number, label, time, field, played, source, breakdown, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_tips, red_bonus,
+       blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_tips, blue_bonus FROM matches WHERE season = ? AND code = ?`, [season, code]);
   const teams = await all<any>("SELECT level, series, number, team, alliance, dq FROM match_teams WHERE season = ? AND code = ?", [season, code]);
   const byMatch = new Map<string, any[]>();
   for (const t of teams) {

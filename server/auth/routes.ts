@@ -263,7 +263,7 @@ export function meRouter(): Router {
 
   r.get("/scout", h(async (req) => {
     const season = Number(req.query.season);
-    const rows = await all<any>(`SELECT * FROM scout_entries WHERE user_id = ?${Number.isInteger(season) ? " AND season = ?" : ""} ORDER BY updated_at DESC`, Number.isInteger(season) ? [uid(req), season] : [uid(req)]);
+    const rows = await all<any>(`SELECT uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted FROM scout_entries WHERE user_id = ?${Number.isInteger(season) ? " AND season = ?" : ""} ORDER BY updated_at DESC`, Number.isInteger(season) ? [uid(req), season] : [uid(req)]);
     return { entries: rows.map(scoutRow) };
   }));
 

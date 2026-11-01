@@ -22,7 +22,10 @@ function serviceWorker(): Plugin {
       const all = Object.keys(bundle).filter((f) => !f.endsWith(".map") && !f.startsWith(".vite/")).map((f) => `/${f}`);
       // The in-browser SQLite engine (~650 kB) is only for saved seasons: precached only where one is saved (see sw.template.js).
       const offline = all.filter((f) => f.endsWith(".wasm"));
-      const built = all.filter((f) => !offline.includes(f));
+      // The web-vitals chunk runs only for visitors who allowed usage statistics (src/lib/vitals.ts): fetched (and
+      // then cached) when it's first used, never downloaded up front for everyone.
+      const optional = Object.values(bundle).filter((b) => b.type === "chunk" && b.name === "web-vitals").map((b) => `/${b.fileName}`);
+      const built = all.filter((f) => !offline.includes(f) && !optional.includes(f));
       // The brand images the shell shows (sidebar logo, the bare mark on the 404 page, home wordmark, favicon): offline too.
       const brand = ["/logo-56.webp", "/mark.webp", "/wordmark.webp", "/favicon.ico"];
       // Not /index.html: the server redirects it to the canonical "/" (a redirect can't be precached cross-host, nor answer a navigation).

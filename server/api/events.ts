@@ -25,7 +25,8 @@ function summary(r: any): EventSummary {
   };
 }
 
-const SUMMARY_SQL = `SELECT e.*,
+const SUMMARY_SQL = `SELECT e.season, e.code, e.name, e.type, e.division_code, e.region, e.venue, e.city, e.state, e.country, e.start, e.end, e.timezone, e.remote,
+  e.address, e.website, e.livestream, e.source, e.detail_synced_at, e.live_checked_at,
   COALESCE(NULLIF((SELECT COUNT(*) FROM event_teams t WHERE t.season = e.season AND t.code = e.code), 0),
     (SELECT COUNT(*) FROM event_registrations r WHERE r.season = e.season AND r.code = e.code AND r.shared = 0)) teams,
   (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
@@ -92,11 +93,11 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
   if (!r) return null;
   const [entries, oprs, alliances, awards, adv, matches, seasonOprs] = await Promise.all([
-    all<any>(`SELECT et.*, t.name, t.city, t.state FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND et.code = ?`, [season, code]),
-    all<any>("SELECT * FROM team_event_stats WHERE season = ? AND code = ?", [season, code]),
-    all<any>("SELECT * FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]),
-    all<any>("SELECT * FROM awards WHERE season = ? AND code = ? ORDER BY CASE type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, type, placement", [season, code]),
-    get<any>("SELECT * FROM advancement WHERE season = ? AND code = ?", [season, code]),
+    all<any>(`SELECT et.team, et.rank, et.rp, et.tbp, et.wins, et.losses, et.ties, et.qual_played, et.registered, et.fetched_at, t.name, t.city, t.state FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND et.code = ?`, [season, code]),
+    all<any>("SELECT team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, avg_np FROM team_event_stats WHERE season = ? AND code = ?", [season, code]),
+    all<any>("SELECT number, name, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]),
+    all<any>("SELECT type, placement, team, name FROM awards WHERE season = ? AND code = ? ORDER BY CASE type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, type, placement", [season, code]),
+    get<any>("SELECT slots, advances_to, rows FROM advancement WHERE season = ? AND code = ?", [season, code]),
     matchViews({ season, code }, { predictUnplayed: true }),
     // Season OPR for the "At a glance" card before the event starts (the event's own OPR is empty then).
     all<any>(`SELECT s.team, s.opr_np FROM team_season_stats s JOIN ${ROSTER} et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?`, [season, code]),

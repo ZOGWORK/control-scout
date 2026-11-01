@@ -63,7 +63,10 @@ export async function loadSeason(season: number, codes?: string[]): Promise<DbEv
   const args = [season, ...(codes ?? [])];
   const [evs, ms, mts, ets, aws] = await Promise.all([
     all<any>(`SELECT season, code, name, type, region, start, end, remote, hybrid FROM events WHERE season = ?${where}`, args),
-    all<any>(`SELECT * FROM matches WHERE season = ?${where}`, args),
+    // Not the score sheets (red_detail, blue_detail): most of a row's bytes, never read here.
+    all<any>(`SELECT code, level, series, number, label, time, played, video,
+      red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, red_bonus, red_tips, blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, blue_bonus, blue_tips
+      FROM matches WHERE season = ?${where}`, args),
     all<any>(`SELECT code, level, series, number, team, alliance, surrogate, dq, on_field FROM match_teams WHERE season = ?${where}`, args),
     all<any>(`SELECT code, team, rank FROM event_teams WHERE season = ?${where}`, args),
     all<any>(`SELECT code, type, placement, team FROM awards WHERE season = ?${where}`, args),

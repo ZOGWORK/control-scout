@@ -45,7 +45,7 @@ export interface ProvisionalRow {
 
 /** The event's provisional row, if a regional site has one. */
 export async function provisionalFor(season: number, code: string): Promise<ProvisionalRow | null> {
-  const [r] = await all<any>("SELECT * FROM event_provisional WHERE season = ? AND code = ? ORDER BY fetched_at DESC LIMIT 1", [season, code]);
+  const [r] = await all<any>("SELECT source, url, title, nickname, hosts, venue, address, capacity, schedule, notes, closed, teams, session_unknown, fetched_at FROM event_provisional WHERE season = ? AND code = ? ORDER BY fetched_at DESC LIMIT 1", [season, code]);
   if (!r) return null;
   return {
     source: r.source, url: r.url, title: r.title, nickname: r.nickname, hosts: r.hosts, venue: r.venue, address: r.address, capacity: r.capacity,

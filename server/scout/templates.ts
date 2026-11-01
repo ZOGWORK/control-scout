@@ -70,7 +70,7 @@ export async function templateVersion(workspaceId: string, season: number, versi
   const settingsVersion = Number(ws?.settings_version ?? 0);
   if (version === 0) return defaults(workspaceId, season, settingsVersion);
   if (!ws) return null;
-  const r = await get<any>("SELECT * FROM workspace_template_versions WHERE workspace_id = ? AND season = ? AND version = ?", [ws.id, season, version]);
+  const r = await get<any>("SELECT match, pit, created_at, created_by_name FROM workspace_template_versions WHERE workspace_id = ? AND season = ? AND version = ?", [ws.id, season, version]);
   if (!r) return null;
   return {
     workspaceId, season, version, settingsVersion,
