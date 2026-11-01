@@ -84,12 +84,18 @@ export default function ShortlistPage() {
     });
   };
   // A team found in the box joins the end of the list (never twice).
+  // The first pick swaps the empty page for the list: its toolbar box takes the focus over.
+  const [focusAdd, setFocusAdd] = useState(false);
   const add = (t: number, hit: SearchHit | null) => {
-    update("bookmarks", (b) => (b.includes(t) ? b : [...b, t]));
+    if (!list.length) setFocusAdd(true);
+    const saved = update("bookmarks", (b) => (b.includes(t) ? b : [...b, t]));
     const name = hit?.title ?? `Team ${t}`;
-    toast(`Added ${name} to your shortlist`, { action: { label: "Undo", onClick: () => update("bookmarks", (b) => b.filter((x) => x !== t)) } });
+    const undo = { label: "Undo", onClick: () => update("bookmarks", (b) => b.filter((x) => x !== t)) };
+    // Signed out, a refused write (storage full or blocked) lasts only until the page reloads: said plainly.
+    if (!saved && !user) toast.warning(`Added ${name} for now, but this device couldn't save it (its storage is full or blocked)`, { action: undo });
+    else toast(`Added ${name} to your shortlist`, { action: undo });
   };
-  const addBox = (className?: string) => <AddTeamBox listed={list} onAdd={add} className={className} />;
+  const addBox = (className?: string) => <AddTeamBox listed={list} onAdd={add} className={className} autoFocus={focusAdd} />;
   const sortBy = (label: string, score: (r: ShortlistTeam) => number | null, asc = false) => {
     const before = [...list];
     const rows = shown.map((t) => byTeam.get(t)).filter(Boolean) as ShortlistTeam[];

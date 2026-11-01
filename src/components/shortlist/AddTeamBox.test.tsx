@@ -14,7 +14,7 @@ vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: nu
 const { AddTeamBox, exactNumber } = await import("./AddTeamBox");
 const { SEARCH_DEBOUNCE_MS } = await import("../search/SearchBox");
 
-beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); });
+beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); Element.prototype.scrollIntoView = () => {}; });
 afterEach(() => { cleanup(); pending.length = 0; vi.useRealTimers(); });
 
 function mount(listed: number[] = [6980]) {
@@ -60,6 +60,9 @@ describe("AddTeamBox", () => {
     fireEvent.click(screen.getByRole("button", { name: /Add team/ }));
     expect(onAdd).not.toHaveBeenCalled();
     expect(screen.getByRole("status").textContent).toBe("6980 Bad Wolf is already on your shortlist.");
+    // The suggestions close so the reason shows (not only to a screen reader).
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("status").className).not.toMatch(/sr-only/);
   });
 
   it("adds an exact number with the button, waiting for its search if it's still on its way", async () => {
@@ -98,5 +101,7 @@ describe("AddTeamBox", () => {
     expect(exactNumber(" 4215 ")).toBe(4215);
     expect(exactNumber("4215 hyp")).toBeNull();
     expect(exactNumber("")).toBeNull();
+    expect(exactNumber("0")).toBeNull();
+    expect(exactNumber("000")).toBeNull();
   });
 });

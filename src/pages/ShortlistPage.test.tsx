@@ -7,17 +7,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { MemoryRouter } from "react-router-dom";
 import type { ShortlistTeam } from "../shared/api";
 
-const h = vi.hoisted(() => ({ bookmarks: [101, 102] as number[], notes: { "101": "mine" } as Record<string, string>, updates: [] as string[] }));
+const h = vi.hoisted(() => ({ bookmarks: [101, 102] as number[], notes: { "101": "mine" } as Record<string, string>, updates: [] as string[], saved: true }));
 vi.mock("../lib/personal", () => ({
   usePersonal: () => ({
     state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: h.bookmarks, shortlistNotes: h.notes }, user: null,
     stored: () => h.notes,
-    update: (key: string, fn: (v: unknown) => unknown) => { h.updates.push(key); if (key === "bookmarks") h.bookmarks = fn(h.bookmarks) as number[]; return true; },
+    update: (key: string, fn: (v: unknown) => unknown) => { h.updates.push(key); if (key === "bookmarks") h.bookmarks = fn(h.bookmarks) as number[]; return h.saved; },
   }),
 }));
 
 const { default: ShortlistPage } = await import("./ShortlistPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
+const { toast } = await import("../components/ui/sonner");
 
 const team = (n: number, opr: number, rank: number): ShortlistTeam => ({
   team: n, name: `Team ${n} name`, place: "Sydney", opr, oprRank: rank, of: 500, rating: null, ratingSd: null, record: "8-2-0",
@@ -29,7 +30,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
   localStorage.clear();
-  h.bookmarks = [101, 102]; h.updates = []; paths = [];
+  h.bookmarks = [101, 102]; h.updates = []; h.saved = true; paths = [];
   vi.stubGlobal("fetch", async (path: string) => {
     paths.push(path);
     if (path.startsWith("/api/search")) return new Response(JSON.stringify({ hits: [{ kind: "team", ref: "4215", title: "4215 Hypnotic Robotics", subtitle: "Oradell, NJ, USA", season: 2026 }] }), { status: 200 });
@@ -59,6 +60,18 @@ describe("ShortlistPage", () => {
     fireEvent.change(input, { target: { value: "4215" } });
     fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }));
     expect(h.bookmarks).toEqual([101, 102, 4215]);
+  });
+
+  it("warns a signed-out scout when this device couldn't save the added team", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    h.saved = false;
+    render(<TooltipProvider><MemoryRouter initialEntries={["/shortlist?season=2025"]}><ShortlistPage /></MemoryRouter></TooltipProvider>);
+    await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+    const input = screen.getByRole("combobox", { name: "Add a team to your shortlist" });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "4215" } });
+    fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }));
+    expect(warning).toHaveBeenCalledWith(expect.stringMatching(/couldn't save it/), expect.anything());
   });
 
   const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/shortlist?season=2025"]}><ShortlistPage /></MemoryRouter></TooltipProvider>);

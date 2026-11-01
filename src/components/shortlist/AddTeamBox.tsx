@@ -2,6 +2,7 @@
 // number) and the team joins the end of the list. Suggestions come from the site's team search (useSearchHits, the
 // header box's hook, limited to teams); a team already listed says so and is never added twice.
 import { useEffect, useId, useRef, useState } from "react";
+import { smoothBehavior } from "../../lib/pageScroll";
 import { Check, Loader2, Plus, Search, Users } from "lucide-react";
 import type { SearchHit } from "../../shared/api";
 import { useSearchHits, HitText } from "../search/SearchBox";
@@ -11,15 +12,17 @@ import { MAX_BOOKMARKS } from "../../shared/personal";
 
 const SUGGESTIONS = 8;
 
-/** The team a query names outright: a plain team number, or null. */
-export const exactNumber = (q: string): number | null => (/^\d{1,6}$/.test(q.trim()) ? Number(q.trim()) : null);
+/** The team a query names outright: a plain team number (never 0), or null. */
+export const exactNumber = (q: string): number | null => (/^\d{1,6}$/.test(q.trim()) && Number(q.trim()) > 0 ? Number(q.trim()) : null);
 
-export function AddTeamBox({ listed, onAdd, className }: {
+export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
   /** Teams already on the list. */
   listed: readonly number[];
   /** Add one team (its search hit when there is one, for its name). */
   onAdd: (team: number, hit: SearchHit | null) => void;
   className?: string;
+  /** Focus the field on mount (the toolbar's box taking over from the empty page's after the first pick). */
+  autoFocus?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -45,9 +48,13 @@ export function AddTeamBox({ listed, onAdd, className }: {
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
 
+  useEffect(() => { if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest", behavior: smoothBehavior() }); }, [active, open, listId]);
+
+  // Nothing added: the list closes so the reason under the field shows.
+  const refuse = (why: string) => { setNote(why); setOpen(false); };
   const add = (team: number, hit: SearchHit | null) => {
-    if (has(team)) { setNote(`${hit?.title ?? `Team ${team}`} is already on your shortlist.`); return; }
-    if (listed.length >= MAX_BOOKMARKS) { setNote(`Your shortlist is full (${MAX_BOOKMARKS} teams). Remove one to add another.`); return; }
+    if (has(team)) { refuse(`${hit?.title ?? `Team ${team}`} is already on your shortlist.`); return; }
+    if (listed.length >= MAX_BOOKMARKS) { refuse(`Your shortlist is full (${MAX_BOOKMARKS} teams). Remove one to add another.`); return; }
     onAdd(team, hit);
     setQ(""); setOpen(false);
     input.current?.focus();
@@ -63,18 +70,18 @@ export function AddTeamBox({ listed, onAdd, className }: {
       // Search can't answer (offline, server down): the number is taken as typed.
       else if (error) add(n, null);
       else if (busy) setWaiting(n);
-      else setNote(`No team ${n} found.`);
+      else refuse(`No team ${n} found.`);
       return;
     }
     if (hits[0]) add(Number(hits[0].ref), hits[0]);
-    else if (!busy) setNote(`No team matches “${query}”.`);
+    else if (!busy) refuse(`No team matches “${query}”.`);
   };
   useEffect(() => {
     if (waiting == null || busy) return;
     setWaiting(null);
     const hit = hits.find((h) => Number(h.ref) === waiting) ?? null;
     if (hit || error) add(waiting, hit);
-    else setNote(`No team ${waiting} found.`);
+    else refuse(`No team ${waiting} found.`);
   }, [waiting, busy, hits, error]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showList = open && !!query;
@@ -83,8 +90,9 @@ export function AddTeamBox({ listed, onAdd, className }: {
       <div className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)] max-sm:h-10">
         {busy || waiting != null ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <Search className="size-4 shrink-0 text-accent" />}
         <input
-          ref={input} value={q}
+          ref={input} value={q} autoFocus={autoFocus}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onClick={() => setOpen(true)}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
             if (e.key === "Escape") { if (showList) setOpen(false); else setQ(""); return; }
