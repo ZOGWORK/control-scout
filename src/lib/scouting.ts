@@ -327,6 +327,20 @@ export function scoutDraftBase(e: ScoutEntry): number | undefined {
 /** Is this entry waiting to sync on this device? */
 export const isScoutQueued = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => dirty(e.workspaceId).has(e.uuid);
 
+// Entries the server turned down for good (invalid: a clock far ahead, a value out of range), per space. They leave
+// the queue (no retrying forever) but never count as synced: Entries says so until a later save goes through.
+const REJECTED = "cs-scout-rejected:";
+const rejectedKey = (space: ScoutSpace) => `${REJECTED}${space ?? "personal"}`;
+function rejected(space: ScoutSpace): Set<string> { try { return new Set(JSON.parse(localStorage.getItem(rejectedKey(space)) ?? "[]")); } catch { return new Set(); } }
+function markRejected(space: ScoutSpace, uuid: string, on: boolean) {
+  const r = rejected(space);
+  if (r.has(uuid) === on) return;
+  if (on) r.add(uuid); else r.delete(uuid);
+  try { if (r.size) localStorage.setItem(rejectedKey(space), JSON.stringify([...r])); else localStorage.removeItem(rejectedKey(space)); } catch { /* storage full: shown as before */ }
+}
+/** The server turned this entry's last save down for good: it isn't stored anywhere but this device. */
+export const isScoutRejected = (e: Pick<ScoutEntry, "uuid" | "workspaceId">) => rejected(e.workspaceId).has(e.uuid);
+
 export function deleteScoutEntry(e: ScoutEntry) { saveScoutEntry({ ...e, deleted: true, data: {}, notes: "" }); }
 
 /** Entries waiting to sync, per space. */
@@ -595,7 +609,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // If that copy can't be stored, ours stays on the device, queued, until it can.
         if (space != null && server && lostTo(current, server, true) && !recordLostEdit(space, current, server)) { lostBackupFailed(space); continue; }
         if (server) { try { writeEntry(withNewerPhotos(server, current)); } catch { saved = false; } }
-        if (saved) now.delete(res.uuid);
+        if (saved) { now.delete(res.uuid); markRejected(space, res.uuid, false); }
         // A restore that landed: the lost version it brought back is no longer lost.
         if (space != null && sentVersion?.restoredFrom != null && server?.updatedAt === sentVersion.updatedAt) dropRestored(space, res.uuid, sentVersion.restoredFrom);
       }
@@ -614,7 +628,7 @@ async function pushQueued(space: ScoutSpace): Promise<{ sent: number }> {
         // Deleting something already deleted (by its author or an admin) needs no message.
         if (!(kind === "delete" && res.entry.deleted)) refused.push({ space, uuid: res.uuid, kind });
       }
-      else if (!res.ok) now.delete(res.uuid); // rejected for good (invalid): don't retry forever
+      else if (!res.ok) { now.delete(res.uuid); markRejected(space, res.uuid, true); } // rejected for good (invalid): don't retry forever
     }
     setDirty(now, space);
     sent += batch.length;

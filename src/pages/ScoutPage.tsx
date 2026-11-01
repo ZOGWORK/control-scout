@@ -171,10 +171,6 @@ export default function ScoutPage() {
   useEffect(() => { if (formOpen) { refreshTemplate(); refreshSettings(); } }, [formOpen, editing, refreshTemplate, refreshSettings]);
   // A workspace whose template this device has never seen: hold the form until the first answer (offline: the built-in fields).
   const templatePending = space != null && !wt.template && wt.status === "loading";
-  // The workspace's activity feed (Pick list & planning, ?view=activity): every member sees it.
-  // Also beside the pick list (its rail shows the latest few).
-  const showActivity = !!workspace && !spaces.resolving && (sp.get("view") === "activity" || (sp.get("tab") === "planning" && (!sp.get("view") || sp.get("view") === "picklist")));
-  const activity = useWorkspaceActivity(showActivity ? space : null, live);
   const pickMe = useMemo(() => ({ accountId: user?.controlPoint?.accountId ?? null, name: user?.displayName?.trim() || "You" }), [user]);
   // Scouting assignments (Task 10, ?view=assignments): loaded for the whole space, for the view and the badges.
   const assignments = useAssignments(workspace && !spaces.resolving ? space : null, season, live);
@@ -239,6 +235,10 @@ export default function ScoutPage() {
   const wantSection = sectionFromUrl(sp, !!readOnly);
   const section: ScoutSection = sections.includes(wantSection) ? wantSection : "entries";
   const planningView: PlanningView = isPlanningView(view) && (view !== "template" || isAdmin) && (view !== "alliance" || alliancesOn) ? view : "picklist";
+  // The workspace's activity feed (Pick list & planning → Activity): every member sees it. Also under the pick list
+  // (its cards show the latest few). Loaded for what the page shows, however the link was written.
+  const showActivity = !!workspace && !spaces.resolving && section === "planning" && (planningView === "activity" || planningView === "picklist");
+  const activity = useWorkspaceActivity(showActivity ? space : null, live);
   const setSection = (s: ScoutSection) => setSp((x) => { x.set("tab", s); x.delete("view"); x.delete("at"); x.delete("pick"); return x; });
   const openView = (s: ScoutSection, v: string | null) => setSp((x) => { x.set("tab", s); x.delete("pick"); if (v) x.set("view", v); else x.delete("view"); return x; });
   // The scouting session: the event and teams, set once (per space and season) and kept on this device.

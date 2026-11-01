@@ -3,7 +3,7 @@
 // up in columns; a phone stacks each row's parts in two short lines with the actions beside them.
 import { Link } from "react-router-dom";
 import { ClipboardCheck, History, MessageSquare, Trash2 } from "lucide-react";
-import { deleteScoutEntry, isScoutQueued, scoutSyncProblem, type ScoutEntry } from "../../../lib/scouting";
+import { deleteScoutEntry, isScoutQueued, isScoutRejected, scoutSyncProblem, type ScoutEntry } from "../../../lib/scouting";
 import { useEntryTemplate } from "../../../lib/scoutTemplates";
 import { isKnownTime } from "../../../lib/format";
 import { formatAnswer } from "../../../lib/entryDiff";
@@ -28,11 +28,13 @@ export function entryDate(updatedAt: number | null | undefined): string {
  * Where an entry's latest change stands. A shared entry: Synced, or Syncing…, or Waiting to sync while offline
  * (kept on this device), or Needs attention when a push didn't go through or its result wasn't confirmed, or
  * Paused by the owner. A Personal entry: Synced to the account, Waiting to sync, or On this device with no
- * account to sync to.
+ * account to sync to. Either, turned down by the server for good: Not synced, kept on this device.
  */
 export function EntrySyncState({ e, signedIn = true }: { e: ScoutEntry; signedIn?: boolean }) {
   const queued = isScoutQueued(e);
   const what = `Entry ${e.team} ${e.kind === "pit" ? "pit" : `match ${e.matchLabel ?? ""}`}`.trim();
+  // Turned down by the server for good (not queued any more, never stored there): never shown as Synced.
+  if (!queued && signedIn && isScoutRejected(e)) return <SaveStatus state="attention" text="Not synced: kept on this device" what={what} className="shrink-0" />;
   if (e.workspaceId == null) {
     if (!signedIn) return <SaveStatus state="draft" text="On this device" what={what} className="shrink-0" />;
     return <SaveStatus state={queued ? "draft" : "saved"} text={queued ? "Waiting to sync" : "Synced"} what={what} className="shrink-0" />;
@@ -66,7 +68,7 @@ export function EntryRow({ e, assigned, canDelete, readOnly, comments, signedIn 
           <Link to={`/teams/${e.team}?season=${e.season}`} className="font-mono text-base font-bold hover:underline max-md:inline">{e.team}</Link>
           <span className={cn("text-sm font-medium max-md:hidden", e.kind === "pit" ? "text-accent-text" : "text-foreground")}>{kind}</span>
           <div className="min-w-0">
-            <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
               <span className="font-medium text-foreground md:hidden">{kind}</span>
               {e.workspaceId == null ? <span>{e.eventCode ?? "No event"} · {entryDate(e.updatedAt)}</span> : (
                 <>
@@ -75,7 +77,7 @@ export function EntryRow({ e, assigned, canDelete, readOnly, comments, signedIn 
                 </>
               )}
               <EntrySyncState e={e} signedIn={signedIn} />
-            </p>
+            </div>
             {answers.length > 0 && <p className="mt-0.5 truncate text-sm" title={answers.join(" · ")}>{answers.join(" · ")}</p>}
             {e.notes && <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{e.notes}</p>}
             {(assigned || e.workspaceId != null) && (

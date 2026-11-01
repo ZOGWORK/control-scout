@@ -1,7 +1,7 @@
 // Preview (dev only): Pick list & planning as a workspace member sees it, the shared pick list with the rail beside
 // it (your assignments, latest activity, the scouting alliance). The pick list's GET is answered with a sample list
 // on this page only (dev-only route); the Scout page reads the real one from server/scout/picklist.ts.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SharedPicklist } from "../../components/scout/SharedPicklist";
 import { PlanningRail } from "../../components/scout/planning/PlanningRail";
 import type { Assignment } from "../../shared/assignments";
@@ -20,20 +20,24 @@ const activity: ActivityState = {
   loading: false, error: null, more: false, loadingOlder: false, loadOlder: () => {}, reload: () => {},
 } as unknown as ActivityState;
 
-/** Answers the pick list's GET with the sample list; everything else goes through. */
-function stubPicklist() {
-  const real = window.fetch.bind(window);
+/** Answers the pick list's GET with the sample list (everything else goes through); returns the undo. */
+function stubPicklist(): () => void {
+  const real = window.fetch;
   window.fetch = (input, init) => {
     const u = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     if (u.includes(`/api/scout/workspaces/${WS}/picklist`) && (!init?.method || init.method === "GET")) {
       return Promise.resolve(new Response(JSON.stringify({ list: { workspaceId: WS, season: S, version: 7, picks: PICKS } }), { status: 200, headers: { "content-type": "application/json" } }));
     }
-    return real(input, init);
+    return real.call(window, input, init);
   };
+  return () => { window.fetch = real; };
 }
 
 export default function PlanningPreview() {
-  useState(stubPicklist); // before the first render's fetch
+  // The stub goes in before the pick list mounts (and its fetch runs), and comes out when the preview closes.
+  const [ready, setReady] = useState(false);
+  useEffect(() => { const undo = stubPicklist(); setReady(true); return () => { undo(); setReady(false); }; }, []);
+  if (!ready) return null;
   return (
     <div className="grid gap-6">
       <div className="min-w-0">

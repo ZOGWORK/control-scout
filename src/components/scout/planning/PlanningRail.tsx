@@ -59,7 +59,12 @@ export function PlanningRail({ mine, onScout, readOnly, activity, onOpenEntry, a
       </RailCard>
       <RailCard title="Latest activity" icon={<History />} action={<More label="All activity" onClick={() => onView("activity")} />}>
         {activity.loading && !recent.length ? <p className="px-4 py-3 text-sm text-muted-foreground">Loading…</p>
-          : !recent.length ? <p className="px-4 py-3 text-sm text-muted-foreground">Nothing yet. Entries, edits and pick list changes show up here.</p>
+          : activity.error && !recent.length ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">
+              <span className="min-w-0 flex-1 text-danger-text">Couldn't load the activity. {activity.error.message}</span>
+              <Button size="sm" variant="outline" onClick={activity.reload}>Retry</Button>
+            </div>
+          ) : !recent.length ? <p className="px-4 py-3 text-sm text-muted-foreground">Nothing yet. Entries, edits and pick list changes show up here.</p>
             : <ol className="divide-y divide-border">{recent.map((i) => <ActivityRow key={i.id} item={i} now={now} onOpenEntry={onOpenEntry} />)}</ol>}
       </RailCard>
       {alliancesOn && (

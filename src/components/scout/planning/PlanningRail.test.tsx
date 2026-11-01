@@ -32,4 +32,15 @@ describe("PlanningRail", () => {
     expect(screen.getByRole("region", { name: "Latest activity" }).textContent).toContain("Nothing yet");
     expect(screen.getByRole("region", { name: "Scouting alliance" })).toBeTruthy();
   });
+
+  it("a failed activity load says so, with Retry, instead of Nothing yet", () => {
+    const reload = vi.fn();
+    const failed = { ...activity(), error: { message: "Offline." }, reload } as unknown as ActivityState;
+    render(<PlanningRail mine={[]} onScout={() => {}} readOnly={false} activity={failed} onOpenEntry={() => {}} alliancesOn={false} onView={() => {}} />);
+    const card = screen.getByRole("region", { name: "Latest activity" });
+    expect(within(card).getByRole("alert").textContent).toContain("Couldn't load the activity");
+    expect(card.textContent).not.toContain("Nothing yet");
+    fireEvent.click(within(card).getByRole("button", { name: "Retry" }));
+    expect(reload).toHaveBeenCalledOnce();
+  });
 });

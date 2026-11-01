@@ -126,6 +126,16 @@ describe("a shared entry's attribution time", () => {
     expect(synced.textContent).toBe("Entry 18360 match Q12: Synced");
   });
 
+  it("an entry the server turned down for good never reads as Synced", () => {
+    const e = shared(Date.now());
+    localStorage.setItem("cs-scout-rejected:901", JSON.stringify([e.uuid]));
+    showShared(e);
+    const state = screen.getByRole("listitem").querySelector("[data-save-state]")!;
+    expect(state.getAttribute("data-save-state")).toBe("attention");
+    expect(state.textContent).toContain("Not synced: kept on this device");
+    localStorage.clear();
+  });
+
   it("a Personal entry: On this device with no account, Waiting to sync while queued, Synced once it is", () => {
     const p = { ...shared(Date.now()), uuid: "personal0002", workspaceId: null } as unknown as ScoutEntry;
     render(<TooltipProvider><MemoryRouter><ul><EntryCard e={p} signedIn={false} assigned={null} canDelete readOnly={false} comments={0} onEdit={() => {}} onHistory={() => {}} /></ul></MemoryRouter></TooltipProvider>);
