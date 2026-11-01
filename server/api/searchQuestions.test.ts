@@ -97,6 +97,23 @@ describe("the answer cards", () => {
   });
 });
 
+describe("no flag and no key", () => {
+  // Core search is deterministic: the brunoSearch flag gates only Bruno AI's reading (/api/search/refine), and Bruno
+  // needs CONTROL_POINT_INTERNAL_URL and _KEY (none here). On or off, with no key, every answer is the same.
+  it("gives the same answers with brunoSearch on and off, with no AI configured", async () => {
+    const { setFlag, invalidateFlags } = await import("../flags");
+    const { refine } = await import("./searchBruno");
+    const qs = ["4215 vs 6980", "hypnotic robotics vs badwolf", "when did hypnotics robotics go to worlds", "has bad wolf won anything", "asdfgh"];
+    const off = await Promise.all(qs.map((q) => searchAnswer(q, { learn: false })));
+    await setFlag("brunoSearch", true, "test");
+    invalidateFlags();
+    try {
+      expect(await Promise.all(qs.map((q) => searchAnswer(q, { learn: false })))).toEqual(off);
+      expect(await refine("asdfgh")).toBeNull(); // no key: Bruno's slot stays empty, nothing fails
+    } finally { await setFlag("brunoSearch", false, "test"); invalidateFlags(); }
+  });
+});
+
 describe("versus and names", () => {
   it("words typed run together match a name's words side by side", () => {
     expect(fuzzyScore("badwolf", "Bad Wolf")).toBe(1);
