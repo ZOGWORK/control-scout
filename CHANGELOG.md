@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.3 — 2026-11-01
+## 2.0.7 — 2026-11-01
 
 Event pages on phones: bigger tabs that only scroll sideways, a tidier odds box, and no "none yet" lines.
 
@@ -26,10 +26,60 @@ Event pages on phones: bigger tabs that only scroll sideways, a tidier odds box,
 - [home] At a glance hides empty lines and buttons that lead nowhere
 
 ### Event page
-- **Tabs on phones.** Every tab is a full 44px button. The strip scrolls sideways only (the tabs' touch areas no longer give it room to move up and down), stops at its ends instead of bouncing past them, and no longer draws its scrollbar across the tabs; the faded edge shows there are more. Same tabs component everywhere it's used. (#404)
-- **Text boxes.** On touch screens a box's hint text is the page's own size (typed text stays 16px so iPhones don't zoom in), so an empty box no longer looks a size bigger than everything around it. The Odds tab's team box now reads "Team number or name" with a search icon, like the other search boxes, and fills the row on phones. (#404)
+- **Tabs on phones.** Every tab is a full 44px button. The strip scrolls sideways only (the tabs' touch areas no longer give it room to move up and down), stops at its ends instead of bouncing past them, and no longer draws its scrollbar across the tabs; the faded edge shows there are more. Same tabs component everywhere it's used.
+- **Text boxes.** On touch screens a box's hint text is the page's own size (typed text stays 16px so iPhones don't zoom in), so an empty box no longer looks a size bigger than everything around it. The Odds tab's team box now reads "Team number or name" with a search icon, like the other search boxes, and fills the row on phones.
 - **At a glance.** A started event with nothing decided yet no longer says "No decided matches with predictions here yet", and "See the match predictions" only shows once there's a schedule to predict. (#404)
 
+## 2.0.6 — 2026-11-01
+
+On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
+
+### Highlights
+- [home] The Filters button on phone lists is the bright yellow one
+- [home] Opening Filters shows the filters, not the keyboard
+- [fixes] Tap the search box when you want to type
+- [fixes] Typing a place in Filters no longer jumps the sheet back to its top
+
+### Navigation
+- **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#402)
+## 2.0.5 — 2026-11-01
+
+Every finished event on /events shows it is done, even when no matches were posted.
+
+### Highlights
+- [fixes] Every finished event card has a full green bar
+- [fixes] Events with no results posted say Done instead of no bar or 0/12
+- [fixes] Finished events with some results missing still fill their bar
+
+### Fixes
+- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
+
+## 2.0.4 — 2026-11-01
+
+Search answers "world record score bio buzz" and "4215 high score".
+
+### Highlights
+- [rankings] Ask for a season's record score, by game name or season
+- [teams] Ask for a team's highest scores, with the alliance it played on
+- [fixes] Before a season's first official match, scrimmage bests show
+
+### Search
+- "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#401)
+- A game's name is read with any spacing ("bio buzz", "BIOBUZZ", "into the deep"); with no season named, the latest one played
+- With no official match played yet in that season, the card says there's no record yet and lists the best scrimmage scores instead
+## 2.0.3 — 2026-11-01
+
+Search waits for you to stop typing, and Enter works the first time.
+
+### Highlights
+- [speed] Search waits a second after your last letter before it looks
+- [speed] A newer search cancels the older one still on its way
+- [fixes] Enter searches at once and closes the phone keyboard
+
+### Search
+- Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
+- Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
+- In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.
