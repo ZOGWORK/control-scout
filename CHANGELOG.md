@@ -26,10 +26,10 @@ Easier to tap on a phone: buttons, links and chips get a full fingertip of room,
 - [rankings] Sortable columns show their arrows on a touch screen
 
 ### Navigation and interaction
-- **Tap areas.** On a touch screen, buttons, tabs, segmented controls, the header icons, footer links, a match row's label and report button, sort headers, team numbers and the compare boxes in tables now take a tap 44px around them, without changing how anything looks or where it sits. Measured on a phone-sized screen across fourteen pages: controls with a 44px tap area went from 117 of 1,241 (9%) to 466 of 1,021 (46%; the local data has fewer rows).
+- **Tap areas.** On a touch screen, buttons, tabs, segmented controls, the header icons, footer links, a match row's label and report button, sort headers, team numbers and the compare boxes in tables now take a tap 44px around them, without changing how anything looks or where it sits. Where two controls sit close together (the phone's menu and search buttons, a match's call and its confidence icon, Select all and its sort arrow), the buttons get real room instead, so no tap ever lands on the neighbour (checked by hit-testing every widened area on fourteen pages: none takes a neighbour's tap). Measured on a phone-sized screen: controls with a 44px tap area went from 117 of 1,241 (9%) to 345 of 1,021 (34%; the local data has fewer rows).
 - **Tap to see the detail.** A match's call ("Picked Red 58%") and a confidence badge opened their detail only on a mouse hover, so a phone could never show it. A tap now opens it; a tap elsewhere closes it.
 - **Sort arrows on touch.** Records and rankings columns showed their sort arrows only on hover; a touch screen now shows them faintly.
-- **Escape from search.** Ctrl K (or /) then Escape left the keyboard focus nowhere; it now returns to where you were.
+- **Escape from search.** Ctrl K (or /) then Escape left the keyboard focus nowhere; it now returns to where you were, from the top-bar field, the phone's search button and a page's own search box.
 - **Checked, unchanged.** Enter in the header search opens the full results page and the arrow keys pick one result; deep links like a team's #opr open and expand the section; Back returns to the page before; the current section is marked in the menu on every page; Tab reaches every control on thirteen pages with a visible focus ring and no trap (#391).
 
 ## 1.9.1 — 2026-11-01
