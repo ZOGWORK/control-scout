@@ -48,8 +48,8 @@ export function TabsList({ className, ref, ...props }: React.ComponentProps<type
       data-slot="tabs-list"
       data-fade={fade}
       // Phones: sideways only (no up-and-down give from the tabs' 44px tap areas), no rubber-band past either end,
-      // and no scrollbar drawn over the tabs; the faded edge says there's more.
-      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1.5 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto overflow-y-hidden overscroll-x-none custom-scrollbar max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden', className)}
+      // and no scrollbar drawn over the tabs (.tabs-fade in src/index.css); the faded edge says there's more.
+      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1.5 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto overflow-y-hidden overscroll-x-none custom-scrollbar', className)}
       {...props}
     />
   );
@@ -78,8 +78,8 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
       ref={ref}
       data-slot="tabs-trigger"
       className={cn(
-        // Phones: a full 44px button, the size of the tap area, with a little more room for the finger.
-        'tap-44 inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl max-sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 max-sm:h-11 max-sm:px-3.5 text-sm max-sm:text-[15px] font-bold',
+        // Phones: a full 44px button (px, not rem: the phone base is 14px and the text-size setting scales rem), the size of the tap area, with a little more room for the finger.
+        'tap-44 inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl max-sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 max-sm:h-[44px] max-sm:px-3.5 text-sm max-sm:text-[15px] font-bold',
         // Inactive tabs are pills of their own (a faint fill and edge), so each reads as something to tap.
         'border border-text-base/10 bg-text-base/[0.05] text-text-base/80 transition-colors hover:bg-text-base/[0.1] hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         'data-[state=active]:border-transparent',
