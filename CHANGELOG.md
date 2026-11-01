@@ -27,7 +27,7 @@ Compare's brief is spaced out and easier to scan.
 
 ### Compare
 - The brief on /compare groups its sentences under three small headings, with a divider and room between each one; the topic (Sample size, Overall, Auto …) is a label column at 640px and up and a heading above the sentence on phones
-- Gaps, OPRs, match and event counts and records are bold in each sentence; team numbers, seasons and dates stay plain. The sentences, sources and Copy brief text are unchanged
+- Gaps, OPRs, match and event counts and records are bold in each sentence; team numbers, seasons and dates stay plain. The sentences, sources and Copy brief text are unchanged (#405)
 
 ## 2.0.0 — 2026-11-01
 
