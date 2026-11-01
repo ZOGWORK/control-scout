@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.4 — 2026-11-01
+
+Colours mean one thing each, read clearly in light mode, and the keyboard focus ring shows on white.
+
+### Highlights
+- [fixes] The keyboard focus ring is a deep amber on light, easy to see on white
+- [live] Live, Upcoming and Finished look the same on every event card
+- [fixes] Red scores, recordings and losing playoff alliances pass contrast checks
+- [teams] Compare's event-by-event lines each have their own dash and a legend
+
+### Theme and colour
+- **Focus ring.** On light the ring was the gold accent, under 2:1 on white; it is now a deep amber that keeps 3:1 at the rings' strength. Dark is unchanged.
+- **One status look.** My team's event cards used grey Upcoming/Finished badges while the Events page used blue and green chips; both now use the same chips. The live stream marker and Live standings use the danger red token instead of a raw red.
+- **Video red is a token.** Has a recording, Clips, a match's Watch chip and the play button share one video red, deeper on light so small text reads at 4.5:1.
+- **Contrast.** A winning red alliance's score on its tint (4.4:1 on dark) and a series loser's faded chip in the bracket (2.8–3.5:1 on light) now pass 4.5:1. Eliminated alliances and skipped series show a dashed outline instead of fading.
+- **Charts and links.** Compare's trend lines are solid, dashed, dotted and dash-dot with a legend, so they read without colour. Gold links in running text you've opened before read a step quieter. Scrollbars use the theme's colours in Firefox too.
+
 ## 1.8.3 — 2026-11-01
 
 What's new stays in view at the foot of the sidebar, and Settings has one place.

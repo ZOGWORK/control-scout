@@ -367,7 +367,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
                   {t.length > 1 && (
                     <button type="button" {...gripProps(x.team.number, i)}
                       aria-label={`Reorder ${x.team.number}, ${ORDINAL[i]} of ${t.length}: drag, or use the arrow keys`} title="Drag to reorder: the first team is the one the others are measured against"
-                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-accent active:cursor-grabbing max-sm:h-10">
+                      className="-ml-2 -mt-0.5 flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring active:cursor-grabbing max-sm:h-10">
                       <GripVertical className="size-4" aria-hidden />
                     </button>
                   )}
@@ -422,6 +422,9 @@ function ChartCard({ title, description, delay = 0, children }: { title: string;
   );
 }
 
+/** The compare trend's line patterns, one per chosen team (four at most): solid, dashed, dotted, dash-dot. */
+const LINE_DASH = [undefined, "6 3", "2 3", "8 3 2 3"];
+
 function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number) => void; onMove: (team: number, to: number) => void }) {
   const t = d.teams;
   const { colorOf } = useTeamColors();
@@ -459,7 +462,9 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
                   <XAxis dataKey="i" tickLine={false} axisLine={false} />
                   <YAxis tickLine={false} axisLine={false} width={32} />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                  {t.map((x) => <Line key={x.team.number} dataKey={String(x.team.number)} stroke={`var(--color-${x.team.number})`} strokeWidth={2} connectNulls dot={{ r: 3 }} />)}
+                  <Legend iconType="plainline" />
+                  {/* Each line has its own dash and dot shape as well as its colour, so the teams tell apart without colour. */}
+                  {t.map((x, i) => <Line key={x.team.number} dataKey={String(x.team.number)} stroke={`var(--color-${x.team.number})`} strokeWidth={2} strokeDasharray={LINE_DASH[i % LINE_DASH.length]} connectNulls dot={{ r: 3 }} />)}
                 </LineChart>
               </ChartContainer>
             )}

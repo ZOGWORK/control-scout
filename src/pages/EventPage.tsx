@@ -528,9 +528,9 @@ const INSIGHT_COLS = ["totalPointsNpOpr", "autoPointsOpr", "dcPointsOpr", "endga
  */
 function LiveStandings({ field, season, team, code, schedule }: { field: FieldRow[]; season: number; team: number | null; code: string; schedule: ScheduleDifficulty | null }) {
   return (
-    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-3 sm:p-4">
+    <section aria-label="Live standings" className="mb-8 max-sm:mb-5 rounded-xl border border-danger/30 bg-danger/[0.04] p-3 sm:p-4">
       <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold">
-        <Radio className="size-4 text-red-500" /> Live standings
+        <Radio className="size-4 text-danger" /> Live standings
         <span className="font-normal text-muted-foreground">· updated as matches are scored</span>
       </h2>
       <Rankings field={field} season={season} team={team} code={code} schedule={schedule} />

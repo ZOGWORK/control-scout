@@ -55,7 +55,7 @@ function RowList<T>({ title, tone, items, render }: { title: string; tone: Tone;
       <ul className="divide-y divide-line px-3">{head.map(li)}</ul>
       {rest.length > 0 && (
         <details className="group border-t border-line">
-          <summary className="cursor-pointer rounded-b-xl px-3 py-2 text-sm font-medium text-accent-text hover:bg-text-base/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+          <summary className="cursor-pointer rounded-b-xl px-3 py-2 text-sm font-medium text-accent-text hover:bg-text-base/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
             <span className="group-open:hidden">Show {rest.length} more</span><span className="hidden group-open:inline">Hide {rest.length}</span>
           </summary>
           <ul className="divide-y divide-line px-3">{rest.map((t, i) => li(t, i + head.length))}</ul>

@@ -4,7 +4,7 @@
 // (search links here with ?region=USA:NJ).
 import { memo, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarDays, Check, ChevronDown, MapPin, MonitorPlay, Radio, Search, Users, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronDown, MapPin, MonitorPlay, Search, Users, X } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import type { EventListItem } from "../shared/api";
@@ -20,7 +20,8 @@ import { SearchBox, hitHref } from "../components/search/SearchBox";
 import { cn } from "../components/cn";
 import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
 import { CurrentlyTracking } from "../components/CurrentlyTracking";
-import { EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_TONE } from "../lib/textTones";
+import { EVENT_FILTER_COUNT, EVENT_TYPE_TONE } from "../lib/textTones";
+import { EventStatusChip } from "../components/EventChips";
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
@@ -40,7 +41,7 @@ const VIDEO_LABEL: Record<Exclude<VideoFilter, "all">, string> = { recording: "H
 
 const STATUS: { v: Status; label: string; dot: string }[] = [
   { v: "all", label: "All", dot: "bg-text-base/40" },
-  { v: "live", label: "Live now", dot: "bg-red-500 animate-pulse" },
+  { v: "live", label: "Live now", dot: "bg-danger animate-pulse" },
   { v: "upcoming", label: "Upcoming", dot: "bg-sky-400" },
   { v: "finished", label: "Finished", dot: "bg-emerald-400" },
 ];
@@ -134,8 +135,8 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
       <SelectTrigger className={cn("h-9 w-auto gap-2 rounded-lg px-3 font-medium max-sm:h-10", video !== "all" ? "border-accent/60 bg-accent/[0.08]" : "border-line bg-card")} aria-label="Video"><SelectValue /></SelectTrigger>
       <SelectContent className="min-w-[14rem]">
         <SelectItem value="all">Any video</SelectItem>
-        <SelectItem value="recording"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-[#ff4d6d]" />Has a recording <span className="text-muted-foreground">{videoCounts.recording}</span></span></SelectItem>
-        <SelectItem value="clips"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-[#ff4d6d]" />Match clips <span className="text-muted-foreground">{videoCounts.clips}</span></span></SelectItem>
+        <SelectItem value="recording"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-video" />Has a recording <span className="text-muted-foreground">{videoCounts.recording}</span></span></SelectItem>
+        <SelectItem value="clips"><span className="inline-flex items-center gap-2"><MonitorPlay className="size-4 text-video" />Match clips <span className="text-muted-foreground">{videoCounts.clips}</span></span></SelectItem>
       </SelectContent>
     </Select>
   );
@@ -159,7 +160,7 @@ function FilterBar({ season, onSeason, events, region, type, status, from, to, q
     if (region) chips.push({ id: "region", label: <><MapPin className="inline size-3.5 text-sky-500" aria-hidden /> {placeName(region)}</>, name: `Place: ${placeName(region)}`, onRemove: () => set({ region: null }, false) });
     if (type !== "all") chips.push({ id: "type", label: eventTypeLabel(type), name: `Event type: ${eventTypeLabel(type)}`, onRemove: () => set({ type: null }, false) });
     if (from || to) chips.push({ id: "dates", label: dateRangeText(from, to), name: `Dates: ${dateRangeText(from, to)}`, onRemove: () => set({ from: null, to: null }, false) });
-    if (video !== "all") chips.push({ id: "video", label: <><MonitorPlay className="inline size-3.5 text-[#ff4d6d]" aria-hidden /> {VIDEO_LABEL[video]}</>, name: `Video: ${VIDEO_LABEL[video]}`, onRemove: () => set({ video: null }, false) });
+    if (video !== "all") chips.push({ id: "video", label: <><MonitorPlay className="inline size-3.5 text-video" aria-hidden /> {VIDEO_LABEL[video]}</>, name: `Video: ${VIDEO_LABEL[video]}`, onRemove: () => set({ video: null }, false) });
     if (status !== "all") { const s = STATUS.find((x) => x.v === status)!; chips.push({ id: "status", label: s.label, name: `Status: ${s.label}`, onRemove: () => set({ status: null }, false) }); }
     if (q.trim()) chips.push({ id: "q", label: <><Search className="inline size-3.5" aria-hidden /> {q.trim()}</>, name: `Text: ${q.trim()}`, onRemove: () => onQ("", false) });
     const n = counts[status];
@@ -317,16 +318,12 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
     <Link to={`/events/${e.season}/${e.code}`} className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone.bar)} />
       <div className="flex items-center gap-2 text-xs">
-        {e.status === "live"
-          ? <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold", EVENT_STATUS_TONE.live)}><Radio className="size-3" /> Live</span>
-          : e.status === "upcoming"
-            ? <span className={cn("rounded-full px-2 py-0.5 font-semibold", EVENT_STATUS_TONE.upcoming)}>Upcoming</span>
-            : <span className={cn("rounded-full px-2 py-0.5 font-semibold", EVENT_STATUS_TONE.finished)}>Finished</span>}
+        <EventStatusChip status={e.status} className="px-2 py-0.5" />
         <span className={cn("truncate font-semibold", tone.text)}>{e.typeLabel}</span>
         {/* On now with a stream to watch on its page (Watch live). */}
-        {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-red-500" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 rounded-full bg-red-500" />LIVE<span className="sr-only"> stream</span></span>}
+        {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 rounded-full bg-danger" />LIVE<span className="sr-only"> stream</span></span>}
         {/* Finished with something to watch: the recording, or matches that link to their own second in it. */}
-        {e.status === "finished" && e.video && <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-[#ff4d6d]" title={e.video === "clips" ? "Recording with a Watch button on each match" : "Recording on the event page"} data-video={e.video}><MonitorPlay className="size-3.5" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>}
+        {e.status === "finished" && e.video && <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-video" title={e.video === "clips" ? "Recording with a Watch button on each match" : "Recording on the event page"} data-video={e.video}><MonitorPlay className="size-3.5" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>}
         {e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" />{e.teams}</span>}
       </div>
       <p className="mt-2 line-clamp-2 font-medium leading-snug group-hover:text-accent-text">{e.name}</p>
@@ -336,7 +333,7 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
       </div>
       {e.matchesTotal > 0 && e.status !== "upcoming" && (
         <div className="mt-3 flex items-center gap-2" title={`${e.matchesPlayed} of ${e.matchesTotal} matches played`}>
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-red-500" : "bg-emerald-400")} style={{ width: `${played}%` }} /></div>
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-danger" : "bg-success")} style={{ width: `${played}%` }} /></div>
           <span className="text-[11px] tabular-nums text-muted-foreground">{e.matchesPlayed}/{e.matchesTotal}</span>
         </div>
       )}

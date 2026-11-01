@@ -89,7 +89,7 @@ export function CompactFilters({ lead, chips, search, title = "Filters", summary
               {chips.map((c, i) => (
                 <li key={c.id} className="min-w-0 max-w-full">
                   <button type="button" data-chip={c.id} onClick={() => remove(i)} aria-label={`Remove filter: ${c.name}`}
-                    className="inline-flex h-11 max-w-full items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-3 pr-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-accent/[0.16] focus-visible:ring-2 focus-visible:ring-accent/60">
+                    className="inline-flex h-11 max-w-full items-center gap-1.5 rounded-full border border-accent/50 bg-accent/10 pl-3 pr-2.5 text-sm font-medium text-text-base outline-none transition-colors hover:bg-accent/[0.16] focus-visible:ring-2 focus-visible:ring-ring/60">
                     <span className="min-w-0 truncate">{c.label}</span><X className="size-4 shrink-0 text-text-muted" aria-hidden />
                   </button>
                 </li>
