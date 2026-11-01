@@ -124,6 +124,13 @@ describe("Enter and the full results page", () => {
     await reply(/\/api\/search\?q=zz/, answer("zz", { step: "did-you-mean", weak: true, hits: [t("1", "Zz Bots")] }));
     expect(pending.some((p) => p.url.includes("/refine"))).toBe(false);
   });
+  it("each row shows where it goes: the full address, anchor included", async () => {
+    const { input } = mount();
+    await type(input, "hypnotic opr");
+    await reply(/q=hypnotic/, answer("hypnotic opr", { hits: [{ ...t("4215", "Hypnotic Robotics"), section: "opr" }, { ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
+    const paths = [...document.querySelectorAll("[data-path]")].map((p) => p.textContent);
+    expect(paths).toEqual(["controlscout.org/teams/4215#opr", "controlscout.org/compare?teams=4215,6980"]);
+  });
   it("nothing found is never a bare dead end: a hint and the row to the full page", async () => {
     const { input } = mount();
     await type(input, "asdfgh");

@@ -117,7 +117,7 @@ export const shownPath = (h: SearchHit) => `${SITE_HOST}${hitHref(h)}`;
 export const SEARCH_HITS_ID = "cs-search-hits";
 
 const SECTION_LABEL: Partial<Record<NonNullable<SearchHit["section"]>, string>> = {
-  awards: "Awards", matches: "Matches", events: "Events and history", "schedule-difficulty": "Schedule difficulty", rankings: "Rankings", odds: "Advancement odds", playoffs: "Playoffs",
+  awards: "Awards", matches: "Matches", events: "Season road map", ranking: "Ranking and record", opr: "OPR", history: "Season road map", "schedule-difficulty": "Schedule difficulty", rankings: "Rankings", odds: "Advancement odds", playoffs: "Playoffs",
 };
 /** "4215 Hypnotic Robotics" → "Hypnotic Robotics (4215)". */
 const teamName = (h: SearchHit) => { const m = /^(\d+)\s+(.+)$/.exec(h.title); return m ? `${m[2]} (${m[1]})` : h.title; };

@@ -393,7 +393,7 @@ try {
       const r = await click(q, a.hits[0]);
       const row = await intentRow("season-region-ranking", "[team] ranking [season] [region]");
       ev.push(`POST /api/search/click → ${r.status}; search_intents row ${JSON.stringify(row)}`);
-      return teamTop(a, "4215") && hitHref(a.hits[0]) === "/teams/4215?season=2025#events" && a.hits[1]?.href === "/rankings?season=2025&region=USA%3ANJ"
+      return teamTop(a, "4215") && hitHref(a.hits[0]) === "/teams/4215?season=2025#ranking" && a.hits[1]?.href === "/rankings?season=2025&region=USA%3ANJ"
         && a.hits[1].facts!.some((f) => f.label === "New Jersey rank") && a.intent?.kind === "season-region-ranking" && a.intent.met && !a.intent.gap && row?.count === 1;
     });
     await test("T72", "\"hypnotic versus bad wolf reputation\" → Compare 4215 vs 6980 with histories and awards, no reputation score", async (ev) => {
