@@ -10,6 +10,7 @@ import { agoShort } from "../../lib/format";
 import { useNow } from "../../lib/useNow";
 import { useMediaQuery } from "../../lib/meta";
 import { ApiError } from "../../lib/api";
+import { optimistic } from "../../lib/optimistic";
 import {
   assignedLabel, assignmentProgress, createAssignments, deleteAssignment, fetchAssignOptions, setAssignmentStatus, useAssignmentIndex,
   type Assignment, type AssignmentsState,
@@ -62,7 +63,7 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
     for (const rows of m.values()) rows.sort((a, b) => a.team - b.team || a.assigneeName.localeCompare(b.assigneeName));
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [list]);
-  const act = useActions(space, state);
+  const act = useActions(space, state, myAccountId);
   const first = loading && !list.length;
   return (
     <>
@@ -113,18 +114,28 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
   );
 }
 
-function useActions(space: string, state: AssignmentsState) {
+function useActions(space: string, state: AssignmentsState, myAccountId: number | null) {
   const [busy, setBusy] = useState<number | null>(null);
   const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Couldn't change that assignment. Try again.");
   return {
     busy,
-    status: async (a: Assignment, status: "open" | "done") => {
-      setBusy(a.id);
-      try {
-        const r = await setAssignmentStatus(space, a.id, status);
-        state.apply({ action: "updated", assignments: [r.assignment] });
-        toast.success(status === "done" ? `Team ${a.team} marked done` : `Team ${a.team} reopened`);
-      } catch (e) { fail(e); } finally { setBusy(null); }
+    // Done and Reopen show at once (a scout taps them team after team on venue wifi) and roll back if the server says no.
+    status: (a: Assignment, status: "open" | "done") => {
+      const guess: Assignment = status === "done"
+        ? { ...a, status, doneAt: Date.now(), doneByAccountId: myAccountId, doneByName: null }
+        : { ...a, status, doneAt: null, doneByAccountId: null, doneByName: null };
+      const said = toast.success(status === "done" ? `Team ${a.team} marked done` : `Team ${a.team} reopened`);
+      void optimistic({
+        key: `assignment:${space}:${a.id}`,
+        apply: () => {
+          state.apply({ action: "updated", assignments: [guess] });
+          return () => state.apply({ action: "updated", assignments: [a] });
+        },
+        send: () => setAssignmentStatus(space, a.id, status),
+        reconcile: (r) => state.apply({ action: "updated", assignments: [r.assignment] }),
+        what: status === "done" ? `team ${a.team} marked done` : `team ${a.team} reopened`,
+        report: (m) => { toast.dismiss(said); toast.error(m); },
+      });
     },
     remove: async (a: Assignment) => {
       setBusy(a.id);
