@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.9 — 2026-11-01
+
+Records no longer jumps while it loads, and a photo that fails to load says so instead of leaving a broken icon.
+
+### Highlights
+- [speed] Records keeps its height while loading, so nothing jumps
+- [scout] A pit photo that can't load shows "Photo not available"
+- [live] A stream whose thumbnail can't load still shows a clean play button
+- [fixes] Empty and error states checked on 14 pages, server cut off
+
+### Loading, empty and error states
+- **Records loading.** The loading placeholder is now at least a screen tall, like the 50-row table that replaces it, so the footer no longer shows and then drops when the rows arrive.
+- **Broken images.** Pit photos in the scouting commons and the stream thumbnail on an event's watch card hide the browser's broken-image icon: the photo shows a "Photo not available" tile and the stream keeps its play button on the card's own background.
+- **Checked, unchanged.** Cold loads of a team and an event page (no flash, no layout shift, at full speed and on a slow 4G line), empty pages (a meet with no schedule, a team with no results this season, no followed teams, an empty shortlist, a search with no matches), every major page with the server cut off mid-visit, and the offline venue mode (#389).
+
 ## 1.8.8 — 2026-11-01
 
 Folded cards say what's inside, a team's OPR says how fresh it is, and dates read the same everywhere.
