@@ -204,4 +204,18 @@ describe("ComparePage", () => {
     expect(text).toContain(`${location.origin}/teams/4215?season=2025`);
     expect(text).not.toMatch(/<[a-z]/);
   });
+  it("head to head names each event, not its code, and still links it", async () => {
+    const side = (number: number) => ({ teams: [{ number, surrogate: false, dq: false, onField: true }], score: { total: 50, np: 50, auto: 0, teleop: 0, endgame: 0, pen: 0 } });
+    const a = { ...team(1111, 100, 8), events: [{ code: "USNJNOM5", name: "P1-4 PM Northern League Meet", start: "2026-01-10", opr: 90, auto: null, teleop: null, endgame: null, rank: 2 }] };
+    const meeting = { season: 2025, code: "USNJNOM5", key: "qual:0:25", level: "qual", series: 0, number: 25, label: "Q25", time: null, startsAt: null, played: true,
+      red: side(1111), blue: side(2222), video: null, prediction: null, relation: "opponents" } as CompareView["meetings"][number];
+    vi.stubGlobal("fetch", async (path: string) => {
+      if (path.startsWith("/api/compare")) return new Response(JSON.stringify({ ...view([a, team(2222, 90, 9)]), meetings: [meeting] }), { status: 200, headers: { "content-type": "application/json" } });
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    });
+    page("/compare?teams=1111,2222");
+    const links = await screen.findAllByRole("link", { name: /P1-4 PM Northern League Meet/ });
+    expect(links.map((x) => x.getAttribute("href"))).toContain("/events/2025/USNJNOM5");
+    expect(screen.queryByText("USNJNOM5")).toBeNull();
+  });
 });

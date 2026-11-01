@@ -2,7 +2,7 @@
 // rounding, no winner language, and every number traced back to the data it came from.
 import { describe, expect, it } from "vitest";
 import type { CompareTeam, CompareView, MatchView } from "../shared/api";
-import { BRIEF, WINNER_WORDS, briefText, compareBrief, list, shortDate, type BriefSentence } from "./compareBrief";
+import { BRIEF, WINNER_WORDS, briefText, compareBrief, compareEventNames, list, shortDate, type BriefSentence } from "./compareBrief";
 import { num } from "./format";
 
 type Ev = CompareTeam["events"][number];
@@ -161,7 +161,8 @@ describe("compareBrief: three and four teams", () => {
     ]));
     const h = one(s, "Head to head");
     expect(h.text).toBe("18360 met 24089 and 1234 in 4 played matches (opponents in 3, partners in 1); in the 2 scored matches against, 18360's alliance went 1-1-0.");
-    expect(h.sources[0]).toEqual({ label: "USCAQ2 Q1", href: "/events/2025/USCAQ2/match/qual%3A0%3A1" });
+    // The match names its event, not its code.
+    expect(h.sources[0]).toEqual({ label: "Q1 at USCAQ2 Qualifier", href: "/events/2025/USCAQ2/match/qual%3A0%3A1" });
     // One match with a compared partner and a compared opponent counts toward both, whatever the server labelled it.
     const mixed = compareBrief(view([A, B, C], [match("qual:0:5", [18360, 24089], [1234, 9], 90, 80, "opponents")]));
     expect(one(mixed, "Head to head").text).toBe("18360 met 24089 and 1234 in 1 played match (opponents in 1, partners in 1; a match can be both); in the 1 scored match against, 18360's alliance went 1-0-0.");
@@ -215,11 +216,18 @@ describe("compareBrief: rules that hold for every brief", () => {
       video: null, prediction: null, relation: "opponents" as const }) as CompareView["meetings"][number];
     const h = one(compareBrief(view([A, B], Array.from({ length: BRIEF.maxMatchLinks + 3 }, (_, i) => m(i + 1)))), "Head to head");
     expect(h.sources).toHaveLength(BRIEF.maxMatchLinks);
+    // An event no compared team lists keeps its code.
+    expect(h.sources[0].label).toBe("Q1 at E");
     expect(h.text).toBe(`18360 met 24089 in ${BRIEF.maxMatchLinks + 3} played matches (opponents in ${BRIEF.maxMatchLinks + 3}, partners in 0).`);
   });
 });
 
 describe("helpers", () => {
+  it("names events by code from every compared team, first name wins", () => {
+    const X = team(1, 6, [{ ...ev("USNJNOM5", "2026-01-10", 90), name: "P1-4 PM Northern League Meet" }]);
+    const Y = team(2, 6, [{ ...ev("USNJNOM5", "2026-01-10", 80), name: "Other" }, ev("USNJNOM7", "2026-02-01", 85)]);
+    expect(compareEventNames(view([X, Y]))).toEqual({ USNJNOM5: "P1-4 PM Northern League Meet", USNJNOM7: "USNJNOM7 Qualifier" });
+  });
   it("lists and dates", () => {
     expect(list(["a"])).toBe("a");
     expect(list(["a", "b"])).toBe("a and b");
