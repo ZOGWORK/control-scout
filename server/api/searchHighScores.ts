@@ -104,10 +104,12 @@ async function best(season: number, team: number | null, types: string[]): Promi
 /** The answer: the card, then the team (when one was asked about) and the rest of search's hits. */
 export async function highScoreAnswer(q: string, it: HighScoreQuestion, team: SearchHit | null, rest: SearchHit[], pages: SearchAnswer["pages"]): Promise<SearchAnswer> {
   const name = team ? team.title.replace(/^\d+\s*/, "").trim() || null : null;
-  const card = await highScoreCard(it, team ? { number: Number(team.ref), name } : null);
-  const understood = [team ? `Team ${team.title}` : "", `Highest match scores without penalties${it.season != null ? ` in ${seasonLabel(it.season)}${it.game ? ` (${it.game})` : ""}` : ", latest season"}`].filter(Boolean);
+  // The season read once, so the team's link opens the same season as the card.
+  const season = await seasonFor(it.season, team ? Number(team.ref) : null);
+  const card = await highScoreCard({ ...it, season }, team ? { number: Number(team.ref), name } : null);
+  const understood = [team ? `Team ${team.title}` : "", `Highest match scores without penalties${season != null ? ` in ${seasonLabel(season)}${it.game ? ` (${it.game})` : ""}` : ""}`].filter(Boolean);
   return {
-    q, hits: team ? [{ ...team, section: "matches", facts: undefined, events: undefined }, ...rest.filter((h) => !(h.kind === "team" && h.ref === team.ref))] : [],
+    q, hits: team ? [{ ...team, section: "matches", ...(season != null ? { linkSeason: season } : {}), facts: undefined, events: undefined }, ...rest.filter((h) => !(h.kind === "team" && h.ref === team.ref))] : [],
     pages, step: "deterministic", weak: false, card,
     intent: { kind: "question-high-scores", pattern: team ? "[team] high score [season]" : "world record score [season]", met: card.lines.length > 0, understood },
   };

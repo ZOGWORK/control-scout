@@ -75,6 +75,8 @@ describe("the answer", () => {
     expect(a.card!.closest!.map((l) => l.text)).toEqual(["115 points: Q1 at Kickoff Scrimmage"]);
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     const d = await searchAnswer("hypnotic best score in decode");
+    // The team's link opens the season asked about.
+    expect(d.hits[0]).toMatchObject({ kind: "team", ref: "4215", section: "matches", linkSeason: 2025 });
     expect(d.card!.lines.map((l) => l.text)).toEqual(["250 points: Q1 at New Jersey Championship", "190 points: Q2 at New Jersey Championship", "50 points: M9 at New Jersey Championship"]);
   });
   it("a team's best never counts a match it sat out", async () => {
