@@ -174,13 +174,15 @@ export async function renderPage(file: string, path: string, query: Record<strin
 }
 
 /**
- * The app's two text fonts for a page the server drew whole, with font-display: block: its text paints once the fonts
- * are here (preloaded with the HTML: index.html), never in a stand-in font that then reflows. The same faces as the
- * stylesheet's (src/index.css), declared after it, so these win; a font still on its way after 3 s gives way to the
- * stand-in, as usual.
+ * The app's fonts for a page the server drew whole, with font-display: block: its text paints once the fonts are here
+ * (preloaded with the HTML: the two text fonts in index.html, the mono one, for team numbers, here), never in a
+ * stand-in font that then reflows. The same faces as the stylesheet's (src/index.css), declared after it, so these
+ * win; a font still on its way after 3 s gives way to the stand-in, as usual.
  */
-export const FIRST_PAINT_FONTS = `<style>@font-face{font-family:"Inter";font-weight:400 800;font-style:normal;font-display:block;src:url("/fonts/Inter.woff2") format("woff2")}`
-  + `@font-face{font-family:"Space Grotesk";font-weight:500 700;font-style:normal;font-display:block;src:url("/fonts/SpaceGrotesk.woff2") format("woff2")}</style>`;
+export const FIRST_PAINT_FONTS = `<link rel="preload" href="/fonts/JetBrainsMono-400.woff2" as="font" type="font/woff2" crossorigin />`
+  + `<style>@font-face{font-family:"Inter";font-weight:400 800;font-style:normal;font-display:block;src:url("/fonts/Inter.woff2") format("woff2")}`
+  + `@font-face{font-family:"Space Grotesk";font-weight:500 700;font-style:normal;font-display:block;src:url("/fonts/SpaceGrotesk.woff2") format("woff2")}`
+  + `@font-face{font-family:"JetBrains Mono";font-weight:400;font-style:normal;font-display:block;src:url("/fonts/JetBrainsMono-400.woff2") format("woff2")}</style>`;
 
 /** How long the first HTML waits on today's coin flips before going without the hint. */
 export const FLIPS_HINT_MS = 150;

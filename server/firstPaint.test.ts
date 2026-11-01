@@ -51,6 +51,8 @@ describe("team page first paint (HTML)", () => {
     expect(html).not.toContain('media="print"');
     expect(html).toMatch(/@font-face\{font-family:"Inter";[^}]*font-display:block/);
     expect(html).toMatch(/@font-face\{font-family:"Space Grotesk";[^}]*font-display:block/);
+    expect(html).toMatch(/@font-face\{font-family:"JetBrains Mono";[^}]*font-display:block/);
+    expect(html).toContain('<link rel="preload" href="/fonts/JetBrainsMono-400.woff2" as="font" type="font/woff2" crossorigin />');
     // The app's code downloads meanwhile, at low priority, and still runs only after the first paint.
     expect(html).toContain('<link rel="modulepreload" crossorigin fetchpriority="low" href="/assets/index-a.js" />');
     expect(html).toContain('<link rel="modulepreload" crossorigin fetchpriority="low" href="/assets/vendor-react-b.js" />');
