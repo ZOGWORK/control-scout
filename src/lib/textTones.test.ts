@@ -215,3 +215,26 @@ describe("text tones reach WCAG AA in both themes", () => {
     expect(measure("light", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 3.61
   });
 });
+
+describe("visited links in running text", () => {
+  /** color-mix(in srgb, a p%, b): an opaque blend of two tokens. */
+  const mix = (theme: Theme, a: string, p: number, b: string): RGBA => {
+    const x = value(theme, a), y = value(theme, b);
+    return [0, 1, 2].map((i) => x[i] * p + y[i] * (1 - p)).concat(1) as RGBA;
+  };
+  for (const theme of THEMES) it(`read quieter and still reach AA (${theme})`, () => {
+    const card = value(theme, "--color-card");
+    const gold = mix(theme, "--color-accent-text", 0.7, "--color-text-muted"), plain = mix(theme, "--color-foreground", 0.65, "--color-text-muted");
+    expect(contrast(gold, card)).toBeGreaterThanOrEqual(AA);
+    expect(contrast(plain, card)).toBeGreaterThanOrEqual(AA);
+    expect(toHex(gold)).not.toBe(toHex(value(theme, "--color-accent-text")));
+  });
+  it("cover gold underlined links and the prose blocks that style their links from the parent", () => {
+    expect(css).toContain("a.underline:visited:where(.text-accent-text), .prose-links a:visited {");
+    expect(css).toContain(".prose-links-plain a:visited {");
+    const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
+    expect(src("../pages/PowerRankingsPage.tsx")).toMatch(/const PROSE = "prose-links /);
+    expect(src("../components/legal.tsx")).toContain('"prose-links-plain ');
+    expect(src("../components/howitworks/ui.tsx")).toContain("hiw-prose prose-links-plain");
+  });
+});

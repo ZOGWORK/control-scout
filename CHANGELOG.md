@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.5 — 2026-11-01
+## 1.8.6 — 2026-11-01
 
 Long names show in full when you point at them, table numbers line up, and headings follow one order.
 
@@ -32,7 +32,7 @@ Long names show in full when you point at them, table numbers line up, and headi
 - **One type scale.** The few odd sizes left (9px rank labels, 10.5px and 11.5px on How it works) moved onto the scale's 10px, 11px and 12px steps (#385).
 - **Sponsors.** The label keeps to one line; the sponsor names truncate beside it instead.
 
-## 1.8.4 — 2026-11-01
+## 1.8.5 — 2026-11-01
 
 Colours mean one thing each, read clearly in light mode, and the keyboard focus ring shows on white.
 
@@ -47,7 +47,21 @@ Colours mean one thing each, read clearly in light mode, and the keyboard focus 
 - **One status look.** My team's event cards used grey Upcoming/Finished badges while the Events page used blue and green chips; both now use the same chips. The live stream marker and Live standings use the danger red token instead of a raw red.
 - **Video red is a token.** Has a recording, Clips, a match's Watch chip and the play button share one video red, deeper on light so small text reads at 4.5:1.
 - **Contrast.** A winning red alliance's score on its tint (4.4:1 on dark) and a series loser's faded chip in the bracket (2.8–3.5:1 on light) now pass 4.5:1. Eliminated alliances and skipped series show a dashed outline instead of fading.
-- **Charts and links.** Compare's trend lines are solid, dashed, dotted and dash-dot with a legend, so they read without colour. Gold links in running text you've opened before read a step quieter. Scrollbars use the theme's colours in Firefox too (#384).
+- **Charts and links.** Compare's trend lines are solid, dashed, dotted and dash-dot with a legend, so they read without colour. Links in running text you've opened before (gold links, Power rankings' notes, How it works and the legal pages) read a step quieter. Scrollbars use the theme's colours in Firefox too (#384).
+
+## 1.8.4 — 2026-11-01
+
+Search answers more questions, and a question on the results page gets a short written answer from Bruno AI.
+
+### Highlights
+- [teams] Bruno AI answers questions on the search page from our own records
+- [teams] "How many times did 4215 go to states" lists each one, with a count
+- [teams] Worlds and states answers show the OPR at each event
+
+### Search
+- **Bruno AI answers questions on /search.** A search that reads as a question ("how many times did 4215 go to states", "when did 23268 go to worlds and what was their opr then") gets 1 to 3 sentences from Bruno AI above the results. He writes only from the records search found for it (the answer card's events with dates, ranks, records and OPRs, the top results, the team's latest season), sent to Control Point's new `/internal/bruno/search-answer`. Any answer naming a number that isn't in those records is dropped, so a made-up stat never shows. A name or a number alone never asks him. It's asked after the results are on screen, so they never wait on it, and each question is cached for 6 hours. The answer is labelled as his and points to the records below it. Owner toggle: **Bruno answers on /search** (`brunoAnswers`, on). Off, unconfigured, slow or failing: no box, and search is unchanged. (#381)
+- **State championships.** "How many times did 4215 go to states", "did bad wolf make states in 2025" and "… state championship" questions list each region championship the team played (its division, rank, record, OPR and awards), with the count in the card's header. None found, or none in the year asked, is said plainly with the closest real records.
+- **OPR at each event.** Worlds and state championship lines now include the team's OPR there.
 
 ## 1.8.3 — 2026-11-01
 

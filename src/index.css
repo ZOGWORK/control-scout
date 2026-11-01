@@ -247,10 +247,13 @@ html body[data-scroll-locked] { margin-right: 0 !important; }
   table { font-variant-numeric: tabular-nums; }
 }
 
-/* A link in running text (gold and underlined) that's been opened before reads a step quieter, so a list of
-   links shows which ones were already read. Only colour can change on :visited (browsers hide the rest).
-   Unlayered, so it wins over the text-accent-text utility it qualifies. */
-a.underline:visited:where(.text-accent-text) { color: color-mix(in srgb, var(--color-accent-text) 70%, var(--color-text-muted)); }
+/* A link in running text that's been opened before reads a step quieter, so a list of links shows which ones
+   were already read. Only colour can change on :visited (browsers hide the rest). Gold underlined links, and
+   the links inside a prose block that styles them from the parent: .prose-links (gold, Power rankings' notes)
+   and .prose-links-plain (foreground, How it works and the legal pages). Table cell links are row content
+   and stay as they are. Unlayered, so it wins over the utilities it qualifies. */
+a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: color-mix(in srgb, var(--color-accent-text) 70%, var(--color-text-muted)); }
+.prose-links-plain a:visited { color: color-mix(in srgb, var(--color-foreground) 65%, var(--color-text-muted)); }
 
 /* Page canvas: a faint volt glow at the top (Control Point .m-canvas); the
    grid itself lives on the ambient layer behind the scrolling content. */
