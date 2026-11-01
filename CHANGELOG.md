@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.5 — 2026-11-01
+## 2.0.3 — 2026-11-01
 
 The row under your pointer in the Teams tables lights up, so one team's numbers are easy to follow.
 
@@ -25,7 +25,7 @@ The row under your pointer in the Teams tables lights up, so one team's numbers 
 - [rankings] Easier to read one team's stats across a wide table
 
 ### Tables
-- **Row hover.** In the Teams tables (team-events, team seasons, matches) the hovered row gets a clear accent tint instead of a faint grey, and the sticky first column lights up with it (it used to stay dark), with a 3px accent bar at its left edge. Mouse and trackpad only; touch screens are unchanged. (#PR)
+- **Row hover.** In the Teams tables (team-events, team seasons, matches) the hovered row gets a clear accent tint instead of a faint grey, and the sticky first column lights up with it (it used to stay dark), with a 3px accent bar at its left edge. Mouse and trackpad only; touch screens are unchanged. (#407)
 
 ## 2.0.2 — 2026-11-01
 
