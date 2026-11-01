@@ -27,7 +27,9 @@ const ratio = (a: string, b: string) => { const [hi, lo] = [lum(a), lum(b)].sort
 const over = (fg: string, alpha: number, bg: string) => `#${rgb(fg).map((v, i) => Math.round(v * alpha + rgb(bg)[i] * (1 - alpha)).toString(16).padStart(2, "0")).join("")}`;
 
 describe("phone match card red text contrast", () => {
-  const darkInk = RED_INK_TOKEN.match(/dark:\[--summary-red-ink:(#[0-9a-f]{6})\]/i)?.[1];
+  it("the card's red text is the shared red-alliance ink token", () => {
+    expect(RED_INK_TOKEN).toBe("[--summary-red-ink:var(--color-red-alliance-ink)]");
+  });
 
   it("dark: the card's own red text reads at 4.5:1 or more on the red tint (the shared alliance red alone doesn't)", () => {
     const card = token(":root", "sh-card"), red = token("@theme", "color-red-alliance"), darkInk = token("@theme", "color-red-alliance-ink");
