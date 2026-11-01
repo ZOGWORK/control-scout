@@ -64,7 +64,7 @@ function TeamCards({ teams, season, team, label }: { teams: CardTeam[]; season: 
         const box = cn("flex h-full items-center gap-3 rounded-xl border border-border bg-card p-3", t.team === team && "border-accent/60 bg-accent/[0.06]");
         const body = (
           <span className="min-w-0 flex-1">
-            <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm">{t.name}</span></span>
+            <span className="flex items-baseline gap-2"><span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm" title={t.name ?? undefined}>{t.name}</span></span>
             <span className="block truncate text-xs text-muted-foreground">{place(t.city, t.state) || "—"}</span>
           </span>
         );

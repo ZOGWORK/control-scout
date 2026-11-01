@@ -82,7 +82,7 @@ function Report({ r }: { r: MatchReport }) {
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Link to={back} className="inline-flex min-h-9 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4" aria-hidden /><span className="truncate">{r.event.name}</span>
+          <ArrowLeft className="size-4" aria-hidden /><span className="truncate" title={r.event.name}>{r.event.name}</span>
         </Link>
         <span className="ml-auto flex gap-1.5">{step(r.prev, "prev")}{step(r.next, "next")}</span>
       </div>

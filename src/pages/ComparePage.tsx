@@ -194,10 +194,10 @@ function SuggestionChip({ s, onPick, big }: { s: Suggestion; onPick: (n: number)
       <span className="font-mono font-semibold tabular-nums">{s.team}</span>{" "}
       {big ? (
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm">{name || (name === undefined ? "…" : "Unnamed team")}</span>{" "}
+          <span className="block truncate text-sm" title={name ?? undefined}>{name || (name === undefined ? "…" : "Unnamed team")}</span>{" "}
           <span className="block text-xs text-muted-foreground">{s.why}</span>
         </span>
-      ) : name ? <span className="max-w-[10rem] truncate text-muted-foreground">{name}</span> : null}
+      ) : name ? <span className="max-w-[10rem] truncate text-muted-foreground" title={name}>{name}</span> : null}
     </button>
   );
 }
@@ -483,7 +483,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
               <ul className="mt-2 space-y-1 text-xs">
                 {x.events.length ? x.events.map((e) => (
                   <li key={e.code} className="flex items-baseline gap-2">
-                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text">{e.name}</Link>
+                    <Link to={`/events/${d.season}/${e.code}?team=${x.team.number}`} className="min-w-0 flex-1 truncate text-foreground/90 hover:text-accent-text" title={e.name}>{e.name}</Link>
                     <span className="shrink-0 tabular-nums text-muted-foreground">{e.rank ? `#${e.rank}` : "—"} · OPR {e.opr == null ? "—" : num(e.opr, 1)}</span>
                   </li>
                 )) : <li className="text-muted-foreground">No events this season.</li>}

@@ -40,7 +40,7 @@ export function Pipeline() {
             <span className="hiw-gold font-display text-3xl font-bold leading-none">{i + 1}</span>
             <b className="font-display text-[0.9375rem] font-semibold text-foreground">{s.title}</b>
             <span className="text-sm leading-snug text-muted-foreground">{s.body}</span>
-            <span className="mt-1 border-t border-dashed border-border pt-2 font-mono text-[11.5px] text-foreground">{s.out}</span>
+            <span className="mt-1 border-t border-dashed border-border pt-2 font-mono text-xs text-foreground">{s.out}</span>
           </button>
         ))}
       </div>

@@ -179,7 +179,7 @@ function CalendarRow({ e }: { e: EventListItem }) {
           <span className="mt-1 block font-display text-xl font-semibold tabular-nums">{d ? d.getUTCDate() : "–"}</span>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium group-hover:text-accent-text">{e.name}</span>
+          <span className="block truncate font-medium group-hover:text-accent-text" title={e.name}>{e.name}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-text-muted">
             <span className="inline-flex min-w-0 items-center gap-1 truncate"><MapPin className="size-3.5 shrink-0" aria-hidden />{place(e.city, e.state, e.country) || "Location TBA"}</span>
             {/* The date block on the left shows the first day; a multi-day event says its full span (screen readers always get it). */}

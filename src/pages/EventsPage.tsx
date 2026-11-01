@@ -256,7 +256,7 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
 function PlaceRow({ on, name, n, onClick }: { on: boolean; name: string; n: number; onClick: () => void }) {
   return (
     <button type="button" role="option" aria-selected={on} onClick={onClick} className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-text-base/[0.06] max-sm:py-2.5", on && "bg-accent/[0.08]")}>
-      <span className="min-w-0 flex-1 truncate">{name}</span>
+      <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
       <span className="text-xs tabular-nums text-muted-foreground">{n}</span>
       {on && <Check className="size-4 text-accent" />}
     </button>
