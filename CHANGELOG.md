@@ -30,6 +30,7 @@ The event-day bundle page now opens on the schedule, with plain times and nothin
 - **12-hour times.** "Saved 7:23 PM", match times "11:58 AM", and frozen match reports and pick lists say their time the same way. The raw zone name ("America/Los_Angeles") is gone; a short "Times in PT" sits by the times instead.
 - **Pick list, plainly.** "Your team's pick list", whose it is, how many teams and when it was saved, with the top five listed. An empty list, or none, shows no card.
 - **Rules reference closed.** The game rules reference is a closed section at the bottom and only loads when opened.
+- **Every match opens.** Each row opens Know your match. With no signal, a match whose report isn't saved in the bundle offers the match on the event page, which answers from the bundle.
 - **Less to read.** The separate Event card and the long stale-data notice are gone; an old snapshot says "check live data first" in the same line (#372).
 
 ## 1.7.0 — 2026-10-31

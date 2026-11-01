@@ -98,14 +98,4 @@ describe("BundlePage", () => {
     fireEvent(details, new Event("toggle"));
     expect(document.querySelector("[data-snapshot-frame]")).toBeTruthy();
   });
-  it("offline, a match whose report isn't in the bundle opens the event's matches instead of a dead report", () => {
-    setUp();
-    h.bundle!.reports = [{ key: "qual:0:2", label: "Q2", time: null, html: "<p>r</p>" }];
-    const on = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
-    mount();
-    const hrefs = [...document.querySelectorAll("[data-bundle-match]")].map((a) => a.getAttribute("href"));
-    expect(hrefs[0]).toBe("/events/2025/USCABLM1?tab=matches");
-    expect(hrefs[1]).toMatch(/qual/i);
-    on.mockRestore();
-  });
 });

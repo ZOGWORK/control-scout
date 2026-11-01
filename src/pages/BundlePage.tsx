@@ -4,7 +4,7 @@
 // pick list's top teams when there is one. The rules reference waits, closed, at the bottom. Links into the event
 // page are answered from the bundle when there's no signal, live otherwise. /bundle/:season/:code/picklist shows the frozen pick list, unless the live one loads:
 // then the live one takes over.
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { BookOpen, CalendarDays, ChevronDown, ClipboardList, ExternalLink, HardDriveDownload, ListOrdered, MapPin, Swords, Trash2, Trophy } from "lucide-react";
 import { apiFetch } from "../lib/api";
@@ -124,18 +124,7 @@ function BundleView({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
 }
 
 /** The schedule from the bundle: one team's matches (the next one marked), or every match. Never empty for want of a team. */
-/** The browser says it has a connection (a match report not saved in the bundle needs one). */
-function useOnline(): boolean {
-  return useSyncExternalStore((fn) => {
-    window.addEventListener("online", fn);
-    window.addEventListener("offline", fn);
-    return () => { window.removeEventListener("online", fn); window.removeEventListener("offline", fn); };
-  }, () => navigator.onLine, () => true);
-}
-
 function MatchesCard({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
-  const online = useOnline();
-  const eventMatches = `/events/${meta.season}/${encodeURIComponent(meta.code)}?tab=matches`;
   const field = useMemo(() => [...b.event.field].sort((x, y) => x.team - y.team), [b.event.field]);
   const [shown, setShown] = useShownTeam(meta, field.map((f) => f.team));
   const reports = useMemo(() => new Set(b.reports.map((r) => r.key)), [b.reports]);
@@ -164,9 +153,9 @@ function MatchesCard({ meta, b }: { meta: SavedBundle; b: EventBundle }) {
           <ul className="mt-2 divide-y divide-border">
             {matches.map((m) => (
               <li key={m.key}>
-                {/* A report saved in the bundle opens anywhere; any other needs signal, so offline it opens the
-                    event's matches instead (answered from this bundle). */}
-                <Link to={reports.has(m.key) || online ? matchReportHref({ season: meta.season, code: meta.code, key: m.key }) : eventMatches} data-bundle-match
+                {/* Know your match: live when there's signal, the bundle's saved report when there isn't, and when
+                    neither answers, the report page offers this match on the event page (from the bundle). */}
+                <Link to={matchReportHref({ season: meta.season, code: meta.code, key: m.key })} data-bundle-match
                   className="grid min-h-11 grid-cols-[3.5rem_minmax(0,1fr)_auto] items-center gap-3 py-2 text-sm hover:text-accent max-sm:grid-cols-[3rem_minmax(0,1fr)_auto]">
                   <span className="font-medium tabular-nums">{m.label}</span>
                   <span className="min-w-0 truncate font-mono text-xs">
