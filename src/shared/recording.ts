@@ -7,14 +7,15 @@ export const CLIP_LEAD_S = 20;
 
 export interface RecordingTiming {
   start: string | null; end?: string | null; length: number | null; live: boolean;
-  /** The event's last played match's real start (UTC ISO), when known: tells a trimmed-off tail from a gap (timingTrusted). */
+  /** The event's first and last played matches' real starts (UTC ISO), when known: tell a trimmed-off tail from a gap (timingTrusted). */
+  firstMatch?: string | null;
   lastMatch?: string | null;
 }
 
 /** How far the video's length may fall short of the broadcast's start-to-end time before its times can't be trusted. */
 export const GAP_TOLERANCE_S = 180;
 /** How soon after the last match's start a video trimmed at the event's end stops. */
-export const TAIL_TRIM_S = 1800;
+export const TAIL_TRIM_S = 900;
 
 /**
  * Whether the video's seconds follow the clock: a broadcast that dropped out and came back is archived without
@@ -22,9 +23,11 @@ export const TAIL_TRIM_S = 1800;
  * start-to-end time. Still live: trusted up to now. No end: an archive whose end YouTube didn't give, trusted.
  * One exception: a stream left running for hours after the event, its archive then cut where the event ended
  * (Salk League Meet 2026: broadcast 10 h 26 min, video 5 h 10 min, ending 6 min after the last match's start).
- * The missing time is all after the last match, so every match is where the clock says. Told apart from a gap by
- * the last match: the video ends within TAIL_TRIM_S of its start, and the broadcast ran on for at least as long as
- * is missing. A drop-out during the event would push the last match past the video's end instead.
+ * The clock alone can't say where missing time went, so this asks for that cut's whole signature: the video ends
+ * within TAIL_TRIM_S of the last match's start (by the clock), and the broadcast ran on after the last match for
+ * longer than the matches themselves took (Salk: 5 h 21 min after 4 h 22 min of matches). A drop-out during an
+ * event whose stream ended soon after it fails the second; one that also ran on for hours, and was also cut by hand
+ * at the end, would pass: that pair is the case this can't rule out.
  */
 export function timingTrusted(rec: RecordingTiming): boolean {
   if (!rec.start) return false;
@@ -33,10 +36,11 @@ export function timingTrusted(rec: RecordingTiming): boolean {
   if (!Number.isFinite(span)) return false;
   const missing = span - rec.length;
   if (missing <= GAP_TOLERANCE_S) return true;
-  const last = rec.lastMatch ? Date.parse(rec.lastMatch) : NaN;
-  if (!Number.isFinite(last)) return false;
+  const first = rec.firstMatch ? Date.parse(rec.firstMatch) : NaN, last = rec.lastMatch ? Date.parse(rec.lastMatch) : NaN;
+  if (!Number.isFinite(first) || !Number.isFinite(last) || last < first) return false;
   const lastAt = (last - from) / 1000;
-  return lastAt <= rec.length && rec.length - lastAt <= TAIL_TRIM_S && (Date.parse(rec.end) - last) / 1000 >= missing;
+  const ranOn = (Date.parse(rec.end) - last) / 1000, matches = (last - first) / 1000;
+  return lastAt <= rec.length && rec.length - lastAt <= TAIL_TRIM_S && ranOn > matches;
 }
 
 /**

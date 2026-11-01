@@ -113,6 +113,8 @@ describe("event recordings", () => {
   it("a stream left running after the event, its archive cut at the end, still puts each match on its second", async () => {
     const d = await getJson(`/api/events/${S}/TRIMMED`);
     expect(d.matches.map((m: any) => m.clip?.t ?? null)).toEqual([1800 - 20, 14400 - 20]);
+    // One match on its own gets the same second: the event's first and last matches are read for it.
+    expect((await getJson(`/api/events/${S}/TRIMMED/matches/qual:0:1`)).match.clip.t).toBe(1800 - 20);
   });
 
   it("an upload, or a broadcast with a gap, plays but has no clips; a removed video, a channel page and Twitch give no player", async () => {

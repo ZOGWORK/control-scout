@@ -50,20 +50,25 @@ describe("a stream left running after the event, its archive cut at the event's 
   // Salk League Meet 2026: broadcast 17:36:05 to 04:02:03 (10 h 26 min), video 5 h 10 min 9 s; Q23 started 22:40:22,
   // 6 min before the video ends. The missing 5 h 16 min is all after the last match.
   const salk = { start: "2026-10-31T17:36:05Z", end: "2026-11-01T04:02:03Z", length: 18609, live: false };
-  const Q23 = "2026-10-31T22:40:22.552Z";
-  it("is trusted once the event's last match shows the cut is at the end", () => {
-    expect(timingTrusted(salk)).toBe(false); // no last match known: could be a gap
-    expect(timingTrusted({ ...salk, lastMatch: Q23 })).toBe(true);
-    expect(clipSecond("2026-10-31T18:18:14.130Z", { ...salk, lastMatch: Q23 })).toBe(2529 - CLIP_LEAD_S); // Q1
-    expect(clipSecond(Q23, { ...salk, lastMatch: Q23 })).toBe(18257 - CLIP_LEAD_S);
+  const Q1 = "2026-10-31T18:18:14.130Z", Q23 = "2026-10-31T22:40:22.552Z";
+  const cut = { ...salk, firstMatch: Q1, lastMatch: Q23 };
+  it("is trusted once the event's matches show the cut is at the end", () => {
+    expect(timingTrusted(salk)).toBe(false); // no matches known: could be a gap
+    expect(timingTrusted(cut)).toBe(true);
+    expect(clipSecond(Q1, cut)).toBe(2529 - CLIP_LEAD_S);
+    expect(clipSecond(Q23, cut)).toBe(18257 - CLIP_LEAD_S);
   });
   it("a drop-out during the event still isn't: the last match lands past the video's end, or far from it", () => {
     // The same broadcast, but 2 h missing mid-event: the last match would be 2 h past where the video ends.
-    expect(timingTrusted({ ...salk, length: 16258, end: "2026-10-31T23:00:00Z", lastMatch: Q23 })).toBe(false);
+    expect(timingTrusted({ ...cut, length: 16258, end: "2026-10-31T23:00:00Z" })).toBe(false);
     // Western Edge: a match early in a video that runs on for hours more is no sign of where the gap is.
-    expect(timingTrusted({ start: "2026-05-30T15:02:06Z", end: "2026-05-31T01:14:37Z", length: 30807, live: false, lastMatch: "2026-05-30T15:21:09Z" })).toBe(false);
-    // The broadcast stopped soon after the last match: more is missing than it ran on for, so some is mid-event.
-    expect(timingTrusted({ ...salk, end: "2026-10-31T23:00:00Z", length: 18609 - 1500, lastMatch: "2026-10-31T21:50:16Z" })).toBe(false);
+    expect(timingTrusted({ start: "2026-05-30T15:02:06Z", end: "2026-05-31T01:14:37Z", length: 30807, live: false, firstMatch: "2026-05-30T15:10:00Z", lastMatch: "2026-05-30T15:21:09Z" })).toBe(false);
+    // 10 h broadcast, 1 h dropped mid-event, 9 h video, matches 0:30 to 8:50: ends 10 min after the last match by the
+    // clock, but the stream ran on only 1 h 10 min after 8 h 20 min of matches, so it's a gap, not a cut.
+    const t0 = Date.parse("2026-10-31T08:00:00Z"), at = (s: number) => new Date(t0 + s * 1000).toISOString();
+    expect(timingTrusted({ start: at(0), end: at(36000), length: 32400, live: false, firstMatch: at(1800), lastMatch: at(31801) })).toBe(false);
+    // Without the event's first match (a single match on its own), no exception.
+    expect(timingTrusted({ ...salk, lastMatch: Q23 })).toBe(false);
   });
 });
 

@@ -25,7 +25,7 @@ Matches link to their moment in the event's video again when the stream was left
 - [live] A video with a real gap mid-event still shows no timestamps
 
 ### Live
-- **Trimmed recordings get timestamps.** A stream left running for hours after an event, then cut where the event ended, made its video much shorter than its broadcast. That looked the same as a stream that dropped out mid-event, so every match lost its timestamp (Salk League Meet: 10 h 26 min broadcast, 5 h 10 min video). The event's last match now tells the two apart. When the video ends within half an hour of the last match's start, and the broadcast ran on afterwards for at least as long as is missing, the missing time is all after the event and every match keeps its second. A video that loses time during the event still gets no timestamps, so no match lands on the wrong one (#406).
+- **Trimmed recordings get timestamps.** A stream left running for hours after an event, then cut where the event ended, made its video much shorter than its broadcast. That looked the same as a stream that dropped out mid-event, so every match lost its timestamp (Salk League Meet: 10 h 26 min broadcast, 5 h 10 min video). The event's matches now tell the two apart. When the video ends within 15 minutes of the last match's start, and the stream ran on afterwards for longer than all the matches took, the missing time is all after the event and every match keeps its second, on the event page and on each match's own page. A video that loses time during the event still gets no timestamps, so no match lands on the wrong one (#406).
 
 ## 2.0.2 — 2026-11-01
 

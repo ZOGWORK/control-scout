@@ -28,7 +28,7 @@ import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withStream } from "./api/eventView.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
-import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips } from "./videos/recordings.js";
+import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -492,7 +492,8 @@ export function createApp(opts: { dist?: string } = {}) {
     const d = await matchDetail(season(req.params.season), code(req.params.code), key);
     if (!d) throw new HttpError(404, `No match ${key} at ${req.params.code}`);
     const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-    return rec ? { ...d, match: withClips([d.match], rec)[0] } : d;
+    // The event's own first and last matches, so this match gets the clip it has on the event page.
+    return rec ? { ...d, match: withClips([d.match], rec, Date.now(), await eventMatchSpan(d.event.season, d.event.code))[0] } : d;
   }));
 
   // Simulated rankings before quals start (projections/rankingSim.ts): run on a click, kept per data version.
