@@ -25,7 +25,7 @@ Add teams to your shortlist right from the Shortlist page.
 - [picklist] An empty Shortlist offers the same box to make your first pick
 
 ### Shortlist
-- **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too.
+- **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too (#378).
 
 ## 1.7.8 — 2026-10-31
 
