@@ -281,7 +281,7 @@ export function RecordsTable(p: RecordsTableProps) {
       </Tooltip>
     );
   });
-  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown ? null : "Loading…";
+  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
   // The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters.
   const capStatus = selectable && (
     <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
@@ -530,9 +530,11 @@ function Problem({ title, detail, onClear, clearLabel = "Clear filters" }: { tit
   );
 }
 
+/** At least a screen tall: the table that replaces it always is (50 rows), so the footer stays below the fold
+ *  while it loads instead of showing and then jumping down when the rows arrive (CLS 0.06–0.075, measured). */
 function TableSkeleton() {
   return (
-    <div className="space-y-1.5 rounded-xl border border-line bg-card p-3" aria-busy="true" aria-label="Loading records">
+    <div className="min-h-svh space-y-1.5 rounded-xl border border-line bg-card p-3" aria-busy="true" aria-label="Loading records">
       {Array.from({ length: 8 }, (_, i) => <div key={i} className="skeleton h-8 rounded-md" />)}
     </div>
   );
