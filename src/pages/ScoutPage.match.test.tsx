@@ -93,6 +93,29 @@ describe("Event day", () => {
     expect((screen.getAllByLabelText("Notes") as HTMLTextAreaElement[]).map((n) => n.value)).toContain("Pit draft");
   });
 
+  it("picking another event with a pit entry open asks first, and closes it only on yes", async () => {
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).match(/\/api\/events(\?|$)/)
+      ? new Response(JSON.stringify({ events: [{ season: 2025, code: "USOTH1", name: "Other Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Edison", state: "NJ", country: "USA" }] }), { status: 200 })
+      : String(input).includes("/api/events/2025/USOTH1") ? new Response(JSON.stringify({ ...detail, event: { ...detail.event, name: "Other Qualifier", code: "USOTH1" } }), { status: 200 })
+      : real(input)));
+    red();
+    show("/scout?season=2025&tab=event&pit=102");
+    fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    fireEvent.change(await screen.findByPlaceholderText("Search by event name, city or code"), { target: { value: "Other" } });
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Scout Other Qualifier" }));
+    expect(ask).toHaveBeenCalledOnce();
+    expect(param("pit")).toBe("102"); // kept: still on the picker, the draft under it
+    expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!).eventCode).toBe("USNJQ1");
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Scout Other Qualifier" }));
+    await waitFor(() => expect(param("pit")).toBeNull());
+    expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!).eventCode).toBe("USOTH1");
+    ask.mockRestore();
+  });
+
   it("a typed-in match keeps its answers when another section is opened and closed", async () => {
     red();
     show("/scout?season=2025&tab=entries");

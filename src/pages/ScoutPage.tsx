@@ -259,9 +259,13 @@ export default function ScoutPage() {
   };
   const pickEvent = (code: string) => {
     const changed = !session || session.eventCode !== code.toUpperCase();
+    // A pit entry open at the current event belongs to it: another event asks first, then closes it (unsaved
+    // answers go), rather than swapping it silently for that team at the new event.
+    const leavingPit = !!session && changed && pitOpen;
+    if (leavingPit && !window.confirm(`Leave the pit entry for ${pitTeam}? What you've typed in it isn't saved.`)) return;
     scoutSession.set(code, (changed ? mineAt(code.toUpperCase()) : null) ?? session?.watching ?? DEFAULT_WATCHING);
     // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
-    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); return x; });
+    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
   const setWatching = (w: Watching) => { if (session) scoutSession.set(session.eventCode, w); };
   // The match being scouted has its own key (`at`): `match` is the entry list's filter, which this never touches.
