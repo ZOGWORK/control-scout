@@ -1,6 +1,6 @@
 // Records: every team-event, team-season or match of a season, filtered with
 // the shared filter language (src/shared/filterDsl.ts), sorted by any catalog
-// stat and paginated — or streamed as CSV for export.
+// stat and paginated — or streamed as CSV or a coloured Excel sheet for export.
 //
 // SQL safety: stat keys only ever reach SQL through the whitelists below
 // (catalog key → column expression); every value is a bound parameter.
@@ -17,6 +17,8 @@ import {
   type MatchRecordRow, type RecordRegion, type RecordScope, type RecordsResponse, type StatValues, type TeamEventRecord, type TeamSeasonRecord,
 } from "../../src/shared/statCatalog.js";
 import { isTeamNumber, placeholderNameSql, teamPageSql } from "../../src/shared/teamPages.js";
+import { HEAT_MIN, heatable, heatBand, TONE_HEX, toneOf, type Tone } from "../../src/shared/statTones.js";
+import { excelDate, Gone, Styles, writeWorkbook, ZipStream, type Cell, type CellStyle } from "../xlsx.js";
 
 /** A request the client got wrong (→ 400). */
 export class RecordsQueryError extends Error {}
@@ -519,6 +521,124 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
   }
 }
 
+// ---------------------------------------------------------------------------
+// Excel export
+// ---------------------------------------------------------------------------
+
+/** A tone's colour mixed toward white: the header's soft fill. */
+const tint = (hex: string, share: number) => hex.match(/../g)!.map((c) => Math.round(255 - (255 - parseInt(c, 16)) * share).toString(16).padStart(2, "0")).join("").toUpperCase();
+
+/** The five bands as Excel cells: green best fifth to red worst fifth, bold with a deeper fill at the ends. */
+export const XLSX_HEAT: CellStyle[] = [
+  { color: "047857", bold: true, fill: "D1FAE5" },
+  { color: "047857", fill: "ECFDF5" },
+  {},
+  { color: "BE123C", fill: "FFF1F2" },
+  { color: "BE123C", bold: true, fill: "FFE4E6" },
+];
+
+const PERCENT_FMT = '0.0"%"', DATE_FMT = "yyyy-mm-dd";
+
+/** An identity column's colour on match rows (the alliances). */
+const ID_TONE: Partial<Record<string, Tone>> = { Red: "redAlliance", Blue: "blueAlliance" };
+
+/**
+ * Every matching row as a one-sheet .xlsx that looks like the table: each column's header in its stat's
+ * colour, and on team records every number banded green (best fifth of the rows) to red (worst fifth),
+ * as an event's table is on the page; match scores take their alliance's colour. The rows are read twice
+ * from one fixed list of keys (as the CSV): first for each column's spread and width, then to write them.
+ */
+export async function streamRecordsXlsx(season: number, q: RecordsQuery, res: Response, filename: string): Promise<void> {
+  const src = sourceFor(q.scope);
+  const w = whereOf(src, season, q, await resolved(q));
+  const ids = ID_HEADERS[q.scope];
+  const tiered = q.scope === "match" && q.fields.includes(PREDICTION_STAT);
+  const defs = q.fields.map((k) => STAT_BY_KEY.get(k)!);
+  const headers = [...ids.map(([h]) => h), ...defs.map((d) => d.label), ...(tiered ? [PREDICTION_TIER_HEADER] : [])];
+  const dateCol = ids.findIndex(([h]) => h === "Event Start");
+  const teamCol = ids.findIndex(([h]) => h === "Team");
+  const valuesOf = (r: AnyRow): unknown[] => {
+    const tier = tiered ? (r as MatchRecordRow).predictionTier ?? null : null;
+    return [
+      ...ids.map(([, f], i) => (i === dateCol ? excelDate(f(r)) ?? f(r) : f(r))),
+      ...q.fields.map((k) => (tiered && k === PREDICTION_STAT && !tier ? null : r.stats[k])),
+      ...(tiered ? [tier] : []),
+    ];
+  };
+
+  const keys = await sortedKeys(src, q, w, RECORDS_EXPORT_MAX, 0);
+  const chunks = async (each: (rows: AnyRow[]) => Promise<void>) => {
+    for (let i = 0; i < keys.length; i += CSV_CHUNK) {
+      const raw = await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK));
+      await each(rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields)));
+    }
+  };
+
+  // Pass 1: widths, and each banded column's values (team records only: a match's scores aren't a standing).
+  // A header wraps onto two lines: half its length, or its longest word, plus room for the filter arrow.
+  const widths = headers.map((h) => Math.max(...h.split(" ").map((w) => w.length), Math.ceil(h.length / 2)) + 4);
+  const spread = defs.map((d) => (q.scope !== "match" && heatable(d) ? ([] as number[]) : null));
+  await chunks(async (rows) => {
+    for (const r of rows) {
+      valuesOf(r).forEach((v, i) => {
+        if (v == null) return;
+        const len = i === dateCol ? 10 : typeof v === "number" ? String(Math.round(v * 100) / 100).length : String(v).length;
+        widths[i] = Math.max(widths[i], Math.min(len + 2, 42));
+      });
+      defs.forEach((d, j) => { const v = r.stats[d.key]; if (spread[j] && typeof v === "number" && Number.isFinite(v)) spread[j]!.push(v); });
+    }
+  });
+  const sorted = spread.map((vs) => {
+    if (!vs || vs.length < HEAT_MIN) return null;
+    const a = Float64Array.from(vs).sort();
+    return a[0] === a[a.length - 1] ? null : a;
+  });
+  const banded = sorted.some(Boolean);
+
+  // Styles: a header per column, and each body cell's look.
+  const styles = new Styles();
+  const defAt = (i: number) => (i >= ids.length ? defs[i - ids.length] : undefined);
+  const toneAt = (i: number): Tone => (i < ids.length ? ID_TONE[ids[i][0]] ?? "slate" : toneOf(defAt(i)));
+  const header: Cell[] = headers.map((h, i) => {
+    const t = TONE_HEX[toneAt(i)];
+    return { v: h, s: styles.id({ color: t.text, bold: true, fill: tint(t.bar, 0.16), underline: t.bar, wrap: true, align: defAt(i)?.type === "number" ? "right" : "left" }) };
+  });
+  const plain = headers.map((_, i) => {
+    const tone = toneAt(i);
+    // As on the page: while green and red say where a row stands, the other columns drop their colour.
+    const color = (i < ids.length || !banded) && tone !== "slate" ? TONE_HEX[tone].text : undefined;
+    return styles.id({ color, bold: i === teamCol || undefined, numFmt: defAt(i)?.percent ? PERCENT_FMT : i === dateCol ? DATE_FMT : undefined });
+  });
+  const bandStyles = defs.map((d, j) => (sorted[j] ? XLSX_HEAT.map((h) => styles.id({ ...h, numFmt: d.percent ? PERCENT_FMT : undefined })) : null));
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  const body = streamedBody(res, false); // a zip is compressed already
+  try {
+    await writeWorkbook(new ZipStream((b) => body.send(b)), styles, {
+      name: `Control Scout ${season}`,
+      widths,
+      rows: keys.length,
+      freezeCols: teamCol + 1,
+      header,
+      headerHeight: 46, // two lines of header, and the filter arrow under them
+      body: (row) => chunks(async (rows) => {
+        for (const r of rows) {
+          await row(valuesOf(r).map((v, i) => {
+            const j = i - ids.length, a = j >= 0 ? sorted[j] : null;
+            return { v, s: a && typeof v === "number" && Number.isFinite(v) ? bandStyles[j]![heatBand(a, v, defs[j].lowerIsBetter)] : plain[i] };
+          }));
+        }
+      }),
+    });
+    body.end();
+  } catch (e) {
+    body.abort(); // headers are out: cut the download off (never a complete-looking partial file)
+    if (e instanceof Gone) return;
+    throw e;
+  }
+}
+
 /**
  * A response body written piece by piece, gzipped when the client takes gzip. The app's
  * compression middleware leaves text/csv alone (server/app.ts): it would hold output in zlib's
@@ -526,8 +646,8 @@ export async function streamRecordsCsv(season: number, q: RecordsQuery, res: Res
  * left when a whole chunk backed up. Here each piece is flushed and actually handed to the
  * socket before the next read starts.
  */
-export function streamedBody(res: Response) {
-  const gzip = res.req.acceptsEncodings("gzip", "identity") === "gzip";
+export function streamedBody(res: Response, compress = true) {
+  const gzip = compress && res.req.acceptsEncodings("gzip", "identity") === "gzip";
   const gz = gzip ? createGzip() : null;
   res.vary("Accept-Encoding"); // either way: a cache must not hand a plain copy to a gzip client (or the reverse)
   if (gz) {
@@ -546,7 +666,7 @@ export function streamedBody(res: Response) {
      * gone: stop). The first piece is waited for until compressed, so the download starts before
      * the first read; later ones compress (off the main thread) while the next chunk is read.
      */
-    async send(text: string): Promise<boolean> {
+    async send(text: string | Buffer): Promise<boolean> {
       if (res.destroyed || res.writableEnded) return false;
       // Request metrics time a streamed download to its first byte, not its last (server/metrics.ts).
       if (first) res.locals.firstByteAt ??= performance.now();

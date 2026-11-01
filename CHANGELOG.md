@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.3 — 2026-11-01
+
+Tables export to Excel in colour, like they look on the site.
+
+### Highlights
+- [rankings] Export Excel: every records table downloads as a coloured spreadsheet
+- [rankings] Green for the best fifth of the rows, red for the worst, as on an event's table
+- [rankings] Each column's header keeps its colour; dates read as dates
+
+### Records tables
+- Next to Export CSV, Export Excel downloads the same rows and columns as an .xlsx: each header in its stat's colour (violet totals, sky auto, orange driver-controlled, rose penalties, gold for Control Scout's own), a frozen header and team column, and a filter on every column
+- On team tables every number is banded from bold green (best fifth of the exported rows) to bold red (worst fifth), flipped for lower-is-better stats such as rank, penalties and schedule difficulty; match tables colour each score by its alliance
+- Event start dates are real dates (no more `#######` in a narrow column) and percentages show as percentages. The CSV is unchanged for scripts
+
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.

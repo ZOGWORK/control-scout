@@ -4,6 +4,7 @@
 // example, sorting, pagination, CSV, clear 400s).
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import { crc32, inflateRawSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { all, db, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
@@ -297,7 +298,7 @@ describe("GET /api/records/:season/teams", () => {
       [`from=yesterday`, /from must be a date/],
       [`scope=season&filter=and-rank.lt.3-`, /"rank" isn't available for team-season records/],
       [`scope=world`, /scope must be event/],
-      [`format=xml`, /format must be json or csv/],
+      [`format=xml`, /format must be json, csv or xlsx/],
       [`filter=a&filter=b`, /filter: give it once/],
     ];
     for (const [q, re] of cases) {
@@ -318,7 +319,55 @@ describe("GET /api/records/:season/teams", () => {
     expect(lines).toHaveLength(5); // header + all 4 rows, whatever the page size
     expect(lines[2]).toBe(`${N},108,C3,Event C3,Scrimmage,2025-12-06,') OR 1=1 --,55`);
   });
+  it("exports an Excel sheet coloured like the table: stat-coloured headers, best fifth green, worst fifth red", async () => {
+    const r = await fetch(`${base}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr,penaltyPointsCommittedTot`, { headers: { "accept-encoding": "gzip" } });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toContain("spreadsheetml.sheet");
+    expect(r.headers.get("content-encoding")).toBeNull(); // a zip already
+    expect(r.headers.get("content-disposition")).toContain(`control-scout-${N}-teams.xlsx`);
+    const files = unzip(Buffer.from(await r.arrayBuffer()));
+    expect(Object.keys(files).sort()).toEqual(["[Content_Types].xml", "_rels/.rels", "xl/_rels/workbook.xml.rels", "xl/styles.xml", "xl/workbook.xml", "xl/worksheets/sheet1.xml"]);
+    const sheet = files["xl/worksheets/sheet1.xml"], styles = files["xl/styles.xml"];
+    const xfs = [...styles.match(/<cellXfs[^>]*>(.*)<\/cellXfs>/)![1].matchAll(/<xf [^>]*?fontId="(\d+)" fillId="(\d+)"/g)].map((m) => ({ font: +m[1], fill: +m[2] }));
+    const fonts = [...styles.matchAll(/<font>.*?<\/font>/g)].map((m) => m[0]), fills = [...styles.matchAll(/<fill>.*?<\/fill>/g)].map((m) => m[0]);
+    const look = (ref: string) => { const s = Number(new RegExp(`<c r="${ref}"(?: s="(\\d+)")?`).exec(sheet)?.[1] ?? 0); return { font: fonts[xfs[s].font], fill: fills[xfs[s].fill] }; };
+    const text = (ref: string) => new RegExp(`<c r="${ref}"[^>]*>(?:<is><t[^>]*>([^<]*)</t></is>|<v>([^<]*)</v>)`).exec(sheet)?.slice(1).find((x) => x != null);
+    expect(["A1", "B1", "F1", "G1", "H1", "I1"].map(text)).toEqual(["Season", "Team", "Event Start", "Team Name", "Total Points OPR", "Penalty Points TOT"]);
+    expect(look("H1").font).toContain("FF7C3AED"); // a total-points column's header is violet
+    expect(look("I1").font).toContain("FFBE123C"); // a penalty column's, rose
+    // Sorted by OPR, best first: 106 (90) is the top fifth, 109 (1) the bottom one; a penalty of 0 is the best.
+    expect([text("B2"), text("H2")]).toEqual(["106", "90"]);
+    expect(look("H2")).toMatchObject({ font: expect.stringContaining("<b/>"), fill: expect.stringContaining("FFD1FAE5") });
+    expect([text("B9"), text("H9")]).toEqual(["109", "1"]); // row 10 is 105, which has no OPR
+    expect(look("H9")).toMatchObject({ font: expect.stringContaining("<b/>"), fill: expect.stringContaining("FFFFE4E6") });
+    expect([text("B4"), text("I4")]).toEqual(["101", "0"]);
+    expect(look("I4").fill).toContain("FFD1FAE5"); // lower is better for penalties: none is the top band
+    expect(look("I9").fill).toContain("FFFFE4E6");
+    expect(text("F2")).toBe(String((Date.UTC(2025, 11, 6) - Date.UTC(1899, 11, 30)) / 86_400_000)); // a real date, not text
+    expect(sheet).toContain("<t xml:space=\"preserve\">') OR 1=1 --</t>"); // inline text, never read as a formula
+  });
 });
+
+/** The files in a zip, as text (enough of the format to read the export back: the central directory, deflate). */
+function unzip(zip: Buffer): Record<string, string> {
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const count = zip.readUInt16LE(end + 10);
+  let at = zip.readUInt32LE(end + 16);
+  const out: Record<string, string> = {};
+  for (let i = 0; i < count; i++) {
+    expect(zip.readUInt32LE(at)).toBe(0x02014b50);
+    const csize = zip.readUInt32LE(at + 20), size = zip.readUInt32LE(at + 24), crc = zip.readUInt32LE(at + 16);
+    const nameLen = zip.readUInt16LE(at + 28), extra = zip.readUInt16LE(at + 30), comment = zip.readUInt16LE(at + 32), local = zip.readUInt32LE(at + 42);
+    const name = zip.subarray(at + 46, at + 46 + nameLen).toString();
+    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const data = inflateRawSync(zip.subarray(start, start + csize));
+    expect(data.length).toBe(size);
+    expect(crc32(data)).toBe(crc);
+    out[name] = data.toString("utf8");
+    at += 46 + nameLen + extra + comment;
+  }
+  return out;
+}
 
 describe("GET /api/records/:season/matches", () => {
   it("filters and sorts match records, with lineups", async () => {

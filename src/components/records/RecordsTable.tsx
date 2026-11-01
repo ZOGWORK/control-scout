@@ -1,11 +1,11 @@
 // A records table with its toolbar designed in: [Statistics] [Filters] [preset
-// chips] … [Compare] [Export CSV], the Season / Region / Event type / Date
+// chips] … [Compare] [Excel] [CSV], the Season / Region / Event type / Date
 // dropdowns, a plain-English line for the active filter, server-side sorting
 // and paging, and everything in the URL so a link reproduces the view.
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
@@ -34,6 +34,7 @@ import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from
 import { emptyColumns } from "../../lib/eventRankingNotes";
 import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "../ScheduleDifficulty";
 import { useFlag } from "../../lib/flags";
+import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -211,7 +212,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const conditions = state.filter ? countConds(state.filter) : 0;
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / (data?.pageSize ?? 50)));
-  const csv = recordsUrl(req, "csv");
+  const csv = recordsUrl(req, "csv"), xlsx = recordsUrl(req, "xlsx");
   const c = p.controls;
   const selectedTeams = selected.slice(0, COMPARE_MAX);
   const selectable = !!p.selectable && teamScope;
@@ -349,9 +350,7 @@ export function RecordsTable(p: RecordsTableProps) {
                   <Button variant="secondary" className="h-11" onClick={() => close(() => { setBuilder(false); setColumns(true); })}>
                     <Columns3 className="text-sky-500" /> Statistics <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
                   </Button>
-                  <Button variant="outline" className="h-11" asChild={total > 0} disabled={!total}>
-                    {total > 0 ? <a href={csv} download><Download /> Export CSV <span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> Export CSV<span className="sr-only"> (no rows to export)</span></span>}
-                  </Button>
+                  <ExportButtons xlsx={xlsx} csv={csv} total={total} className="h-11" />
                 </FilterSection>
               </>
             )}
@@ -405,9 +404,7 @@ export function RecordsTable(p: RecordsTableProps) {
         {capStatus}
         <div className={cn("ml-auto flex shrink-0 items-center gap-1.5", !presets.length && "ml-auto")}>
           {compareButton}
-          <Button variant="outline" size="sm" className="max-sm:h-10" asChild={total > 0} disabled={!total}>
-            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> <span className="max-sm:sr-only">Export CSV</span><span className="sr-only"> (no rows to export)</span></span>}
-          </Button>
+          <ExportButtons xlsx={xlsx} csv={csv} total={total} size="sm" className="max-sm:h-10" short />
         </div>
       </div>
 
@@ -603,8 +600,27 @@ function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => 
   );
 }
 
-/** Not coloured: counts that say how much a team played, not how well. */
-const NO_HEAT = new Set(["qualMatchesPlayed", "ties", "rookieYear"]);
+/**
+ * The two downloads of every filtered, sorted row: Excel, coloured like the table (each column's colour, green
+ * to red by standing), and plain CSV for scripts. `short`: phones show the icons and the format alone.
+ */
+function ExportButtons({ xlsx, csv, total, size, className, short }: { xlsx: string; csv: string; total: number; size?: "sm"; className?: string; short?: boolean }) {
+  const rows = total > 0 ? `(${total.toLocaleString()} rows)` : "(no rows to export)";
+  const one = (href: string, icon: ReactNode, label: string, format: string) => (
+    <Button variant="outline" size={size} className={className} asChild={total > 0} disabled={!total}>
+      {total > 0
+        ? <a href={href} download>{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export </span>{format}<span className="sr-only"> {label} {rows}</span></span></a>
+        : <span className="inline-flex items-center gap-2">{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export </span>{format}<span className="sr-only"> {label} {rows}</span></span></span>}
+    </Button>
+  );
+  return (
+    <>
+      {one(xlsx, <FileSpreadsheet className="text-emerald-500" />, "(coloured like the table)", "Excel")}
+      {one(csv, <Download />, "(plain text)", "CSV")}
+    </>
+  );
+}
+
 /** Five bands, best to worst, as the number's own colour (no cell shading): the top fifth of the field reads bold
  *  green, the next fifth light green, the middle plain, then light red and bold red for the bottom fifth. */
 // The readable success/danger text colours (index.css), and for the lighter bands those mixed toward the body text,
@@ -614,23 +630,17 @@ export const HEAT = ["text-[var(--color-success-text)] font-semibold", "text-[co
 /**
  * One event's table: each number coloured by where a team stands in the event's field (its percentile among
  * the rows shown; flipped for lower-is-better stats such as rank and penalties). Equal values share a band.
+ * The Excel export bands its rows the same way (src/shared/statTones.ts).
  */
 export function heatBands(rows: { stats: Record<string, unknown> }[], cols: string[]): Map<string, (v: unknown) => string> {
   const out = new Map<string, (v: unknown) => string>();
-  if (rows.length < 4) return out;
+  if (rows.length < HEAT_MIN) return out;
   for (const k of cols) {
     const d = STAT_BY_KEY.get(k);
-    if (!d || d.type !== "number" || NO_HEAT.has(k)) continue;
+    if (!heatable(d)) continue;
     const vs = rows.map((r) => r.stats[k]).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b);
-    if (vs.length < 4 || vs[0] === vs[vs.length - 1]) continue;
-    out.set(k, (v) => {
-      if (typeof v !== "number" || !Number.isFinite(v)) return "";
-      // Share of the field below this value, ties counting half: the same value always gets the same band.
-      const below = vs.filter((x) => x < v).length, same = vs.filter((x) => x === v).length;
-      let q = (below + (same - 1) / 2) / (vs.length - 1);
-      if (d.lowerIsBetter) q = 1 - q;
-      return HEAT[Math.min(4, Math.floor((1 - q) * 5))];
-    });
+    if (vs.length < HEAT_MIN || vs[0] === vs[vs.length - 1]) continue;
+    out.set(k, (v) => (typeof v === "number" && Number.isFinite(v) ? HEAT[heatBand(vs, v, d.lowerIsBetter)] : ""));
   }
   return out;
 }
