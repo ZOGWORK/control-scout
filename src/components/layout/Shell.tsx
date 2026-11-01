@@ -64,7 +64,7 @@ function useSections() {
 }
 
 export function BrandMark({ className }: { className?: string }) {
-  return <img src="/logo.png" alt="" aria-hidden className={cn("size-7 shrink-0", className)} />;
+  return <img src="/logo-56.webp" alt="" aria-hidden width={56} height={56} className={cn("size-7 shrink-0", className)} />;
 }
 
 /** `dense`: the sidebar's rows, sized to the screen's height (--nav-row in index.css: they fit a laptop screen and

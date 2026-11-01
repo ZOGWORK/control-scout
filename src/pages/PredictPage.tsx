@@ -502,7 +502,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
         <CalibrationLine pRed={x.winProbRed} className="mt-2" />
         {/* Made to be screenshotted: the card says where it came from. */}
         <div className="mt-5 max-sm:mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1.5"><img src="/logo.png" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
+          <span className="flex items-center gap-1.5"><img src="/logo-56.webp" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
           <span>{seasonLabel(x.season)} · engine v{x.engineVersion}</span>
         </div>
       </div>

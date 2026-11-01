@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.8 — 2026-11-01
+
+Every page loads a lighter logo: 1.6 KB instead of 14 KB, looking the same.
+
+### Highlights
+- [speed] The logo on every page is 88% smaller and looks the same
+- [offline] The smaller logo is the one saved for offline use
+- [speed] Fonts, search and team pages checked: no wasted downloads found
+
+### Speed
+- **Logo.** The app and its first paint showed a 96×96 PNG (14 KB) at 28 px. They now show a 56×56 WebP (1.6 KB): sharp on 2× screens, made from the same artwork by `scripts/favicons.ts`, and precached for offline use instead of the PNG. Emails keep the PNG. (#396)
+- **Checked, nothing to change.** Each font file is fetched once per page (the first paint's own font rules reuse the same files); search waits 200 ms after typing and drops stale answers; team and event pages make no duplicate requests.
+
 ## 1.9.7 — 2026-11-01
 
 Settings and Download say what they mean, and every saved season shows its version.

@@ -78,7 +78,7 @@ describe("static first paint", () => {
     expect(home.match(/<h1[\s>]/g)).toHaveLength(1);
     // Every line holds its place, hidden from screen readers, so the app's hero is the same height.
     for (const [x, y] of HOME_HEADLINES) expect(home).toContain(`<i aria-hidden="true">${x} <b>${y}</b></i>`);
-    expect(home).toContain('<a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a>');
+    expect(home).toContain('<a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /><span>Control Scout</span></a>');
     expect(home).toContain('<a href="/" aria-current="page">');
     const lost = root(await renderIndex(file, "/no-such-page"));
     expect(lost).toContain('class="csb"');
