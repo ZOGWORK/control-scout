@@ -75,11 +75,18 @@ const kept = new Map<string, { startedAt: number | null; stoppedAt: number | nul
 export function useMatchTimer(onPhase?: (phase: TimerPhase) => void, keep?: string): MatchTimer {
   const [startedAt, setStartedAt] = useState<number | null>(() => (keep ? kept.get(keep)?.startedAt ?? null : null));
   const [stoppedAt, setStoppedAt] = useState<number | null>(() => (keep ? kept.get(keep)?.stoppedAt ?? null : null));
+  // Another match under the same component (a space switch on the same match): its own clock, never this one's.
+  const [loaded, setLoaded] = useState(keep);
+  if (loaded !== keep) {
+    setLoaded(keep);
+    setStartedAt(keep ? kept.get(keep)?.startedAt ?? null : null);
+    setStoppedAt(keep ? kept.get(keep)?.stoppedAt ?? null : null);
+  }
   useEffect(() => {
-    if (!keep) return;
+    if (!keep || loaded !== keep) return;
     if (startedAt == null) kept.delete(keep);
     else kept.set(keep, { startedAt, stoppedAt });
-  }, [keep, startedAt, stoppedAt]);
+  }, [keep, loaded, startedAt, stoppedAt]);
   const [now, setNow] = useState(() => Date.now());
   const running = startedAt != null && stoppedAt == null;
 
