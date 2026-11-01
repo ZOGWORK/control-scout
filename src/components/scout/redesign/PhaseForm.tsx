@@ -9,7 +9,7 @@ import { Button } from "../../ui/button";
 import { Label, Textarea } from "../../ui/basic";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
 import { cn } from "../../cn";
-import { MATCH_PHASES, phaseLabel, phasesFor, type FieldPhase, type ScoutField, type ScoutTemplate } from "../../../shared/scoutTemplate";
+import { detailKey, MATCH_PHASES, phaseLabel, phasesFor, type FieldPhase, type ScoutField, type ScoutTemplate } from "../../../shared/scoutTemplate";
 import { NOTES_MAX, type ScoutValue } from "../../../lib/scouting";
 import { BigFieldInput, type FieldTone } from "./BigFieldInput";
 import { clock, fieldClock, useMatchTimer, type MatchTimer } from "./useMatchTimer";
@@ -68,9 +68,11 @@ export interface PhaseFormProps {
   toneOf?: (f: ScoutField) => FieldTone;
   /** The match's timer, from useMatchTimer(setPhase) in the caller; leave out to keep one inside the form. */
   timer?: MatchTimer;
+  /** Another form beside this one shows the match timer (robots side by side): don't repeat it. */
+  hideTimer?: boolean;
 }
 
-export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabel = "Notes", phase, onPhase, disabled, lockFields = false, toneOf = breakdownTone, timer }: PhaseFormProps) {
+export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabel = "Notes", phase, onPhase, disabled, lockFields = false, toneOf = breakdownTone, timer, hideTimer = false }: PhaseFormProps) {
   const uid = useId();
   const phases = formPhases(template);
   const shown = shownPhase(phases, phase);
@@ -98,7 +100,7 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
 
   const live = t.running && t.phase ? shownPhase(phases, t.phase) : null;
   // Off, the timer waits on the first tab (Auto, or whatever comes first in a template without auto fields).
-  const showTimer = template.kind === "match" && (t.startedAt != null || shown === phases[0]);
+  const showTimer = !hideTimer && template.kind === "match" && (t.startedAt != null || shown === phases[0]);
   const fc = fieldClock(t.elapsed);
 
   const body = (
@@ -120,7 +122,11 @@ export function PhaseForm({ template, value, onChange, notes, onNotes, notesLabe
           </div>
         )}
         <span className="sr-only" aria-live="polite">{t.cue ? `${phaseLabel(t.cue)} started` : ""}</span>
-        {fields.map((f) => <BigFieldInput key={f.id} f={f} value={value[f.id]} onChange={(v) => set(f, v)} tone={toneOf(f)} disabled={disabled || lockFields} idPrefix={`${uid}-f`} />)}
+        {fields.map((f) => {
+          const dk = detailKey(f.id), d = value[dk];
+          return <BigFieldInput key={f.id} f={f} value={value[f.id]} onChange={(v) => set(f, v)} tone={toneOf(f)} disabled={disabled || lockFields} idPrefix={`${uid}-f`}
+            detail={typeof d === "string" ? d : ""} onDetail={(text) => onChange(withValue(value, dk, text || undefined))} />;
+        })}
         {shown === notesPhase(template) && (
           <div className="mt-1 space-y-1.5">
             <Label htmlFor={`${uid}-notes`}>{notesLabel}</Label>

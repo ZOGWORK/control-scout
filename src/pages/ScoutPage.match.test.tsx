@@ -183,7 +183,10 @@ describe("Event day", () => {
     show("/scout?season=2025");
     const pit = await screen.findByRole("region", { name: "Pit queue" });
     fireEvent.click(await within(pit).findByRole("button", { name: /^102 Bad Wolf, pit to do/ }));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "Pit" }).getAttribute("aria-checked")).toBe("true"));
+    // The pit form for that team, at this event, with the queue's place in it ("Pit X of Y").
+    await waitFor(() => expect(param("pit")).toBe("102"));
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^Pit \d+ of \d+/ })).toBeTruthy();
   });
 
   it("an old ?tab=data link opens Entries, which still has the list", async () => {

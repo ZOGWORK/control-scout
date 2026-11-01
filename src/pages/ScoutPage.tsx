@@ -19,7 +19,6 @@ import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
 import { qs, useApi } from "../lib/api";
 import { isKnownTime } from "../lib/format";
 import type { EventListItem } from "../shared/api";
-import { ScoutFieldInput } from "../components/scout/ScoutFieldInput";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
 import { newEntryEventCode, useWorkspaceSettings } from "../lib/workspaceSettings";
@@ -53,6 +52,9 @@ import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
 import { MatchScout } from "../components/scout/redesign/MatchScout";
+import { EntryEditor } from "../components/scout/forms/EntryEditor";
+import type { SaveSync } from "../components/scout/forms/SaveState";
+import { PitScout } from "../components/scout/eventday/PitScout";
 import { ScoutSections } from "../components/scout/eventday/ScoutSections";
 import { EventBar } from "../components/scout/eventday/EventBar";
 import { EventChooser } from "../components/scout/eventday/EventChooser";
@@ -121,23 +123,21 @@ export default function ScoutPage() {
   useEffect(() => { if (live === "revoked" && space != null) revoke(space); }, [live, space, revoke]);
   const editing = sp.get("entry");
   const editEntry = entries.find((e) => e.uuid === editing) ?? null;
-  // "Scout this team" (a team page) links here with ?new=1: the form opens with that team. A filtered link alone doesn't open it.
-  const opensNew = sp.get("new") === "1";
-  const [formOpen, setFormOpen] = useState(opensNew || !!editing);
-  // The team a new entry starts with: fixed when the form opens, so filtering while it's open never resets it.
-  const [formTeam, setFormTeam] = useState(opensNew ? teamFilter : undefined);
-  // Each New entry or Scout starts a fresh form (its own key): never the draft of an earlier one.
-  const [formNonce, setFormNonce] = useState(0);
-  // Which kind a new entry starts as: pit from Data's Pit scouting, else match.
-  const [formKind, setFormKind] = useState<"match" | "pit">("match");
-  const openNew = () => { setFormKind("match"); setFormTeam(teamFilter); setFormEvent(null); setFormNonce((n) => n + 1); setFormOpen(true); };
-  useEffect(() => { if (editing) setFormOpen(true); }, [editing]);
+  // A match typed in by hand (no schedule, a practice match, an assignment's team): its team and event. Each one
+  // opens a fresh form (its nonce), never the draft of an earlier one. Pit entries open from the pit queue (?pit=).
+  // `from`: the section it opened in (Event day needs a picked event; Entries and assignments don't). `eventCode`: an
+  // assignment's event, held only in the space it was opened in; otherwise the form is at the picked event, or the
+  // workspace's default event when none is picked (following a change to the default while it's open).
+  const [manual, setManual] = useState<{ from: "event" | "entries"; team?: number; eventCode?: string; space: ScoutSpace; nonce: number } | null>(null);
+  const pitTeam = /^\d+$/.test(sp.get("pit") ?? "") ? Number(sp.get("pit")) : null;
+  const formOpen = !!editEntry || !!manual || pitTeam != null;
+  // The forms' Save bar says Saved (not how saving works) once anything was saved this visit.
+  const [savedHere, setSavedHere] = useState(false);
   // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
   // Authors are a workspace's own, so the author filter doesn't carry over.
   // (Cleared once the switch is in the URL: two URL writes in one go would drop one.)
   const switching = useRef<{ to: ScoutSpace } | null>(null);
   const selectSpace = (s: ScoutSpace) => {
-    if (editing) setFormOpen(false);
     switching.current = s !== space ? { to: s } : null;
     spaces.select(s);
   };
@@ -201,10 +201,11 @@ export default function ScoutPage() {
   const myOpen = workspace && me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open").length : 0;
   // Scout an assigned team: the list filtered to that team at that event, and a new entry for it there.
   // The event of the assignment Scout was tapped on: only for that space and season (a switch falls back to the defaults).
-  const [formEvent, setFormEvent] = useState<{ space: ScoutSpace; season: number; code: string } | null>(null);
   const scoutAssigned = (team: number, eventCode: string) => {
-    setSp((x) => { x.set("tab", "entries"); x.delete("view"); x.delete("entry"); x.set("team", String(team)); x.set("event", eventCode); return x; });
-    setFormKind("match"); setFormTeam(team); setFormEvent({ space, season, code: eventCode }); setFormNonce((n) => n + 1); setFormOpen(true);
+    const code = eventCode.toUpperCase();
+    const from = session?.eventCode === code ? "event" : "entries";
+    setSp((x) => { x.set("tab", from); x.delete("view"); x.delete("entry"); x.delete("at"); x.delete("pit"); return x; });
+    setManual({ from, team, eventCode: code, space, nonce: Date.now() });
   };
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
@@ -264,21 +265,34 @@ export default function ScoutPage() {
   const openMatch = (label: string) => setSp((x) => { x.set("tab", "event"); x.set("at", label); return x; });
   const closeMatch = () => setSp((x) => { x.delete("at"); return x; });
   const scoutingMatch = !!session && !readOnly && section === "event" && !!sp.get("at");
-  // No schedule to scout from (or a practice match): the full form, with the session's event filled in.
-  const openOldForm = (kind: "match" | "pit", team: number | undefined) => {
-    // A new entry: never the edit that may still be named in the URL.
-    if (editing) setSp((x) => { x.delete("entry"); return x; });
-    setFormKind(kind); setFormTeam(team); setFormEvent(session ? { space, season, code: session.eventCode } : null);
-    setFormNonce((n) => n + 1); setFormOpen(true);
+  // No schedule to scout from (or a practice match): a match typed in, at the picked event.
+  const openManual = (from: "event" | "entries" = "event") => {
+    setSp((x) => { x.set("tab", from); x.delete("view"); x.delete("entry"); x.delete("at"); x.delete("pit"); return x; });
+    setManual({ from, space, nonce: Date.now() });
   };
-  // A pit team in the queue: its entry here when it has one (to read or change), else a new one.
+  const manualEvent = manual ? ((manual.space === space && manual.eventCode) || session?.eventCode || newEntryEventCode(space, wss.defaults, season)) : null;
+  const manualForm = (back: string) => manual && (
+    <div className="grid gap-3">
+      <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={() => setManual(null)}><ChevronLeft /> {back}</Button>
+      <h3 className="text-xl font-bold text-foreground">Type a match in</h3>
+      <EntryEditor key={manual.nonce} kind="match" season={season} initial={null} team={manual.team} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
+        readOnly={!!readOnly} sync={sync} savedHere={savedHere}
+        event={manualEvent ? { code: manualEvent, name: manualEvent === session?.eventCode ? scoutEvent.info?.name ?? null : null } : null}
+        teams={manualEvent && manualEvent === session?.eventCode ? scoutEvent.teams : []}
+        onSaved={(e) => { setSavedHere(true); setManual(null); toast.success(`Saved ${e.team} on this device`); }}
+        onClose={() => setManual(null)} onPickEvent={() => setSp((x) => { x.set("pick", "1"); return x; })} />
+    </div>
+  );
+  // A pit team in the queue: its pit entry at this event (a new one, or the one it has, to read or change).
   const openPit = (team: number) => {
-    const code = session?.eventCode;
-    const have = code ? entries.find((e) => !e.deleted && e.kind === "pit" && e.team === team && (e.eventCode ?? "").toUpperCase() === code) : undefined;
-    if (have) setSp((x) => { x.set("entry", have.uuid); return x; });
-    else openOldForm("pit", team);
+    setManual(null);
+    setSp((x) => { x.set("tab", "event"); x.set("pit", String(team)); x.delete("at"); x.delete("entry"); return x; });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
+  const closePit = () => setSp((x) => { x.delete("pit"); return x; });
+  const closeEdit = () => setSp((x) => { x.delete("entry"); x.delete("new"); return x; });
+  // Where saving stands, for the forms' Save bars: the page's sync state and this space's queue.
+  const sync: SaveSync = { status: offlineAccount ? "offline" : status, pending: pendingCount, onRetry: () => void syncNow() };
   // Each match that comes on screen checks for newer questions (a missed live notice, or polling), as opening the
   // old form does; drafts already started keep the questions they began with (useMatchDraft).
   const onMatchShown = useCallback(() => { refreshTemplate(); refreshSettings(); }, [refreshTemplate, refreshSettings]);
@@ -331,36 +345,38 @@ export default function ScoutPage() {
       ) : <>
         {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} />}
         {!session && <div className="mb-4 flex justify-end">{syncChip}</div>}
-        {formOpen && (
-          <EntryForm key={editEntry?.uuid ?? `new-${formKind}-${formTeam ?? ""}-${formNonce}`} season={season} initial={editEntry} team={formTeam} initialKind={formKind} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
-            readOnly={!!readOnly}
-            defaultEvent={(formEvent?.space === space && formEvent.season === season && formEvent.code) || newEntryEventCode(space, wss.defaults, season)}
-            onDone={() => { setFormOpen(false); setFormEvent(null); setSp((x) => { x.delete("entry"); x.delete("new"); return x; }); }} />
-        )}
-        {formOpen && editEntry?.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} className="-mt-4 mb-8 max-sm:mb-5" />}
         <ScoutSections section={section} onSection={setSection} sections={sections}>
           {section === "event" ? (
             !session ? (
               <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are still here."
                 action={<Button variant="outline" onClick={() => setSection("entries")}>Open entries</Button>} />
             ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
+            : manual?.from === "event" ? manualForm("Event day")
+            : pitTeam != null && !readOnly ? (
+              <div className="grid gap-3">
+                <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closePit}><ChevronLeft /> Event day</Button>
+                <PitScout event={scoutEvent} entries={entries} team={pitTeam} onTeam={openPit} onClose={closePit} onSaved={() => setSavedHere(true)}
+                  season={season} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending} readOnly={!!readOnly} sync={sync} savedHere={savedHere} />
+              </div>
+            )
             : scoutingMatch ? (
               // One match being scouted, with the queue beside it on a wide screen to see what's done and jump.
               <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
                 <div className="grid min-w-0 gap-3">
                   <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeMatch}><ChevronLeft /> Event day</Button>
                   <MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
-                    readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} onShown={onMatchShown} />
+                    readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={openManual} onShown={onMatchShown}
+                    sync={sync} savedHere={savedHere} onAnySave={() => setSavedHere(true)} />
                 </div>
                 <div className="hidden xl:sticky xl:top-20 xl:block">
-                  <MatchQueue event={scoutEvent} session={session} readOnly={!!readOnly} onMatch={openMatch} onManualMatch={() => openOldForm("match", undefined)}
+                  <MatchQueue event={scoutEvent} session={session} readOnly={!!readOnly} onMatch={openMatch} onManualMatch={openManual}
                     assignments={matchAssignments.list} me={me?.accountId ?? null} scouted={scoutedHere} next={nextHere}
                     done={matchQueueProgress(scoutEvent.schedule.matches, session.watching, scoutedHere).done} current={sp.get("at")} />
                 </div>
               </div>
             ) : (
               <EventDay event={scoutEvent} session={session} entries={entries} readOnly={!!readOnly} onWatching={setWatching} onMatch={openMatch}
-                onManualMatch={() => openOldForm("match", undefined)} onPit={openPit} assignments={matchAssignments.list} me={me?.accountId ?? null} ourTeams={ourTeams} />
+                onManualMatch={openManual} onPit={openPit} assignments={matchAssignments.list} me={me?.accountId ?? null} ourTeams={ourTeams} />
             )
           ) : section === "entries" ? (
             <div className="grid gap-4">
@@ -372,13 +388,24 @@ export default function ScoutPage() {
                 </ToggleGroup>
                 {seasonRow}
               </div>
-              {view === "recordings" ? (
+              {manual?.from === "entries" ? manualForm("Entries") : editEntry ? (
+                // An entry opened from the list (or a link): the same form as a new one, with its own team, event and template.
+                <div className="grid gap-3">
+                  <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeEdit}><ChevronLeft /> Entries</Button>
+                  <h3 className="text-xl font-bold text-foreground">{editEntry.kind === "pit" ? "Pit entry" : `Match ${editEntry.matchLabel ?? ""}`}</h3>
+                  <EntryEditor key={editEntry.uuid} kind={editEntry.kind} season={season} initial={editEntry} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
+                    readOnly={!!readOnly} sync={sync} savedHere={savedHere} event={editEntry.eventCode ? { code: editEntry.eventCode } : null}
+                    teams={session && editEntry.eventCode?.toUpperCase() === session.eventCode ? scoutEvent.teams : []}
+                    onSaved={(e) => { setSavedHere(true); closeEdit(); toast.success(`Saved ${e.team} on this device`); }} onClose={closeEdit} />
+                  {editEntry.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} />}
+                </div>
+              ) : view === "recordings" ? (
                 <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">
                   <Recordings />
                 </Section>
               ) : (
                 <Section title={`Entries (${entries.length})`} action={<div className="flex flex-wrap gap-2">
-                  {!formOpen && !readOnly && <Button size="sm" variant="outline" onClick={openNew}><Plus /> New entry</Button>}
+                  {!readOnly && <Button size="sm" variant="outline" onClick={() => openManual("entries")}><Plus /> Type a match in</Button>}
                   {exportHref && (
                     <Button size="sm" variant="outline" asChild>
                       <a href={exportHref} download>
@@ -527,169 +554,5 @@ export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, 
       {e.notes && <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{e.notes}</p>}
       <EntryPhotos entry={e} className="mt-3" />
     </li>
-  );
-}
-
-function EntryForm({ season, initial, team, initialKind = "match", space, spaceName, workspaceTemplate, templatePending, defaultEvent, onDone, readOnly = false }: {
-  season: number; initial: ScoutEntry | null; team?: number; space: ScoutSpace; spaceName: string | null;
-  /** A new entry's kind to start with (an edit keeps its own). */
-  initialKind?: "match" | "pit";
-  /**
-   * A read-only space (Task 19). An entry opened there shows with every field disabled and no Save. A form
-   * that was already open when the space went read-only (a live update), or a new entry, keeps what was typed:
-   * its Save keeps it in Personal instead (an edit as a new personal copy).
-   */
-  readOnly?: boolean;
-  /** The workspace's current template (null: Personal, or not known yet: the built-in defaults). */
-  workspaceTemplate: WorkspaceTemplate | null;
-  /** The workspace's template hasn't come yet (none on this device): new entries wait for it. */
-  templatePending: boolean;
-  /** Where a new entry's event starts: the workspace's default event (Personal: none). */
-  defaultEvent: string;
-  onDone: () => void;
-}) {
-  const startedWritable = useRef(!readOnly);
-  const viewOnly = readOnly && !!initial && !startedWritable.current;
-  const toPersonal = readOnly && !viewOnly;
-  // An admin of several workspaces: the server saves their own entries in each (lib/adminCopies.ts).
-  const savedTo = useSavedToLine(toPersonal ? null : space, initial?.authorAccountId);
-  const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? initialKind);
-  const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
-  const [eventCode, setEventCode] = useState(initial ? initial.eventCode ?? "" : defaultEvent);
-  // A new entry's event follows the workspace's default (it can arrive after the form opens, or change
-  // with the space) until it's typed in; an edit keeps its own.
-  const eventTouched = useRef(!!initial);
-  useEffect(() => { if (!eventTouched.current) setEventCode(defaultEvent); }, [defaultEvent]);
-  const [matchLabel, setMatchLabel] = useState(initial?.matchLabel ?? "");
-  const [data, setData] = useState<Record<string, ScoutValue>>(initial?.data ?? {});
-  const [notes, setNotes] = useState(initial?.notes ?? "");
-  // An edit keeps the template the entry was made with; a new entry (or a switch to the other kind)
-  // uses the space's current one: the workspace's, or the built-in defaults (Personal, never customised).
-  const entryTemplate = useEntryTemplateState(initial ?? { season, kind, templateId: undefined, templateVersion: undefined });
-  const sameKindEdit = !!initial && kind === initial.kind;
-  const latestTemplate = useMemo(() => (sameKindEdit ? entryTemplate.template : resolveTemplate(space == null ? null : workspaceTemplate, season, kind)),
-    [sameKindEdit, kind, entryTemplate.template, space, workspaceTemplate, season]);
-  // Once a field has an answer, a new entry keeps the template it was being filled in with: a template that
-  // arrives late (a slow first load, a live change) never swaps the questions, or drops answers, mid-entry.
-  // The pin holds for one space, season and kind only.
-  const scope = `${space ?? ""}:${season}:${kind}`;
-  const [pinned, setPinned] = useState<{ scope: string; template: typeof latestTemplate } | null>(null);
-  const template = !sameKindEdit && pinned?.scope === scope ? pinned.template : latestTemplate;
-  const answer = (id: string, v: ScoutValue) => {
-    if (!sameKindEdit && pinned?.scope !== scope) setPinned({ scope, template });
-    setData((d) => ({ ...d, [id]: v }));
-  };
-  // A new entry moved to another space or season starts its answers afresh (they belonged to the other one's questions).
-  const where = `${space ?? ""}:${season}`;
-  const shownWhere = useRef(where);
-  useEffect(() => {
-    if (shownWhere.current === where) return;
-    shownWhere.current = where;
-    if (!initial) { setData({}); setPinned(null); }
-  }, [where, initial]);
-  // No field edits against a stand-in: an edit whose own template version isn't here yet (loading, or offline)
-  // shows its answers untouched and lets notes change; a new entry waits for the workspace's template.
-  const fieldsLocked = sameKindEdit && !entryTemplate.exact;
-  const fieldsPending = !sameKindEdit && templatePending;
-  const phases = ALL_PHASES;
-  // Inline errors: the team field's own, and one for the save itself (storage full or blocked).
-  const [teamErr, setTeamErr] = useState<string | null>(null);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
-  const teamRef = useRef<HTMLInputElement>(null);
-  const saveRef = useRef<HTMLButtonElement>(null);
-  const saveErrId = useId();
-  // The team check awaits a lookup: by then the form may be cancelled (closed) or still being
-  // edited. A closed form saves nothing; an open one saves what it holds now, if the team is unchanged.
-  const latest = useRef({ kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked });
-  latest.current = { kind, teamText, eventCode, matchLabel, data, notes, space, template, fieldsLocked };
-  // The server version this edit started from (Task 16): a newer one arriving while the form is open is one this save never saw.
-  const draftBase = useRef(initial ? scoutDraftBase(initial) : undefined);
-  const open = useRef(true);
-  useEffect(() => { open.current = true; return () => { open.current = false; }; }, []);
-  const save = async () => {
-    setSaveErr(null);
-    setChecking(true);
-    const team = teamText;
-    const err = await teamError(team, lookupTeamName);
-    if (!open.current) return;
-    setChecking(false);
-    if (latest.current.teamText !== team) return; // edited while checking: the next Save checks the new number
-    if (latest.current.space !== space) return; // switched spaces while checking: the next Save goes to the space now shown
-    if (err) { setTeamErr(err); teamRef.current?.focus(); return; }
-    const { kind, eventCode, matchLabel, data: all, notes, template, fieldsLocked } = latest.current;
-    // A new entry keeps only the template's fields (a kind switch or a template change can leave others behind);
-    // an edit keeps everything it had.
-    const ids = new Set(template.fields.map((f) => f.id));
-    const data = initial ? { ...all } : Object.fromEntries(Object.entries(all).filter(([k]) => ids.has(k)));
-    // A counter shows its lowest value until it's touched: that shown value is the answer.
-    if (!fieldsLocked) for (const f of template.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
-    // Workspace entries record the template they were made with (an edit of the same kind keeps the entry's own,
-    // whatever stands in on screen); Personal ones always use the built-in defaults.
-    const made = space == null || toPersonal ? {}
-      : initial && kind === initial.kind ? (initial.templateId ? { templateId: initial.templateId, templateVersion: initial.templateVersion ?? 0 } : {})
-      : { templateId: template.id, templateVersion: template.version ?? 0 };
-    // Kept in Personal (the workspace went read-only): its own answers go into the notes, which must fit them.
-    const copy = toPersonal ? personalCopy(data, notes, template.fields, resolveTemplate(null, season, kind).fields, spaceName) : null;
-    if (copy?.overflow) { setSaveErr(`The workspace's answers are written into the notes in Personal: shorten the notes by ${copy.overflow} characters so they fit.`); saveRef.current?.focus(); return; }
-    const kept = copy ? { data: copy.data, notes: copy.notes } : { data, notes };
-    try {
-      saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? normalizeMatchLabel(matchLabel) : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made }, initial && !toPersonal ? { base: draftBase.current ?? null } : {});
-      if (toPersonal) toast.success("Kept in Personal: the workspace is read-only");
-      else toast.success("Saved on this device", savedTo ? { description: savedTo } : undefined);
-      onDone();
-    } catch (e) {
-      setSaveErr(e instanceof ScoutStorageError ? e.message : "Couldn't save this entry on this device. Try again.");
-      saveRef.current?.focus();
-    }
-  };
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); if (!viewOnly) save(); }} noValidate className="mb-8 max-sm:mb-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
-      <fieldset disabled={viewOnly} className="m-0 min-w-0 border-0 p-0">
-      <div className="flex flex-wrap items-start gap-4">
-        <ToggleGroup type="single" value={kind} onValueChange={(v) => { if (v) setKind(v as typeof kind); }} aria-label="Entry type">
-          <ToggleGroupItem value="match">Match</ToggleGroupItem><ToggleGroupItem value="pit">Pit</ToggleGroupItem>
-        </ToggleGroup>
-        <div className={teamErr ? "w-56" : "w-32"}><TeamInput label="Team" value={teamText} onChange={(v) => { setTeamText(v); setTeamErr(null); }} error={teamErr} inputRef={teamRef} /></div>
-        <div className="w-36"><Input value={eventCode} onChange={(e) => { eventTouched.current = true; setEventCode(e.target.value); }} placeholder="Event code" aria-label="Event code" className="h-11 font-mono uppercase" /></div>
-        {kind === "match" && <div className="w-24"><Input value={matchLabel} onChange={(e) => setMatchLabel(e.target.value)} placeholder="Q12" aria-label="Match" className="h-11 font-mono uppercase" /></div>}
-      </div>
-      {fieldsPending ? <div className="mt-5 max-sm:mt-4"><LoadingBlock rows={2} label="Loading the workspace's fields" /></div> : fieldsLocked ? (
-        <p role="status" className="mt-5 max-sm:mt-4 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-          This entry was made with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
-        </p>
-      ) : <div className="mt-5 max-sm:mt-4 grid gap-5 max-sm:gap-4 md:grid-cols-2">
-        {phases.map((ph) => {
-          const fields = template.fields.filter((f) => f.phase === ph);
-          if (!fields.length) return null;
-          return (
-            <fieldset key={ph} className="min-w-0 rounded-xl border border-border p-4">
-              <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{phaseLabel(ph)}</legend>
-              <div className="space-y-3">{fields.map((f) => <ScoutFieldInput key={f.id} f={f} value={data[f.id]} onChange={(v) => answer(f.id, v)} />)}</div>
-            </fieldset>
-          );
-        })}
-      </div>}
-      <div className="mt-5 max-sm:mt-4">
-        <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="What stood out? Strategy, reliability, driver habits…" className="mt-2" />
-      </div>
-      </fieldset>
-      {initial && <EntryPhotos entry={initial} editable={!readOnly} className="mt-5 max-sm:mt-4" />}
-      {initial && !isScoutQueued(initial) && <CommonsShare e={initial} readOnly={readOnly} className="mt-5 max-sm:mt-4"
-        unsaved={kind !== initial.kind || teamText !== String(initial.team) || eventCode.trim().toUpperCase() !== (initial.eventCode ?? "").toUpperCase() || notes !== initial.notes || JSON.stringify(data) !== JSON.stringify(initial.data)} />}
-      {toPersonal && (
-        <p role="status" className="mt-5 max-sm:mt-4 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-          This workspace is read-only now, so this entry can't be saved to it. Save keeps what you typed in Personal{initial ? ", as a new entry of your own" : ""}.
-        </p>
-      )}
-      <div className="mt-5 max-sm:mt-4 flex flex-wrap gap-2">
-        {!viewOnly && <Button ref={saveRef} type="submit" disabled={checking || fieldsPending} aria-describedby={saveErr ? saveErrId : undefined}><Save /> {toPersonal ? "Save to Personal" : "Save"}</Button>}
-        <Button type="button" variant={viewOnly ? "outline" : "ghost"} onClick={onDone}>{viewOnly ? "Close" : "Cancel"}</Button>
-        <p className="ml-auto self-center text-xs text-muted-foreground">{viewOnly ? <>This workspace is read-only, so this entry can be read but not changed.</>
-          : <>{spaceName && !toPersonal ? <>Saves to <span className="font-medium text-foreground">{spaceName}</span>, shared with the workspace. </> : null}Saved on this device first — works without a connection.</>}</p>
-      </div>
-      <FieldError id={saveErrId}>{saveErr}</FieldError>
-    </form>
   );
 }

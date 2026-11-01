@@ -12,7 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { SPACE_STORAGE_KEY } from "../lib/scoutSpace";
 import { TooltipProvider } from "../components/ui/overlay";
-import { asEntries } from "./scoutTestUrl";
+import { asEntries, fillTeam, pickedEvent } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -117,11 +117,12 @@ describe("Scout spaces", () => {
   });
 
   it("a new entry is saved to the active space", async () => {
+    pickedEvent([null, "901", "902"]); // a new entry is at the picked event
     h.personal.user = signedIn();
     show("/scout?season=2025&space=902");
-    fireEvent.click(screen.getByRole("button", { name: /New entry/ }));
-    expect(screen.getByText(/Saves to/).textContent).toContain("Bolt Bots");
-    fireEvent.change(screen.getByLabelText("Team"), { target: { value: "4444" } });
+    fireEvent.click(screen.getByRole("button", { name: /Type a match in/ }));
+    expect(screen.getByText(/shared with the workspace/).textContent).toContain("Bolt Bots");
+    fillTeam("4444");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(localScoutEntries("902").some((e) => e.team === 4444)).toBe(true));
     expect(localScoutEntries("902").find((e) => e.team === 4444)!.workspaceId).toBe("902");
@@ -164,12 +165,13 @@ describe("Scout spaces", () => {
   });
 
   it("switching spaces while Save checks the team: nothing goes to the old space; the next Save goes to the new one", async () => {
+    pickedEvent([null, "901", "902"]); // a new entry is at the picked event
     let answer!: (v: string) => void;
     h.lookup = () => new Promise((r) => { answer = r; });
     h.personal.user = signedIn();
     show("/scout?season=2025&space=901");
-    fireEvent.click(screen.getByRole("button", { name: /New entry/ }));
-    fireEvent.change(screen.getByLabelText("Team"), { target: { value: "4444" } });
+    fireEvent.click(screen.getByRole("button", { name: /Type a match in/ }));
+    fillTeam("4444");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.click(screen.getByRole("button", { name: /^Bolt Bots/ }));
     await waitFor(() => expect(param()).toBe("902"));

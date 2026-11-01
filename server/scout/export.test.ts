@@ -164,6 +164,9 @@ const push = async (call: Call, ws: string, entries: unknown[]) => {
 };
 const putTemplate = (call: Call, ws: string, body: unknown) => call("PUT", `/api/scout/workspaces/${ws}/template`, body);
 
+/** The built-in pit columns: each field's label, and a yes/no + detail field's "(details)" right after it. */
+const pitHeaders = (season: number) => builtinTemplate(season, "pit").fields.flatMap((f) => (f.type === "toggleDetail" ? [f.label, `${f.label} (details)`] : [f.label]));
+
 describe("workspace CSV export", () => {
   it("headers are the fixed columns, then the workspace's current match and pit fields, then Other fields", async () => {
     const { admin, member } = await team("501");
@@ -176,11 +179,15 @@ describe("workspace CSV export", () => {
     const out = await exportOf(member, "501", "season=2025");
     expect(out.status).toBe(200);
     // Pit isn't customised: the built-in pit fields.
-    expect(out.header).toEqual([...FIXED_HEADERS, "Cones stacked", "Parked", ...builtinTemplate(2025, "pit").fields.map((f) => f.label), OTHER_FIELDS_HEADER]);
+    expect(out.header).toEqual([...FIXED_HEADERS, "Cones stacked", "Parked", ...pitHeaders(2025), OTHER_FIELDS_HEADER]);
     expect(out.rows[0]).toMatchObject({ Team: "18360", Event: "USCAQ1", Match: "Q1", Kind: "match", Author: "Priya", "Cones stacked": "3", Parked: "TRUE", [OTHER_FIELDS_HEADER]: "" });
+    // The built-in pit columns, spelled out: every column from before keeps its name and place; the two yes/no
+    // fields that now ask for a detail each gain a "(details)" column right after them.
+    expect(pitHeaders(2025)).toEqual(["Drivetrain", "Auto routines", "Preferred start", "Can do the endgame", "Can do the endgame (details)",
+      "Willing to play defense", "Willing to play defense (details)", "Robot weight (lb)"]);
     // kind=pit: only the pit fields.
     const pit = await exportOf(member, "501", "season=2025&kind=pit");
-    expect(pit.header).toEqual([...FIXED_HEADERS, ...builtinTemplate(2025, "pit").fields.map((f) => f.label), OTHER_FIELDS_HEADER]);
+    expect(pit.header).toEqual([...FIXED_HEADERS, ...pitHeaders(2025), OTHER_FIELDS_HEADER]);
     expect(pit.rows).toEqual([]);
   });
 
@@ -188,7 +195,7 @@ describe("workspace CSV export", () => {
     const { member } = await team("502");
     const empty = await exportOf(member, "502", "season=2024");
     expect(empty.status).toBe(200);
-    expect(empty.header).toEqual([...FIXED_HEADERS, ...builtinTemplate(2024, "match").fields.map((f) => f.label), ...builtinTemplate(2024, "pit").fields.map((f) => f.label), OTHER_FIELDS_HEADER]);
+    expect(empty.header).toEqual([...FIXED_HEADERS, ...builtinTemplate(2024, "match").fields.map((f) => f.label), ...pitHeaders(2024), OTHER_FIELDS_HEADER]);
     expect(empty.rows).toEqual([]);
   });
 

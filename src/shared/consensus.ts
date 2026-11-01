@@ -107,7 +107,7 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
       const key = `${e.kind}:${f.id}`;
       if (!labels.has(key)) labels.set(key, f.label);
       if (f.type === "rating" && !scales.has(key)) scales.set(key, f.max ?? 5);
-      if (f.type === "rating" || f.type === "counter") {
+      if (f.type === "rating" || f.type === "counter" || f.type === "number") {
         if (typeof v !== "number" || !Number.isFinite(v)) continue;
         let value = v;
         if (f.type === "rating") {
@@ -119,13 +119,15 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
           if (frac >= STRONG) tally(strengths, key);
           if (frac <= WEAK) tally(weaknesses, key);
         }
-        const k = `${key}:${f.type}`;
+        // A measurement (number + unit) averages like a counter.
+        const type = f.type === "rating" ? "rating" : "counter";
+        const k = `${key}:${type}`;
         const cur = nums.get(k);
-        if (cur) { cur.sum += value; cur.n++; } else nums.set(k, { kind: e.kind, id: f.id, label: labels.get(key)!, type: f.type, ...(f.type === "rating" ? { max: scales.get(key)! } : {}), sum: value, n: 1 });
+        if (cur) { cur.sum += value; cur.n++; } else nums.set(k, { kind: e.kind, id: f.id, label: labels.get(key)!, type, ...(type === "rating" ? { max: scales.get(key)! } : {}), sum: value, n: 1 });
       } else if (f.type === "choice") {
         if (typeof v !== "string" || !v || !(f.options ?? []).includes(v)) continue;
         tally(tags, key, v);
-      } else if (f.type === "toggle") {
+      } else if (f.type === "toggle" || f.type === "toggleDetail") {
         if (v === true) tally(tags, key);
       }
     }

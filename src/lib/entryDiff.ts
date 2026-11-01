@@ -23,10 +23,11 @@ export const NONE = "—";
 /** One answer as the form shows it. */
 /** True when formatAnswer would show NONE because there's no answer (not because the answer is a literal "—"). */
 const noAnswer = (v: ScoutValue | undefined, f?: Pick<ScoutField, "type">) =>
-  f?.type !== "toggle" && !(f?.type === "counter" && v === undefined) && (v === undefined || v === null || v === "");
+  f?.type !== "toggle" && f?.type !== "toggleDetail" && !(f?.type === "counter" && v === undefined) && (v === undefined || v === null || v === "");
 
-export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "type" | "min" | "max">): string {
-  if (f?.type === "toggle") return v === true ? "Yes" : "No";
+export function formatAnswer(v: ScoutValue | undefined, f?: Pick<ScoutField, "type" | "min" | "max" | "unit">): string {
+  if (f?.type === "toggle" || f?.type === "toggleDetail") return v === true ? "Yes" : "No";
+  if (f?.type === "number" && typeof v === "number" && f.unit) return `${v} ${f.unit}`;
   if (f?.type === "counter" && v === undefined) return String(f.min ?? 0);
   if (v === undefined || v === null || v === "") return NONE;
   if (v === true) return "Yes";
