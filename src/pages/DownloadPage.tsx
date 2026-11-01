@@ -10,7 +10,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BellRing, CheckCircle2, Database, HardDriveDownload, Loader2, RefreshCw, Trash2, WifiOff } from "lucide-react";
-import { useTitle } from "../lib/meta";
 import { ManifestError, PACK_EVENT, fetchManifest, packStatus, syncLite, type PackManifest, type PackMeta } from "../lib/packs";
 import type { ConnectionInfo } from "../lib/packPolicy";
 import { removeSeason, useSavedSeasons, type SavedSeason } from "../lib/offline/seasons";
@@ -22,6 +21,8 @@ import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
 import { ago, dayDate, seasonLabel } from "../lib/format";
+import { useCurrentSeason, useTitle } from "../lib/meta";
+import { TapTooltip } from "../components/ui/overlay";
 import { cn } from "../components/cn";
 import { useFlag } from "../lib/flags";
 import { netKind, updateStatus } from "../lib/offline/updatePolicy";
@@ -101,7 +102,7 @@ function LiteStatus({ local, m, syncing, waiting, onGet }: { local: PackMeta | n
     <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm" role="status">
       {current || (local && !syncing) ? <CheckCircle2 className="size-4 text-success" /> : syncing ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <WifiOff className="size-4 text-muted-foreground" />}
       {current
-        ? <span>Offline predictions are ready on this device: lite pack {local!.version}, saved automatically {ago(new Date(local!.savedAt).toISOString())}.</span>
+        ? <span>Offline predictions are ready on this device: lite pack {local!.version} ({fmtBytes(local!.bytes)}, {m.lite.seasons.length === 1 ? seasonLabel(m.lite.seasons[0]) : `${seasonLabel(Math.min(...m.lite.seasons))} to ${seasonLabel(Math.max(...m.lite.seasons))}`}), saved automatically {ago(new Date(local!.savedAt).toISOString())}.</span>
         : syncing
           ? <span>Getting offline predictions ready on this device ({local ? `updating ${local.version} → ${m.version}` : fmtBytes(m.lite.bytes)})…</span>
           : waiting
@@ -121,6 +122,7 @@ function LiteStatus({ local, m, syncing, waiting, onGet }: { local: PackMeta | n
  * and Update all. Saving runs one season at a time (each is tens of MB), whether started from a row or in bulk.
  */
 function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] }) {
+  const currentSeason = useCurrentSeason();
   const plan = planSeasons(m.full, saved);
   const { mode, network } = useUpdatePrefs();
   const connection = useConnection();
@@ -178,7 +180,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
       {!plan.rows.length ? <p className="p-6 max-sm:p-4 text-sm text-muted-foreground">No full packs in this release.</p> : (
         <ul className="divide-y divide-border" aria-label="Seasons">
           {plan.rows.map((r) => (
-            <SeasonRowView key={r.file.name} r={r} builtAt={m.builtAt}
+            <SeasonRowView key={r.file.name} r={r} builtAt={m.builtAt} version={m.version} current={r.season === currentSeason}
               progress={busy?.season === r.season ? busy.pct : null} queued={queue.includes(r.season)} disabled={working}
               removing={removing === r.season} onSave={() => void run([r], null)} onRemove={() => remove(r.season)} />
           ))}
@@ -197,8 +199,8 @@ const STATE_CHIP: Record<SeasonRow["state"], { label: string; cls: string }> = {
 };
 
 /** One season: its status, size and release, and Save / Update / Remove (with progress while saving). The raw file stays a small link for analysts. */
-function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSave, onRemove }: {
-  r: SeasonRow; builtAt: string; progress: number | null; queued: boolean; disabled: boolean; removing: boolean; onSave: () => void; onRemove: () => void;
+function SeasonRowView({ r, builtAt, version, current, progress, queued, disabled, removing, onSave, onRemove }: {
+  r: SeasonRow; builtAt: string; version: string; current: boolean; progress: number | null; queued: boolean; disabled: boolean; removing: boolean; onSave: () => void; onRemove: () => void;
 }) {
   const label = seasonLabel(r.season);
   const chip = STATE_CHIP[r.state];
@@ -207,6 +209,7 @@ function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSav
       <div className="flex items-center gap-2 sm:block">
         <p className="font-display text-lg font-semibold tabular-nums">{label}</p>
         <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium sm:mt-1", chip.cls)}>{chip.label}</span>
+        {current && <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent-text sm:ml-1 sm:mt-1">This season</span>}
       </div>
       <div className="min-w-0 text-xs text-muted-foreground">
         {progress != null ? (
@@ -217,9 +220,12 @@ function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSav
         ) : queued ? <p>Waiting to save…</p> : (
           <p className="flex flex-wrap gap-x-3 gap-y-0.5">
             <span className="text-foreground tabular-nums">{fmtBytes(r.file.bytes)}</span>
-            <span>Released {dayDate(builtAt)}</span>
+            <span>Version {version} · released {dayDate(builtAt)}</span>
             {r.saved && <span>{r.state === "update" ? `On this device: ${r.saved.version}` : `On this device · ${fmtBytes(r.saved.bytes)}`}</span>}
-            <span className="font-mono" title={`SHA-256 ${r.file.sha256}`}>SHA-256 {r.file.sha256.slice(0, 12)}…</span>
+            {/* The full hash on a tap too (a title needs a mouse), to check a download against. */}
+            <TapTooltip className="max-w-72 break-all font-mono" trigger={<button type="button" className="tap-44 cursor-pointer font-mono underline decoration-dotted underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`SHA-256 ${r.file.sha256}`}>SHA-256 {r.file.sha256.slice(0, 12)}…</button>}>
+              SHA-256 {r.file.sha256}
+            </TapTooltip>
           </p>
         )}
       </div>

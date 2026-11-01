@@ -37,7 +37,8 @@ vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/m
 
 const { default: DownloadPage } = await import("./DownloadPage");
 const { resetSeasonBatch, runSeasonBatch } = await import("../lib/offline/seasonBatch");
-const mount = () => render(<MemoryRouter><DownloadPage /></MemoryRouter>);
+const { TooltipProvider } = await import("../components/ui/overlay");
+const mount = () => render(<MemoryRouter><TooltipProvider><DownloadPage /></TooltipProvider></MemoryRouter>);
 const sv = (season: number, sha: string) => ({ season, sha256: sha, version: "2026-09-01.1", bytes: 9_000_000, savedAt: 1 }) as unknown as SavedSeason;
 
 beforeEach(() => { saved = []; order.length = 0; failSeason = null; gate = null; resetSeasonBatch(); toastErr.mockClear(); toastOk.mockClear(); });
@@ -53,6 +54,14 @@ describe("Download page seasons", () => {
     expect(screen.getByText(/1 update available/)).toBeTruthy();
     expect(screen.getByRole("button", { name: /Update all \(1\)/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Download all · 20\.0 MB/ })).toBeTruthy();
+  });
+
+  it("gives each season the pack's version, and its full SHA-256 on a tap", async () => {
+    mount();
+    const rows = within(await screen.findByRole("list", { name: "Seasons" })).getAllByRole("listitem");
+    expect(rows[0].textContent).toContain("Version 2026-10-17.2");
+    fireEvent.click(within(rows[0]).getByRole("button", { name: "SHA-256 a" }));
+    expect((await screen.findAllByText("SHA-256 a")).length).toBeGreaterThan(0);
   });
 
   it("Download all saves every unsaved season, one at a time, newest first", async () => {

@@ -459,7 +459,7 @@ function OfflineData() {
       </Group>
       <OfflineUpdates />
       <Group title="Offline pack" description={<>Packs let predictions run on this device with no connection, e.g. at a venue with no signal. <Link to="/download" className="underline">Download page</Link></>}>
-        <Row label="Lite pack on this device" description={pack ? `Version ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
+        <Row label="Offline predictions on this device" description={pack ? `Pack ${pack.version} · ${fmtBytes(pack.bytes)} · saved ${ago(new Date(pack.savedAt).toISOString())}` : "None saved yet."}>
           <Button variant="outline" size="sm" asChild><Link to="/download"><Download /> {pack ? "Open Download" : "Get the pack"}</Link></Button>
         </Row>
         <Row label="Storage used by this site" description="Cached pages, packs, saved seasons and recordings.">
@@ -673,7 +673,7 @@ function About() {
         <Row label="What's new" description={`Every release of Control Scout, newest first.${APP_RELEASE ? ` This is v${APP_RELEASE}.` : ""}`}>
           <Button variant="outline" size="sm" onClick={() => openWhatsNew()}><Megaphone /> What's new</Button>
         </Row>
-        <Row label="Prediction engine" description="Shared with Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
+        <Row label="Prediction model version" description="The same model as Control Point, so the numbers match."><span className="font-mono text-sm text-foreground">v{meta?.engineVersion ?? "…"}</span></Row>
         <Row label="Data updated" description="Synced from FIRST; every 15 minutes on event days."><span className="text-sm text-foreground">{ago(meta?.dataAsOf)}</span></Row>
         <Row label="How predictions work"><Button variant="outline" size="sm" asChild><Link to="/methodology">Read it</Link></Button></Row>
         {reportsOn && <ReportBug />}
