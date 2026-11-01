@@ -2,7 +2,7 @@
 // rounding, no winner language, and every number traced back to the data it came from.
 import { describe, expect, it } from "vitest";
 import type { CompareTeam, CompareView, MatchView } from "../shared/api";
-import { BRIEF, WINNER_WORDS, briefText, compareBrief, compareEventNames, list, shortDate, type BriefSentence } from "./compareBrief";
+import { BRIEF, BRIEF_GROUPS, WINNER_WORDS, briefGroups, briefText, compareBrief, compareEventNames, keyNumbers, list, shortDate, type BriefSentence } from "./compareBrief";
 import { num } from "./format";
 
 type Ev = CompareTeam["events"][number];
@@ -223,6 +223,35 @@ describe("compareBrief: rules that hold for every brief", () => {
 });
 
 describe("helpers", () => {
+  it("groups sentences for reading, keeping the generator's order and every sentence once", () => {
+    const s = compareBrief(view([A, B]));
+    const g = briefGroups(s);
+    expect(g.map((x) => x.title)).toEqual(BRIEF_GROUPS.map((x) => x.title).filter((t) => g.some((x) => x.title === t)));
+    expect(g.flatMap((x) => x.items)).toEqual([...s].sort((a, b) => BRIEF_GROUPS.findIndex((x) => x.topics.includes(a.topic)) - BRIEF_GROUPS.findIndex((x) => x.topics.includes(b.topic))));
+    expect(g[0].items.map((x) => x.topic)).toContain("Sample size");
+    expect(BRIEF_GROUPS.flatMap((x) => x.topics)).toHaveLength(8);
+  });
+  it("picks out the key numbers and leaves team numbers, seasons and dates plain", () => {
+    const keys = (t: string) => keyNumbers(t).filter((x) => x.key).map((x) => x.text);
+    expect(keys("In 2025–26, 4215 played 32 matches at 5 events and 23268 played 51 matches at 7 events.")).toEqual(["32", "5", "51", "7"]);
+    expect(keys("23268 adds an estimated 13 more auto points per match than 4215 (best-event OPR 41.6 vs 28.3; 51 vs 32 matches).")).toEqual(["13", "41.6", "28.3", "51", "32"]);
+    expect(keys("4215 at X on Mar 15, 2026 (event OPR 101.6, up 49.2 on its first event)")).toEqual(["101.6", "49.2"]);
+    expect(keys("in the 2 scored matches against, 4215's alliance went 0-2-0.")).toEqual(["2", "0-2-0"]);
+    // Whole OPRs count too, wherever the sentences put them; the team number before them doesn't.
+    expect(keys("Event OPR ranged 4215 52.4 to 101 over 5 events and 23268 81 to 157.9 over 6 events.")).toEqual(["52.4", "101", "5", "81", "157.9", "6"]);
+    expect(keys("4215 and 6980 are level (best-event OPR 120 vs 98; 10 vs 11 matches).")).toEqual(["120", "98", "10", "11"]);
+    expect(keys("best-event OPR 4215 101 (10 matches), 6980 99.5 (11 matches)")).toEqual(["101", "10", "99.5", "11"]);
+    expect(keys("4215 at X on Mar 1, 2026 (event OPR 112, down 5 on its first event)")).toEqual(["112", "5"]);
+    // A gap with level teams at the top, and negative OPRs with their sign (whole or decimal).
+    expect(keys("1 and 2 are level at the top, 13 or more points per match ahead of 3: best-event OPR 1 90 (6 matches), 2 90 (6 matches) and 3 77 (6 matches).")).toEqual(["13", "90", "6", "90", "6", "77", "6"]);
+    expect(keys("4215 at X on Mar 1, 2026 (event OPR -15, down 20.5 on its first event)")).toEqual(["-15", "20.5"]);
+    expect(keys("Event OPR ranged 4215 -3.5 to 12 over 2 events and 6980 -8 to -2 over 2 events.")).toEqual(["-3.5", "12", "2", "-8", "-2", "2"]);
+    // The generator's own three-team sentence, end to end.
+    const T = (number: number, opr: number) => team(number, 6, [ev(`E${number}`, "2026-01-01", opr)]);
+    expect(keys(one(compareBrief(view([T(1, 90), T(2, 90), T(3, 77)])), "Overall").text)).toContain("13");
+    const t = "Event OPR ranged 4215 52.4 to 101.6 over 5 events.";
+    expect(keyNumbers(t).map((x) => x.text).join("")).toBe(t);
+  });
   it("names events by code from every compared team, first name wins", () => {
     const X = team(1, 6, [{ ...ev("USNJNOM5", "2026-01-10", 90), name: "P1-4 PM Northern League Meet" }]);
     const Y = team(2, 6, [{ ...ev("USNJNOM5", "2026-01-10", 80), name: "Other" }, ev("USNJNOM7", "2026-02-01", 85)]);
