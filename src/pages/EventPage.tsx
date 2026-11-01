@@ -434,7 +434,7 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
   return (
     <div className="mb-5 max-sm:mb-4 flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted-foreground">Odds for team</span>
-      <div className="relative w-56 max-sm:min-w-0 max-sm:flex-1">
+      <div className="relative w-56 max-sm:w-auto max-sm:min-w-[12rem] max-sm:flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ? String(value) : "Team number or name"} className="h-9 pl-9 max-sm:h-10" aria-label="Pick a team at this event" />
       </div>
