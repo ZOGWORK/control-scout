@@ -47,7 +47,9 @@ export function TabsList({ className, ref, ...props }: React.ComponentProps<type
       ref={setRef}
       data-slot="tabs-list"
       data-fade={fade}
-      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto custom-scrollbar', className)}
+      // Phones: sideways only (no up-and-down give from the tabs' 44px tap areas), no rubber-band past either end,
+      // and no scrollbar drawn over the tabs; the faded edge says there's more.
+      className={cn('tabs-fade inline-flex w-full sm:w-fit items-center gap-1 max-sm:gap-1.5 rounded-2xl max-sm:rounded-xl border border-text-base/15 bg-text-base/[0.03] p-1 max-sm:p-1 overflow-x-auto overflow-y-hidden overscroll-x-none custom-scrollbar max-sm:[scrollbar-width:none] max-sm:[&::-webkit-scrollbar]:hidden', className)}
       {...props}
     />
   );
@@ -76,7 +78,8 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
       ref={ref}
       data-slot="tabs-trigger"
       className={cn(
-        'tap-44 inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl max-sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 text-sm font-bold',
+        // Phones: a full 44px button, the size of the tap area, with a little more room for the finger.
+        'tap-44 inline-flex flex-1 sm:flex-none items-center justify-center gap-1.5 whitespace-nowrap rounded-xl max-sm:rounded-lg px-2.5 sm:px-4 py-1.5 sm:py-2 max-sm:h-11 max-sm:px-3.5 text-sm max-sm:text-[15px] font-bold',
         // Inactive tabs are pills of their own (a faint fill and edge), so each reads as something to tap.
         'border border-text-base/10 bg-text-base/[0.05] text-text-base/80 transition-colors hover:bg-text-base/[0.1] hover:text-text-base outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
         'data-[state=active]:border-transparent',

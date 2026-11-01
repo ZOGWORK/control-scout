@@ -28,6 +28,21 @@ Search answers are easier to read: spaced out, with bullet points.
 - Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#399)
 - The Worlds and states cards on /search put a line between events: the name, then when and where, then rank, record, OPR and awards as bullets. The search dropdown keeps each event to two lines
 
+## 2.0.2 — 2026-11-01
+
+Event pages on phones: bigger tabs that only scroll sideways, a tidier odds box, and no "none yet" lines.
+
+### Highlights
+- [home] Event tabs on phones are bigger and only slide sideways
+- [home] No scrollbar drawn over the tabs, and no sliding past the ends
+- [predict] "Odds for team" box matches the other search boxes
+- [home] At a glance hides empty lines and buttons that lead nowhere
+
+### Event page
+- **Tabs on phones.** Every tab is a full 44px button. The strip scrolls sideways only (the tabs' touch areas no longer give it room to move up and down), stops at its ends instead of bouncing past them, and no longer draws its scrollbar across the tabs; the faded edge shows there are more. Same tabs component everywhere it's used. (#PR)
+- **Text boxes.** On touch screens a box's hint text is the page's own size (typed text stays 16px so iPhones don't zoom in), so an empty box no longer looks a size bigger than everything around it. The Odds tab's team box now reads "Team number or name" with a search icon, like the other search boxes, and fills the row on phones. (#PR)
+- **At a glance.** A started event with nothing decided yet no longer says "No decided matches with predictions here yet", and "See the match predictions" only shows once there's a schedule to predict. (#PR)
+
 ## 1.9.9 — 2026-11-01
 
 The maintenance pass is written up: what changed, why, and how it was checked.

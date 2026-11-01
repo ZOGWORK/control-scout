@@ -434,7 +434,10 @@ function TeamPicker({ field, value, onChange }: { field: FieldRow[]; value: numb
   return (
     <div className="mb-5 max-sm:mb-4 flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted-foreground">Odds for team</span>
-      <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ? String(value) : "type a number or name"} className="h-9 w-48" aria-label="Pick a team at this event" />
+      <div className="relative w-56 max-sm:min-w-0 max-sm:flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={value ? String(value) : "Team number or name"} className="h-9 pl-9 max-sm:h-10" aria-label="Pick a team at this event" />
+      </div>
       {q && options.map((f) => <Button key={f.team} size="sm" variant="secondary" onClick={() => { onChange(f.team); setQ(""); }}>{f.team} {f.name && <span className="max-w-32 truncate text-muted-foreground">{f.name}</span>}</Button>)}
       {value != null && !q && <Button size="sm" variant="ghost" onClick={() => onChange(null)}>All teams</Button>}
     </div>

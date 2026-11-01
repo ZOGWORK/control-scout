@@ -238,6 +238,9 @@ html body[data-scroll-locked] { margin-right: 0 !important; }
    and !important so it beats the text-sm/text-xs utilities on the fields themselves. */
 @media (pointer: coarse) {
   input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea { font-size: 16px !important; }
+  /* Only typed text sets the zoom, so the hint text stays the page's size and an empty field reads like the
+     rest of the page rather than one size up. */
+  input::placeholder, textarea::placeholder { font-size: 0.875rem; }
 }
 
 @layer base {
