@@ -27,7 +27,7 @@ Entries is one list you can scan, and the pick list keeps your assignments and t
 ### Scout
 - **Entries as one list.** The cards are now rows in one filtered list: the team, the match (or Pit), the event, who saved it and when, a line of its answers and its notes, with Edit, history and Delete on the right. On a phone each row is two short lines. Filters, sorting, Recordings and Export CSV are where they were.
 - **Sync state on every entry.** Each row says whether that entry has synced, is waiting (offline, or paused by the owner), needs attention, or lives on this device only (Personal without an account).
-- **Pick list & planning.** Under the shared pick list: your open assignments with Scout on each, the workspace's latest activity, and the scouting alliance when it's on, each linking to its full view (#PRNUM).
+- **Pick list & planning.** Under the shared pick list: your open assignments with Scout on each, the workspace's latest activity, and the scouting alliance when it's on, each linking to its full view (#386).
 
 ## 1.8.5 — 2026-11-01
 
