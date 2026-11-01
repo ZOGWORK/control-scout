@@ -7,7 +7,8 @@
 // data: server/api/searchQuestions.ts), then teams, events, matches and pages. A question also gets Bruno AI's short
 // written answer on top, from those same records (./search/BrunoAnswer.tsx).
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, RefreshCw, Search } from "lucide-react";
+import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, HitText, hitHref, rowIcon, useSearchHits, useSections } from "../components/search/SearchBox";
 import { SEARCH_PAGE_LIMIT, showingLine } from "../shared/search";
@@ -19,7 +20,7 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, answer, busy, error, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const nav = useNavigate();
   const showing = answer ? showingLine({ ...answer, hits }) : null;
@@ -47,7 +48,13 @@ export default function SearchPage() {
       </form>
       <div className="mt-5" aria-live="polite">
         {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match.</p>
-          : error ? <p className="text-sm text-destructive">{error}</p>
+          // A failed search says so and offers the same search again (it never fixes itself while you wait).
+          : error ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-destructive">{error}</p>
+              <Button variant="secondary" onClick={retry}><RefreshCw /> Try again</Button>
+            </div>
+          )
           : !sections.length ? (
             <p className="text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
           ) : (

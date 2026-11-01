@@ -38,6 +38,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const [refining, setRefining] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped by retry(): the same query asked again after a failure.
+  const [attempt, setAttempt] = useState(0);
   const seq = useRef(0);
   const brunoOn = useServerFlag("brunoSearch");
   const { state } = usePersonal();
@@ -78,7 +80,8 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
         .finally(() => { if (id === seq.current) setBusy(false); });
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [q, prefer, kindKey, limit, brunoOn, refine]);
+  }, [q, prefer, kindKey, limit, brunoOn, refine, attempt]);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const current = res.q === q.trim();
   // While a newer query is on its way, the last answer stays on screen (dimmed, marked stale) instead of the list
   // emptying at every keystroke: typing never flickers to a bare "Searching…" between replies.
@@ -98,7 +101,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   return {
     hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale, saved: current && !!res.saved,
     ai: brunoOn && shown && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
-    busy: busy || (!!q.trim() && !current), error: current ? error : null, logPick,
+    busy: busy || (!!q.trim() && !current), error: current ? error : null, retry, logPick,
     /** The visitor's preferred teams and events, as sent with the search (Bruno's answer is asked with the same). */
     prefer,
   };

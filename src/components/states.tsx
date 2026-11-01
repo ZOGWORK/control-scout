@@ -46,6 +46,8 @@ export function ErrorState({ error, onRetry, className }: { error: ApiError | Er
 
 function FetchErrorState({ error, onRetry, className }: { error: ApiError | Error; onRetry?: () => void; className?: string }) {
   const offline = (error as ApiError).offline;
+  // "Offline" only when the device says it has no network; online with no answer is the server's fault, not yours.
+  const noNetwork = offline && typeof navigator !== "undefined" && navigator.onLine === false;
   const status = (error as ApiError).status;
   const search = useSearch();
   const missing = status === 404 || status === 400;
@@ -53,8 +55,9 @@ function FetchErrorState({ error, onRetry, className }: { error: ApiError | Erro
     <EmptyState
       className={className}
       icon={offline ? WifiOff : missing ? SearchX : AlertTriangle}
-      title={offline ? "You're offline" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
-      description={offline ? "This page needs a connection. Predictions still work offline from a downloaded lite pack (see Download)." : error.message}
+      title={noNetwork ? "You're offline" : offline ? "Can't reach the server" : status === 404 ? "Not found" : status === 400 ? "That isn't valid" : "Couldn't load this"}
+      description={noNetwork ? "This page needs a connection. Predictions still work offline from a downloaded lite pack (see Download)."
+        : offline ? "Control Scout didn't answer. Try again in a moment; predictions still work from a downloaded lite pack (see Download)." : error.message}
       // A bad or missing address won't fix itself: no "Try again" for 400/404.
       // A missing or bad address can't be retried: offer the way forward instead.
       action={missing ? <Button variant="secondary" onClick={search.open}><Search /> Search teams and events</Button>

@@ -281,7 +281,7 @@ export function RecordsTable(p: RecordsTableProps) {
       </Tooltip>
     );
   });
-  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown ? null : "Loading…";
+  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
   // The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters.
   const capStatus = selectable && (
     <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
