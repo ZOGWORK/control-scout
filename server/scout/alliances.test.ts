@@ -706,6 +706,20 @@ describe("more than two teams", () => {
     expect((await list(p.ada, A)).json.alliances[0]).toMatchObject({ status: "ended", endedReason: "unlinked", copiesKept: true });
   });
 
+  it("an old copy never stands in for its live, edited original when the group's copies are made", async () => {
+    const p = await cast();
+    // A keeps a copy of B's entry, then B edits the original.
+    const ab = await link(true, true);
+    const b1 = entry({ team: 101, notes: "B first" });
+    await pushOk(p.ben, B, [b1]);
+    await end(p.ada, A, ab);
+    await pushOk(p.ben, B, [{ ...b1, notes: "B edited", updatedAt: b1.updatedAt + 10 }]);
+    // A, B and C link (A first) and end: C gets B's latest answers.
+    const { id } = await three();
+    await end(p.ada, A, id);
+    expect(await notesIn(p.cal, C)).toEqual(["B edited"]);
+  });
+
   it("is full at MAX_ALLIANCE_MEMBERS", async () => {
     const p = await cast();
     const i = await invite(p.ada, A);

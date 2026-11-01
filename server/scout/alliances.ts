@@ -174,7 +174,7 @@ async function endLink(id: number, reason: (r: Row) => AllianceEndReason | null,
     const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)", args: [r.id, t] };
     await writeBatch([
       { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL, copies_wanted = ? WHERE id = ? AND status = ?", args: [why, t, pairs.length ? 1 : 0, r.id, r.status] },
-      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, guard)),
+      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, inNow.map((m) => m.ws), guard)),
     ]);
     const after = await rowById(r.id);
     if (!after || after.status !== "ended" || after.ended_at !== t || after.ended_reason !== why) return null; // someone else ended it
@@ -224,7 +224,7 @@ async function leaveLink(id: number, ws: string, why: "left" | "removed", by?: s
         sql: "DELETE FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ? AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)",
         args: [r.id, ws, r.id, ws, t],
       }] : []),
-      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, guard)),
+      ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, inNow.map((m) => m.ws), guard)),
     ]);
     const me = (await membersOne(r.id)).find((m) => m.ws === ws);
     if (me?.left_at !== t) return null; // it was out already, or the alliance ended meanwhile
@@ -239,9 +239,11 @@ async function leaveLink(id: number, ws: string, why: "left" | "removed", by?: s
  * Queue `from`'s live entries at the event for `to`, as they are now (runs in the ending's own write, and only if
  * `guard` says that write took effect). Each keeps where it first came from: an entry that's itself a copy names its
  * origin, and one that came from `to` in the first place (a copy from an earlier link) is never sent back. `to` must be
- * in the alliance still, or be leaving in this very write (left_at = `t`), and never one the creator removed.
+ * in the alliance still, or be leaving in this very write (left_at = `t`), and never one the creator removed. A copy
+ * whose original is live in a workspace of `group` (the ones copying to each other now) isn't sent: the original is,
+ * so the receiver gets its latest answers, never an older copy of them.
  */
-function queueCopies(r: Row, from: string, to: string, t: number, guard: { sql: string; args: (string | number)[] }): InStatement {
+function queueCopies(r: Row, from: string, to: string, t: number, group: string[], guard: { sql: string; args: (string | number)[] }): InStatement {
   return {
     sql: `INSERT OR IGNORE INTO scout_alliance_copy_queue
             (alliance_id, to_ws, from_ws, origin_ws, origin_uuid, season, team, event_code, match_label, kind, data, notes, updated_at,
@@ -253,10 +255,13 @@ function queueCopies(r: Row, from: string, to: string, t: number, guard: { sql: 
             LEFT JOIN scout_alliance_copies c ON c.to_ws = ws.cp_workspace_id AND c.copy_uuid = w.uuid
            WHERE ws.cp_workspace_id = ? AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
              AND COALESCE(c.origin_ws, '') <> ?
+             AND NOT EXISTS (SELECT 1 FROM workspaces ow JOIN workspace_scout_entries o ON o.workspace_id = ow.id
+                              WHERE c.origin_ws IN (${group.map(() => "?").join(", ")}) AND ow.cp_workspace_id = c.origin_ws AND o.uuid = c.origin_uuid
+                                AND o.deleted = 0 AND o.season = w.season AND UPPER(o.event_code) = UPPER(w.event_code))
              AND EXISTS (SELECT 1 FROM scout_alliance_members rm WHERE rm.alliance_id = ? AND rm.ws = ? AND rm.left_reason IS NOT 'removed'
                            AND (rm.left_at IS NULL OR rm.left_at = ?))
              AND ${guard.sql}`,
-    args: [r.id, to, from, from, r.season, r.event_code, to, r.id, to, t, ...guard.args],
+    args: [r.id, to, from, from, r.season, r.event_code, to, ...group, r.id, to, t, ...guard.args],
   };
 }
 
