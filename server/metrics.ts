@@ -77,13 +77,15 @@ export function recordRequest(method: string, path: string, status: number, ms: 
 }
 
 /**
- * Which paths are counted: /api and /packs, except /api/health (monitors), the owner portal's own calls, and
- * the live stream (/api/scout/stream: its "latency" is how long it stayed open; the Usage panel counts open
- * streams as live connections instead). Streamed downloads (CSV exports) are timed to their first byte
- * (requestMetrics), so a big or slow download doesn't read as a slow route.
+ * Which paths are counted: /api and /packs, except /api/health (monitors) and the owner portal's own calls.
+ * Streamed downloads (CSV exports) are timed to their first byte, and live streams (text/event-stream) to the
+ * moment they open (requestMetrics), so a big download or a stream left open for hours doesn't read as a slow route.
  */
 export const isMeasured = (path: string) =>
-  /^\/(api|packs)\//i.test(path) && !/^\/api\/(health|owner|scout\/stream)(\/|$)/i.test(path);
+  /^\/(api|packs)\//i.test(path) && !/^\/api\/(health|owner)(\/|$)/i.test(path);
+
+/** A live stream (server-sent events): it stays open as long as the page does, so its length is no latency. */
+export const isEventStream = (res: Response) => /^text\/event-stream/i.test(String(res.getHeader("Content-Type") ?? ""));
 
 /** Express middleware: times every request isMeasured() counts. */
 export function requestMetrics() {
@@ -91,8 +93,21 @@ export function requestMetrics() {
     const p = req.path;
     if (!isMeasured(p)) return next();
     const t0 = performance.now();
-    // A streamed download (CSV exports) counts to its first byte: how long the rest takes is the client's connection.
-    res.once("close", () => { try { recordRequest(req.method, p, res.statusCode, (res.locals.firstByteAt ?? performance.now()) - t0); } catch { /* never break a response */ } });
+    // When the status line and headers go out: a live stream counts to there (it's open from then on).
+    let headersAt: number | undefined;
+    const writeHead = res.writeHead;
+    res.writeHead = function (this: Response, ...args: unknown[]) {
+      headersAt ??= performance.now();
+      return (writeHead as (...a: unknown[]) => Response).apply(this, args);
+    } as typeof res.writeHead;
+    res.once("close", () => {
+      try {
+        // A streamed download (CSV exports) counts to its first byte: how long the rest takes is the client's connection.
+        // A live stream counts to its opening; a client leaving it later is no error (the status was sent long before).
+        const end = (isEventStream(res) ? headersAt : res.locals.firstByteAt) ?? performance.now();
+        recordRequest(req.method, p, res.statusCode, end - t0);
+      } catch { /* never break a response */ }
+    });
     next();
   };
 }

@@ -1,4 +1,5 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
+import { siteTitle } from "../shared/teamTitle";
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
@@ -51,7 +52,7 @@ export function useMediaQuery(query: string): boolean {
 
 export function useTitle(title: string | null | undefined) {
   useEffect(() => {
-    document.title = title ? `${title} · Control Scout` : "Control Scout — free FTC scouting & predictions";
+    document.title = title ? siteTitle(title) : "Control Scout — free FTC scouting & predictions";
   }, [title]);
 }
 
@@ -99,6 +100,22 @@ export function canonicalQuery(pathname: string, search: string): string {
   if (Number.isInteger(page) && page > 1 && page <= 10_000) q.set("page", String(page));
   const s = q.toString();
   return s ? `?${s}` : "";
+}
+
+/** /search's "noindex, follow" (server/seoMeta.ts searchMeta), kept only while on /search: a click through to a
+ *  result must never carry it onto the team or event page. */
+export function SearchRobotsSync() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const tag = document.querySelector<HTMLMetaElement>('meta[name="robots"][data-search]');
+    if (!/^\/search\/?$/i.test(pathname)) { tag?.remove(); return; }
+    if (!tag) {
+      const m = document.createElement("meta");
+      m.name = "robots"; m.content = "noindex, follow"; m.setAttribute("data-search", "");
+      document.head.appendChild(m);
+    }
+  }, [pathname]);
+  return null;
 }
 
 /** Keeps <link rel="canonical"> (and a not-found page's noindex) in step with in-app navigation (the server sets both on the first load). */

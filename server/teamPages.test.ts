@@ -159,7 +159,8 @@ describe("sitemap", () => {
 
   it("every team URL it lists is a team page that answers 200", async () => {
     const teams = (await sitemapEntries()).map((e) => /\/teams\/(\d+)$/.exec(e.loc)?.[1]).filter((n): n is string => !!n);
-    expect(teams.map(Number)).toEqual(REAL);
+    // 18360 is on the off-season roster but never took the field: a thin page, left out (sitemap.ts).
+    expect(teams.map(Number)).toEqual([4215]);
     for (const n of teams) {
       expect(hasTeamPage(Number(n))).toBe(true);
       expect((await fetch(`${base}/api/teams/${n}`)).status, `team ${n}`).toBe(200);

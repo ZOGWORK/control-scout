@@ -170,9 +170,10 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const page = home
     ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     // A page the server drew whole (a team or event page: server/firstPaint.ts): the app's own markup, in the app's page
-    // frame, styled by the app's stylesheet (server/seo.ts loads it before this paints). Its data follows for the app.
+    // frame, styled by the app's stylesheet (server/seo.ts loads it before this paints). Under it, the lists it leaves
+    // closed or on another tab (PageMeta.moreHtml), so crawlers read them too. Its data follows for the app.
     : meta.firstPaint && !meta.notFound
-      ? `<div class="csb-app ${PAGE_FRAME}" id="cs-boot-page" data-path="${esc(p)}"><div class="min-w-0 flex-1">${meta.firstPaint.html}</div>${liteLink}</div>`
+      ? `<div class="csb-app ${PAGE_FRAME}" id="cs-boot-page" data-path="${esc(p)}"><div class="min-w-0 flex-1">${meta.firstPaint.html}${meta.moreHtml ? `<div class="csb-body csb-more">${meta.moreHtml}</div>` : ""}</div>${liteLink}</div>`
         + `<script type="application/json" id="${PAGE_DATA_ID}">${JSON.stringify(meta.firstPaint.data).replace(/</g, "\\u003c")}</script>`
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).

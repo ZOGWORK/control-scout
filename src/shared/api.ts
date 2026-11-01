@@ -122,7 +122,9 @@ export interface SearchRecovery {
 export interface SearchEventPick { season: number; code: string; name: string; opr: number | null }
 
 /** A team page's part (#id) or an event's tab (?tab=). */
-export type SearchSection = "awards" | "matches" | "events" | "schedule-difficulty" | "rankings" | "odds" | "playoffs";
+/** Team page anchors (src/pages/TeamPage.tsx; docs/search.md lists them): opr, ranking and history (the season road
+ *  map, also #events), schedule-difficulty, awards, matches. Event tabs: rankings, awards, matches, odds, playoffs. */
+export type SearchSection = "awards" | "matches" | "events" | "opr" | "ranking" | "history" | "schedule-difficulty" | "rankings" | "odds" | "playoffs";
 
 /** One number in a search answer: "Ranking score" "2.45 at NJ Championship". */
 export interface SearchFact { label: string; value: string }
