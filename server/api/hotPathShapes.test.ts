@@ -10,9 +10,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { kvSet, migrate, openDb, run, setDb } from "../db";
 import { clearAllCaches } from "../caches";
 import { createApp } from "../app";
-import { CURRENT_SEASON } from "../data/seasons";
 
-const S = CURRENT_SEASON;
+// Pinned (not CURRENT_SEASON): the snapshot's routes and bodies name it, so a new season must not move it.
+const S = 2026;
 const SNAPSHOT = fileURLToPath(new URL("./__snapshots__/hotPathShapes.json", import.meta.url));
 const TEAMS = [101, 102, 103, 104];
 
