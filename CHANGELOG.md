@@ -29,7 +29,7 @@ Long names show in full when you point at them, table numbers line up, and headi
 - **Full names on hover.** Seventeen places that cut a long team or event name short (event history, the Last event row, Compare, Records, Home, advancement odds, the event roster and more) now carry the full name as a tooltip.
 - **Tabular figures in every table.** Columns of OPR, ranks and scores line up even where a cell didn't ask for it.
 - **Headings.** "Why: the top 3 factors" under a prediction was an h3 straight after the page's h1 (axe heading-order); it is an h2 now, same look.
-- **One type scale.** The few odd sizes left (9px rank labels, 10.5px and 11.5px on How it works) moved onto the scale's 10px, 11px and 12px steps.
+- **One type scale.** The few odd sizes left (9px rank labels, 10.5px and 11.5px on How it works) moved onto the scale's 10px, 11px and 12px steps (#385).
 - **Sponsors.** The label keeps to one line; the sponsor names truncate beside it instead.
 
 ## 1.8.4 — 2026-11-01
