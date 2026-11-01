@@ -8,7 +8,7 @@
 // page's cadence (lib/liveMode.ts).
 import { useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, WifiOff } from "lucide-react";
 import { load, useApi, type ApiError } from "../lib/api";
 import { useTitle } from "../lib/meta";
 import { useEventPoll } from "../lib/liveMode";
@@ -16,11 +16,13 @@ import { matchReportPath, useMatchReportWorkspace, useWatchFlags } from "../lib/
 import { matchTime, seasonLabel } from "../lib/format";
 import { matchReportHref, normalMatchKey, type MatchReport } from "../shared/matchReport";
 import { Async } from "../components/states";
-import { Page } from "../components/page";
+import { EmptyState, Page } from "../components/page";
+import { Button } from "../components/ui/button";
 import { NotFoundView } from "../components/NotFoundView";
 import { MatchReportView } from "../components/MatchReport";
 import { SnapshotBanner, SnapshotFrame } from "../components/offline/Snapshot";
-import { useBundleSnapshot, type FoundSnapshot } from "../lib/offline/useBundle";
+import { useBundle, useBundleSnapshot, type FoundSnapshot } from "../lib/offline/useBundle";
+import { bundleFor } from "../lib/offline/bundleMeta";
 
 export default function MatchReportPage() {
   const { season, code, key: rawKey } = useParams();
@@ -36,7 +38,22 @@ export default function MatchReportPage() {
   // No signal (or none in OFFLINE_TIMEOUT_MS): the report frozen in this event's bundle, if it holds one. Live
   // takes over the moment the report loads (the page keeps asking: lib/api.ts).
   const snapshot = useBundleSnapshot(valid ? Number(season) : null, code ?? null, key, state.data ? null : (state.error as ApiError | undefined)?.offline ? "offline" : state.loading ? "waiting" : null);
+  // The request failed for want of signal and this event's bundle doesn't hold this match's report (it saves
+  // only the chosen team's): the event page has the match, answered from the bundle. Which reports it holds:
+  // its saved list, or (bundles saved before that list was kept) the decoded bundle.
+  const saved = valid && !state.data && (state.error as ApiError | undefined)?.offline ? bundleFor(Number(season), code!) : null;
+  const decoded = useBundle(saved && !saved.reportKeys ? saved.season : null, saved && !saved.reportKeys ? saved.code : null).bundle;
+  const held = saved?.reportKeys ?? decoded?.reports.map((r) => r.key) ?? null;
   if (!state.data && snapshot) return <Page><SnapshotReport snap={snapshot} /></Page>;
+  if (saved && held && !held.includes(key!)) {
+    return (
+      <Page>
+        <EmptyState icon={WifiOff} title="This match's report isn't saved on this device"
+          description="There's no signal, and your event-day bundle holds reports only for your team's matches. The event page has this match from the bundle."
+          action={<Button asChild><Link to={`/events/${saved.season}/${encodeURIComponent(saved.code)}?tab=matches&match=${encodeURIComponent(key!)}`}>Open the match on the event page</Link></Button>} />
+      </Page>
+    );
+  }
   if (missing) {
     return <NotFoundView title={`No match ${rawKey ?? ""} at ${code ?? ""}`} description="The match may not be scheduled yet, or the link is from another event. Open the event to see its schedule." />;
   }

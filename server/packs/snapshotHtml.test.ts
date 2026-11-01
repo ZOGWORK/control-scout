@@ -25,13 +25,13 @@ describe("snapshot HTML", () => {
 
   it("says when it's from, in the event's own time zone, and that it may be stale", () => {
     const html = picklistHtml(list, ev, { asOf: "2026-11-01T13:12:00Z", workspaceName: "W" });
-    expect(html).toMatch(/Snapshot from Nov 1, 07:12 CST · may be stale/);
+    expect(html).toMatch(/Snapshot from Nov 1, 7:12 AM CST · may be stale/);
     expect(html).toMatch(/check the live list before you pick/);
     expect(html).toContain("#2 · 51.3 OPR");
   });
 
   it("clockIn falls back to UTC when the zone is unknown", () => {
-    expect(clockIn("2026-11-01T13:12:00Z", null)).toBe("Nov 1, 13:12 UTC");
+    expect(clockIn("2026-11-01T13:12:00Z", null)).toBe("Nov 1, 1:12 PM UTC");
     expect(esc(`<'&">`)).toBe("&lt;&#39;&amp;&quot;&gt;");
   });
 });
