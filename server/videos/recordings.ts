@@ -88,19 +88,27 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
   const v = (async () => {
     const [recs, { official }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
     const out = new Map<string, "clips" | "recording">();
-    const timed = [...recs].filter(([, r]) => r.meta?.status === "ok" && timingTrusted(r.meta));
+    // Every recording with a broadcast start: whether its timing holds can depend on the event's last match (timingTrusted).
+    const timed = [...recs].filter(([, r]) => r.meta?.status === "ok" && r.meta.start);
     const withClip = new Set<string>();
     for (let i = 0; i < timed.length; i += 200) {
       const part = timed.slice(i, i + 200);
       const rows = await all<{ code: string; time: string; timezone: string | null }>(
         `SELECT m.code, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
          WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
-      const by = new Map(part);
+      const starts = new Map<string, string[]>();
       for (const r of rows) {
-        const code = String(r.code);
-        if (withClip.has(code) || !actualStart(r.time)) continue;
+        if (!actualStart(r.time)) continue;
         const ms = localToUtcMs(r.time, r.timezone);
-        if (ms != null && clipSecond(new Date(ms).toISOString(), by.get(code)!.meta!, now) != null) withClip.add(code);
+        if (ms == null) continue;
+        const code = String(r.code);
+        (starts.get(code) ?? starts.set(code, []).get(code)!).push(new Date(ms).toISOString());
+      }
+      for (const [code, rec] of part) {
+        const s = starts.get(code);
+        if (!s) continue;
+        const timing = { ...rec.meta!, ...matchSpan(s) };
+        if (timingTrusted(timing) && s.some((at) => clipSecond(at, timing, now) != null)) withClip.add(code);
       }
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
@@ -122,10 +130,36 @@ export async function eventRecording(season: number, code: string): Promise<Reco
 
 export const recordingStream = (r: Recording): EventStream => ({ videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source === "first" ? { source: "first" as const } : {}) });
 
-/** The matches with their place in the recording (clip); the given objects are never changed. */
-export function withClips(matches: MatchView[], r: Recording | null, now = Date.now()): MatchView[] {
-  const m = r?.meta;
-  if (!r || !m || m.status !== "ok" || !timingTrusted(m)) return matches;
+export interface MatchSpan { firstMatch: string | null; lastMatch: string | null }
+
+/** The earliest and latest of some UTC ISO match starts. */
+export function matchSpan(times: (string | null | undefined)[]): MatchSpan {
+  let first: string | null = null, last: string | null = null;
+  for (const t of times) {
+    if (!t || !Number.isFinite(Date.parse(t))) continue;
+    if (!first || Date.parse(t) < Date.parse(first)) first = t;
+    if (!last || Date.parse(t) > Date.parse(last)) last = t;
+  }
+  return { firstMatch: first, lastMatch: last };
+}
+
+/** An event's first and last played matches with a real start, read on their own (for a route that has one match). */
+export async function eventMatchSpan(season: number, code: string): Promise<MatchSpan> {
+  const rows = await all<{ time: string; timezone: string | null }>(
+    `SELECT m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+     WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL`, [season, code]);
+  return matchSpan(rows.filter((r) => actualStart(r.time)).map((r) => { const ms = localToUtcMs(r.time, r.timezone); return ms == null ? null : new Date(ms).toISOString(); }));
+}
+
+/**
+ * The matches with their place in the recording (clip); the given objects are never changed. `span`: the event's
+ * first and last played matches (timingTrusted), read from `matches` when they're the whole event.
+ */
+export function withClips(matches: MatchView[], r: Recording | null, now = Date.now(), span?: MatchSpan): MatchView[] {
+  const meta = r?.meta;
+  if (!r || !meta || meta.status !== "ok") return matches;
+  const m = { ...meta, ...(span ?? matchSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => x.startsAt))) };
+  if (!timingTrusted(m)) return matches;
   return matches.map((x) => {
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
     const t = x.played && actualStart(x.time) ? clipSecond(x.startsAt, m, now) : null;
