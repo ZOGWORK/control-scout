@@ -42,7 +42,7 @@ async function openWith(onPick: (h: SearchHit) => void) {
   const input = screen.getByLabelText("Search") as HTMLInputElement;
   act(() => input.focus());
   fireEvent.change(input, { target: { value: "bit" } });
-  await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
+  await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(4)); // three results and "See all results"
   return input;
 }
 
@@ -62,7 +62,7 @@ describe("SearchBox taps", () => {
   it("the more-below button cancels both presses and scrolls without closing the list", async () => {
     const onPick = vi.fn();
     const input = await openWith(onPick);
-    const more = await screen.findByRole("button", { name: /1 more below/ });
+    const more = await screen.findByRole("button", { name: /2 more below/ }); // the last result and the "See all results" row
     expect(fireEvent.pointerDown(more)).toBe(false);
     expect(fireEvent.mouseDown(more)).toBe(false);
     expect(document.activeElement).toBe(input);

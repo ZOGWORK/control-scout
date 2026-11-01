@@ -63,6 +63,12 @@ export function pagesFor(q: string): SearchPageLink[] {
   return SEARCH_PAGES.filter((p) => p.words.some((w) => tokens.has(w))).map((p) => p.page);
 }
 
+/** The query is only page words ("rankings", "rules", "records"): nothing in it can name a team or event. */
+export function onlyPageWords(q: string): boolean {
+  const tokens = q.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return tokens.length > 0 && tokens.every((t) => SEARCH_PAGES.some((p) => p.words.includes(t)));
+}
+
 /** Where a visitor can always go next: every team, every event. */
 export const SEARCH_BROWSE: SearchPageLink[] = [{ title: "Browse all teams", href: "/teams" }, { title: "Browse all events", href: "/events" }];
 
@@ -104,3 +110,25 @@ export function hitHref(h: SearchHit): string {
 
 /** The id of /search's first-paint JSON block: the query and the hits the server listed (server/seoMeta.ts). */
 export const SEARCH_HITS_ID = "cs-search-hits";
+
+const SECTION_LABEL: Partial<Record<NonNullable<SearchHit["section"]>, string>> = {
+  awards: "Awards", matches: "Matches", events: "Events and history", "schedule-difficulty": "Schedule difficulty", rankings: "Rankings", odds: "Advancement odds", playoffs: "Playoffs",
+};
+/** "4215 Hypnotic Robotics" → "Hypnotic Robotics (4215)". */
+const teamName = (h: SearchHit) => { const m = /^(\d+)\s+(.+)$/.exec(h.title); return m ? `${m[2]} (${m[1]})` : h.title; };
+
+/** What the results page shows, in a line ("Hypnotic Robotics (4215) vs Bad Wolf (6980) — Compare"): the top result
+ *  as the answer read it, and what it opens on. Null when nothing was found. */
+export function showingLine(a: { hits: SearchHit[]; step: string; card?: { title: string } }): string | null {
+  const top = a.hits[0];
+  if (!top || a.step === "recovery") return null;
+  if (top.href?.startsWith("/compare")) {
+    const sides = top.title.split(" vs ").map((t) => teamName({ ...top, title: t }));
+    return `${sides.join(" vs ")} — Compare${top.href.endsWith("#awards") ? " events and awards" : ""}`;
+  }
+  if (top.kind === "team") {
+    const what = a.card?.title ?? (top.atEvent ? "At an event" : top.section ? SECTION_LABEL[top.section] : null);
+    return `${teamName(top)}${what ? ` — ${what}` : ""}`;
+  }
+  return top.title;
+}

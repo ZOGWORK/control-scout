@@ -65,6 +65,95 @@ describe("live search", () => {
   });
 });
 
+describe("typing on (the last answer stays while the next is on its way)", () => {
+  it("the list never empties between replies: the last results stay, dimmed and marked busy", async () => {
+    const { input } = mount();
+    await type(input, "4215");
+    await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
+    await type(input, "4215 versus");
+    expect(screen.getByRole("option", { name: /4215 Hypnotic Robotics/ })).toBeTruthy();
+    expect(screen.getByRole("listbox").getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByText("Searching…")).toBeNull();
+    await reply(/q=4215%20versus/, answer("4215 versus", { hits: [t("4215", "Hypnotic Robotics"), t("28252", "Vertus Robotics")] }));
+    expect(screen.getByRole("listbox").hasAttribute("aria-busy")).toBe(false);
+    expect(screen.getByRole("option", { name: /28252 Vertus Robotics/ })).toBeTruthy();
+  });
+  it("plain Enter on a stale list opens the full results page for what's typed, never an older query's result", async () => {
+    const { input, onPick } = mount();
+    await type(input, "4215");
+    await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
+    await type(input, "4215 vs 6980");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
+  });
+});
+
+describe("Enter and the full results page", () => {
+  it("plain Enter (nothing highlighted) opens /search?q=…; the last row goes there too; ArrowUp from nothing reaches it", async () => {
+    const { input, onPick } = mount();
+    const ask = async () => { act(() => input.focus()); await type(input, "hypnotic"); await reply(/q=hypnotic/, answer("hypnotic", { hits: [t("4215", "Hypnotic Robotics")] })); };
+    await ask();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=hypnotic" }));
+    await ask();
+    fireEvent.click(screen.getByRole("option", { name: /See all results for “hypnotic”/ }));
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=hypnotic" }));
+    await ask();
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(screen.getByRole("option", { name: /See all results/ }).getAttribute("aria-selected")).toBe("true");
+    expect(beacon).not.toHaveBeenCalled(); // the full page is no result: nothing counted
+  });
+  it("typing again drops the highlight: Enter on the older list opens the full page for what's typed, never the old row", async () => {
+    const { input, onPick } = mount();
+    await type(input, "4215");
+    await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getAllByRole("option")[0].getAttribute("aria-selected")).toBe("true");
+    await type(input, "4215 vs 6980");
+    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
+    fireEvent.keyDown(input, { key: "ArrowDown" }); // a row of the older list, still on screen
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
+  });
+  it("where Bruno AI's suggestion isn't shown (refine off), he's never asked", async () => {
+    const { useSearchHits } = await import("./SearchBox");
+    function Page() { const { hits } = useSearchHits("zz", undefined, 15, null, false); return <p>{hits.length}</p>; }
+    render(<Page />);
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await reply(/\/api\/search\?q=zz/, answer("zz", { step: "did-you-mean", weak: true, hits: [t("1", "Zz Bots")] }));
+    expect(pending.some((p) => p.url.includes("/refine"))).toBe(false);
+  });
+  it("nothing found is never a bare dead end: a hint and the row to the full page", async () => {
+    const { input } = mount();
+    await type(input, "asdfgh");
+    await reply(/q=asdfgh/, answer("asdfgh", { step: "recovery", weak: true, hits: [] }));
+    expect(screen.getByText(/No team, event or match matches “asdfgh” yet/)).toBeTruthy();
+    expect(screen.getByRole("option", { name: /See all results for “asdfgh”/ })).toBeTruthy();
+  });
+  it("a question's answer card sits above the results, from the answer's own records", async () => {
+    const { input } = mount();
+    await type(input, "when did hypnotic go to worlds");
+    await reply(/q=when/, answer("when did hypnotic go to worlds", {
+      hits: [{ ...t("4215", "Hypnotic Robotics"), section: "events" }],
+      card: { kind: "worlds", title: "Worlds appearances", team: { number: 4215, name: "Hypnotic Robotics" }, lines: [{ text: "2024 FIRST Championship - Edison Division", detail: "2023–24 · ranked #3", href: "/events/2023/FTCCMP1EDIS?team=4215" }] },
+    }));
+    const card = screen.getByRole("note", { name: /Worlds appearances: Hypnotic Robotics \(4215\)/ });
+    expect(card.textContent).toContain("Edison Division");
+  });
+  it("a picker box (seeAll off) has no full-page row, and Enter takes its top result", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} kinds={["team"]} seeAll={false} placeholder="Team" label="Pick" />);
+    const input = screen.getByRole("combobox", { name: "Pick" }) as HTMLInputElement;
+    act(() => input.focus());
+    await type(input, "hyp");
+    await reply(/q=hyp/, { hits: [t("4215", "Hypnotic Robotics")] });
+    expect(screen.queryByRole("option", { name: /See all results/ })).toBeNull();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
+  });
+});
+
 describe("keyboard and screen readers (T16, T57, T58)", () => {
   it("Down and Up move, Enter opens the highlighted one, the list is a listbox the field controls", async () => {
     const { input, onPick } = mount();
@@ -73,7 +162,11 @@ describe("keyboard and screen readers (T16, T57, T58)", () => {
     await reply(/q=robotics/, answer("robotics", { hits }));
     expect(input.getAttribute("aria-expanded")).toBe("true");
     expect(input.getAttribute("aria-controls")).toBe(screen.getByRole("listbox").id);
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([expect.stringContaining("4215 Hypnotic Robotics"), expect.stringContaining("6980 Bad Wolf")]);
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([expect.stringContaining("4215 Hypnotic Robotics"), expect.stringContaining("6980 Bad Wolf"), "See all results for “robotics”"]);
+    // Nothing is highlighted until a key or the pointer picks a row.
+    expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
+    expect(input.hasAttribute("aria-activedescendant")).toBe(false);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     expect(screen.getAllByRole("option")[1].getAttribute("aria-selected")).toBe("true");
     expect(input.getAttribute("aria-activedescendant")).toBe(screen.getAllByRole("option")[1].id);
@@ -114,6 +207,7 @@ describe("the answer's parts", () => {
     await type(input, "robots that hypnotise");
     const base = [t("11545", "Dread Pirate Robots"), t("7", "Robot Seven")];
     await reply(/\/api\/search\?q=/, answer("robots that hypnotise", { step: "did-you-mean", weak: true, hits: base }));
+    fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "ArrowDown" }); // on "Robot Seven"
     await reply(/\/api\/search\/refine/, answer("robots that hypnotise", { step: "ai", refined: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
     const selected = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");

@@ -135,7 +135,7 @@ function Picker({ onPick }: { onPick: (p: PredictPick) => void }) {
   return (
     <div className="max-w-2xl space-y-3">
       <SearchBox
-        kinds={["team", "event"]} label="Team or event with scheduled matches"
+        kinds={["team", "event"]} label="Team or event with scheduled matches" seeAll={false}
         placeholder="Team or event: number or name"
         onPick={(h) => onPick(parsePick(h.kind === "team" ? `team:${h.ref}` : `event:${h.ref}`))}
         emptyHint={quick.length ? (

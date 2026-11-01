@@ -15,6 +15,27 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.8 — 2026-10-31
+
+Press Enter for every result, and ask search a question: when a team went to Worlds, what it won, when it plays next.
+
+### Highlights
+- [teams] Enter opens "Here's what we found": every result for your search
+- [history] "when did hypnotic go to worlds" answers from its event history
+- [teams] "what events did hypnotic win", "has bad wolf won anything" answered
+- [teams] "badwolf" finds Bad Wolf: names typed without spaces still match
+- [speed] The home globe holds still while you type, so typing stays smooth
+
+### Search
+- **Enter goes to the full results.** With nothing highlighted, Enter opens /search for what you typed; the arrow keys or the pointer pick a row, and Enter opens that row. Every list ends with "See all results for …", which goes to the same page, and a search that finds nothing shows a hint and that row, never "Nothing matches" alone.
+- **Here's what we found.** The results page says what the search was read as ("Showing: Hypnotic Robotics (4215) vs Bad Wolf (6980) — Compare"), puts a question's answer at the top, then teams, events, matches and pages. Its address is the search, so Back and sharing work.
+- **Questions.** "when did hypnotic robotics go to worlds" lists the team's FIRST Championship appearances (division, rank, record, awards); a year or team with none says so plainly and shows the closest real results (its other trips, or its state championship). "what events did hypnotic win", "has bad wolf won anything", and "when is hypnotic's next event" or "next match" answer from the stored events, awards and schedule; nothing is made up when none is published.
+- **Names.** Words typed together ("badwolf") match a name's words side by side; "hypnotics" still finds Hypnotic Robotics. "hypnotic vs bad wolf awards" opens Compare on its events and awards. A name that only matches a team that never played (a test sign-up) counts as not found, so versus never opens a Compare with it.
+- **Typing.** The last results stay on screen, dimmed, while the next ones load, instead of the list emptying at every key.
+
+### Home
+- The globe stops turning while a search box has focus: each turn redrew every country, which slowed typing on phones (#374).
+
 ## 1.7.7 — 2026-10-31
 
 Team and event pages open as the finished page: no half-loaded screen, no sections jumping in.

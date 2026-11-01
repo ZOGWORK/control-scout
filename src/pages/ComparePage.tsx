@@ -469,7 +469,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
       {/* The brief stays closed until asked for: the table and charts come first. */}
       <CompareBrief d={d} />
       {lab && <Button asChild variant="secondary"><Link to={lab}><Sparkles /> Predict {t[0].team.number}+{t[1].team.number} vs {t[2].team.number}+{t[3].team.number}</Link></Button>}
-      <Section title="Events and awards" description={`Each team's ${seasonLabel(d.season)} season side by side: where it played, how it ranked, and what it won`}>
+      <Section id="awards" title="Events and awards" description={`Each team's ${seasonLabel(d.season)} season side by side: where it played, how it ranked, and what it won`}>
         <div className={cn("grid gap-3", t.length > 1 && "sm:grid-cols-2", t.length > 2 && "xl:grid-cols-4")}>
           {t.map((x, i) => (
             <div key={x.team.number} className="min-w-0 rounded-xl border border-border bg-card p-3">
