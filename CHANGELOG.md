@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.1 — 2026-11-01
+## 1.8.2 — 2026-11-01
 
 Scout is rebuilt around event day: pick your event once, then see what's left to scout, matches and pits side by side.
 
@@ -31,6 +31,17 @@ Scout is rebuilt around event day: pick your event once, then see what's left to
 - **Event day.** What you watch (one team, one alliance or all four) is a strip you can change any time, not a setup screen. Under it: the next match, matches scouted, pit scouting and entries today, then the match queue (next match marked, one tap to scout it) and the pit queue (to do and done, the next team first in line), side by side on a wide screen and stacked on a phone. Your own teams at the event show with their rank and next match.
 - **Sections.** Scout and Data are now Event day, Entries (the entry list, recordings and Export CSV) and Pick list & planning (the pick list, assignments, alliance, activity and, for admins, the template). Personal has the first two. Old links (?tab=match, ?tab=matches, ?tab=data, ?view=…) open the section they meant (#380).
 
+## 1.8.1 — 2026-11-01
+
+Add teams to your shortlist right from the Shortlist page.
+
+### Highlights
+- [picklist] Type a team number or name on the Shortlist and press Add team
+- [picklist] Suggestions appear as you type; teams already listed show Added
+- [picklist] An empty Shortlist offers the same box to make your first pick
+
+### Shortlist
+- **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too (#378).
 ## 1.8.0 — 2026-11-01
 
 The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.
