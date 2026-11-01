@@ -609,8 +609,8 @@ function ExportButtons({ xlsx, csv, total, size, className, short }: { xlsx: str
   const one = (href: string, icon: ReactNode, label: string, format: string) => (
     <Button variant="outline" size={size} className={className} asChild={total > 0} disabled={!total}>
       {total > 0
-        ? <a href={href} download>{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export </span>{format}<span className="sr-only"> {label} {rows}</span></span></a>
-        : <span className="inline-flex items-center gap-2">{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export </span>{format}<span className="sr-only"> {label} {rows}</span></span></span>}
+        ? <a href={href} download>{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export</span> {format}<span className="sr-only"> {label} {rows}</span></span></a>
+        : <span className="inline-flex items-center gap-2">{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export</span> {format}<span className="sr-only"> {label} {rows}</span></span></span>}
     </Button>
   );
   return (

@@ -21,7 +21,7 @@ Tables export to Excel in colour, like they look on the site.
 
 ### Highlights
 - [rankings] Export Excel: every records table downloads as a coloured spreadsheet
-- [rankings] Green for the best fifth of the rows, red for the worst, as on an event's table
+- [rankings] Best fifth of the rows in green, worst in red
 - [rankings] Each column's header keeps its colour; dates read as dates
 
 ### Records tables
@@ -42,6 +42,7 @@ Search answers "world record score bio buzz" and "4215 high score".
 - "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#401)
 - A game's name is read with any spacing ("bio buzz", "BIOBUZZ", "into the deep"); with no season named, the latest one played
 - With no official match played yet in that season, the card says there's no record yet and lists the best scrimmage scores instead
+
 ## 2.0.3 — 2026-11-01
 
 Search waits for you to stop typing, and Enter works the first time.
@@ -55,6 +56,7 @@ Search waits for you to stop typing, and Enter works the first time.
 - Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
 - Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
 - In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
+
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.
@@ -383,6 +385,7 @@ Add teams to your shortlist right from the Shortlist page.
 
 ### Shortlist
 - **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too (#378).
+
 ## 1.8.0 — 2026-11-01
 
 The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.
@@ -765,6 +768,7 @@ The Playoffs tab now predicts the bracket: a call for every series, each allianc
 - **Any format.** 2-alliance finals, 2023–24 semifinals and finals, and 4-, 6- and 8-alliance double-elimination brackets, read from what the event posted. For a format we can't map, each series still gets its own call.
 - **Measured.** Replayed on 10,598 past playoff series with only what was known before each one, the favourite won 77.9% (the higher seed: 71.7%), Brier 0.151, and the championship odds come out calibrated (docs/bracket-predictor.md).
 - **Clean states.** Before alliance selection, the tab says so. With alliances posted but no playoff schedule yet, a banner says the odds come from the alliances alone.
+
 ## 1.5.7 — 2026-10-31
 
 A rules quick reference for the question box: the most-cited BIOBUZZ rules and Q&A rulings, searchable with no signal.
@@ -906,6 +910,7 @@ The owner can switch seven features off and back on from the console, for everyo
 - **Off is never "removed".** A workspace paused by the owner answers the app with `feature_disabled`, which the app shows as "Paused by the owner": queued entries, pick list changes and comments stay on the device and go up once it's back, and nothing is ever moved to Personal.
 - **Friendly when off.** Predict, an event's Odds tab, Home's coin flips and the Power rankings page say the feature is switched off for now, links straight to them included.
 - **Every flip in the audit log.** Global and per-workspace changes record the old and new value ("on → off", "off → follows global"). (#340)
+
 ## 1.4.7 — 2026-10-29
 
 The owner console now shows the engine in production with live and replay side by side, and lets the owner write the home page's headline lines.
