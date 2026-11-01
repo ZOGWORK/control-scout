@@ -95,6 +95,22 @@ describe("the answer cards", () => {
     expect(none).toMatchObject({ lines: [], none: "No upcoming event is published for Hypnotic Robotics yet." });
     expect((await searchAnswer("when is hypnotic's next match")).card!.none).toMatch(/^No upcoming match is scheduled for Hypnotic Robotics yet/);
   });
+  it("wins and awards in a year: only that year's, or none said for it; a season named otherwise is left to search", async () => {
+    expect(parseQuestion("what events did hypnotic win in 2024")).toEqual({ kind: "wins", core: "hypnotic", year: 2024 });
+    expect((await searchAnswer("what events did hypnotic win in 2024")).card!.lines.map((l) => l.text)).toEqual(["Won New Jersey State Championship"]);
+    const none = (await searchAnswer("what events did hypnotic win in 2023")).card!;
+    expect(none).toMatchObject({ lines: [], none: "No event wins in 2023 found in Hypnotic Robotics's recorded history." });
+    expect((await searchAnswer("has hypnotic won anything in 2025")).card!.none).toBe("No awards in 2025 found in Hypnotic Robotics's recorded history.");
+    for (const q of ["what events did hypnotic win last season", "has hypnotic won anything in 2023-24", "did hypnotic go to worlds last season"]) expect(parseQuestion(q), q).toBeNull();
+  });
+  it("the first HTML of /search carries the answer: what it shows, the card's records, or its none-found note", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    const yes = (await pageMeta("/search", { q: "when did hypnotic go to worlds" })).bodyHtml!;
+    expect(yes).toContain("Showing: <b>Hypnotic Robotics (4215) — Worlds appearances</b>");
+    expect(yes).toContain('<a href="/events/2023/FTCCMP1EDIS?team=4215">2024 FIRST Championship - Edison Division</a>');
+    const no = (await pageMeta("/search", { q: "has bad wolf won anything" })).bodyHtml!;
+    expect(no).toMatch(/No awards found in Bad Wolf(&#39;|')s recorded history\./);
+  });
   it("an event is on until its last day ends at its venue, not in UTC", async () => {
     // Bad Wolf plays in Los Angeles on Oct 18; at 02:00 UTC on the 19th it's still the 18th's evening there.
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (2026, 'USCALA', 'Los Angeles Qualifier', 'Qualifier', 'Los Angeles', 'CA', 'USA', '2026-10-18', '2026-10-18', 'America/Los_Angeles', 't')");

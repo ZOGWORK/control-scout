@@ -26,13 +26,13 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
-import type { TrackRecord } from "../src/shared/api.js";
+import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { searchAnswer } from "./api/searchAnswer.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, showingLine } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -443,7 +443,14 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
   const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...notes.understood.map(esc), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
-  const body = (said.length ? `<p>${said.join("<br>")}</p>` : "") + sections.map((sec) => {
+  const showing = showingLine(answer);
+  // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
+  // "none found" with the closest records under it.
+  const c = answer.card;
+  const cardLines = (ls: SearchCardLine[]) => `<ul>${ls.map((l) => `<li>${l.href ? `<a href="${esc(l.href)}">${esc(l.text)}</a>` : esc(l.text)}${l.detail ? `<br><small>${esc(l.detail)}</small>` : ""}</li>`).join("")}</ul>`;
+  const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc(c.title)} · ${esc(c.team.name ? `${c.team.name} (${c.team.number})` : `Team ${c.team.number}`)}</h2>`
+    + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
+  const body = (showing ? `<p>Showing: <b>${esc(showing)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
   }).join("");

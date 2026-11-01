@@ -28,7 +28,12 @@ const WORLDS = /\b(?:worlds?|world champ(?:ionships?|s)?|first champ(?:ionships?
 // The question's own words, never part of a team's name here: what's left names the team.
 const FRAME = /\b(?:when|whens|did|does|do|has|have|had|what|which|is|was|were|where|will|ever|go|goes|going|went|gone|been|get|got|make|made|qualify|qualified|attend|attended|compete|competed|play|played|to|the|at|in|for|a|an|any|their|its|team)\b/gi;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
+/** A season named some way other than "in <year>": a question with one is left to search, never answered for all seasons. */
+const OTHER_SEASON = /\b(?:seasons?|20\d\d\s*[-–/]\s*\d\d|(?:last|this|previous|past|next)\s+year)\b/i;
 const coreOf = (s: string) => squash(s.replace(/['’]s\b/gi, " ").replace(FRAME, " "));
+/** A year only as a date ("in 2025", "during 2024"), never a season's start ("in 2023-24"): a bare 2000–2099 may be a
+ *  team ("when did 2025 go to worlds"). */
+const YEAR = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/i;
 
 /** The question `q` asks, or null when it isn't one of these. */
 export function parseQuestion(q: string): ParsedQuestion | null {
@@ -38,18 +43,23 @@ export function parseQuestion(q: string): ParsedQuestion | null {
     return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null } : null;
   }
   if (WORLDS.test(q)) {
-    // A year only as a date ("in 2025", "during 2024"): a bare 2000–2099 may be a team ("when did 2025 go to worlds").
-    const y = /\b(?:in|during)\s+(20\d\d)\b/i.exec(q);
+    const y = YEAR.exec(q);
     const core = coreOf((y ? q.replace(y[0], " ") : q).replace(new RegExp(WORLDS.source, "gi"), " "));
     // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances"): "worlds"
     // on its own beside a name stays search's ("worlds" is the championship's events).
     const asked = /\b(?:when|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
-    return core && asked ? { kind: "worlds", core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null } : null;
+    return core && asked && !OTHER_SEASON.test(core) ? { kind: "worlds", core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null } : null;
   }
-  const won = /\bwhat\s+(?:events?|tournaments?|competitions?|meets?)\s+(?:did|has|have)\s+(.+?)\s+(?:win|won)\b/i.exec(q);
-  if (won) return coreOf(won[1]) ? { kind: "wins", core: coreOf(won[1]), year: null } : null;
-  const any = /\b(?:has|have|did)\s+(.+?)\s+(?:ever\s+)?(?:won|win)\s+(?:anything|any\s*thing|any|awards?|an?\s+awards?|any\s+awards?|events?)\b/i.exec(q);
-  if (any) return coreOf(any[1]) ? { kind: "awards", core: coreOf(any[1]), year: null } : null;
+  // Wins and awards, in a year when one is given ("in 2024": events held that year). A season named any other way
+  // ("last season", "2024-25") isn't read here: the question is left to search rather than answered for every season.
+  const y = YEAR.exec(q);
+  const rest = y ? squash(q.replace(y[0], " ")) : q;
+  const year = y ? Number(y[1]) : null;
+  const scoped = OTHER_SEASON.test(rest);
+  const won = /\bwhat\s+(?:events?|tournaments?|competitions?|meets?)\s+(?:did|has|have)\s+(.+?)\s+(?:win|won)\b/i.exec(rest);
+  if (won) return coreOf(won[1]) && !scoped ? { kind: "wins", core: coreOf(won[1]), year } : null;
+  const any = /\b(?:has|have|did)\s+(.+?)\s+(?:ever\s+)?(?:won|win)\s+(?:anything|any\s*thing|any|awards?|an?\s+awards?|any\s+awards?|events?)\b/i.exec(rest);
+  if (any) return coreOf(any[1]) && !scoped ? { kind: "awards", core: coreOf(any[1]), year } : null;
   return null;
 }
 
@@ -131,14 +141,16 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
   if (it.kind === "wins" || it.kind === "awards") {
     const rows = await all<{ season: number; code: string; name: string; start: string | null; end: string | null; type: string; placement: number }>(
       `SELECT a.season, a.code, e.name, e.start, e.end, a.type, a.placement FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code
-       WHERE a.team = ? ${it.kind === "wins" ? "AND a.type = 'Winner'" : ""} ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.placement`, [n]);
+       WHERE a.team = ? ${it.kind === "wins" ? "AND a.type = 'Winner'" : ""} ${it.year != null ? "AND substr(e.start, 1, 4) = ?" : ""}
+       ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.placement`, it.year != null ? [n, String(it.year)] : [n]);
     card.lines = rows.map((r) => ({
       text: it.kind === "wins" ? `Won ${r.name}` : `${awardLabel(r.type, Number(r.placement))}: ${r.name}`,
       detail: [seasonLabel(r.season), dateRange(r.start, r.end), it.kind === "wins" ? "Winning Alliance" : ""].filter(Boolean).join(" · "),
       href: eventHref(r.season, r.code, n),
     }));
     if (!card.lines.length) {
-      card.none = it.kind === "wins" ? `No event wins found in ${who}'s recorded history.` : `No awards found in ${who}'s recorded history.`;
+      const when = it.year != null ? ` in ${it.year}` : "";
+      card.none = it.kind === "wins" ? `No event wins${when} found in ${who}'s recorded history.` : `No awards${when} found in ${who}'s recorded history.`;
       if (it.kind === "wins") {
         const other = await all<{ season: number; code: string; name: string; type: string; placement: number }>(
           "SELECT a.season, a.code, e.name, a.type, a.placement FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY e.start DESC LIMIT 5", [n]);
