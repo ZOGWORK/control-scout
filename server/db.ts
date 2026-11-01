@@ -1775,6 +1775,40 @@ CREATE TABLE event_stream_links (
 DELETE FROM request_metrics_daily WHERE route LIKE '% /api/%/stream';
 `,
   },
+  {
+    version: 68,
+    name: "scouting alliances with any number of members",
+    sql: `
+-- An alliance links any number of workspaces for one event (server/scout/alliances.ts, docs/alliances.md), not just
+-- two. scout_alliances keeps the alliance itself: inviter_ws/inviter_name are now its creator (who invites and removes;
+-- passed on if the creator leaves), code_hash/invite_expires_at its current invite code (reusable until it expires or
+-- a new one replaces it). The invitee_* columns are no longer read: every workspace in it is a row here.
+-- left_reason: left (its admin left) | removed (the creator removed it); left_at null while it's in.
+CREATE TABLE scout_alliance_members (
+  alliance_id INTEGER NOT NULL,
+  ws TEXT NOT NULL,
+  name TEXT NOT NULL,
+  keeps INTEGER NOT NULL,
+  joined_by_account_id INTEGER NOT NULL,
+  joined_at INTEGER NOT NULL,
+  left_at INTEGER,
+  left_reason TEXT,
+  PRIMARY KEY (alliance_id, ws)
+);
+CREATE INDEX scout_alliance_members_ws ON scout_alliance_members (ws, left_at);
+-- Existing two-team links carry over: the inviter and, once accepted, the invitee.
+INSERT INTO scout_alliance_members (alliance_id, ws, name, keeps, joined_by_account_id, joined_at)
+  SELECT id, inviter_ws, inviter_name, inviter_keeps, invited_by_account_id, created_at FROM scout_alliances;
+INSERT INTO scout_alliance_members (alliance_id, ws, name, keeps, joined_by_account_id, joined_at)
+  SELECT id, invitee_ws, COALESCE(invitee_name, ''), COALESCE(invitee_keeps, 0), COALESCE(accepted_by_account_id, 0), COALESCE(accepted_at, created_at)
+    FROM scout_alliances WHERE invitee_ws IS NOT NULL;
+-- copies_wanted: when it ended, at least two of its workspaces had agreed to keep copies (copies_made says they're done).
+ALTER TABLE scout_alliances ADD COLUMN copies_wanted INTEGER NOT NULL DEFAULT 0;
+UPDATE scout_alliances SET copies_wanted = 1 WHERE status = 'ended' AND accepted_at IS NOT NULL AND inviter_keeps = 1 AND invitee_keeps = 1;
+-- The workspace a queued copy comes from (null on rows queued before this: any of the alliance's workspaces).
+ALTER TABLE scout_alliance_copy_queue ADD COLUMN from_ws TEXT;
+`,
+  },
 ];
 
 export type Db = Client;

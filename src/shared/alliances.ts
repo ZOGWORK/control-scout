@@ -1,22 +1,33 @@
-// Scouting alliances (docs/alliances.md): two workspaces linked for one event share a union of entries and
+// Scouting alliances (docs/alliances.md): any number of workspaces linked for one event share a union of entries and
 // assignments and one consensus, then split again when the event ends. Shared between the server
 // (server/scout/alliances.ts) and the Scout page.
 import type { Assignment, MatchAssignment } from "./assignments";
 import type { TeamConsensus } from "./consensus";
 import type { PickList } from "./picklist";
 
-/** pending: invited, not accepted yet. active: linked. ended: over (the event ended, unlinked, or never accepted). */
+/** pending: started, nobody has joined yet. active: two or more workspaces in it. ended: over (for everyone, or for the reader's workspace). */
 export type AllianceStatus = "pending" | "active" | "ended";
-export type AllianceEndReason = "event_over" | "unlinked" | "cancelled" | "expired";
+/**
+ * event_over, unlinked (its creator ended it, or too few were left), cancelled (ended before anyone joined), expired
+ * (nobody joined before the code ran out); for one workspace only: left (it left), removed (the creator removed it).
+ */
+export type AllianceEndReason = "event_over" | "unlinked" | "cancelled" | "expired" | "left" | "removed";
 
-export interface AllianceSide {
+/** At most this many workspaces in one alliance (each gets its own colour on the Scout page). */
+export const MAX_ALLIANCE_MEMBERS = 8;
+
+export interface AllianceMember {
   workspaceId: string;
   name: string;
-  /** Agreed, at link time, that each side keeps a copy of the other's entries when the link ends. Null: hasn't answered (not accepted yet). */
-  keepsCopies: boolean | null;
+  /** Agreed, when it joined, to keep a copy of the others' entries when the link ends (copies go only between workspaces that both agreed). */
+  keepsCopies: boolean;
+  /** Started the alliance (or took it over when its creator left): invites and removes. */
+  creator: boolean;
+  /** ms */
+  joinedAt: number;
 }
 
-/** One link as one side's member reads it: `you` is the reader's workspace. */
+/** One alliance as one member workspace's people read it: `you` is the reader's workspace. */
 export interface Alliance {
   id: number;
   season: number;
@@ -24,35 +35,32 @@ export interface Alliance {
   eventName: string | null;
   /** The event's last day (YYYY-MM-DD): the link ends after it. */
   endsOn: string;
+  /** For the reader's workspace: ended once it left or was removed, even while the others carry on. */
   status: AllianceStatus;
   endedReason: AllianceEndReason | null;
-  you: AllianceSide;
-  /** Null while pending: nobody has accepted yet. */
-  partner: AllianceSide | null;
-  invitedByYou: boolean;
+  you: AllianceMember;
+  /** Every workspace in it now (the reader's too, unless it left), in the order they joined. */
+  members: AllianceMember[];
   /** ms */
   createdAt: number;
-  acceptedAt: number | null;
   endedAt: number | null;
-  /** Pending only: the invite code stops working after this (ms). */
+  /** The creator only, while its invite code works: when it stops (ms). */
   inviteExpiresAt: number | null;
-  /** Both sides agreed to keep copies: true once the copies were made (the link ended). */
+  /** Copies were agreed and have been made (the link ended). */
   copiesKept: boolean;
 }
 
 /** GET /api/scout/workspaces/:id/alliances */
 export interface AlliancesResponse { alliances: Alliance[]; canManage: boolean }
-/** POST /api/scout/workspaces/:id/alliances: the code is shown once (only its hash is kept). */
+/** POST /api/scout/workspaces/:id/alliances, and …/:allianceId/invite: the code is shown once (only its hash is kept). */
 export interface AllianceInviteResponse { alliance: Alliance; code: string }
-
-export type AllianceSideKey = "you" | "partner";
 
 export interface AllianceAnswer { label: string; text: string }
 
-/** A live entry at the event, from either side. Read-only here: each stays its author's to edit, in its own workspace. */
+/** A live entry at the event, from any member. Read-only here: each stays its author's to edit, in its own workspace. */
 export interface AllianceEntry {
   uuid: string;
-  side: AllianceSideKey;
+  /** The member workspace it belongs to. */
   workspaceId: string;
   team: number;
   kind: "match" | "pit";
@@ -71,20 +79,21 @@ export interface CoverageSide {
   entries: number;
   matchEntries: number;
   pitEntries: number;
-  /** Distinct teams with at least one entry from this side. */
+  /** Distinct teams with at least one entry from this member. */
   teams: number;
-  /** Distinct match labels with at least one match entry from this side. */
+  /** Distinct match labels with at least one match entry from this member. */
   matches: number;
   /** Distinct authors. */
   scouts: number;
 }
 
-export interface TeamCoverage { team: number; name: string | null; you: number; partner: number }
+/** Entries per member for one team (workspace id -> count; a member with none is left out). */
+export interface TeamCoverage { team: number; name: string | null; total: number; byMember: Record<string, number> }
 
-/** Who contributed what. Shown, never enforced: a side that adds nothing still reads everything. */
+/** Who contributed what. Shown, never enforced: a member that adds nothing still reads everything. */
 export interface AllianceCoverage {
-  you: CoverageSide;
-  partner: CoverageSide;
+  /** One per member read here, in the alliance's member order. */
+  members: CoverageSide[];
   /** Every team at the event (its team list), plus any team scouted there that isn't on it; most scouted first. */
   teams: TeamCoverage[];
 }
@@ -93,18 +102,19 @@ export interface AllianceCoverage {
 export interface AllianceShared {
   alliance: Alliance;
   entries: AllianceEntry[];
-  assignments: (Assignment & { side: AllianceSideKey })[];
-  matchAssignments: (MatchAssignment & { side: AllianceSideKey })[];
+  /** Every member's, each with its own workspaceId. */
+  assignments: Assignment[];
+  matchAssignments: MatchAssignment[];
   coverage: AllianceCoverage;
 }
 
-/** GET /api/scout/workspaces/:id/alliances/:allianceId/consensus?teams=…: one consensus over both sides' entries at the event. */
+/** GET /api/scout/workspaces/:id/alliances/:allianceId/consensus?teams=…: one consensus over every member's entries at the event. */
 export interface AllianceConsensusResponse { allianceId: number; season: number; eventCode: string; teams: TeamConsensus[] }
 
-/** GET /api/scout/workspaces/:id/alliances/:allianceId/picklist: the partner's pick list, to read (only the teams on the event's team list). */
+/** GET /api/scout/workspaces/:id/alliances/:allianceId/picklist?workspace=…: another member's pick list, to read (only the teams on the event's team list). */
 export interface AlliancePicklistResponse {
-  allianceId: number; partnerName: string;
-  /** The event has a team list: without one no picks are sent (never the partner's whole season). */
+  allianceId: number; workspaceId: string; name: string;
+  /** The event has a team list: without one no picks are sent (never the member's whole season). */
   teamsKnown: boolean;
   list: PickList;
 }
