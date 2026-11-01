@@ -34,8 +34,8 @@ describe("decideUpdate: mode × network × connection", () => {
     ["ask", "any", "unknown", NO_TYPE, "prompt"],
     ["auto", "wifi", "wifi", WIFI, "download"],
     ["auto", "wifi", "cellular", CELL, "wait"],
-    ["auto", "wifi", "unknown (Safari)", SAFARI, "prompt"], // can't tell: ask first, never guess
-    ["auto", "wifi", "unknown (no type)", NO_TYPE, "prompt"],
+    ["auto", "wifi", "unknown (Safari)", SAFARI, "download"], // can't tell: counts as Wi-Fi, no nagging
+    ["auto", "wifi", "unknown (no type)", NO_TYPE, "download"],
     ["auto", "any", "wifi", WIFI, "download"],
     ["auto", "any", "cellular", CELL, "download"],
     ["auto", "any", "unknown", SAFARI, "download"],
@@ -55,8 +55,8 @@ describe("decideUpdate: mode × network × connection", () => {
     expect(at("ask", "wifi", WIFI, { later: ["2025:older"] })).toBe("prompt");
     // Switching to automatic downloads it after all: Later was an answer to the question, not to auto mode.
     expect(at("auto", "wifi", WIFI, { later: [ID] })).toBe("download");
-    // Auto mode that has to ask (browser can't tell) respects Later too.
-    expect(at("auto", "wifi", SAFARI, { later: [ID] })).toBe("none");
+    // Auto mode never asks, wherever the browser can't tell the connection either.
+    expect(at("auto", "wifi", SAFARI, { later: [ID] })).toBe("download");
   });
 
   it("Later is per season: another season's new release asks, and dropping one never revives the other", () => {
@@ -66,9 +66,10 @@ describe("decideUpdate: mode × network × connection", () => {
     expect(at("ask", "wifi", WIFI, { pending: ["2025:abc", "2024:new"], later: ["2025:abc", "2024:def"] })).toBe("prompt");
   });
 
-  it("Data Saver always asks first, even on Wi-Fi and mobile data", () => {
-    expect(at("auto", "any", { ...CELL, saveData: true })).toBe("prompt");
-    expect(at("auto", "wifi", { ...WIFI, saveData: true })).toBe("prompt");
+  it("Data Saver waits quietly in auto mode (no prompt, no download), even on Wi-Fi", () => {
+    expect(at("auto", "any", { ...CELL, saveData: true })).toBe("wait");
+    expect(at("auto", "wifi", { ...WIFI, saveData: true })).toBe("wait");
+    expect(at("ask", "wifi", { ...WIFI, saveData: true })).toBe("prompt"); // someone who chose Ask me is still asked
   });
 });
 
@@ -106,8 +107,9 @@ describe("liteAllowed", () => {
 });
 
 describe("settings and words", () => {
-  it("defaults to ask first, Wi-Fi only", () => {
-    expect(updatePrefs(undefined)).toEqual({ mode: "ask", network: "wifi" });
+  it("defaults to downloading automatically, Wi-Fi only; Ask me only when chosen", () => {
+    expect(updatePrefs(undefined)).toEqual({ mode: "auto", network: "wifi" });
+    expect(updatePrefs({ offlineUpdates: "ask" })).toEqual({ mode: "ask", network: "wifi" });
     expect(updatePrefs({ offlineUpdates: "auto", offlineNetwork: "any" })).toEqual({ mode: "auto", network: "any" });
   });
   it("asks the question with the season and size", () => {
@@ -118,7 +120,8 @@ describe("settings and words", () => {
     expect(updateStatus("auto", "wifi", WIFI)).toBe("Updates download automatically on Wi-Fi.");
     expect(updateStatus("auto", "any", CELL)).toBe("Updates download automatically on Wi-Fi and mobile data.");
     expect(updateStatus("auto", "wifi", CELL)).toMatch(/mobile data now, so updates wait for Wi-Fi/);
-    expect(updateStatus("auto", "wifi", SAFARI)).toMatch(/doesn't tell sites whether it's on Wi-Fi, so you'll be asked first/);
+    expect(updateStatus("auto", "wifi", SAFARI)).toBe("Updates download automatically on Wi-Fi.");
+    expect(updateStatus("auto", "wifi", { ...WIFI, saveData: true })).toMatch(/Data Saver is on, so updates wait until it's off/);
     expect(updateStatus("ask", "wifi", SAFARI)).toBe("You'll be asked when an update is out (downloads on Wi-Fi).");
   });
 });

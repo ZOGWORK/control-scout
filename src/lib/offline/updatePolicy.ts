@@ -4,8 +4,9 @@
 //
 // The connection comes from the Network Information API (navigator.connection.type and saveData), which only
 // some browsers have: Chrome on Android says "wifi" or "cellular", desktop Chrome has the object but no type,
-// Safari and iOS have none of it. Where the browser doesn't say, Wi-Fi only can't be honoured by guessing, so
-// it becomes "ask first": a prompt, never a silent download.
+// Safari and iOS have none of it. Updates download by themselves unless the person chose "Ask me": known mobile
+// data on Wi-Fi only, or Data Saver, waits quietly for a better connection rather than asking. Where the browser
+// doesn't say (every iPhone), it counts as Wi-Fi: asking on every update there was the nag people disliked.
 import type { Settings } from "../../shared/personal";
 import { constrained, type ConnectionInfo } from "../packPolicy";
 import { seasonLabel } from "../format";
@@ -14,9 +15,9 @@ import { fmtBytes } from "../recordings";
 export type UpdateMode = NonNullable<Settings["offlineUpdates"]>;
 export type UpdateNetwork = NonNullable<Settings["offlineNetwork"]>;
 
-/** The two settings, with their defaults: ask first, Wi-Fi only. */
+/** The two settings, with their defaults: download automatically, Wi-Fi only. */
 export function updatePrefs(s: Pick<Settings, "offlineUpdates" | "offlineNetwork"> | null | undefined): { mode: UpdateMode; network: UpdateNetwork } {
-  return { mode: s?.offlineUpdates === "auto" ? "auto" : "ask", network: s?.offlineNetwork === "any" ? "any" : "wifi" };
+  return { mode: s?.offlineUpdates === "ask" ? "ask" : "auto", network: s?.offlineNetwork === "any" ? "any" : "wifi" };
 }
 
 /** What the browser says about the connection: Wi-Fi (or wired), mobile data, or nothing useful. */
@@ -45,8 +46,9 @@ export function releaseKey(updates: SeasonUpdate[]): string | null {
 
 /**
  * none: nothing to do (no update, offline, or "Later" for every one of them).
- * wait: an update is out, but Wi-Fi only and this is mobile data: no prompt, no download until Wi-Fi.
- * prompt: ask (inbox item, plus one pop-up per release).
+ * wait: an update is out but this connection isn't for it (mobile data on Wi-Fi only, or Data Saver on):
+ *   no prompt, no download until it is.
+ * prompt: ask (inbox item, plus one pop-up per release); only for someone who chose "Ask me".
  * download: download it now, no question.
  */
 export type UpdateAction = "none" | "wait" | "prompt" | "download";
@@ -67,9 +69,7 @@ export function decideUpdate(i: UpdateInput): UpdateAction {
   const kind = netKind(i.connection);
   const saveData = i.connection?.saveData === true;
   if (i.network === "wifi" && kind === "cellular") return "wait";
-  // Automatic only when the connection is known to be allowed; Data Saver on always asks first.
-  const allowed = !saveData && (i.network === "any" || kind === "wifi");
-  if (i.mode === "auto" && allowed) return "download";
+  if (i.mode === "auto") return saveData ? "wait" : "download"; // an unknown connection counts as Wi-Fi
   return i.pending.every((id) => i.later.includes(id)) ? "none" : "prompt";
 }
 
@@ -104,7 +104,6 @@ export function updateStatus(mode: UpdateMode, network: UpdateNetwork, c: Connec
   const on = network === "any" ? "on Wi-Fi and mobile data" : "on Wi-Fi";
   const base = mode === "auto" ? `Updates download automatically ${on}.` : `You'll be asked when an update is out (downloads ${on}).`;
   if (network === "wifi" && kind === "cellular") return `${base} You're on mobile data now, so updates wait for Wi-Fi.`;
-  if (mode === "auto" && c?.saveData) return `${base} Data Saver is on, so you'll be asked first.`;
-  if (mode === "auto" && network === "wifi" && kind === "unknown") return `${base} This browser doesn't tell sites whether it's on Wi-Fi, so you'll be asked first.`;
+  if (mode === "auto" && c?.saveData) return `${base} Data Saver is on, so updates wait until it's off.`;
   return base;
 }
