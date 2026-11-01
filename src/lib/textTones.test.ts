@@ -9,6 +9,7 @@ import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, VIDEO_TONE, E
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
+import { ALLIANCE_HUES } from "../components/PlayoffBracket";
 
 type Theme = "dark" | "light";
 
@@ -136,6 +137,9 @@ describe("text tones reach WCAG AA in both themes", () => {
       const m = measure(theme, CHART_LEGEND_TEXT, { inherit: "--color-chart-1" });
       expect(m.ratio, m.pair).toBeGreaterThanOrEqual(AA);
     });
+    it(`playoff alliance chips, every alliance number (${theme})`, () => {
+      for (const [i, h] of ALLIANCE_HUES.entries()) expect(measure(theme, h.chip).ratio, `A${i + 1}: ${measure(theme, h.chip).pair}`).toBeGreaterThanOrEqual(AA);
+    });
     it(`video red as text and on its Watch chip's tint (${theme})`, () => {
       for (const cls of [VIDEO_TONE.text, VIDEO_TONE.chip]) expect(measure(theme, cls).ratio, `"${cls}": ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
     });
@@ -206,6 +210,8 @@ describe("text tones reach WCAG AA in both themes", () => {
     { const w = value("light", "--color-card"), g = value("light", "--color-accent"); expect(contrast(over([g[0], g[1], g[2], 0.6], w), w)).toBeLessThan(LARGE); }
     // A winner's red score used the alliance red itself: 4.4:1 on its 14% tint on dark (axe, the event page).
     expect(measure("dark", "bg-red-alliance/[0.14] text-red-alliance").ratio).toBeLessThan(AA);
+    // Alliance 1's amber chip on light: amber 700 on its 15% tint was 4.48:1 (axe, an event's playoffs).
+    expect(measure("light", "bg-amber-500/15 text-amber-700").ratio).toBeLessThan(AA);
     // The video red was a one-off #ff4d6d everywhere: 3.2:1 as small text on white.
     expect(contrast(parseColor("#ff4d6d")!, value("light", "--color-card"))).toBeLessThan(AA);
     // Gold as small text on light: the accent (#eab308) itself, 1.9 on the secondary panel, 1.8 on Compare's best-value tint.

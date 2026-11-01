@@ -9,18 +9,18 @@ import { oddsPct, seasonLabel } from "../lib/format";
 import { ConfidenceBadge, TierMark } from "./predict";
 import { cn } from "./cn";
 
-/** One hue per alliance number (chip tint, text, bar), the same in every card. */
-const HUES = [
-  { chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300", text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
+/** One hue per alliance number (chip tint, text, bar), the same in every card. Chip text reaches 4.5:1 on its tint in both themes (textTones.test.ts). */
+export const ALLIANCE_HUES = [
+  { chip: "bg-amber-500/15 text-amber-800 dark:text-amber-300", text: "text-amber-600 dark:text-amber-400", bar: "bg-amber-500" },
   { chip: "bg-sky-500/15 text-sky-700 dark:text-sky-300", text: "text-sky-600 dark:text-sky-400", bar: "bg-sky-500" },
   { chip: "bg-violet-500/15 text-violet-700 dark:text-violet-300", text: "text-violet-600 dark:text-violet-400", bar: "bg-violet-500" },
   { chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300", text: "text-emerald-600 dark:text-emerald-400", bar: "bg-emerald-500" },
   { chip: "bg-rose-500/15 text-rose-700 dark:text-rose-300", text: "text-rose-600 dark:text-rose-400", bar: "bg-rose-500" },
   { chip: "bg-teal-500/15 text-teal-700 dark:text-teal-300", text: "text-teal-600 dark:text-teal-400", bar: "bg-teal-500" },
-  { chip: "bg-orange-500/15 text-orange-700 dark:text-orange-300", text: "text-orange-600 dark:text-orange-400", bar: "bg-orange-500" },
+  { chip: "bg-orange-500/15 text-orange-800 dark:text-orange-300", text: "text-orange-600 dark:text-orange-400", bar: "bg-orange-500" },
   { chip: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300", text: "text-fuchsia-600 dark:text-fuchsia-400", bar: "bg-fuchsia-500" },
 ] as const;
-const hue = (alliance: number) => HUES[(alliance - 1 + HUES.length) % HUES.length];
+const hue = (alliance: number) => ALLIANCE_HUES[(alliance - 1 + ALLIANCE_HUES.length) % ALLIANCE_HUES.length];
 
 /** `muted`: a series' loser, in neutral grey rather than faded (a faded chip fell under 4.5:1). */
 export function AllianceChip({ alliance, className, muted }: { alliance: number; className?: string; muted?: boolean }) {

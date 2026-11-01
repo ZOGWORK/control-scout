@@ -31,6 +31,7 @@ Long names show in full when you point at them, table numbers line up, and headi
 - **Headings.** "Why: the top 3 factors" under a prediction was an h3 straight after the page's h1 (axe heading-order); it is an h2 now, same look.
 - **One type scale.** The few odd sizes left (9px rank labels, 10.5px and 11.5px on How it works) moved onto the scale's 10px, 11px and 12px steps (#385).
 - **Sponsors.** The label keeps to one line; the sponsor names truncate beside it instead.
+- **Playoff alliance chips.** Alliance 1 (amber) and 7 (orange) chips were just under 4.5:1 on light (4.48 and 4.45); their text takes the next deeper shade, and a test now checks all eight in both themes.
 
 ## 1.8.5 — 2026-11-01
 
