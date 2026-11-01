@@ -119,7 +119,7 @@ export async function buildBundle(input: BuildInput): Promise<BuiltBundle | null
   }
 
   const picklist = wsPart && workspace
-    ? { key: "picklist", label: "Pick list", time: null, count: wsPart.picks.picks.length, html: picklistHtml(wsPart.picks, ev, { asOf, workspaceName: workspace.name }) }
+    ? { key: "picklist", label: "Pick list", time: null, count: wsPart.picks.picks.length, teams: wsPart.picks.picks.map((p) => p.team), html: picklistHtml(wsPart.picks, ev, { asOf, workspaceName: workspace.name }) }
     : null;
   const rules = await rulesProvider(season, code).catch(() => null);
   const venue = venueOf(ev);

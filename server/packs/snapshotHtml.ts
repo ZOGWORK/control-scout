@@ -20,11 +20,11 @@ export const esc = (v: unknown): string => String(v ?? "").replace(/[&<>"']/g, (
 
 const num = (x: number | null | undefined, d = 1) => (x == null || !Number.isFinite(x) ? "–" : x.toFixed(d));
 
-/** "07:12" in the event's own time zone (the device's clock may differ; the zone is named when known). */
+/** "7:12 AM" in the event's own time zone (the device's clock may differ; the zone is named when known). */
 export function clockIn(iso: string, timezone: string | null): string {
   const d = new Date(iso);
   try {
-    const t = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", ...(timezone ? { timeZone: timezone, timeZoneName: "short" } : { timeZone: "UTC", timeZoneName: "short" }) });
+    const t = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, ...(timezone ? { timeZone: timezone, timeZoneName: "short" } : { timeZone: "UTC", timeZoneName: "short" }) });
     const day = d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(timezone ? { timeZone: timezone } : { timeZone: "UTC" }) });
     return `${day}, ${t}`;
   } catch { return d.toISOString().slice(0, 16).replace("T", " ") + " UTC"; }
