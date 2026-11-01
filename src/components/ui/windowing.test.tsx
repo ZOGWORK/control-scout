@@ -120,6 +120,21 @@ describe("every row when it counts", () => {
     expect(bodyRows(container)).toHaveLength(1000);
   });
 
+  it("find next / previous (F3, Ctrl+G, Ctrl+Shift+G) render the whole list too", () => {
+    for (const k of [{ key: "F3" }, { key: "g", ctrlKey: true }, { key: "G", ctrlKey: true, shiftKey: true }, { key: "g", metaKey: true, shiftKey: true }]) {
+      const { container, unmount } = render(table(teams(1000)));
+      act(() => { fireEvent.keyDown(window, k); });
+      expect(bodyRows(container)).toHaveLength(1000);
+      unmount();
+    }
+  });
+
+  it("other shortcuts leave the list windowed", () => {
+    const { container } = render(table(teams(1000)));
+    for (const k of [{ key: "f" }, { key: "F", ctrlKey: true, shiftKey: true }, { key: "f", ctrlKey: true, altKey: true }]) act(() => { fireEvent.keyDown(window, k); });
+    expect(bodyRows(container).length).toBeLessThan(60);
+  });
+
   it("printing renders the whole list, then windows again", () => {
     const { container } = render(table(teams(1000)));
     act(() => { window.dispatchEvent(new Event("beforeprint")); });
@@ -155,6 +170,32 @@ describe("keyboard focus", () => {
     const gap = container.querySelector<HTMLElement>("[data-gap]");
     expect(Number(gap?.dataset.gap)).toBeGreaterThan(400 * ROW_H);
     expect(container.textContent).toContain("Item 501");
+  });
+});
+
+describe("a re-sort while a row has focus (live standings refreshing)", () => {
+  function Sorted({ order }: { order: number[] }) {
+    const vr = useVirtualRows<HTMLUListElement>(order.length, ROW_H, { key: (i) => order[i] });
+    return (
+      <ul ref={vr.ref}>
+        {vr.rows(order).map(({ item, rowProps, gapBefore }) => (
+          <Fragment key={item}>
+            {gapBefore > 0 && <li aria-hidden />}
+            <li {...rowProps}><button type="button">Team {item}</button></li>
+          </Fragment>
+        ))}
+      </ul>
+    );
+  }
+
+  it("keeps the focused row, wherever it moves", () => {
+    const up = Array.from({ length: 1000 }, (_, i) => i + 1);
+    const { getByText, rerender } = render(<Sorted order={up} />);
+    act(() => { getByText("Team 3").focus(); });
+    // Team 3 drops to the bottom of the order, far outside the window.
+    act(() => rerender(<Sorted order={[...up.filter((t) => t !== 3), 3]} />));
+    expect(document.activeElement).toBe(getByText("Team 3"));
+    expect(getByText("Team 3").closest("li")!.getAttribute("data-index")).toBe("999");
   });
 });
 

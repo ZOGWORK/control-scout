@@ -673,7 +673,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
   const tableRef = useRef<HTMLTableElement>(null);
   // One event's whole field (up to RECORDS_MAX_PAGE_SIZE rows) renders only the rows on screen (src/components/ui/windowing.tsx).
   const rowKey = (r: Resp["rows"][number]) => ("key" in r ? `${r.eventCode}:${r.key}` : `${r.team}:${"eventCode" in r ? r.eventCode : ""}`);
-  const vr = useVirtualRows<HTMLTableSectionElement>(data.rows.length, ROW_H, { key: (i) => rowKey(data.rows[i]) });
+  // Named by table, so Back finds its rows' measured heights (taller than the estimate on a touch screen or with bigger text).
+  const vr = useVirtualRows<HTMLTableSectionElement>(data.rows.length, ROW_H, { key: (i) => rowKey(data.rows[i]), cache: `records|${scope}|${code ?? ""}` });
   useSteadyColumns(tableRef, vr.windowed, `${scope}:${showEvent}:${cols.join()}`);
   const span = (scope === "match" ? 3 : showEvent ? 2 : 1) + cols.length;
   const headRow = (

@@ -19,9 +19,13 @@ import { jumpPageTo, pageTop } from "../../lib/pageScroll";
 /** Lists at or below this many rows render without windowing (Control Point's threshold). */
 export const WINDOW_THRESHOLD = 60;
 
-/** The browser's find-in-page keys. */
-export const isFindKey = (e: KeyboardEvent) =>
-  e.key === "F3" || ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "f" || e.key === "F" || e.key === "g" || e.key === "G"));
+/** The browser's find-in-page keys: find (Ctrl/⌘+F), and next / previous match (F3, Ctrl/⌘+G, with Shift backward). */
+export const isFindKey = (e: KeyboardEvent) => {
+  if (e.key === "F3") return true;
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
+  const k = e.key.toLowerCase();
+  return k === "g" || (k === "f" && !e.shiftKey);
+};
 
 /** True while the browser is printing, and from the moment the reader opens find in page (for the rest of the
  *  list's life: the find bar's closing can't be heard). Set synchronously, so the print snapshot and the find
@@ -102,14 +106,18 @@ export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: numbe
     ro.observe(el);
     return () => ro.disconnect();
   }, [enabled]);
-  // The row holding focus (a row's button, a link in it), kept rendered while it is off screen.
-  const [focused, setFocused] = useState<number | null>(null);
+  // The row holding focus (a row's button, a link in it), kept rendered while it is off screen. Known by its key,
+  // so a re-sort that moves it (live standings refreshing) still keeps that row.
+  const keyOf = (i: number) => (key ? key(i) : i);
+  const keyRef = useRef(keyOf);
+  keyRef.current = keyOf;
+  const [focused, setFocused] = useState<string | number | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!enabled || !el) return;
     const rowOf = (t: EventTarget | null) => {
       const row = (t as Element | null)?.closest?.("[data-index]");
-      return row && el.contains(row) ? Number(row.getAttribute("data-index")) : null;
+      return row && el.contains(row) ? keyRef.current(Number(row.getAttribute("data-index"))) : null;
     };
     const on = (e: FocusEvent) => setFocused(rowOf(e.target));
     const off = (e: FocusEvent) => { if (!el.contains(e.relatedTarget as Node | null)) setFocused(null); };
@@ -119,9 +127,15 @@ export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: numbe
   }, [enabled]);
   const rangeExtractor = useCallback((r: Range) => {
     const out = defaultRangeExtractor(r);
-    if (focused != null && focused < r.count && !out.includes(focused)) { out.push(focused); out.sort((a, b) => a - b); }
+    if (focused == null) return out;
+    // Where the focused row is now (only looked for while a row has focus).
+    let at = -1;
+    for (let i = 0; i < r.count; i++) if (keyRef.current(i) === focused) { at = i; break; }
+    if (at >= 0 && !out.includes(at)) { out.push(at); out.sort((a, b) => a - b); }
     return out;
-  }, [focused]);
+    // The rows' order is read through keyRef: while a row has focus, a re-sort (a new key function) looks again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focused, focused == null ? null : key]);
   const v = useWindowVirtualizer<HTMLElement>({
     count: enabled ? count : 0,
     estimateSize: typeof estimate === "number" ? () => estimate : estimate,
@@ -204,7 +218,9 @@ export function useSteadyColumns(table: RefObject<HTMLTableElement | null>, on: 
     const ro = new ResizeObserver(lock);
     ro.observe(t);
     for (const c of cells()) ro.observe(c);
-    return () => { ro.disconnect(); for (const c of cells()) c.style.minWidth = ""; };
+    // A narrower window may change neither the table nor a cell (their min-widths hold them), so it's heard directly.
+    window.addEventListener("resize", lock);
+    return () => { ro.disconnect(); window.removeEventListener("resize", lock); for (const c of cells()) c.style.minWidth = ""; };
   }, [table, on, resetKey]);
 }
 
