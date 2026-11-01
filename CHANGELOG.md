@@ -21,12 +21,12 @@ Compare's head-to-head names each event instead of showing its code.
 
 ### Highlights
 - [teams] Head-to-head matches on Compare are grouped under the event's name
-- [teams] The brief's head-to-head sources name the match and event, like "Q25 at P1-4 PM Northern League Meet"
+- [teams] The brief names the event in its head-to-head links too
 - [fixes] An event no compared team lists still falls back to its code
 
 ### Compare
 - The head-to-head list on /compare groups matches under each event's name (from the compared teams' seasons), still linking to the event; it showed codes like USNJNOM5 before
-- The brief's head-to-head sources name the match and its event ("Q25 at P1-4 PM Northern League Meet") instead of "USNJNOM5 Q25"
+- The brief's head-to-head sources name the match and its event ("Q25 at P1-4 PM Northern League Meet") instead of "USNJNOM5 Q25" (#403)
 
 ## 2.0.0 — 2026-11-01
 
