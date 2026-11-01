@@ -120,8 +120,9 @@ const fileSize = (f: string) => {
 
 /** <link>s that start loading this page's code chunk with the HTML, rather than after the main
  *  bundle has run and asked for it. Files the entry already loads are left out, and so is a large
- *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint. */
-export function routePreloads(indexFile: string, path: string): string {
+ *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint, except on a page
+ *  the server drew whole (`drawn`): its markup is already there, so the page's own styles apply before it paints. */
+export function routePreloads(indexFile: string, path: string, drawn = false): string {
   const chunks = viteManifest(indexFile);
   const mod = pageModule(path);
   const page = mod && chunks?.[`src/pages/${mod}.tsx`];
@@ -141,7 +142,7 @@ export function routePreloads(indexFile: string, path: string): string {
   walk(page, js, css);
   const dist = dirname(indexFile);
   const tags = [
-    ...[...css].filter((f) => !entryCss.has(f)).map((f) => `<link rel="preload" as="style" crossorigin href="/${f}" />`),
+    ...[...css].filter((f) => !entryCss.has(f)).map((f) => drawn ? `<link rel="stylesheet" crossorigin href="/${f}" />` : `<link rel="preload" as="style" crossorigin href="/${f}" />`),
     ...[...js].filter((f) => !have.has(f) && (f === page.file || fileSize(join(dist, f)) <= PRELOAD_MAX_DEP))
       .map((f) => `<link rel="modulepreload" crossorigin href="/${f}" />`),
   ];
@@ -163,7 +164,7 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint waits for the app's
   // stylesheet and text fonts (FIRST_PAINT_FONTS), so it paints once, styled, never as unstyled text that then changes.
   const drawn = !!meta.firstPaint && !meta.notFound;
-  const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE, drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
+  const head = [headTags(path, meta), flips, routePreloads(file, path, drawn), BOOT_STYLE, drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
   const shell = indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
   const html = afterFirstPaint(drawn ? shell : nonBlockingCss(shell), drawn)
