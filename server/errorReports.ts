@@ -76,6 +76,9 @@ interface Row {
   owner_note?: string | null; owner_note_at?: string | null;
 }
 
+/** Every error_reports column (a Row). */
+const ROW_COLUMNS = "fingerprint, message, count, first_seen, last_seen, sample, issue_number, issue_state, reported_count, last_comment_at, filing_at, owner_note, owner_note_at";
+
 /** Adds one occurrence (a new row for a new fingerprint). The sample is always the latest report. */
 export async function storeReport(r: ErrorReport, now = new Date()): Promise<{ fingerprint: string; count: number }> {
   const fingerprint = fingerprintOf(r);
@@ -192,7 +195,7 @@ async function openIssue(fp: string, token: string, now: Date, previous: number 
   let row: Row | undefined;
   let existing: { number: number; reported: number } | null;
   try {
-    row = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fp]);
+    row = await get<Row>(`SELECT ${ROW_COLUMNS} FROM error_reports WHERE fingerprint = ?`, [fp]);
     if (!row) { await release(); return "missing"; }
     // An earlier attempt may have opened the issue without hearing back: adopt it instead of opening another.
     existing = await findOpenIssue(token, fp, previous);
@@ -253,7 +256,7 @@ async function findOpenIssue(token: string, fp: string, previous: number | null)
 export async function fileReport(fp: string, now = new Date()): Promise<FilingOutcome> {
   const token = env.githubReportToken;
   if (!token) return "no-token";
-  const row = await get<Row>("SELECT * FROM error_reports WHERE fingerprint = ?", [fp]);
+  const row = await get<Row>(`SELECT ${ROW_COLUMNS} FROM error_reports WHERE fingerprint = ?`, [fp]);
   if (!row) return "missing";
   if (row.issue_number == null) return openIssue(fp, token, now, null);
   if (row.issue_state === "not_planned") return "not-planned";
@@ -336,7 +339,7 @@ const toSummary = (r: Row): ErrorReportSummary => ({
 
 /** The most recently seen reports first. For the owner portal (Task 7): GET /api/reports/errors. */
 export async function listErrorReports(limit = 50): Promise<ErrorReportSummary[]> {
-  const rows = await all<Row>("SELECT * FROM error_reports ORDER BY last_seen DESC LIMIT ?", [Math.min(200, Math.max(1, Math.floor(limit) || 50))]);
+  const rows = await all<Row>(`SELECT ${ROW_COLUMNS} FROM error_reports ORDER BY last_seen DESC LIMIT ?`, [Math.min(200, Math.max(1, Math.floor(limit) || 50))]);
   return rows.map(toSummary);
 }
 

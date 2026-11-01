@@ -438,7 +438,8 @@ export async function allianceAccess(user: User, workspaceId: string, allianceId
 async function unionEntries(spaces: string[], season: number, eventCode: string): Promise<AllianceEntry[]> {
   const list = spaces.map(() => "?").join(", ");
   const rows = await all<any>(
-    `SELECT ws.cp_workspace_id, w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
+    `SELECT ws.cp_workspace_id, w.uuid, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes, w.updated_at,
+       w.template_id, w.template_version, w.author_account_id, w.author_name FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
       WHERE ws.cp_workspace_id IN (${list}) AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
         AND ${notACopyWithin("w", "ws.cp_workspace_id", spaces.length)}
       ORDER BY w.updated_at DESC`,

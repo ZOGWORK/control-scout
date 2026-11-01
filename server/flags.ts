@@ -149,7 +149,7 @@ export interface OverrideDetail { workspaceId: string; flag: Flag; enabled: bool
 
 /** The flags with who changed each last, for the owner console. */
 export async function flagDetails(): Promise<FlagDetail[]> {
-  const rows = (await primaryDb().execute("SELECT * FROM feature_flags")).rows as unknown as { name: string; enabled: number; updated_at: string; updated_by: string }[];
+  const rows = (await primaryDb().execute("SELECT name, enabled, updated_at, updated_by FROM feature_flags")).rows as unknown as { name: string; enabled: number; updated_at: string; updated_by: string }[];
   return FLAGS.map((name) => {
     const r = rows.find((x) => x.name === name);
     return { name, enabled: r ? Number(r.enabled) === 1 : DEFAULT_FLAGS[name], updatedAt: r?.updated_at ?? null, updatedBy: r?.updated_by ?? null };
@@ -158,7 +158,7 @@ export async function flagDetails(): Promise<FlagDetail[]> {
 
 /** Every stored per-workspace override, for the owner console. */
 export async function overrideDetails(): Promise<OverrideDetail[]> {
-  const rows = (await primaryDb().execute("SELECT * FROM workspace_flag_overrides ORDER BY name, cp_workspace_id")).rows as unknown as { cp_workspace_id: string; name: string; enabled: number; updated_at: string; updated_by: string }[];
+  const rows = (await primaryDb().execute("SELECT cp_workspace_id, name, enabled, updated_at, updated_by FROM workspace_flag_overrides ORDER BY name, cp_workspace_id")).rows as unknown as { cp_workspace_id: string; name: string; enabled: number; updated_at: string; updated_by: string }[];
   return rows.filter((r) => isFlag(r.name) && isWorkspaceFlag(r.name))
     .map((r) => ({ workspaceId: String(r.cp_workspace_id), flag: r.name as Flag, enabled: Number(r.enabled) === 1, updatedAt: r.updated_at, updatedBy: r.updated_by }));
 }

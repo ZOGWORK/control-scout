@@ -43,7 +43,7 @@ export async function setAuditResult(id: number, result: string): Promise<void> 
 export async function listAudit(limit = 100): Promise<AuditEntry[]> {
   const n = Math.min(500, Math.max(1, Math.floor(limit) || 100));
   const rows = await all<{ id: number; at: string; actor: string; action: string; details: string | null; result: string | null; old_value: string | null; new_value: string | null }>(
-    "SELECT * FROM owner_audit ORDER BY id DESC LIMIT ?", [n],
+    "SELECT id, at, actor, action, details, result, old_value, new_value FROM owner_audit ORDER BY id DESC LIMIT ?", [n],
   );
   return rows.map((r) => {
     let details: Record<string, unknown> | null = null;

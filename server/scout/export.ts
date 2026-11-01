@@ -156,7 +156,9 @@ export async function streamWorkspaceCsv(workspaceId: string, workspaceName: str
         // The client left: stop reading (a search can go many chunks without a row to send, so send() alone won't notice).
         if (res.destroyed) return;
         const chunk = keys.slice(i, i + EXPORT_CHUNK);
-        const rows = await all<any>(`SELECT w.* FROM workspace_scout_entries w WHERE ${w.sql} AND w.uuid IN (${chunk.map(() => "?").join(", ")})`, [...w.args, ...chunk]);
+        // What rowEntry and exportRow read.
+        const rows = await all<any>(`SELECT w.uuid, w.team, w.event_code, w.match_label, w.kind, w.notes, w.data, w.deleted, w.updated_at, w.author_account_id, w.author_name, w.editor_name
+          FROM workspace_scout_entries w WHERE ${w.sql} AND w.uuid IN (${chunk.map(() => "?").join(", ")})`, [...w.args, ...chunk]);
         const byId = new Map(rows.map((r) => [String(r.uuid), r]));
         let out = "";
         for (const k of chunk) { const r = byId.get(k); if (r && matchesQuery(r, f.q)) out += line(exportRow(r, cols)); }
