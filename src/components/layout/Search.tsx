@@ -49,11 +49,14 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const restoreFocus = useCallback(() => {
     const el = returnTo.current;
     returnTo.current = null;
-    if (el?.isConnected) el.focus({ preventScroll: true });
+    // A frame later: the phone's search button is hidden while the field is open, and only shows again once the
+    // close has rendered (a hidden element can't take focus).
+    requestAnimationFrame(() => { if (el?.isConnected) el.focus({ preventScroll: true }); });
   }, []);
   const open = useCallback(() => {
     const was = document.activeElement;
-    returnTo.current = was instanceof HTMLElement && was !== document.body && was !== inputRef.current ? was : null;
+    // The shortcut again while already in a search field keeps the control it was first opened from.
+    if (was !== inputRef.current && was !== pageRef.current) returnTo.current = was instanceof HTMLElement && was !== document.body ? was : null;
     if (pageClaimed && pageRef.current) {
       pageRef.current.scrollIntoView({ block: "center", behavior: smoothBehavior() });
       pageRef.current.focus({ preventScroll: true });
@@ -88,7 +91,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
   return (
     <>
       {part !== "field" && (
-        <button type="button" onClick={open} className={cn("tap-44 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search" data-tour="search">
+        <button type="button" onClick={open} className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted pointer-coarse:size-[44px] outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden", expanded && "invisible")} aria-label="Search" data-tour="search">
           <Search className="size-5" />
         </button>
       )}

@@ -584,13 +584,14 @@ export function TeamNumber({ team, name, href }: { team: number; name: string; h
   );
 }
 
-/** The Team header's checkbox, labelled "Select all": ticks or clears every team on the page; "mixed" when only some are ticked. */
+/** The Team header's checkbox, labelled "Select all": ticks or clears every team on the page; "mixed" when only some are ticked.
+ *  On a touch screen it keeps 28px from the sort button beside it, so their 44px tap areas (tap-44) never overlap. */
 function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
   // "indeterminate" is a property only (no attribute): set it after every render, as a click resets it.
   useEffect(() => { if (ref.current) ref.current.indeterminate = state === "some"; });
   return (
-    <label className="tap-44 mr-1.5 inline-flex cursor-pointer items-center gap-2.5 max-sm:mr-1 align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
+    <label className="tap-44 mr-1.5 inline-flex cursor-pointer items-center gap-2.5 max-sm:mr-1 pointer-coarse:mr-[28px]! align-middle text-sm font-semibold normal-case tracking-normal text-text-base"
       title={state === "none" ? `Select the teams on this page (Compare takes up to ${COMPARE_MAX})` : "Clear the teams on this page"}>
       <input ref={ref} type="checkbox" checked={state === "all"} aria-checked={state === "some" ? "mixed" : undefined} onChange={onToggle}
         aria-label="Select all teams on this page" className="size-[18px] shrink-0 cursor-pointer accent-[var(--color-accent)] max-sm:size-5" />
