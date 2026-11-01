@@ -25,7 +25,7 @@ Long lists scroll smoothly on phones.
 - [speed] Find in page and printing still see every row
 
 ### Speed
-- **Long lists render only what's on screen.** Match lists (an event's schedule, a team's season), an event's standings and its records tables, once past 60 rows, now draw the rows in view plus a few either side; spacers keep the page its full height, so the scrollbar and Back to where you were behave as before. Short lists are unchanged. Find in page (Ctrl/⌘+F) and printing still get every row, keyboard focus is never dropped, and screen readers still hear the table's full row count.
+- **Long lists render only what's on screen.** Match lists (an event's schedule, a team's season), an event's standings and its records tables, once past 60 rows, now draw the rows in view plus a few either side; spacers keep the page its full height, so the scrollbar and Back to where you were behave as before. Short lists are unchanged. Find in page (Ctrl/⌘+F) and printing still get every row, keyboard focus is never dropped, and screen readers still hear the table's full row count. (#416)
 ## 2.1.4 — 2026-11-01
 
 Real-user speed: the owner can see how fast pages load for real visitors.
