@@ -655,7 +655,7 @@ export function heatBands(rows: { stats: Record<string, unknown> }[], cols: stri
 }
 
 /** A table row's height, for rows not measured yet. */
-const ROW_H = 41;
+const ROW_H = 37;
 
 function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedulePlaces, selectable, selected, onSelect, pageSelection, onSelectAll }: {
   data: Resp; scope: RecordScope; cols: string[]; state: TableState; sortBy: (k: string) => void; code?: string; schedulePlaces?: SchedulePlaces;

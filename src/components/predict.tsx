@@ -427,7 +427,7 @@ const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 :
 type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
 type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
 /** A match row's height (desktop / phone), for rows not measured yet. */
-const ROW_H = 64, ROW_H_PHONE = 112;
+const ROW_H = 71, ROW_H_PHONE = 105;
 
 /** A group's heading in a match list: an event (its name, linked, and dates) or Qualifications / Playoffs. */
 function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unknown> }) {
