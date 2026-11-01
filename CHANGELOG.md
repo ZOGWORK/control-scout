@@ -22,6 +22,7 @@ A lighter install: one unused library gone, and the brand images are WebP.
 ### Highlights
 - [speed] The 404 page's brand mark is a smaller WebP image
 - [offline] The offline copy stores the WebP brand images, a little smaller
+- [speed] One unused library removed from the app
 
 ### Speed
 - **Brand images as WebP.** The bare mark (404 page) and the wordmark are now WebP like the rest of the app's images: 19 KB → 14.5 KB and 14 KB → 12.7 KB. The PNG mark stays for the share-card renderer. (#411)
