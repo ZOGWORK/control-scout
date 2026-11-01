@@ -106,4 +106,14 @@ describe("useMatchTimer", () => {
     expect(renderHook(() => useMatchTimer(undefined, "personal:USNJQ1:qual:0:2")).result.current.startedAt).toBeNull();
     act(() => again.result.current.reset());
   });
+
+  it("another kept match under the same component loads its own clock", () => {
+    const { result, rerender } = renderHook(({ k }) => useMatchTimer(undefined, k), { initialProps: { k: "901:2025:USNJQ1:qual:0:1" } });
+    act(() => result.current.start());
+    rerender({ k: "902:2025:USNJQ1:qual:0:1" });
+    expect(result.current.startedAt).toBeNull();
+    rerender({ k: "901:2025:USNJQ1:qual:0:1" });
+    expect(result.current.running).toBe(true);
+    act(() => result.current.reset());
+  });
 });
