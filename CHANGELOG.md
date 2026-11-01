@@ -25,7 +25,7 @@ Search waits for you to stop typing, and Enter works the first time.
 - [fixes] Enter searches at once and closes the phone keyboard
 
 ### Search
-- Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#PRNUM)
+- Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
 - Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
 - In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
 
