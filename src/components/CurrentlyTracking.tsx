@@ -9,7 +9,7 @@ import { useApi } from "../lib/api";
 import { usePersonal } from "../lib/personal";
 import { dateRange, seasonLabel } from "../lib/format";
 import type { EventListItem } from "../shared/api";
-import { EventStatusChip } from "./EventChips";
+import { EventStatusChip, LiveDot } from "./EventChips";
 import { cn } from "./cn";
 import { lookupPath, resolveTracked, TRACKED_LOOKUPS, TRACKED_SHOWN, type TrackedRef } from "../pages/trackedEvents";
 
@@ -116,7 +116,7 @@ function TrackedCard({ e, current, onPick, picked }: { e: EventListItem; current
       <span className="flex items-center gap-2 text-xs">
         <EventStatusChip status={e.status} className="px-2 py-0.5" />
         {/* On now with a stream to watch on its page, as on the cards below. */}
-        {live && e.stream && <span className="inline-flex items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 animate-pulse rounded-full bg-danger" />LIVE<span className="sr-only"> stream</span></span>}
+        {live && e.stream && <span className="inline-flex items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><LiveDot />LIVE<span className="sr-only"> stream</span></span>}
         {e.season !== current && <span className="ml-auto tabular-nums text-muted-foreground">{seasonLabel(e.season)}</span>}
       </span>
       <span className="truncate text-sm font-medium leading-snug group-hover:text-accent-text" title={e.name}>{e.name}</span>

@@ -45,7 +45,7 @@ import { NotFoundView } from "../components/NotFoundView";
 import { hasRuleReference } from "../shared/rules/seasons";
 import { LiveCountdownChip, LivePanel, useLiveTarget } from "../components/LivePanel";
 import { HeaderActions } from "../components/EventActions";
-import { EventStatusChip, EventTypeChip } from "../components/EventChips";
+import { EventStatusChip, EventTypeChip, LiveDot } from "../components/EventChips";
 import { WatchLive } from "../components/WatchLive";
 import { isLiveMode, nextMatch, useEventPoll } from "../lib/liveMode";
 import { ago, agoSeconds, awardLabel, dateRange, num, place, seasonLabel } from "../lib/format";
@@ -378,10 +378,7 @@ function LiveBar({ live, r }: { live: NonNullable<EventDetail["live"]>; r: Retur
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
       <span className="inline-flex items-center gap-2 rounded-full border border-destructive/30 bg-destructive/10 px-3 py-1 text-xs font-medium text-foreground">
-        <span aria-hidden className="relative flex size-2">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-60 motion-reduce:hidden" />
-          <span className="relative inline-flex size-2 rounded-full bg-destructive" />
-        </span>
+        <LiveDot />
         {live.checkedAt ? <>Results updated <time dateTime={live.checkedAt} className="tabular-nums">{agoSeconds(live.checkedAt, now)}</time></> : "Results not checked yet today"}
       </span>
       <Button variant="outline" size="sm" onClick={r.run} disabled={busy} aria-busy={busy}>

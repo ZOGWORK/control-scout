@@ -24,7 +24,6 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/basic";
 import { ToggleGroup, ToggleGroupItem, Collapsible, CollapsibleContent, CollapsibleTrigger } from "../components/ui/controls";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../components/ui/overlay";
 import { MatchList } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
@@ -229,7 +228,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
             <Button variant="outline" size="sm" asChild className="max-sm:h-10"><Link to={`/compare?teams=${t.number}`}><Scale /> Compare</Link></Button>
             <Button variant="outline" size="sm" onClick={share} className="max-sm:h-10"><Link2 /> Share</Button>
           </div>
-          <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-accent-text">
+          <a href="https://tryctrlpoint.org" target="_blank" rel="noreferrer noopener" className="tap-44 relative mt-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground underline decoration-current/40 underline-offset-2 hover:text-accent-text">
             Manage this team in Control Point <ExternalLink className="size-3" />
           </a>
           {workspaceUser && flags.isMine && (
@@ -419,10 +418,10 @@ function TrendChart({ events, season }: { events: TeamEventRow[]; season: number
         </div>
         {rows.length < 2 ? <p className="py-8 max-sm:py-5 text-center text-sm text-muted-foreground">One event so far — the trend line appears after a second event.</p> : (
           <ChartContainer config={{ value: { label: t.label, color: "var(--color-chart-1)" } }} className="h-56 w-full">
-            <LineChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+            <LineChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 14 }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
-              <XAxis dataKey="i" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(i: number) => `E${i + 1}`} />
-              <YAxis tickLine={false} axisLine={false} width={36} />
+              <XAxis dataKey="i" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(i: number) => `E${i + 1}`} label={{ value: "Event, oldest to newest", position: "insideBottom", offset: -12, className: "fill-muted-foreground text-xs" }} />
+              <YAxis tickLine={false} axisLine={false} width={44} label={{ value: t.suffix ? "Percent" : "Points", angle: -90, position: "insideLeft", offset: 8, style: { textAnchor: "middle" }, className: "fill-muted-foreground text-xs" }} />
               <ChartTooltip cursor={false} content={<ChartTooltipContent labelFormatter={(i: number) => rows[i]?.name ?? ""} />} />
               <Line dataKey="value" type="monotone" stroke="var(--color-value)" strokeWidth={2.5} dot={{ r: 4, fill: "var(--color-value)" }} activeDot={{ r: 6 }} connectNulls animationDuration={700} />
             </LineChart>
@@ -473,7 +472,8 @@ function EventHistory({ events, team }: { events: TeamEventRow[]; team: number }
         <Link key={e.code} to={`/events/${e.season}/${e.code}?team=${team}`} className="lift flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 sm:flex-nowrap">
           <RankMedal rank={e.rank} />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium" title={e.name}>{e.name}</p>
+            {/* Two lines on a phone before it cuts off: long event names are the norm, and a tooltip needs a mouse. */}
+            <p className="font-medium max-sm:line-clamp-2 sm:truncate" title={e.name}>{e.name}</p>
             <p className="truncate text-xs text-muted-foreground">{dateRange(e.start, e.end)} · {place(e.city, e.state)} · {eventTypeLabel(e.type)}</p>
             {(e.awards.length > 0 || e.alliance) && (
               <div className="mt-1.5 flex flex-wrap gap-1">
@@ -515,21 +515,18 @@ function MatchesSection({ team, season, events, predictable }: { team: number; s
   );
 }
 
-function AwardsAllTime({ p }: { p: TeamProfile }) {
+export function AwardsAllTime({ p }: { p: TeamProfile }) {
   if (!p.awardsAllTime.length) return null;
   return (
     <Section id="awards" title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
       {/* Rows a little further apart on a touch screen, so one chip's 44px tap area (tap-44) never reaches the next row. */}
       <div className="flex flex-wrap gap-2 pointer-coarse:gap-y-[10px]">
         {p.awardsAllTime.map((a, i) => (
-          <Tooltip key={i}>
-            <TooltipTrigger asChild>
-              <Link to={`/events/${a.season}/${a.code}`} className="tap-44 lift inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
-                <Award className="size-3.5 text-accent" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span>
-              </Link>
-            </TooltipTrigger>
-            <TooltipContent>{a.event}</TooltipContent>
-          </Tooltip>
+          // The event on its own muted line: a tooltip never opens on a tap.
+          <Link key={i} to={`/events/${a.season}/${a.code}`} className="tap-44 lift inline-flex max-w-[18rem] flex-col rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
+            <span className="inline-flex items-center gap-1.5"><Award className="size-3.5 shrink-0 text-accent" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span></span>
+            <span className="truncate pl-5 text-muted-foreground" title={a.event}>{a.event}</span>
+          </Link>
         ))}
       </div>
     </Section>

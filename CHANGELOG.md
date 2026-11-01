@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.5 — 2026-11-01
+
+Team pages say more without a mouse: award events, full event names, chart axes.
+
+### Highlights
+- [teams] Each award names the event it was won at, right on the chip
+- [teams] Long event names wrap to two lines on a phone instead of cutting off
+- [teams] The trend chart labels its axes: events oldest to newest, and points
+- [live] One red live dot everywhere an event is on now
+
+### Team and event pages
+- **Awards.** The event an award was won at shows as a muted second line on its chip, so it reads on a phone (before, it was only in a hover tooltip). (#393)
+- **Season Road Map.** An event's name takes up to two lines on a phone before it is cut short; laptops keep one line with the full name on hover.
+- **Trends.** The chart's axes are labelled: "Event, oldest to newest" along the bottom and "Points" (or "Percent" for win rate) up the side.
+- **Live markers.** The live panel, an event's results line, the Events cards and the tracked-events strip now use one shared red dot with a soft ping (none with reduced motion), instead of three styles.
+- **Small fixes.** "Manage this team in Control Point" is underlined and has a 44px tap area on touch screens, and every button shows the pointer cursor on hover.
+
 ## 1.9.4 — 2026-11-01
 
 Records on a laptop shows twice the rows before you scroll.

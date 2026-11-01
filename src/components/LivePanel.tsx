@@ -2,6 +2,7 @@
 // countdown to the next match for the teams that matter to you (your team, teams assigned to you in
 // your workspace, your tracked teams), who's in it, red and blue, and the win prediction with its
 // confidence tier. How fresh the results are, and a manual check for the impatient.
+import { LiveDot } from "./EventChips";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardList, Loader2, RefreshCw } from "lucide-react";
@@ -96,10 +97,7 @@ export function LivePanel({ d, target, refresh, track }: { d: EventDetail; targe
     <section aria-labelledby="live-now" className="mt-4 rounded-xl border border-destructive/35 bg-destructive/[0.06] p-3 sm:p-4" data-live-panel>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h2 id="live-now" className="inline-flex items-center gap-2 font-display text-lg font-bold tracking-wide text-destructive">
-          <span aria-hidden className="relative flex size-2.5">
-            <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-60 motion-reduce:hidden" />
-            <span className="relative inline-flex size-2.5 rounded-full bg-destructive" />
-          </span>
+          <LiveDot className="size-2.5" />
           LIVE
         </h2>
         <span className="text-xs text-muted-foreground">
