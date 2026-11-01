@@ -103,7 +103,8 @@ async function awardsAt(team: number, events: { season: number; code: string }[]
 
 const eventLine = (team: number, e: EvRow, awards: string[] = []): SearchCardLine => ({
   text: e.name,
-  detail: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state), e.rank ? `ranked #${e.rank}` : "", rec(e.wins, e.losses, e.ties), e.opr != null ? `OPR ${Number(e.opr).toFixed(1)}` : "", ...awards].filter(Boolean).join(" · "),
+  detail: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "),
+  results: [e.rank ? `Ranked #${e.rank}` : "", rec(e.wins, e.losses, e.ties), e.opr != null ? `OPR ${Number(e.opr).toFixed(1)}` : "", ...awards].filter(Boolean),
   href: eventHref(e.season, e.code, team),
 });
 
@@ -125,7 +126,7 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
       const division = evs.find((e) => e.rank != null && /division/i.test(e.name)) ?? evs.find((e) => /division/i.test(e.name)) ?? evs[0];
       const finals = evs.find((e) => e !== division && !/division/i.test(e.name));
       const line = eventLine(n, division, evs.flatMap((e) => awards.get(`${e.season}|${e.code}`) ?? []));
-      return { year: Number((division.start ?? "").slice(0, 4)) || null, line: finals ? { ...line, detail: `${line.detail} · played the finals` } : line };
+      return { year: Number((division.start ?? "").slice(0, 4)) || null, line: finals ? { ...line, results: [...(line.results ?? []), "Played the finals"] } : line };
     });
     const asked = it.year != null ? all_.filter((x) => x.year === it.year) : all_;
     card.lines = asked.map((x) => x.line);

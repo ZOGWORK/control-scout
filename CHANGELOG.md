@@ -15,17 +15,42 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.0 — 2026-11-01
+## 2.0.2 — 2026-11-01
 
 Every finished event on /events shows it is done, even when no matches were posted.
 
 ### Highlights
 - [fixes] Every finished event card has a full green bar
 - [fixes] Events with no results posted say Done instead of no bar or 0/12
-- [fixes] A finished event with some results missing still fills its bar and keeps its count
+- [fixes] Finished events with some results missing still fill their bar
 
 ### Fixes
 - **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
+## 2.0.1 — 2026-11-01
+
+Compare's head-to-head names each event instead of showing its code.
+
+### Highlights
+- [teams] Head-to-head matches on Compare are grouped under the event's name
+- [teams] The brief names the event in its head-to-head links too
+- [fixes] An event no compared team lists still falls back to its code
+
+### Compare
+- The head-to-head list on /compare groups matches under each event's name (from the compared teams' seasons), still linking to the event; it showed codes like USNJNOM5 before
+- The brief's head-to-head sources name the match and its event ("Q25 at P1-4 PM Northern League Meet") instead of "USNJNOM5 Q25" (#403)
+
+## 2.0.0 — 2026-11-01
+
+Search answers are easier to read: spaced out, with bullet points.
+
+### Highlights
+- [fixes] Bruno AI answers in a sentence, then a bullet per record
+- [fixes] Worlds and states rows are divided, each result its own bullet
+- [fixes] The "how many times" count shows as a badge in the card title
+
+### Search
+- Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#399)
+- The Worlds and states cards on /search put a line between events: the name, then when and where, then rank, record, OPR and awards as bullets. The search dropdown keeps each event to two lines
 
 ## 1.9.9 — 2026-11-01
 

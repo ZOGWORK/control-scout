@@ -97,7 +97,8 @@ export interface SearchCard {
   /** Under `none`: the closest real records (the team's state championship results), so it's never a dead end. */
   closest?: SearchCardLine[];
 }
-export interface SearchCardLine { text: string; detail?: string; href?: string }
+/** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
+export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string }
 
 /** An understood intent (server/api/searchIntents.ts): counted as `kind` and `pattern` (placeholders, no query text). */
 export interface SearchIntentNote {
