@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.0 — 2026-11-01
+
+Search answers are easier to read: spaced out, with bullet points.
+
+### Highlights
+- [fixes] Bruno AI answers in a sentence, then a bullet per record
+- [fixes] Worlds and states rows are divided, each result its own bullet
+- [fixes] The "how many times" count shows as a badge in the card title
+
+### Search
+- Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#399)
+- The Worlds and states cards on /search put a line between events: the name, then when and where, then rank, record, OPR and awards as bullets. The search dropdown keeps each event to two lines
+
 ## 1.9.9 — 2026-11-01
 
 The maintenance pass is written up: what changed, why, and how it was checked.

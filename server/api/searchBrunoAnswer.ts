@@ -22,7 +22,8 @@ export const MAX_FACTS_CHARS = 6000;
 const CACHE_MAX = 2000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
-export interface BrunoAnswer { text: string }
+/** `text`: the answer in a sentence; `points`: one short line per record behind it (often none). */
+export interface BrunoAnswer { text: string; points: string[] }
 
 /** Answers by normalized question (null: Bruno had nothing to say, or his answer failed the check). Failures aren't kept. */
 const cache = new Map<string, { at: number; answer: BrunoAnswer | null }>();
@@ -30,7 +31,10 @@ const cache = new Map<string, { at: number; answer: BrunoAnswer | null }>();
 const pending = new Map<string, Promise<BrunoAnswer | null>>();
 export const resetBrunoAnswerCache = () => { cache.clear(); pending.clear(); };
 
-const lineText = (l: SearchCardLine) => (l.detail ? `${l.text}: ${l.detail}` : l.text);
+const lineText = (l: SearchCardLine) => {
+  const more = [l.detail, ...(l.results ?? [])].filter(Boolean).join(" · ");
+  return more ? `${l.text}: ${more}` : l.text;
+};
 
 /** The facts search found for `a` (its answer to the question), as plain lines for Bruno. */
 export async function answerFacts(a: SearchAnswer): Promise<string[]> {
@@ -105,9 +109,12 @@ async function ask(q: string, opts: Pick<AnswerOptions, "prefer" | "limit">, k: 
   const facts = await answerFacts(await searchAnswer(q, { ...opts, learn: true }));
   let answer: BrunoAnswer | null = null;
   try {
-    const { text } = await brunoSearchAnswer(q, facts, BRUNO_ANSWER_TIMEOUT_MS);
-    const clean = typeof text === "string" ? text.replace(/\s+/g, " ").trim().slice(0, 600) : "";
-    if (clean && grounded(clean, facts, q)) answer = { text: clean };
+    const r = await brunoSearchAnswer(q, facts, BRUNO_ANSWER_TIMEOUT_MS);
+    const tidy = (s: unknown, max: number) => (typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "");
+    const clean = tidy(r.text, 600);
+    // Points are checked with the sentence: one number not in the facts drops the whole answer.
+    const points = (Array.isArray(r.points) ? r.points : []).map((p) => tidy(p, 200)).filter(Boolean).slice(0, 6);
+    if (clean && grounded([clean, ...points].join(" "), facts, q)) answer = { text: clean, points };
     else if (clean) console.warn("[search] Bruno's answer named a number not in the facts: dropped");
   } catch (e) {
     console.warn("[search] Bruno answer unavailable:", (e as Error).name === "TimeoutError" ? "timeout" : (e as Error).message?.slice(0, 120));
