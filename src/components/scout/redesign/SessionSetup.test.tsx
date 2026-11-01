@@ -73,6 +73,7 @@ describe("SessionSetup", () => {
     expect(screen.queryByRole("radiogroup", { name: "Where are you scouting?" })).toBeNull();
     expect(start().disabled).toBe(false);
     expect(start().closest("[data-sticky-actions]")).toBeTruthy(); // pinned in reach
+    expect(document.documentElement.dataset.stickyActions).toBe(""); // and the page knows, so prompts sit above it
     change();
     const q3 = eventRadios().find((r) => r.textContent?.includes("NJ Qualifier 3"))!;
     expect(q3.getAttribute("aria-checked")).toBe("true");
@@ -121,6 +122,7 @@ describe("SessionSetup", () => {
     await waitFor(() => expect(eventRadios()).toHaveLength(4));
     expect(start().disabled).toBe(true);
     expect(start().closest("[data-sticky-actions]")).toBeNull(); // nothing to pin yet
+    expect(document.documentElement.dataset.stickyActions).toBeUndefined();
     fireEvent.click(eventRadios()[2]);
     // The list folds to one row and the scout is moved on: focus lands on it, the picker is gone, Start is ready.
     const row = await folded("NJ Qualifier 2");

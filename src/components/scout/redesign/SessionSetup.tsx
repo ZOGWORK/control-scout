@@ -17,6 +17,7 @@ import { EmptyState, Section } from "../../page";
 import { Skeleton } from "../../states";
 import { cn } from "../../cn";
 import { EVENT_SEARCH_DEBOUNCE, rankEvents } from "../EventPicker";
+import { useStickyActionsMarker } from "../../StickyActions";
 
 /** How many events the list shows before "Show more" (short, so the next step stays close), and how many upcoming ones it asks for. */
 const PAGE = 5;
@@ -172,6 +173,8 @@ export function SessionSetup({ season, initial, suggestedEvent, myTeam, onStart,
     ? SLOTS.map((s) => ({ value: s, label: slotLabel(s), side: sideOf(s) }))
     : (["red", "blue"] as const).map((s) => ({ value: s, label: s === "red" ? "Red" : "Blue", side: s }));
 
+  // The pinned Start bar marks the page, so the install prompt and the like sit above it, never over Start.
+  useStickyActionsMarker(!!code);
   const pickerOpen = !code || changing;
   const choose = (e: EventListItem) => { setCode(e.code); setPicked(e); setChanging(false); setText(""); setMoved((n) => n + 1); };
   const keep = () => { setChanging(false); setText(""); setMoved((n) => n + 1); };
