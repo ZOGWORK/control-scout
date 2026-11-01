@@ -62,18 +62,23 @@ const publicLookup: net.LookupFunction = (host, opts, cb) => {
   });
 };
 
-/** One request, no redirect followed, no body read. */
+/** One request, no redirect followed, no body read, answered within TIMEOUT_MS whatever the server does (DNS included). */
 const netHop: Hop = (u) => new Promise((resolve) => {
+  let done = false;
+  const finish = (v: string | null | "error") => { if (done) return; done = true; clearTimeout(deadline); resolve(v); };
   const req = (u.protocol === "https:" ? https : http).request(u, {
     method: "GET", lookup: publicLookup, timeout: TIMEOUT_MS, headers: { "user-agent": "ControlScout/1 (+https://controlscout.org)" },
   }, (res) => {
     res.resume();
     req.destroy();
     const s = res.statusCode ?? 0;
-    resolve(s >= 300 && s < 400 ? (res.headers.location ?? null) : s >= 500 ? "error" : null);
+    finish(s >= 300 && s < 400 ? (res.headers.location ?? null) : s >= 500 ? "error" : null);
   });
+  // A deadline for the whole request: the socket timeout alone only catches an idle socket, not a slow trickle.
+  const deadline = setTimeout(() => { finish("error"); req.destroy(new Error("deadline")); }, TIMEOUT_MS);
+  deadline.unref?.();
   req.on("timeout", () => req.destroy(new Error("timeout")));
-  req.on("error", () => resolve("error"));
+  req.on("error", () => finish("error"));
   req.end();
 });
 
