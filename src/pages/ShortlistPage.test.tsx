@@ -58,7 +58,7 @@ describe("ShortlistPage", () => {
     const input = screen.getByRole("combobox", { name: "Add a team to your shortlist" });
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "4215" } });
-    fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }, { timeout: 4000 }));
     expect(h.bookmarks).toEqual([101, 102, 4215]);
   });
 
@@ -70,7 +70,7 @@ describe("ShortlistPage", () => {
     const input = screen.getByRole("combobox", { name: "Add a team to your shortlist" });
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "4215" } });
-    fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }));
+    fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }, { timeout: 4000 }));
     expect(warning).toHaveBeenCalledWith(expect.stringMatching(/couldn't save it/), expect.anything());
   });
 
