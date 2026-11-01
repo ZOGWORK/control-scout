@@ -31,7 +31,7 @@ export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
   const [note, setNote] = useState<string | null>(null);
   // Enter pressed on a number while its search was still on its way: answered when the results land.
   const [waiting, setWaiting] = useState<number | null>(null);
-  const { hits: all, busy, error, stale } = useSearchHits(q, ["team"], SUGGESTIONS, null, false);
+  const { hits: all, busy, error, stale, saved } = useSearchHits(q, ["team"], SUGGESTIONS, null, false);
   const hits = stale ? [] : all;
   const box = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -67,8 +67,8 @@ export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
     if (n != null) {
       const hit = hits.find((h) => Number(h.ref) === n) ?? null;
       if (hit || has(n)) add(n, hit);
-      // Search can't answer (offline, server down): the number is taken as typed.
-      else if (error) add(n, null);
+      // Search can't answer (server down) or answered from saved data that may not know the team: the number is taken as typed.
+      else if (error || (!busy && saved)) add(n, null);
       else if (busy) setWaiting(n);
       else refuse(`No team ${n} found.`);
       return;
@@ -80,9 +80,9 @@ export function AddTeamBox({ listed, onAdd, className, autoFocus }: {
     if (waiting == null || busy) return;
     setWaiting(null);
     const hit = hits.find((h) => Number(h.ref) === waiting) ?? null;
-    if (hit || error) add(waiting, hit);
+    if (hit || error || saved) add(waiting, hit);
     else refuse(`No team ${waiting} found.`);
-  }, [waiting, busy, hits, error]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [waiting, busy, hits, error, saved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const showList = open && !!query;
   return (

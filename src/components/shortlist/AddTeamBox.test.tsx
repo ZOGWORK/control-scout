@@ -9,6 +9,7 @@ const t = (ref: string, name: string): SearchHit => ({ kind: "team", ref, title:
 
 const pending: { url: string; resolve: (v: unknown) => void; reject: (e: Error) => void }[] = [];
 vi.mock("../../lib/api", async (orig) => ({ ...(await orig<typeof import("../../lib/api")>()), apiFetch: (url: string) => new Promise((resolve, reject) => pending.push({ url, resolve, reject })) }));
+vi.mock("../../lib/offline/saved", async (orig) => ({ ...(await orig<typeof import("../../lib/offline/saved")>()), offlineSource: (d: unknown) => ((d as { savedHere?: boolean })?.savedHere ? { season: 2026, savedAt: 1, dataAsOf: null } : null) }));
 vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 
 const { AddTeamBox, exactNumber } = await import("./AddTeamBox");
@@ -86,6 +87,14 @@ describe("AddTeamBox", () => {
     await act(async () => { pending.shift()!.reject(new Error("offline")); });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onAdd).toHaveBeenCalledWith(12345, null);
+  });
+
+  it("takes a typed number when the answer came from saved data that doesn't know it", async () => {
+    const { input, onAdd } = mount();
+    await type(input, "27000");
+    await reply({ hits: [], savedHere: true });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onAdd).toHaveBeenCalledWith(27000, null);
   });
 
   it("says the list is full instead of adding past its limit", async () => {
