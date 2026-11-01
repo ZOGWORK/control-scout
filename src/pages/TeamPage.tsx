@@ -37,6 +37,7 @@ import { direction, trendLabel } from "../shared/trend";
 import { teamTitle } from "../shared/teamTitle";
 import { RECORD_RULE } from "../shared/eventRecord";
 import { OfflineNote } from "../components/OfflineNote";
+import { offlineSource } from "../lib/offline/saved";
 import { StickyActions } from "../components/StickyActions";
 import { TeamConsensusSection } from "../components/ScoutConsensus";
 import { CommonsSection } from "../components/CommonsSection";
@@ -315,8 +316,10 @@ export function OprSection({ p }: { p: TeamProfile }) {
   const s = p.stats;
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
   const predictable = usePredictable(p.season);
-  // When the stats were last rebuilt, so last week's OPR never reads as live.
-  const statsAt = useMeta()?.statsAt;
+  // When the stats were last rebuilt, so last week's OPR never reads as live. Not for a page drawn from a saved
+  // season offline: the server's time would date numbers that are older (the page's offline note dates those).
+  const metaStatsAt = useMeta()?.statsAt;
+  const statsAt = offlineSource(p) ? null : metaStatsAt;
   return (
     <Section id="opr" title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link>{statsAt && <span className="whitespace-nowrap"> · Stats updated {ago(statsAt)}</span>}</>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">

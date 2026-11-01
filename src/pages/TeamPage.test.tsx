@@ -79,6 +79,12 @@ describe("OprSection's data-as-of stamp", () => {
     render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
     expect(screen.getByText(/Stats updated 2 h ago/)).toBeTruthy();
   });
+  it("says nothing for a page drawn from a saved season offline (the server's time would date older numbers)", async () => {
+    meta.value = { statsAt: new Date().toISOString() };
+    const { markOffline } = await import("../lib/offline/saved");
+    render(<MemoryRouter><OprSection p={markOffline({ ...profile }, { season: 2025, savedAt: 1, dataAsOf: "2026-10-01T00:00:00Z" })} /></MemoryRouter>);
+    expect(screen.queryByText(/Stats updated/)).toBeNull();
+  });
   it("says nothing while the time isn't known", () => {
     render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
     expect(screen.queryByText(/Stats updated/)).toBeNull();
