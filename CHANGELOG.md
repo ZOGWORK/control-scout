@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.9 — 2026-11-01
+
+The maintenance pass is written up: what changed, why, and how it was checked.
+
+### Highlights
+- [fixes] MAINTENANCE-REPORT.md lists every item of the maintenance pass
+- [fixes] Each item says what changed or why not, with its evidence
+- [speed] Before and after numbers for every speed check
+
+### Docs
+- **Maintenance report.** `MAINTENANCE-REPORT.md`: scope and method, an outcome for every item (A1–N4), speed numbers, the PR list with Greptile scores, what needs an owner decision, and what could not be verified. No app change. (#397)
+
 ## 1.9.8 — 2026-11-01
 
 Every page loads a lighter logo: 1.6 KB instead of 14 KB, looking the same.
