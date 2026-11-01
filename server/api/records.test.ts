@@ -477,8 +477,8 @@ describe("Excel export limits", () => {
     await new Promise((r) => own.once("listening", r));
     try {
       const r = await fetch(`http://127.0.0.1:${(own.address() as AddressInfo).port}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr`);
-      expect(rowReads).toBe(2);
       const sheet = unzip(Buffer.from(await r.arrayBuffer()))["xl/worksheets/sheet1.xml"];
+      expect(rowReads).toBe(2); // once the whole file is in
       expect(sheet).toMatch(/<c r="H2" s="\d+"><v>90<\/v><\/c>/); // 106 as banded (top fifth), not 0 painted green
     } finally {
       (c as any).execute = realExec;
