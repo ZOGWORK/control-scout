@@ -113,7 +113,7 @@ export async function listInbox(userId: number, before: number | null, limit = I
   const n = Math.max(1, Math.min(INBOX_PAGE_MAX, Math.floor(limit)));
   const which = filter !== "followUp" ? "" : keep.length ? `AND (follow_up_at IS NOT NULL OR id IN (${keep.map(() => "?").join(", ")}))` : "AND follow_up_at IS NOT NULL";
   const rows = await all<any>(
-    `SELECT * FROM inbox_items WHERE user_id = ? AND at >= ? ${which} ${before != null ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
+    `SELECT id, at, workspace_id, workspace_name, category, type, actor_name, title, body, link, read_at, follow_up_at FROM inbox_items WHERE user_id = ? AND at >= ? ${which} ${before != null ? "AND id < ?" : ""} ORDER BY id DESC LIMIT ?`,
     [userId, Date.now() - INBOX_RETENTION_MS, ...(filter === "followUp" ? keep : []), ...(before != null ? [before] : []), n + 1]);
   const c = await inboxCounts(userId);
   return { items: rows.slice(0, n).map(toItem), more: rows.length > n, unread: c.unread, followUp: c.followUp };

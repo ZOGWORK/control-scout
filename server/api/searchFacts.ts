@@ -32,10 +32,13 @@ export async function teamEvents(team: number, season: number): Promise<SearchEv
   return rows.map((r) => ({ season: Number(r.season), code: r.code, name: r.name, opr: r.opr == null ? null : Math.round(Number(r.opr) * 10) / 10 }));
 }
 
+/** The team_season_stats columns teamFacts reads, and the season. */
+const FACT_STATS = "season, opr_np, rank_np, ranked_teams, wins, losses, ties, matches, avg_score";
+
 /** The team's newest season with stats (or registration), or `asked`, the season a query named. */
 export async function teamSeason(team: number, asked?: number | null): Promise<{ s: any; season: number | null }> {
-  if (asked != null) return { s: await get<any>("SELECT * FROM team_season_stats WHERE team = ? AND season = ?", [team, asked]), season: asked };
-  const s = await get<any>("SELECT * FROM team_season_stats WHERE team = ? ORDER BY season DESC LIMIT 1", [team]);
+  if (asked != null) return { s: await get<any>(`SELECT ${FACT_STATS} FROM team_season_stats WHERE team = ? AND season = ?`, [team, asked]), season: asked };
+  const s = await get<any>(`SELECT ${FACT_STATS} FROM team_season_stats WHERE team = ? ORDER BY season DESC LIMIT 1`, [team]);
   return { s, season: s?.season ?? (await get<{ s: number | null }>("SELECT MAX(season) s FROM event_teams WHERE team = ?", [team]))?.s ?? null };
 }
 

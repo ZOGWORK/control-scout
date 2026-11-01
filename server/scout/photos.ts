@@ -207,7 +207,9 @@ const statusOf = async (id: string) => (await get<{ status: string }>("SELECT st
 async function photoRow(m: Membership, photoId: unknown): Promise<any | null> {
   if (typeof photoId !== "string" || !/^[0-9a-f-]{36}$/.test(photoId)) return null;
   const r = await get<any>(
-    `SELECT p.*, w.cp_workspace_id, e.author_account_id entry_author FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id
+    // Every entry_photos column: the record the photo steps below check and change.
+    `SELECT p.id, p.workspace_id, p.entry_uuid, p.season, p.event_code, p.object_key, p.bytes, p.status, p.added_by_account_id, p.added_by_name, p.created_at,
+       p.recorded_at, p.event_end, p.expires_at, p.expired_at, p.expired_reason, w.cp_workspace_id, e.author_account_id entry_author FROM entry_photos p JOIN workspaces w ON w.id = p.workspace_id
        LEFT JOIN workspace_scout_entries e ON e.workspace_id = p.workspace_id AND e.uuid = p.entry_uuid WHERE p.id = ?`, [photoId]);
   // Another workspace's photo is as unknown as a missing one.
   return r && r.cp_workspace_id === m.workspaceId ? r : null;

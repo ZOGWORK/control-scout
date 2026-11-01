@@ -22,7 +22,7 @@ interface RefreshRow { season: number; week: string; day: string; status: string
 /** Each week's daily checks, newest first (the last 14 of each). */
 async function refreshes(): Promise<Map<string, OwnerPowerRankingsRefresh[]>> {
   const out = new Map<string, OwnerPowerRankingsRefresh[]>();
-  const rows = await all<RefreshRow>("SELECT * FROM power_rankings_refreshes ORDER BY day DESC").catch(() => [] as RefreshRow[]);
+  const rows = await all<RefreshRow>("SELECT season, week, day, status, started_at, finished_at, changed, bruno, template, kept, note FROM power_rankings_refreshes ORDER BY day DESC").catch(() => [] as RefreshRow[]);
   for (const r of rows) {
     const key = `${r.season}/${r.week}`;
     const list = out.get(key) ?? [];

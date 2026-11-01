@@ -35,14 +35,17 @@ export async function matchViews(f: MatchFilter, opts: { predictUnplayed?: boole
   const args: (string | number)[] = [f.season];
   if (f.code) { where.push("m.code = ?"); args.push(f.code); }
   if (f.team) { where.push("(m.code, m.level, m.series, m.number) IN (SELECT code, level, series, number FROM match_teams WHERE team = ? AND season = ?)"); args.push(f.team, f.season); }
-  const rows = await all<any>(`SELECT m.*, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
+  const rows = await all<any>(`SELECT m.code, m.level, m.series, m.number, m.label, m.time, m.played, m.video,
+    m.red_total, m.red_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.red_tips, m.blue_total, m.blue_np, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.blue_tips,
+    e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE ${where.join(" AND ")} ORDER BY m.time, m.code, m.level DESC, m.series, m.number`, args);
   if (!rows.length) return [];
   const codes = [...new Set(rows.map((r) => r.code as string))];
   const ph = codes.map(() => "?").join(",");
   const [lineups, preds] = await Promise.all([
     // The team's name rides with the lineup, so a row can show it under the number (no second request).
     all<any>(`SELECT mt.code, mt.level, mt.series, mt.number, mt.team, mt.alliance, mt.station, mt.surrogate, mt.dq, mt.on_field, t.name FROM match_teams mt LEFT JOIN teams t ON t.number = mt.team WHERE mt.season = ? AND mt.code IN (${ph}) ORDER BY mt.station, mt.team`, [f.season, ...codes]),
-    all<any>(`SELECT * FROM predictions WHERE season = ? AND code IN (${ph})`, [f.season, ...codes]),
+    all<any>(`SELECT kind, code, level, series, number, p_red, red_mean, blue_mean, tier, predicted_at, factors, history, no_score_basis,
+      red_lo, red_hi, blue_lo, blue_hi, range_level, bonus_red, bonus_blue, bonus_tier FROM predictions WHERE season = ? AND code IN (${ph})`, [f.season, ...codes]),
   ]);
   const lu = new Map<string, { red: MatchView["red"]["teams"]; blue: MatchView["blue"]["teams"] }>();
   for (const t of lineups) {

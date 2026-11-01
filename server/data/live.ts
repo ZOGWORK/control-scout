@@ -74,7 +74,7 @@ export async function liveEvents(now = Date.now(), season = CURRENT_SEASON): Pro
   const day = (n: number) => new Date(now + n * 864e5).toISOString().slice(0, 10);
   // Cheap pre-filter in SQL (±1 day covers every zone); the exact check is per zone below.
   const rows = await all<any>(
-    `SELECT e.*,
+    `SELECT ${EVENT_ROW_COLUMNS.split(", ").map((c) => `e.${c}`).join(", ")},
        (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code) total,
        (SELECT COUNT(*) FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1) played,
        (SELECT COUNT(*) FROM awards a WHERE a.season = e.season AND a.code = e.code) awards
@@ -86,6 +86,9 @@ export async function liveEvents(now = Date.now(), season = CURRENT_SEASON): Pro
     .filter((r) => !(Number(r.total) > 0 && Number(r.played) >= Number(r.total) && Number(r.awards) > 0))
     .map((r) => ({ ...rowToEvent(r), total: Number(r.total), played: Number(r.played), awards: Number(r.awards) }));
 }
+
+/** The events columns rowToEvent reads. */
+const EVENT_ROW_COLUMNS = "season, code, name, type, division_code, region, league, venue, city, state, country, start, end, timezone, remote, hybrid, website, livestream, source, upstream_updated";
 
 function rowToEvent(r: any): EventRow {
   return {
@@ -284,7 +287,7 @@ export type ManualOutcome =
  */
 export async function manualRefresh(season: number, code: string, o: { log?: Log; now?: number; waitMs?: number } = {}): Promise<ManualOutcome> {
   const now = o.now ?? Date.now();
-  const row = await get<any>("SELECT * FROM events WHERE season = ? AND code = ?", [season, code]);
+  const row = await get<any>(`SELECT ${EVENT_ROW_COLUMNS} FROM events WHERE season = ? AND code = ?`, [season, code]);
   if (!row) return { status: "not-found" };
   if (!isEventDay(row, now)) return { status: "not-live" };
   const k = `${season}:${code}`;

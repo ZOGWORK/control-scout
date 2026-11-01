@@ -11,7 +11,7 @@ export function rowToRun(r: any): StoredRun {
 }
 
 export async function storedRuns(season: number, code: string): Promise<Map<ProjectionKind, StoredRun>> {
-  const rows = await all<any>("SELECT * FROM event_projections WHERE season = ? AND code = ?", [season, code]);
+  const rows = await all<any>("SELECT kind, state_key, seed, runs, target_runs, stage, played, scheduled, through, slots, slots_source, engine_version, ms, computed_at, teams FROM event_projections WHERE season = ? AND code = ?", [season, code]);
   return new Map(rows.map((r) => { const x = rowToRun(r); return [x.kind, x]; }));
 }
 

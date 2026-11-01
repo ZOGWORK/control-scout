@@ -4,7 +4,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
-import { reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
+import { RELIABILITY_COLUMNS, reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
 import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecord.js";
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
@@ -16,7 +16,7 @@ import { eventSchedule } from "../predict/scheduleDifficulty.js";
  */
 export async function reliabilityMany(season: number, teams: number[]): Promise<ReliabilityResponse> {
   const ts = [...new Set(teams)];
-  const rows = ts.length ? await all<any>(`SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ts.map(() => "?").join(",")})`, [season, ...ts]) : [];
+  const rows = ts.length ? await all<any>(`SELECT ${RELIABILITY_COLUMNS} FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ts.map(() => "?").join(",")})`, [season, ...ts]) : [];
   const field = rows.find((r) => Number(r.team) === 0);
   const fieldIndex = field ? Number(field.idx) : null;
   const by = new Map(rows.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, fieldIndex)]));
@@ -25,7 +25,7 @@ export async function reliabilityMany(season: number, teams: number[]): Promise<
 
 /** A team's stored season reliability (team 0 = the field, for its average index). Null when not computed. */
 export async function teamReliability(season: number, team: number): Promise<Reliability | null> {
-  const rows = await all<any>("SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ?)", [season, team]);
+  const rows = await all<any>(`SELECT ${RELIABILITY_COLUMNS} FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ?)`, [season, team]);
   const own = rows.find((r) => Number(r.team) === team && team !== 0);
   if (!own) return null;
   const field = rows.find((r) => Number(r.team) === 0);
@@ -33,7 +33,7 @@ export async function teamReliability(season: number, team: number): Promise<Rel
 }
 
 export async function teamInfo(number: number): Promise<TeamInfo | null> {
-  const t = await get<any>("SELECT * FROM teams WHERE number = ?", [number]);
+  const t = await get<any>("SELECT number, name, full_name, school, sponsors, city, state, country, rookie_year, website, home_region FROM teams WHERE number = ?", [number]);
   if (!t) return null;
   return {
     number: Number(t.number), name: t.name, fullName: t.full_name, school: t.school, sponsors: t.sponsors ? JSON.parse(t.sponsors) : [],
@@ -65,7 +65,9 @@ export async function teamSeasons(number: number): Promise<number[]> {
 }
 
 export async function seasonStats(season: number, team: number): Promise<TeamSeasonStats | null> {
-  const [s, reliability] = await Promise.all([get<any>("SELECT * FROM team_season_stats WHERE season = ? AND team = ?", [season, team]), teamReliability(season, team)]);
+  const [s, reliability] = await Promise.all([get<any>(`SELECT opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams,
+    rating_np, rating_auto, rating_teleop, rating_endgame, rating_pen, rating_sd, rating_matches, rating_rank, events, matches, wins, losses, ties, avg_np, avg_score, avg_pen
+    FROM team_season_stats WHERE season = ? AND team = ?`, [season, team]), teamReliability(season, team)]);
   if (!s) return null;
   const of = s.ranked_teams ?? null;
   const stat = (v: any, rank: any) => ({ value: v ?? null, rank: rank ?? null, of });
@@ -119,7 +121,8 @@ function reportCard(r: any, ev?: { name: string | null; start: string | null }):
 /** Stored report cards (server/stats/reportCards.ts): the season row and finished events. Null when there's none. */
 export async function teamReportCards(season: number, team: number): Promise<TeamReportCards | null> {
   const rows = await all<any>(
-    `SELECT r.*, e.name, e.start FROM team_report_cards r LEFT JOIN events e ON e.season = r.season AND e.code = r.code
+    `SELECT r.code, r.final, r.calls, r.decided, r.hits, r.scored, r.err_mean, r.err_abs, r.err_var, r.hit_shrunk, r.err_mean_shrunk, r.err_abs_shrunk, r.err_var_shrunk,
+       e.name, e.start FROM team_report_cards r LEFT JOIN events e ON e.season = r.season AND e.code = r.code
      WHERE r.season = ? AND r.team = ? AND (r.code = '' OR r.final = 1) ORDER BY e.start, r.code`,
     [season, team],
   );
@@ -228,7 +231,7 @@ export async function teamSummaries(numbers: number[], season: number): Promise<
   const ph = numbers.map(() => "?").join(",");
   const [infos, stats, lastEv, recRows, rel] = await Promise.all([
     all<any>(`SELECT number, name, city, state, country FROM teams WHERE number IN (${ph})`, numbers),
-    all<any>(`SELECT * FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
+    all<any>(`SELECT team, opr_np, rank_np, ranked_teams, rating_np, rating_sd, wins, losses, ties FROM team_season_stats WHERE season = ? AND team IN (${ph})`, [season, ...numbers]),
     all<any>(
       `SELECT et.team, e.code, e.name, e.type, e.start, e.end, e.remote, et.rank, r.rank meet_rank,
             ${KEEP_COLUMNS.replace("x.team = ?", "x.team = et.team")}

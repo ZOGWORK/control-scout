@@ -119,6 +119,11 @@ const workspaceRow = (workspaceId: string, r: any, photos: EntryPhoto[] = []): W
   ...(r.base_updated_at != null ? { baseUpdatedAt: Number(r.base_updated_at) } : {}),
   photos, photoExpired: photos.some((p) => p.expired), photosRev: Number(r.photos_rev ?? 0),
 });
+/** The workspace_scout_entries columns workspaceRow and liveRows read (all of them), each as `alias.column` when given. */
+export const entryColumns = (alias?: string) =>
+  ["workspace_id", "uuid", "season", "team", "event_code", "match_label", "kind", "data", "notes", "updated_at", "deleted", "author_account_id", "author_name",
+    "editor_account_id", "editor_name", "seq", "photos_rev", "template_id", "template_version", "base_updated_at"].map((c) => (alias ? `${alias}.${c}` : c)).join(", ");
+
 /** Stored rows (of one workspace) as live entries, each with its photos. */
 async function liveRows(workspaceId: string, rows: any[]): Promise<LiveEntry[]> {
   if (!rows.length) return [];
@@ -130,7 +135,7 @@ async function liveRows(workspaceId: string, rows: any[]): Promise<LiveEntry[]> 
 export async function readLiveEntries(workspaceId: string, uuids: string[]): Promise<Map<string, LiveEntry>> {
   if (!uuids.length) return new Map();
   const rows = await all<any>(
-    `SELECT w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
+    `SELECT ${entryColumns("w")} FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id WHERE ws.cp_workspace_id = ? AND w.uuid IN (${uuids.map(() => "?").join(", ")})`,
     [workspaceId, ...uuids]);
   return new Map((await liveRows(workspaceId, rows)).map((e) => [e.uuid, e]));
 }
@@ -394,7 +399,7 @@ export async function pullWorkspaceEntries(workspaceId: string, since: number): 
 export async function pullWorkspaceLive(workspaceId: string, since: number): Promise<{ entries: LiveEntry[]; cursor: number; more: boolean }> {
   const ws = await get<{ id: number }>("SELECT id FROM workspaces WHERE cp_workspace_id = ?", [workspaceId]);
   if (!ws) return { entries: [], cursor: since, more: false }; // nothing written yet (and reading never creates the row)
-  const rows = await all<any>("SELECT * FROM workspace_scout_entries WHERE workspace_id = ? AND seq > ? ORDER BY seq LIMIT ?", [ws.id, since, PULL_LIMIT]);
+  const rows = await all<any>(`SELECT ${entryColumns()} FROM workspace_scout_entries WHERE workspace_id = ? AND seq > ? ORDER BY seq LIMIT ?`, [ws.id, since, PULL_LIMIT]);
   return { entries: await liveRows(workspaceId, rows), cursor: rows.length ? Number(rows.at(-1).seq) : since, more: rows.length === PULL_LIMIT };
 }
 

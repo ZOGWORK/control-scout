@@ -33,6 +33,8 @@ import { logActivity, type ActivityActor } from "./activityLog.js";
 const isSeason = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 2000 && v <= 2100;
 
 const person = (id: unknown, name: unknown): PickPerson => ({ accountId: id == null ? null : Number(id), name: String(name ?? "") });
+/** The workspace_picklist columns toPick reads (as `p.`). */
+const PICK_COLUMNS = "p.team, p.rank, p.added_by_account_id, p.added_by_name, p.added_at, p.note, p.note_by_account_id, p.note_by_name, p.note_updated_at";
 const toPick = (r: any): Pick => ({
   team: Number(r.team), rank: Number(r.rank),
   addedBy: person(r.added_by_account_id, r.added_by_name), addedAt: Number(r.added_at),
@@ -46,7 +48,7 @@ export async function readPickList(workspaceId: string, season: number): Promise
   const v = await get<{ version: number }>(
     `SELECT v.version FROM workspace_picklist_versions v JOIN workspaces w ON w.id = v.workspace_id WHERE w.cp_workspace_id = ? AND v.season = ?`, [workspaceId, season]);
   const rows = await all<any>(
-    `SELECT p.* FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? AND p.removed_at IS NULL ORDER BY p.rank, p.team`, [workspaceId, season]);
+    `SELECT ${PICK_COLUMNS} FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? AND p.removed_at IS NULL ORDER BY p.rank, p.team`, [workspaceId, season]);
   return { workspaceId, season, version: Number(v?.version ?? 0), picks: rows.map(toPick) };
 }
 
@@ -119,7 +121,7 @@ export async function changePickList(user: User, m: Membership, season: number, 
 /** A team's pick as it was when it was last removed from the list (null: never removed, or back on it). */
 async function removedPick(workspaceId: string, season: number, team: number): Promise<Pick | null> {
   const r = await get<any>(
-    `SELECT p.* FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? AND p.team = ? AND p.removed_at IS NOT NULL`,
+    `SELECT ${PICK_COLUMNS} FROM workspace_picklist p JOIN workspaces w ON w.id = p.workspace_id WHERE w.cp_workspace_id = ? AND p.season = ? AND p.team = ? AND p.removed_at IS NOT NULL`,
     [workspaceId, season, team]);
   return r ? toPick(r) : null;
 }
