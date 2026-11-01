@@ -59,5 +59,5 @@ export function connectionNote(c: ConnectionInfo | null): string {
   const kind = netKind(c);
   if (kind === "wifi") return "This device is on Wi-Fi now.";
   if (kind === "cellular") return "This device is on mobile data now.";
-  return "This browser doesn't tell sites whether it's on Wi-Fi or mobile data, so with Wi-Fi only you're asked before a season downloads. Offline predictions (a small pack) still save themselves.";
+  return "This browser doesn't tell sites whether it's on Wi-Fi or mobile data, so updates download as if it's on Wi-Fi. Offline predictions (a small pack) save themselves too.";
 }

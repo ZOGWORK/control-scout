@@ -36,13 +36,17 @@ function acrossTabs(fn: () => Promise<void>): Promise<void> {
 const connection = () => (navigator as Navigator & { connection?: Connection }).connection;
 
 export function SeasonUpdateWatcher(): null {
-  const { state } = usePersonal();
+  const { state, user, providers, syncReady } = usePersonal();
   const { mode, network } = updatePrefs(state.settings);
+  // Whose settings these are is known: /api/auth/me has answered, and a signed-in account's settings have
+  // arrived (syncReady). Until then nothing downloads or asks: "download automatically" is only the default,
+  // and an account that chose "Ask me" on another device mustn't get a download before that choice syncs here.
+  const settled = providers !== null && (!user || syncReady);
   const packsOn = useFlag("offlinePacks");
   const any = useSavedSeasons().length > 0;
   const { pathname } = useLocation();
-  const live = useRef({ mode, network, pathname });
-  live.current = { mode, network, pathname };
+  const live = useRef({ mode, network, pathname, settled });
+  live.current = { mode, network, pathname, settled };
   const decideRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -55,7 +59,8 @@ export function SeasonUpdateWatcher(): null {
     const due = (rows: SeasonRow[]) => rows.filter((r) => Date.now() - (tried.get(updateId({ season: r.season, sha256: r.file.sha256 })) ?? 0) >= RETRY_MS);
     // Still allowed to download with no question, right now? Asked again before each season of a run.
     const autoNow = () => {
-      const { mode, network } = live.current;
+      const { mode, network, settled } = live.current;
+      if (!settled) return false;
       // Online: the manifest this run comes from was just read (navigator.onLine isn't trusted: iOS can say offline
       // while online). A download that then can't reach the server fails, and the saved copy stays.
       return !stopped && decideUpdate({ mode, network, connection: connection(), online: true, pending: ["any"], later: [] }) === "download";
@@ -79,7 +84,7 @@ export function SeasonUpdateWatcher(): null {
     });
 
     const decide = () => {
-      if (stopped || !manifest) return;
+      if (stopped || !manifest || !live.current.settled) return;
       setUpdate(manifest, "none"); // the updates in this manifest against what's saved now
       const pending = updateSnapshot().updates.map(updateId);
       const { mode, network, pathname } = live.current;
@@ -138,6 +143,6 @@ export function SeasonUpdateWatcher(): null {
   }, [packsOn, any]);
 
   // A setting changed (here or synced from another device): decide again with what the last check found.
-  useEffect(() => { decideRef.current(); }, [mode, network]);
+  useEffect(() => { decideRef.current(); }, [mode, network, settled]);
   return null;
 }
