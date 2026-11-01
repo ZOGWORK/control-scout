@@ -25,7 +25,7 @@ Taps that change something show at once on slow venue Wi-Fi.
 - [fixes] If the server says no, it goes back and says "Didn't save", never silently
 
 ### Speed
-- **Changes show before the round trip.** Done and Reopen on an assignment, sharing a pit entry in the scouting commons, and the email digest switch now change on screen the moment you tap, then save in the background and take the server's answer when it comes. If it doesn't save, the screen goes back to what the server has and tells you "Didn't save" and why. Taps on the same thing go to the server in order, and only the newest decides what shows. Scouting entries, your lists, the pick list and notifications already worked this way. Deletes and owner or admin actions still wait for the server. (#PR)
+- **Changes show before the round trip.** Done and Reopen on an assignment, sharing a pit entry in the scouting commons, and the email digest switch now change on screen the moment you tap, then save in the background and take the server's answer when it comes. If it doesn't save, the screen goes back to what the server has and tells you "Didn't save" and why. Taps on the same thing go to the server in order, and only the newest decides what shows. Scouting entries, your lists, the pick list and notifications already worked this way. Deletes and owner or admin actions still wait for the server. (#413)
 
 ## 2.1.2 — 2026-11-01
 
