@@ -66,7 +66,8 @@ describe("the answer cards", () => {
       expect(a.step, q).toBe("deterministic");
       expect(hitHref(a.hits[0]), q).toBe("/teams/4215#events");
       expect(a.card?.lines.map((l) => [l.text, l.href]), q).toEqual([["2024 FIRST Championship - Edison Division", "/events/2023/FTCCMP1EDIS?team=4215"]]);
-      expect(a.card!.lines[0].detail).toBe("2023–24 · Apr 17, 2024 · Houston, TX · ranked #3 · 9-1-0 in quals · Finalist Alliance");
+      expect(a.card!.lines[0].detail).toBe("2023–24 · Apr 17, 2024 · Houston, TX");
+      expect(a.card!.lines[0].results).toEqual(["Ranked #3", "9-1-0 in quals", "Finalist Alliance"]);
     }
   });
   it("Worlds in a year it didn't go: says so, and lists its real trips; a team that never went: none, and its state championship", async () => {
@@ -86,7 +87,7 @@ describe("the answer cards", () => {
     expect(parseQuestion("did 4215 go to the league championship")).toBeNull();
     const a = await searchAnswer("how many times did hypnotic go to states");
     expect(a.card).toMatchObject({ kind: "states", title: "State championships", count: 1 });
-    expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX · ranked #1 · 6-0-0 in quals · OPR 50.0 · Winning Alliance · Design 2nd", href: "/events/2023/USNJCMP?team=4215" });
+    expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX", results: ["Ranked #1", "6-0-0 in quals", "OPR 50.0", "Winning Alliance", "Design 2nd"], href: "/events/2023/USNJCMP?team=4215" });
     // None in a year asked: said plainly, with its real ones under it, and no count.
     const none = (await searchAnswer("did hypnotic go to states in 2025")).card!;
     expect(none).toMatchObject({ lines: [], none: "No state championship in 2025 found in Hypnotic Robotics's recorded event history." });
