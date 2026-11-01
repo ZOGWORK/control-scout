@@ -110,6 +110,17 @@ export function hitHref(h: SearchHit): string {
 
 /** The site as results name it ("controlscout.org/teams/4215#opr"): the destination shown under each result before
  *  it's opened. Display only: the link itself is this app's own path. */
+/** A search that reads as a question ("how many times did 4215 go to states", "is bad wolf good?"): /search then asks
+ *  Bruno for a written answer (server/api/searchBrunoAnswer.ts). A name or a number alone ("4215", "hypnotic opr")
+ *  never does. */
+export function isBrunoQuestion(q: string): boolean {
+  const t = q.trim();
+  if (t.length < 8) return false;
+  if (t.endsWith("?")) return true;
+  if (/^(?:who|whom|whose|what|whats|what's|when|where|which|why|how|did|does|do|is|are|was|were|has|have|had|can|could|will|would|should)\b/i.test(t)) return true;
+  return t.split(/\s+/).length >= 6;
+}
+
 export const SITE_HOST = "controlscout.org";
 export const shownPath = (h: SearchHit) => `${SITE_HOST}${hitHref(h)}`;
 

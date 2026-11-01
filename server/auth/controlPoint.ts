@@ -105,6 +105,15 @@ export async function brunoSearchQuery(query: string, timeoutMs: number): Promis
   return internal<{ query: string | null }>("/internal/bruno/search", { method: "POST", body: { query } }, timeoutMs);
 }
 
+/**
+ * Control Point's POST /internal/bruno/search-answer: Bruno answers a search question in a sentence or three, from
+ * the facts Scout sends and nothing else (server/api/searchBrunoAnswer.ts), or null when they don't answer it.
+ * Throws on network errors, timeouts and non-2xx answers.
+ */
+export async function brunoSearchAnswer(question: string, facts: string[], timeoutMs: number): Promise<{ text: string | null }> {
+  return internal<{ text: string | null }>("/internal/bruno/search-answer", { method: "POST", body: { question, facts } }, timeoutMs);
+}
+
 /** When each account answer was asked for: an answer asked before Scout dropped a membership can't restore it (withoutDropped). */
 const askedAtOf = new WeakMap<object, number>();
 const stamped = <T extends object>(a: T, asked: number): T => { askedAtOf.set(a, asked); return a; };
