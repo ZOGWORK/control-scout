@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { OprSection, RowRecord } from "./TeamPage";
 import type { TeamEventRow, TeamProfile } from "../shared/api";
 
-afterEach(cleanup);
+// useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
+const meta = vi.hoisted(() => ({ value: null as { statsAt: string | null } | null, current: 2025 }));
+vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => meta.value, useCurrentSeason: () => meta.current }));
+
+afterEach(() => { cleanup(); meta.value = null; meta.current = 2025; });
 
 const stat = (value: number, rank: number) => ({ value, rank, of: 8000 });
 const profile = {
@@ -66,5 +70,29 @@ describe("an event row's record", () => {
     expect(shows({ wins: 4, losses: 4, ties: 0, played: 8, qual: { wins: 3, losses: 2, ties: 0, played: 5 }, onField: true })).toBe("4-4-0Quals 3-2-0");
     expect(shows({ wins: 5, losses: 1, ties: 0, played: 6, qual: { wins: 5, losses: 1, ties: 0, played: 6 }, onField: true })).toBe("5-1-0");
     expect(shows({ wins: 0, losses: 1, ties: 0, played: 1, qual: { wins: 0, losses: 1, ties: 0, played: 1 }, onField: false })).toBe("0-1-0No-show");
+  });
+});
+
+describe("OprSection's data-as-of stamp", () => {
+  it("says when the stats were last rebuilt, so an old OPR never reads as live", () => {
+    meta.value = { statsAt: new Date(Date.now() - 2 * 3600_000).toISOString() };
+    render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
+    expect(screen.getByText(/Stats updated 2 h ago/)).toBeTruthy();
+  });
+  it("says nothing for a page drawn from a saved season offline (the server's time would date older numbers)", async () => {
+    meta.value = { statsAt: new Date().toISOString() };
+    const { markOffline } = await import("../lib/offline/saved");
+    render(<MemoryRouter><OprSection p={markOffline({ ...profile }, { season: 2025, savedAt: 1, dataAsOf: "2026-10-01T00:00:00Z" })} /></MemoryRouter>);
+    expect(screen.queryByText(/Stats updated/)).toBeNull();
+  });
+  it("says nothing for an earlier season (the rebuild time is the current season's)", () => {
+    meta.value = { statsAt: new Date().toISOString() };
+    meta.current = 2026;
+    render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
+    expect(screen.queryByText(/Stats updated/)).toBeNull();
+  });
+  it("says nothing while the time isn't known", () => {
+    render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
+    expect(screen.queryByText(/Stats updated/)).toBeNull();
   });
 });

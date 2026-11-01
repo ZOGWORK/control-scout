@@ -2,6 +2,7 @@
 
 import { DEVICE_LATEST } from "../shared/scoutEntry";
 
+import { dateRange } from "../shared/format";
 export { pct, oddsPct, num, int, rankPct, dateRange, place, matchTime, matchDateTime, seasonLabel, awardLabel } from "../shared/format";
 
 export function ago(iso: string | null | undefined): string {
@@ -11,6 +12,14 @@ export function ago(iso: string | null | undefined): string {
   if (s < 3600) return `${Math.round(s / 60)} min ago`;
   if (s < 86400) return `${Math.round(s / 3600)} h ago`;
   return `${Math.round(s / 86400)} days ago`;
+}
+
+/** A day as the rest of the app writes one ("Oct 31, 2026"), for "as of" and "released" stamps: dateRange's own
+ *  rule (fixed month names, month first) on the local calendar day. The browser's toLocaleDateString() gave
+ *  "10/31/2026", or "31 oct. 2026" in another language, beside event dates written "Oct 31, 2026". */
+export function dayDate(at: string | number | Date): string {
+  const d = new Date(at);
+  return dateRange(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
 }
 
 /** To the second, for live freshness: "just now", "40 s ago", "3 min ago" (then like ago()). */
