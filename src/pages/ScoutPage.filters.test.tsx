@@ -129,7 +129,7 @@ describe("Scout feed filters (workspace)", () => {
     const clears = screen.getAllByRole("button", { name: "Clear filters" });
     fireEvent.click(clears[clears.length - 1]);
     await waitFor(() => expect(feed().sort()).toEqual(["111", "222", "333", "444"]));
-    expect([...params().keys()].sort()).toEqual(["season", "sort", "space", "tab", "view"]); // still on Data → Entries
+    expect([...params().keys()].sort()).toEqual(["season", "sort", "space", "tab"]); // still on Entries
   });
 
   it("Export CSV carries the feed's filters", () => {

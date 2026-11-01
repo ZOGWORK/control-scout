@@ -483,7 +483,7 @@ describe("light pick list", () => {
     expect(a).toBeGreaterThan(-1);
     expect(b).toBeGreaterThan(a);
     expect(r.html).toContain("Fast &lt;auto&gt; <span class=\"m s\">· Marcus</span>");
-    expect(r.html).toContain(`<a class="full" href="/scout?space=1190&amp;tab=data&amp;view=picklist&amp;season=${S}">Full version</a>`);
+    expect(r.html).toContain(`<a class="full" href="/scout?space=1190&amp;tab=planning&amp;view=picklist&amp;season=${S}">Full version</a>`);
     expect(r.html).not.toMatch(/<script|<img/);
     const out = await page(olly, `/lite/picklist?space=1190&season=${S}`);
     expect(out.status).toBe(403);

@@ -101,7 +101,7 @@ describe("read-only space", () => {
     expect(await screen.findByRole("button", { name: /new entry/i })).toBeTruthy();
     expect(screen.queryByText(/this space is read-only/)).toBeNull();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Data" })); // the admin's Template is a row of Data
-    expect(await screen.findByRole("button", { name: /template/i })).toBeTruthy();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Pick list & planning" })); // the admin's Template is under planning
+    expect(await screen.findByRole("radio", { name: /template/i })).toBeTruthy();
   });
 });

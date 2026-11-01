@@ -157,13 +157,13 @@ describe("workspace templates on the Scout page", () => {
   });
 
   it("members don't get the Template editor; admins do", async () => {
-    show(`/scout?season=2025&space=${WS}&tab=data`);
-    expect(await screen.findByRole("button", { name: /Pick list/ })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Template/ })).toBeNull();
+    show(`/scout?season=2025&space=${WS}&tab=planning`);
+    expect(await screen.findByRole("radio", { name: /Pick list/ })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /Template/ })).toBeNull();
     cleanup();
     h.personal.user = user("admin");
-    show(`/scout?season=2025&space=${WS}&tab=data`);
-    fireEvent.click(await screen.findByRole("button", { name: /Template/ }));
+    show(`/scout?season=2025&space=${WS}&tab=planning`);
+    fireEvent.click(await screen.findByRole("radio", { name: /Template/ }));
     expect(await screen.findByRole("heading", { name: /Scout template/ })).toBeTruthy();
   });
 
@@ -247,7 +247,7 @@ describe("workspace templates on the Scout page", () => {
   it("the Match tab: each match that comes on screen checks for newer questions", async () => {
     current = tpl(1, null);
     writeScoutSession(WS, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
-    show(`/scout?season=2025&space=${WS}&tab=match`);
+    show(`/scout?season=2025&space=${WS}&tab=event&at=Q1`);
     expect(await screen.findByRole("button", { name: /Save Q1/ })).toBeTruthy();
     current = tpl(2, v2Fields); // changed meanwhile, no notice
     fireEvent.click(screen.getByRole("button", { name: /^Next match/ }));
