@@ -4,13 +4,15 @@
 // example, sorting, pagination, CSV, clear 400s).
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
+import { crc32 as zlibCrc32, inflateRawSync } from "node:zlib";
+import { crc32 } from "../xlsx";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { all, db, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { loadSeason } from "../stats/load";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "../stats/records";
 import { forecasterFor } from "../predict/engine";
-import { compileFilter, recordColumns, recordFolded, RecordsQueryError } from "./records";
+import { compileFilter, recordColumns, recordFolded, RecordsQueryError, XLSX_CONCURRENT } from "./records";
 import { encodeFilterText, foldText, parseFilter } from "../../src/shared/filterDsl";
 import { RECORD_SCOPES, statsFor } from "../../src/shared/statCatalog";
 
@@ -297,7 +299,7 @@ describe("GET /api/records/:season/teams", () => {
       [`from=yesterday`, /from must be a date/],
       [`scope=season&filter=and-rank.lt.3-`, /"rank" isn't available for team-season records/],
       [`scope=world`, /scope must be event/],
-      [`format=xml`, /format must be json or csv/],
+      [`format=xml`, /format must be json, csv or xlsx/],
       [`filter=a&filter=b`, /filter: give it once/],
     ];
     for (const [q, re] of cases) {
@@ -318,7 +320,57 @@ describe("GET /api/records/:season/teams", () => {
     expect(lines).toHaveLength(5); // header + all 4 rows, whatever the page size
     expect(lines[2]).toBe(`${N},108,C3,Event C3,Scrimmage,2025-12-06,') OR 1=1 --,55`);
   });
+  it("exports an Excel sheet coloured like the table: stat-coloured headers, best fifth green, worst fifth red", async () => {
+    const r = await fetch(`${base}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr,penaltyPointsCommittedTot,predictedWinPctAvg`, { headers: { "accept-encoding": "gzip" } });
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toContain("spreadsheetml.sheet");
+    expect(r.headers.get("content-encoding")).toBeNull(); // a zip already
+    expect(r.headers.get("content-disposition")).toContain(`control-scout-${N}-teams.xlsx`);
+    const files = unzip(Buffer.from(await r.arrayBuffer()));
+    expect(Object.keys(files).sort()).toEqual(["[Content_Types].xml", "_rels/.rels", "xl/_rels/workbook.xml.rels", "xl/styles.xml", "xl/workbook.xml", "xl/worksheets/sheet1.xml"]);
+    const sheet = files["xl/worksheets/sheet1.xml"], styles = files["xl/styles.xml"];
+    const xfs = [...styles.match(/<cellXfs[^>]*>(.*)<\/cellXfs>/)![1].matchAll(/<xf [^>]*?fontId="(\d+)" fillId="(\d+)"/g)].map((m) => ({ font: +m[1], fill: +m[2] }));
+    const fonts = [...styles.matchAll(/<font>.*?<\/font>/g)].map((m) => m[0]), fills = [...styles.matchAll(/<fill>.*?<\/fill>/g)].map((m) => m[0]);
+    const look = (ref: string) => { const s = Number(new RegExp(`<c r="${ref}"(?: s="(\\d+)")?`).exec(sheet)?.[1] ?? 0); return { font: fonts[xfs[s].font], fill: fills[xfs[s].fill] }; };
+    const text = (ref: string) => new RegExp(`<c r="${ref}"[^>]*>(?:<is><t[^>]*>([^<]*)</t></is>|<v>([^<]*)</v>)`).exec(sheet)?.slice(1).find((x) => x != null);
+    expect(["A1", "B1", "F1", "G1", "H1", "I1"].map(text)).toEqual(["Season", "Team", "Event Start", "Team Name", "Total Points OPR", "Penalty Points TOT"]);
+    expect(look("H1").font).toContain("FF7C3AED"); // a total-points column's header is violet
+    expect(look("I1").font).toContain("FFBE123C"); // a penalty column's, rose
+    // Sorted by OPR, best first: 106 (90) is the top fifth, 109 (1) the bottom one; a penalty of 0 is the best.
+    expect([text("B2"), text("H2")]).toEqual(["106", "90"]);
+    expect(look("H2")).toMatchObject({ font: expect.stringContaining("<b/>"), fill: expect.stringContaining("FFD1FAE5") });
+    expect([text("B9"), text("H9")]).toEqual(["109", "1"]); // row 10 is 105, which has no OPR
+    expect(look("H9")).toMatchObject({ font: expect.stringContaining("<b/>"), fill: expect.stringContaining("FFFFE4E6") });
+    expect([text("B4"), text("I4")]).toEqual(["101", "0"]);
+    expect(look("I4").fill).toContain("FFD1FAE5"); // lower is better for penalties: none is the top band
+    expect(look("I9").fill).toContain("FFFFE4E6");
+    // Percentages read as on the page: whole, and never a flat 0% or 100% (the number itself is kept).
+    expect(styles).toContain('formatCode="[&lt;1.5]&quot;1%&quot;;[&gt;98.5]&quot;99%&quot;;0&quot;%&quot;"');
+    expect(text("F2")).toBe(String((Date.UTC(2025, 11, 6) - Date.UTC(1899, 11, 30)) / 86_400_000)); // a real date, not text
+    expect(sheet).toContain("<t xml:space=\"preserve\">') OR 1=1 --</t>"); // inline text, never read as a formula
+  });
 });
+
+/** The files in a zip, as text (enough of the format to read the export back: the central directory, deflate). */
+function unzip(zip: Buffer): Record<string, string> {
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const count = zip.readUInt16LE(end + 10);
+  let at = zip.readUInt32LE(end + 16);
+  const out: Record<string, string> = {};
+  for (let i = 0; i < count; i++) {
+    expect(zip.readUInt32LE(at)).toBe(0x02014b50);
+    const csize = zip.readUInt32LE(at + 20), size = zip.readUInt32LE(at + 24), crc = zip.readUInt32LE(at + 16);
+    const nameLen = zip.readUInt16LE(at + 28), extra = zip.readUInt16LE(at + 30), comment = zip.readUInt16LE(at + 32), local = zip.readUInt32LE(at + 42);
+    const name = zip.subarray(at + 46, at + 46 + nameLen).toString();
+    const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+    const data = inflateRawSync(zip.subarray(start, start + csize));
+    expect(data.length).toBe(size);
+    expect(zlibCrc32(data)).toBe(crc);
+    out[name] = data.toString("utf8");
+    at += 46 + nameLen + extra + comment;
+  }
+  return out;
+}
 
 describe("GET /api/records/:season/matches", () => {
   it("filters and sorts match records, with lineups", async () => {
@@ -407,5 +459,66 @@ describe("one event's records and region options", () => {
     const { status, body } = await get(`/api/records/${S}/regions`);
     expect(status).toBe(200);
     expect(body.regions.find((r: any) => r.code === "USTX")).toMatchObject({ events: 1 });
+  });
+});
+
+describe("Excel export limits", () => {
+  it("writes the numbers its colours were worked out from, even if the records change between its two reads", async () => {
+    const c = db();
+    const realExec = c.execute.bind(c);
+    let rowReads = 0;
+    (c as any).execute = async (s: any) => {
+      const r = await realExec(s);
+      // Right after the first pass reads the rows, a results refresh rewrites the best team's OPR.
+      if (String(s?.sql ?? s).includes("WITH wanted") && ++rowReads === 1) await realExec({ sql: "UPDATE team_event_records SET total_opr = 0 WHERE season = ? AND team = 106", args: [N] });
+      return r;
+    };
+    const own = createApp().listen(0);
+    await new Promise((r) => own.once("listening", r));
+    try {
+      const r = await fetch(`http://127.0.0.1:${(own.address() as AddressInfo).port}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr`);
+      const sheet = unzip(Buffer.from(await r.arrayBuffer()))["xl/worksheets/sheet1.xml"];
+      expect(rowReads).toBe(2); // once the whole file is in
+      expect(sheet).toMatch(/<c r="H2" s="\d+"><v>90<\/v><\/c>/); // 106 as banded (top fifth), not 0 painted green
+    } finally {
+      (c as any).execute = realExec;
+      own.close();
+      await run("UPDATE team_event_records SET total_opr = 90 WHERE season = ? AND team = 106", [N]);
+    }
+  });
+  it("checksums like zlib (which needs Node 22.2), in one go or in pieces", () => {
+    const b = Buffer.from("Control Scout ✓ ".repeat(500));
+    expect(crc32(b)).toBe(zlibCrc32(b));
+    expect(crc32(b.subarray(100), crc32(b.subarray(0, 100)))).toBe(zlibCrc32(b));
+    expect(crc32(Buffer.alloc(0))).toBe(0);
+  });
+  it(`makes at most ${XLSX_CONCURRENT} Excel exports at once; another is told to try again, and the first ones finish`, async () => {
+    const c = db();
+    const realExec = c.execute.bind(c);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let held = 0;
+    (c as any).execute = async (s: any) => {
+      if (String(s?.sql ?? s).includes("team_event_records")) { held++; await gate; }
+      return realExec(s);
+    };
+    // Its own server: a fresh export rate limit (per app), so this test doesn't spend the other tests' requests.
+    const own = createApp().listen(0);
+    await new Promise((r) => own.once("listening", r));
+    const url = `http://127.0.0.1:${(own.address() as AddressInfo).port}/api/records/${N}/teams?format=xlsx&fields=teamName,totalPointsOpr`;
+    try {
+      const first = Array.from({ length: XLSX_CONCURRENT }, () => fetch(url));
+      while (held < XLSX_CONCURRENT) await new Promise((r) => setTimeout(r, 10));
+      const busy = await fetch(url);
+      expect(busy.status).toBe(503);
+      expect(busy.headers.get("retry-after")).toBe("30");
+      expect((await busy.json()).error).toMatch(/try again/);
+      release();
+      for (const r of await Promise.all(first)) {
+        expect(r.status).toBe(200);
+        expect(Object.keys(unzip(Buffer.from(await r.arrayBuffer())))).toContain("xl/worksheets/sheet1.xml");
+      }
+      expect((await fetch(url)).status).toBe(200); // the slots are free again
+    } finally { release(); (c as any).execute = realExec; own.close(); }
   });
 });
