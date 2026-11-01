@@ -25,7 +25,7 @@ The Download page says how offline updates work now.
 - [offline] Ask me is still there if you'd rather be asked
 
 ### Offline
-- **Download page wording.** Its "Updates" note said you were asked once per release; since 2.1.1 saved seasons update by themselves (on Wi-Fi only unless you allow mobile data), and you're only asked if you choose Ask me. (#PR)
+- **Download page wording.** Its "Updates" note said you were asked once per release; since 2.1.1 saved seasons update by themselves (on Wi-Fi only unless you allow mobile data), and you're only asked if you choose Ask me. (#410)
 
 ## 2.1.1 — 2026-11-01
 
