@@ -5,7 +5,8 @@
 //   public/favicon-48.png       48×48
 //   public/apple-touch-icon.png 180×180
 //   public/icon-192.png, icon-512.png  the installed app's icons (manifest.webmanifest)
-//   public/logo.png             96×96 (sharp at 48 px on 2x screens), rounded corners: the logo in the app (sidebar, header, home, notifications)
+//   public/logo.png             96×96 (sharp at 48 px on 2x screens), rounded corners: the logo in emails
+//   public/logo-56.webp         56×56 WebP, rounded: the logo in the app and its first paint (28 px, sharp on 2x screens; a quarter of logo.png)
 //   public/logo-512.png         512×512, rounded: the logo in structured data and the share image
 // No SVG favicon: the artwork is a bitmap, and an SVG link would win over these in modern browsers.
 // Re-run after replacing the master:
@@ -19,9 +20,9 @@ const pub = join(process.cwd(), "public");
 const master = `data:image/png;base64,${readFileSync(join(process.cwd(), "brand", "favicon-master.png")).toString("base64")}`;
 
 /** The master at `size` px: halved step by step (sharp small sizes), then drawn at the target. */
-async function render(page: Page, size: number, opts: { round?: boolean } = {}): Promise<Buffer> {
-  const round = !!opts.round;
-  const dataUrl = await page.evaluate(async ({ src, size, round }) => {
+async function render(page: Page, size: number, opts: { round?: boolean; webp?: boolean } = {}): Promise<Buffer> {
+  const round = !!opts.round, type = opts.webp ? "image/webp" : "image/png";
+  const dataUrl = await page.evaluate(async ({ src, size, round, type }) => {
     const img = new Image();
     img.src = src;
     await img.decode();
@@ -44,8 +45,8 @@ async function render(page: Page, size: number, opts: { round?: boolean } = {}):
     // The app's logo: app-icon corners (22% radius), transparent outside.
     if (round) { o.beginPath(); o.roundRect(0, 0, size, size, size * 0.22); o.clip(); }
     o.drawImage(canvas, 0, 0, size, size);
-    return out.toDataURL("image/png");
-  }, { src: master, size, round });
+    return out.toDataURL(type, 0.9);
+  }, { src: master, size, round, type });
   return Buffer.from(dataUrl.split(",")[1], "base64");
 }
 
@@ -83,5 +84,6 @@ writeFileSync(join(pub, "icon-192.png"), await render(page, 192));
 writeFileSync(join(pub, "icon-512.png"), await render(page, 512));
 writeFileSync(join(pub, "logo.png"), await render(page, 96, { round: true }));
 writeFileSync(join(pub, "logo-512.png"), await render(page, 512, { round: true }));
+writeFileSync(join(pub, "logo-56.webp"), await render(page, 56, { round: true, webp: true }));
 await b.close();
-for (const f of ["favicon.ico", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "logo.png", "logo-512.png"]) console.log(`${f}: ${statSync(join(pub, f)).size} bytes`);
+for (const f of ["favicon.ico", "favicon-48.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "logo.png", "logo-512.png", "logo-56.webp"]) console.log(`${f}: ${statSync(join(pub, f)).size} bytes`);

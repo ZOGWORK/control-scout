@@ -188,8 +188,8 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const guard = `<script>(function(){var b=document.getElementById('cs-boot-page'),p=location.pathname.replace(/\\/+$/,'')||'/';if(b&&b.getAttribute('data-path').toLowerCase()!==p.toLowerCase())b.hidden=true})()</script>`;
   return [
     `<div class="csb">`,
-    `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
-    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
+    `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
+    `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo-56.webp" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
     `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,

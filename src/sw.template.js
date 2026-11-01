@@ -17,7 +17,8 @@ const VERSION = "__VERSION__";
 const FILES = __FILES__;
 // Needed only to read saved seasons offline (the SQLite engine): precached only when this browser has one.
 const OFFLINE_FILES = __OFFLINE_FILES__;
-const BRAND = new Set(["/logo.png", "/mark.png", "/wordmark.png", "/favicon.ico"]);
+// /logo.png stays answerable from the cache for a tab still running an older release (it is no longer precached).
+const BRAND = new Set(["/logo-56.webp", "/logo.png", "/mark.png", "/wordmark.png", "/favicon.ico"]);
 const PREFIX = "cs-shell-";
 const CACHE = `${PREFIX}${VERSION}`;
 const KEEP = 2;

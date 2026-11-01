@@ -21,6 +21,10 @@ describe("favicons", () => {
     // The in-app logo and the structured-data logo come from the same icon.
     expect(pngSize(pub("logo.png"))).toEqual([96, 96]);
     expect(pngSize(pub("logo-512.png"))).toEqual([512, 512]);
+    // The in-app logo: a 56×56 WebP (VP8L or VP8X header), small enough to cost nothing on a first visit.
+    const webp = pub("logo-56.webp");
+    expect(webp.subarray(0, 4).toString() + webp.subarray(8, 12).toString()).toBe("RIFFWEBP");
+    expect(webp.length).toBeLessThan(4096);
     // The installed app uses the same icon.
     const manifest = JSON.parse(readFileSync(join(process.cwd(), "public", "manifest.webmanifest"), "utf8"));
     for (const { src, sizes } of manifest.icons) {
