@@ -385,7 +385,7 @@ function Field({ fc, team, nameOf, field, season, onPick, onPrefetch, onPeek }: 
                 <span className="min-w-0 flex-1">
                   <span className="flex min-w-0 items-baseline gap-2">
                     <span className="shrink-0 text-sm font-semibold tabular-nums">{t.team}</span>
-                    <span className="min-w-0 truncate text-sm text-muted-foreground">{name}</span>
+                    <span className="min-w-0 truncate text-sm text-muted-foreground" title={name}>{name}</span>
                     {t.team === team && <Badge variant="soft" className="shrink-0">Selected</Badge>}
                   </span>
                   {status ? null : <span className="mt-1.5 block h-1 overflow-hidden rounded-full bg-muted"><GrowBar value={t.pAdvance} className="bg-accent" /></span>}

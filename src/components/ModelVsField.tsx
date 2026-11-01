@@ -140,7 +140,7 @@ function Row({ r, v }: { r: DisagreementRow; v: DisagreementsView }) {
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-baseline gap-x-2">
             <TeamNo team={r.team} season={v.season} className="text-base" />
-            <span className="min-w-0 truncate text-sm text-foreground">{r.name}</span>
+            <span className="min-w-0 truncate text-sm text-foreground" title={r.name ?? undefined}>{r.name}</span>
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">{sentence}</p>
         </div>

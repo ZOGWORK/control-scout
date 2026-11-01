@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.5 — 2026-11-01
+
+Long names show in full when you point at them, table numbers line up, and headings follow one order.
+
+### Highlights
+- [teams] Cut-off team and event names show their full name on hover
+- [rankings] Numbers in every table line up in their columns
+- [teams] A team's Sponsors label no longer breaks onto two lines on a phone
+- [predict] A prediction's "Why" heading sits in the page's heading order
+
+### Typography
+- **Full names on hover.** Seventeen places that cut a long team or event name short (event history, the Last event row, Compare, Records, Home, advancement odds, the event roster and more) now carry the full name as a tooltip.
+- **Tabular figures in every table.** Columns of OPR, ranks and scores line up even where a cell didn't ask for it.
+- **Headings.** "Why: the top 3 factors" under a prediction was an h3 straight after the page's h1 (axe heading-order); it is an h2 now, same look.
+- **One type scale.** The few odd sizes left (9px rank labels, 10.5px and 11.5px on How it works) moved onto the scale's 10px, 11px and 12px steps.
+- **Sponsors.** The label keeps to one line; the sponsor names truncate beside it instead.
+
 ## 1.8.4 — 2026-11-01
 
 Colours mean one thing each, read clearly in light mode, and the keyboard focus ring shows on white.

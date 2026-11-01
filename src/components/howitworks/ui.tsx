@@ -264,7 +264,7 @@ export function TipLayer({ children }: { children: ReactNode }) {
           role="status"
           aria-live="polite"
           className={cn(
-            "pointer-events-none fixed z-[90] max-w-[240px] rounded-lg bg-foreground px-2.5 py-1.5 font-mono text-[11.5px] leading-snug text-background shadow-lg transition-opacity duration-150",
+            "pointer-events-none fixed z-[90] max-w-[240px] rounded-lg bg-foreground px-2.5 py-1.5 font-mono text-xs leading-snug text-background shadow-lg transition-opacity duration-150",
             tip ? "opacity-100" : "opacity-0",
           )}
           style={tip ? { left: Math.max(8, Math.min(w - 248, tip.x + 14)), top: Math.max(8, tip.y - 44) } : { left: -9999, top: -9999 }}

@@ -242,6 +242,9 @@ html body[data-scroll-locked] { margin-right: 0 !important; }
   ::selection { background: var(--color-accent); color: var(--color-accent-ink); }
   :focus-visible { outline: 2px solid color-mix(in srgb, var(--color-ring) 70%, transparent); outline-offset: 2px; }
   .tabular { font-variant-numeric: tabular-nums; }
+  /* Every table's figures line up in their columns (OPR, ranks, scores), whether or not a cell remembered
+     tabular-nums; it changes digits only. */
+  table { font-variant-numeric: tabular-nums; }
 }
 
 /* A link in running text (gold and underlined) that's been opened before reads a step quieter, so a list of
