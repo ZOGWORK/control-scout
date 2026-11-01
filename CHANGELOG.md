@@ -25,7 +25,7 @@ Search answers are easier to read: spaced out, with bullet points.
 - [fixes] The "how many times" count shows as a badge in the card title
 
 ### Search
-- Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#PRNUM)
+- Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#399)
 - The Worlds and states cards on /search put a line between events: the name, then when and where, then rank, record, OPR and awards as bullets. The search dropdown keeps each event to two lines
 
 ## 1.9.9 — 2026-11-01
