@@ -5,7 +5,7 @@
 // ordinary save that goes up with a restore marker. Personal entries never conflict.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  applyLiveEntries, clearLocalScouting, exportLocalScouting, importLocalScouting, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, scoutDraftBase, setScoutViewer, syncScouting, type ScoutEntry,
+  applyLiveEntries, clearLocalScouting, exportLocalScouting, importLocalScouting, isScoutRejected, localScoutEntries, pendingScoutCounts, pullScouting, restoreScoutVersion, saveScoutEntry, scoutDraftBase, setScoutViewer, syncScouting, type ScoutEntry,
 } from "./scouting";
 import { dropLostEdit, lostEdits, markLostSeen, SCOUT_LOST_UNSAVED, SCOUT_OVERWRITTEN, type LostEdit } from "./lostEdits";
 import { entryDiff, formatAnswer } from "./entryDiff";
@@ -249,6 +249,50 @@ describe("restoring a lost version", () => {
     applyLiveEntries("w1", [{ entry: server({ updatedAt: mine.updatedAt + 5000 }), seq: 2 }]);
     dropLostEdit("w1", lostEdits("w1")[0].id);
     expect(lostEdits("w1")).toEqual([]);
+  });
+});
+
+describe("an account's turned-down versions", () => {
+  it("go aside with its scouting data and come back with it", () => {
+    localStorage.setItem("cs-scout-rejected:w1", JSON.stringify({ abc: 123 }));
+    localStorage.setItem("cs-scout-ws:w1:abc", JSON.stringify({ uuid: "abc", season: 2025, team: 1, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt: 123, workspaceId: "w1" }));
+    const stash = exportLocalScouting();
+    clearLocalScouting();
+    expect(localStorage.getItem("cs-scout-rejected:w1")).toBeNull();
+    importLocalScouting(stash);
+    expect(JSON.parse(localStorage.getItem("cs-scout-rejected:w1")!)).toEqual({ abc: 123 });
+  });
+
+  it("a new stash keeps the markers an earlier sign-in couldn't put back", async () => {
+    const { withLeftovers } = await import("./personal");
+    const now = { entries: [], dirty: [], spaces: { w1: { entries: [], dirty: [], rejected: { b: 2 } } } };
+    const left = { entries: [], dirty: [], rejected: { p: 9 }, spaces: { w1: { entries: [], dirty: [], rejected: { a: 1 } } } };
+    const out = withLeftovers(now, left);
+    expect(out.rejected).toEqual({ p: 9 });
+    expect(out.spaces!.w1.rejected).toEqual({ a: 1, b: 2 });
+  });
+
+  it("an older stashed marker never replaces the one for the newer version on the device", () => {
+    const entry = (updatedAt: number) => JSON.stringify({ uuid: "abc", season: 2025, team: 1, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt, workspaceId: "w1" });
+    localStorage.setItem("cs-scout-rejected:w1", JSON.stringify({ abc: 200 }));
+    localStorage.setItem("cs-scout-ws:w1:abc", entry(200));
+    importLocalScouting({ entries: [], dirty: [], spaces: { w1: { entries: [JSON.parse(entry(123))], dirty: [], rejected: { abc: 123 } } } } as never);
+    expect(JSON.parse(localStorage.getItem("cs-scout-rejected:w1")!)).toEqual({ abc: 200 });
+    expect(isScoutRejected({ uuid: "abc", workspaceId: "w1", updatedAt: 200 })).toBe(true);
+  });
+
+  it("a device too full to write them hands them back, so the stash isn't dropped", () => {
+    localStorage.setItem("cs-scout-rejected:w1", JSON.stringify({ abc: 123 }));
+    localStorage.setItem("cs-scout-ws:w1:abc", JSON.stringify({ uuid: "abc", season: 2025, team: 1, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt: 123, workspaceId: "w1" }));
+    const stash = exportLocalScouting();
+    clearLocalScouting();
+    const real = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k.startsWith("cs-scout-rejected:")) throw new DOMException("full", "QuotaExceededError");
+      return real.call(this, k, v);
+    });
+    expect(importLocalScouting(stash).failed?.spaces.w1).toMatchObject({ rejected: { abc: 123 } });
+    spy.mockRestore();
   });
 });
 

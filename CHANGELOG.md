@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.0 — 2026-11-01
+
+Entries is one list you can scan, and the pick list keeps your assignments and the latest activity in view.
+
+### Highlights
+- [scout] Entries is one list: team, match, event, who and when on each row
+- [offline] Each entry says where it stands: Synced, Waiting or On this device
+- [picklist] Your assignments and the latest activity sit right under the pick list
+
+### Scout
+- **Entries as one list.** The cards are now rows in one filtered list: the team, the match (or Pit), the event, who saved it and when, a line of its answers and its notes, with Edit, history and Delete on the right. On a phone each row is two short lines. Filters, sorting, Recordings and Export CSV are where they were.
+- **Sync state on every entry.** Each row says whether that entry has synced, is waiting (offline, or paused by the owner), needs attention, or lives on this device only (Personal without an account).
+- **Pick list & planning.** Under the shared pick list: your open assignments with Scout on each, the workspace's latest activity, and the scouting alliance when it's on, each linking to its full view (#386).
+
 ## 1.8.9 — 2026-11-01
 
 The pit and match forms are rebuilt: pick the team by name, see where you are in the queue, and always know whether your entry has synced.
