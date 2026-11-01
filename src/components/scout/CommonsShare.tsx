@@ -1,7 +1,7 @@
 // Sharing a pit entry in the scouting commons (docs/scouting-commons.md): the switch on an open workspace pit entry,
 // and the "In the commons" badge on its card. Shown only while the workspace has opted in; the server checks the
 // rest (the event open, the author or an admin) and its refusal is said in plain words under the switch.
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Globe2 } from "lucide-react";
 import { Badge } from "../ui/basic";
 import { Switch } from "../ui/controls";
@@ -25,10 +25,14 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
   const c = useWorkspaceCommons(e.kind === "pit" ? e.workspaceId : null);
   // The switch's position until the server's answer is in the workspace's copy (null: as that copy says).
   const [guess, setGuess] = useState<boolean | null>(null);
+  // This view's newest tap: once it's settled the guess comes off, even when another view of the entry (Event day and
+  // Entries) tapped since and decides what's saved; the shared copy shows what the server has then.
+  const taps = useRef(0);
   const [err, setErr] = useState<string | null>(null);
   const id = useId();
   const toggle = (publish: boolean) => {
     setErr(null);
+    const n = ++taps.current;
     void optimistic({
       key: `commons-share:${e.workspaceId}:${e.uuid}`,
       apply: () => { setGuess(publish); return () => setGuess(null); },
@@ -36,7 +40,7 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
       reconcile: () => setGuess(null), // setShare put the server's copy in the shared cache
       what: publish ? "shared in the scouting commons" : "unshared from the scouting commons",
       report: (m) => setErr(m),
-    });
+    }).then(() => { if (taps.current === n) setGuess(null); });
   };
   if (e.kind !== "pit" || !e.workspaceId || !c?.optedIn) return null;
   const on = guess ?? isShared(c, e.uuid);

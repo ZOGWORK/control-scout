@@ -57,4 +57,16 @@ describe("CommonsShare", () => {
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("Didn't save: shared in the scouting commons. This event's commons is closed. It's back as it was."));
     expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
   });
+
+  it("two open views of one entry: each drops its own guess once its newest tap settles, so both end as saved", async () => {
+    h.commons = { ...SUSPENDED, suspended: null, shares: [] }; // the server's copy: not shared
+    const e = { uuid: "e4", kind: "pit", workspaceId: "ws1", eventCode: "USCMQ1", team: 18360 } as unknown as ScoutEntry;
+    render(<><CommonsShare e={e} /><CommonsShare e={e} /></>);
+    const [eventDay, entries] = screen.getAllByRole("switch");
+    fireEvent.click(eventDay); // Share here…
+    fireEvent.click(entries); // …then Share and Unshare in the other view, before any answer
+    fireEvent.click(screen.getAllByRole("switch")[1]);
+    await waitFor(() => expect(h.calls).toHaveLength(3));
+    await waitFor(() => expect(screen.getAllByRole("switch").map((x) => x.getAttribute("aria-checked"))).toEqual(["false", "false"]));
+  });
 });

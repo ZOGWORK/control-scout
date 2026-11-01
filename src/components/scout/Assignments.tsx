@@ -3,7 +3,7 @@
 // unknowingly), and for admins an Assign sheet: pick members and the event's teams, many at once. Match scouting
 // (who watches which slot or alliance for which quals) sits between them (MatchAssignments.tsx).
 // Who may do what is the server's call (server/scout/assignments.ts); the buttons only follow it.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Check, CircleCheck, ClipboardCheck, ClipboardList, Loader2, RotateCcw, Search, Trash2, UserPlus } from "lucide-react";
 import { agoShort } from "../../lib/format";
@@ -121,6 +121,8 @@ function useActions(space: string, state: AssignmentsState, myAccountId: number 
   const [busy, setBusy] = useState<number | null>(null);
   // Guesses on their way, by assignment id (shown over the server's copy until the newest tap's answer is in).
   const [pending, setPending] = useState<ReadonlyMap<number, Assignment>>(new Map());
+  // This view's newest tap per assignment: once it's settled its guess comes off, even if another view tapped since.
+  const taps = useRef(new Map<number, number>());
   const guess = (id: number, a: Assignment | null) => setPending((cur) => {
     const next = new Map(cur);
     if (a) next.set(id, a); else next.delete(id);
@@ -136,6 +138,8 @@ function useActions(space: string, state: AssignmentsState, myAccountId: number 
         ? { ...a, status, doneAt: Date.now(), doneByAccountId: myAccountId, doneByName: null }
         : { ...a, status, doneAt: null, doneByAccountId: null, doneByName: null };
       const said = toast.success(status === "done" ? `Team ${a.team} marked done` : `Team ${a.team} reopened`);
+      const n = (taps.current.get(a.id) ?? 0) + 1;
+      taps.current.set(a.id, n);
       void optimistic({
         key: `assignment:${space}:${a.id}`,
         apply: () => { guess(a.id, shown); return () => guess(a.id, null); },
@@ -144,7 +148,7 @@ function useActions(space: string, state: AssignmentsState, myAccountId: number 
         reconcile: (r) => { state.apply({ action: "updated", assignments: [r.assignment] }); guess(a.id, null); },
         what: status === "done" ? `team ${a.team} marked done` : `team ${a.team} reopened`,
         report: (m) => { toast.dismiss(said); toast.error(m); },
-      });
+      }).then(() => { if (taps.current.get(a.id) === n) guess(a.id, null); });
     },
     remove: async (a: Assignment) => {
       setBusy(a.id);

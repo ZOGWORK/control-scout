@@ -25,8 +25,8 @@ export interface OptimisticChange<R> {
   /** Say it didn't save (default: an error toast). */
   report?: (message: string, error: unknown) => void;
   /** Checked just before sending (a change waits for the ones before it) and again when its answer comes: true drops
-   * it quietly, e.g. the account changed meanwhile, so a request never goes out with the next account's cookie and an
-   * old account's answer (or failure) never touches what the next account sees. */
+   * it quietly. A change of signed-in account always does (setOptimisticAccount), so a request never goes out with the
+   * next account's cookie and an old account's answer (or failure) never touches what the next account sees. */
   stale?: () => boolean;
 }
 
@@ -57,10 +57,13 @@ interface Chain {
 
 const chains = new Map<string, Chain>();
 let tokens = 0;
+/** The signed-in account (lib/personal sets it on every render): a change made by another one has gone stale. */
+let account: unknown = null;
+export function setOptimisticAccount(id: unknown) { account = id ?? null; }
 const DROPPED = Symbol("dropped");
 
 /** Tests: forget every key. */
-export function resetOptimistic() { chains.clear(); }
+export function resetOptimistic() { chains.clear(); account = null; }
 
 /**
  * Show a change now and send it. Resolves (never rejects) once its answer is in: taken (`ok`, with the server's answer
@@ -68,18 +71,20 @@ export function resetOptimistic() { chains.clear(); }
  */
 export function optimistic<R>(c: OptimisticChange<R>): Promise<OptimisticResult<R>> {
   const t = ++tokens;
+  const by = account;
+  const stale = () => account !== by || !!c.stale?.();
   const undo = c.apply();
   let chain = chains.get(c.key);
   if (!chain) { chain = { tail: Promise.resolve(), latest: t, undo, confirmed: null }; chains.set(c.key, chain); }
   chain.latest = t;
   const ch = chain;
   const run = ch.tail
-    .then(() => (c.stale?.() ? Promise.reject(DROPPED) : c.send()))
+    .then(() => (stale() ? Promise.reject(DROPPED) : c.send()))
     .then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
   ch.tail = run;
   return run.then((r): OptimisticResult<R> => {
     const current = ch.latest === t;
-    if ((!r.ok && r.error === DROPPED) || c.stale?.()) {
+    if ((!r.ok && r.error === DROPPED) || stale()) {
       // Never sent, or answered after it went stale: nothing to say, and the screen it was made on isn't this one now.
       if (current) chains.delete(c.key);
       return { ok: false, error: r.ok ? DROPPED : r.error, current, dropped: true };

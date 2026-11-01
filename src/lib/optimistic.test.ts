@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../components/ui/sonner", () => ({ toast: { error: vi.fn() } }));
 const { toast } = await import("../components/ui/sonner");
 const { ApiError } = await import("./api");
-const { didntSave, optimistic, resetOptimistic } = await import("./optimistic");
+const { didntSave, optimistic, resetOptimistic, setOptimisticAccount } = await import("./optimistic");
 
 afterEach(() => { resetOptimistic(); vi.mocked(toast.error).mockClear(); });
 
@@ -158,6 +158,22 @@ describe("optimistic", () => {
     expect(await ok).toMatchObject({ ok: false, dropped: true });
     expect(await bad).toMatchObject({ ok: false, dropped: true });
     expect(reconcile).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
+  it("a change of signed-in account drops a queued change unsent, with no stale check of the caller's own", async () => {
+    setOptimisticAccount(1);
+    const first = deferred<string>();
+    const sent: string[] = [];
+    const report = vi.fn();
+    const a = optimistic({ key: "c", apply: () => () => {}, send: () => { sent.push("share"); return first.promise; }, reconcile: () => {}, what: "x", report });
+    const b = optimistic({ key: "c", apply: () => () => {}, send: async () => { sent.push("unshare"); return "x"; }, reconcile: () => {}, what: "x", report });
+    await Promise.resolve(); // the first is sent; the second waits for its answer
+    setOptimisticAccount(2); // signed in as someone else meanwhile
+    first.resolve("shared");
+    expect(await a).toMatchObject({ dropped: true });
+    expect(await b).toMatchObject({ dropped: true });
+    expect(sent).toEqual(["share"]);
     expect(report).not.toHaveBeenCalled();
   });
 
