@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.3 — 2026-11-01
+
+Records on a laptop shows twice the rows before you scroll.
+
+### Highlights
+- [rankings] Records shows 12 rows in the first screen of a laptop, up from 6
+- [rankings] An event's name and date share one line in the table
+- [rankings] More stat columns fit before the table scrolls sideways
+- [fixes] A cut-off team name shows in full on hover
+
+### Records and tables
+- **Denser on a laptop.** Cells lose their extra padding and an event's name and date sit on one line, so rows go from 61px to 33px tall at 1440×900: 12 rows in the first screen instead of 6, and the table needs about 130px less sideways scrolling. Every column, filter, sort, Select all, Statistics, Filters, preset chip and Export CSV is still there. Phones keep their own sizes (measured the same before and after at 390px).
+- **Small fixes.** A team name cut short in the Team column now shows in full on hover, like event names, and a disabled Export CSV (no rows) keeps its icon beside its label.
+- **Checked, unchanged.** The last column is fully visible once the table is scrolled to its end; a column header sorts and a second press reverses it; the header follows you down a long table without covering rows; Select all ticks the first 4 (Compare's cap) and says so; a filtered, sorted export holds the same rows in the same order as the screen; scrolling a long table keeps 60 frames a second with no long tasks (#392).
+
 ## 1.9.2 — 2026-11-01
 
 Easier to tap on a phone: buttons, links and chips get a full fingertip of room, and a match's call opens its detail on a tap.

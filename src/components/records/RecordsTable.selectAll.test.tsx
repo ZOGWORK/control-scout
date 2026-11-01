@@ -192,5 +192,7 @@ describe("records table on a phone", () => {
     mount();
     const cell = row(101).closest("td")!;
     expect(within(cell).getByRole("link").textContent).toBe("101Team 101");
+    // The name truncates in a narrow column: its full text is on hover.
+    expect(within(cell).getByText("Team 101").getAttribute("title")).toBe("Team 101");
   });
 });
