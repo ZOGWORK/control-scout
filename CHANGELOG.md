@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.3 — 2026-11-01
+## 2.0.4 — 2026-11-01
 
 On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
 
@@ -27,6 +27,19 @@ On a phone, the Filters button stands out and opening it no longer pops up the k
 
 ### Navigation
 - **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#402)
+## 2.0.3 — 2026-11-01
+
+Search waits for you to stop typing, and Enter works the first time.
+
+### Highlights
+- [speed] Search waits a second after your last letter before it looks
+- [speed] A newer search cancels the older one still on its way
+- [fixes] Enter searches at once and closes the phone keyboard
+
+### Search
+- Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
+- Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
+- In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.
