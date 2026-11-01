@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { all, migrate, openDb, run, setDb } from "./db";
+import { all, migrate, MIGRATIONS, openDb, run, setDb } from "./db";
 import type { AddressInfo } from "node:net";
 import express from "express";
 import { MAX_ROUTES, OTHER_ROUTE, flushMetrics, isMeasured, isSyncRoute, normalizeRoute, percentile, recordRequest, requestMetrics, resetMetrics, usageSummary } from "./metrics";
@@ -30,9 +30,9 @@ describe("normalizeRoute", () => {
     expect([...routes]).toEqual(["/api/teams/:n/matches"]);
   });
 
-  it("leaves out health checks, the owner portal, the live stream and static files", () => {
-    for (const p of ["/api/health", "/api/owner/usage", "/api/scout/stream", "/API/Scout/Stream/", "/assets/index-abc.js", "/teams/18360"]) expect(isMeasured(p), p).toBe(false);
-    for (const p of ["/api/teams/1", "/api/scout/sync", "/packs/latest.json", "/api/scout/streams-not"]) expect(isMeasured(p), p).toBe(true);
+  it("leaves out health checks, the owner portal and static files", () => {
+    for (const p of ["/api/health", "/api/owner/usage", "/assets/index-abc.js", "/teams/18360"]) expect(isMeasured(p), p).toBe(false);
+    for (const p of ["/api/teams/1", "/api/scout/sync", "/packs/latest.json", "/api/scout/stream", "/api/inbox/stream"]) expect(isMeasured(p), p).toBe(true);
   });
 
   it("tells sync traffic apart", () => {
@@ -79,6 +79,47 @@ describe("request counters", () => {
     const rows = await all<any>("SELECT * FROM request_metrics_daily");
     expect(rows.map((r) => r.route)).toEqual(["GET /api/scout/workspaces/:id/export.csv"]);
     expect(Number(rows[0].max_ms)).toBeLessThan(200);
+  });
+
+  it("a live stream counts to the moment it opens, and a client leaving it isn't an error", async () => {
+    const app = express();
+    app.use(requestMetrics());
+    app.get("/api/projections/:season/:code/stream", (req, res) => {
+      res.status(200).set({ "Content-Type": "text/event-stream; charset=utf-8" });
+      res.flushHeaders();
+      res.write("event: ready\ndata: {}\n\n");
+      const ping = setInterval(() => res.write(": ping\n\n"), 50);
+      req.on("close", () => clearInterval(ping));
+    });
+    app.get("/api/inbox/stream", (_req, res) => { res.status(503).json({ error: "paused" }); });
+    const srv = app.listen(0);
+    await new Promise((r) => srv.once("listening", r));
+    const base = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    try {
+      const ac = new AbortController();
+      const r = await fetch(`${base}/api/projections/2025/USNJQ1/stream`, { signal: ac.signal });
+      await r.body!.getReader().read();
+      await new Promise((res) => setTimeout(res, 400)); // the stream stays open well past any real latency
+      ac.abort();
+      expect((await fetch(`${base}/api/inbox/stream`)).status).toBe(503); // refused before it opened: still an error
+      await new Promise((r) => setTimeout(r, 50)); // the close events
+    } finally { srv.closeAllConnections(); srv.close(); }
+    await flushMetrics();
+    const rows = await all<any>("SELECT * FROM request_metrics_daily ORDER BY route");
+    expect(rows.map((r) => [r.route, r.count, r.errors])).toEqual([
+      ["GET /api/inbox/stream", 1, 1],
+      ["GET /api/projections/:n/:id/stream", 1, 0],
+    ]);
+    expect(Number(rows[1].max_ms)).toBeLessThan(200);
+  });
+
+  it("migration 67 drops live stream rows timed until they closed, and keeps the rest", async () => {
+    const day = "2026-10-30";
+    for (const [route, max] of [["GET /api/inbox/stream", 20_080_600], ["GET /api/projections/:n/:id/stream", 995_000], ["GET /api/teams/:n", 40]] as const) {
+      await run("INSERT INTO request_metrics_daily (day, route, count, errors, total_ms, max_ms) VALUES (?, ?, 5, 0, ?, ?)", [day, route, max * 5, max]);
+    }
+    await run(MIGRATIONS.find((m) => m.version === 67)!.sql);
+    expect((await all<any>("SELECT route FROM request_metrics_daily")).map((r) => r.route)).toEqual(["GET /api/teams/:n"]);
   });
 
   it("flush into one row per day and pattern, adding up across flushes", async () => {
