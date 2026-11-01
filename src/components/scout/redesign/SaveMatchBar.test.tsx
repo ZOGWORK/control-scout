@@ -6,13 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 
 const toasts: string[] = [];
-vi.mock("../../ui/sonner", () => ({ toast: { success: (t: string) => toasts.push(t) } }));
+const descriptions: (string | undefined)[] = [];
+vi.mock("../../ui/sonner", () => ({ toast: { success: (t: string, o?: { description?: string }) => { toasts.push(t); descriptions.push(o?.description); } } }));
 const { SaveMatchBar, emptyHint } = await import("./SaveMatchBar");
 const { TeamTabs } = await import("./TeamTabs");
 import type { TeamTab } from "./TeamTabs";
 import type { MatchSaveResult } from "../../../lib/matchDraft";
 
-afterEach(() => { cleanup(); toasts.length = 0; });
+afterEach(() => { cleanup(); toasts.length = 0; descriptions.length = 0; });
 
 const tabs: TeamTab[] = [
   { watched: { team: 4410, side: "red", station: 1 }, status: "empty" },
@@ -61,6 +62,13 @@ describe("SaveMatchBar", () => {
     expect(onSave).toHaveBeenCalledWith({ includeEmpty: false });
     expect(onSaved).toHaveBeenCalledWith(14);
     expect(toasts).toEqual(["Saved Q14 · 2 entries. Now Q15."]);
+  });
+
+  it("says where else it's saved, for an admin of several workspaces", () => {
+    render(<SaveMatchBar label="Q14" teamCount={2} nextLabel="Q15" nextIndex={14} emptyTeams={[]} savedTo="Saving to Hypnotic Robotics and Bad Wolf" onSave={() => ok(2)} onSaved={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /Save Q14/ }));
+    expect(toasts).toEqual(["Saved Q14 · 2 entries. Now Q15."]);
+    expect(descriptions).toEqual(["Saving to Hypnotic Robotics and Bad Wolf"]);
   });
 
   it("asks about a team with nothing yet: save anyway, or skip it", () => {

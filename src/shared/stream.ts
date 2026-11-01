@@ -9,6 +9,9 @@ export type StreamParse = { ok: true; videoId: string; embedUrl: string } | { ok
 const ID = /^[A-Za-z0-9_-]{11}$/;
 const YT_HOSTS = new Set(["youtube.com", "youtu.be", "youtube-nocookie.com"]);
 
+/** Whether a hostname is one of YouTube's own (www., m. and music. too), by name, never by a substring. */
+export const isYouTubeHost = (hostname: string) => YT_HOSTS.has(hostname.toLowerCase().replace(/^(www|m|music)\./, ""));
+
 /** The privacy-enhanced embed address for a video id. */
 export const embedUrl = (videoId: string) => `https://www.youtube-nocookie.com/embed/${videoId}`;
 

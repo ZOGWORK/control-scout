@@ -54,11 +54,12 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
 import { ScoutTopBar } from "../components/scout/redesign/ScoutTopBar";
 import { parseScoutTab, ScoutTabs, type ScoutTab } from "../components/scout/redesign/ScoutTabs";
-import { DataHub, dataHubExportUrl, type DataView } from "../components/scout/redesign/DataHub";
+import { DataHub, dataHubExportUrl, pitTeams, type DataView } from "../components/scout/redesign/DataHub";
 import { SessionSetup } from "../components/scout/redesign/SessionSetup";
 import { MatchesTab, MatchScout } from "../components/scout/redesign/MatchScout";
 import { useScoutSession } from "../lib/scoutSession";
 import { myMatchAssignment, useMatchAssignments } from "../lib/slotAssignments";
+import { useSavedToLine } from "../lib/adminCopies";
 
 /** Scouting happens in one readable column (a phone's width and a bit), not stretched across a wide screen. */
 const SCOUT_COLUMN = "max-w-3xl";
@@ -304,8 +305,8 @@ export default function ScoutPage() {
             {!sub ? (
               <>
                 <DataHub workspace={workspace ? { id: workspace.id, name: spaceName ?? "" } : null} readOnly={!!readOnly} isAdmin={isAdmin} season={season} eventCode={session?.eventCode ?? null}
-                  entryCount={entries.length} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
-                  onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} />
+                  entryCount={entries.length} pitCount={pitTeams(entries)} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
+                  onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} onStartScouting={() => setTab("match")} />
               </>
             ) : <>
               <Button variant="ghost" size="sm" className="-ml-2 mb-3 text-muted-foreground" onClick={() => openView(null)}><ChevronLeft /> Data</Button>
@@ -494,6 +495,8 @@ function EntryForm({ season, initial, team, initialKind = "match", space, spaceN
   const startedWritable = useRef(!readOnly);
   const viewOnly = readOnly && !!initial && !startedWritable.current;
   const toPersonal = readOnly && !viewOnly;
+  // An admin of several workspaces: the server saves their own entries in each (lib/adminCopies.ts).
+  const savedTo = useSavedToLine(toPersonal ? null : space, initial?.authorAccountId);
   const [kind, setKind] = useState<"match" | "pit">(initial?.kind ?? initialKind);
   const [teamText, setTeamText] = useState(initial ? String(initial.team) : team ? String(team) : "");
   const [eventCode, setEventCode] = useState(initial ? initial.eventCode ?? "" : defaultEvent);
@@ -576,7 +579,8 @@ function EntryForm({ season, initial, team, initialKind = "match", space, spaceN
     const kept = copy ? { data: copy.data, notes: copy.notes } : { data, notes };
     try {
       saveScoutEntry({ uuid: (toPersonal ? null : initial?.uuid) ?? newScoutId(), season, team: Number(team), eventCode: eventCode.trim().toUpperCase() || null, matchLabel: kind === "match" ? normalizeMatchLabel(matchLabel) : null, kind, ...kept, workspaceId: toPersonal ? null : space, ...made }, initial && !toPersonal ? { base: draftBase.current ?? null } : {});
-      toast.success(toPersonal ? "Kept in Personal: the workspace is read-only" : "Saved on this device");
+      if (toPersonal) toast.success("Kept in Personal: the workspace is read-only");
+      else toast.success("Saved on this device", savedTo ? { description: savedTo } : undefined);
       onDone();
     } catch (e) {
       setSaveErr(e instanceof ScoutStorageError ? e.message : "Couldn't save this entry on this device. Try again.");

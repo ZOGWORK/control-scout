@@ -54,6 +54,11 @@ export async function listRecordings(matchRef?: string): Promise<Recording[]> {
   return all.filter((r) => matchRef == null || r.matchRef === matchRef).sort((a, b) => b.createdAt - a.createdAt);
 }
 
+/** How many recordings this device holds, without reading any of them. */
+export async function countRecordings(): Promise<number> {
+  return tx<number>("readonly", (s) => s.count());
+}
+
 export async function deleteRecording(id: string): Promise<void> {
   await tx("readwrite", (s) => s.delete(id));
   changed();

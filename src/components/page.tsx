@@ -49,7 +49,7 @@ export function PageHeader({ title, description, phoneDescription, actions, eyeb
   );
 }
 
-export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, id }: {
+export function Section({ title, description, action, stackAction = false, children, className, delay = 0, collapsible = false, summary, tint, id }: {
   title?: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -61,10 +61,14 @@ export function Section({ title, description, action, stackAction = false, child
   /** Closed until its header is pressed, and its children mount only then (a section that fetches its own data asks
    *  for nothing until it is first opened). Kept mounted after, so closing and reopening never asks again. */
   collapsible?: boolean;
+  /** A collapsible section's one-line, plain-text hint at what's inside, shown under its title on the button. */
+  summary?: string;
+  /** A collapsible section's colours (CSS colours, left to right): a faint gradient on its card and its button, taken from what's inside. */
+  tint?: string[];
   /** The section's anchor: a link to #id opens a collapsible section. */
   id?: string;
 }) {
-  if (collapsible) return <FoldedSection id={id} title={title} description={description} className={className} delay={delay}>{children}</FoldedSection>;
+  if (collapsible) return <FoldedSection id={id} title={title} summary={summary} tint={tint} description={description} className={className} delay={delay}>{children}</FoldedSection>;
   return (
     <Reveal delay={delay} className={cn('mb-8', className)}>
       <section id={id} className={id ? 'scroll-mt-16' : undefined}>
@@ -83,7 +87,7 @@ export function Section({ title, description, action, stackAction = false, child
   );
 }
 
-function FoldedSection({ id, title, description, children, className, delay }: { id?: string; title?: ReactNode; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
+function FoldedSection({ id, title, summary, tint, description, children, className, delay }: { id?: string; title?: ReactNode; summary?: string; tint?: string[]; description?: ReactNode; children: ReactNode; className?: string; delay: number }) {
   const { hash } = useLocation();
   const linked = !!id && hash === `#${id}`;
   const [open, setOpen] = useState(linked);
@@ -91,22 +95,31 @@ function FoldedSection({ id, title, description, children, className, delay }: {
   const [opened, setOpened] = useState(linked);
   useEffect(() => { if (linked) { setOpen(true); setOpened(true); } }, [linked]);
   const body = useId();
+  const hint = useId();
+  // Faint enough to sit under the event cards without competing with them.
+  const wash = (pct: number) => tint && `linear-gradient(100deg, ${tint.map((c) => `color-mix(in srgb, ${c} ${pct}%, transparent)`).join(', ')})`;
   return (
-    <Reveal delay={delay} className={cn(open ? 'mb-8' : 'mb-4', className)}>
+    <Reveal delay={delay} className={cn(open ? 'mb-8' : 'mb-3', className)}>
       <section id={id}>
-        <h2 className={cn('border-b border-border', open && 'mb-4')}>
-          <button type="button" aria-expanded={open} aria-controls={body} onClick={() => { setOpen((o) => !o); setOpened(true); }}
-            className="group flex w-full items-center justify-between gap-3 py-3 text-left">
-            <span className="min-w-0 text-base font-semibold text-foreground">{title}</span>
+        {/* A closed section is a card that looks pressable: a frame, a hint at what's inside and a "Show details" pill. */}
+        <h2 className={cn(open && 'mb-4')}>
+          <button type="button" aria-expanded={open} aria-controls={body} aria-describedby={summary ? hint : undefined} style={tint && { backgroundImage: wash(7) }} onClick={() => { setOpen((o) => !o); setOpened(true); }}
+            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 text-left transition-colors hover:border-foreground/25 hover:bg-muted/50 motion-reduce:transition-none">
+            <span className="min-w-0">
+              <span className="block text-base font-semibold text-foreground">{title}</span>
+              {/* Its name stays the title; the hint is read as its description. */}
+              {summary && <span id={hint} aria-hidden className="mt-0.5 block text-sm font-normal text-muted-foreground">{summary}</span>}
+            </span>
             {/* The words are for the eye; a screen reader hears aria-expanded. */}
-            <span aria-hidden className="flex shrink-0 items-center gap-1 text-sm font-normal text-muted-foreground group-hover:text-foreground">
-              {open ? 'Hide' : 'Show'}
+            <span aria-hidden style={tint && { backgroundImage: wash(22), borderColor: `color-mix(in srgb, ${tint[0]} 35%, transparent)` }}
+              className="flex shrink-0 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm transition-[filter,transform] group-hover:brightness-125 group-active:scale-95 motion-reduce:transition-none">
+              {open ? 'Hide' : <>Show<span className="max-sm:hidden">&nbsp;details</span></>}
               <ChevronDown className={cn('size-4 transition-transform motion-reduce:transition-none', open && 'rotate-180')} />
             </span>
           </button>
         </h2>
         <div id={body} hidden={!open}>
-          {opened && <>{description && <p className="-mt-2 mb-4 text-sm text-muted-foreground">{description}</p>}{children}</>}
+          {opened && <>{description && <p className="mb-4 text-sm text-muted-foreground">{description}</p>}{children}</>}
         </div>
       </section>
     </Reveal>

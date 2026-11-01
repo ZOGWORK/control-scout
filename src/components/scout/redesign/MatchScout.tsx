@@ -15,6 +15,7 @@ import { Button } from "../../ui/button";
 import { useMatchTimer } from "./useMatchTimer";
 import { useEventSchedule } from "../../../lib/eventSchedule";
 import { useMatchDraft } from "../../../lib/matchDraft";
+import { useSavedToLine } from "../../../lib/adminCopies";
 import type { ScoutEntry, ScoutSpace } from "../../../lib/scouting";
 import type { ScoutSession } from "../../../lib/scoutSession";
 import type { FieldPhase, ScoutTemplate } from "../../../shared/scoutTemplate";
@@ -81,6 +82,7 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   const teams = useMemo(() => teamsWatched(match, session.watching), [match, session.watching]);
   const draft = useMatchDraft({ space, season, eventCode: session.eventCode, match, teams, template, existing: entries, author, readOnly, spaceName });
   const [phase, setPhase] = useState<FieldPhase>("auto");
+  const savedTo = useSavedToLine(space);
   // One timer for the match: switching team tabs keeps it running, and its phase moves every team's form.
   const timer = useMatchTimer(setPhase);
   const [active, setActive] = useState(teams[0]?.team ?? 0);
@@ -111,7 +113,7 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
           );
         }} />}
       <SaveMatchBar label={match.label} teamCount={teams.length} nextLabel={nextLabel} nextIndex={nextIndex} emptyTeams={draft.emptyTeams}
-        toPersonal={draft.toPersonal} onSave={draft.saveMatch} onSaved={onSaved} />
+        toPersonal={draft.toPersonal} savedTo={savedTo} onSave={draft.saveMatch} onSaved={onSaved} />
     </>
   );
 }
