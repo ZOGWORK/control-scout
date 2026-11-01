@@ -25,7 +25,7 @@ Every finished event on /events shows it is done, even when no matches were post
 - [fixes] Live and finished events with matches keep their played/total count
 
 ### Fixes
-- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#PR)
+- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
 
 ## 1.9.9 — 2026-11-01
 
