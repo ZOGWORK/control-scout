@@ -537,7 +537,9 @@ export const XLSX_HEAT: CellStyle[] = [
   { color: "BE123C", bold: true, fill: "FFE4E6" },
 ];
 
-const PERCENT_FMT = '0.0"%"', DATE_FMT = "yyyy-mm-dd";
+// Percentages as the page shows them (oddsPct): whole numbers, and never 0% or 100%, since a model's odds aren't proof.
+// The cell keeps the exact number; only its display stops at 1% and 99%.
+const PERCENT_FMT = '[<1.5]"1%";[>98.5]"99%";0"%"', DATE_FMT = "yyyy-mm-dd";
 
 /** Excel exports made at once: each holds its banded columns' numbers (8 bytes a value) until it's written. */
 export const XLSX_CONCURRENT = 2;

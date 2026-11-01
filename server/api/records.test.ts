@@ -4,7 +4,8 @@
 // example, sorting, pagination, CSV, clear 400s).
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { crc32, inflateRawSync } from "node:zlib";
+import { crc32 as zlibCrc32, inflateRawSync } from "node:zlib";
+import { crc32 } from "../xlsx";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { all, db, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
@@ -320,7 +321,7 @@ describe("GET /api/records/:season/teams", () => {
     expect(lines[2]).toBe(`${N},108,C3,Event C3,Scrimmage,2025-12-06,') OR 1=1 --,55`);
   });
   it("exports an Excel sheet coloured like the table: stat-coloured headers, best fifth green, worst fifth red", async () => {
-    const r = await fetch(`${base}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr,penaltyPointsCommittedTot`, { headers: { "accept-encoding": "gzip" } });
+    const r = await fetch(`${base}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr,penaltyPointsCommittedTot,predictedWinPctAvg`, { headers: { "accept-encoding": "gzip" } });
     expect(r.status).toBe(200);
     expect(r.headers.get("content-type")).toContain("spreadsheetml.sheet");
     expect(r.headers.get("content-encoding")).toBeNull(); // a zip already
@@ -343,6 +344,8 @@ describe("GET /api/records/:season/teams", () => {
     expect([text("B4"), text("I4")]).toEqual(["101", "0"]);
     expect(look("I4").fill).toContain("FFD1FAE5"); // lower is better for penalties: none is the top band
     expect(look("I9").fill).toContain("FFFFE4E6");
+    // Percentages read as on the page: whole, and never a flat 0% or 100% (the number itself is kept).
+    expect(styles).toContain('formatCode="[&lt;1.5]&quot;1%&quot;;[&gt;98.5]&quot;99%&quot;;0&quot;%&quot;"');
     expect(text("F2")).toBe(String((Date.UTC(2025, 11, 6) - Date.UTC(1899, 11, 30)) / 86_400_000)); // a real date, not text
     expect(sheet).toContain("<t xml:space=\"preserve\">') OR 1=1 --</t>"); // inline text, never read as a formula
   });
@@ -362,7 +365,7 @@ function unzip(zip: Buffer): Record<string, string> {
     const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
     const data = inflateRawSync(zip.subarray(start, start + csize));
     expect(data.length).toBe(size);
-    expect(crc32(data)).toBe(crc);
+    expect(zlibCrc32(data)).toBe(crc);
     out[name] = data.toString("utf8");
     at += 46 + nameLen + extra + comment;
   }
@@ -460,6 +463,12 @@ describe("one event's records and region options", () => {
 });
 
 describe("Excel export limits", () => {
+  it("checksums like zlib (which needs Node 22.2), in one go or in pieces", () => {
+    const b = Buffer.from("Control Scout ✓ ".repeat(500));
+    expect(crc32(b)).toBe(zlibCrc32(b));
+    expect(crc32(b.subarray(100), crc32(b.subarray(0, 100)))).toBe(zlibCrc32(b));
+    expect(crc32(Buffer.alloc(0))).toBe(0);
+  });
   it(`makes at most ${XLSX_CONCURRENT} Excel exports at once; another is told to try again, and the first ones finish`, async () => {
     const c = db();
     const realExec = c.execute.bind(c);

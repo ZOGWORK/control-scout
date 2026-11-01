@@ -3,7 +3,19 @@
 // parts; each part is deflated on the fly and followed by a data descriptor, so a part's
 // size and checksum needn't be known before its bytes go out.
 import { once } from "node:events";
-import { crc32, createDeflateRaw } from "node:zlib";
+import { createDeflateRaw } from "node:zlib";
+
+// CRC-32 (zip's checksum). Our own table: zlib.crc32 needs Node 22.2, and package.json allows 22.0.
+const CRC_TABLE = Int32Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c;
+});
+export function crc32(b: Uint8Array, prev = 0): number {
+  let c = ~prev;
+  for (let i = 0; i < b.length; i++) c = CRC_TABLE[(c ^ b[i]) & 0xff] ^ (c >>> 8);
+  return ~c >>> 0;
+}
 
 /** The download went away mid-file: stop. */
 export class Gone extends Error {}
