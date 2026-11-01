@@ -4,13 +4,13 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { CalendarDays, ChevronDown, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Users, X } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import { useServerFlag } from "../../lib/flags";
-import type { SearchAnswer, SearchFact, SearchHit } from "../../shared/api";
+import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
@@ -78,6 +78,10 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     return () => clearTimeout(t);
   }, [q, prefer, kindKey, limit, brunoOn]);
   const current = res.q === q.trim();
+  // While a newer query is on its way, the last answer stays on screen (dimmed, marked stale) instead of the list
+  // emptying at every keystroke: typing never flickers to a bare "Searching…" between replies.
+  const stale = !current && !!res.q && !!q.trim();
+  const shown = current || stale;
   // One opened result from a whole answer, sent with its query: the server counts what the query asked for, and (when
   // learning is on) the pick. Aggregate only: the query and the result, nothing about who.
   const logPick = useCallback((h: SearchHit) => {
@@ -90,9 +94,9 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     } catch { /* counting a click is never worth an error */ }
   }, [res, current]);
   return {
-    hits: current ? res.hits : [], answer: current ? res.answer : undefined,
-    ai: brunoOn && current && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
-    busy: busy || (!!q.trim() && !current), error, logPick,
+    hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale,
+    ai: brunoOn && shown && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
+    busy: busy || (!!q.trim() && !current), error: current ? error : null, logPick,
   };
 }
 
@@ -177,13 +181,50 @@ export interface SearchBoxProps {
   tour?: string;
   /** Text to start with, its results already open (a search arriving in the URL). Read on mount only. */
   initialQuery?: string;
+  /** The last row, "See all results for …", and plain Enter open the full results page (/search?q=…). Off for a box
+   *  that picks something instead of going somewhere (Predict's team picker). */
+  seeAll?: boolean;
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, hint, tour, initialQuery }: SearchBoxProps) {
+/** The full results page for a query: where plain Enter and the last row go. */
+export const searchPagePick = (q: string): SearchHit => ({ kind: "place", ref: "search", title: `See all results for “${q}”`, subtitle: "", season: null, href: `/search?q=${encodeURIComponent(q)}` });
+
+/** A question's direct answer (src/shared/api.ts SearchCard): what was found, each a link, or a plain "none found"
+ *  with the closest real records. `compact`: the dropdown's (the first lines only). */
+export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compact?: boolean; onOpen: (href: string) => void }) {
+  const lines = card.lines.length ? card.lines : card.closest ?? [];
+  const shown = compact ? lines.slice(0, 2) : lines;
+  const who = card.team.name ? `${card.team.name} (${card.team.number})` : `Team ${card.team.number}`;
+  return (
+    <div role="note" aria-label={`${card.title}: ${who}`} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
+      <p className={cn("flex items-center gap-1.5 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}><Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}</p>
+      {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
+      {!!shown.length && (
+        <>
+          {card.none && <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Closest records</p>}
+          <ul className={cn("mt-1 space-y-1", compact ? "text-xs" : "text-sm")}>
+            {shown.map((l, i) => (
+              <li key={i}>
+                {l.href
+                  ? <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline">{l.text}</a>
+                  : <span className="font-medium text-foreground">{l.text}</span>}
+                {l.detail && <span className="block text-muted-foreground">{l.detail}</span>}
+              </li>
+            ))}
+          </ul>
+          {compact && lines.length > shown.length && <p className="mt-1 text-[11px] text-muted-foreground">{lines.length - shown.length} more on the full results page</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, hint, tour, initialQuery, seeAll = true }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
-  const [active, setActive] = useState(0);
-  const { hits, answer, ai, refining, busy, error, logPick } = useSearchHits(q, kinds);
+  // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
+  const [active, setActive] = useState(-1);
+  const { hits, answer, ai, refining, busy, error, logPick, stale } = useSearchHits(q, kinds);
   const { sections, notes } = useSections(hits, answer, ai);
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
@@ -200,15 +241,14 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // In the order shown, so arrow keys walk the list top to bottom.
   const ordered = useMemo(() => sections.flatMap((s) => s.rows), [sections]);
   // The highlight follows its row, not its place: Bruno AI's group arriving above never moves it to another result
-  // (Enter still opens what was highlighted). A row that's gone: back to the top.
-  // New results (another query) start at their top.
+  // (Enter still opens what was highlighted). A row that's gone, or new results (another query): nothing highlighted.
   const activeKey = useRef<string | null>(null);
   const shownHits = useRef(hits);
   useEffect(() => {
     const fresh = shownHits.current !== hits;
     shownHits.current = hits;
     const i = !fresh && activeKey.current ? ordered.findIndex((r) => r.key === activeKey.current) : -1;
-    setActive(i >= 0 ? i : 0);
+    setActive(i >= 0 ? i : -1);
   }, [ordered, hits]);
   useEffect(() => { activeKey.current = ordered[active]?.key ?? null; }, [ordered, active]);
   // Re-measure the "more below" cue whenever the list's contents change.
@@ -228,8 +268,13 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
-  const pick = (h: SearchHit) => { logPick(h); onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  const go = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  const pick = (h: SearchHit) => { logPick(h); go(h); };
   const query = q.trim();
+  // The last row: the full results page. Its index is right after the results', so the arrow keys reach it too.
+  const full = seeAll && !!query;
+  const count = ordered.length + (full ? 1 : 0);
+  const openFull = () => go(searchPagePick(query));
   const showList = open && (query ? true : !!emptyHint);
   const lg = size === "lg";
   return (
@@ -243,14 +288,21 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           onKeyDown={(e) => {
             // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
             if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); } return; }
-            if (!ordered.length) return;
-            if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % ordered.length); }
-            else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i - 1 + ordered.length) % ordered.length); }
-            else if (e.key === "Enter" && showList) { e.preventDefault(); pick(ordered[active].hit); }
+            // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
+            if (e.key === "Enter" && query) {
+              e.preventDefault();
+              if (active >= 0 && ordered[active]) pick(ordered[active].hit);
+              else if (full) openFull();
+              else if (!stale && ordered[0]) pick(ordered[0].hit);
+              return;
+            }
+            if (!count) return;
+            if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % count); }
+            else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? count - 1 : i - 1)); }
           }}
           placeholder={placeholder} aria-label={label}
           role="combobox" aria-expanded={showList} aria-controls={listId} aria-autocomplete="list"
-          aria-activedescendant={showList && ordered[active] ? `${listId}-${active}` : undefined}
+          aria-activedescendant={showList && active >= 0 && active < count ? `${listId}-${active}` : undefined}
           className={cn("min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground", lg ? "text-base" : "text-sm")}
         />
         {!q && hint && <kbd className="hidden shrink-0 rounded border border-border px-1.5 font-mono text-[10px] text-muted-foreground sm:inline">{hint}</kbd>}
@@ -259,14 +311,16 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
       {showList && (
         <m.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
           className="absolute inset-x-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
-        <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} onScroll={measure}
-          className="relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5">
+        <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
+          className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length ? (
-              <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
+              <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search."
+                : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
               <>
                 <AnswerNotesView notes={notes} refining={refining} className="px-3 pb-1 pt-1.5" />
+                {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => go({ ...searchPagePick(query), href })} />}
                 {sections.map((s) => (
                   <div key={s.id} role="group" aria-label={s.title}>
                     <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
@@ -293,6 +347,17 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                 ))}
               </>
             )}
+          {full && !error && (
+            <div
+              id={`${listId}-${ordered.length}`} role="option" aria-selected={active === ordered.length} data-see-all
+              onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={openFull} onPointerMove={() => setActive(ordered.length)}
+              className={cn("mt-1 flex cursor-pointer items-center gap-2.5 rounded-lg border-t border-border px-3 py-2 text-sm font-medium text-accent-text", active === ordered.length && "bg-accent/[0.12]")}
+            >
+              <Search className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1 truncate">See all results for “{query}”</span>
+              <ArrowRight className="size-4 shrink-0" />
+            </div>
+          )}
         </div>
         {below > 0 && (
           // The cue: results continue below. Fades the last row and offers a one-tap scroll.

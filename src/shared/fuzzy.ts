@@ -77,9 +77,13 @@ export function fuzzyScore(query: string, name: string): number {
 export function scoreWords(qs: string[], ws: string[]): number {
   if (!qs.length || !ws.length) return 0;
   let total = 0, lastIdx = -1, inOrder = 0;
+  // Words typed run together match a name's words side by side ("badwolf" → "Bad Wolf"): each adjacent pair of
+  // the name's words is also a word, at the first one's place.
+  const joined = ws.slice(0, -1).map((w, i) => w + ws[i + 1]);
   for (const q of qs) {
     let best = 0, bestIdx = -1;
     ws.forEach((w, i) => { const s = wordScore(q, w); if (s > best) { best = s; bestIdx = i; } });
+    if (q.length >= 5) joined.forEach((w, i) => { const s = wordScore(q, w); if (s > best) { best = s; bestIdx = i; } });
     if (best === 0) return 0;
     total += best;
     if (bestIdx > lastIdx) inOrder++;

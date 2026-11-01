@@ -451,7 +451,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: `Results for “${q}”`, type: "website", bodyHtml: body + data,
+    title: `Search: ${q}`, heading: `Here's what we found for “${q}”`, type: "website", bodyHtml: body + data,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

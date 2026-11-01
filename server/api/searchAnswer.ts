@@ -1,6 +1,8 @@
 // Search's one answer for every surface (the header box, /search, the address bar's search): docs/search.md.
 //
 // Fixed rules, in order, every one deterministic:
+//   0. A question search answers directly ("when did hypnotic go to worlds", "has bad wolf won anything", "4215's next
+//      event"): the team it names, and a card built from the stored data (./searchQuestions.ts).
 //   1. A team number ("4215", "team 4215", "team-4215") is that team alone; a number with no team is the recovery state.
 //   2. Two or more teams joined by "vs"/"versus" open Compare.
 //   3. Otherwise the search itself (names, numbers, codes, matches, topic words: server/api/search.ts), with short forms
@@ -20,6 +22,7 @@ import { fuzzyScore, normalize, words } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
+import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -88,16 +91,20 @@ async function versus(q: string, prefer: ReadonlySet<string>, season: number | n
   for (const side of sides) {
     // Topic and filler words name no team ("… history").
     const name = (searchIntent(side)?.rest ?? side).trim();
-    const team = (await search(name, 5, prefer)).find((h) => h.kind === "team");
+    // A name matching only a team that never played (a test registration, "ZZZ delete this team") names no team here.
+    const hit = (await search(name, 5, prefer)).find((h) => h.kind === "team");
+    const team = hit && (/^\d+$/.test(name) || (await played(hit.ref))) ? hit : undefined;
     if (team && !found.some((t) => t.ref === team.ref)) found.push(team); else if (!team) missing.push(side);
   }
   const shown = found.slice(0, 4);
   if (shown.length >= 2 && !missing.length) {
     const nums = shown.map((t) => Number(t.ref)).sort((a, b) => a - b);
     const extra = found.length > 4 ? ` (Compare holds 4: ${found.length - 4} left out)` : "";
+    // "… awards": Compare opened on its events-and-awards section.
+    const awards = /\bawards?\b/i.test(q);
     const top: SearchHit = {
-      ...shown.find((t) => Number(t.ref) === nums[0])!, href: `/compare?teams=${nums.join(",")}${season != null ? `&season=${season}` : ""}`,
-      title: nums.map((n) => shown.find((t) => Number(t.ref) === n)!.title).join(" vs "), subtitle: `Compare side by side: records, OPR and event history${extra}`,
+      ...shown.find((t) => Number(t.ref) === nums[0])!, href: `/compare?teams=${nums.join(",")}${season != null ? `&season=${season}` : ""}${awards ? "#awards" : ""}`,
+      title: nums.map((n) => shown.find((t) => Number(t.ref) === n)!.title).join(" vs "), subtitle: `${awards ? "Compare their events and awards side by side" : "Compare side by side: records, OPR and event history"}${extra}`,
     };
     return answer(q, { hits: [top, ...shown], step: "deterministic" });
   }
@@ -110,6 +117,14 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = cleanQuery(raw);
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
+
+  // 0. A question with a direct answer, when its team is found (else search goes on with the whole query).
+  const question = opts.intents === false ? null : parseQuestion(q);
+  if (question) {
+    const base = await searchAnswer(question.core, { ...opts, intents: false });
+    const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
+    if (team) return questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+  }
 
   // 1. A team number, alone or as "team 4215" / "team-4215" / "#4215".
   const num = /^(?:team)?[\s#-]*(\d{1,6})[.\s]*$/i.exec(q);

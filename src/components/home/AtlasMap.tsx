@@ -5,8 +5,8 @@
 // tinted, the selected one is highlighted; nothing is placed inside a country,
 // because the data says which country a team reports, not where it is.
 // The globe turns slowly by itself (`spinning`, which the atlas switches off for reduced
-// motion and behind its pause button); it also stops while dragged, off screen or in a
-// hidden tab. A mouse can drag it round, the arrow keys turn it once it has focus; touch never captures the page's scroll, and the
+// motion and behind its pause button); it also stops while dragged, off screen, in a
+// hidden tab, or while someone types in a search box (its redraws would compete with every keystroke). A mouse can drag it round, the arrow keys turn it once it has focus; touch never captures the page's scroll, and the
 // country selector beside the map does everything without a pointer.
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { geoCentroid, geoGraticule10, geoNaturalEarth1, geoOrthographic, geoPath, type GeoPermissibleObjects } from "d3-geo";
@@ -30,6 +30,9 @@ export function loadWorld(): Promise<Country[]> {
 }
 
 const SPHERE = { type: "Sphere" } as const;
+
+/** A search box has focus: the spin holds still while someone types (each turn redraws every country). */
+export const searching = () => !!document.activeElement?.closest?.("[data-search-box]");
 
 /** Degrees the globe turns per second when spinning (one turn a minute). */
 export const SPIN_DEG_PER_S = 6;
@@ -130,7 +133,7 @@ export default function AtlasMap({ mode, spinning = false, countries, selected, 
     const tick = (now: number) => {
       const dt = Math.min(100, now - last);
       last = now;
-      if (!drag.current && !held.current && !document.hidden) {
+      if (!drag.current && !held.current && !document.hidden && !searching()) {
         acc += dt;
         if (acc >= 33) { const step = (acc / 1000) * SPIN_DEG_PER_S; acc = 0; startTransition(() => setRotation(([lon, lat]) => [(lon + step) % 360, lat])); }
       }
