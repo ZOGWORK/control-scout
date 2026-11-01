@@ -22,8 +22,9 @@ const HUES = [
 ] as const;
 const hue = (alliance: number) => HUES[(alliance - 1 + HUES.length) % HUES.length];
 
-export function AllianceChip({ alliance, className }: { alliance: number; className?: string }) {
-  return <span className={cn("inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", hue(alliance).chip, className)}>A{alliance}</span>;
+/** `muted`: a series' loser, in neutral grey rather than faded (a faded chip fell under 4.5:1). */
+export function AllianceChip({ alliance, className, muted }: { alliance: number; className?: string; muted?: boolean }) {
+  return <span className={cn("inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums", muted ? "bg-muted text-muted-foreground" : hue(alliance).chip, className)}>A{alliance}</span>;
 }
 
 function Bar({ p, alliance }: { p: number; alliance: number }) {
@@ -53,7 +54,7 @@ export function BracketAccuracyNote() {
 /** One alliance's championship odds, final odds and danger match, around its team chips. */
 export function AllianceOddsCard({ odds, children }: { odds: BracketAllianceOdds | undefined; children: ReactNode }) {
   return (
-    <div className={cn("rounded-xl border border-border bg-card p-4 max-sm:p-3", odds?.status === "champion" && "border-accent/60 bg-accent/[0.06]", odds?.status === "out" && "opacity-75")}>
+    <div className={cn("rounded-xl border border-border bg-card p-4 max-sm:p-3", odds?.status === "champion" && "border-accent/60 bg-accent/[0.06]", odds?.status === "out" && "border-dashed bg-transparent")}>
       {children}
       {odds && (
         <div className="mt-3">
@@ -100,7 +101,7 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
   const decided = s.winner != null;
   const loser = decided ? (s.winner === s.red.alliance ? s.blue.alliance : s.red.alliance) : null;
   return (
-    <div className={cn("rounded-xl border border-border bg-card p-3", final && "border-accent/40", s.skipped && "opacity-60")}>
+    <div className={cn("rounded-xl border border-border bg-card p-3", final && "border-accent/40", s.skipped && "border-dashed bg-transparent")}>
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <span className="text-foreground">{s.label}</span> · {s.stage}
         {s.bestOf > 1 && <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[11px]">Best of {s.bestOf}</span>}
@@ -108,7 +109,7 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
       {decided ? (
         // Decided: one line, so a played-through bracket stays short on a phone.
         <p className="mt-2 flex items-center gap-1.5 text-sm">
-          <Trophy className="size-3.5 text-accent" aria-hidden /> <AllianceChip alliance={s.winner!} /> <span className="text-muted-foreground">beat</span> {loser != null && <AllianceChip alliance={loser} className="opacity-70" />}
+          <Trophy className="size-3.5 text-accent" aria-hidden /> <AllianceChip alliance={s.winner!} /> <span className="text-muted-foreground">beat</span> {loser != null && <AllianceChip alliance={loser} muted />}
           {s.bestOf > 1 && <span className="ml-auto text-xs tabular-nums text-muted-foreground">{Math.max(...s.wins)}–{Math.min(...s.wins)}</span>}
         </p>
       ) : (

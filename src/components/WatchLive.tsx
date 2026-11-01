@@ -77,7 +77,7 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
       ) : (
         <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
           <img src={thumbnailUrl(stream.videoId)} alt="" loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover opacity-80 transition-opacity group-hover:opacity-100 motion-reduce:transition-none" />
-          <span className="relative grid size-16 place-items-center rounded-full bg-[#ff0033] text-white shadow-lg sm:size-20"><Play className="size-7 translate-x-0.5 fill-current sm:size-9" aria-hidden /></span>
+          <span className="relative grid size-16 place-items-center rounded-full bg-video-fill text-white shadow-lg sm:size-20"><Play className="size-7 translate-x-0.5 fill-current sm:size-9" aria-hidden /></span>
         </button>
       )}
     </div>

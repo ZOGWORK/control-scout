@@ -53,7 +53,7 @@ export function DataStatus({ readiness, fallbackResultsAt, onRetry, className }:
         {statsAt && <span>statistics prepared <Stamp iso={statsAt} /></span>}
         {v.retry && onRetry && (
           <button type="button" onClick={check} aria-disabled={checking} aria-busy={checking}
-            className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold text-accent-text hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-accent aria-disabled:cursor-wait aria-disabled:opacity-80 max-sm:min-h-10">
+            className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold text-accent-text hover:bg-accent/10 focus-visible:outline-2 focus-visible:outline-ring aria-disabled:cursor-wait aria-disabled:opacity-80 max-sm:min-h-10">
             <RefreshCw className={cn("size-3.5", checking && "motion-safe:animate-spin")} aria-hidden /> {checking ? "Checking…" : "Check again"}
           </button>
         )}

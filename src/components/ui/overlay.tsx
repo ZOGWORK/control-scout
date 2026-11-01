@@ -90,7 +90,7 @@ export function DialogContent({ className, children, showClose = true, returnFoc
       >
         {children}
         {showClose && (
-          <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+          <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
             <X className="size-4" />
             <span className="sr-only">Close</span>
           </D.Close>
@@ -148,7 +148,7 @@ export function SheetContent({ className, children, side = 'right', returnFocus:
         {...returnFocus}
       >
         <PortalContainer.Provider value={el}>{children}</PortalContainer.Provider>
-        <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+        <D.Close className="absolute right-4 top-4 rounded-full p-1.5 text-text-muted transition-colors hover:bg-text-base/[0.08] hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
           <X className="size-4" />
           <span className="sr-only">Close</span>
         </D.Close>

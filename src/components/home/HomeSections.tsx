@@ -87,7 +87,7 @@ export function YourTeam({ team, season }: { team: number; season: number }) {
   const pWin = next?.prediction ? (side === "red" ? next.prediction.pRed : 1 - next.prediction.pRed) : null;
   return (
     <section aria-label="Your team" className="rounded-2xl border border-accent/30 bg-accent/[0.06]">
-      <Link to="/my-team" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl px-4 py-3.5 focus-visible:outline-2 focus-visible:outline-accent @2xl/home:px-5">
+      <Link to="/my-team" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl px-4 py-3.5 focus-visible:outline-2 focus-visible:outline-ring @2xl/home:px-5">
         <Star className="size-5 shrink-0 fill-accent text-accent" aria-hidden />
         <span className="font-display text-2xl font-semibold tabular-nums text-accent-text">{team}</span>
         <span className="min-w-0">
@@ -173,7 +173,7 @@ function CalendarRow({ e }: { e: EventListItem }) {
   const d = e.start ? new Date(`${e.start}T00:00:00Z`) : null;
   return (
     <li>
-      <Link to={`/events/${e.season}/${e.code}`} className="group flex items-center gap-4 py-3 pr-1 focus-visible:outline-2 focus-visible:outline-accent">
+      <Link to={`/events/${e.season}/${e.code}`} className="group flex items-center gap-4 py-3 pr-1 focus-visible:outline-2 focus-visible:outline-ring">
         <span className="w-11 shrink-0 text-center leading-none" aria-hidden>
           <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-muted">{d ? d.toLocaleDateString(undefined, { month: "short", timeZone: "UTC" }) : "TBA"}</span>
           <span className="mt-1 block font-display text-xl font-semibold tabular-nums">{d ? d.getUTCDate() : "–"}</span>

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
-import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
@@ -136,6 +136,23 @@ describe("text tones reach WCAG AA in both themes", () => {
       const m = measure(theme, CHART_LEGEND_TEXT, { inherit: "--color-chart-1" });
       expect(m.ratio, m.pair).toBeGreaterThanOrEqual(AA);
     });
+    it(`video red as text and on its Watch chip's tint (${theme})`, () => {
+      for (const cls of [VIDEO_TONE.text, VIDEO_TONE.chip]) expect(measure(theme, cls).ratio, `"${cls}": ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
+    });
+    it(`red alliance scores on their own tint, a winner's box and the match summary (${theme})`, () => {
+      for (const tint of ["bg-red-alliance/[0.06]", "bg-red-alliance/[0.14]", "bg-red-alliance/15"]) {
+        const m = measure(theme, `${tint} text-red-alliance-ink`);
+        expect(m.ratio, `${tint}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+      }
+    });
+    it(`the keyboard focus ring stands out from the page at the strength rings use (${theme})`, () => {
+      // WCAG 2.2 non-text contrast: 3:1 for the ring against what's next to it (ring-ring/60, the global outline at 70%).
+      for (const surface of ["--color-card", "--color-secondary"]) for (const a of [0.6, 0.7]) {
+        const bg = value(theme, surface), ring = value(theme, "--color-ring");
+        const r = contrast(over([ring[0], ring[1], ring[2], a], bg), bg);
+        expect(r, `ring at ${a} on ${surface}: ${r.toFixed(2)}`).toBeGreaterThanOrEqual(LARGE);
+      }
+    });
     it(`records column tones, header text and chips (${theme})`, () => {
       for (const [k, t] of Object.entries(TONE_CLASS)) {
         // The alliance tones belong to the match cards' own contrast work (red/blue alliance tokens).
@@ -185,10 +202,39 @@ describe("text tones reach WCAG AA in both themes", () => {
     expect(measure("light", "bg-sky-400/15 text-sky-600 dark:text-sky-400").ratio).toBeLessThan(AA); // 3.53
     expect(measure("light", "bg-emerald-400/15 text-emerald-600 dark:text-emerald-400").ratio).toBeLessThan(AA); // 3.26
     expect(measure("light", "bg-green-500/12 text-green-600 dark:text-green-400").ratio).toBeLessThan(AA); // 2.87
+    // The focus ring on light used to be the gold accent itself: 1.6:1 on white at the rings' 60%.
+    { const w = value("light", "--color-card"), g = value("light", "--color-accent"); expect(contrast(over([g[0], g[1], g[2], 0.6], w), w)).toBeLessThan(LARGE); }
+    // A winner's red score used the alliance red itself: 4.4:1 on its 14% tint on dark (axe, the event page).
+    expect(measure("dark", "bg-red-alliance/[0.14] text-red-alliance").ratio).toBeLessThan(AA);
+    // The video red was a one-off #ff4d6d everywhere: 3.2:1 as small text on white.
+    expect(contrast(parseColor("#ff4d6d")!, value("light", "--color-card"))).toBeLessThan(AA);
     // Gold as small text on light: the accent (#eab308) itself, 1.9 on the secondary panel, 1.8 on Compare's best-value tint.
     expect(measure("light", "text-accent", { surface: "--color-secondary" }).ratio).toBeLessThan(LARGE);
     expect(measure("light", "bg-accent/[0.08] text-accent").ratio).toBeLessThan(LARGE);
     expect(measure("dark", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 4.18
     expect(measure("light", "tabular-nums opacity-70", { inherit: "--color-muted-foreground" }).ratio).toBeLessThan(AA); // 3.61
+  });
+});
+
+describe("visited links in running text", () => {
+  /** color-mix(in srgb, a p%, b): an opaque blend of two tokens. */
+  const mix = (theme: Theme, a: string, p: number, b: string): RGBA => {
+    const x = value(theme, a), y = value(theme, b);
+    return [0, 1, 2].map((i) => x[i] * p + y[i] * (1 - p)).concat(1) as RGBA;
+  };
+  for (const theme of THEMES) it(`read quieter and still reach AA (${theme})`, () => {
+    const card = value(theme, "--color-card");
+    const gold = mix(theme, "--color-accent-text", 0.7, "--color-text-muted"), plain = mix(theme, "--color-foreground", 0.65, "--color-text-muted");
+    expect(contrast(gold, card)).toBeGreaterThanOrEqual(AA);
+    expect(contrast(plain, card)).toBeGreaterThanOrEqual(AA);
+    expect(toHex(gold)).not.toBe(toHex(value(theme, "--color-accent-text")));
+  });
+  it("cover gold underlined links and the prose blocks that style their links from the parent", () => {
+    expect(css).toContain("a.underline:visited:where(.text-accent-text), .prose-links a:visited {");
+    expect(css).toContain(".prose-links-plain a:visited {");
+    const src = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
+    expect(src("../pages/PowerRankingsPage.tsx")).toMatch(/const PROSE = "prose-links /);
+    expect(src("../components/legal.tsx")).toContain('"prose-links-plain ');
+    expect(src("../components/howitworks/ui.tsx")).toContain("hiw-prose prose-links-plain");
   });
 });

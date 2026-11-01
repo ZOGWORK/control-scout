@@ -5,7 +5,7 @@
 // and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Radio, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
 import { usePersonal, type AccountUser } from "../lib/personal";
@@ -15,7 +15,7 @@ import type { EventListItem, TeamSummary } from "../shared/api";
 import type { HomeOverview } from "../shared/home";
 import { SEARCH_HINT, hitHref, usePageSearch, useSearch } from "../components/layout/Search";
 import { SearchBox } from "../components/search/SearchBox";
-import { Badge } from "../components/ui/basic";
+import { EventStatusChip } from "../components/EventChips";
 import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
 import { CompetitionAtlas, preloadAtlas } from "../components/home/CompetitionAtlas";
@@ -178,7 +178,7 @@ export function EventCard({ e }: { e: EventListItem }) {
   return (
     <Link to={`/events/${e.season}/${e.code}`} className="lift group flex h-full flex-col rounded-xl border border-border bg-card p-4">
       <div className="flex items-center gap-2">
-        {e.status === "live" ? <Badge variant="destructive"><Radio /> Live</Badge> : e.status === "upcoming" ? <Badge variant="secondary">Upcoming</Badge> : <Badge variant="outline">Finished</Badge>}
+        <EventStatusChip status={e.status} className="px-2 py-0.5" />
         <span className="truncate text-xs text-muted-foreground">{e.typeLabel}</span>
         {e.matchesTotal > 0 && <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">{e.matchesPlayed}/{e.matchesTotal}</span>}
       </div>
