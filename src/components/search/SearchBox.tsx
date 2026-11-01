@@ -313,7 +313,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const enterFor = useRef<string | null>(null);
   useEffect(() => {
     if (!enterFor.current) return;
-    if (enterFor.current !== q.trim()) { enterFor.current = null; return; }
+    // Closed (Escape, a click away, leaving the field) or retyped: the Enter is dropped, never acted on later.
+    if (!open || enterFor.current !== q.trim()) { enterFor.current = null; return; }
     if (busy || stale) return;
     enterFor.current = null;
     if (ordered[0]) pick(ordered[0].hit);

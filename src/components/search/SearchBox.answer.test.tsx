@@ -83,6 +83,17 @@ describe("live search", () => {
     await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
   });
+  it("a picker's pending Enter is dropped when it closes (Escape): the late reply opens nothing", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} kinds={["team"]} seeAll={false} placeholder="Find a team" label="Find a team" />);
+    const input = screen.getByRole("combobox", { name: "Find a team" }) as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "hypno" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
+    expect(onPick).not.toHaveBeenCalled();
+  });
   it("an older reply arriving last never replaces the newer one (T15)", async () => {
     const { input } = mount();
     await type(input, "bad");
