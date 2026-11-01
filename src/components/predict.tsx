@@ -1,6 +1,6 @@
 // Prediction UI shared by every surface. Rule: a prediction is never shown
 // without its confidence tier, and never presented as a fact.
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
@@ -24,6 +24,7 @@ import { TIER_WORD, tierPhrase } from "../shared/tierWords";
 import { factorLabel } from "../lib/factorLabel";
 import { TeamSnack, TeamSnackContext, nameIn, useTeamSnack, useTeamSnackState } from "./TeamSnack";
 import { hasTeamPage } from "../shared/teamPages";
+import { Spacer, useVirtualRows } from "./ui/windowing";
 
 const TIER: Record<ConfidenceTier, { label: string; cls: string; icon: typeof Gauge; blurb: string }> = {
   provisional: { label: TIER_WORD.provisional, cls: "border-warning/40 bg-warning/10 text-warning", icon: CircleDashed, blurb: "Mostly prior-season data — treat as a rough guess." },
@@ -238,7 +239,8 @@ function AllianceBox({ side, m, score, forecast, outcome, highlight }: {
 /** `showEvent` replaces the time under the label; `eventName` only names the event inside the details. */
 /** `outcomeAccent`: the highlighted team's rows get a left edge in its result's colour (green won, red lost) instead of gold. */
 /** `live`: the match being played now; its row stands forward (index.css .match-list) until another row is hovered. */
-export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean }) {
+/** `rowProps`: a windowed list's props for the row's element (useVirtualRows: it measures the row). */
+export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, outcomeAccent, live, rowProps }: { m: MatchView; highlight?: number; showEvent?: string; eventName?: string; open?: boolean; onToggle?: () => void; outcomeAccent?: boolean; live?: boolean; rowProps?: Record<string, unknown> }) {
   const videos = useVideoLinkCount(`${m.season}:${m.code}:${m.level}:${m.series}:${m.number}`);
   const detailsId = `match-${m.code}-${m.key.replace(/:/g, "-")}`;
   // MotionConfig's reducedMotion only stops transforms; height is a layout animation, so it's turned off here.
@@ -261,7 +263,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
   const predictable = usePredictable(m.season); // 2019–2022: history only, so no "No call" on every row
   return (
     // @container: the row lays itself out by its own width (an event's tab, a team's season, a narrow drawer), not the window's.
-    <div className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
+    <div {...rowProps} className={cn("@container border-b border-border last:border-b-0", mySide && "relative before:absolute before:inset-y-0 before:left-0 before:w-[3px]",
       mySide && (outcomeAccent && mine === "win" ? "before:bg-success" : outcomeAccent && mine === "loss" ? "before:bg-destructive" : "before:bg-accent/70"), live && "scroll-mt-bar-2")} data-match={m.key} data-live={live || undefined}>
     <div
       // Narrow rows: the label keeps at least its own width (time, the team's won/lost chip), and the call's
@@ -422,6 +424,30 @@ const LEVEL_TITLE: Record<MatchView["level"], string> = { qual: "Qualifications"
 /** Schedule order: quals before playoffs, then series and number. */
 const scheduleOrder = (a: MatchView, b: MatchView) => (a.level === b.level ? 0 : a.level === "qual" ? -1 : 1) || a.series - b.series || a.number - b.number;
 
+type Group = { key: string; title: string; date?: string; href?: string; ms: MatchView[] };
+type ListItem = { kind: "head"; gi: number; key: string } | { kind: "match"; gi: number; m: MatchView; key: string };
+/** A match row's height (desktop / phone), for rows not measured yet. */
+const ROW_H = 64, ROW_H_PHONE = 112;
+
+/** A group's heading in a match list: an event (its name, linked, and dates) or Qualifications / Playoffs. */
+function GroupHeading({ g, rowProps }: { g: Group; rowProps: Record<string, unknown> }) {
+  return g.date ? (
+    // A dated event heading reads as a heading: the event's full name, then its dates (under it on phones).
+    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+      <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
+        <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
+        <span className="shrink-0 text-xs font-normal text-text-muted">{g.date}</span>
+      </span>
+      <span className="shrink-0 rounded-full bg-muted px-2 py-px text-[11px] font-medium tabular-nums text-text-base/80">{g.ms.length}<span className="sr-only"> matches</span></span>
+    </h3>
+  ) : (
+    <h3 {...rowProps} className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
+      <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
+    </h3>
+  );
+}
+
 /** Matches in one column, in schedule order (Q1, Q2, …; never by start time, so a replayed or late match keeps its place), under Qualifications / Playoffs headings, each opening its details
  *  in place. `initialOpen` (a match key, e.g. from ?match=) opens that one and scrolls it into view.
  *  With `highlight`, a summary line gives that team's record in the matches shown.
@@ -436,6 +462,43 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
   const snackCtx = useMemo(() => ({ team: snack, toggle: (t: number) => setSnack((x) => (x === t ? null : t)) }), [snack, setSnack]);
   const closeSnack = useCallback(() => setSnack(null), [setSnack]);
   const box = useRef<HTMLDivElement>(null);
+  // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
+  // eventNames: a team's season): a heading per event, in the list's own order, even when only one shows.
+  const oneEvent = !eventNames && new Set(matches.map((m) => m.code)).size === 1;
+  const groups = useMemo(() => {
+    const gs: Group[] = [];
+    if (oneEvent) for (const l of ["qual", "playoff"] as const) { const ms = matches.filter((m) => m.level === l); if (ms.length) gs.push({ key: l, title: LEVEL_TITLE[l], ms }); }
+    else for (const m of matches) {
+      const last = gs[gs.length - 1];
+      if (last?.key === m.code) last.ms.push(m);
+      else gs.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, date: eventDates?.[m.code], href: `/events/${m.season}/${m.code}`, ms: [m] });
+    }
+    // The API lists matches by start time; each group reads in schedule order instead (newest first for a
+    // list of recent results, which says so: guessing from the order given breaks on a match played out of turn).
+    for (const g of gs) g.ms = [...g.ms].sort((a, b) => (newestFirst ? -1 : 1) * scheduleOrder(a, b));
+    return gs;
+  }, [matches, oneEvent, eventNames, eventDates, newestFirst]);
+  // The list as rows (each group's heading, then its matches): a long one (a big event's schedule, a busy team's
+  // season) renders only the rows on screen (src/components/ui/windowing.tsx).
+  const flat = useMemo(() => groups.flatMap((g, gi): ListItem[] => [
+    ...(groups.length > 1 || g.href ? [{ kind: "head" as const, gi, key: `head:${g.key}:${gi}` }] : []),
+    ...g.ms.map((m) => ({ kind: "match" as const, gi, m, key: id(m) })),
+  ]), [groups]);
+  const [estimate] = useState(() => (typeof window !== "undefined" && window.matchMedia?.(PHONE).matches ? ROW_H_PHONE : ROW_H));
+  const vr = useVirtualRows<HTMLDivElement>(flat.length, estimate, { key: (i) => flat[i].key });
+  // Brings a match's row into view. Off a long list's window it isn't rendered: the page jumps near it first
+  // (so it renders), then places it.
+  const bring = (key: string, behavior?: ScrollBehavior) => requestAnimationFrame(() => {
+    const find = () => box.current?.querySelector(`[data-match="${CSS.escape(key)}"]`);
+    const row = find();
+    if (row) return scrollToElement(row, behavior);
+    const i = flat.findIndex((x) => x.kind === "match" && x.m.key === key);
+    if (i < 0) return;
+    vr.jumpTo(i);
+    let tries = 0;
+    const settle = () => { const r = find(); if (r) scrollToElement(r); else if (++tries < 10) requestAnimationFrame(settle); };
+    requestAnimationFrame(settle);
+  });
   // The match a link asked for is brought into view once per visit (history entry): a live update that
   // adds matches to the list must not pull the page back to it after the reader has scrolled on, and
   // nor may Back/Forward, which return to where the reader actually was (src/lib/pageScroll.ts).
@@ -450,7 +513,7 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     shownFor.current = visit;
     setOpen((s) => (s.has(id(m)) ? s : new Set(s).add(id(m))));
     if (restoredSavedPosition(loc)) return;
-    requestAnimationFrame(() => { const row = box.current?.querySelector(`[data-match="${CSS.escape(m.key)}"]`); if (row) scrollToElement(row, smoothBehavior()); });
+    bring(m.key, smoothBehavior());
     // Only when the requested match or the visit changes (not on every refresh of the list).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOpen, loc.key, matches.length]);
@@ -462,26 +525,27 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
     if (!window.matchMedia?.(PHONE).matches) return;
     liveShownFor.current = loc.key;
     if (restoredSavedPosition(loc)) return;
-    requestAnimationFrame(() => { const row = box.current?.querySelector(`[data-match="${CSS.escape(live)}"]`); if (row) scrollToElement(row); });
+    bring(live);
     // Only when the live match first shows in a visit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, loc.key]);
   if (!matches.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-text-muted">{empty ?? "No matches yet."}</p>;
   const toggle = (k: string) => setOpen((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  // An event's own schedule: Qualifications / Playoffs headings. A list across events (the caller passes
-  // eventNames: a team's season): a heading per event, in the list's own order, even when only one shows.
-  const oneEvent = !eventNames && new Set(matches.map((m) => m.code)).size === 1;
-  const groups: { key: string; title: string; date?: string; href?: string; ms: MatchView[] }[] = [];
-  if (oneEvent) for (const l of ["qual", "playoff"] as const) { const ms = matches.filter((m) => m.level === l); if (ms.length) groups.push({ key: l, title: LEVEL_TITLE[l], ms }); }
-  else for (const m of matches) {
-    const last = groups[groups.length - 1];
-    if (last?.key === m.code) last.ms.push(m);
-    else groups.push({ key: m.code, title: eventNames?.[m.code] ?? m.code, date: eventDates?.[m.code], href: `/events/${m.season}/${m.code}`, ms: [m] });
-  }
-  // The API lists matches by start time; each group reads in schedule order instead (newest first for a
-  // list of recent results, which says so: guessing from the order given breaks on a match played out of turn).
-  for (const g of groups) {
-    g.ms = [...g.ms].sort((a, b) => (newestFirst ? -1 : 1) * scheduleOrder(a, b));
+  // The rows to render now, in their groups' sections (a group the window doesn't reach isn't rendered).
+  const parts: { gi: number; kids: ReactNode[] }[] = [];
+  for (const { item, rowProps, gapBefore } of vr.rows(flat)) {
+    const gap = gapBefore > 0 ? <Spacer as="div" key={`gap:${item.key}`} height={gapBefore} /> : null;
+    let part = parts[parts.length - 1];
+    if (!part || part.gi !== item.gi) {
+      if (gap) parts.push({ gi: -1, kids: [gap] });
+      part = { gi: item.gi, kids: [] };
+      parts.push(part);
+    } else if (gap) part.kids.push(gap);
+    if (item.kind === "head") part.kids.push(<GroupHeading key={item.key} g={groups[item.gi]} rowProps={rowProps} />);
+    else {
+      const m = item.m;
+      part.kids.push(<MatchRow key={item.key} rowProps={rowProps} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(item.key)} onToggle={() => toggle(item.key)} live={!!live && m.key === live} />);
+    }
   }
   const rec = highlight ? teamRecord(matches, highlight) : null;
   return (
@@ -493,27 +557,10 @@ export function MatchList({ matches, highlight, empty, eventNames, eventDates, i
         </p>
       )}
       {/* Not overflow-hidden: a row standing forward (index.css .match-list) reaches past the box's sides. */}
-      <div className="rounded-xl border border-border bg-card" data-match-box>
-        {groups.map((g, i) => (
-          <section key={`${g.key}:${i}`} aria-label={g.title}>
-            {(groups.length > 1 || g.href) && (g.date ? (
-              // A dated event heading reads as a heading: the event's full name, then its dates (under it on phones).
-              <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
-                <span className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline sm:gap-2">
-                  <Link to={g.href!} className="truncate text-base font-semibold text-text-base hover:text-accent-text hover:underline">{g.title}</Link>
-                  <span className="shrink-0 text-xs font-normal text-text-muted">{g.date}</span>
-                </span>
-                <span className="shrink-0 rounded-full bg-muted px-2 py-px text-[11px] font-medium tabular-nums text-text-base/80">{g.ms.length}<span className="sr-only"> matches</span></span>
-              </h3>
-            ) : (
-              <h3 className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-                {g.href ? <Link to={g.href} className="truncate normal-case tracking-normal text-base text-text-base hover:text-accent-text hover:underline">{g.title}</Link> : g.title}
-                <span className="shrink-0 rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-text-base/80">{g.ms.length}</span>
-              </h3>
-            ))}
-            {g.ms.map((m) => <MatchRow key={id(m)} m={m} highlight={highlight} outcomeAccent={outcomeAccent} eventName={eventNames?.[m.code]} open={open.has(id(m))} onToggle={() => toggle(id(m))} live={!!live && m.key === live} />)}
-          </section>
-        ))}
+      <div ref={vr.ref} className="rounded-xl border border-border bg-card" data-match-box>
+        <Spacer as="div" height={vr.paddingTop} />
+        {parts.map((p) => (p.gi < 0 ? p.kids : <section key={`${groups[p.gi].key}:${p.gi}`} aria-label={groups[p.gi].title}>{p.kids}</section>))}
+        <Spacer as="div" height={vr.paddingBottom} />
       </div>
     </div>
     <TeamSnack team={snack} season={matches[0].season} name={snack != null ? nameIn(matches, snack) : undefined}

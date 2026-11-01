@@ -1,9 +1,13 @@
 // Sortable stat table with CSV export (dense, keyboard-friendly).
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, Download } from "lucide-react";
 import { Button } from "./ui/button";
 import { cn } from "./cn";
 import { downloadCsv } from "../lib/csv";
+import { Spacer, useSteadyColumns, useVirtualRows } from "./ui/windowing";
+
+/** A row's height (desktop density), for rows not measured yet. */
+const ROW_H = 37;
 
 export interface Col<T> {
   key: string;
@@ -58,6 +62,10 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
   }, [rows, cols, sort]);
   const heatVals = useMemo(() => new Map(cols.filter((c) => c.heat).map((c) => [c.key,
     rows.map((r) => c.value(r)).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b)])), [rows, cols]);
+  // A big event's standings (60+ teams) render only the rows on screen (src/components/ui/windowing.tsx).
+  const vr = useVirtualRows<HTMLTableSectionElement>(sorted.length, ROW_H, { key: (i) => rowKey(sorted[i]) });
+  const table = useRef<HTMLTableElement>(null);
+  useSteadyColumns(table, vr.windowed, cols.map((c) => c.key).join());
   const click = (c: Col<T>) => setSort((s) => (s.key === c.key ? { key: c.key, dir: s.dir === "asc" ? "desc" : "asc" } : { key: c.key, dir: c.asc || c.align !== "right" ? "asc" : "desc" }));
   if (!rows.length) return <p className="rounded-xl border border-dashed border-border px-4 py-8 max-sm:py-5 text-center text-sm text-muted-foreground">{empty ?? "Nothing here yet."}</p>;
   return (
@@ -68,9 +76,9 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
         </div>
       )}
       <div className="custom-scrollbar overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full text-sm">
+        <table ref={table} className="w-full text-sm" aria-rowcount={vr.windowed ? sorted.length + 1 : undefined}>
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-border" aria-rowindex={vr.windowed ? 1 : undefined}>
               {cols.map((c) => (
                 <th key={c.key} scope="col" aria-sort={sort.key === c.key ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
                   className={cn("h-10 whitespace-nowrap px-3 text-[10px] font-bold uppercase tracking-wider text-text-muted", c.align === "right" ? "text-right" : "text-left", c.hideOnMobile && "max-sm:hidden")}>
@@ -81,12 +89,17 @@ export function SortTable<T>({ rows, cols, initial, csvName, rowKey, highlight, 
               ))}
             </tr>
           </thead>
-          <tbody>
-            {sorted.map((r) => (
-              <tr key={rowKey(r)} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03]", highlight?.(r) && "bg-accent/[0.06]")}>
-                {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && bandOf(heatVals.get(c.key)!, c.value(r), c.asc))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
-              </tr>
+          <tbody ref={vr.ref}>
+            <Spacer height={vr.paddingTop} colSpan={cols.length} />
+            {vr.rows(sorted).map(({ item: r, index, rowProps, gapBefore }) => (
+              <Fragment key={rowKey(r)}>
+                <Spacer height={gapBefore} colSpan={cols.length} />
+                <tr {...rowProps} aria-rowindex={vr.windowed ? index + 2 : undefined} className={cn("border-b border-border last:border-b-0 hover:bg-text-base/[0.03]", highlight?.(r) && "bg-accent/[0.06]")}>
+                  {cols.map((c) => <td key={c.key} className={cn("density-row whitespace-nowrap px-3 py-2", c.align === "right" && "text-right tabular-nums", c.hideOnMobile && "max-sm:hidden", c.className, c.heat && bandOf(heatVals.get(c.key)!, c.value(r), c.asc))}>{c.render ? c.render(r) : (c.value(r) ?? "—")}</td>)}
+                </tr>
+              </Fragment>
             ))}
+            <Spacer height={vr.paddingBottom} colSpan={cols.length} />
           </tbody>
         </table>
       </div>
