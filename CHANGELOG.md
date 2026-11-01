@@ -20,10 +20,10 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 The pit and match forms are rebuilt: pick the team by name, see where you are in the queue, and always know whether your entry has synced.
 
 ### Highlights
-- [scout] Pit scouting walks the queue: Pit 8 of 18, then straight on to the next team
+- [scout] Pit scouting walks the queue: Pit 8 of 18, then the next team
 - [scout] Pick a team by number or name, confirmed by name before you save
-- [offline] The Save bar says Saved, Saving…, Queued offline or Sync failed with Retry
-- [scout] Match scouting shows each robot's tap count and the alliance total as you go
+- [offline] Save says Saved, Saving…, Queued offline or Sync failed · Retry
+- [scout] Match scouting counts each robot's taps and the alliance total
 
 ### Scout
 - **Pit form.** Opens from the pit queue with "Pit X of Y" and a progress bar, the team's rank, record and OPR beside it, and the rest of the queue next to it on a wide screen (under it on a phone). Saving moves on to the next team in line.
