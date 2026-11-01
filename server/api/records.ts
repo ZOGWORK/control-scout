@@ -593,8 +593,14 @@ async function writeRecordsXlsx(season: number, q: RecordsQuery, res: Response, 
   // Pass 1: widths, and each banded column's values (team records only: a match's scores aren't a standing).
   // A header wraps onto two lines: half its length, or its longest word, plus room for the filter arrow.
   const widths = headers.map((h) => Math.max(...h.split(" ").map((w) => w.length), Math.ceil(h.length / 2)) + 4);
-  // One fixed-size array per banded column (sized to the rows, so no growing or copying), sorted in place after.
-  const spread = defs.map((d) => (q.scope !== "match" && heatable(d) ? { a: new Float64Array(keys.length), n: 0 } : null));
+  // Each banded column's numbers in row order (NaN: none), in one fixed-size array. Pass 2 writes these same
+  // numbers, so a live results refresh between the two reads can't leave a value coloured against older ones.
+  const kept = defs.map((d) => (q.scope !== "match" && heatable(d) ? new Float64Array(keys.length).fill(NaN) : null));
+  // Rows are matched across the passes by who they are (team, event, match), never by position: a row the refresh
+  // removed in between must not shift every row after it.
+  const rowId = (r: AnyRow) => ids.map(([, f]) => String(f(r))).join("");
+  const index = new Map<string, number>();
+  let at = 0;
   try {
     await chunks(async (rows) => {
       for (const r of rows) {
@@ -603,19 +609,24 @@ async function writeRecordsXlsx(season: number, q: RecordsQuery, res: Response, 
           const len = i === dateCol ? 10 : typeof v === "number" ? String(Math.round(v * 100) / 100).length : String(v).length;
           widths[i] = Math.max(widths[i], Math.min(len + 2, 42));
         });
-        defs.forEach((d, j) => { const v = r.stats[d.key], c = spread[j]; if (c && typeof v === "number" && Number.isFinite(v)) c.a[c.n++] = v; });
+        defs.forEach((d, j) => { const v = r.stats[d.key]; if (kept[j] && typeof v === "number" && Number.isFinite(v)) kept[j]![at] = v; });
+        index.set(rowId(r), at++);
       }
     });
   } catch (e) {
     if (e instanceof Gone) return; // cancelled before anything was sent
     throw e;
   }
-  const sorted = spread.map((c) => {
-    if (!c || c.n < HEAT_MIN) return null;
-    const a = c.a.subarray(0, c.n).sort();
-    return a[0] === a[a.length - 1] ? null : a;
+  // Each row's band per column (one byte), worked out one column at a time from a sorted copy that's then dropped.
+  const bands = kept.map((vals, j) => {
+    if (!vals) return null;
+    const sorted = vals.filter((v) => !Number.isNaN(v)).sort();
+    if (sorted.length < HEAT_MIN || sorted[0] === sorted[sorted.length - 1]) return null;
+    const out = new Uint8Array(vals.length);
+    for (let i = 0; i < vals.length; i++) if (!Number.isNaN(vals[i])) out[i] = heatBand(sorted, vals[i], defs[j].lowerIsBetter);
+    return out;
   });
-  const banded = sorted.some(Boolean);
+  const banded = bands.some(Boolean);
 
   // Styles: a header per column, and each body cell's look.
   const styles = new Styles();
@@ -631,7 +642,7 @@ async function writeRecordsXlsx(season: number, q: RecordsQuery, res: Response, 
     const color = (i < ids.length || !banded) && tone !== "slate" ? TONE_HEX[tone].text : undefined;
     return styles.id({ color, bold: i === teamCol || undefined, numFmt: defAt(i)?.percent ? PERCENT_FMT : i === dateCol ? DATE_FMT : undefined });
   });
-  const bandStyles = defs.map((d, j) => (sorted[j] ? XLSX_HEAT.map((h) => styles.id({ ...h, numFmt: d.percent ? PERCENT_FMT : undefined })) : null));
+  const bandStyles = defs.map((d, j) => (bands[j] ? XLSX_HEAT.map((h) => styles.id({ ...h, numFmt: d.percent ? PERCENT_FMT : undefined })) : null));
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -646,9 +657,12 @@ async function writeRecordsXlsx(season: number, q: RecordsQuery, res: Response, 
       headerHeight: 46, // two lines of header, and the filter arrow under them
       body: (row) => chunks(async (rows) => {
         for (const r of rows) {
+          const n = index.get(rowId(r));
           await row(valuesOf(r).map((v, i) => {
-            const j = i - ids.length, a = j >= 0 ? sorted[j] : null;
-            return { v, s: a && typeof v === "number" && Number.isFinite(v) ? bandStyles[j]![heatBand(a, v, defs[j].lowerIsBetter)] : plain[i] };
+            const j = i - ids.length, vals = j >= 0 && j < defs.length ? kept[j] : null;
+            if (!vals || n == null) return { v, s: plain[i] };
+            const x = vals[n]; // the number pass 1 saw (and banded), not a re-read
+            return Number.isNaN(x) ? { v: null, s: plain[i] } : { v: x, s: bands[j] ? bandStyles[j]![bands[j]![n]] : plain[i] };
           }));
         }
       }),

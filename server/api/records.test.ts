@@ -463,6 +463,29 @@ describe("one event's records and region options", () => {
 });
 
 describe("Excel export limits", () => {
+  it("writes the numbers its colours were worked out from, even if the records change between its two reads", async () => {
+    const c = db();
+    const realExec = c.execute.bind(c);
+    let rowReads = 0;
+    (c as any).execute = async (s: any) => {
+      const r = await realExec(s);
+      // Right after the first pass reads the rows, a results refresh rewrites the best team's OPR.
+      if (String(s?.sql ?? s).includes("WITH wanted") && ++rowReads === 1) await realExec({ sql: "UPDATE team_event_records SET total_opr = 0 WHERE season = ? AND team = 106", args: [N] });
+      return r;
+    };
+    const own = createApp().listen(0);
+    await new Promise((r) => own.once("listening", r));
+    try {
+      const r = await fetch(`http://127.0.0.1:${(own.address() as AddressInfo).port}/api/records/${N}/teams?format=xlsx&sort=totalPointsOpr&dir=desc&fields=teamName,totalPointsOpr`);
+      expect(rowReads).toBe(2);
+      const sheet = unzip(Buffer.from(await r.arrayBuffer()))["xl/worksheets/sheet1.xml"];
+      expect(sheet).toMatch(/<c r="H2" s="\d+"><v>90<\/v><\/c>/); // 106 as banded (top fifth), not 0 painted green
+    } finally {
+      (c as any).execute = realExec;
+      own.close();
+      await run("UPDATE team_event_records SET total_opr = 90 WHERE season = ? AND team = 106", [N]);
+    }
+  });
   it("checksums like zlib (which needs Node 22.2), in one go or in pieces", () => {
     const b = Buffer.from("Control Scout ✓ ".repeat(500));
     expect(crc32(b)).toBe(zlibCrc32(b));
