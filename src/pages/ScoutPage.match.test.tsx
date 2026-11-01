@@ -72,7 +72,7 @@ describe("Event day", () => {
   it("an entry being filled in keeps its answers through Change event and back", async () => {
     red();
     show("/scout?season=2025&tab=entries");
-    fireEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Fast intake" } });
     fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
     expect(await screen.findByText("Which event are you scouting?")).toBeTruthy();
@@ -81,10 +81,13 @@ describe("Event day", () => {
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
   });
 
-  it("a team page's Scout this team opens its form even with no event picked", async () => {
-    show("/scout?season=2025&team=4242&new=1");
-    expect(await screen.findByLabelText("Notes")).toBeTruthy();
-    expect(screen.queryByText("Which event are you scouting?")).toBeNull();
+  it("a team page's Scout this team with no event picked asks for the event, then opens that team's pit form there", async () => {
+    show("/scout?season=2025&team=102&new=1");
+    expect(await screen.findByText("Which event are you scouting?")).toBeTruthy();
+    await waitFor(() => expect(param("pit")).toBe("102"));
+    red();
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: /^Team: 102/ })).toBeTruthy();
   });
 
   it("Change event opens the picker over the event, with a way back", async () => {

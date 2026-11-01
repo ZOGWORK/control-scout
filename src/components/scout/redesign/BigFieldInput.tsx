@@ -7,7 +7,7 @@
 // Surfaces are the app's own: Card's rounded-xl hairline card, the chip/card toggles' accent pick
 // (src/components/ui/controls.tsx), the secondary button. Tap targets are px, not rem, so they stay
 // 44px+ on a phone's 14px base.
-import type { KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { Minus } from "lucide-react";
 import { Input, Label, Textarea } from "../../ui/basic";
 import { buttonVariants } from "../../ui/button";
@@ -43,6 +43,25 @@ export function parseNumberAnswer(text: string, f: Pick<ScoutField, "min" | "max
   return Math.min(f.max ?? Number.MAX_SAFE_INTEGER, Math.max(f.min ?? 0, n));
 }
 
+/**
+ * A number field's box. What's typed is kept as typed ("35." on the way to 35.5) while the answer is the parsed
+ * number; an answer set elsewhere (an undo, another device) replaces the text. Tidied to the answer on blur.
+ */
+function NumberBox({ id, f, value, onChange, disabled }: { id: string; f: ScoutField; value: ScoutValue | undefined; onChange: (v: ScoutValue | undefined) => void; disabled?: boolean }) {
+  const [text, setText] = useState(typeof value === "number" ? String(value) : "");
+  const typed = parseNumberAnswer(text, f);
+  useEffect(() => {
+    if (value !== typed) setText(typeof value === "number" ? String(value) : "");
+    // Only an answer changed from outside resets the text (typing changes both together).
+  }, [value]);
+  return (
+    <Input id={id} type="text" inputMode="decimal" autoComplete="off" disabled={disabled} value={text} placeholder="—" aria-describedby={f.unit ? `${id}-unit` : undefined}
+      onChange={(e) => { setText(e.target.value); onChange(parseNumberAnswer(e.target.value, f)); }}
+      onBlur={() => setText(typed === undefined ? "" : String(typed))}
+      className="h-[44px] w-24 text-right font-mono text-lg tabular-nums" />
+  );
+}
+
 export function BigFieldInput({ f, value, onChange, tone = "default", disabled, idPrefix = "big", detail, onDetail }: {
   f: ScoutField; value: ScoutValue | undefined; onChange: (v: ScoutValue | undefined) => void; tone?: FieldTone; disabled?: boolean; idPrefix?: string;
   /** A yes/no + detail field's detail, and its setter. */
@@ -54,12 +73,7 @@ export function BigFieldInput({ f, value, onChange, tone = "default", disabled, 
       <div className={cn(card, "flex min-h-[56px] items-center justify-between gap-3 border-border px-4 py-2")}>
         <Label htmlFor={id} className="min-w-0 font-semibold leading-snug">{numberLabel(f)}</Label>
         <div className="flex shrink-0 items-center gap-2">
-          {/* Keyed by the answer, so a value set elsewhere (an undo, another device) shows; typing keeps what's typed. */}
-          <Input id={id} type="text" inputMode="decimal" autoComplete="off" disabled={disabled} key={typeof value === "number" ? value : "empty"}
-            defaultValue={typeof value === "number" ? String(value) : ""} placeholder="—" aria-describedby={f.unit ? `${id}-unit` : undefined}
-            onChange={(e) => onChange(parseNumberAnswer(e.target.value, f))}
-            onBlur={(e) => { const v = parseNumberAnswer(e.target.value, f); e.target.value = v === undefined ? "" : String(v); }}
-            className="h-[44px] w-24 text-right font-mono text-lg tabular-nums" />
+          <NumberBox id={id} f={f} value={value} onChange={onChange} disabled={disabled} />
           {f.unit && <span id={`${id}-unit`} className="w-8 text-sm text-muted-foreground">{f.unit}</span>}
         </div>
       </div>

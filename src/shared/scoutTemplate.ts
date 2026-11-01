@@ -23,7 +23,8 @@ export type TemplateKind = "match" | "pit";
 export interface ScoutField { id: string; label: string; type: FieldType; phase: FieldPhase; options?: string[]; min?: number; max?: number; unit?: string; detail?: string }
 
 /** Where a yes/no + detail field keeps its detail in an entry's answers (beside the yes/no under its own id). */
-export const detailKey = (id: string) => `${id}__detail`;
+const DETAIL_SUFFIX = "__detail";
+export const detailKey = (id: string) => `${id}${DETAIL_SUFFIX}`;
 /**
  * A template as the form uses it. `id`: "match-<season>" / "pit" for the
  * built-in defaults, "ws:<workspace>:<season>:<kind>" for a workspace's own.
@@ -77,6 +78,8 @@ export function cleanField(x: unknown, kind: TemplateKind): { field: ScoutField 
   const f = x as Record<string, unknown>;
   const id = typeof f.id === "string" ? f.id.trim() : "";
   if (!id || id.length > TEMPLATE_LIMITS.id || !FIELD_ID.test(id)) return { reason: "bad id" };
+  // Ids ending in __detail are a Yes / no + detail field's own (detailKey): a field of its own there would share its answer.
+  if (id.endsWith(DETAIL_SUFFIX)) return { reason: "reserved id" };
   const label = cleanText(f.label, TEMPLATE_LIMITS.label);
   if (!label) return { reason: "no label" };
   if (!FIELD_TYPES.includes(f.type as FieldType)) return { reason: "unknown type" };

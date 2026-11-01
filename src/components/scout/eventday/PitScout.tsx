@@ -2,7 +2,7 @@
 // snapshot at the event (rank, record, OPR) and its photos beside the fields, and the pit queue to move team to
 // team. Save keeps the entry and moves on to the next team still to do. A team already scouted here opens its
 // entry to read or change. Progress is the queue's own count (src/shared/scoutProgress.ts).
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Camera, ExternalLink } from "lucide-react";
 import type { ScoutEntry } from "../../../lib/scouting";
@@ -45,7 +45,16 @@ export function PitScout({ event, entries, team, onTeam, onClose, onSaved, ...ed
 }) {
   const done = useMemo(() => pitScouted(entries, event.code), [entries, event.code]);
   const numbers = useMemo(() => event.teams.map((t) => t.team), [event.teams]);
-  const existing = pitEntryAt(entries as ScoutEntry[], event.code, team);
+  // The entry this form opened on (none: a new one), held for the visit: an entry arriving meanwhile (another scout's
+  // save, a sync) never swaps the form and its unsaved answers out from under the scout.
+  const found = pitEntryAt(entries as ScoutEntry[], event.code, team);
+  const where = `${event.code}:${team}`;
+  const [held, setHeld] = useState<{ where: string; uuid: string | null }>(() => ({ where, uuid: found?.uuid ?? null }));
+  if (held.where !== where) setHeld({ where, uuid: found?.uuid ?? null });
+  const heldUuid = held.where === where ? held.uuid : found?.uuid ?? null;
+  const existing = heldUuid ? (entries as ScoutEntry[]).find((e) => e.uuid === heldUuid && !e.deleted) ?? null : null;
+  // Someone else saved this team while this new entry was open: say so (Save adds this one beside it).
+  const arrived = !existing && found ? found : null;
   const total = numbers.length;
   const doneHere = numbers.filter((t) => done.has(t)).length;
   // This entry's place in the count: the next one done, or (already scouted) where it already counts.
@@ -59,7 +68,7 @@ export function PitScout({ event, entries, team, onTeam, onClose, onSaved, ...ed
     <div className="grid gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-xl font-bold text-foreground">{total ? <>Pit {position} <span className="text-muted-foreground">of {total}</span></> : "Pit scouting"}</h3>
-        <span className="text-sm text-muted-foreground">{existing ? "Already scouted: change it or keep it" : next ? `Then ${next}` : total ? "The last team to do" : ""}</span>
+        <span className="text-sm text-muted-foreground">{existing ? "Already scouted: change it or keep it" : arrived ? "Just scouted by someone else: Save adds yours too" : next ? `Then ${next}` : total ? "The last team to do" : ""}</span>
       </div>
       {total > 0 && <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${pct}%` }} /></div>}
     </div>
@@ -97,8 +106,10 @@ export function PitScout({ event, entries, team, onTeam, onClose, onSaved, ...ed
         nextLabel={!existing && next != null ? String(next) : null} header={header}
         onSaved={(e) => {
           onSaved?.();
-          // A new entry moves on to the next team still to do; a change stays put.
+          // A new entry moves on to the next team still to do; a change stays put (and with no team left, the form
+          // holds the saved entry, so a second Save changes it rather than adding another).
           if (!existing && next != null && e.team === team) onTeam(next);
+          else if (!existing) setHeld({ where, uuid: e.uuid });
         }}
         onClose={onClose}
         aside={<>
