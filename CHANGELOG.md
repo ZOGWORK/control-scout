@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.7.9 — 2026-10-31
+## 1.8.1 — 2026-11-01
 
 Add teams to your shortlist right from the Shortlist page.
 
@@ -26,6 +26,39 @@ Add teams to your shortlist right from the Shortlist page.
 
 ### Shortlist
 - **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too (#378).
+## 1.8.0 — 2026-11-01
+
+The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.
+
+### Highlights
+- [fixes] Slowest routes no longer lists live streams that stayed open for hours
+- [speed] Live streams count how long they took to open, like any request
+- [workspace] Workspace live streams now show in Busiest routes too
+
+### Owner portal
+- **Live streams are timed to the moment they open.** The notification inbox, advancement odds and workspace live streams stay open as long as their page does, so timing them until they closed put hours-long "latencies" at the top of Slowest routes. They now count how long they took to open. Errors are unchanged: a reader leaving was never one, and a stream refused before it opens (as when live updates are switched off) still is. The workspace stream, left out before, is counted the same way. Stream rows counted the old way are cleared once, so the last 14 days aren't skewed by them. (#377)
+
+## 1.7.9 — 2026-11-01
+
+Every search result shows where it goes, and a link to a team's OPR or ranking opens right on it.
+
+### Highlights
+- [teams] Search results show their address: controlscout.org/teams/4215#opr
+- [teams] Links to a team's OPR, ranking or difficulty open that part, unfolded
+- [teams] Team pages name the team, its record and OPR for search engines
+- [rankings] Event pages list their standings before the app has even loaded
+
+### Search
+- **Where a result goes.** Under each result, in the dropdown and on the results page, its full address: "controlscout.org/teams/4215#opr", "controlscout.org/compare?teams=4215,6980".
+- **Deep links.** A stat search opens the team page at its own part: #opr (Offensive power rating), #ranking and #history (the season road map: ranks, records, ranking scores), #schedule-difficulty, #awards and #matches. A folded section opens when its link lands on it. No new addresses: every link is a page that already existed.
+
+### Team and event pages
+- **Titles.** Team pages are titled "4215 Hypnotic Robotics | FTC Team Stats, OPR & Rankings | Control Scout", with a description from the team's real record, OPR and OPR rank.
+- **Event standings in the page itself.** An event page's first load lists its standings (rank, team, record, ranking score and OPR, each team a link), so a visitor or a search engine reads them before the app starts.
+
+### Behind the scenes
+- The results page asks search engines not to list it ("noindex, follow"): its links still lead them to the team and event pages. robots.txt now lets crawlers read it; /api stays out.
+- The sitemap lists a team only once it has played at an event (a team that has only signed up has no numbers yet), and no longer lists Compare, which is empty until teams are picked (#376).
 
 ## 1.7.8 — 2026-10-31
 

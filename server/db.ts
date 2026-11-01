@@ -13,7 +13,7 @@ export const OWNER_AUDIT_TRIGGERS = [
   "CREATE TRIGGER owner_audit_no_edit BEFORE UPDATE ON owner_audit WHEN NEW.id IS NOT OLD.id OR NEW.at IS NOT OLD.at OR NEW.actor IS NOT OLD.actor OR NEW.action IS NOT OLD.action OR NEW.details IS NOT OLD.details OR NEW.old_value IS NOT OLD.old_value OR NEW.new_value IS NOT OLD.new_value OR (NEW.result IS NOT OLD.result AND OLD.result IS NOT NULL AND OLD.result IS NOT 'started') BEGIN SELECT RAISE(ABORT, 'owner_audit is append-only'); END;",
 ];
 
-const MIGRATIONS: { version: number; name: string; sql: string }[] = [
+export const MIGRATIONS: { version: number; name: string; sql: string }[] = [
   {
     version: 1,
     name: "core data",
@@ -1763,6 +1763,16 @@ CREATE TABLE event_stream_links (
   checked_at TEXT NOT NULL,
   PRIMARY KEY (season, code)
 );
+`,
+  },
+  {
+    version: 67,
+    name: "drop live stream timings",
+    sql: `
+-- Live streams (/api/inbox/stream, /api/projections/:n/:id/stream) were timed until they closed, so hours-long open
+-- connections topped the owner portal's Slowest routes. They're now timed to the moment they open (server/metrics.ts);
+-- the rows counted the old way go, so the next 14 days aren't skewed by them.
+DELETE FROM request_metrics_daily WHERE route LIKE '% /api/%/stream';
 `,
   },
 ];

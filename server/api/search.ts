@@ -129,7 +129,7 @@ async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<s
   const events = season == null ? [] : await teamEvents(Number(team.ref), season);
   // Several of its events match equally ("Northern League Meet"): the visitor picks; search never guesses one.
   const note = vague ? "Pick an event below" : found ? `Several of its events match "${where}": pick one below` : `None of its events matches "${where}": pick one below`;
-  return [{ ...team, section: "events", ...(season != null ? { linkSeason: season } : {}), facts: [{ label: "Which event?", value: note }], ...(events.length ? { events } : {}) }, ...others];
+  return [{ ...team, section: "history", ...(season != null ? { linkSeason: season } : {}), facts: [{ label: "Which event?", value: note }], ...(events.length ? { events } : {}) }, ...others];
 }
 
 async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
