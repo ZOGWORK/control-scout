@@ -22,9 +22,10 @@ Bruno's answer on Search shows up as he writes it.
 ### Highlights
 - [speed] Bruno's answer on Search appears word by word, not after a wait
 - [speed] Same answer as before, checked the same way before it shows
+- [fixes] A dropped connection mid-answer still ends with his whole answer, shown once
 
 ### Search
-- **Bruno's answer streams in.** A question on /search used to show a placeholder until Bruno had written his whole answer; now his sentence and points appear as he writes them and end at exactly the answer he gave before. Every part is checked against the records before it shows (a number still being written waits for its last digit), and a part with a number the records don't have is taken back. If the stream breaks, the page keeps what it showed and fetches the answer the old way, once. Same model call, prompt and cache.
+- **Bruno's answer streams in.** A question on /search used to show a placeholder until Bruno had written his whole answer; now his sentence and points appear as he writes them and end at exactly the answer he gave before. Every part is checked against the records before it shows (a number still being written waits for its last digit), and a part with a number the records don't have is taken back. If the stream breaks, the page keeps what it showed and fetches the answer the old way, once. Same model call, prompt and cache. (#415)
 
 ## 2.1.2 — 2026-11-01
 
