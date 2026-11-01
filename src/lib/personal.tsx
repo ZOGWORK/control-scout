@@ -131,11 +131,14 @@ function restoreStash(owner: string, mine: Stash, apply: (k: PersonalKey, s: Sta
 }
 
 /** A stash's scouting with what an earlier sign-in couldn't put back (`left`) carried into it (nothing dropped). */
-function withLeftovers(now: Stash["scouting"], left: Stash["scouting"] | undefined): Stash["scouting"] {
+/** (Exported for its tests.) */
+export function withLeftovers(now: Stash["scouting"], left: Stash["scouting"] | undefined): Stash["scouting"] {
   if (!left) return now;
-  const add = (cur: { entries: ScoutEntryLike[]; dirty: string[] }, more: { entries?: ScoutEntryLike[]; dirty?: string[] } | undefined) => {
+  const add = (cur: { entries: ScoutEntryLike[]; dirty: string[]; rejected?: Record<string, number> }, more: { entries?: ScoutEntryLike[]; dirty?: string[]; rejected?: Record<string, number> } | undefined) => {
     for (const e of more?.entries ?? []) if (!cur.entries.some((x) => x.uuid === e.uuid)) cur.entries.push(e);
     for (const u of more?.dirty ?? []) if (!cur.dirty.includes(u)) cur.dirty.push(u);
+    // Turned-down versions not written back last time (scouting.ts): kept, under any the device has now.
+    if (more?.rejected && Object.keys(more.rejected).length) cur.rejected = { ...more.rejected, ...(cur.rejected ?? {}) };
   };
   const out = { ...now, entries: [...now.entries], dirty: [...now.dirty], spaces: { ...(now.spaces ?? {}) }, lost: { ...(now.lost ?? {}) } };
   add(out, left);
