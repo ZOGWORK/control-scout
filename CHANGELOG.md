@@ -34,7 +34,7 @@ Press Enter for every result, and ask search a question: when a team went to Wor
 - **Typing.** The last results stay on screen, dimmed, while the next ones load, instead of the list emptying at every key.
 
 ### Home
-- The globe stops turning while a search box has focus: each turn redrew every country, which slowed typing on phones.
+- The globe stops turning while a search box has focus: each turn redrew every country, which slowed typing on phones (#374).
 
 ## 1.7.1 — 2026-10-31
 
