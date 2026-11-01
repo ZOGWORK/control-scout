@@ -13,6 +13,12 @@ export function ago(iso: string | null | undefined): string {
   return `${Math.round(s / 86400)} days ago`;
 }
 
+/** A day as the rest of the app writes one ("Oct 31, 2026"), for "as of" and "released" stamps; the browser's
+ *  bare toLocaleDateString() gave "10/31/2026" beside event dates written the other way. */
+export function dayDate(at: string | number | Date): string {
+  return new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 /** To the second, for live freshness: "just now", "40 s ago", "3 min ago" (then like ago()). */
 export function agoSeconds(iso: string | null | undefined, now = Date.now()): string {
   if (!iso) return "never";

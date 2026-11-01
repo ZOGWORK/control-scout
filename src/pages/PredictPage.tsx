@@ -37,7 +37,7 @@ import { SearchBox } from "../components/search/SearchBox";
 import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { Reveal, m } from "../components/motion";
-import { dateRange, num, oddsPct, place, seasonLabel } from "../lib/format";
+import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
 import { ShareMatch } from "../components/ShareMatch";
 import { BonusOdds } from "../components/BonusOdds";
@@ -245,7 +245,7 @@ function TeamPredictions({ team, onClear }: { team: number; onClear: () => void 
               {played.length > 0 && (
                 <details className="group rounded-xl border border-border bg-card px-4 py-3 open:pb-4">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
-                    Earlier {seasonLabel(season)} matches and how the calls did <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+                    <span>Earlier {seasonLabel(season)} matches and how the calls did <span className="font-normal text-muted-foreground">· {played.length}</span></span> <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
                   </summary>
                   <div className="mt-3"><PastCalls team={team} season={season} played={played} calls={calls} ev={ev} /></div>
                 </details>
@@ -475,7 +475,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
   return (
     <div className="space-y-4">
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 max-sm:p-4">
-        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from your lite pack (ratings as of {new Date(offlineAsOf).toLocaleDateString()}).</p>}
+        {offlineAsOf && <p className="mb-3 flex items-center gap-2 rounded-lg border border-info/30 bg-info/[0.06] px-3 py-2 text-xs"><WifiOff className="size-3.5 text-info" />Offline — predicted on this device from your lite pack (ratings as of {dayDate(offlineAsOf)}).</p>}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <ConfidenceBadge tier={x.confidence.tier} reason={x.confidence.reason} />
           <div className="flex flex-wrap gap-2">
@@ -515,7 +515,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
         </div>
         <details className="group rounded-2xl border border-border bg-card p-5 max-sm:p-4 md:open:row-span-1">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold [&::-webkit-details-marker]:hidden">
-            The robots' ratings <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+            <span>The robots' ratings <span className="text-sm font-normal text-muted-foreground">· {x.teamsRed.length + x.teamsBlue.length} robots</span></span> <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
           </summary>
           <table className="mt-3 w-full text-sm">
             <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right">Matches</th></tr></thead>
@@ -551,7 +551,7 @@ function SavedPredictions() {
             <Link to={predictHref({ mode: "match", season: p.season, red: p.red, blue: p.blue })} className="lift block rounded-xl border border-border bg-card p-3 text-sm">
               <div className="flex items-center justify-between gap-2"><span><span className="text-red-alliance">{p.red.join("+")}</span> vs <span className="text-blue-alliance">{p.blue.join("+")}</span></span><span className="text-xs text-muted-foreground">{seasonLabel(p.season)}</span></div>
               <WinBar pRed={p.winProbRed} size="sm" className="mt-2" />
-              <p className="mt-1 text-xs text-muted-foreground">Red {oddsPct(p.winProbRed)} · {p.predictedRed}–{p.predictedBlue} · {p.tier} · saved {new Date(p.savedAt).toLocaleDateString()}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Red {oddsPct(p.winProbRed)} · {p.predictedRed}–{p.predictedBlue} · {p.tier} · saved {dayDate(p.savedAt)}</p>
             </Link>
           </li>
         ))}

@@ -28,10 +28,10 @@ export function TeamNo({ team, name, season, className }: { team: number; name?:
 
 /** One stat cell. In a narrow card (a phone) it's a one-line row, label left and value right; from 22rem
  *  it's a small tile (label over value) in a grid of 2, from 25rem of 3. `wide` spans the whole row. */
-function Cell({ label, children, hint, wide, tone, testId }: { label: string; children: ReactNode; hint?: ReactNode; wide?: boolean; tone?: Tone; testId?: string }) {
+function Cell({ label, children, hint, wide, tone, testId, term }: { label: string; children: ReactNode; hint?: ReactNode; wide?: boolean; tone?: Tone; testId?: string; term?: string }) {
   return (
     <div data-glance={testId} className={cn("grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 border-t border-border/60 py-1.5 @min-[22rem]:grid-cols-1 @min-[22rem]:content-start @min-[22rem]:pb-0 @min-[22rem]:pt-2", wide && "@min-[22rem]:col-span-full")}>
-      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <dt className="flex items-center gap-1.5 text-xs text-muted-foreground" title={term}>
         {tone && <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", TONES[tone].bar)} />}{label}
       </dt>
       <dd className="min-w-0 text-right text-sm font-semibold tabular-nums text-foreground [overflow-wrap:anywhere] @min-[22rem]:mt-0.5 @min-[22rem]:text-left">{children}</dd>
@@ -102,7 +102,7 @@ export function EventGlance({ d, onTab, live }: { d: EventDetail; onTab: (t: str
   </Cell>);
   if (s.inspire) lead.push(<Cell key="inspire" testId="inspire" label="Inspire" hint={s.inspire.name}><TeamNo team={s.inspire.team} name={names.get(s.inspire.team)} season={season} /></Cell>);
   if (seed1) lead.push(<Cell key="seed" testId="seed" label={seed1.label} hint={seed1.row.name}><TeamNo team={seed1.row.team} name={seed1.row.name} season={season} /></Cell>);
-  if (topOpr) lead.push(<Cell key="opr" testId="top-opr" label="Top OPR"><TeamNo team={topOpr.team} name={names.get(topOpr.team)} season={season} /> <span className="font-normal text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></Cell>);
+  if (topOpr) lead.push(<Cell key="opr" testId="top-opr" label="Top OPR" term="OPR, offensive power rating: the points a team adds to its alliance's score per match at this event, from least squares (penalty points left out)"><TeamNo team={topOpr.team} name={names.get(topOpr.team)} season={season} /> <span className="font-normal text-muted-foreground">{topOpr.opr.np!.toFixed(1)}</span></Cell>);
   cells.splice(next ? 1 : 0, 0, ...lead); // after the next match (live), before the scoring stats
   if (d.advancement?.slots) cells.push(<Cell key="adv" testId="advancing" label="Advancing" wide>
     <button type="button" onClick={() => onTab(predictable ? "odds" : "awards")} className="text-left hover:text-accent-text">

@@ -33,7 +33,7 @@ export function DiscordCard({ teams }: { teams: number[] }) {
         </div>
       )}
       <details className="group mt-4">
-        <summary className="cursor-pointer text-sm font-medium text-foreground hover:text-accent-text">Everything the bot can do</summary>
+        <summary className="cursor-pointer text-sm font-medium text-foreground hover:text-accent-text">Everything the bot can do <span className="font-normal text-muted-foreground">· {BOT_COMMANDS.length} commands</span></summary>
         <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
           {BOT_COMMANDS.map((c) => (
             <div key={c.usage} className="contents">

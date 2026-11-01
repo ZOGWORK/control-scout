@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.8 — 2026-11-01
+
+Folded cards say what's inside, a team's OPR says how fresh it is, and dates read the same everywhere.
+
+### Highlights
+- [teams] A team's OPR section says when the stats were last updated
+- [teams] Point at OPR, Rating or Top OPR to read what it means
+- [predict] Folded cards show a count: 4 robots, 12 matches, 9 commands
+- [fixes] Released and "as of" dates read Oct 31, 2026, like event dates
+
+### Detail
+- **Stats as of.** The Offensive power rating section ends with "Stats updated 2 h ago" (when the stats were last rebuilt), so an old OPR never reads as live.
+- **Terms explained.** The team hero's OPR and Rating labels, and an event's Top OPR, carry a one-line definition on hover or long-press, like Record and Reliability already did.
+- **Folded cards advertise themselves.** The robots' ratings under a prediction (with how many robots), a team's earlier matches on Predict (with how many), the bot's command list and an event bundle's rules each say what's inside before you open them.
+- **One date format.** Seven stamps (pack release dates, offline "results as of", saved predictions, scouting data) used the browser's 10/31/2026; they now read Oct 31, 2026 like every event date.
+
 ## 1.8.7 — 2026-11-01
 
 The search results page lines up with every other page.

@@ -44,7 +44,7 @@ import { toast } from "../components/ui/sonner";
 import { OtpInput } from "../components/arc/otp-input/otp-input";
 import { HoldToConfirm } from "../components/arc/hold-to-confirm/hold-to-confirm";
 import { cn } from "../components/cn";
-import { ago, seasonLabel } from "../lib/format";
+import { ago, dayDate, seasonLabel } from "../lib/format";
 import { packStatus } from "../lib/packPolicy";
 import { useSavedSeasons } from "../lib/offline/saved";
 import { workspacesOf } from "../lib/scoutSpace";
@@ -448,7 +448,7 @@ function OfflineData() {
       <Group title="Saved seasons" description={<>A saved season's team pages, event pages and search work on this device with no connection, showing the data as of its release. <Link to="/download" className="underline">Save a season</Link></>}>
         {saved.length ? saved.map((s) => (
           <Row key={s.season} label={seasonLabel(s.season)}
-            description={`${fmtBytes(s.bytes)} · saved ${ago(new Date(s.savedAt).toISOString())}${s.dataAsOf ? ` · results up to ${new Date(s.dataAsOf).toLocaleDateString()}` : ""}`}>
+            description={`${fmtBytes(s.bytes)} · saved ${ago(new Date(s.savedAt).toISOString())}${s.dataAsOf ? ` · results up to ${dayDate(s.dataAsOf)}` : ""}`}>
             <Button variant="outline" size="sm" onClick={() => remove(s.season)}><X /> Remove</Button>
           </Row>
         )) : (

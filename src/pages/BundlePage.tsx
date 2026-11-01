@@ -224,7 +224,7 @@ function RulesSection({ b }: { b: EventBundle }) {
   return (
     <details className="group rounded-2xl border border-border bg-card" onToggle={(e) => setOpen(e.currentTarget.open)} data-bundle-rules>
       <summary className="flex min-h-11 cursor-pointer select-none list-none items-center gap-2 px-4 py-3 text-sm font-medium sm:px-5 [&::-webkit-details-marker]:hidden">
-        <BookOpen className="size-4 text-success" aria-hidden />{b.rules.title}
+        <BookOpen className="size-4 text-success" aria-hidden />{b.rules.title}<span className="font-normal text-muted-foreground">· the season's rules, offline</span>
         <ChevronDown className="ml-auto size-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
       </summary>
       {open && <div className="border-t border-border p-3 sm:p-4"><SnapshotFrame html={b.rules.html} title={b.rules.title} /></div>}

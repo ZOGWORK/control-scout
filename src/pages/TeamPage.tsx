@@ -11,7 +11,7 @@ import { type ApiError, useApi, qs } from "../lib/api";
 import { NotFoundView } from "../components/NotFoundView";
 import { useAfterFirstPaint } from "../lib/afterPaint";
 import { fromFirstPaint } from "../lib/pageData";
-import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
+import { useCurrentSeason, useMeta, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
 import { FOLLOWED_TEAM_PATH, useYoursRow } from "../lib/yoursRow";
 import { toast } from "../components/ui/sonner";
@@ -30,7 +30,7 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
 import { Meter, StatTile, TONES, rankPc, type Tone } from "../components/StatTile";
-import { awardLabel, dateRange, int, num, place, seasonLabel, rankPct } from "../lib/format";
+import { ago, awardLabel, dateRange, dayDate, int, num, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
 import { direction, trendLabel } from "../shared/trend";
@@ -254,9 +254,9 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
               <p className={cn("mt-3 font-display text-5xl font-semibold tabular-nums", PROFILE_PERCENTILE_TEXT)}>{top ?? "Unranked"}</p>
               <p className="text-sm text-muted-foreground">worldwide by OPR{s.opr.np.rank ? ` · #${s.opr.np.rank.toLocaleString()} of ${s.opr.np.of?.toLocaleString()} teams with an OPR` : ""}</p>
               <dl className={cn("mt-5 max-sm:mt-4 grid gap-3", s.reliability ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3")}>
-                <div><dt className="text-xs text-muted-foreground">OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
+                <div><dt className="text-xs text-muted-foreground" title={OPR_TERM}>OPR</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.opr.np.value)}</dd></div>
                 {predictable
-                  ? <div><dt className="text-xs text-muted-foreground">Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
+                  ? <div><dt className="text-xs text-muted-foreground" title={RATING_TERM}>Rating</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.rating ? num(s.rating.np) : "—"}{s.rating && <span className="text-sm font-normal text-muted-foreground"> ±{num(s.rating.sd, 0)}</span>}</dd></div>
                   : <div><dt className="text-xs text-muted-foreground">Avg score</dt><dd className="font-display text-2xl font-semibold tabular-nums">{num(s.avg.np)}</dd></div>}
                 <div><dt className="text-xs text-muted-foreground" title={RECORD_RULE}>Record</dt><dd className="font-display text-2xl font-semibold tabular-nums" title={RECORD_RULE}>{s.record.wins}-{s.record.losses}-{s.record.ties}</dd></div>
                 {s.reliability && <div><dt className="text-xs text-muted-foreground" title="An estimate from match results: no-shows, DQs, near-zero matches, swing, penalties">Reliability</dt><dd className="font-display text-2xl font-semibold tabular-nums">{s.reliability.index}<span className="text-sm font-normal text-muted-foreground"> /100</span></dd></div>}
@@ -305,13 +305,20 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
 const OPR_CARDS = [["np", "Total OPR", Target, "accent"], ["auto", "Autonomous", Zap, "sky"], ["teleop", "TeleOp", Gauge, "emerald"], ["endgame", "Endgame", Flag, "violet"]] as const satisfies readonly (readonly [string, string, unknown, Tone])[];
 const OPR_TONE: Record<string, Tone> = Object.fromEntries(OPR_CARDS.map(([k, , , tone]) => [k, tone]));
 
+/** The hero's headline numbers, explained where they first appear (hover, or long-press on a phone; the
+ *  Offensive power rating section right below says the same in full). */
+const OPR_TERM = "OPR, offensive power rating: the points a team adds to its alliance's score per match, from least squares over its event (penalty points left out)";
+const RATING_TERM = "Rating: what the prediction engine expects this robot to add now. Unlike OPR it updates after every match and carries over from last season; ± is its uncertainty";
+
 /** Exported for its test. */
 export function OprSection({ p }: { p: TeamProfile }) {
   const s = p.stats;
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
   const predictable = usePredictable(p.season);
+  // When the stats were last rebuilt, so last week's OPR never reads as live.
+  const statsAt = useMeta()?.statsAt;
   return (
-    <Section id="opr" title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link></>}>
+    <Section id="opr" title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link>{statsAt && <span className="whitespace-nowrap"> · Stats updated {ago(statsAt)}</span>}</>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {OPR_CARDS.map(([k, label, Icon, tone]) => {
           const stat = s?.opr[k];
@@ -535,7 +542,7 @@ function ScoutNotes({ team, season }: { team: number; season: number }) {
             <Link key={e.uuid} to={`/scout?team=${team}&season=${season}&space=personal&entry=${e.uuid}`} className="lift rounded-xl border border-border bg-card p-3 text-sm">
               <p className="font-medium">{e.kind === "pit" ? "Pit scouting" : `Match ${e.matchLabel ?? ""}`} {e.eventCode && <span className="text-muted-foreground">· {e.eventCode}</span>}</p>
               <p className="mt-1 line-clamp-2 text-muted-foreground">{e.notes || `${Object.keys(e.data).length} fields recorded`}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">{int(Object.keys(e.data).length)} fields · {new Date(e.updatedAt).toLocaleDateString()}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{int(Object.keys(e.data).length)} fields · {dayDate(e.updatedAt)}</p>
             </Link>
           ))}
         </div>

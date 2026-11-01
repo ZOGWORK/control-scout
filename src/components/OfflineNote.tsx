@@ -9,7 +9,7 @@ import { WifiOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useOfflineMode } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
-import { ago, seasonLabel } from "../lib/format";
+import { ago, dayDate, seasonLabel } from "../lib/format";
 import { SnapshotBanner } from "./offline/Snapshot";
 import { Badge } from "./ui/basic";
 import { cn } from "./cn";
@@ -30,7 +30,7 @@ export function OfflineNote({ data, className }: { data: unknown; className?: st
       <WifiOff className="mt-px size-3.5 shrink-0 text-info" />
       <span>
         Offline: from your saved {seasonLabel(src.season)} data (saved {ago(new Date(src.savedAt).toISOString())}
-        {src.dataAsOf ? `, results as of ${new Date(src.dataAsOf).toLocaleDateString()}` : ""}). It refreshes when you're back online.{" "}
+        {src.dataAsOf ? `, results as of ${dayDate(src.dataAsOf)}` : ""}). It refreshes when you're back online.{" "}
         <Link to="/download" className="underline">Saved seasons</Link>
       </span>
     </p>

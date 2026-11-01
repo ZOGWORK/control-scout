@@ -21,7 +21,7 @@ import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Progress } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
-import { ago, seasonLabel } from "../lib/format";
+import { ago, dayDate, seasonLabel } from "../lib/format";
 import { cn } from "../components/cn";
 import { useFlag } from "../lib/flags";
 import { netKind, updateStatus } from "../lib/offline/updatePolicy";
@@ -151,7 +151,7 @@ function SeasonsSection({ m, saved }: { m: PackManifest; saved: SavedSeason[] })
         <div className="min-w-0 max-w-2xl">
           <h2 id="seasons-title" className="font-display text-xl font-semibold">Save seasons for offline use</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Each season holds every event, team, match, ranking, alliance, award and advancement list. Saved in this browser, team pages, event pages and search keep working at a venue with no wifi{m.dataAsOf ? ` (this release: results up to ${new Date(m.dataAsOf).toLocaleDateString()})` : ""}.
+            Each season holds every event, team, match, ranking, alliance, award and advancement list. Saved in this browser, team pages, event pages and search keep working at a venue with no wifi{m.dataAsOf ? ` (this release: results up to ${dayDate(m.dataAsOf)})` : ""}.
           </p>
           <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-live="polite">
             <span><span className="font-semibold tabular-nums">{plan.savedCount}</span> of {plan.rows.length} saved</span>
@@ -217,7 +217,7 @@ function SeasonRowView({ r, builtAt, progress, queued, disabled, removing, onSav
         ) : queued ? <p>Waiting to save…</p> : (
           <p className="flex flex-wrap gap-x-3 gap-y-0.5">
             <span className="text-foreground tabular-nums">{fmtBytes(r.file.bytes)}</span>
-            <span>Released {new Date(builtAt).toLocaleDateString()}</span>
+            <span>Released {dayDate(builtAt)}</span>
             {r.saved && <span>{r.state === "update" ? `On this device: ${r.saved.version}` : `On this device · ${fmtBytes(r.saved.bytes)}`}</span>}
             <span className="font-mono" title={`SHA-256 ${r.file.sha256}`}>SHA-256 {r.file.sha256.slice(0, 12)}…</span>
           </p>

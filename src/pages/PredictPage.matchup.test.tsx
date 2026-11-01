@@ -51,6 +51,8 @@ describe("Custom matchup", () => {
     // A level-2 heading: it follows the page's h1 directly, so an h3 skipped a level (axe heading-order).
     expect(await screen.findByRole("heading", { level: 2, name: /Why: the top 3 factors/ })).toBeTruthy();
     expect(screen.getByText(/The robots' ratings/).closest("details")?.open).toBe(false);
+    // Folded, it still says what's inside: how many robots.
+    expect(screen.getByText(/The robots' ratings/).closest("summary")?.textContent).toMatch(/· 4 robots/);
   });
 
   it("saved predictions show four, the rest on demand, and fold back to four", async () => {
