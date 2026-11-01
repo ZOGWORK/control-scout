@@ -8,6 +8,7 @@ import { ENGINE_VERSION } from "@control-scout/predict-engine";
 import { RELEASE } from "./release.js";
 import { all, get, kvGet } from "./db.js";
 import { hasFirst } from "./env.js";
+import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
@@ -20,17 +21,9 @@ import { teamRoadMap } from "./api/roadmap.js";
 import { cachedEventDetail, eventDetail, listEvents, toEventInput } from "./api/events.js";
 import { withBracketGate } from "./api/bracket.js";
 import { scheduleGate } from "./api/eventGates.js";
+import { eventView, withStream } from "./api/eventView.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips } from "./videos/recordings.js";
-
-/** An event's detail with its recording (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link)
- *  and each played match's place in it, for every route that answers with one (the page and "Refresh results" alike,
- *  or a refresh would take the Watch section away). Both ride along outside the cached detail (they change without a
- *  data version); the shared objects are never changed. */
-async function withStream<T extends { event: { season: number; code: string }; matches: MatchView[] }>(d: T): Promise<T> {
-  const rec = await eventRecording(d.event.season, d.event.code).catch(() => null);
-  return rec ? { ...d, event: { ...d.event, stream: recordingStream(rec) }, matches: withClips(d.matches, rec) } : d;
-}
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -290,21 +283,7 @@ export function createApp(opts: { dist?: string } = {}) {
     return { flags: { ...flags, workspaceScouting: flags.workspaceScouting || ids.some((id) => workspaces[id].workspaceScouting) }, workspaces };
   }));
 
-  api.get("/meta", h(async (): Promise<Meta> => {
-    const rows = await all<any>("SELECT season, frozen, last_sync FROM seasons");
-    const sync = await kvGet<{ at: string }>("sync:last");
-    // Records are also rebuilt by the live fast lane (every few minutes during events): the newer time counts.
-    const [full, live] = await Promise.all([kvGet<{ at: string }>("stats:last"), kvGet<{ at: string }>("records:last")]);
-    const stats = !live ? full : !full || live.at > full.at ? live : full;
-    // A fresh server (no database connected yet) has no teams: the app says so
-    // instead of letting every search and page look broken.
-    const loaded = await all<{ one: number }>("SELECT 1 one FROM teams LIMIT 1");
-    return {
-      seasons: SEASONS.map((s) => { const r = rows.find((x) => Number(x.season) === s.season); return { ...s, frozen: !!r?.frozen, lastSync: r?.last_sync ?? null, predictable: !isLegacy(s.season) }; }).reverse(),
-      currentSeason: CURRENT_SEASON, engineVersion: ENGINE_VERSION, dataAsOf: sync?.at ?? null, statsAt: stats?.at ?? null,
-      auth: authProviders(), firstConfigured: hasFirst(), dataLoaded: loaded.length > 0,
-    };
-  }));
+  api.get("/meta", h(siteMeta));
 
   // The home page's season coverage and teams by country (server/api/home.ts).
   api.get("/home/overview", h(async (req, res) => {
@@ -473,9 +452,8 @@ export function createApp(opts: { dist?: string } = {}) {
 
 
   api.get("/events/:season/:code", h(async (req, res) => {
-    const cached = await cachedEventDetail(season(req.params.season), code(req.params.code));
-    if (!cached) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
-    const d = await scheduleGate(await withBracketGate(await withStream(cached)));
+    const d = await eventView(season(req.params.season), code(req.params.code));
+    if (!d) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
     // On an event day results move every minute: revalidate every time (the ETag keeps that a cheap 304).
     if (d.live) res.setHeader("Cache-Control", "no-cache");
     return d;

@@ -55,10 +55,15 @@ export function StickyActions({ after, label, children }: { after: Element | nul
   // whole page (on a big event, every match row) in the middle of the scroll.
   const show = useScrolledPast(after);
   useStickyActionsMarker();
+  // Into the page body once mounted: a page the server draws (src/prerender/page.tsx) has no body to put it in, and
+  // the bar is hidden at first anyway.
+  const [body, setBody] = useState<HTMLElement | null>(null);
+  useEffect(() => { setBody(document.body); }, []);
   // The first-visit privacy banner (ConsentBanner) sits in this same strip above the tab bar:
   // the bar waits until that choice is made, so the two never overlap.
   const { decided } = useConsent();
   const visible = show && decided;
+  if (!body) return null;
   return createPortal(
     <div
       role="region" aria-label={label} inert={!visible}
@@ -70,6 +75,6 @@ export function StickyActions({ after, label, children }: { after: Element | nul
     >
       {children}
     </div>,
-    document.body,
+    body,
   );
 }

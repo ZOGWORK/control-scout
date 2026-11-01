@@ -27,4 +27,12 @@ describe("useAfterFirstPaint", () => {
     act(() => { vi.advanceTimersByTime(200); });
     expect(result.current).toBe(true);
   });
+
+  it("is true from the first render for a page already on screen (drawn by the server), with no frame waited for", () => {
+    const raf = vi.fn(() => 1);
+    vi.stubGlobal("requestAnimationFrame", raf);
+    const { result } = renderHook(() => useAfterFirstPaint(true));
+    expect(result.current).toBe(true);
+    expect(raf).not.toHaveBeenCalled();
+  });
 });

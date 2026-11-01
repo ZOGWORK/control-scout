@@ -1,0 +1,653 @@
+{
+ "/api/meta": {
+  "seasons": [
+   {
+    "season": 2026,
+    "game": "BIOBUZZ",
+    "label": "2026–27",
+    "frozen": false,
+    "lastSync": "2026-10-13T18:07:51.434Z",
+    "predictable": true
+   },
+   {
+    "season": 2025,
+    "game": "DECODE",
+    "label": "2025–26",
+    "frozen": true,
+    "lastSync": "2026-10-13T01:50:44.570Z",
+    "predictable": true
+   },
+   {
+    "season": 2024,
+    "game": "INTO THE DEEP",
+    "label": "2024–25",
+    "frozen": true,
+    "lastSync": "2026-10-13T01:55:08.187Z",
+    "predictable": true
+   },
+   {
+    "season": 2023,
+    "game": "CENTERSTAGE",
+    "label": "2023–24",
+    "frozen": true,
+    "lastSync": "2026-10-13T01:57:45.307Z",
+    "predictable": true
+   },
+   {
+    "season": 2022,
+    "game": "POWERPLAY",
+    "label": "2022–23",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   },
+   {
+    "season": 2021,
+    "game": "FREIGHT FRENZY",
+    "label": "2021–22",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   },
+   {
+    "season": 2020,
+    "game": "ULTIMATE GOAL",
+    "label": "2020–21",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   },
+   {
+    "season": 2019,
+    "game": "SKYSTONE",
+    "label": "2019–20",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   }
+  ],
+  "currentSeason": 2026,
+  "engineVersion": "3.3.0",
+  "dataAsOf": "2026-10-31T12:00:00.000Z",
+  "statsAt": "2026-10-31T12:00:00.000Z",
+  "auth": {
+   "email": false,
+   "google": false,
+   "controlPoint": false
+  },
+  "firstConfigured": false,
+  "dataLoaded": true
+ },
+ "/api/teams/4215": {
+  "team": {
+   "number": 4215,
+   "name": "Hypnotic Robotics",
+   "fullName": "Unique Scaffolding Systems & River Dell Regional High Sch",
+   "school": "River Dell Regional High Sch",
+   "sponsors": [
+    "Unique Scaffolding Systems"
+   ],
+   "city": "Oradell",
+   "state": "NJ",
+   "country": "USA",
+   "rookieYear": 2010,
+   "website": null,
+   "homeRegion": "USNJ"
+  },
+  "season": 2025,
+  "seasons": [
+   2026,
+   2025,
+   2024,
+   2023
+  ],
+  "stats": {
+   "opr": {
+    "np": {
+     "value": 101.64,
+     "rank": 616,
+     "of": 8375
+    },
+    "auto": {
+     "value": 28.28,
+     "rank": 883,
+     "of": 8375
+    },
+    "teleop": {
+     "value": 73.37,
+     "rank": 644,
+     "of": 8375
+    },
+    "endgame": {
+     "value": 6.67,
+     "rank": 5027,
+     "of": 8375
+    },
+    "pen": -5.02
+   },
+   "rating": {
+    "np": 94.6,
+    "auto": 27.64,
+    "teleop": 60.15,
+    "endgame": 6.81,
+    "pen": 7.79,
+    "sd": 3.16,
+    "matches": 32,
+    "rank": 503
+   },
+   "record": {
+    "wins": 26,
+    "losses": 6,
+    "ties": 0,
+    "matches": 32,
+    "events": 5
+   },
+   "avg": {
+    "np": 119.5,
+    "score": 140.13,
+    "pen": 17.5
+   },
+   "reliability": null
+  },
+  "events": [
+   {
+    "season": 2025,
+    "code": "USNJNOM3",
+    "name": "P1-4 PM Northern League Meet",
+    "type": "LeagueMeet",
+    "start": "2025-11-08",
+    "end": "2025-11-08",
+    "city": "Ramsey",
+    "state": "NJ",
+    "country": "USA",
+    "rank": null,
+    "rp": null,
+    "wins": 5,
+    "losses": 1,
+    "ties": 0,
+    "played": 6,
+    "qualPlayed": 6,
+    "qual": {
+     "wins": 5,
+     "losses": 1,
+     "ties": 0,
+     "played": 6
+    },
+    "onField": true,
+    "opr": {
+     "np": 52.42,
+     "auto": 6.61,
+     "teleop": 45.81,
+     "endgame": 2.43,
+     "pen": 18.63
+    },
+    "avg": {
+     "score": 87,
+     "np": 72,
+     "pen": 22.5
+    },
+    "awards": [],
+    "alliance": null
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOM5",
+    "name": "P2-8 Northern League Meet",
+    "type": "LeagueMeet",
+    "start": "2025-12-21",
+    "end": "2025-12-21",
+    "city": "Oradell",
+    "state": "NJ",
+    "country": "USA",
+    "rank": null,
+    "rp": null,
+    "wins": 4,
+    "losses": 1,
+    "ties": 0,
+    "played": 5,
+    "qualPlayed": 5,
+    "qual": {
+     "wins": 4,
+     "losses": 1,
+     "ties": 0,
+     "played": 5
+    },
+    "onField": true,
+    "opr": {
+     "np": 63.9,
+     "auto": 25.2,
+     "teleop": 38.71,
+     "endgame": 6.67,
+     "pen": 19.66
+    },
+    "avg": {
+     "score": 157.8,
+     "np": 96.8,
+     "pen": 23
+    },
+    "awards": [],
+    "alliance": null
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOM7",
+    "name": "P3-6 Northern League Meet",
+    "type": "LeagueMeet",
+    "start": "2026-02-01",
+    "end": "2026-02-01",
+    "city": "Oradelll",
+    "state": "NJ",
+    "country": "USA",
+    "rank": null,
+    "rp": null,
+    "wins": 4,
+    "losses": 1,
+    "ties": 0,
+    "played": 5,
+    "qualPlayed": 5,
+    "qual": {
+     "wins": 4,
+     "losses": 1,
+     "ties": 0,
+     "played": 5
+    },
+    "onField": true,
+    "opr": {
+     "np": 58.17,
+     "auto": 13.89,
+     "teleop": 44.28,
+     "endgame": 5.19,
+     "pen": 6.82
+    },
+    "avg": {
+     "score": 98.4,
+     "np": 83.4,
+     "pen": 9
+    },
+    "awards": [],
+    "alliance": {
+     "number": 4,
+     "seat": "captain"
+    }
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOLT2",
+    "name": "East Bergen Conference Northern League Tournament",
+    "type": "LeagueTournament",
+    "start": "2026-03-08",
+    "end": "2026-03-08",
+    "city": "Emerson",
+    "state": "NJ",
+    "country": "USA",
+    "rank": 1,
+    "rp": 3.7333,
+    "wins": 8,
+    "losses": 0,
+    "ties": 0,
+    "played": 8,
+    "qualPlayed": 5,
+    "qual": {
+     "wins": 5,
+     "losses": 0,
+     "ties": 0,
+     "played": 5
+    },
+    "onField": true,
+    "opr": {
+     "np": 84.43,
+     "auto": 18.74,
+     "teleop": 65.69,
+     "endgame": 2.94,
+     "pen": -5.02
+    },
+    "avg": {
+     "score": 135.4,
+     "np": 114.4,
+     "pen": 9
+    },
+    "awards": [
+     {
+      "type": "Inspire",
+      "placement": 1,
+      "name": "Inspire Award"
+     },
+     {
+      "type": "Winner",
+      "placement": 1,
+      "name": "Winning Alliance - Captain"
+     }
+    ],
+    "alliance": {
+     "number": 1,
+     "seat": "captain"
+    }
+   },
+   {
+    "season": 2025,
+    "code": "USNJCMPPKWY",
+    "name": "New Jersey Championship - Parkway Division",
+    "type": "Championship",
+    "start": "2026-03-15",
+    "end": "2026-03-15",
+    "city": "Hillsborough Township",
+    "state": "NJ",
+    "country": "USA",
+    "rank": 6,
+    "rp": 3.4,
+    "wins": 5,
+    "losses": 3,
+    "ties": 0,
+    "played": 8,
+    "qualPlayed": 5,
+    "qual": {
+     "wins": 4,
+     "losses": 1,
+     "ties": 0,
+     "played": 5
+    },
+    "onField": true,
+    "opr": {
+     "np": 101.64,
+     "auto": 28.28,
+     "teleop": 73.37,
+     "endgame": 5.49,
+     "pen": -1.5
+    },
+    "avg": {
+     "score": 178.6,
+     "np": 176.6,
+     "pen": 8
+    },
+    "awards": [],
+    "alliance": {
+     "number": 3,
+     "seat": "pick1"
+    }
+   }
+  ],
+  "awardsAllTime": [
+   {
+    "season": 2025,
+    "code": "USNJNOLT2",
+    "event": "East Bergen Conference Northern League Tournament",
+    "type": "Winner",
+    "placement": 1,
+    "name": "Winning Alliance - Captain"
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOLT2",
+    "event": "East Bergen Conference Northern League Tournament",
+    "type": "Inspire",
+    "placement": 1,
+    "name": "Inspire Award"
+   },
+   {
+    "season": 2024,
+    "code": "USNJCMP",
+    "event": "New Jersey Championship",
+    "type": "Design",
+    "placement": 2,
+    "name": "Design Award 2nd Place"
+   },
+   {
+    "season": 2024,
+    "code": "USNJNOLT",
+    "event": "NJ 2/23/2025 East Bergen Conference Northern League Tournament",
+    "type": "Inspire",
+    "placement": 1,
+    "name": "Inspire Award"
+   },
+   {
+    "season": 2023,
+    "code": "FTCCMP1EDIS",
+    "event": "2024 FIRST Championship presented by BAE Systems - FIRST Tech Challenge - Edison Division",
+    "type": "Finalist",
+    "placement": 1,
+    "name": "Division Finalist Alliance - Captain"
+   },
+   {
+    "season": 2023,
+    "code": "USNJCMP",
+    "event": "New Jersey 3/17/24 State Championship Tournament",
+    "type": "Winner",
+    "placement": 1,
+    "name": "Turnpike Division Winning Alliance - Captain"
+   },
+   {
+    "season": 2023,
+    "code": "USNJNORTLT2",
+    "event": "NJ 2/25/24 Northern League East Bergen Conference Tournament",
+    "type": "Winner",
+    "placement": 2,
+    "name": "Winning Alliance - 1st Team Selected"
+   }
+  ]
+ },
+ "/api/teams/4215/matches?season=2025": {
+  "team": 4215,
+  "season": 2025,
+  "matches": [
+   {
+    "season": 2025,
+    "code": "USNJCMPPKWY",
+    "key": "playoff:2:1",
+    "level": "playoff",
+    "series": 2,
+    "number": 1,
+    "label": "M2",
+    "time": "2026-03-15T16:44:20.805",
+    "startsAt": "2026-03-15T20:44:20.805Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 23375,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Robo Raptors"
+      },
+      {
+       "number": 4215,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Hypnotic Robotics"
+      }
+     ],
+     "score": {
+      "total": 262,
+      "np": 237,
+      "auto": 61,
+      "teleop": 146,
+      "endgame": 30,
+      "pen": 0
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 7350,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Watt's NXT?"
+      },
+      {
+       "number": 11697,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "TECH-tonic"
+      }
+     ],
+     "score": {
+      "total": 135,
+      "np": 135,
+      "auto": 35,
+      "teleop": 90,
+      "endgame": 10,
+      "pen": 25
+     }
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.735562584701877,
+     "redMean": 200,
+     "blueMean": 154,
+     "tier": "confident",
+     "kind": "backtest",
+     "predictedAt": null
+    }
+   },
+   {
+    "season": 2025,
+    "code": "USNJCMPPKWY",
+    "key": "playoff:4:1",
+    "level": "playoff",
+    "series": 4,
+    "number": 1,
+    "label": "M4",
+    "time": "2026-03-15T17:01:52.991",
+    "startsAt": "2026-03-15T21:01:52.991Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 13583,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Tripled Wire"
+      },
+      {
+       "number": 9889,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Cruise Control"
+      }
+     ],
+     "score": {
+      "total": 156,
+      "np": 141,
+      "auto": 58,
+      "teleop": 73,
+      "endgame": 10,
+      "pen": 15
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 23375,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Robo Raptors"
+      },
+      {
+       "number": 4215,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Hypnotic Robotics"
+      }
+     ],
+     "score": {
+      "total": 146,
+      "np": 131,
+      "auto": 52,
+      "teleop": 64,
+      "endgame": 15,
+      "pen": 15
+     }
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.3171546446064905,
+     "redMean": 172,
+     "blueMean": 210,
+     "tier": "confident",
+     "kind": "backtest",
+     "predictedAt": null
+    }
+   },
+   {
+    "season": 2025,
+    "code": "USNJCMPPKWY",
+    "key": "playoff:6:1",
+    "level": "playoff",
+    "series": 6,
+    "number": 1,
+    "label": "M6",
+    "time": "2026-03-15T17:18:33.804",
+    "startsAt": "2026-03-15T21:18:33.804Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 23375,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Robo Raptors"
+      },
+      {
+       "number": 4215,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Hypnotic Robotics"
+      }
+     ],
+     "score": {
+      "total": 153,
+      "np": 148,
+      "auto": 52,
+      "teleop": 81,
+      "endgame": 15,
+      "pen": 55
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 755,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Delbotics"
+      },
+      {
+       "number": 14481,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Don't Blink"
+      }
+     ],
+     "score": {
+      "total": 189,
+      "np": 134,
+      "auto": 48,
+      "teleop": 76,
+      "endgame": 10,
+      "pen": 5
+     }
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.8230854381891787,
+     "redMean": 209,
+     "blueMean": 140,
+     "tier": "confident",
+     "kind": "backtest",
+     "predictedAt": null
+    }
+   }
+  ]
+ }
+}
