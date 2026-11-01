@@ -684,6 +684,28 @@ describe("more than two teams", () => {
     expect((await list(p.cal, C)).json.alliances[0]).toMatchObject({ status: "ended" });
   });
 
+  it("a team removed while copies wait for it (its scouting off) never gets them", async () => {
+    const p = await cast();
+    const { id } = await three();
+    await pushOk(p.ben, B, [entry({ team: 101, notes: "from B" })]);
+    await setWorkspaceOverride("workspaceScouting", C, false, "owner@test");
+    try {
+      expect((await leave(p.bea, B, id)).status).toBe(200); // queues B's entry for C, which waits
+      expect((await remove(p.ada, A, id, C)).status).toBe(200);
+    } finally { await setWorkspaceOverride("workspaceScouting", C, null, "owner@test"); }
+    await settleAlliances();
+    expect(await notesIn(p.cal, C)).toEqual([]);
+    expect(await notesIn(p.abe, A)).toEqual(["from B"]);
+  });
+
+  it("leaving that ends a two-team alliance records its copies as kept", async () => {
+    const p = await cast();
+    const id = await link(true, true);
+    await pushOk(p.ben, B, [entry({ team: 101, notes: "from B" })]);
+    expect((await leave(p.bea, B, id)).status).toBe(200);
+    expect((await list(p.ada, A)).json.alliances[0]).toMatchObject({ status: "ended", endedReason: "unlinked", copiesKept: true });
+  });
+
   it("is full at MAX_ALLIANCE_MEMBERS", async () => {
     const p = await cast();
     const i = await invite(p.ada, A);

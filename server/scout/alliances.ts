@@ -215,9 +215,14 @@ async function leaveLink(id: number, ws: string, why: "left" | "removed", by?: s
       // The new creator makes its own code: the old one was the leaver's to hand out.
       ...(r.inviter_ws === ws && next ? [{ sql: "UPDATE scout_alliances SET inviter_ws = ?, inviter_name = ?, code_hash = NULL WHERE id = ? AND inviter_ws = ?", args: [next.ws, next.name, r.id, ws] }] : []),
       ...(ends ? [{
-        sql: `UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?
+        sql: `UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL, copies_wanted = ? WHERE id = ? AND status = ?
                 AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)`,
-        args: [r.status === "pending" ? "cancelled" : "unlinked", t, r.id, r.status, r.id, ws, t],
+        args: [r.status === "pending" ? "cancelled" : "unlinked", t, pairs.length ? 1 : 0, r.id, r.status, r.id, ws, t],
+      }] : []),
+      // Removed: nothing still queued for it (from an earlier leave, waiting on a switched-off workspace) is ever made.
+      ...(why === "removed" ? [{
+        sql: "DELETE FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ? AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)",
+        args: [r.id, ws, r.id, ws, t],
       }] : []),
       ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, t, guard)),
     ]);
@@ -271,6 +276,11 @@ async function makeCopies(r: Row): Promise<void> {
   const byTo = new Map<string, any[]>();
   for (const e of queued) byTo.set(String(e.to_ws), [...(byTo.get(String(e.to_ws)) ?? []), e]);
   for (const [to, rows] of byTo) {
+    // A removed workspace never gets copies (its queue is cleared when it's removed; this covers a row queued meanwhile).
+    if (members.some((m) => m.ws === to && m.left_reason === "removed")) {
+      await run("DELETE FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ?", [r.id, to]);
+      continue;
+    }
     if (!(await isOn(to))) continue;
     const ready: any[] = [];
     for (const e of rows) {
