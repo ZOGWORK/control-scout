@@ -21,13 +21,18 @@ beforeAll(async () => {
   await ev(2025, "USNJCMP", "New Jersey Championship", "Championship", "2026-03-15");
   await ev(2025, "USNJSCR", "Summer Scrimmage", "Scrimmage", "2026-07-01");
   await ev(2026, "USNJSCR1", "Kickoff Scrimmage", "Scrimmage", "2026-09-20");
-  const match = (season: number, code: string, n: number, red: [number, number], blue: [number, number], teams: [number, string][]) => Promise.all([
-    run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, 'qual', 0, ?, ?, 1, ?, ?, ?, ?, 't')", [season, code, n, `Q${n}`, ...red, ...blue]),
-    ...teams.map(([t, alliance]) => run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (?, ?, 'qual', 0, ?, ?, ?)", [season, code, n, t, alliance])),
+  const match = (season: number, code: string, n: number, red: [number, number], blue: [number, number], teams: [number, string, number?][], level = "qual") => Promise.all([
+    run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, ?, 0, ?, ?, 1, ?, ?, ?, ?, 't')", [season, code, level, n, `${level === "qual" ? "Q" : "M"}${n}`, ...red, ...blue]),
+    ...teams.map(([t, alliance, on = 1]) => run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, ?, 0, ?, ?, ?, ?)", [season, code, level, n, t, alliance, on])),
   ]);
   // Q1: blue's 900 is mostly red's penalties; red's 250 is the best score without penalties.
   await match(2025, "USNJCMP", 1, [262, 250], [900, 180], [[4215, "red"], [23268, "red"], [6980, "blue"], [207, "blue"]]);
   await match(2025, "USNJCMP", 2, [221, 221], [190, 190], [[207, "red"], [6980, "red"], [4215, "blue"], [23268, "blue"]]);
+  // A playoff: 207 sat it out (its alliance's third team), so its 300 is 6980's and 23268's, never 207's.
+  await match(2025, "USNJCMP", 9, [300, 300], [50, 50], [[6980, "red"], [23268, "red"], [207, "red", 0], [4215, "blue"]], "playoff");
+  // 2021: penalties came off the alliance's own score.
+  await ev(2021, "USNJ21", "Freight Frenzy Qualifier", "Qualifier", "2022-01-15");
+  await match(2021, "USNJ21", 1, [140, 160], [90, 90], [[4215, "red"], [207, "red"]]);
   // Scrimmages: never the record, however high.
   await match(2025, "USNJSCR", 1, [400, 400], [10, 10], [[6980, "red"]]);
   await match(2026, "USNJSCR1", 1, [120, 115], [80, 80], [[4215, "red"], [207, "blue"]]);
@@ -53,8 +58,10 @@ describe("the answer", () => {
     const a = await searchAnswer("world record score decode");
     expect(a.card).toMatchObject({ kind: "high-scores", title: "Highest scores in 2025–26 (DECODE)" });
     expect(a.card!.team).toBeUndefined();
-    expect(a.card!.lines.map((l) => l.text)).toEqual(["250 points: Q1 at New Jersey Championship", "221 points: Q2 at New Jersey Championship", "190 points: Q2 at New Jersey Championship", "180 points: Q1 at New Jersey Championship"]);
-    expect(a.card!.lines[0]).toMatchObject({
+    expect(a.card!.lines.map((l) => l.text)).toEqual(["300 points: M9 at New Jersey Championship", "250 points: Q1 at New Jersey Championship", "221 points: Q2 at New Jersey Championship", "190 points: Q2 at New Jersey Championship", "180 points: Q1 at New Jersey Championship"]);
+    // The team sitting the playoff out isn't on its alliance.
+    expect(a.card!.lines[0].results![0]).toBe("Red alliance: 6980 Bad Wolf, 23268 Ultraviolet");
+    expect(a.card!.lines[1]).toMatchObject({
       detail: "2025–26 · Mar 15, 2026 · Hillsborough, NJ",
       results: ["Red alliance: 4215 Hypnotic Robotics, 23268 Ultraviolet", "262 with the other alliance's penalties"],
       href: "/events/2025/USNJCMP?match=qual:0:1",
@@ -68,7 +75,15 @@ describe("the answer", () => {
     expect(a.card!.closest!.map((l) => l.text)).toEqual(["115 points: Q1 at Kickoff Scrimmage"]);
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     const d = await searchAnswer("hypnotic best score in decode");
-    expect(d.card!.lines.map((l) => l.text)).toEqual(["250 points: Q1 at New Jersey Championship", "190 points: Q2 at New Jersey Championship"]);
+    expect(d.card!.lines.map((l) => l.text)).toEqual(["250 points: Q1 at New Jersey Championship", "190 points: Q2 at New Jersey Championship", "50 points: M9 at New Jersey Championship"]);
+  });
+  it("a team's best never counts a match it sat out", async () => {
+    const a = await searchAnswer("critical mass best score in decode");
+    expect(a.card!.lines.map((l) => l.text)).toEqual(["221 points: Q2 at New Jersey Championship", "180 points: Q1 at New Jersey Championship"]);
+  });
+  it("2020–21 and 2021–22: penalties came off the alliance's own score, and it says so", async () => {
+    const a = await searchAnswer("highest score in freight frenzy");
+    expect(a.card!.lines[0]).toMatchObject({ text: "160 points: Q1 at Freight Frenzy Qualifier", results: ["Red alliance: 207 Critical Mass, 4215 Hypnotic Robotics", "140 after its own penalties"] });
   });
   it("the season's first official match not played yet: no record, its scrimmages' best below", async () => {
     const a = await searchAnswer("World record score bio buzz");

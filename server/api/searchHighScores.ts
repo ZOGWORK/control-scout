@@ -8,7 +8,7 @@
 import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../src/shared/api.js";
 import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
 import { get, all } from "../db.js";
-import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
 
 /** Events whose matches count for a record. */
 const RECORD_TYPES = ["Qualifier", "LeagueMeet", "LeagueTournament", "Championship", "FIRSTChampionship", "Premier", "SuperQualifier", "Official"];
@@ -56,14 +56,14 @@ interface ScoreRow { season: number; code: string; level: string; series: number
 async function seasonFor(asked: number | null, team: number | null): Promise<number | null> {
   if (asked != null) return asked;
   const r = team != null
-    ? await get<{ s: number | null }>(`SELECT MAX(m.season) s FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number WHERE x.team = ? AND m.played = 1`, [team])
+    ? await get<{ s: number | null }>(`SELECT MAX(m.season) s FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number WHERE x.team = ? AND x.on_field = 1 AND m.played = 1`, [team])
     : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE played = 1");
   return r?.s ?? null;
 }
 
 const sideSql = (side: "red" | "blue", team: boolean, types: number) => `SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.start, e.end, e.city, e.state, '${side}' side, m.${side}_total total, m.${side}_np np
   FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
-  ${team ? `JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = '${side}' AND x.team = ?` : ""}
+  ${team ? `JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = '${side}' AND x.team = ? AND x.on_field = 1` : ""}
   WHERE m.season = ? AND m.played = 1 AND COALESCE(m.${side}_np, m.${side}_total) IS NOT NULL AND e.type IN (${Array(types).fill("?").join(", ")})`;
 
 /** The card: the season's best scores (`team` null) or the team's, each a link to its match. */
@@ -95,7 +95,7 @@ async function best(season: number, team: number | null, types: string[]): Promi
     detail: [seasonLabel(r.season), dateRange(r.start, r.end), place(r.city, r.state)].filter(Boolean).join(" · "),
     results: [
       `${r.side === "red" ? "Red" : "Blue"} alliance: ${lineups.get(key(r, r.side))?.join(", ") || "teams not posted"}`,
-      r.np == null ? "Penalties not posted" : r.total != null && r.total !== r.np ? `${r.total} with the other alliance's penalties` : "",
+      r.np == null ? "Penalties not posted" : r.total != null && r.total !== r.np ? `${r.total} ${ownScorePenalties(r.season) ? "after its own penalties" : "with the other alliance's penalties"}` : "",
     ].filter(Boolean),
     href: `/events/${r.season}/${encodeURIComponent(r.code)}?match=${r.level}:${r.series}:${r.number}`,
   }));
@@ -115,13 +115,14 @@ export async function highScoreAnswer(q: string, it: HighScoreQuestion, team: Se
 
 const key = (r: { season: number; code: string; level: string; series: number; number: number }, side: string) => `${r.season}|${r.code}|${r.level}|${r.series}|${r.number}|${side}`;
 
-/** Each listed alliance's teams ("4215 Hypnotic Robotics"), by match and side. */
+/** Each listed alliance's teams that played ("4215 Hypnotic Robotics"), by match and side: a playoff alliance's team
+ *  sitting the match out isn't on it, and never gets its score as a team's best (on_field, above too). */
 async function alliances(rows: ScoreRow[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   if (!rows.length) return out;
   const ts = await all<{ season: number; code: string; level: string; series: number; number: number; alliance: string; team: number; name: string | null }>(
     `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, x.team, t.name FROM match_teams x LEFT JOIN teams t ON t.number = x.team
-     WHERE ${rows.map(() => "(x.season = ? AND x.code = ? AND x.level = ? AND x.series = ? AND x.number = ? AND x.alliance = ?)").join(" OR ")}
+     WHERE x.on_field = 1 AND (${rows.map(() => "(x.season = ? AND x.code = ? AND x.level = ? AND x.series = ? AND x.number = ? AND x.alliance = ?)").join(" OR ")})
      ORDER BY x.station, x.team`,
     rows.flatMap((r) => [r.season, r.code, r.level, r.series, r.number, r.side]));
   for (const t of ts) { const k = key(t, t.alliance); out.set(k, [...(out.get(k) ?? []), t.name ? `${t.team} ${t.name}` : String(t.team)]); }
