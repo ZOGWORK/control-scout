@@ -114,6 +114,18 @@ describe("no flag and no key", () => {
   });
 });
 
+describe("site pages", () => {
+  it("a page's word with only near-miss names answers with the page alone; a partial word lists no page", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (27275, 'Iron Hawkings', 'Durango', 'DUR', 'Mexico')");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2023, 'USNJCMP', 27275, 40, 5)");
+    await rebuildSearch();
+    const a = await searchAnswer("rankings");
+    expect(a).toMatchObject({ hits: [], step: "deterministic", weak: false });
+    expect(a.pages.map((p) => p.href)).toContain("/rankings");
+    expect((await searchAnswer("rec")).pages).toEqual([]);
+  });
+});
+
 describe("versus and names", () => {
   it("words typed run together match a name's words side by side", () => {
     expect(fuzzyScore("badwolf", "Bad Wolf")).toBe(1);

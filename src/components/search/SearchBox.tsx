@@ -23,7 +23,7 @@ export { hitHref } from "../../shared/search";
 /** How long typing pauses before search asks (each key doesn't send a request). */
 export const SEARCH_DEBOUNCE_MS = 200;
 
-type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer };
+type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean };
 
 /** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches.
  *  Without `kinds` it asks for the whole answer (step, pages, recovery), and when that answer is weak and Bruno AI
@@ -61,7 +61,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           if (id !== seq.current) return;
           // Offline (saved data) answers plain hits: the plain list, as before.
           const answer = !kindKey && isAnswer(r) ? r : undefined;
-          setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer });
+          setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true });
           setError(null);
           if (answer?.weak && brunoOn) {
             setRefining(true);
@@ -80,7 +80,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   const current = res.q === q.trim();
   // While a newer query is on its way, the last answer stays on screen (dimmed, marked stale) instead of the list
   // emptying at every keystroke: typing never flickers to a bare "Searching…" between replies.
-  const stale = !current && !!res.q && !!q.trim();
+  const stale = !current && !!res.live && !!res.q && !!q.trim();
   const shown = current || stale;
   // One opened result from a whole answer, sent with its query: the server counts what the query asked for, and (when
   // learning is on) the pick. Aggregate only: the query and the result, nothing about who.
