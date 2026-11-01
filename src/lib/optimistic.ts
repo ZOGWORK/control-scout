@@ -24,13 +24,14 @@ export interface OptimisticChange<R> {
   what: string;
   /** Say it didn't save (default: an error toast). */
   report?: (message: string, error: unknown) => void;
-  /** Checked just before sending (a change waits for the ones before it): true drops it unsent and quietly, e.g. the
-   * account changed meanwhile, so a request never goes out with the next account's cookie. */
+  /** Checked just before sending (a change waits for the ones before it) and again when its answer comes: true drops
+   * it quietly, e.g. the account changed meanwhile, so a request never goes out with the next account's cookie and an
+   * old account's answer (or failure) never touches what the next account sees. */
   stale?: () => boolean;
 }
 
 /** `current`: this was still the newest change to its key when its answer came (an older one's answer changes nothing).
- * `dropped`: never sent (`stale`). */
+ * `dropped`: gone stale (`stale`): never sent, or its answer left off the screen. */
 export type OptimisticResult<R> =
   | { ok: true; value: R; current: boolean }
   | { ok: false; error: unknown; current: boolean; dropped?: true };
@@ -78,14 +79,15 @@ export function optimistic<R>(c: OptimisticChange<R>): Promise<OptimisticResult<
   ch.tail = run;
   return run.then((r): OptimisticResult<R> => {
     const current = ch.latest === t;
+    if ((!r.ok && r.error === DROPPED) || c.stale?.()) {
+      // Never sent, or answered after it went stale: nothing to say, and the screen it was made on isn't this one now.
+      if (current) chains.delete(c.key);
+      return { ok: false, error: r.ok ? DROPPED : r.error, current, dropped: true };
+    }
     if (r.ok) {
       // The server has this one now: a newer change that fails comes back to it, not to before it.
       ch.confirmed = { value: r.value };
       if (current) c.reconcile(r.value);
-    } else if (r.error === DROPPED) {
-      // Never sent (the account changed): nothing to say, and the screen it was on is gone.
-      if (current) chains.delete(c.key);
-      return { ok: false, error: r.error, current, dropped: true };
     } else if (current) {
       if (ch.confirmed) c.reconcile(ch.confirmed.value as R);
       else {

@@ -145,6 +145,22 @@ describe("optimistic", () => {
     expect(report).not.toHaveBeenCalled();
   });
 
+  it("an answer that comes after the change went stale touches nothing and says nothing", async () => {
+    const reconcile = vi.fn(), report = vi.fn();
+    let account = 1;
+    const req = deferred<string>(), fails = deferred<string>();
+    const ok = optimistic({ key: "d1", apply: () => () => {}, send: () => req.promise, reconcile, what: "x", report, stale: () => account !== 1 });
+    const bad = optimistic({ key: "d2", apply: () => () => { throw new Error("rolled back a screen that isn't there"); }, send: () => fails.promise, reconcile, what: "x", report, stale: () => account !== 1 });
+    await Promise.resolve();
+    account = 2; // signed in as someone else while both were on their way
+    req.resolve("on");
+    fails.reject(new Error("nope"));
+    expect(await ok).toMatchObject({ ok: false, dropped: true });
+    expect(await bad).toMatchObject({ ok: false, dropped: true });
+    expect(reconcile).not.toHaveBeenCalled();
+    expect(report).not.toHaveBeenCalled();
+  });
+
   it("didntSave words a plain error and an unknown throw", () => {
     expect(didntSave("note", new Error("Too long"))).toBe("Didn't save: note. Too long. It's back as it was.");
     expect(didntSave("note", "??")).toBe("Didn't save: note. Something went wrong. It's back as it was.");
