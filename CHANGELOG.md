@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.7 — 2026-10-31
+
+Team and event pages open as the finished page: no half-loaded screen, no sections jumping in.
+
+### Highlights
+- [speed] Team and event pages open whole, straight from a search result
+- [speed] No more flash of plain text, then grey blocks, then the page
+- [speed] Nothing jumps as the page loads, and text never changes font
+
+### Loading
+- **The first paint is the page.** A team page's first response from the server now carries the page itself, drawn by the same component the app uses: the header, At a glance (rank, OPR, rating, record), OPR by phase, the Season Road Map, awards and the season's matches. An event page's carries its header, rankings, matches and result changes. Before, the first paint was a short text summary, which the app then replaced with grey loading blocks while it asked for the data, and then with the page: three different screens in the first second (ten seconds on a slow phone connection).
+- **The app picks up where the page is.** The answers the page was drawn from come with it, so the app starts from them: no loading state, and no second request for the team, its matches, the event or the site's season list. The season picker no longer grows from one season to four once that list arrives.
+- **Styled from the first frame.** These pages wait for the stylesheet and the app's fonts before they paint, so text never shows in a stand-in font and then reflows. The app's code downloads meanwhile, at low priority.
+- **Search engines see the page.** The same HTML is what crawlers read: the full team or event page, not a header-only summary.
+- On a phone, the bottom tab bar of the first paint stays on top of the page (#375).
+
 ## 1.7.6 — 2026-10-31
 
 Setting up Scout takes fewer taps and no hunting for the next step.

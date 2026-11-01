@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, homeHeadlineAt } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
 
@@ -33,7 +33,7 @@ export const BOOT_STYLE = `<style>
       .csb{line-height:1.5}
       .csb{--b-bg:#0a0a0b;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csb{--b-bg:#fff;--b-side:#fcfcfc;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
-      .csb a{color:inherit;text-decoration:none}
+      .csb a:not(.csb-app a){color:inherit;text-decoration:none}
       .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:232px;border-right:1px solid var(--b-line);background:var(--b-side)}
       .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 16px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}
       .csb-brand img{width:28px;height:28px}
@@ -80,7 +80,7 @@ export const BOOT_STYLE = `<style>
       .csb-home>p{margin:16px 0 0;max-width:30rem;font-size:16px;line-height:1.5}
       .csb-home>div:not(.csb-hl){max-width:36rem;height:52px;margin:24px 0 0;border:1px solid var(--b-line);border-radius:12px}
       .csb .csb-home>p.csb-about{margin:72px 0 0;font-size:14px;line-height:20px}
-      .csb-tabs{position:fixed;left:0;right:0;bottom:0;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
+      .csb-tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
       .csb .csb-tabs>*{display:flex;flex:1;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
@@ -166,14 +166,20 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const lines = hero.lines.length ? hero.lines : DEFAULT_HERO_LINES;
   const line = homeHeadlineAt(Date.now(), lines.length);
   // A page with no title of its own (not found) gets the shell alone.
+  const liteLink = lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open the light version</a>: text only, a fraction of the data.</p>` : "";
   const page = home
     ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
+    // A page the server drew whole (a team or event page: server/firstPaint.ts): the app's own markup, in the app's page
+    // frame, styled by the app's stylesheet (server/seo.ts loads it before this paints). Its data follows for the app.
+    : meta.firstPaint && !meta.notFound
+      ? `<div class="csb-app ${PAGE_FRAME}" id="cs-boot-page" data-path="${esc(p)}"><div class="min-w-0 flex-1">${meta.firstPaint.html}</div>${liteLink}</div>`
+        + `<script type="application/json" id="${PAGE_DATA_ID}">${JSON.stringify(meta.firstPaint.data).replace(/</g, "\\u003c")}</script>`
     : meta.title && !meta.notFound
       // A content page (power rankings) puts its words here in full, as already-safe HTML (PageMeta.bodyHtml).
       // A page whose own markup has its H1 (How it works, prerendered) keeps that one: one H1 per page.
       ? `<div class="csb-page" id="cs-boot-page" data-path="${esc(p)}">${meta.bodyHtml && /<h1[\s>]/.test(meta.bodyHtml) ? "" : `<h1>${esc(meta.heading ?? meta.title)}</h1>`}${meta.bodyHtml ? `<div class="csb-body">${meta.bodyHtml}</div>` : `<p>${esc(meta.description)}</p>`}`
         // Still here after LITE_BOOT_S seconds (CSS alone: no script needed, and the app's first render removes it): the light version.
-        + (lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open the light version</a>: text only, a fraction of the data.</p>` : "") + `</div>` : "";
+        + liteLink + `</div>` : "";
   // The owner's own hero lines (not the built-in ones the app already has), on every page: the app reads them
   // before its first render (src/lib/heroLines.ts), so Home draws the same lines whichever page it opens from.
   const heroJson = hero.custom ? `<script type="application/json" id="${HERO_LINES_ID}">${JSON.stringify(lines).replace(/</g, "\\u003c")}</script>` : "";
@@ -184,7 +190,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
     `<aside class="csb-side"><a class="csb-brand" href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /><span>Control Scout</span></a><nav class="csb-nav" aria-label="Main">${nav}</nav></aside>`,
     `<div class="csb-col"><header class="csb-top"><span class="csb-menu" aria-hidden="true"></span><a href="/" aria-label="Control Scout home"><img src="/logo.png" alt="" /></a><p class="csb-crumb"><i>Control Scout / </i><b>${esc(pageTitle(p))}</b></p>${home ? "" : `<div class="csb-search"><span>Search teams, events, matches…</span></div>`}</header>`,
     // A page with content in full scrolls with the document (before the app loads, or with no JavaScript at all).
-    `<main class="csb-main${meta.bodyHtml && page ? " csb-scroll" : ""}">${page}${guard}${heroJson}</main></div>`,
+    `<main class="csb-main${meta.bodyHtml && !meta.firstPaint && page ? " csb-scroll" : ""}">${page}${guard}${heroJson}</main></div>`,
     `<nav class="csb-tabs" aria-label="Main">${TABS.map((it) => link(p, it)).join("")}</nav>`,
     `</div>`,
   ].join("");

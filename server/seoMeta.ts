@@ -15,6 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
+import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { teamHeading, teamTitle } from "../src/shared/teamTitle.js";
@@ -62,6 +63,9 @@ export interface PageMeta {
   bodyHtml?: string;
   /** The first paint's <h1> when it's shorter than the title (a team: "4215 Hypnotic Robotics"). */
   heading?: string;
+  /** The page itself, drawn by the server with the app's own component (a team's or an event's: server/firstPaint.ts), and the
+   *  answers it was drawn from for the app to start with. Shown in place of bodyHtml when there is one. */
+  firstPaint?: FirstPaint;
 }
 
 
@@ -149,7 +153,7 @@ export function teamWebsite(raw: string | null | undefined): string | null {
 const TEAM_EVENTS = 8;
 const record = (w: number | null, l: number | null, t: number | null) => (w == null || l == null ? "" : `${w}-${l}-${t ?? 0}`);
 
-async function teamMeta(n: number): Promise<PageMeta> {
+async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
   if (!hasTeamPage(n)) return NOT_FOUND;
   const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null; school: string | null; rookie_year: number | null; website: string | null }>(
     "SELECT name, city, state, country, school, rookie_year, website FROM teams WHERE number = ?", [n]);
@@ -216,7 +220,9 @@ async function teamMeta(n: number): Promise<PageMeta> {
   const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>`
     + (list ? `<h2>Events</h2><ul>${list}</ul>` : "");
   // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
-  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(t ? { jsonLd: [profile, crumbs] } : {}) };
+  // The page itself as its first paint, when this server can draw it (a production build); bodyHtml otherwise.
+  const firstPaint = await teamFirstPaint(n, seasonRaw);
+  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
@@ -469,14 +475,18 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   try {
     let m: RegExpMatchArray | null;
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
-    if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]));
+    if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]), qstr(query.season) ?? undefined);
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
       if (!ev) return NOT_FOUND;
       // A shared match: its own call, or the event's values if it can't be read.
-      return sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
+      const meta = sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
+      // The page itself as its first paint, when this server can draw it (a production build).
+      const q = sp.toString();
+      const firstPaint = await eventFirstPaint(m[1], m[2], q ? `?${q}` : "");
+      return firstPaint ? { ...meta, firstPaint } : meta;
     }
     // A match's scouting report: the match must exist (a key that can't be one is not found too).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/match\/([^/]+)$/i))) {

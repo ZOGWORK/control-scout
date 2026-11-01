@@ -29,6 +29,7 @@ import { HEADER_ID, usePageScroll } from "../../lib/pageScroll";
 import { tabDef, useTabBar } from "../../lib/tabBar";
 import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
+import { PAGE_FRAME } from "../../shared/boot";
 
 interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
 
@@ -312,7 +313,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </div>}
               <main id="main" ref={mainRef} className={bare ? "relative" : "m-canvas relative z-10"}>
                 {bare ? children : (
-                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className="mx-auto flex min-h-[calc(100svh-var(--header-h))] w-full max-w-[1200px] flex-col px-4 pt-8 max-sm:pt-5 pb-28 sm:px-6 md:pb-8 max-md:[[data-sticky-actions]_&]:pb-44 lg:px-8 min-[1700px]:max-w-[1600px]">
+                <m.div key={loc.pathname} initial={firstPage.current ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18, ease: "easeOut" }} className={PAGE_FRAME}>
                   <NoDataNotice />
                   {/* The page grows to fill the screen, so a short page still has its footer at the bottom. */}
                   <div className="min-w-0 flex-1">{children}</div>

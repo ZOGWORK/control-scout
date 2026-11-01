@@ -1,0 +1,1185 @@
+{
+ "/api/meta": {
+  "seasons": [
+   {
+    "season": 2026,
+    "game": "BIOBUZZ",
+    "label": "2026–27",
+    "frozen": false,
+    "lastSync": "2026-10-13T18:07:51.434Z",
+    "predictable": true
+   },
+   {
+    "season": 2025,
+    "game": "DECODE",
+    "label": "2025–26",
+    "frozen": true,
+    "lastSync": "2026-10-13T01:50:44.570Z",
+    "predictable": true
+   },
+   {
+    "season": 2024,
+    "game": "INTO THE DEEP",
+    "label": "2024–25",
+    "frozen": true,
+    "lastSync": "2026-10-13T01:55:08.187Z",
+    "predictable": true
+   },
+   {
+    "season": 2023,
+    "game": "CENTERSTAGE",
+    "label": "2023–24",
+    "frozen": true,
+    "lastSync": "2026-10-13T01:57:45.307Z",
+    "predictable": true
+   },
+   {
+    "season": 2022,
+    "game": "POWERPLAY",
+    "label": "2022–23",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   },
+   {
+    "season": 2021,
+    "game": "FREIGHT FRENZY",
+    "label": "2021–22",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   },
+   {
+    "season": 2020,
+    "game": "ULTIMATE GOAL",
+    "label": "2020–21",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   },
+   {
+    "season": 2019,
+    "game": "SKYSTONE",
+    "label": "2019–20",
+    "frozen": false,
+    "lastSync": null,
+    "predictable": false
+   }
+  ],
+  "currentSeason": 2026,
+  "engineVersion": "3.3.0",
+  "dataAsOf": "2026-10-31T12:00:00.000Z",
+  "statsAt": "2026-10-31T12:00:00.000Z",
+  "auth": {
+   "email": false,
+   "google": false,
+   "controlPoint": false
+  },
+  "firstConfigured": false,
+  "dataLoaded": true
+ },
+ "/api/events/2025/USNJNOM3": {
+  "event": {
+   "season": 2025,
+   "code": "USNJNOM3",
+   "name": "P1-4 PM Northern League Meet",
+   "type": "LeagueMeet",
+   "typeLabel": "League Meet",
+   "divisionCode": null,
+   "region": "USNJ",
+   "city": "Ramsey",
+   "state": "NJ",
+   "country": "USA",
+   "venue": "Don Bosco Prep High School",
+   "start": "2025-11-08",
+   "end": "2025-11-08",
+   "remote": false,
+   "teams": 50,
+   "matchesPlayed": 17,
+   "matchesTotal": 17,
+   "status": "finished",
+   "address": null,
+   "website": null,
+   "livestream": null,
+   "timezone": "America/New_York",
+   "source": "first"
+  },
+  "field": [
+   {
+    "team": 14450,
+    "name": "RoboRebels",
+    "city": "Saddle River",
+    "state": "NJ",
+    "rank": 1,
+    "rp": 4.8,
+    "tbp": 132.8,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": 58.35,
+     "auto": 18.16,
+     "teleop": 40.19,
+     "endgame": 2,
+     "pen": 11.96
+    },
+    "avgNp": 77.5,
+    "rating": {
+     "np": 138.1,
+     "sd": 3.2,
+     "matches": 46
+    },
+    "seasonOpr": 123,
+    "meet": {
+     "rank": 1,
+     "rs": 2.8333333333333335,
+     "wins": 5,
+     "losses": 1,
+     "ties": 0,
+     "played": 6,
+     "tb": [
+      77.5,
+      7.5,
+      20.333333333333332
+     ]
+    }
+   },
+   {
+    "team": 23375,
+    "name": "Robo Raptors",
+    "city": "Fair Lawn",
+    "state": "NJ",
+    "rank": 2,
+    "rp": 4.5,
+    "tbp": 116.8,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 178.8,
+     "sd": 3.2,
+     "matches": 48
+    },
+    "seasonOpr": 127.97,
+    "meet": null
+   },
+   {
+    "team": 23314,
+    "name": "Galactic Pigeon",
+    "city": "Glen Rock",
+    "state": "NJ",
+    "rank": 3,
+    "rp": 4.2,
+    "tbp": 104.9,
+    "wins": 9,
+    "losses": 1,
+    "ties": 0,
+    "qualPlayed": 10,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 132.8,
+     "sd": 3.2,
+     "matches": 24
+    },
+    "seasonOpr": 115.71,
+    "meet": null
+   },
+   {
+    "team": 23545,
+    "name": "Ramsey Dusters",
+    "city": "Ramsey",
+    "state": "NJ",
+    "rank": 4,
+    "rp": 4.2,
+    "tbp": 85.4,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": 22.03,
+     "auto": 1.57,
+     "teleop": 20.46,
+     "endgame": 4.8,
+     "pen": 5.75
+    },
+    "avgNp": 45.5,
+    "rating": {
+     "np": 67.9,
+     "sd": 3.2,
+     "matches": 24
+    },
+    "seasonOpr": 52.79,
+    "meet": {
+     "rank": 6,
+     "rs": 1.6666666666666667,
+     "wins": 3,
+     "losses": 3,
+     "ties": 0,
+     "played": 6,
+     "tb": [
+      45.5,
+      10,
+      6.833333333333333
+     ]
+    }
+   },
+   {
+    "team": 11456,
+    "name": "Blair Academy",
+    "city": "Blairstown",
+    "state": "NJ",
+    "rank": 5,
+    "rp": 4.2,
+    "tbp": 64.5,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 57.3,
+     "sd": 3.2,
+     "matches": 25
+    },
+    "seasonOpr": 55.12,
+    "meet": null
+   },
+   {
+    "team": 248,
+    "name": "Fatal Error",
+    "city": "Sparta",
+    "state": "NJ",
+    "rank": 6,
+    "rp": 4.1,
+    "tbp": 79.3,
+    "wins": 9,
+    "losses": 1,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 60.5,
+     "sd": 3.2,
+     "matches": 30
+    },
+    "seasonOpr": 45.04,
+    "meet": null
+   },
+   {
+    "team": 6980,
+    "name": "Bad Wolf",
+    "city": "Oradell",
+    "state": "NJ",
+    "rank": 7,
+    "rp": 4,
+    "tbp": 75.4,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": 1.59,
+     "auto": -0.62,
+     "teleop": 2.21,
+     "endgame": 4.24,
+     "pen": 5.61
+    },
+    "avgNp": 20.67,
+    "rating": {
+     "np": 70.5,
+     "sd": 3.2,
+     "matches": 24
+    },
+    "seasonOpr": 46.93,
+    "meet": {
+     "rank": 10,
+     "rs": 1,
+     "wins": 2,
+     "losses": 4,
+     "ties": 0,
+     "played": 6,
+     "tb": [
+      20.666666666666668,
+      10,
+      1
+     ]
+    }
+   },
+   {
+    "team": 23268,
+    "name": "Ultraviolet",
+    "city": "Hackettstown",
+    "state": "NJ",
+    "rank": 8,
+    "rp": 3.9,
+    "tbp": 141.2,
+    "wins": 9,
+    "losses": 1,
+    "ties": 0,
+    "qualPlayed": 10,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 216.3,
+     "sd": 3.2,
+     "matches": 42
+    },
+    "seasonOpr": 157.92,
+    "meet": null
+   },
+   {
+    "team": 23717,
+    "name": "AABC Falcons",
+    "city": "Closter",
+    "state": "NJ",
+    "rank": 9,
+    "rp": 3.9,
+    "tbp": 86.8,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 51.9,
+     "sd": 3.2,
+     "matches": 24
+    },
+    "seasonOpr": 56.3,
+    "meet": null
+   },
+   {
+    "team": 10243,
+    "name": "Ramsey Ramblers",
+    "city": "Ramsey",
+    "state": "NJ",
+    "rank": 10,
+    "rp": 3.9,
+    "tbp": 79.8,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": 29.26,
+     "auto": 5.41,
+     "teleop": 23.84,
+     "endgame": 5.55,
+     "pen": -7.45
+    },
+    "avgNp": 50.83,
+    "rating": {
+     "np": 41.3,
+     "sd": 3.2,
+     "matches": 21
+    },
+    "seasonOpr": 36.89,
+    "meet": {
+     "rank": 4,
+     "rs": 2.3333333333333335,
+     "wins": 4,
+     "losses": 2,
+     "ties": 0,
+     "played": 6,
+     "tb": [
+      50.833333333333336,
+      10.833333333333334,
+      7.5
+     ]
+    }
+   },
+   {
+    "team": 15762,
+    "name": "Frisch CouGears",
+    "city": "Paramus",
+    "state": "NJ",
+    "rank": 11,
+    "rp": 3.9,
+    "tbp": 76.4,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": null,
+     "auto": null,
+     "teleop": null,
+     "endgame": null,
+     "pen": null
+    },
+    "avgNp": null,
+    "rating": {
+     "np": 93.9,
+     "sd": 3.2,
+     "matches": 31
+    },
+    "seasonOpr": 67.47,
+    "meet": null
+   },
+   {
+    "team": 4215,
+    "name": "Hypnotic Robotics",
+    "city": "Oradell",
+    "state": "NJ",
+    "rank": 12,
+    "rp": 3.8,
+    "tbp": 92.4,
+    "wins": 10,
+    "losses": 0,
+    "ties": 0,
+    "qualPlayed": 16,
+    "opr": {
+     "np": 52.42,
+     "auto": 6.61,
+     "teleop": 45.81,
+     "endgame": 2.43,
+     "pen": 18.63
+    },
+    "avgNp": 72,
+    "rating": {
+     "np": 137.2,
+     "sd": 3.2,
+     "matches": 32
+    },
+    "seasonOpr": 101.64,
+    "meet": {
+     "rank": 2,
+     "rs": 2.6666666666666665,
+     "wins": 5,
+     "losses": 1,
+     "ties": 0,
+     "played": 6,
+     "tb": [
+      72,
+      8.333333333333334,
+      9
+     ]
+    }
+   }
+  ],
+  "matches": [
+   {
+    "season": 2025,
+    "code": "USNJNOM3",
+    "key": "qual:0:1",
+    "level": "qual",
+    "series": 0,
+    "number": 1,
+    "label": "Q1",
+    "time": "2025-11-08T14:45:08.158",
+    "startsAt": "2025-11-08T19:45:08.158Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 18760,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ironmen Upsilon"
+      },
+      {
+       "number": 14450,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "RoboRebels"
+      }
+     ],
+     "score": {
+      "total": 73,
+      "np": 73,
+      "auto": 19,
+      "teleop": 49,
+      "endgame": 5,
+      "pen": 0
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 26459,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Eastern Christian Robotics"
+      },
+      {
+       "number": 18759,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ironmen Tau"
+      }
+     ],
+     "score": {
+      "total": 39,
+      "np": 39,
+      "auto": 6,
+      "teleop": 33,
+      "endgame": 0,
+      "pen": 0
+     }
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.7799123939349552,
+     "redMean": 97,
+     "blueMean": 58,
+     "tier": "provisional",
+     "kind": "backtest",
+     "predictedAt": null
+    }
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOM3",
+    "key": "qual:0:2",
+    "level": "qual",
+    "series": 0,
+    "number": 2,
+    "label": "Q2",
+    "time": "2025-11-08T15:04:16.607",
+    "startsAt": "2025-11-08T20:04:16.607Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 10243,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ramsey Ramblers"
+      },
+      {
+       "number": 6980,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Bad Wolf"
+      }
+     ],
+     "score": {
+      "total": 44,
+      "np": 29,
+      "auto": 3,
+      "teleop": 16,
+      "endgame": 10,
+      "pen": 0
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 31255,
+       "surrogate": false,
+       "dq": false,
+       "onField": false,
+       "name": "ctrl+r"
+      },
+      {
+       "number": 13107,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ironmen Pi"
+      }
+     ],
+     "score": {
+      "total": 21,
+      "np": 21,
+      "auto": 0,
+      "teleop": 11,
+      "endgame": 10,
+      "pen": 15
+     }
+    },
+    "video": null,
+    "prediction": null
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOM3",
+    "key": "qual:0:3",
+    "level": "qual",
+    "series": 0,
+    "number": 3,
+    "label": "Q3",
+    "time": "2025-11-08T15:13:58.847",
+    "startsAt": "2025-11-08T20:13:58.847Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 23545,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ramsey Dusters"
+      },
+      {
+       "number": 18758,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ironmen Sigma"
+      }
+     ],
+     "score": {
+      "total": 27,
+      "np": 22,
+      "auto": 0,
+      "teleop": 12,
+      "endgame": 10,
+      "pen": 0
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 4215,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Hypnotic Robotics"
+      },
+      {
+       "number": 10243,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ramsey Ramblers"
+      }
+     ],
+     "score": {
+      "total": 79,
+      "np": 79,
+      "auto": 16,
+      "teleop": 53,
+      "endgame": 10,
+      "pen": 5
+     }
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.3021867667366434,
+     "redMean": 67,
+     "blueMean": 95,
+     "tier": "provisional",
+     "kind": "backtest",
+     "predictedAt": null
+    }
+   },
+   {
+    "season": 2025,
+    "code": "USNJNOM3",
+    "key": "qual:0:4",
+    "level": "qual",
+    "series": 0,
+    "number": 4,
+    "label": "Q4",
+    "time": "2025-11-08T15:22:25.406",
+    "startsAt": "2025-11-08T20:22:25.406Z",
+    "played": true,
+    "red": {
+     "teams": [
+      {
+       "number": 18759,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ironmen Tau"
+      },
+      {
+       "number": 4215,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Hypnotic Robotics"
+      }
+     ],
+     "score": {
+      "total": 74,
+      "np": 74,
+      "auto": 0,
+      "teleop": 64,
+      "endgame": 10,
+      "pen": 30
+     }
+    },
+    "blue": {
+     "teams": [
+      {
+       "number": 13107,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Ironmen Pi"
+      },
+      {
+       "number": 26459,
+       "surrogate": false,
+       "dq": false,
+       "onField": true,
+       "name": "Eastern Christian Robotics"
+      }
+     ],
+     "score": {
+      "total": 97,
+      "np": 67,
+      "auto": 13,
+      "teleop": 39,
+      "endgame": 15,
+      "pen": 0
+     }
+    },
+    "video": null,
+    "prediction": {
+     "pRed": 0.8468355448625898,
+     "redMean": 97,
+     "blueMean": 50,
+     "tier": "provisional",
+     "kind": "backtest",
+     "predictedAt": null
+    }
+   }
+  ],
+  "alliances": [],
+  "bracket": null,
+  "awards": [],
+  "advancement": null,
+  "forecastUnsupported": "This event doesn't advance teams, so there are no advancement odds.",
+  "live": null,
+  "registered": null,
+  "provisional": null,
+  "sharedSessions": null,
+  "scheduleDifficulty": {
+   "fieldMean": 54.7,
+   "scheduled": 17,
+   "played": 17,
+   "teams": [
+    {
+     "team": 6980,
+     "full": {
+      "opponents": -2,
+      "partners": -21.5,
+      "difficulty": 19.5,
+      "matches": 6,
+      "rank": 1,
+      "of": 11,
+      "easyRank": 11,
+      "z": 1.56
+     },
+     "remaining": null
+    },
+    {
+     "team": 4215,
+     "full": {
+      "opponents": -12.2,
+      "partners": -25.3,
+      "difficulty": 13.1,
+      "matches": 6,
+      "rank": 2,
+      "of": 11,
+      "easyRank": 10,
+      "z": 0.99
+     },
+     "remaining": null
+    },
+    {
+     "team": 18758,
+     "full": {
+      "opponents": 10.7,
+      "partners": 0.4,
+      "difficulty": 10.4,
+      "matches": 6,
+      "rank": 3,
+      "of": 11,
+      "easyRank": 9,
+      "z": 0.75
+     },
+     "remaining": null
+    },
+    {
+     "team": 14450,
+     "full": {
+      "opponents": -12.3,
+      "partners": -21.4,
+      "difficulty": 9.2,
+      "matches": 6,
+      "rank": 4,
+      "of": 11,
+      "easyRank": 8,
+      "z": 0.64
+     },
+     "remaining": null
+    },
+    {
+     "team": 18760,
+     "full": {
+      "opponents": 8.7,
+      "partners": 0.8,
+      "difficulty": 7.9,
+      "matches": 6,
+      "rank": 5,
+      "of": 11,
+      "easyRank": 7,
+      "z": 0.54
+     },
+     "remaining": null
+    },
+    {
+     "team": 31255,
+     "full": {
+      "opponents": 0.6,
+      "partners": -1.1,
+      "difficulty": 1.7,
+      "matches": 6,
+      "rank": 6,
+      "of": 11,
+      "easyRank": 6,
+      "z": -0.02
+     },
+     "remaining": null
+    },
+    {
+     "team": 13107,
+     "full": {
+      "opponents": -1.3,
+      "partners": -1.3,
+      "difficulty": -0.1,
+      "matches": 6,
+      "rank": 7,
+      "of": 11,
+      "easyRank": 5,
+      "z": -0.17
+     },
+     "remaining": null
+    },
+    {
+     "team": 23545,
+     "full": {
+      "opponents": -2.8,
+      "partners": -0.3,
+      "difficulty": -2.4,
+      "matches": 6,
+      "rank": 8,
+      "of": 11,
+      "easyRank": 4,
+      "z": -0.38
+     },
+     "remaining": null
+    },
+    {
+     "team": 10243,
+     "full": {
+      "opponents": -2.6,
+      "partners": 0.9,
+      "difficulty": -3.5,
+      "matches": 6,
+      "rank": 9,
+      "of": 11,
+      "easyRank": 3,
+      "z": -0.48
+     },
+     "remaining": null
+    },
+    {
+     "team": 26459,
+     "full": {
+      "opponents": -0.7,
+      "partners": 14.4,
+      "difficulty": -15.1,
+      "matches": 6,
+      "rank": 10,
+      "of": 11,
+      "easyRank": 2,
+      "z": -1.51
+     },
+     "remaining": null
+    },
+    {
+     "team": 18759,
+     "full": {
+      "opponents": -5.4,
+      "partners": 14.3,
+      "difficulty": -19.7,
+      "matches": 6,
+      "rank": 11,
+      "of": 11,
+      "easyRank": 1,
+      "z": -1.91
+     },
+     "remaining": null
+    },
+    {
+     "team": 207,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 247,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 248,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 251,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 6983,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 7251,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 8816,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 8902,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 10603,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 10788,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 11124,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 11396,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 11456,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 12636,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 12853,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 13048,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 13103,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 13105,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 13615,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 13617,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 14173,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 15715,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 15762,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 15887,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 15891,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 18155,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 18757,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 19477,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 20848,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 22219,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 23268,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 23314,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 23375,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 23694,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 23717,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 25649,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 27828,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 31823,
+     "full": null,
+     "remaining": null
+    },
+    {
+     "team": 32904,
+     "full": null,
+     "remaining": null
+    }
+   ]
+  }
+ },
+ "/api/events/2025/USNJNOM3/result-changes": {
+  "season": 2025,
+  "code": "USNJNOM3",
+  "match": null,
+  "trackedSince": null,
+  "lastChecked": "2026-10-13T01:46:26.604Z",
+  "labels": {
+   "total": "Total",
+   "np": "Non-penalty points",
+   "auto": "Auto",
+   "teleop": "TeleOp (without base)",
+   "endgame": "Base",
+   "pen": "Penalty points given away",
+   "dq": "Disqualified teams",
+   "result": "Result",
+   "time": "Scheduled time",
+   "field": "Field",
+   "red": "Red alliance",
+   "blue": "Blue alliance",
+   "bonus.movement": "Movement RP",
+   "bonus.goal": "Goal RP",
+   "bonus.pattern": "Pattern RP"
+  },
+  "changes": [],
+  "cap": 500,
+  "pruned": 0
+ }
+}
