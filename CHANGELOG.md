@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.3 — 2026-11-01
+## 1.8.4 — 2026-11-01
 
 Search answers more questions, and a question on the results page gets a short written answer from Bruno AI.
 
@@ -28,6 +28,19 @@ Search answers more questions, and a question on the results page gets a short w
 - **Bruno AI answers questions on /search.** A search that reads as a question ("how many times did 4215 go to states", "when did 23268 go to worlds and what was their opr then") gets 1 to 3 sentences from Bruno AI above the results. He writes only from the records search found for it (the answer card's events with dates, ranks, records and OPRs, the top results, the team's latest season), sent to Control Point's new `/internal/bruno/search-answer`. Any answer naming a number that isn't in those records is dropped, so a made-up stat never shows. A name or a number alone never asks him. It's asked after the results are on screen, so they never wait on it, and each question is cached for 6 hours. The answer is labelled as his and points to the records below it. Owner toggle: **Bruno answers on /search** (`brunoAnswers`, on). Off, unconfigured, slow or failing: no box, and search is unchanged. (#381)
 - **State championships.** "How many times did 4215 go to states", "did bad wolf make states in 2025" and "… state championship" questions list each region championship the team played (its division, rank, record, OPR and awards), with the count in the card's header. None found, or none in the year asked, is said plainly with the closest real records.
 - **OPR at each event.** Worlds and state championship lines now include the team's OPR there.
+
+## 1.8.3 — 2026-11-01
+
+What's new stays in view at the foot of the sidebar, and Settings has one place.
+
+### Highlights
+- [home] What's new sits right above Sign in, always in view
+- [home] Settings is the gear beside Sign in, no longer a second row under More
+- [home] The phone's menu puts What's new just above your account too
+
+### Navigation
+- **What's new** moved out of the folded More group to the foot of the sidebar, beside the fold button and right above Sign in, so a new release's dot shows without opening More. On the icon rail and in the phone's menu it sits just above the account controls too.
+- **Settings** is the gear beside Sign in (or your name) only; the duplicate Settings row under More is gone. (#382)
 
 ## 1.8.2 — 2026-11-01
 
