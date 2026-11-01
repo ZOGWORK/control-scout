@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.7 — 2026-11-01
+## 2.0.8 — 2026-11-01
 
 Tables export to Excel in colour, like they look on the site.
 
@@ -28,6 +28,18 @@ Tables export to Excel in colour, like they look on the site.
 - Next to Export CSV, Export Excel downloads the same rows and columns as an .xlsx: each header in its stat's colour (violet totals, sky auto, orange driver-controlled, rose penalties, gold for Control Scout's own), a frozen header and team column, and a filter on every column
 - On team tables every number is banded from bold green (best fifth of the exported rows) to bold red (worst fifth), flipped for lower-is-better stats such as rank, penalties and schedule difficulty; match tables colour each score by its alliance
 - Event start dates are real dates (no more `#######` in a narrow column) and percentages show as percentages. The CSV is unchanged for scripts (#408)
+
+## 2.0.7 — 2026-11-01
+
+Matches link to their moment in the event's video again when the stream was left running after the event.
+
+### Highlights
+- [live] Match timestamps show for streams cut at the event's end
+- [live] Each match jumps to its own moment in the recording
+- [live] A video with a real gap mid-event still shows no timestamps
+
+### Live
+- **Trimmed recordings get timestamps.** A stream left running for hours after an event, then cut where the event ended, made its video much shorter than its broadcast. That looked the same as a stream that dropped out mid-event, so every match lost its timestamp (Salk League Meet: 10 h 26 min broadcast, 5 h 10 min video). The event's matches now tell the two apart. When the video ends within 15 minutes of the last match's start, and the stream ran on afterwards for longer than all the matches took, the missing time is all after the event and every match keeps its second, on the event page and on each match's own page. A video that loses time during the event still gets no timestamps, so no match lands on the wrong one (#406).
 
 ## 2.0.6 — 2026-11-01
 
