@@ -10,12 +10,11 @@ import type { ShortlistTeam } from "../shared/api";
 const h = vi.hoisted(() => ({ bookmarks: [101, 102] as number[], notes: { "101": "mine" } as Record<string, string>, updates: [] as string[] }));
 vi.mock("../lib/personal", () => ({
   usePersonal: () => ({
-    state: { bookmarks: h.bookmarks, shortlistNotes: h.notes }, user: null,
+    state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: h.bookmarks, shortlistNotes: h.notes }, user: null,
     stored: () => h.notes,
     update: (key: string, fn: (v: unknown) => unknown) => { h.updates.push(key); if (key === "bookmarks") h.bookmarks = fn(h.bookmarks) as number[]; return true; },
   }),
 }));
-vi.mock("../components/layout/Search", () => ({ useSearch: () => ({ open: () => {} }) }));
 
 const { default: ShortlistPage } = await import("./ShortlistPage");
 const { TooltipProvider } = await import("../components/ui/overlay");
@@ -33,6 +32,7 @@ beforeEach(() => {
   h.bookmarks = [101, 102]; h.updates = []; paths = [];
   vi.stubGlobal("fetch", async (path: string) => {
     paths.push(path);
+    if (path.startsWith("/api/search")) return new Response(JSON.stringify({ hits: [{ kind: "team", ref: "4215", title: "4215 Hypnotic Robotics", subtitle: "Oradell, NJ, USA", season: 2026 }] }), { status: 200 });
     if (path.startsWith("/api/shortlist")) return new Response(JSON.stringify({ season: 2025, teams: [team(101, 80, 3), team(102, 61.5, 40)] }), { status: 200 });
     throw new Error(`unexpected ${path}`);
   });
@@ -51,12 +51,23 @@ describe("ShortlistPage", () => {
     expect(paths.every((p) => p.startsWith("/api/shortlist"))).toBe(true);
   });
 
+  it("adds a team found in the Add team box to the end of the list", async () => {
+    render(<TooltipProvider><MemoryRouter initialEntries={["/shortlist?season=2025"]}><ShortlistPage /></MemoryRouter></TooltipProvider>);
+    await waitFor(() => expect(document.querySelectorAll("[data-reorder-key]")).toHaveLength(2));
+    const input = screen.getByRole("combobox", { name: "Add a team to your shortlist" });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "4215" } });
+    fireEvent.click(await screen.findByRole("option", { name: /4215 Hypnotic Robotics/ }));
+    expect(h.bookmarks).toEqual([101, 102, 4215]);
+  });
+
   const mount = () => render(<TooltipProvider><MemoryRouter initialEntries={["/shortlist?season=2025"]}><ShortlistPage /></MemoryRouter></TooltipProvider>);
 
   it("shows a first visit (an empty list) how it works, with no toggle to find it behind", () => {
     h.bookmarks = [];
     mount();
     expect(screen.getByText("Your shortlist is empty")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Add a team to your shortlist" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "How the shortlist works" }).textContent).toMatch(/Drag the grip to rank your picks, or focus it and use the arrow keys/);
     expect(screen.queryByRole("button", { name: /How it works/ })).toBeNull();
   });
