@@ -76,7 +76,7 @@ import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
 import { liveHeroLines } from "./heroLines.js";
-import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv } from "./api/records.js";
+import { listRecords, recordRegions, recordsQuery, RecordsQueryError, streamRecordsCsv, streamRecordsXlsx } from "./api/records.js";
 import { directoryQuery, DirectoryQueryError, listDirectory } from "./api/directory.js";
 import { FilterError } from "../src/shared/filterDsl.js";
 import { RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS } from "../src/shared/statCatalog.js";
@@ -237,7 +237,7 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use(canonicalRedirects);
   // CSV exports stream and gzip themselves, flushing as they go (server/api/records.ts streamedBody).
   // Live streams (text/event-stream, server/scout/stream.ts) are never compressed: gzip would hold events back.
-  app.use(compression({ filter: (req, res) => !/^text\/(csv|event-stream)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
+  app.use(compression({ filter: (req, res) => !/^(text\/(csv|event-stream)|application\/vnd\.openxmlformats)/.test(String(res.getHeader("Content-Type") ?? "")) && compression.filter(req, res) }));
   // /api/collect reads its own tiny body (1 KB cap), the digest's bounce webhook needs its raw body for the
   // signature, and CSP reports have their own 16 KB parser that never fails (server/securityHeaders.ts), so the
   // 2 MB JSON parser skips all three.
@@ -566,7 +566,7 @@ export function createApp(opts: { dist?: string } = {}) {
 
   const recordsLimit = limiter(120), recordsCsvLimit = limiter(10);
   const records = (kind: "teams" | "matches") => [
-    (req: Request, res: Response, next: NextFunction) => (req.query.format === "csv" ? recordsCsvLimit : recordsLimit)(req, res, next),
+    (req: Request, res: Response, next: NextFunction) => (req.query.format === "csv" || req.query.format === "xlsx" ? recordsCsvLimit : recordsLimit)(req, res, next),
     h(async (req, res) => {
       const s = season(req.params.season);
       const scopeRaw = req.query.scope;
@@ -574,9 +574,9 @@ export function createApp(opts: { dist?: string } = {}) {
       if (scopeRaw != null && scopeRaw !== "event" && scopeRaw !== "season") throw bad("scope must be event (one row per team per event) or season (one row per team)");
       const scope = kind === "matches" ? "match" : scopeRaw === "season" ? "teamSeason" : "teamEvent";
       const format = req.query.format ?? "json";
-      if (format !== "json" && format !== "csv") throw bad("format must be json or csv");
+      if (format !== "json" && format !== "csv" && format !== "xlsx") throw bad("format must be json, csv or xlsx");
       try {
-        const q = recordsQuery(scope, req.query as Record<string, unknown>, format === "csv" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
+        const q = recordsQuery(scope, req.query as Record<string, unknown>, format !== "json" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
         // The owner's scheduleDifficulty toggle off: its columns can't be asked for, sorted or filtered on, and the
         // default (every stat, no fields asked for) leaves them out.
         if (scope === "teamEvent" && !(await isEnabled("scheduleDifficulty"))) {
@@ -585,11 +585,13 @@ export function createApp(opts: { dist?: string } = {}) {
           if (SCHEDULE_STAT_KEYS.some(asked)) { featureDisabled(res, "scheduleDifficulty"); return undefined; }
           q.fields = q.fields.filter((k) => !SCHEDULE_STAT_KEYS.includes(k));
         }
-        if (format === "csv") { await streamRecordsCsv(s, q, res, `control-scout-${s}-${kind}${scope === "teamSeason" ? "-season" : ""}.csv`); return undefined; }
+        const file = `control-scout-${s}-${kind}${scope === "teamSeason" ? "-season" : ""}`;
+        if (format === "csv") { await streamRecordsCsv(s, q, res, `${file}.csv`); return undefined; }
+        if (format === "xlsx") { await streamRecordsXlsx(s, q, res, `${file}.xlsx`); return undefined; }
         return await listRecords(s, q);
       } catch (e) {
         if (e instanceof FilterError || e instanceof RecordsQueryError) throw bad(e.message);
-        // A CSV stream that fails part-way has already sent its headers: it's been cut off, nothing more to say.
+        // A CSV or Excel stream that fails part-way has already sent its headers: it's been cut off, nothing more to say.
         if (res.headersSent) { console.error("[api] records export", e); return undefined; }
         throw e;
       }

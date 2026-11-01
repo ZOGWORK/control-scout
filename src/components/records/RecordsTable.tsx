@@ -1,11 +1,11 @@
 // A records table with its toolbar designed in: [Statistics] [Filters] [preset
-// chips] … [Compare] [Export CSV], the Season / Region / Event type / Date
+// chips] … [Compare] [Excel] [CSV], the Season / Region / Event type / Date
 // dropdowns, a plain-English line for the active filter, server-side sorting
 // and paging, and everything in the URL so a link reproduces the view.
 // Used by the event Rankings and Insights tabs, /teams and /matches.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, Columns3, Download, FileSpreadsheet, Info, ListFilter, Loader2, MapPin, RefreshCw, Scale, SearchX, Sparkles, X } from "lucide-react";
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
@@ -34,6 +34,7 @@ import { LayoutToggle, MatchSummaryList, SummarySort, useLayout, usePhone } from
 import { emptyColumns } from "../../lib/eventRankingNotes";
 import { placeFor, SCHEDULE_STATS, ScheduleValue, type SchedulePlaces } from "../ScheduleDifficulty";
 import { useFlag } from "../../lib/flags";
+import { HEAT_MIN, heatable, heatBand } from "../../shared/statTones";
 
 type Row = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 type Resp = RecordsResponse<Row>;
@@ -211,7 +212,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const conditions = state.filter ? countConds(state.filter) : 0;
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / (data?.pageSize ?? 50)));
-  const csv = recordsUrl(req, "csv");
+  const csv = recordsUrl(req, "csv"), xlsx = recordsUrl(req, "xlsx");
   const c = p.controls;
   const selectedTeams = selected.slice(0, COMPARE_MAX);
   const selectable = !!p.selectable && teamScope;
@@ -349,9 +350,7 @@ export function RecordsTable(p: RecordsTableProps) {
                   <Button variant="secondary" className="h-11" onClick={() => close(() => { setBuilder(false); setColumns(true); })}>
                     <Columns3 className="text-sky-500" /> Statistics <span className="rounded bg-text-base/10 px-1.5 text-[11px] tabular-nums">{cols.length}{" "}<span className="sr-only">columns</span></span>
                   </Button>
-                  <Button variant="outline" className="h-11" asChild={total > 0} disabled={!total}>
-                    {total > 0 ? <a href={csv} download><Download /> Export CSV <span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> Export CSV<span className="sr-only"> (no rows to export)</span></span>}
-                  </Button>
+                  <ExportButtons xlsx={xlsx} csv={csv} total={total} className="h-11" />
                 </FilterSection>
               </>
             )}
@@ -405,9 +404,7 @@ export function RecordsTable(p: RecordsTableProps) {
         {capStatus}
         <div className={cn("ml-auto flex shrink-0 items-center gap-1.5", !presets.length && "ml-auto")}>
           {compareButton}
-          <Button variant="outline" size="sm" className="max-sm:h-10" asChild={total > 0} disabled={!total}>
-            {total > 0 ? <a href={csv} download><Download /> <span className="max-sm:sr-only">Export CSV</span>{" "}<span className="sr-only">({total.toLocaleString()} rows)</span></a> : <span className="inline-flex items-center gap-2"><Download /> <span className="max-sm:sr-only">Export CSV</span><span className="sr-only"> (no rows to export)</span></span>}
-          </Button>
+          <ExportButtons xlsx={xlsx} csv={csv} total={total} size="sm" className="max-sm:h-10" short />
         </div>
       </div>
 
@@ -551,6 +548,14 @@ const td = "density-row px-3 py-1.5 max-sm:px-2.5 max-sm:py-2 sm:pointer-coarse:
 // Grid lines a step stronger than the app's hairlines: rows and columns stay easy to follow across a wide table.
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
+// The row under the pointer lights up in the accent, sticky first column included (it has its own background),
+// with an accent bar at its left edge, so one team's numbers are easy to follow across the table. 14% keeps the
+// heat colours at 4.5:1 or more even on the sorted column's own tint (RecordsTable.hover.contrast.test.ts).
+// Red alliance scores use the alliance's ink (a lighter red on dark, a deeper one on light): the plain alliance
+// red drops under 4.5:1 on a hovered row's tint (RecordsTable.hover.contrast.test.ts).
+const cellText = (tone: keyof typeof TONE_CLASS) => (tone === "redAlliance" ? "text-red-alliance-ink" : TONE_CLASS[tone].text);
+const rowHover = "still-hover:bg-accent/[0.14]";
+const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
 function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
   const on = k != null && state.sort === k;
@@ -603,8 +608,27 @@ function SelectAll({ state, onToggle }: { state: PageSelection; onToggle: () => 
   );
 }
 
-/** Not coloured: counts that say how much a team played, not how well. */
-const NO_HEAT = new Set(["qualMatchesPlayed", "ties", "rookieYear"]);
+/**
+ * The two downloads of every filtered, sorted row: Excel, coloured like the table (each column's colour, green
+ * to red by standing), and plain CSV for scripts. `short`: phones show the icons and the format alone.
+ */
+function ExportButtons({ xlsx, csv, total, size, className, short }: { xlsx: string; csv: string; total: number; size?: "sm"; className?: string; short?: boolean }) {
+  const rows = total > 0 ? `(${total.toLocaleString()} rows)` : "(no rows to export)";
+  const one = (href: string, icon: ReactNode, label: string, format: string) => (
+    <Button variant="outline" size={size} className={className} asChild={total > 0} disabled={!total}>
+      {total > 0
+        ? <a href={href} download>{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export</span> {format}<span className="sr-only"> {label} {rows}</span></span></a>
+        : <span className="inline-flex items-center gap-2">{icon}<span><span className={cn(short && "max-sm:sr-only")}>Export</span> {format}<span className="sr-only"> {label} {rows}</span></span></span>}
+    </Button>
+  );
+  return (
+    <>
+      {one(xlsx, <FileSpreadsheet className="text-emerald-500" />, "(coloured like the table)", "Excel")}
+      {one(csv, <Download />, "(plain text)", "CSV")}
+    </>
+  );
+}
+
 /** Five bands, best to worst, as the number's own colour (no cell shading): the top fifth of the field reads bold
  *  green, the next fifth light green, the middle plain, then light red and bold red for the bottom fifth. */
 // The readable success/danger text colours (index.css), and for the lighter bands those mixed toward the body text,
@@ -614,23 +638,17 @@ export const HEAT = ["text-[var(--color-success-text)] font-semibold", "text-[co
 /**
  * One event's table: each number coloured by where a team stands in the event's field (its percentile among
  * the rows shown; flipped for lower-is-better stats such as rank and penalties). Equal values share a band.
+ * The Excel export bands its rows the same way (src/shared/statTones.ts).
  */
 export function heatBands(rows: { stats: Record<string, unknown> }[], cols: string[]): Map<string, (v: unknown) => string> {
   const out = new Map<string, (v: unknown) => string>();
-  if (rows.length < 4) return out;
+  if (rows.length < HEAT_MIN) return out;
   for (const k of cols) {
     const d = STAT_BY_KEY.get(k);
-    if (!d || d.type !== "number" || NO_HEAT.has(k)) continue;
+    if (!heatable(d)) continue;
     const vs = rows.map((r) => r.stats[k]).filter((v): v is number => typeof v === "number" && Number.isFinite(v)).sort((a, b) => a - b);
-    if (vs.length < 4 || vs[0] === vs[vs.length - 1]) continue;
-    out.set(k, (v) => {
-      if (typeof v !== "number" || !Number.isFinite(v)) return "";
-      // Share of the field below this value, ties counting half: the same value always gets the same band.
-      const below = vs.filter((x) => x < v).length, same = vs.filter((x) => x === v).length;
-      let q = (below + (same - 1) / 2) / (vs.length - 1);
-      if (d.lowerIsBetter) q = 1 - q;
-      return HEAT[Math.min(4, Math.floor((1 - q) * 5))];
-    });
+    if (vs.length < HEAT_MIN || vs[0] === vs[vs.length - 1]) continue;
+    out.set(k, (v) => (typeof v === "number" && Number.isFinite(v) ? HEAT[heatBand(vs, v, d.lowerIsBetter)] : ""));
   }
   return out;
 }
@@ -694,10 +712,10 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
             const sel = team != null && selected.includes(team);
             return (
               <tr key={"key" in r ? `${r.eventCode}:${r.key}` : `${team}:${"eventCode" in r ? r.eventCode : ""}`}
-                className={cn("group/row border-b last:border-b-0", grid, "still-hover:bg-text-base/[0.03]", hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
+                className={cn("group/row border-b last:border-b-0", grid, rowHover, hl && "bg-accent/[0.07]", sel && "bg-sky-500/[0.07]")}>
                 {"key" in r ? (
                   <>
-                    <td className={cn(sticky, td, "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
+                    <td className={cn(sticky, td, stickyHover)}>
                       <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text max-sm:max-w-[7.5rem] sm:flex sm:max-w-[20rem] sm:items-baseline sm:gap-2">
                         <span className="shrink-0 font-semibold">{r.label}</span>
                         <span className="block truncate text-xs text-text-muted" title={r.eventName}>{r.eventName}</span>
@@ -708,7 +726,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   </>
                 ) : (
                   <>
-                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]")}>
+                    <td className={cn(sticky, td, hl && "bg-[color-mix(in_srgb,var(--color-card)_92%,var(--color-accent))]", stickyHover)}>
                       <div className="flex items-center gap-2.5 max-sm:gap-2">
                         {selectable && (
                           // In a label so a touch screen's 44px tap area (tap-44) toggles it too.
@@ -745,7 +763,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                   const band = heat.get(k)?.(v);
                   return (
                     <td key={k} className={cn(td, "whitespace-nowrap border-l border-text-base/[0.08] text-right tabular-nums", d?.type === "text" && "text-left", state.sort === k && "bg-accent/[0.04] font-semibold",
-                      band || (heat.size === 0 && tone !== "slate" && v != null && TONE_CLASS[tone].text))} data-heat={band ? HEAT.indexOf(band) : undefined}>
+                      band || (heat.size === 0 && tone !== "slate" && v != null && cellText(tone)))} data-heat={band ? HEAT.indexOf(band) : undefined}>
                       {k === PREDICTION_FIELD ? <PredictionValue text={formatStat(d, v)} tier={(r as MatchRecordRow).predictionTier} className="justify-end" />
                         : SCHEDULE_STATS.has(k) ? <ScheduleValue stat={k} v={v} opponents={r.stats.scheduleOpponents} partners={r.stats.schedulePartners} rank={placeFor(schedulePlaces, team, v)} />
                         : formatStat(d, v)}
@@ -837,7 +855,7 @@ function useMoreToTheRight() {
 }
 
 function Alliance({ teams, season, side, noPage }: { teams: number[]; season: number; side: "red" | "blue"; noPage?: number[] }) {
-  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance");
+  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance-ink" : "bg-blue-alliance/12 text-blue-alliance");
   return (
     <span className="inline-flex gap-1">
       {/* A placeholder (an off-season demo team) has no page: its number shows, unlinked, as on event pages. */}

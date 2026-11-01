@@ -4,6 +4,7 @@
 import type { FilterGroup, FilterNode } from "../../shared/filterDsl";
 import { STAT_BY_KEY, type RecordScope, type StatDef } from "../../shared/statCatalog";
 import { num, oddsPct } from "../format";
+import type { Tone } from "../../shared/statTones";
 
 const OP_WORDS: Record<string, string> = { lt: "under", lte: "at most", gt: "over", gte: "at least", eq: "exactly", ne: "not", contains: "containing" };
 const TEXT_OP_WORDS: Record<string, string> = { eq: "is", ne: "is not", contains: "contains" };
@@ -48,31 +49,7 @@ export function headerOf(def: StatDef | undefined, key: string): string {
 
 // --- Colours ------------------------------------------------------------------
 
-/** Colour families for stat columns (FTC Scout's coloured headers, our palette). */
-export type Tone = "gold" | "red" | "blue" | "green" | "violet" | "sky" | "orange" | "emerald" | "rose" | "pink" | "slate" | "redAlliance" | "blueAlliance";
-
-export function toneOf(def: StatDef | undefined): Tone {
-  if (!def) return "slate";
-  if (def.category === "Control Scout Exclusives") return "gold";
-  if (def.key.startsWith("red") && def.category === "Match Scores") return "redAlliance";
-  if (def.key.startsWith("blue") && def.category === "Match Scores") return "blueAlliance";
-  switch (def.base) {
-    case "totalPoints": case "totalPointsNp": return "violet";
-    case "autoPoints": return "sky";
-    case "dcPoints": return "orange";
-    case "endgamePoints": return "emerald";
-    case "penaltyPointsCommitted": return "rose";
-    case "penaltyPointsByOpp": return "pink";
-  }
-  switch (def.key) {
-    case "rank": return "gold";
-    case "rp": return "red";
-    case "tb1": return "blue";
-    case "qualMatchesPlayed": case "wins": case "losses": case "ties": case "events": return "green";
-    case "winningMargin": case "highScore": case "combinedScore": return "violet";
-  }
-  return "slate";
-}
+export { toneOf, type Tone } from "../../shared/statTones";
 
 /** Tailwind classes per tone: header text, header underline, soft chip background. */
 export const TONE_CLASS: Record<Tone, { text: string; bar: string; chip: string }> = {
