@@ -27,7 +27,7 @@ Tables export to Excel in colour, like they look on the site.
 ### Records tables
 - Next to Export CSV, Export Excel downloads the same rows and columns as an .xlsx: each header in its stat's colour (violet totals, sky auto, orange driver-controlled, rose penalties, gold for Control Scout's own), a frozen header and team column, and a filter on every column
 - On team tables every number is banded from bold green (best fifth of the exported rows) to bold red (worst fifth), flipped for lower-is-better stats such as rank, penalties and schedule difficulty; match tables colour each score by its alliance
-- Event start dates are real dates (no more `#######` in a narrow column) and percentages show as percentages. The CSV is unchanged for scripts
+- Event start dates are real dates (no more `#######` in a narrow column) and percentages show as percentages. The CSV is unchanged for scripts (#408)
 
 ## 2.0.4 — 2026-11-01
 
