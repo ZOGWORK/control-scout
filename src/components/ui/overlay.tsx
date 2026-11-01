@@ -260,6 +260,18 @@ export function Tooltip({ delayDuration = 250, ...props }: React.ComponentProps<
   return <T.Root delayDuration={delayDuration} {...props} />;
 }
 export const TooltipTrigger = T.Trigger;
+/** A tip that a tap or click opens too, for a button whose only job is the tip: a Radix tooltip opens on hover and
+ *  focus only, so a touch screen could never show it. Hover still opens it on a desktop; a tap elsewhere closes it. */
+export function TapTooltip({ trigger, children, className }: { trigger: React.ReactElement; children: React.ReactNode; className?: string }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <T.Root open={open} onOpenChange={setOpen} delayDuration={250}>
+      {/* preventDefault stops the trigger's own close-on-click (the button does nothing else). */}
+      <T.Trigger asChild onClick={(e) => { e.preventDefault(); setOpen(true); }}>{trigger}</T.Trigger>
+      <TooltipContent className={className}>{children}</TooltipContent>
+    </T.Root>
+  );
+}
 export function TooltipContent({ className, sideOffset = 6, children, ...props }: React.ComponentProps<typeof T.Content>) {
   return (
     <T.Portal>

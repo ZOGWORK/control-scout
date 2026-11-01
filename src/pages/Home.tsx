@@ -130,6 +130,7 @@ function Headline() {
 function Hero({ query }: { query?: string }) {
   // Home's search IS the page's search: the top-bar field steps aside here.
   const searchRef = usePageSearch();
+  const { restoreFocus } = useSearch();
   const nav = useNavigate();
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
@@ -137,7 +138,7 @@ function Hero({ query }: { query?: string }) {
       <Headline />
       <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
       <SearchBox
-        size="lg" inputRef={searchRef} hint={SEARCH_HINT} tour="search" initialQuery={query}
+        size="lg" inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} tour="search" initialQuery={query}
         label="Search teams, events and matches"
         placeholder="Find a team, event or match…"
         onPick={(h) => nav(hitHref(h))}

@@ -519,11 +519,12 @@ function AwardsAllTime({ p }: { p: TeamProfile }) {
   if (!p.awardsAllTime.length) return null;
   return (
     <Section id="awards" title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
-      <div className="flex flex-wrap gap-2">
+      {/* Rows a little further apart on a touch screen, so one chip's 44px tap area (tap-44) never reaches the next row. */}
+      <div className="flex flex-wrap gap-2 pointer-coarse:gap-y-[10px]">
         {p.awardsAllTime.map((a, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
-              <Link to={`/events/${a.season}/${a.code}`} className="lift inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
+              <Link to={`/events/${a.season}/${a.code}`} className="tap-44 lift inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs">
                 <Award className="size-3.5 text-accent" />{awardLabel(a.type, a.placement)}<span className="text-muted-foreground">· {seasonLabel(a.season)}</span>
               </Link>
             </TooltipTrigger>

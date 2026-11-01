@@ -214,6 +214,16 @@ html[data-text-size="xl"] { --ui-scale: 1.25; }
 @media (max-width: 767px) { html { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); } }
 @layer base { :where(#main, #main *) { scroll-margin-top: var(--header-h); } } /* in a layer: scroll-mt-bar-N must win */
 @utility scroll-mt-bar-* { scroll-margin-top: calc(var(--header-h) + var(--spacing) * --value(integer)); }
+/* A 44px tap area on touch screens around a control drawn smaller (an icon button, a chip, a sort header), with
+   no change to the layout: an invisible ::after centred on it, at least 44px each way. Only where the
+   neighbours leave room, so two tap areas never sit on top of each other; stacked rows grow instead. */
+@utility tap-44 {
+  @media (pointer: coarse) {
+    /* The box the ::after centres on; a control that is already placed (absolute, fixed, sticky) is one. */
+    &:not(.absolute, .fixed, .sticky) { position: relative; }
+    &::after { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+  }
+}
 html::-webkit-scrollbar { width: 6px; height: 6px; }
 html::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 999px; }
 html::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-hover); }

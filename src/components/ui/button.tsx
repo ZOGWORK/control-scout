@@ -11,7 +11,8 @@ export const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all ' +
     'disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97] [&_svg]:pointer-events-none [&_svg]:shrink-0 ' +
     "[&_svg:not([class*='size-']):not([class*='w-']):not([class*='h-'])]:size-4 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 " +
-    'focus-visible:ring-offset-2 focus-visible:ring-offset-primary',
+    // tap-44: rem sizes shrink with a phone's 14px base (h-8 is 28px there), so touch screens get a 44px tap area.
+    'focus-visible:ring-offset-2 focus-visible:ring-offset-primary tap-44',
   {
     variants: {
       variant: {
@@ -26,7 +27,7 @@ export const buttonVariants = cva(
         link: 'text-accent-text underline-offset-4 hover:underline px-0 active:scale-100',
       },
       // Sizes are rem: on a phone (14px base, src/index.css) default is 35px
-      // and icon 35px, still well past the 24px minimum touch target.
+      // and icon 35px to look at; the tap area is 44px on a touch screen (tap-44 above).
       size: {
         default: 'h-10 px-4',
         sm: 'h-8 rounded-lg px-3 text-xs',

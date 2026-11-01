@@ -138,14 +138,14 @@ describe("match row layout", () => {
     expect(q("[data-match-label]")!.contains(when)).toBe(true);
   });
 
-  it("the report is an icon button outside the call column, with a 40px tap area", () => {
+  it("the report is an icon button outside the call column, with a 44px tap area on a touch screen", () => {
     show(match({}, 90, 120));
     const link = reportLink();
     expect(link.textContent).toBe("");
     expect(call().contains(link)).toBe(false);
     expect(alliances().contains(link)).toBe(false);
-    // 32px box + the ::after's 4px on each side = 40px to tap.
+    // 32px box; tap-44 (src/index.css) centres a 44px ::after on it on a touch screen.
     expect(link.className).toMatch(/size-8/);
-    expect(link.className).toMatch(/after:-inset-1/);
+    expect(link.className.split(" ")).toContain("tap-44");
   });
 });
