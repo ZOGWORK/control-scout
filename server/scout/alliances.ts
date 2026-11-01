@@ -1,33 +1,42 @@
-// Scouting alliances (docs/alliances.md): two workspaces link for one event. While linked they share a union of
-// entries and assignments and one consensus; when the event ends they split again. Table scout_alliances.
+// Scouting alliances (docs/alliances.md): any number of workspaces link for one event. While linked they share a union
+// of entries and assignments and one consensus; when the event ends they split again. Tables scout_alliances (the
+// alliance: its event, creator, invite code, status) and scout_alliance_members (every workspace in it).
 //
-// Consent, both sides:
-//   invite   an admin of workspace A, for an event that hasn't ended: a pending link and a one-time code (only its
-//            sha256 is kept; the code is shown once). A says now whether to keep copies at the end.
-//   accept   an admin of workspace B, with the code (B ≠ A): the link is active. B says whether to keep copies.
-//   end      an admin of either side: a pending invite is cancelled, an active link ends ("unlinked").
-//   A workspace has at most one pending or active link per event.
+// Consent, every member:
+//   create   an admin of workspace A, for an event that hasn't ended: a pending alliance with A as its creator, and an
+//            invite code (only its sha256 is kept; the code is shown once). A says now whether to keep copies at the end.
+//   join     an admin of another workspace, with the code (the invite link carries it): it's in, and the alliance is
+//            active. It says whether to keep copies. The code works for anyone until it expires (7 days, or the
+//            event's end) or the creator makes a new one; at most MAX_ALLIANCE_MEMBERS workspaces.
+//   invite   the creator's admin: a new code (the old one stops working).
+//   leave    an admin of any member: it's out. Fewer than two left: the alliance ends ("unlinked"). The creator
+//            leaving passes the creator's part to the workspace that joined next.
+//   remove   the creator's admin: another member is out, as if it had left, but keeps no copies of the others'.
+//   end      the creator's admin: a pending alliance is cancelled, an active one ends for everyone ("unlinked").
+//   A workspace is in at most one pending or active alliance per event. One the creator removed can't join it again.
 //
 // Permissions ("linked for event X", on top of membership exactly as workspaceAccess checks it today):
 //   - Every route needs membership of the workspace in the URL (the reader's own); managing needs its admin.
-//   - The shared reads (entries, assignments, coverage, consensus, the partner's pick list) also need an active
-//     link between that workspace and the partner, and read only the link's season and event. An ended link
-//     answers 410 ALLIANCE_ENDED; a link the workspace isn't part of is 404; while the partner's scouting is
-//     switched off, 403 feature_disabled.
+//   - The shared reads (entries, assignments, coverage, consensus, another member's pick list) also need that
+//     workspace to be in an active alliance, and read only its season and event. An ended alliance, or one the
+//     workspace left, answers 410 ALLIANCE_ENDED; one it was never in is 404. A member whose scouting or
+//     alliances are switched off is left out of every read; with nobody else left to read, 403 feature_disabled.
 //   - Nothing here writes entries, assignments or pick lists. Each stays in its own workspace, editable as it
-//     always was (the author, and that workspace's members and admins); a partner admin has no edit rights
+//     always was (the author, and that workspace's members and admins); another member's admin has no edit rights
 //     because they aren't a member of the other workspace.
 //
-// When the link ends (the event's last day is over everywhere: allianceEndsAt, or an admin unlinks), each
-// workspace keeps its own entries. If both sides agreed to keep copies when linking, each also gets a copy of
-// the other side's live entries at the event: new rows in its own workspace (id al<link>-<hash>, so a retry
-// never doubles them) with the original author and answers, a version in their history, published to its
-// streams. Photos stay with the original. Ending is settled before any write to either workspace's entries (so a copy
-// is the entries as they were at the deadline), lazily by every alliance route, and by a sweep (server/index.ts); a copy that failed part way is retried by the next sweep.
+// When it ends for a workspace (the event's last day is over everywhere: allianceEndsAt; the creator ends it; it
+// leaves or is removed), each workspace keeps its own entries. Copies go between every two workspaces that both
+// agreed to keep them: each gets a copy of the other's live entries at the event, new rows in its own workspace
+// (id cp-<hash> of the original, so a retry never doubles them) with the original author and answers, a version in
+// their history, published to its streams. Photos stay with the original. A removed workspace gets none (the others
+// still keep its entries). What's copied is saved in the same write that ends it (scout_alliance_copy_queue), so a
+// copy is the entries as they were then. Ending is settled before any write to a member's entries, lazily by every
+// alliance route, and by a sweep (server/index.ts); a copy that failed part way is retried by the next sweep.
 //
 // The owner's scoutingAlliances switch (src/shared/flags.ts; per workspace): off for a workspace, every alliance route
-// of it answers 403 feature_disabled, nobody accepts its invites, nothing is read across a link with it from either
-// side, and copies wait until it's back on. Links themselves are kept and still end with their event.
+// of it answers 403 feature_disabled, nobody joins alliances it created, nothing is read across to or from it, and
+// copies to or from it wait until it's back on. Alliances themselves are kept and still end with their event.
 import { createHash, randomInt } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import type { InStatement } from "@libsql/client";
@@ -36,9 +45,9 @@ import { isWorkspaceId, type Membership } from "../auth/controlPoint.js";
 import { currentUser, type User } from "../auth/session.js";
 import { featureDisabled, isEnabledFor } from "../flags.js";
 import {
-  ALLIANCE_ENDED, allianceEndsAt, INVITE_ALPHABET, INVITE_CODE_LENGTH, INVITE_TTL_MS, normalInviteCode,
+  ALLIANCE_ENDED, allianceEndsAt, INVITE_ALPHABET, INVITE_CODE_LENGTH, INVITE_TTL_MS, MAX_ALLIANCE_MEMBERS, normalInviteCode,
   type Alliance, type AllianceAnswer, type AllianceConsensusResponse, type AllianceCoverage, type AllianceEndReason, type AllianceEntry, type AllianceInviteResponse,
-  type AlliancePicklistResponse, type AllianceShared, type AllianceSideKey, type AlliancesResponse, type CoverageSide, type TeamCoverage,
+  type AlliancePicklistResponse, type AllianceShared, type AlliancesResponse, type CoverageSide, type TeamCoverage,
 } from "../../src/shared/alliances.js";
 import { normalEventCode, type EventTeamOption } from "../../src/shared/assignments.js";
 import { CONSENSUS_MAX_TEAMS } from "../../src/shared/consensus.js";
@@ -54,33 +63,54 @@ let now = () => Date.now();
 /** Tests: a fake clock. */
 export function setAllianceClock(fn: (() => number) | null) { now = fn ?? (() => Date.now()); }
 
+/** The alliance itself. inviter_ws/inviter_name: its creator (migration 67); the invitee_* columns aren't read. */
 interface Row {
   id: number; season: number; event_code: string; ends_on: string;
-  inviter_ws: string; inviter_name: string; inviter_keeps: number; invited_by_account_id: number;
-  invitee_ws: string | null; invitee_name: string | null; invitee_keeps: number | null; accepted_by_account_id: number | null;
-  invite_expires_at: number | null; status: "pending" | "active" | "ended"; ended_reason: AllianceEndReason | null;
-  created_at: number; accepted_at: number | null; ended_at: number | null; copies_made: number;
+  inviter_ws: string; inviter_name: string;
+  code_hash: string | null; invite_expires_at: number | null; status: "pending" | "active" | "ended"; ended_reason: AllianceEndReason | null;
+  created_at: number; ended_at: number | null; copies_wanted: number; copies_made: number;
+}
+/** A workspace in an alliance (still in while left_at is null). */
+interface Member {
+  ws: string; name: string; keeps: boolean; joined_at: number; left_at: number | null; left_reason: "left" | "removed" | null;
 }
 const LIVE = "('pending', 'active')";
 const num = (v: unknown) => (v == null ? null : Number(v));
 const toRow = (r: any): Row => ({
-  ...r, id: Number(r.id), season: Number(r.season), inviter_keeps: Number(r.inviter_keeps), invited_by_account_id: Number(r.invited_by_account_id),
-  invitee_keeps: num(r.invitee_keeps), accepted_by_account_id: num(r.accepted_by_account_id), invite_expires_at: num(r.invite_expires_at),
-  created_at: Number(r.created_at), accepted_at: num(r.accepted_at), ended_at: num(r.ended_at), copies_made: Number(r.copies_made),
+  ...r, id: Number(r.id), season: Number(r.season), invite_expires_at: num(r.invite_expires_at), created_at: Number(r.created_at),
+  ended_at: num(r.ended_at), copies_wanted: Number(r.copies_wanted), copies_made: Number(r.copies_made),
 });
-const bothKeep = (r: Row) => r.inviter_keeps === 1 && r.invitee_keeps === 1;
+const toMember = (r: any): Member => ({
+  ws: String(r.ws), name: String(r.name ?? ""), keeps: Number(r.keeps) === 1, joined_at: Number(r.joined_at),
+  left_at: num(r.left_at), left_reason: r.left_reason ?? null,
+});
+const isIn = (m: Member) => m.left_at == null;
 const hashCode = (code: string) => createHash("sha256").update(`scout-alliance:${code}`).digest("hex");
+const codeWorks = (r: Row) => !!r.code_hash && r.invite_expires_at != null && r.invite_expires_at > now();
 
-/** The link as `workspaceId`'s members read it. */
-function view(r: Row, workspaceId: string, eventName: string | null): Alliance {
-  const inviter = { workspaceId: r.inviter_ws, name: r.inviter_name, keepsCopies: r.inviter_keeps === 1 };
-  const invitee = r.invitee_ws ? { workspaceId: r.invitee_ws, name: r.invitee_name ?? "", keepsCopies: r.invitee_keeps == null ? null : r.invitee_keeps === 1 } : null;
-  const mine = r.inviter_ws === workspaceId;
+/** Every workspace that was ever in these alliances, in the order they joined. */
+async function membersOf(ids: number[]): Promise<Map<number, Member[]>> {
+  const out = new Map<number, Member[]>(ids.map((id) => [id, []]));
+  if (!ids.length) return out;
+  const rows = await all<any>(
+    `SELECT * FROM scout_alliance_members WHERE alliance_id IN (${ids.map(() => "?").join(", ")}) ORDER BY joined_at, ws`, ids);
+  for (const r of rows) out.get(Number(r.alliance_id))?.push(toMember(r));
+  return out;
+}
+const membersOne = async (id: number) => (await membersOf([id])).get(id) ?? [];
+
+/** The alliance as `workspaceId`'s members read it (it was in it at some point). */
+function view(r: Row, members: Member[], workspaceId: string, eventName: string | null): Alliance {
+  const me = members.find((m) => m.ws === workspaceId)!;
+  const gone = !isIn(me);
+  const out = (m: Member) => ({ workspaceId: m.ws, name: m.name, keepsCopies: m.keeps, creator: isIn(m) && m.ws === r.inviter_ws, joinedAt: m.joined_at });
   return {
-    id: r.id, season: r.season, eventCode: r.event_code, eventName, endsOn: r.ends_on, status: r.status, endedReason: r.ended_reason,
-    you: mine ? inviter : invitee!, partner: mine ? invitee : inviter, invitedByYou: mine,
-    createdAt: r.created_at, acceptedAt: r.accepted_at, endedAt: r.ended_at,
-    inviteExpiresAt: r.status === "pending" ? r.invite_expires_at : null, copiesKept: r.copies_made === 1,
+    id: r.id, season: r.season, eventCode: r.event_code, eventName, endsOn: r.ends_on,
+    status: gone ? "ended" : r.status, endedReason: gone ? me.left_reason : r.ended_reason,
+    you: out(me), members: members.filter(isIn).map(out),
+    createdAt: r.created_at, endedAt: gone ? me.left_at : r.ended_at,
+    inviteExpiresAt: !gone && r.status !== "ended" && r.inviter_ws === workspaceId && codeWorks(r) ? r.invite_expires_at : null,
+    copiesKept: !gone && r.copies_made === 1,
   };
 }
 
@@ -89,78 +119,139 @@ async function eventInfo(season: number, code: string): Promise<{ name: string; 
   return e ? { name: String(e.name), end: e.end ? String(e.end) : null } : null;
 }
 const eventName = async (r: Row) => (await eventInfo(r.season, r.event_code))?.name ?? null;
+const viewOf = async (r: Row, workspaceId: string) => view(r, await membersOne(r.id), workspaceId, await eventName(r));
 
 async function rowById(id: number): Promise<Row | null> {
   const r = await get<any>("SELECT * FROM scout_alliances WHERE id = ?", [id]);
   return r ? toRow(r) : null;
 }
 
-/** The workspace's pending or active link at this event, if any (either side). */
+/** The pending or active alliance this workspace is in at this event, if any. */
 async function liveLinkAt(workspaceId: string, season: number, eventCode: string): Promise<Row | null> {
   const r = await get<any>(
-    `SELECT * FROM scout_alliances WHERE season = ? AND event_code = ? AND status IN ${LIVE} AND (inviter_ws = ? OR invitee_ws = ?) LIMIT 1`,
-    [season, eventCode, workspaceId, workspaceId]);
+    `SELECT a.* FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
+      WHERE a.season = ? AND a.event_code = ? AND a.status IN ${LIVE} AND m.ws = ? AND m.left_at IS NULL LIMIT 1`,
+    [season, eventCode, workspaceId]);
   return r ? toRow(r) : null;
 }
 
 // ---------------------------------------------------------------------------
-// Ending: the event is over, an admin unlinks, or an invite is never accepted
+// Ending: the event is over, the creator ends it, a member leaves or is removed, an invite is never used
 // ---------------------------------------------------------------------------
 
+/** Every two workspaces that both agreed, `from` to `to` (a workspace never to itself). */
+function copyPairs(from: Member[], to: Member[]): [Member, Member][] {
+  return from.flatMap((f) => to.filter((t) => t.ws !== f.ws && f.keeps && t.keeps).map((t) => [f, t] as [Member, Member]));
+}
+
 /**
- * End a link (only from the status it's in, so two callers can't both end it). An active one that both sides
- * agreed to keep copies of saves what each side gets, in the same write: the other side's live entries at the
+ * End an alliance for everyone (only from the status it's in, so two callers can't both end it). An active one saves
+ * what each two workspaces that both agreed to keep copies get, in the same write: each one's live entries at the
  * event as they are now (scout_alliance_copy_queue), so a retry later never copies anything added after the end.
  * Then the copies are made. True if this call ended it.
  */
 async function endLink(r: Row, reason: AllianceEndReason): Promise<boolean> {
   const t = now();
-  const copies = r.status === "active" && bothKeep(r) && r.invitee_ws
-    ? [...queueCopies(r, r.inviter_ws, r.invitee_ws, t), ...queueCopies(r, r.invitee_ws, r.inviter_ws, t)] : [];
+  const inNow = (await membersOne(r.id)).filter(isIn);
+  const pairs = r.status === "active" ? copyPairs(inNow, inNow) : [];
+  const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)", args: [r.id, t] };
   await writeBatch([
-    { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?", args: [reason, t, r.id, r.status] },
-    ...copies,
+    { sql: "UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL, copies_wanted = ? WHERE id = ? AND status = ?", args: [reason, t, pairs.length ? 1 : 0, r.id, r.status] },
+    ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, guard)),
   ]);
   const after = await rowById(r.id);
   if (!after || after.status !== "ended" || after.ended_at !== t || after.ended_reason !== reason) return false; // someone else ended it
-  if (copies.length) await keepCopies(after);
+  if (pairs.length) await makeCopies(after);
   return true;
 }
 
 /**
- * Queue `from`'s live entries at the event for `to`, as they are at the end (runs in the ending's own write, and
- * only if that write ended the link). Each keeps where it first came from: an entry that's itself a copy names its
+ * A member is out: it left, or the creator removed it. Copies between it and every member still in that both agreed
+ * (a removed one gets none), as at the end. Fewer than two left: the alliance ends for everyone in the same write.
+ * The creator leaving passes the creator's part to the workspace that joined next. True if this call took it out.
+ */
+async function leaveLink(r: Row, ws: string, why: "left" | "removed"): Promise<boolean> {
+  const t = now();
+  const inNow = (await membersOne(r.id)).filter(isIn);
+  const leaver = inNow.find((m) => m.ws === ws);
+  if (!leaver) return false;
+  const rest = inNow.filter((m) => m.ws !== ws);
+  const ends = rest.length < 2;
+  const pairs = r.status === "active" ? [...copyPairs([leaver], rest), ...(why === "left" ? copyPairs(rest, [leaver]) : [])] : [];
+  const guard = { sql: "EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)", args: [r.id, ws, t] };
+  const next = rest[0];
+  await writeBatch([
+    {
+      sql: `UPDATE scout_alliance_members SET left_at = ?, left_reason = ? WHERE alliance_id = ? AND ws = ? AND left_at IS NULL
+              AND EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = ?)`,
+      args: [t, why, r.id, ws, r.id, r.status],
+    },
+    // The new creator makes its own code: the old one was the leaver's to hand out.
+    ...(r.inviter_ws === ws && next ? [{ sql: "UPDATE scout_alliances SET inviter_ws = ?, inviter_name = ?, code_hash = NULL WHERE id = ? AND inviter_ws = ?", args: [next.ws, next.name, r.id, ws] }] : []),
+    ...(ends ? [{
+      sql: `UPDATE scout_alliances SET status = 'ended', ended_reason = ?, ended_at = ?, code_hash = NULL WHERE id = ? AND status = ?
+              AND EXISTS (SELECT 1 FROM scout_alliance_members m WHERE m.alliance_id = ? AND m.ws = ? AND m.left_at = ?)`,
+      args: [r.status === "pending" ? "cancelled" : "unlinked", t, r.id, r.status, r.id, ws, t],
+    }] : []),
+    ...pairs.map(([f, to]) => queueCopies(r, f.ws, to.ws, guard)),
+  ]);
+  const me = (await membersOne(r.id)).find((m) => m.ws === ws);
+  if (me?.left_at !== t) return false; // it was out already, or the alliance ended meanwhile
+  if (pairs.length) await makeCopies((await rowById(r.id))!);
+  return true;
+}
+
+/**
+ * Queue `from`'s live entries at the event for `to`, as they are now (runs in the ending's own write, and only if
+ * `guard` says that write took effect). Each keeps where it first came from: an entry that's itself a copy names its
  * origin, and one that came from `to` in the first place (a copy from an earlier link) is never sent back.
  */
-function queueCopies(r: Row, from: string, to: string, endedAt: number): InStatement[] {
-  return [{
+function queueCopies(r: Row, from: string, to: string, guard: { sql: string; args: (string | number)[] }): InStatement {
+  return {
     sql: `INSERT OR IGNORE INTO scout_alliance_copy_queue
-            (alliance_id, to_ws, origin_ws, origin_uuid, season, team, event_code, match_label, kind, data, notes, updated_at,
+            (alliance_id, to_ws, from_ws, origin_ws, origin_uuid, season, team, event_code, match_label, kind, data, notes, updated_at,
              author_account_id, author_name, editor_account_id, editor_name, template_id, template_version)
-          SELECT ?, ?, COALESCE(c.origin_ws, ws.cp_workspace_id), COALESCE(c.origin_uuid, w.uuid), w.season, w.team, w.event_code, w.match_label,
+          SELECT ?, ?, ?, COALESCE(c.origin_ws, ws.cp_workspace_id), COALESCE(c.origin_uuid, w.uuid), w.season, w.team, w.event_code, w.match_label,
              w.kind, w.data, w.notes, w.updated_at, w.author_account_id, w.author_name, w.editor_account_id, w.editor_name,
              CASE WHEN c.origin_ws IS NULL THEN w.template_id END, CASE WHEN c.origin_ws IS NULL THEN w.template_version END
             FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
             LEFT JOIN scout_alliance_copies c ON c.to_ws = ws.cp_workspace_id AND c.copy_uuid = w.uuid
            WHERE ws.cp_workspace_id = ? AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
              AND COALESCE(c.origin_ws, '') <> ?
-             AND EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.status = 'ended' AND a.ended_at = ?)`,
-    args: [r.id, to, from, r.season, r.event_code, to, r.id, endedAt],
-  }];
+             AND ${guard.sql}`,
+    args: [r.id, to, from, from, r.season, r.event_code, to, ...guard.args],
+  };
 }
 
-/** Make the copies the link queued (each once, whatever retries), then mark the link's copies made. */
-async function keepCopies(r: Row): Promise<void> {
-  if (!r.invitee_ws) return;
-  // Copying is a read across workspaces: while alliances, or workspace scouting itself, are off for either side it
-  // waits (copies_made stays 0, so the sweep makes them once both are back on).
-  for (const ws of [r.inviter_ws, r.invitee_ws]) {
-    if (!(await isEnabledFor("scoutingAlliances", ws)) || !(await isEnabledFor("workspaceScouting", ws))) return;
+/**
+ * Make the copies this alliance queued (each once, whatever retries). Copying is a read across workspaces: while
+ * alliances, or workspace scouting itself, are off for the receiving or the sending workspace it waits (the sweep
+ * makes it once both are back on). Once the alliance has ended and nothing is left queued, its copies are made.
+ */
+async function makeCopies(r: Row): Promise<void> {
+  const on = new Map<string, Promise<boolean>>();
+  const isOn = (ws: string) => {
+    if (!on.has(ws)) on.set(ws, (async () => (await isEnabledFor("scoutingAlliances", ws)) && (await isEnabledFor("workspaceScouting", ws)))());
+    return on.get(ws)!;
+  };
+  const members = await membersOne(r.id);
+  const queued = await all<any>("SELECT * FROM scout_alliance_copy_queue WHERE alliance_id = ? ORDER BY to_ws", [r.id]);
+  const byTo = new Map<string, any[]>();
+  for (const e of queued) byTo.set(String(e.to_ws), [...(byTo.get(String(e.to_ws)) ?? []), e]);
+  for (const [to, rows] of byTo) {
+    if (!(await isOn(to))) continue;
+    const ready: any[] = [];
+    for (const e of rows) {
+      // Queued before migration 67 (no from_ws): it came from one of the alliance's workspaces, so all of them must be on.
+      const from = e.from_ws ? [String(e.from_ws)] : members.map((m) => m.ws);
+      if ((await Promise.all(from.map(isOn))).every(Boolean)) ready.push(e);
+    }
+    if (ready.length) await copyQueued(r, to, members.find((m) => m.ws === to)?.name ?? "", ready);
   }
-  await copyQueued(r, r.invitee_ws, r.invitee_name ?? "");
-  await copyQueued(r, r.inviter_ws, r.inviter_name);
-  const left = await get<{ n: number }>("SELECT COUNT(*) n FROM scout_alliance_copy_queue WHERE alliance_id = ?", [r.id]);
-  if (!Number(left?.n)) await run("UPDATE scout_alliances SET copies_made = 1 WHERE id = ?", [r.id]);
+  if (r.status === "ended" && r.copies_wanted === 1) {
+    const left = await get<{ n: number }>("SELECT COUNT(*) n FROM scout_alliance_copy_queue WHERE alliance_id = ?", [r.id]);
+    if (!Number(left?.n)) await run("UPDATE scout_alliances SET copies_made = 1 WHERE id = ?", [r.id]);
+  }
 }
 
 /**
@@ -172,9 +263,7 @@ export const copyUuid = (originWorkspace: string, originUuid: string) =>
 
 const WS = "(SELECT id FROM workspaces WHERE cp_workspace_id = ?)";
 
-async function copyQueued(r: Row, to: string, toName: string): Promise<void> {
-  const rows = await all<any>("SELECT * FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ?", [r.id, to]);
-  if (!rows.length) return;
+async function copyQueued(r: Row, to: string, toName: string, rows: any[]): Promise<void> {
   await serialized(to, async () => {
     const before = await lastSeq(to);
     const at = new Date(now()).toISOString();
@@ -212,8 +301,8 @@ async function copyQueued(r: Row, to: string, toName: string): Promise<void> {
 }
 
 /**
- * End every link that's due: invites past their code's life or their event, links whose event is over. Then
- * retry copies that didn't finish (only what was queued when the link ended). Cheap when nothing is due; run by
+ * End every alliance that's due: pending ones past their code's life or their event, active ones whose event is
+ * over. Then retry copies that didn't finish (only what was queued when it ended). Cheap when nothing is due; run by
  * every alliance route and by the sweep.
  */
 export async function settleAlliances(): Promise<number> {
@@ -225,21 +314,24 @@ export async function settleAlliances(): Promise<number> {
     if (r.status === "pending" && (over || (r.invite_expires_at != null && r.invite_expires_at <= t))) ended += Number(await endLink(r, "expired"));
     else if (r.status === "active" && over) ended += Number(await endLink(r, "event_over"));
   }
-  for (const raw of await all<any>("SELECT * FROM scout_alliances WHERE status = 'ended' AND copies_made = 0 AND accepted_at IS NOT NULL AND inviter_keeps = 1 AND invitee_keeps = 1")) {
-    await keepCopies(toRow(raw)).catch((e) => console.warn(`[alliances] copies for link ${raw.id}: ${(e as Error).message}`));
+  for (const raw of await all<any>(
+    `SELECT * FROM scout_alliances WHERE id IN (SELECT alliance_id FROM scout_alliance_copy_queue)
+        OR (status = 'ended' AND copies_wanted = 1 AND copies_made = 0)`)) {
+    await makeCopies(toRow(raw)).catch((e) => console.warn(`[alliances] copies for alliance ${raw.id}: ${(e as Error).message}`));
   }
   return ended;
 }
 
 /**
- * End this workspace's links that are due, before anything is written to its entries (bus.ts onBeforeEntriesWrite):
- * the copies a link keeps are then always the entries as they were at its deadline, never an edit made after it.
+ * End this workspace's alliances that are due, before anything is written to its entries (bus.ts onBeforeEntriesWrite):
+ * the copies an alliance keeps are then always the entries as they were at its deadline, never an edit made after it.
  * One indexed query when nothing is due.
  */
 export async function settleWorkspace(workspaceId: string): Promise<void> {
   const t = now();
   const rows = await all<any>(
-    `SELECT * FROM scout_alliances WHERE status = 'active' AND (inviter_ws = ? OR invitee_ws = ?)`, [workspaceId, workspaceId]);
+    `SELECT a.* FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
+      WHERE m.ws = ? AND m.left_at IS NULL AND a.status = 'active'`, [workspaceId]);
   for (const raw of rows) {
     const r = toRow(raw);
     if (allianceEndsAt(r.ends_on) <= t) await endLink(r, "event_over");
@@ -252,50 +344,51 @@ onBeforeEntriesWrite(settleWorkspace);
 // ---------------------------------------------------------------------------
 
 export type AllianceAccess =
-  | { ok: true; membership: Membership; row: Row; side: "inviter" | "invitee"; partnerWs: string; partnerName: string }
+  | { ok: true; membership: Membership; row: Row; members: Member[]; others: Member[] }
   | { ok: false; status: number; error: string; code?: string };
 
 /**
- * May this user read what `workspaceId` shares through link `allianceId`? They must be a member of
- * `workspaceId` (workspaceAccess, as every workspace read), the link must include it and be active.
+ * May this user read what `workspaceId` shares through alliance `allianceId`? They must be a member of
+ * `workspaceId` (workspaceAccess, as every workspace read), and it must be in the alliance, which must be active.
+ * `members`: every workspace in it now; `others`: all but this one.
  */
 export async function allianceAccess(user: User, workspaceId: string, allianceId: number): Promise<AllianceAccess> {
   const access = await workspaceAccess(user, workspaceId);
   if (!access.ok) return { ok: false, status: access.status, ...accessError(access) };
   await settleAlliances();
   const row = await rowById(allianceId);
-  if (!row || (row.inviter_ws !== workspaceId && row.invitee_ws !== workspaceId)) return { ok: false, status: 404, error: "No such alliance for this workspace." };
-  if (row.status !== "active" || !row.invitee_ws) {
-    return { ok: false, status: 410, error: row.status === "pending" ? "This alliance hasn't been accepted yet." : "This alliance has ended.", code: ALLIANCE_ENDED };
+  const everyone = row ? await membersOne(row.id) : [];
+  const me = everyone.find((m) => m.ws === workspaceId);
+  if (!row || !me) return { ok: false, status: 404, error: NO_SUCH };
+  if (!isIn(me)) return { ok: false, status: 410, error: me.left_reason === "removed" ? "This workspace was removed from this alliance." : "This workspace left this alliance.", code: ALLIANCE_ENDED };
+  if (row.status !== "active") {
+    return { ok: false, status: 410, error: row.status === "pending" ? "Nobody has joined this alliance yet." : "This alliance has ended.", code: ALLIANCE_ENDED };
   }
-  const side = row.inviter_ws === workspaceId ? "inviter" : "invitee";
-  return {
-    ok: true, membership: access.membership, row, side,
-    partnerWs: side === "inviter" ? row.invitee_ws : row.inviter_ws,
-    partnerName: side === "inviter" ? row.invitee_name ?? "" : row.inviter_name,
-  };
+  const members = everyone.filter(isIn);
+  return { ok: true, membership: access.membership, row, members, others: members.filter((m) => m.ws !== workspaceId) };
 }
 
 // ---------------------------------------------------------------------------
 // The shared reads
 // ---------------------------------------------------------------------------
 
-/** Both sides' live entries at the link's event, each observation once (a copy is skipped while its original is live here). */
-async function unionEntries(you: string, partner: string, season: number, eventCode: string): Promise<AllianceEntry[]> {
+/** Every member's live entries at the event, each observation once (a copy is skipped while its original is live here). */
+async function unionEntries(spaces: string[], season: number, eventCode: string): Promise<AllianceEntry[]> {
+  const list = spaces.map(() => "?").join(", ");
   const rows = await all<any>(
     `SELECT ws.cp_workspace_id, w.* FROM workspace_scout_entries w JOIN workspaces ws ON ws.id = w.workspace_id
-      WHERE ws.cp_workspace_id IN (?, ?) AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
-        AND ${notACopyWithin("w", "ws.cp_workspace_id", 2)}
+      WHERE ws.cp_workspace_id IN (${list}) AND w.season = ? AND UPPER(w.event_code) = ? AND w.deleted = 0
+        AND ${notACopyWithin("w", "ws.cp_workspace_id", spaces.length)}
       ORDER BY w.updated_at DESC`,
-    [you, partner, season, eventCode, you, partner, you, partner]);
+    [...spaces, season, eventCode, ...spaces, ...spaces]);
   // Each entry's answers under its own questions: the template it was made with, of its own workspace.
-  const readers = new Map([[you, fieldReader(you)], [partner, fieldReader(partner)]]);
+  const readers = new Map(spaces.map((w) => [w, fieldReader(w)]));
   return Promise.all(rows.map(async (r) => {
     const e = storedEntryFields(r);
     const workspaceId = String(r.cp_workspace_id);
     const fields = await readers.get(workspaceId)!(e.season, e.kind, r.template_id ?? null, r.template_version == null ? 0 : Number(r.template_version));
     return {
-      uuid: e.uuid, side: (workspaceId === you ? "you" : "partner") as AllianceSideKey, workspaceId, team: e.team, kind: e.kind, matchLabel: e.matchLabel,
+      uuid: e.uuid, workspaceId, team: e.team, kind: e.kind, matchLabel: e.matchLabel,
       notes: e.notes, answers: answersOf(fields, e.data), updatedAt: e.updatedAt,
       authorAccountId: Number(r.author_account_id), authorDisplayName: String(r.author_name ?? ""),
     };
@@ -315,11 +408,10 @@ export function answersOf(fields: ScoutField[], data: Record<string, unknown>): 
   return out;
 }
 
-/** Who contributed what (shown, never policed). Every team on the event's list appears, scouted or not. */
-export function coverageOf(you: { workspaceId: string; name: string }, partner: { workspaceId: string; name: string },
-  entries: AllianceEntry[], teams: EventTeamOption[]): AllianceCoverage {
-  const side = (key: AllianceSideKey, s: { workspaceId: string; name: string }): CoverageSide => {
-    const mine = entries.filter((e) => e.side === key);
+/** Who contributed what (shown, never policed), one per member in its order. Every team on the event's list appears, scouted or not. */
+export function coverageOf(members: { workspaceId: string; name: string }[], entries: AllianceEntry[], teams: EventTeamOption[]): AllianceCoverage {
+  const side = (s: { workspaceId: string; name: string }): CoverageSide => {
+    const mine = entries.filter((e) => e.workspaceId === s.workspaceId);
     const match = mine.filter((e) => e.kind === "match");
     return {
       ...s, entries: mine.length, matchEntries: match.length, pitEntries: mine.length - match.length,
@@ -328,14 +420,15 @@ export function coverageOf(you: { workspaceId: string; name: string }, partner: 
       scouts: new Set(mine.map((e) => e.authorAccountId)).size,
     };
   };
-  const byTeam = new Map<number, TeamCoverage>(teams.map((t) => [t.team, { team: t.team, name: t.name, you: 0, partner: 0 }]));
+  const byTeam = new Map<number, TeamCoverage>(teams.map((t) => [t.team, { team: t.team, name: t.name, total: 0, byMember: {} }]));
   for (const e of entries) {
-    const t = byTeam.get(e.team) ?? { team: e.team, name: null, you: 0, partner: 0 };
-    t[e.side]++;
+    const t = byTeam.get(e.team) ?? { team: e.team, name: null, total: 0, byMember: {} };
+    t.total++;
+    t.byMember[e.workspaceId] = (t.byMember[e.workspaceId] ?? 0) + 1;
     byTeam.set(e.team, t);
   }
-  const list = [...byTeam.values()].sort((a, b) => b.you + b.partner - (a.you + a.partner) || a.team - b.team);
-  return { you: side("you", you), partner: side("partner", partner), teams: list };
+  const list = [...byTeam.values()].sort((a, b) => b.total - a.total || a.team - b.team);
+  return { members: members.map(side), teams: list };
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +444,15 @@ const jsonOnly = (req: Request, res: Response, next: NextFunction) => {
 };
 const isSeason = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v) && v >= 2000 && v <= 2100;
 const newCode = () => Array.from({ length: INVITE_CODE_LENGTH }, () => INVITE_ALPHABET[randomInt(INVITE_ALPHABET.length)]).join("");
+const allianceIdOf = (req: Request, res: Response): number | null => {
+  const id = Number(req.params.allianceId);
+  if (!Number.isSafeInteger(id) || id < 1) { res.status(400).json({ error: "allianceId required" }); return null; }
+  return id;
+};
+const NO_SUCH = "No such alliance for this workspace.";
+const BAD_CODE = "No open invite with that code. It may have expired or been replaced.";
+const ALREADY = "This workspace is already in an alliance (or has an invite out) for this event.";
+const FULL = `This alliance is full (${MAX_ALLIANCE_MEMBERS} teams).`;
 
 /**
  * Scouting alliances switched off by the owner (the scoutingAlliances flag: the workspace's override, else the global
@@ -367,29 +469,38 @@ const requireAlliances = (req: Request, res: Response, next: NextFunction) => {
   alliancesOff(res, req.params.workspaceId).then((off) => { if (!off) next(); }, next);
 };
 
-/** The shared-read guard: signed in, a good id, scouting on for both sides, linked for the event. */
-async function shared(req: Request, res: Response): Promise<Extract<AllianceAccess, { ok: true }> | null> {
+/**
+ * The shared-read guard: signed in, a good id, scouting on, in an active alliance for the event. `readable`: the other
+ * members whose scouting and alliances are on (the rest are left out of every read); none of them: 403 feature_disabled.
+ */
+async function shared(req: Request, res: Response): Promise<(Extract<AllianceAccess, { ok: true }> & { readable: Member[] }) | null> {
   res.set("Cache-Control", "private, no-store");
   const user = await currentUser(req);
   if (!user) { res.status(401).json({ error: "Sign in first." }); return null; }
   const workspaceId = req.params.workspaceId;
   if (!isWorkspaceId(workspaceId)) { res.status(400).json({ error: "workspaceId required" }); return null; }
-  const id = Number(req.params.allianceId);
-  if (!Number.isSafeInteger(id) || id < 1) { res.status(400).json({ error: "allianceId required" }); return null; }
+  const id = allianceIdOf(req, res);
+  if (id == null) return null;
   if (await workspacePaused(res, workspaceId) || await alliancesOff(res, workspaceId)) return null;
   const a = await allianceAccess(user, workspaceId, id);
   if (!a.ok) { res.status(a.status).json(a.code ? { error: a.error, code: a.code } : { error: a.error }); return null; }
-  // The partner switched its scouting off: what it shares is off too (its members can't read it either).
-  if (!(await isEnabledFor("workspaceScouting", a.partnerWs))) { featureDisabled(res, "workspaceScouting"); return null; }
-  // Switched off for the partner: nothing is read across in either direction.
-  if (await alliancesOff(res, a.partnerWs)) return null;
-  return a;
+  // A member that switched its scouting off shares nothing (its own members can't read it either); one with alliances
+  // switched off reads nothing across and shares nothing.
+  const readable: Member[] = [];
+  let refused: "workspaceScouting" | "scoutingAlliances" | null = null;
+  for (const m of a.others) {
+    if (!(await isEnabledFor("workspaceScouting", m.ws))) refused ??= "workspaceScouting";
+    else if (!(await isEnabledFor("scoutingAlliances", m.ws))) refused ??= "scoutingAlliances";
+    else readable.push(m);
+  }
+  if (!readable.length && refused) { featureDisabled(res, refused); return null; }
+  return { ...a, readable };
 }
 
 export function alliancesRouter(): Router {
   const r = express.Router();
 
-  // Every link of this workspace (live ones first, then the last ended ones). Any member.
+  // Every alliance this workspace is or was in (live ones first, then the last ended or left ones). Any member.
   r.get("/workspaces/:workspaceId/alliances", h(async (req, res) => {
     res.set("Cache-Control", "private, no-store");
     const user = await currentUser(req);
@@ -403,15 +514,18 @@ export function alliancesRouter(): Router {
     const season = req.query.season === undefined ? null : Number(req.query.season);
     if (season != null && !isSeason(season)) { res.status(400).json({ error: "season must be a year" }); return; }
     const rows = (await all<any>(
-      `SELECT * FROM scout_alliances WHERE (inviter_ws = ? OR invitee_ws = ?)${season != null ? " AND season = ?" : ""}
-        ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, COALESCE(ended_at, created_at) DESC LIMIT 20`,
-      [workspaceId, workspaceId, ...(season != null ? [season] : [])])).map(toRow);
-    const alliances = await Promise.all(rows.map(async (x) => view(x, workspaceId, await eventName(x))));
+      `SELECT a.* FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
+        WHERE m.ws = ?${season != null ? " AND a.season = ?" : ""}
+        ORDER BY CASE WHEN m.left_at IS NOT NULL THEN 2 WHEN a.status = 'active' THEN 0 WHEN a.status = 'pending' THEN 1 ELSE 2 END,
+          COALESCE(m.left_at, a.ended_at, a.created_at) DESC LIMIT 20`,
+      [workspaceId, ...(season != null ? [season] : [])])).map(toRow);
+    const members = await membersOf(rows.map((x) => x.id));
+    const alliances = await Promise.all(rows.map(async (x) => view(x, members.get(x.id) ?? [], workspaceId, await eventName(x))));
     const body: AlliancesResponse = { alliances, canManage: access.membership.role === "admin" && !access.orphaned };
     return body;
   }));
 
-  // Invite: an admin, for an event of this season that hasn't ended. The code comes back once.
+  // Start one: an admin, for an event of this season that hasn't ended. This workspace is its creator; the code comes back once.
   r.post("/workspaces/:workspaceId/alliances", jsonOnly, requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
     res.set("Cache-Control", "no-store");
     const m = res.locals.membership as Membership;
@@ -426,21 +540,26 @@ export function alliancesRouter(): Router {
     if (allianceEndsAt(endsOn) <= now()) { res.status(400).json({ error: "This event is over." }); return; }
     await settleAlliances();
     return serialized(`alliance:${season}:${eventCode}`, async () => {
-      if (await liveLinkAt(m.workspaceId, season, eventCode)) { res.status(409).json({ error: "This workspace already has an alliance (or an invite) for this event." }); return; }
+      if (await liveLinkAt(m.workspaceId, season, eventCode)) { res.status(409).json({ error: ALREADY }); return; }
       const code = newCode();
       const t = now();
-      await run(
-        `INSERT INTO scout_alliances (season, event_code, ends_on, inviter_ws, inviter_name, inviter_keeps, invited_by_account_id, code_hash, invite_expires_at, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-        [season, eventCode, endsOn, m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, hashCode(code), Math.min(t + INVITE_TTL_MS, allianceEndsAt(endsOn)), t]);
+      await writeBatch([{
+        sql: `INSERT INTO scout_alliances (season, event_code, ends_on, inviter_ws, inviter_name, inviter_keeps, invited_by_account_id, code_hash, invite_expires_at, status, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+        args: [season, eventCode, endsOn, m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, hashCode(code), Math.min(t + INVITE_TTL_MS, allianceEndsAt(endsOn)), t],
+      }, {
+        sql: `INSERT INTO scout_alliance_members (alliance_id, ws, name, keeps, joined_by_account_id, joined_at)
+              SELECT id, ?, ?, ?, ?, ? FROM scout_alliances WHERE code_hash = ?`,
+        args: [m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, t, hashCode(code)],
+      }]);
       const row = toRow(await get<any>("SELECT * FROM scout_alliances WHERE code_hash = ?", [hashCode(code)]));
       res.status(201);
-      const body: AllianceInviteResponse = { alliance: view(row, m.workspaceId, ev.name), code };
+      const body: AllianceInviteResponse = { alliance: await viewOf(row, m.workspaceId), code };
       return body;
     });
   }));
 
-  // Accept: an admin of the other workspace, with the code.
+  // Join: an admin of another workspace, with the code.
   r.post("/workspaces/:workspaceId/alliances/accept", jsonOnly, requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
     res.set("Cache-Control", "no-store");
     const m = res.locals.membership as Membership;
@@ -449,65 +568,126 @@ export function alliancesRouter(): Router {
     if (!code) { res.status(400).json({ error: "That isn't an invite code (10 letters and numbers)." }); return; }
     if (typeof keepCopies !== "boolean") { res.status(400).json({ error: "keepCopies must be true or false" }); return; }
     await settleAlliances();
-    const found = await get<any>("SELECT * FROM scout_alliances WHERE code_hash = ? AND status = 'pending'", [hashCode(code)]);
-    if (!found) { res.status(404).json({ error: "No open invite with that code. It may have expired or been used." }); return; }
+    const found = await get<any>(`SELECT * FROM scout_alliances WHERE code_hash = ? AND status IN ${LIVE}`, [hashCode(code)]);
+    if (!found || !codeWorks(toRow(found))) { res.status(404).json({ error: BAD_CODE }); return; }
     const inv = toRow(found);
-    // Switched off for the inviting workspace: no new link with it either.
+    // Switched off for the workspace that made the code: nobody joins through it.
     if (await alliancesOff(res, inv.inviter_ws)) return;
-    if (inv.inviter_ws === m.workspaceId) { res.status(400).json({ error: "That's this workspace's own invite: send it to the other team's admin." }); return; }
     return serialized(`alliance:${inv.season}:${inv.event_code}`, async () => {
-      if (await liveLinkAt(m.workspaceId, inv.season, inv.event_code)) { res.status(409).json({ error: "This workspace already has an alliance (or an invite) for this event." }); return; }
-      const changed = await run(
-        `UPDATE scout_alliances SET status = 'active', invitee_ws = ?, invitee_name = ?, invitee_keeps = ?, accepted_by_account_id = ?, accepted_at = ?, code_hash = NULL
-          WHERE id = ? AND status = 'pending'`,
-        [m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, now(), inv.id]);
-      if (!changed) { res.status(404).json({ error: "No open invite with that code. It may have expired or been used." }); return; }
-      const row = (await rowById(inv.id))!;
-      return { alliance: view(row, m.workspaceId, await eventName(row)) };
+      const before = await membersOne(inv.id);
+      const was = before.find((x) => x.ws === m.workspaceId);
+      if (was && isIn(was)) { res.status(400).json({ error: "This workspace is already in this alliance: send the code to another team's admin." }); return; }
+      if (was?.left_reason === "removed") { res.status(403).json({ error: "This workspace was removed from this alliance, so it can't join again." }); return; }
+      if (await liveLinkAt(m.workspaceId, inv.season, inv.event_code)) { res.status(409).json({ error: ALREADY }); return; }
+      if (before.filter(isIn).length >= MAX_ALLIANCE_MEMBERS) { res.status(409).json({ error: FULL }); return; }
+      const t = now();
+      const stillOpen = `EXISTS (SELECT 1 FROM scout_alliances a WHERE a.id = ? AND a.code_hash = ? AND a.status IN ${LIVE})`;
+      await writeBatch([{
+        // A workspace that left earlier comes back in on its old row.
+        sql: `INSERT INTO scout_alliance_members (alliance_id, ws, name, keeps, joined_by_account_id, joined_at)
+              SELECT ?, ?, ?, ?, ?, ? WHERE ${stillOpen}
+              ON CONFLICT(alliance_id, ws) DO UPDATE SET name = excluded.name, keeps = excluded.keeps, joined_by_account_id = excluded.joined_by_account_id,
+                joined_at = excluded.joined_at, left_at = NULL, left_reason = NULL
+              WHERE scout_alliance_members.left_reason IS NOT 'removed'`,
+        args: [inv.id, m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, t, inv.id, hashCode(code)],
+      }, {
+        sql: `UPDATE scout_alliances SET status = 'active', accepted_at = COALESCE(accepted_at, ?) WHERE id = ? AND code_hash = ? AND status IN ${LIVE}`,
+        args: [t, inv.id, hashCode(code)],
+      }]);
+      const me = (await membersOne(inv.id)).find((x) => x.ws === m.workspaceId);
+      if (!me || !isIn(me) || me.joined_at !== t) { res.status(404).json({ error: BAD_CODE }); return; }
+      return { alliance: await viewOf((await rowById(inv.id))!, m.workspaceId) };
     });
   }));
 
-  // End: an admin of either side. Pending: the invite is cancelled. Active: unlinked now (copies as agreed).
-  r.post("/workspaces/:workspaceId/alliances/:allianceId/end", requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
+  /** The alliance in the URL, for an admin route: 404 unless this workspace is in it now; with `creator`, it must be its creator. */
+  async function managed(req: Request, res: Response, creator: boolean): Promise<{ m: Membership; row: Row } | null> {
     res.set("Cache-Control", "no-store");
     const m = res.locals.membership as Membership;
-    const id = Number(req.params.allianceId);
-    if (!Number.isSafeInteger(id) || id < 1) { res.status(400).json({ error: "allianceId required" }); return; }
+    const id = allianceIdOf(req, res);
+    if (id == null) return null;
     await settleAlliances();
     const row = await rowById(id);
-    if (!row || (row.inviter_ws !== m.workspaceId && row.invitee_ws !== m.workspaceId)) { res.status(404).json({ error: "No such alliance for this workspace." }); return; }
-    if (row.status === "ended" || !(await endLink(row, row.status === "pending" ? "cancelled" : "unlinked"))) {
-      res.status(409).json({ error: "This alliance has already ended.", code: ALLIANCE_ENDED }); return;
+    const me = row ? (await membersOne(row.id)).find((x) => x.ws === m.workspaceId) : undefined;
+    if (!row || !me) { res.status(404).json({ error: NO_SUCH }); return null; }
+    if (row.status === "ended" || !isIn(me)) {
+      res.status(409).json({ error: isIn(me) ? "This alliance has already ended." : "This workspace isn't in this alliance any more.", code: ALLIANCE_ENDED });
+      return null;
     }
-    const after = (await rowById(id))!;
-    return { alliance: view(after, m.workspaceId, await eventName(after)) };
+    if (creator && row.inviter_ws !== m.workspaceId) { res.status(403).json({ error: "Only the team that started this alliance can do that." }); return null; }
+    return { m, row };
+  }
+
+  // A new invite code: the creator. The old code stops working.
+  r.post("/workspaces/:workspaceId/alliances/:allianceId/invite", requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
+    const x = await managed(req, res, true);
+    if (!x) return;
+    const { m, row } = x;
+    if ((await membersOne(row.id)).filter(isIn).length >= MAX_ALLIANCE_MEMBERS) { res.status(409).json({ error: FULL }); return; }
+    const code = newCode();
+    const changed = await run(
+      `UPDATE scout_alliances SET code_hash = ?, invite_expires_at = ? WHERE id = ? AND inviter_ws = ? AND status IN ${LIVE}`,
+      [hashCode(code), Math.min(now() + INVITE_TTL_MS, allianceEndsAt(row.ends_on)), row.id, m.workspaceId]);
+    if (!changed) { res.status(409).json({ error: "This alliance has already ended.", code: ALLIANCE_ENDED }); return; }
+    const body: AllianceInviteResponse = { alliance: await viewOf((await rowById(row.id))!, m.workspaceId), code };
+    return body;
   }));
 
-  // The union: both sides' entries and assignments at the event, and who contributed what.
+  // End for everyone: the creator. Pending: cancelled. Active: unlinked now (copies as agreed).
+  r.post("/workspaces/:workspaceId/alliances/:allianceId/end", requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
+    const x = await managed(req, res, true);
+    if (!x) return;
+    const { m, row } = x;
+    if (!(await endLink(row, row.status === "pending" ? "cancelled" : "unlinked"))) { res.status(409).json({ error: "This alliance has already ended.", code: ALLIANCE_ENDED }); return; }
+    return { alliance: await viewOf((await rowById(row.id))!, m.workspaceId) };
+  }));
+
+  // Leave: an admin of any member. The others carry on while at least two are left.
+  r.post("/workspaces/:workspaceId/alliances/:allianceId/leave", requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
+    const x = await managed(req, res, false);
+    if (!x) return;
+    const { m, row } = x;
+    const done = await serialized(`alliance:${row.season}:${row.event_code}`, async () => leaveLink((await rowById(row.id))!, m.workspaceId, "left"));
+    if (!done) { res.status(409).json({ error: "This workspace isn't in this alliance any more.", code: ALLIANCE_ENDED }); return; }
+    return { alliance: await viewOf((await rowById(row.id))!, m.workspaceId) };
+  }));
+
+  // Remove another member: the creator. It's out as if it had left, but keeps no copies of the others' entries.
+  r.post("/workspaces/:workspaceId/alliances/:allianceId/members/:memberId/remove", requireWorkspaceAdmin(), requireAlliances, h(async (req, res) => {
+    const x = await managed(req, res, true);
+    if (!x) return;
+    const { m, row } = x;
+    const target = req.params.memberId;
+    if (target === m.workspaceId) { res.status(400).json({ error: "To take this workspace out, leave the alliance instead." }); return; }
+    if (!(await membersOne(row.id)).some((y) => y.ws === target && isIn(y))) { res.status(404).json({ error: "That team isn't in this alliance." }); return; }
+    const done = await serialized(`alliance:${row.season}:${row.event_code}`, async () => leaveLink((await rowById(row.id))!, target, "removed"));
+    if (!done) { res.status(409).json({ error: "That team isn't in this alliance any more." }); return; }
+    return { alliance: await viewOf((await rowById(row.id))!, m.workspaceId) };
+  }));
+
+  // The union: every member's entries and assignments at the event, and who contributed what.
   r.get("/workspaces/:workspaceId/alliances/:allianceId/shared", h(async (req, res) => {
     const a = await shared(req, res);
     if (!a) return;
     const { row, membership: m } = a;
-    const you = m.workspaceId;
-    const [entries, teams, ownA, partnerA, ownM, partnerM] = await Promise.all([
-      unionEntries(you, a.partnerWs, row.season, row.event_code),
+    const read = a.members.filter((x) => x.ws === m.workspaceId || a.readable.includes(x));
+    const spaces = read.map((x) => x.ws);
+    const scope = { season: row.season, eventCode: row.event_code };
+    const [entries, teams, teamAssignments, matchAssignments] = await Promise.all([
+      unionEntries(spaces, row.season, row.event_code),
       eventTeams(row.season, row.event_code),
-      listAssignments(you, { season: row.season, eventCode: row.event_code }),
-      listAssignments(a.partnerWs, { season: row.season, eventCode: row.event_code }),
-      listMatchAssignments(you, { season: row.season, eventCode: row.event_code }),
-      listMatchAssignments(a.partnerWs, { season: row.season, eventCode: row.event_code }),
+      Promise.all(spaces.map((ws) => listAssignments(ws, scope))),
+      Promise.all(spaces.map((ws) => listMatchAssignments(ws, scope))),
     ]);
-    const alliance = view(row, you, await eventName(row));
     const body: AllianceShared = {
-      alliance, entries,
-      assignments: [...ownA.map((x) => ({ ...x, side: "you" as const })), ...partnerA.map((x) => ({ ...x, side: "partner" as const }))],
-      matchAssignments: [...ownM.map((x) => ({ ...x, side: "you" as const })), ...partnerM.map((x) => ({ ...x, side: "partner" as const }))],
-      coverage: coverageOf({ workspaceId: you, name: alliance.you.name }, { workspaceId: a.partnerWs, name: a.partnerName }, entries, teams),
+      alliance: await viewOf(row, m.workspaceId), entries,
+      assignments: teamAssignments.flat(), matchAssignments: matchAssignments.flat(),
+      coverage: coverageOf(read.map((x) => ({ workspaceId: x.ws, name: x.name })), entries, teams),
     };
     return body;
   }));
 
-  // One consensus over both sides' entries at the event (the same answer for both sides).
+  // One consensus over every member's entries at the event (the same answer for every member).
   r.get("/workspaces/:workspaceId/alliances/:allianceId/consensus", h(async (req, res) => {
     const a = await shared(req, res);
     if (!a) return;
@@ -515,19 +695,22 @@ export function alliancesRouter(): Router {
     if (!teams) { res.status(400).json({ error: `teams: 1 to ${CONSENSUS_MAX_TEAMS} team numbers, comma separated` }); return; }
     const body: AllianceConsensusResponse = {
       allianceId: a.row.id, season: a.row.season, eventCode: a.row.event_code,
-      teams: await consensusForScope({ workspaces: [a.membership.workspaceId, a.partnerWs], eventCode: a.row.event_code, oneEach: true }, a.row.season, teams),
+      teams: await consensusForScope({ workspaces: [a.membership.workspaceId, ...a.readable.map((x) => x.ws)], eventCode: a.row.event_code, oneEach: true }, a.row.season, teams),
     };
     return body;
   }));
 
-  // The partner's pick list, to read: only the teams on the event's team list.
+  // Another member's pick list (?workspace=; without it, the first other member's), to read: only the teams on the event's team list.
   r.get("/workspaces/:workspaceId/alliances/:allianceId/picklist", h(async (req, res) => {
     const a = await shared(req, res);
     if (!a) return;
-    const [list, teams] = await Promise.all([readPickList(a.partnerWs, a.row.season), eventTeams(a.row.season, a.row.event_code)]);
-    // Only teams known to be at the event: with no team list yet, none (never the partner's whole season).
+    const asked = typeof req.query.workspace === "string" ? req.query.workspace : null;
+    const of = asked ? a.readable.find((x) => x.ws === asked) : a.readable[0];
+    if (!of) { res.status(404).json({ error: "That team isn't in this alliance." }); return; }
+    const [list, teams] = await Promise.all([readPickList(of.ws, a.row.season), eventTeams(a.row.season, a.row.event_code)]);
+    // Only teams known to be at the event: with no team list yet, none (never the member's whole season).
     const at = new Set(teams.map((t) => t.team));
-    const body: AlliancePicklistResponse = { allianceId: a.row.id, partnerName: a.partnerName, teamsKnown: at.size > 0, list: { ...list, picks: list.picks.filter((p) => at.has(p.team)) } };
+    const body: AlliancePicklistResponse = { allianceId: a.row.id, workspaceId: of.ws, name: of.name, teamsKnown: at.size > 0, list: { ...list, picks: list.picks.filter((p) => at.has(p.team)) } };
     return body;
   }));
 
