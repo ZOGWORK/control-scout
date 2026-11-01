@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.2 — 2026-10-31
+
+Setting up Scout takes fewer taps and no hunting for the next step.
+
+### Highlights
+
+- [scout] Two tabs, Scout and Data: the match list lives inside Scout
+- [scout] One event picker: search on top, today's events under it
+- [scout] Picking an event folds the list and moves you to the next step
+- [scout] Start scouting stays in reach at the bottom of the screen
+
+### Scout
+
+- **Scout and Data.** Match and Matches were one job split in two, so they are one Scout tab now. It opens on the match to scout, as Match did; "All matches" shows the event's match list in its place (wide screens still show it beside the match) and tapping a match goes back to scouting it. Old links to the Matches tab open the list.
+- **One event picker.** "Where are you scouting?" is a search box with a short list under it (today's events first, then your team's, then the next ones; Show more for the rest), instead of a list and a separate "Search all events" box.
+- **Moved on after a pick.** Picking an event folds the list to one "Scouting at … · Change" row and brings what you're watching into view (no glide if you asked for reduced motion). A suggested or running event starts folded.
+- **Start in reach.** Once an event is picked, Start scouting is pinned at the bottom of the screen (above the tab bar on phones), bigger, and says what it will start ("Red alliance at …").
+
 ## 1.7.1 — 2026-10-31
 
 Closed sections on team pages now show there's more inside.
