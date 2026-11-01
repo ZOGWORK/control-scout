@@ -1,23 +1,21 @@
 // Manual scouting: your own match and pit observations on top of public data.
 // Offline-first: saved on this device the moment you press Save; synced to
 // your account when signed in and online.
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, Handshake, History, Info, LayoutList, ListOrdered, Loader2, Lock, MessageSquare, Pause, Plus, Save, SearchX, Trash2, Video, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, Handshake, History, Info, LayoutList, ListOrdered, Loader2, Lock, Pause, Plus, SearchX, Video, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import { canDeleteScoutEntry, deleteScoutEntry, isScoutQueued, scoutSyncProblem, localScoutEntries, newScoutId, personalCopy, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
-import { resolveTemplate, useEntryTemplate, useEntryTemplateState, useWorkspaceTemplate } from "../lib/scoutTemplates";
-import { ALL_PHASES, phaseLabel, type WorkspaceTemplate } from "../shared/scoutTemplate";
+import { canDeleteScoutEntry, localScoutEntries, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, usePendingScoutCounts, useScouting, type ScoutSpace } from "../lib/scouting";
+import { resolveTemplate, useWorkspaceTemplate } from "../lib/scoutTemplates";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
 import { useWorkspaceFlag } from "../lib/flags";
 import { featureOffMessage } from "../shared/flags";
-import { DEFAULT_WATCHING, nextMatchIndex, normalizeMatchLabel, scoutedByMatch, type Watching } from "../shared/scoutMatch";
+import { DEFAULT_WATCHING, nextMatchIndex, scoutedByMatch, type Watching } from "../shared/scoutMatch";
 import { activeFilterCount } from "../shared/scoutFilter";
 import { EntryFilterBar } from "../components/scout/EntryFilterBar";
 import { useEntryFeed, type FeedViewer } from "../lib/scoutFeed";
 import { qs, useApi } from "../lib/api";
-import { isKnownTime } from "../lib/format";
 import type { EventListItem } from "../shared/api";
 import { TemplateEditor } from "../components/scout/TemplateEditor";
 import { useScoutSpaces, workspaceLabel } from "../lib/scoutSpace";
@@ -25,10 +23,6 @@ import { newEntryEventCode, useWorkspaceSettings } from "../lib/workspaceSetting
 import { ScoutSpaceSwitcher } from "../components/ScoutSpaceSwitcher";
 import { LoadingBlock } from "../components/states";
 import { useScoutLive, type LiveMode } from "../lib/scoutLive";
-import { EntryAttribution } from "../components/EntryAttribution";
-import { SaveStatus } from "../components/SaveStatus";
-import { EntryPhotos } from "../components/scout/EntryPhotos";
-import { CommonsBadge, CommonsShare } from "../components/scout/CommonsShare";
 import { ActivityFeed } from "../components/scout/ActivityFeed";
 import { ConflictNotices, HistorySheet } from "../components/scout/EntryHistory";
 import { LOST_UNSAVED_MESSAGE, SCOUT_LOST_UNSAVED } from "../lib/lostEdits";
@@ -44,17 +38,17 @@ import { assignedLabel, useAssignmentIndex, useAssignments } from "../lib/assign
 import { assignmentKey } from "../shared/assignments";
 import { PageHeader, Section, EmptyState } from "../components/page";
 import { Button } from "../components/ui/button";
-import { Badge, FieldError, Input, Textarea, Label } from "../components/ui/basic";
+import { Badge } from "../components/ui/basic";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { toast } from "../components/ui/sonner";
-import { TeamInput, lookupTeamName } from "../components/TeamInput";
-import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
 import { MatchScout } from "../components/scout/redesign/MatchScout";
 import { EntryEditor } from "../components/scout/forms/EntryEditor";
 import type { SaveSync } from "../components/scout/forms/SaveState";
 import { PitScout } from "../components/scout/eventday/PitScout";
+import { EntryRow } from "../components/scout/entries/EntryRow";
+import { PlanningRail } from "../components/scout/planning/PlanningRail";
 import { ScoutSections } from "../components/scout/eventday/ScoutSections";
 import { EventBar } from "../components/scout/eventday/EventBar";
 import { EventChooser } from "../components/scout/eventday/EventChooser";
@@ -65,7 +59,6 @@ import { matchQueueProgress } from "../shared/scoutProgress";
 import { workspaceExportUrl } from "../shared/scoutExport";
 import { useScoutSession } from "../lib/scoutSession";
 import { myMatchAssignment, useMatchAssignments } from "../lib/slotAssignments";
-import { useSavedToLine } from "../lib/adminCopies";
 
 /** What Export CSV sends: the page URL's filters (the entry list's), for the season on screen. */
 export function dataExportUrl(workspaceId: string, sp: URLSearchParams, season: number): string {
@@ -175,7 +168,8 @@ export default function ScoutPage() {
   // A workspace whose template this device has never seen: hold the form until the first answer (offline: the built-in fields).
   const templatePending = space != null && !wt.template && wt.status === "loading";
   // The workspace's activity feed (Pick list & planning, ?view=activity): every member sees it.
-  const showActivity = !!workspace && !spaces.resolving && sp.get("view") === "activity";
+  // Also beside the pick list (its rail shows the latest few).
+  const showActivity = !!workspace && !spaces.resolving && (sp.get("view") === "activity" || (sp.get("tab") === "planning" && (!sp.get("view") || sp.get("view") === "picklist")));
   const activity = useWorkspaceActivity(showActivity ? space : null, live);
   const pickMe = useMemo(() => ({ accountId: user?.controlPoint?.accountId ?? null, name: user?.displayName?.trim() || "You" }), [user]);
   // Scouting assignments (Task 10, ?view=assignments): loaded for the whole space, for the view and the badges.
@@ -268,7 +262,8 @@ export default function ScoutPage() {
   // No schedule to scout from (or a practice match): a match typed in, at the picked event.
   const openManual = (from: "event" | "entries" = "event") => {
     setSp((x) => { x.set("tab", from); x.delete("view"); x.delete("entry"); x.delete("at"); x.delete("pit"); return x; });
-    setManual({ from, space, nonce: Date.now() });
+    // From Entries filtered to one team, the form starts with that team.
+    setManual({ from, team: from === "entries" ? teamFilter : undefined, space, nonce: Date.now() });
   };
   const manualEvent = manual ? ((manual.space === space && manual.eventCode) || session?.eventCode || newEntryEventCode(space, wss.defaults, season)) : null;
   const manualForm = (back: string) => manual && (
@@ -420,8 +415,8 @@ export default function ScoutPage() {
                       <EmptyState icon={SearchX} title="No entries match" description={`None of the ${entries.length} entries in this space match these filters.`}
                         action={<Button variant="outline" onClick={feed.clear}>Clear filters</Button>} />
                     ) : (
-                      <ul className="grid gap-2 md:grid-cols-2">
-                        {feed.shown.map((e) => <EntryCard key={e.uuid} e={e} assigned={badgeFor(e.team, e.eventCode)} canDelete={!readOnly && canDeleteScoutEntry(e, me)} readOnly={!!readOnly} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} onHistory={() => setHistoryFor(e.uuid)} />)}
+                      <ul aria-label={`Entries (${feed.shown.length})`} className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+                        {feed.shown.map((e) => <EntryRow key={e.uuid} e={e} signedIn={!!user} assigned={badgeFor(e.team, e.eventCode)} canDelete={!readOnly && canDeleteScoutEntry(e, me)} readOnly={!!readOnly} comments={commentCounts[e.uuid] ?? 0} onEdit={() => setSp((x) => { x.set("entry", e.uuid); return x; })} onHistory={() => setHistoryFor(e.uuid)} />)}
                       </ul>
                     )}
                   </>}
@@ -451,9 +446,16 @@ export default function ScoutPage() {
               ) : planningView === "activity" ? (
                 <ActivityFeed state={activity} workspaceName={workspaceLabel(workspace)} onOpenEntry={openEntry} />
               ) : (
-                <PicklistWithPartner key={`${workspace.id}:${season}`} enabled={alliancesOn} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null}>
-                  <SharedPicklist workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks ?? []} readOnly={!!readOnly} />
-                </PicklistWithPartner>
+                // The pick list (its table needs the full width), then what a member needs while ranking: three cards in a row on a wide screen.
+                <div className="grid gap-6">
+                  <div className="min-w-0">
+                    <PicklistWithPartner key={`${workspace.id}:${season}`} enabled={alliancesOn} workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} eventCode={session?.eventCode ?? null}>
+                      <SharedPicklist workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks ?? []} readOnly={!!readOnly} />
+                    </PicklistWithPartner>
+                  </div>
+                  <PlanningRail mine={me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open") : []} onScout={scoutAssigned} readOnly={!!readOnly}
+                    activity={activity} onOpenEntry={openEntry} alliancesOn={alliancesOn} onView={(v) => openView("planning", v)} />
+                </div>
               )}
             </div>
           ) : null}
@@ -489,70 +491,5 @@ function ReadOnlyBanner({ state }: { state: OrphanState }) {
         </p>
       </div>
     </div>
-  );
-}
-
-/** When an entry was saved, for its card. 0 or missing (a repaired impossible timestamp, see
- *  src/shared/scoutEntry.ts) is unknown, never "12/31/1969". */
-export function entryDate(updatedAt: number | null | undefined): string {
-  if (!isKnownTime(updatedAt)) return "Date unknown";
-  const d = new Date(updatedAt);
-  return Number.isFinite(d.getTime()) ? d.toLocaleString() : "Date unknown";
-}
-
-/**
- * Where a shared entry's latest change stands (E4). Synced: nothing (the calm state). Queued: Syncing…, or
- * Waiting to sync while offline (kept on this device), or Needs attention when a push didn't go through or its
- * answer was lost (it goes again by itself; the recoverable-changes view offers Retry and Discard).
- */
-export function EntrySyncState({ e }: { e: ScoutEntry }) {
-  if (e.workspaceId == null) return null;
-  const queued = isScoutQueued(e);
-  const problem = queued ? scoutSyncProblem(e.workspaceId) : null;
-  const state = !queued ? null : problem?.kind === "offline" || problem?.kind === "paused" ? "draft" : problem ? "attention" : "saving";
-  const text = problem?.kind === "paused" && queued ? "Paused by the owner" : state === "draft" ? "Waiting to sync" : state === "saving" ? "Syncing…" : state === "attention" ? (problem?.kind === "unconfirmed" ? "Not confirmed yet" : "Not synced") : undefined;
-  return <SaveStatus state={state} text={text} what={`Entry ${e.team} ${e.kind === "pit" ? "pit" : `match ${e.matchLabel ?? ""}`}`.trim()} className="shrink-0" />;
-}
-
-/** One entry in the feed (exported for its tests). */
-export function EntryCard({ e, assigned, canDelete, readOnly, comments, onEdit, onHistory }: { e: ScoutEntry; assigned: string | null; canDelete: boolean; readOnly: boolean; comments: number; onEdit: () => void; onHistory: () => void }) {
-  // The fields it was made with (an older template version stays readable after the admin changes it).
-  const t = useEntryTemplate(e);
-  const shown = t.fields.filter((f) => e.data[f.id] !== undefined && e.data[f.id] !== false && e.data[f.id] !== 0 && e.data[f.id] !== "").slice(0, 5);
-  const what = `${e.team} · ${e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`}`;
-  return (
-    // min-w-0: a grid item is otherwise as wide as its longest line that can't break, which pushed the actions
-    // past a phone's edge. The actions wrap under the details when both don't fit (long names, two scouts).
-    <li className="min-w-0 rounded-xl border border-border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
-        <div className="min-w-0 flex-1 basis-40">
-          <p className="font-medium"><Link to={`/teams/${e.team}?season=${e.season}`} className="font-mono hover:underline">{e.team}</Link> · {e.kind === "pit" ? "Pit" : `Match ${e.matchLabel ?? ""}`}</p>
-          {e.workspaceId == null ? <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"} · {entryDate(e.updatedAt)}</p> : (
-            <>
-              <p className="text-xs text-muted-foreground">{e.eventCode ?? "No event"}</p>
-              <div className="mt-0.5 flex min-w-0 items-center gap-2">
-                <EntryAttribution e={e} className="min-w-0" />
-                <EntrySyncState e={e} />
-              </div>
-              <CommonsBadge e={e} />
-              {assigned && <Badge variant="beta" className="mt-1.5 max-w-full whitespace-normal leading-snug [overflow-wrap:anywhere]"><ClipboardCheck className="shrink-0" /> {assigned}</Badge>}
-            </>
-          )}
-        </div>
-        <div role="group" aria-label={`Entry ${what}`} className="ml-auto flex shrink-0 gap-1">
-          {comments > 0 && (
-            <Button variant="ghost" size="sm" onClick={onEdit} className="text-muted-foreground max-sm:h-10" aria-label={`${comments} comment${comments === 1 ? "" : "s"}: open the entry`}>
-              <MessageSquare />{comments}
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onEdit}>{readOnly ? "View" : "Edit"}</Button>
-          {e.workspaceId != null && <Button variant="ghost" size="icon-sm" aria-label="Version history" title="History" onClick={onHistory} className="max-sm:size-10"><History /></Button>}
-          {canDelete && <Button variant="ghost" size="icon-sm" aria-label="Delete entry" onClick={() => { deleteScoutEntry(e); toast("Entry deleted"); }}><Trash2 /></Button>}
-        </div>
-      </div>
-      {shown.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{shown.map((f) => <Badge key={f.id} variant="secondary">{f.label}: {String(e.data[f.id] === true ? "yes" : e.data[f.id])}</Badge>)}</div>}
-      {e.notes && <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">{e.notes}</p>}
-      <EntryPhotos entry={e} className="mt-3" />
-    </li>
   );
 }
