@@ -22,10 +22,10 @@ The owner portal's Slowest routes shows routes that are really slow, not live co
 ### Highlights
 - [fixes] Slowest routes no longer lists live streams that stayed open for hours
 - [speed] Live streams count how long they took to open, like any request
-- [fixes] Closing a page with a live stream open is no longer an error
+- [workspace] Workspace live streams now show in Busiest routes too
 
 ### Owner portal
-- **Live streams are timed to the moment they open.** The notification inbox, advancement odds and workspace live streams stay open as long as their page does, so timing them until they closed put hours-long "latencies" at the top of Slowest routes. They now count how long they took to open, and a reader leaving later is no error (an error is still counted when the stream is refused, as when live updates are switched off). Stream rows counted the old way are cleared once, so the last 14 days aren't skewed by them. (#377)
+- **Live streams are timed to the moment they open.** The notification inbox, advancement odds and workspace live streams stay open as long as their page does, so timing them until they closed put hours-long "latencies" at the top of Slowest routes. They now count how long they took to open. Errors are unchanged: a reader leaving was never one, and a stream refused before it opens (as when live updates are switched off) still is. The workspace stream, left out before, is counted the same way. Stream rows counted the old way are cleared once, so the last 14 days aren't skewed by them. (#377)
 
 ## 1.7.8 — 2026-10-31
 
