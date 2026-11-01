@@ -238,6 +238,9 @@ html body[data-scroll-locked] { margin-right: 0 !important; }
    and !important so it beats the text-sm/text-xs utilities on the fields themselves. */
 @media (pointer: coarse) {
   input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea { font-size: 16px !important; }
+  /* Only typed text sets the zoom, so the hint text stays the page's size and an empty field reads like the
+     rest of the page rather than one size up. */
+  input::placeholder, textarea::placeholder { font-size: 0.875rem; }
 }
 
 @layer base {
@@ -335,6 +338,12 @@ html.ambient-calm .ambient-breath, html.ambient-calm .ambient-glow { display: no
 .tabs-fade[data-fade="end"] { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
 .tabs-fade[data-fade="start"] { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
 .tabs-fade[data-fade="both"] { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+/* Phones: no scrollbar across the tabs (the faded edge shows there are more). Unlayered, after .custom-scrollbar,
+   so it beats that rule's thin bar in every browser. */
+@media (max-width: 639px) {
+  .tabs-fade.custom-scrollbar { scrollbar-width: none; }
+  .tabs-fade.custom-scrollbar::-webkit-scrollbar { display: none; }
+}
 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-scrollbar); border-radius: 999px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--color-scrollbar-hover); }

@@ -84,9 +84,20 @@ describe("EventGlance", () => {
     expect(onTab).toHaveBeenCalledWith("odds");
   });
 
-  it("upcoming where the forecast isn't supported: the button opens match predictions", () => {
-    show({ ...upcoming(), forecastUnsupported: "No advancement here." });
+  it("where the forecast isn't supported, with a schedule: the button opens match predictions", () => {
+    show({ ...live(), forecastUnsupported: "No advancement here." });
     expect(screen.getByRole("button", { name: /see the match predictions/i })).toBeTruthy();
+  });
+
+  it("where the forecast isn't supported and there's no schedule yet: no predictions button", () => {
+    show({ ...upcoming(), forecastUnsupported: "No advancement here." });
+    expect(screen.queryByRole("button", { name: /see the match predictions/i })).toBeNull();
+    expect(cell("progress")!.textContent).toContain("No schedule yet");
+  });
+
+  it("started with nothing decided yet: no \"none yet\" line", () => {
+    show({ ...upcoming(), event: { ...upcoming().event, status: "live" } });
+    expect(screen.queryByText(/No decided matches/)).toBeNull();
   });
 
   it("remote: per-team scores only", () => {
