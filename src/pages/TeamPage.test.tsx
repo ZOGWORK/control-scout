@@ -5,11 +5,11 @@ import { MemoryRouter } from "react-router-dom";
 import { OprSection, RowRecord } from "./TeamPage";
 import type { TeamEventRow, TeamProfile } from "../shared/api";
 
-// useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider).
-const meta = vi.hoisted(() => ({ value: null as { statsAt: string | null } | null }));
-vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => meta.value }));
+// useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
+const meta = vi.hoisted(() => ({ value: null as { statsAt: string | null } | null, current: 2025 }));
+vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => meta.value, useCurrentSeason: () => meta.current }));
 
-afterEach(() => { cleanup(); meta.value = null; });
+afterEach(() => { cleanup(); meta.value = null; meta.current = 2025; });
 
 const stat = (value: number, rank: number) => ({ value, rank, of: 8000 });
 const profile = {
@@ -83,6 +83,12 @@ describe("OprSection's data-as-of stamp", () => {
     meta.value = { statsAt: new Date().toISOString() };
     const { markOffline } = await import("../lib/offline/saved");
     render(<MemoryRouter><OprSection p={markOffline({ ...profile }, { season: 2025, savedAt: 1, dataAsOf: "2026-10-01T00:00:00Z" })} /></MemoryRouter>);
+    expect(screen.queryByText(/Stats updated/)).toBeNull();
+  });
+  it("says nothing for an earlier season (the rebuild time is the current season's)", () => {
+    meta.value = { statsAt: new Date().toISOString() };
+    meta.current = 2026;
+    render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
     expect(screen.queryByText(/Stats updated/)).toBeNull();
   });
   it("says nothing while the time isn't known", () => {
