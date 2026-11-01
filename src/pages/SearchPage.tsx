@@ -52,7 +52,7 @@ export default function SearchPage() {
           : error ? (
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm text-destructive">{error}</p>
-              <Button variant="secondary" onClick={retry}><RefreshCw /> Try again</Button>
+              <Button variant="secondary" onClick={retry} disabled={busy}><RefreshCw /> Try again</Button>
             </div>
           )
           : !sections.length ? (
