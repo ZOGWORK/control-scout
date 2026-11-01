@@ -13,6 +13,7 @@ import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from ".
 import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
 import { refine } from "./api/searchBruno.js";
+import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { recordClick } from "./api/searchLearn.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -339,6 +340,15 @@ export function createApp(opts: { dist?: string } = {}) {
   api.get("/search/refine", limiter(20), h(async (req, res) => {
     await ensureSearchIndex(rebuildSearch);
     const r = await refine(String(req.query.q ?? ""), { limit: boundedCount(req.query.limit, "limit", 12, 1, 25) });
+    if (!r) { res.status(204).end(); return undefined; }
+    return r;
+  }));
+
+  // Bruno's written answer to a question on /search (server/api/searchBrunoAnswer.ts): asked by the page after its
+  // results are on screen. 204: no answer (not a question, off, unconfigured, failed, or nothing he could say from the facts).
+  api.get("/search/bruno", limiter(20), h(async (req, res) => {
+    await ensureSearchIndex(rebuildSearch);
+    const r = await brunoAnswer(String(req.query.q ?? ""));
     if (!r) { res.status(204).end(); return undefined; }
     return r;
   }));

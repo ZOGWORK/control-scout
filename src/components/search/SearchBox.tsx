@@ -200,7 +200,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   const who = card.team.name ? `${card.team.name} (${card.team.number})` : `Team ${card.team.number}`;
   return (
     <div role="note" aria-label={`${card.title}: ${who}`} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
-      <p className={cn("flex items-center gap-1.5 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}><Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}</p>
+      <p className={cn("flex items-center gap-1.5 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}><Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}{card.count ? ` · ${card.count} ${card.count === 1 ? "time" : "times"}` : ""}</p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
       {!!shown.length && (
         <>

@@ -1,10 +1,12 @@
 // Questions search answers directly (docs/search.md), by fixed rules and from the stored data only:
 //   "when did hypnotic robotics go to worlds" / "did 4215 go to worlds in 2025"  → the team's Worlds appearances
+//   "how many times did 4215 go to states"                                      → its state (region) championships
 //   "what events did hypnotic win"                                              → the events it won
 //   "has bad wolf won anything"                                                 → every award it has won
 //   "when is hypnotic's next event" / "… next match"                            → its next published event or match
 // "Worlds" is the FIRST Championship: events.type = 'FIRSTChampionship' (FTCCMP1, its finals, and its divisions,
-// FTCCMP1EDIS…), counted only where the team took part (api/teams.ts ATTENDED). Nothing found is said plainly
+// FTCCMP1EDIS…), counted only where the team took part (api/teams.ts ATTENDED); "states" is its region's championship
+// (events.type = 'Championship'), counted the same way. Nothing found is said plainly
 // ("No Worlds appearances found in recorded event history"), with the closest real records under it; a year, a
 // season, an event or a date is never made up, and a next event or match is only one FIRST has published.
 import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../src/shared/api.js";
@@ -24,9 +26,11 @@ export interface ParsedQuestion {
   year: number | null;
 }
 
+// The longer names first: "state championship" is one phrase, never "state" and a leftover word.
+const STATES = /\b(?:state\s+champ(?:ionships?|s)?|state\s+finals?|(?:regional|region|league)\s+champ(?:ionships?|s)?|states?)\b/i;
 const WORLDS = /\b(?:worlds?|world champ(?:ionships?|s)?|first champ(?:ionships?|s)?|houston champ(?:ionships?|s)?)\b/i;
 // The question's own words, never part of a team's name here: what's left names the team.
-const FRAME = /\b(?:when|whens|did|does|do|has|have|had|what|which|is|was|were|where|will|ever|go|goes|going|went|gone|been|get|got|make|made|qualify|qualified|attend|attended|compete|competed|play|played|to|the|at|in|for|a|an|any|their|its|team)\b/gi;
+const FRAME = /\b(?:how|many|times|often|when|whens|did|does|do|has|have|had|what|which|is|was|were|where|will|ever|go|goes|going|went|gone|been|get|got|make|made|qualify|qualified|attend|attended|compete|competed|play|played|to|the|at|in|for|a|an|any|their|its|team)\b/gi;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 /** A season named some way other than "in <year>": a question with one is left to search, never answered for all seasons. */
 const OTHER_SEASON = /\b(?:seasons?|20\d\d\s*[-–/]\s*\d\d|(?:last|this|previous|past|next)\s+year)\b/i;
@@ -42,13 +46,14 @@ export function parseQuestion(q: string): ParsedQuestion | null {
     const core = coreOf(q.replace(next[0], " "));
     return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null } : null;
   }
-  if (WORLDS.test(q)) {
+  for (const [kind, words] of [["worlds", WORLDS], ["states", STATES]] as const) {
+    if (!words.test(q)) continue;
     const y = YEAR.exec(q);
-    const core = coreOf((y ? q.replace(y[0], " ") : q).replace(new RegExp(WORLDS.source, "gi"), " "));
-    // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances"): "worlds"
-    // on its own beside a name stays search's ("worlds" is the championship's events).
-    const asked = /\b(?:when|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
-    return core && asked && !OTHER_SEASON.test(core) ? { kind: "worlds", core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null } : null;
+    const core = coreOf((y ? q.replace(y[0], " ") : q).replace(new RegExp(words.source, "gi"), " "));
+    // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances", "how many
+    // times did … go to states"): "worlds" on its own beside a name stays search's ("worlds" is the championship's events).
+    const asked = /\b(?:when|how\s+many|how\s+often|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
+    return core && asked && !OTHER_SEASON.test(core) ? { kind, core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null } : null;
   }
   // Wins and awards, in a year when one is given ("in 2024": events held that year). A season named any other way
   // ("last season", "2024-25") isn't read here: the question is left to search rather than answered for every season.
@@ -64,12 +69,12 @@ export function parseQuestion(q: string): ParsedQuestion | null {
 }
 
 const TITLE: Record<QuestionKind, string> = {
-  worlds: "Worlds appearances", wins: "Event wins", awards: "Awards won", "next-event": "Next event", "next-match": "Next match",
+  worlds: "Worlds appearances", states: "State championships", wins: "Event wins", awards: "Awards won", "next-event": "Next event", "next-match": "Next match",
 };
 /** Where on the team's page the answer's records are (src/shared/search.ts TOPIC_SECTION). */
-const SECTION: Record<QuestionKind, SearchHit["section"]> = { worlds: "events", wins: "awards", awards: "awards", "next-event": "events", "next-match": "matches" };
+const SECTION: Record<QuestionKind, SearchHit["section"]> = { worlds: "events", states: "events", wins: "awards", awards: "awards", "next-event": "events", "next-match": "matches" };
 const PATTERN: Record<QuestionKind, string> = {
-  worlds: "when did [team] go to worlds", wins: "what events did [team] win", awards: "has [team] won anything",
+  worlds: "when did [team] go to worlds", states: "how many times did [team] go to states", wins: "what events did [team] win", awards: "has [team] won anything",
   "next-event": "when is [team]'s next event", "next-match": "when is [team]'s next match",
 };
 
@@ -80,8 +85,9 @@ const rec = (w: number | null, l: number | null, t: number | null) => (w == null
 const yesterday = () => new Date(Date.now() - 24 * 3600_000).toISOString().slice(0, 10);
 const notEnded = (e: { start: string | null; end: string | null; timezone: string | null }) => (e.end ?? e.start ?? "") >= eventToday(Date.now(), e.timezone).from;
 
-interface EvRow { season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; rank: number | null; wins: number | null; losses: number | null; ties: number | null }
-const EV_COLS = "e.season, e.code, e.name, e.start, e.end, e.city, e.state, et.rank, et.wins, et.losses, et.ties";
+interface EvRow { season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; rank: number | null; wins: number | null; losses: number | null; ties: number | null; opr: number | null }
+// The team's OPR at the event (non-penalty, as on its pages): "what was their OPR then" is the usual next question.
+const EV_COLS = "e.season, e.code, e.name, e.start, e.end, e.city, e.state, et.rank, et.wins, et.losses, et.ties, (SELECT s.opr_np FROM team_event_stats s WHERE s.season = et.season AND s.code = et.code AND s.team = et.team) opr";
 
 /** The team's awards at the given events ("season|code" → labels). */
 async function awardsAt(team: number, events: { season: number; code: string }[]): Promise<Map<string, string[]>> {
@@ -96,7 +102,7 @@ async function awardsAt(team: number, events: { season: number; code: string }[]
 
 const eventLine = (team: number, e: EvRow, awards: string[] = []): SearchCardLine => ({
   text: e.name,
-  detail: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state), e.rank ? `ranked #${e.rank}` : "", rec(e.wins, e.losses, e.ties), ...awards].filter(Boolean).join(" · "),
+  detail: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state), e.rank ? `ranked #${e.rank}` : "", rec(e.wins, e.losses, e.ties), e.opr != null ? `OPR ${Number(e.opr).toFixed(1)}` : "", ...awards].filter(Boolean).join(" · "),
   href: eventHref(e.season, e.code, team),
 });
 
@@ -105,10 +111,11 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
   const n = team.number, who = team.name?.trim() || `Team ${n}`;
   const card: SearchCard = { kind: it.kind, title: TITLE[it.kind], team, lines: [] };
 
-  if (it.kind === "worlds") {
+  if (it.kind === "worlds" || it.kind === "states") {
+    const worlds = it.kind === "worlds";
     const rows = await all<EvRow>(
       `SELECT ${EV_COLS} FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-       WHERE et.team = ? AND e.type = 'FIRSTChampionship' AND ${ATTENDED} ORDER BY e.start, e.code`, [n]);
+       WHERE et.team = ? AND e.type = ? AND ${ATTENDED} ORDER BY e.start, e.code`, [n, worlds ? "FIRSTChampionship" : "Championship"]);
     // One line per championship: its division (where the team ranked), with the finals noted when it played them.
     const bySeason = new Map<number, EvRow[]>();
     for (const r of rows) bySeason.set(r.season, [...(bySeason.get(r.season) ?? []), r]);
@@ -121,13 +128,16 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     });
     const asked = it.year != null ? all_.filter((x) => x.year === it.year) : all_;
     card.lines = asked.map((x) => x.line);
+    // "How many times": the count, read first ("State championships · Hypnotic Robotics (4215) · 3 times").
+    if (card.lines.length) card.count = card.lines.length;
     if (!card.lines.length) {
+      const what = worlds ? "Worlds appearance" : "state championship";
       card.none = it.year != null
-        ? `No Worlds appearance in ${it.year} found in ${who}'s recorded event history.`
-        : `No Worlds appearances found in ${who}'s recorded event history.`;
-      // Its other Worlds trips when a year was asked; else its state championships, the closest real results.
+        ? `No ${what} in ${it.year} found in ${who}'s recorded event history.`
+        : `No ${what}s found in ${who}'s recorded event history.`;
+      // Its other trips when a year was asked; else (Worlds) its state championships, the closest real results.
       if (all_.length) card.closest = all_.map((x) => x.line);
-      else {
+      else if (worlds) {
         const champs = await all<EvRow>(
           `SELECT ${EV_COLS} FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
            WHERE et.team = ? AND e.type = 'Championship' AND ${ATTENDED} ORDER BY e.start DESC, e.code LIMIT 3`, [n]);

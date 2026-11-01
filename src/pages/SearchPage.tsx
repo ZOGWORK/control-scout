@@ -4,9 +4,11 @@
 // searchMeta) and hands them over (src/lib/searchBoot.ts), and the query lives in the address, so a direct
 // visit never waits on the header's state. Plain Enter in any search box and its "See all results" row land here.
 // "Here's what we found": what the query was read as, the question's direct answer when it asked one (from stored
-// data: server/api/searchQuestions.ts), then teams, events, matches and pages. Bruno AI's reading isn't shown here.
+// data: server/api/searchQuestions.ts), then teams, events, matches and pages. A question also gets Bruno AI's short
+// written answer on top, from those same records (./search/BrunoAnswer.tsx).
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, Search } from "lucide-react";
+import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, HitText, hitHref, rowIcon, useSearchHits, useSections } from "../components/search/SearchBox";
 import { SEARCH_PAGE_LIMIT, showingLine } from "../shared/search";
 import { BOOT_HITS } from "../lib/searchBoot";
@@ -50,6 +52,7 @@ export default function SearchPage() {
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               <AnswerNotesView notes={notes} className="mb-4 text-sm" />
+              <BrunoAnswer q={q} ready={!busy && !stale} className="mb-4" />
               {answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
               {sections.map((s) => (
                 <section key={s.id} aria-label={s.title} className="mb-5">

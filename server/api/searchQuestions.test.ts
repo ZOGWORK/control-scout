@@ -79,6 +79,18 @@ describe("the answer cards", () => {
     expect(n.none).toBe("No Worlds appearances found in Bad Wolf's recorded event history.");
     expect(n.closest!.map((l) => l.text)).toEqual(["New Jersey State Championship"]);
   });
+  it("states: \"how many times\" counts the team's state championships, each with its OPR there", async () => {
+    expect(parseQuestion("how many times did 4215 go to states")).toEqual({ kind: "states", core: "4215", year: null });
+    expect(parseQuestion("did bad wolf make the state championship in 2024")).toEqual({ kind: "states", core: "bad wolf", year: 2024 });
+    const a = await searchAnswer("how many times did hypnotic go to states");
+    expect(a.card).toMatchObject({ kind: "states", title: "State championships", count: 1 });
+    expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX · ranked #1 · 6-0-0 in quals · OPR 50.0 · Winning Alliance · Design 2nd", href: "/events/2023/USNJCMP?team=4215" });
+    // None in a year asked: said plainly, with its real ones under it, and no count.
+    const none = (await searchAnswer("did hypnotic go to states in 2025")).card!;
+    expect(none).toMatchObject({ lines: [], none: "No state championship in 2025 found in Hypnotic Robotics's recorded event history." });
+    expect(none.count).toBeUndefined();
+    expect(none.closest!.map((l) => l.text)).toEqual(["New Jersey State Championship"]);
+  });
   it("wins and awards, from the awards on record; none said plainly", async () => {
     expect((await searchAnswer("what events did hypnotic win")).card!.lines.map((l) => l.text)).toEqual(["Won New Jersey State Championship"]);
     const all = (await searchAnswer("has hypnotic won anything")).card!.lines.map((l) => l.text);
