@@ -69,6 +69,9 @@ export interface PageMeta {
   /** The page itself, drawn by the server with the app's own component (a team's or an event's: server/firstPaint.ts), and the
    *  answers it was drawn from for the app to start with. Shown in place of bodyHtml when there is one. */
   firstPaint?: FirstPaint;
+  /** Lists a drawn first paint leaves closed or on another tab (a team's events, an event's standings), as already-safe
+   *  HTML: shown under it, so the first HTML has them either way. */
+  moreHtml?: string;
 }
 
 
@@ -220,12 +223,12 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
     const facts = [seasonInfo(e.season).label, dateLong(e.start), e.rank ? `ranked ${e.rank}` : "", record(e.wins, e.losses, e.ties)].filter(Boolean).join(" · ");
     return `<li><a href="/events/${e.season}/${encodeURIComponent(e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
   }).join("");
-  const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>`
-    + (list ? `<h2>Events</h2><ul>${list}</ul>` : "");
+  const moreHtml = list ? `<h2>Events</h2><ul>${list}</ul>` : "";
+  const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>` + moreHtml;
   // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
   // The page itself as its first paint, when this server can draw it (a production build); bodyHtml otherwise.
   const firstPaint = await teamFirstPaint(n, seasonRaw);
-  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
+  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(moreHtml ? { moreHtml } : {}), ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
@@ -258,11 +261,11 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   ev.eventStatus = "https://schema.org/EventScheduled";
   // The first paint's words: the event, then its standings (rank, team, record, ranking score, OPR) as links to the
   // teams, so a crawler (or a visitor before the app loads) reads the page itself. A league meet's own ranks are
-  // team_event_records' (event_teams holds the league's running standings there).
+  // team_event_records' (event_teams holds the league's running standings there), records too.
   const meet = e.type === "LeagueMeet";
   const rk = meet ? "r.rank" : "et.rank";
   const rows = await all<{ team: number; name: string | null; rank: number | null; rp: number | null; wins: number | null; losses: number | null; ties: number | null; opr: number | null }>(
-    `SELECT et.team, t.name, ${rk} rank, ${meet ? "r.rp" : "et.rp"} rp, et.wins, et.losses, et.ties, s.opr_np opr
+    `SELECT et.team, t.name, ${rk} rank, ${meet ? "r.rp" : "et.rp"} rp, ${meet ? "r" : "et"}.wins, ${meet ? "r" : "et"}.losses, ${meet ? "r" : "et"}.ties, s.opr_np opr
      FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team
      LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team
      LEFT JOIN team_event_stats s ON s.season = et.season AND s.code = et.code AND s.team = et.team
@@ -270,10 +273,13 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   const x = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const standings = rows.map((r) => {
     const facts = [r.rank != null ? `#${r.rank}` : "", record(r.wins, r.losses, r.ties), r.rp != null ? `RS ${Number(r.rp).toFixed(2)}` : "", r.opr != null ? `OPR ${fmt1(r.opr)}` : ""].filter(Boolean).join(" · ");
-    return `<li><a href="/teams/${r.team}">${x(teamHeading(r.team, r.name))}</a>${facts ? ` <small>${x(facts)}</small>` : ""}</li>`;
+    // A placeholder or demo entry has no page of its own (as on the team pages): its name, not a link.
+    const who = x(teamHeading(r.team, r.name));
+    return `<li>${hasTeamPage(r.team, r.name) ? `<a href="/teams/${r.team}">${who}</a>` : who}${facts ? ` <small>${x(facts)}</small>` : ""}</li>`;
   }).join("");
-  const bodyHtml = `<p>${x(description)}</p>` + (standings ? `<h2>${rows.some((r) => r.rank != null) ? "Rankings" : "Teams"}</h2><ol>${standings}</ol>` : "");
-  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev], bodyHtml };
+  const moreHtml = standings ? `<h2>${rows.some((r) => r.rank != null) ? "Rankings" : "Teams"}</h2><ol>${standings}</ol>` : "";
+  const bodyHtml = `<p>${x(description)}</p>` + moreHtml;
+  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev], bodyHtml, ...(moreHtml ? { moreHtml } : {}) };
 }
 
 /** At most this many teams in an event page's first HTML (the biggest championships run past it). */

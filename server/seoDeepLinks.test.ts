@@ -2,12 +2,15 @@
 // their real numbers in the first HTML; a team page's title, description, canonical and SportsTeam data follow one
 // pattern, with true fields only; /search is "noindex, follow" and shows each result's address; robots.txt lets
 // crawlers read every content page; search's deep links are the team page plus a stable anchor, never a new scheme.
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "./db";
 import { rebuildSearch } from "./stats/job";
 import { headTags, pageMeta } from "./seoMeta";
+import { renderIndex } from "./seo";
+import { setPageRenderer } from "./firstPaint";
 import { hitHref, sectionFor, shownPath } from "../src/shared/search";
 import type { SearchHit } from "../src/shared/api";
 
@@ -22,8 +25,15 @@ beforeAll(async () => {
   await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJCMPPKWY', 'New Jersey Championship - Parkway Division', 'Championship', 'Hillsborough', 'NJ', 'USA', '2026-03-15', '2026-03-15', 't')", [S]);
   await run("INSERT INTO event_teams (season, code, team, rank, rp, wins, losses, ties) VALUES (?, 'USNJCMPPKWY', 4215, 6, 3.4, 4, 1, 0), (?, 'USNJCMPPKWY', 6980, 12, 2.2, 2, 3, 0)", [S, S]);
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'USNJCMPPKWY', 4215, 101.6, 5), (?, 'USNJCMPPKWY', 6980, 46.9, 5)", [S, S]);
+  // A league meet (its own ranks and records are team_event_records', not the league's running event_teams ones),
+  // with a demo entry on its roster (no page of its own).
+  await run("INSERT INTO teams (number, name) VALUES (99999, 'Demo Team')");
+  await run("INSERT INTO events (season, code, name, type, start, end, source) VALUES (?, 'USNJM1', 'NJ League Meet 1', 'LeagueMeet', '2025-11-08', '2025-11-08', 't')", [S]);
+  await run("INSERT INTO event_teams (season, code, team, rank, rp, wins, losses, ties) VALUES (?, 'USNJM1', 4215, 9, 1.0, 9, 9, 9), (?, 'USNJM1', 99999, 8, 1.0, 1, 1, 1)", [S, S]);
+  await run("INSERT INTO team_event_records (season, code, team, rank, rp, wins, losses, ties) VALUES (?, 'USNJM1', 4215, 1, 4.0, 5, 0, 0), (?, 'USNJM1', 99999, 2, 2.0, 2, 3, 0)", [S, S]);
   await rebuildSearch();
 });
+afterEach(() => setPageRenderer(null));
 
 describe("team pages", () => {
   it("title, description, canonical and OG follow one pattern, from the team's real numbers", async () => {
@@ -62,6 +72,28 @@ describe("event pages", () => {
     expect(body).toContain("<h2>Rankings</h2>");
     expect(body).toContain('<li><a href="/teams/4215">4215 Hypnotic Robotics</a> <small>#6 · 4-1-0 · RS 3.40 · OPR 101.6</small></li>');
     expect(body.indexOf("/teams/4215")).toBeLessThan(body.indexOf("/teams/6980")); // in rank order
+  });
+  it("a league meet's row is the meet's own rank and record; a demo entry is its name, not a link", async () => {
+    const body = (await pageMeta("/events/2025/USNJM1")).bodyHtml!;
+    expect(body).toContain('<li><a href="/teams/4215">4215 Hypnotic Robotics</a> <small>#1 · 5-0-0 · RS 4.00</small></li>');
+    expect(body).toContain("<li>99999 Demo Team <small>#2 · 2-3-0 · RS 2.00</small></li>");
+    expect(body).not.toContain('href="/teams/99999"');
+  });
+  it("with the production renderer drawing the page, the standings and a team's events are still in the first HTML", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cs-deep-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"><!--cs-boot--></div></body></html>');
+    // A finished event's page opens on its matches: the drawn page alone has no standings.
+    setPageRenderer((url) => `<div id="drawn">${url} matches</div>`);
+    const ev = await renderIndex(file, "/events/2025/USNJCMPPKWY");
+    expect(ev).toContain('<div id="drawn">');
+    expect(ev).toContain('<li><a href="/teams/4215">4215 Hypnotic Robotics</a> <small>#6 · 4-1-0 · RS 3.40 · OPR 101.6</small></li>');
+    expect(ev.indexOf('id="drawn"')).toBeLessThan(ev.indexOf("<h2>Rankings</h2>"));
+    const team = await renderIndex(file, "/teams/4215");
+    expect(team).toContain('<div id="drawn">');
+    expect(team).toContain('<a href="/events/2025/USNJCMPPKWY">New Jersey Championship - Parkway Division</a>');
+    // The plain summary's own lead and H1 stay out: one page, one H1 (the drawn page's).
+    expect(team).not.toContain("<h1>4215 Hypnotic Robotics</h1>");
   });
 });
 
