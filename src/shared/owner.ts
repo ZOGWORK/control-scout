@@ -2,6 +2,7 @@
 import type { Flag, FlagGroup, FlagScope } from "./flags.js";
 import type { BlurbAuthor } from "./powerRankings.js";
 import type { TierCalibration } from "./ownerPredictions.js";
+import type { VitalsRow } from "./vitals.js";
 
 export interface OwnerOverview {
   accounts: { total: number; active30d: number; new7d: number };
@@ -41,6 +42,8 @@ export interface OwnerUsage {
   live: { total: number; byKind: Record<string, number>; peak: number; peakAt: string | null };
   /** Page views from visitors who opted into usage statistics (analytics_daily), per day. */
   pageViews: { day: string; views: number }[];
+  /** Real-user web vitals from the same visitors (web_vitals_daily): all pages together, then the most-loaded pages. */
+  vitals: { all: VitalsRow; pages: VitalsRow[] };
 }
 
 export type LedgerKind = "live" | "backtest";

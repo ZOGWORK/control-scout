@@ -150,6 +150,9 @@ https://controlscout.org.
   `openssl rand -hex 32`) in `shared/.env`, restart, then
   `curl -H "Authorization: Bearer $STATS_TOKEN" https://controlscout.org/api/stats/summary?days=30`.
   Without `STATS_TOKEN` that endpoint answers 404.
+- **Real-user speed** (web vitals from the same visitors, sent to `POST /api/collect/vitals` when a tab hides;
+  daily histograms per route pattern, screen bucket and metric in `web_vitals_daily`, server/vitals.ts): the
+  owner portal's Usage tab shows the 75th percentile by page under "Real-user speed". Nothing to configure.
 - **IndexNow** (server/indexNow.ts): tells Bing and the other [IndexNow](https://www.indexnow.org)
   engines which pages changed, so they recrawl them within hours. Off by default. Turn it on with
   `INDEXNOW=1` in `shared/.env` and restart. It then pings `https://api.indexnow.org/indexnow`
