@@ -42,6 +42,19 @@ describe("search focus", () => {
     await waitFor(() => expect(document.activeElement).toBe(from));
   });
 
+  it("forgets the opener once focus has left the field another way", async () => {
+    render(<MemoryRouter><SearchProvider><button type="button">Filters</button><button type="button">Elsewhere</button><GlobalSearch part="field" /></SearchProvider></MemoryRouter>);
+    const from = screen.getByRole("button", { name: "Filters" });
+    from.focus();
+    shortcut();
+    await waitFor(() => expect(document.activeElement).toBe(field()));
+    screen.getByRole("button", { name: "Elsewhere" }).focus(); // Tab away
+    field().focus(); // and back
+    escapeOut();
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    expect(document.activeElement).not.toBe(from);
+  });
+
   it("the phone's search button gets focus back once it shows again", async () => {
     render(<MemoryRouter><SearchProvider><GlobalSearch /></SearchProvider></MemoryRouter>);
     const button = screen.getByRole("button", { name: "Search" });
