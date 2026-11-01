@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.4 — 2026-11-01
+## 2.0.6 — 2026-11-01
 
 On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
 
@@ -27,6 +27,31 @@ On a phone, the Filters button stands out and opening it no longer pops up the k
 
 ### Navigation
 - **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#402)
+## 2.0.5 — 2026-11-01
+
+Every finished event on /events shows it is done, even when no matches were posted.
+
+### Highlights
+- [fixes] Every finished event card has a full green bar
+- [fixes] Events with no results posted say Done instead of no bar or 0/12
+- [fixes] Finished events with some results missing still fill their bar
+
+### Fixes
+- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#398)
+
+## 2.0.4 — 2026-11-01
+
+Search answers "world record score bio buzz" and "4215 high score".
+
+### Highlights
+- [rankings] Ask for a season's record score, by game name or season
+- [teams] Ask for a team's highest scores, with the alliance it played on
+- [fixes] Before a season's first official match, scrimmage bests show
+
+### Search
+- "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#401)
+- A game's name is read with any spacing ("bio buzz", "BIOBUZZ", "into the deep"); with no season named, the latest one played
+- With no official match played yet in that season, the card says there's no record yet and lists the best scrimmage scores instead
 ## 2.0.3 — 2026-11-01
 
 Search waits for you to stop typing, and Enter works the first time.

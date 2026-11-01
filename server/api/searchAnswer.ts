@@ -23,6 +23,7 @@ import { search, searchIntent } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
+import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -118,7 +119,16 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const q = cleanQuery(raw);
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
 
-  // 0. A question with a direct answer, when its team is found (else search goes on with the whole query).
+  // 0. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
+  const high = opts.intents === false ? null : parseHighScore(q);
+  if (high) {
+    if (!high.core) return highScoreAnswer(q, high, null, [], pagesFor(q));
+    const base = await searchAnswer(high.core, { ...opts, intents: false });
+    const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
+    if (team) return highScoreAnswer(q, high, team, base.hits.slice(1), pagesFor(q));
+  }
+
+  // 0b. A question with a direct answer, when its team is found (else search goes on with the whole query).
   const question = opts.intents === false ? null : parseQuestion(q);
   if (question) {
     const base = await searchAnswer(question.core, { ...opts, intents: false });

@@ -84,11 +84,11 @@ export interface SearchAnswer {
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
-  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match";
+  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores";
   /** "Worlds appearances" */
   title: string;
-  /** The team it's about. */
-  team: { number: number; name: string | null };
+  /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */
+  team?: { number: number; name: string | null };
   lines: SearchCardLine[];
   /** "How many times": how many championships `lines` holds (Worlds and states questions). */
   count?: number;

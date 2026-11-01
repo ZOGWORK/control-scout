@@ -315,6 +315,7 @@ const Weeks = memo(function Weeks({ events, region, type, status, from, to, q, v
 
 const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
   const tone = toneOfType(e.type);
+  // A finished event fills its bar even with results missing; the count still says how many were posted.
   const played = e.matchesTotal ? Math.round((e.matchesPlayed / e.matchesTotal) * 100) : 0;
   return (
     <Link to={`/events/${e.season}/${e.code}`} className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5">
@@ -333,10 +334,21 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
         <p className="flex items-center gap-1.5"><CalendarDays className="size-3.5 shrink-0" />{dateRange(e.start, e.end)}</p>
         <p className="flex items-center gap-1.5 truncate"><MapPin className="size-3.5 shrink-0" />{place(e.city, e.state ? regionLabel(`${e.country}:${e.state}`) : null, e.country === "USA" ? null : e.country) || "Location TBA"}</p>
       </div>
-      {e.matchesTotal > 0 && e.status !== "upcoming" && (
-        <div className="mt-3 flex items-center gap-2" title={`${e.matchesPlayed} of ${e.matchesTotal} matches played`}>
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-danger" : "bg-success")} style={{ width: `${played}%` }} /></div>
+      {e.matchesPlayed > 0 && e.status !== "upcoming" ? (
+        <div className="mt-3 flex items-center gap-2" title={`${e.matchesPlayed} of ${e.matchesTotal} matches played`} data-match-bar>
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", e.status === "live" ? "bg-danger" : "bg-success")} style={{ width: `${e.status === "finished" ? 100 : played}%` }} /></div>
           <span className="text-[11px] tabular-nums text-muted-foreground">{e.matchesPlayed}/{e.matchesTotal}</span>
+        </div>
+      ) : e.status === "finished" ? (
+        // Finished with no results posted (most scrimmages, some meets): still a full bar, so every finished card reads as done.
+        <div className="mt-3 flex items-center gap-2" title="Finished; no match results posted" data-match-bar>
+          <div className="h-1 flex-1 rounded-full bg-success" />
+          <span className="text-[11px] text-muted-foreground">Done</span>
+        </div>
+      ) : e.status === "live" && e.matchesTotal > 0 && (
+        <div className="mt-3 flex items-center gap-2" title={`0 of ${e.matchesTotal} matches played`} data-match-bar>
+          <div className="h-1 flex-1 rounded-full bg-muted" />
+          <span className="text-[11px] tabular-nums text-muted-foreground">0/{e.matchesTotal}</span>
         </div>
       )}
     </Link>
