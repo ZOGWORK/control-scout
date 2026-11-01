@@ -5,16 +5,16 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const hits = vi.hoisted(() => ({ busy: false, retry: vi.fn() }));
+const hits = vi.hoisted(() => ({ busy: false, retry: vi.fn(), searchNow: vi.fn() }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: [], answer: undefined, busy: hits.busy, error: "Can't reach the server right now.", retry: hits.retry, logPick: () => {}, stale: false, prefer: "" }),
+  useSearchHits: () => ({ hits: [], answer: undefined, busy: hits.busy, error: "Can't reach the server right now.", retry: hits.retry, searchNow: hits.searchNow, logPick: () => {}, stale: false, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null }));
 
 const { default: SearchPage } = await import("./SearchPage");
 
-afterEach(() => { cleanup(); hits.retry.mockReset(); hits.busy = false; });
+afterEach(() => { cleanup(); hits.retry.mockReset(); hits.searchNow.mockReset(); hits.busy = false; });
 const show = () => render(<MemoryRouter initialEntries={["/search?q=4215"]}><SearchPage /></MemoryRouter>);
 
 describe("search results page, server not answering", () => {
@@ -32,5 +32,14 @@ describe("search results page, server not answering", () => {
     expect(again.disabled).toBe(true);
     fireEvent.click(again);
     expect(hits.retry).not.toHaveBeenCalled();
+  });
+
+  it("Enter searches now and closes the keyboard", () => {
+    show();
+    const input = screen.getByRole("searchbox", { name: "Search teams, events and matches" }) as HTMLInputElement;
+    input.focus();
+    fireEvent.submit(input.form!);
+    expect(hits.searchNow).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).not.toBe(input);
   });
 });
