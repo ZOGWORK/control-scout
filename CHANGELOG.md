@@ -23,11 +23,11 @@ Closed sections on team pages now show there's more inside.
 
 - [teams] Closed team sections are cards with a line on what's inside
 - [teams] A "Show details" button that turns to "Hide" once open
-- [teams] Rows light up under the pointer, so it's clear they open
+- [teams] Each card has a faint gradient in its own colours
 
 ### Team pages
 
-- A closed section shows its one-line summary and a pill button instead of a small grey "Show" at the edge of the row. Screen readers hear the section name as the button and the summary as its description. (#368)
+- A closed section shows its one-line summary and a pill button in its own colours (green to orange for Reliability, yellow, blue and purple for the report card, blue to red for Schedule difficulty) instead of a small grey "Show" at the edge of the row. Screen readers hear the section name as the button and the summary as its description. (#368)
 
 ## 1.7.0 — 2026-10-31
 

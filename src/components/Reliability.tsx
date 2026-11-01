@@ -40,7 +40,8 @@ export function ReliabilityTile({ r, className }: { r: Reliability; className?: 
 /** The team page's section, closed at first: the index, its parts, and (for a workspace's members) the blend with their notes. */
 export function ReliabilitySection({ r, notes, workspaceName }: { r: Reliability | null | undefined; notes?: ReliabilityNotes | null; workspaceName?: string | null }) {
   return (
-    <Section collapsible id="reliability" title="Reliability" summary="No-shows, DQs, near-zero matches, swing and penalties" description={<>How dependable this robot has been: no-shows, DQs, near-zero matches, swing, penalties and how predictable its matches are. An estimate from match results only. <Link to="/methodology#reliability" className="underline">How it's computed</Link></>}>
+    <Section collapsible id="reliability" title="Reliability" summary="No-shows, DQs, near-zero matches, swing and penalties"
+      tint={['var(--color-success)', 'var(--color-muted-foreground)', 'var(--color-warning)']} description={<>How dependable this robot has been: no-shows, DQs, near-zero matches, swing, penalties and how predictable its matches are. An estimate from match results only. <Link to="/methodology#reliability" className="underline">How it's computed</Link></>}>
       {!r ? (
         <p className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground max-sm:py-4">No qualification matches to estimate reliability from this season yet.</p>
       ) : (

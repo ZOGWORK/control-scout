@@ -22,6 +22,7 @@ export const SMALL_SAMPLE = 10;
 export function ReportCardSection({ team, season }: { team: number; season: number }) {
   return (
     <Section collapsible id="report-card" title="Prediction report card" summary={`How the engine's calls on ${team}'s matches turned out`}
+      tint={['var(--color-accent)', 'var(--color-info)', '#a78bfa']}
       description={<>How the engine's pre-match calls on {team}'s matches turned out this season. Live calls only, each logged before its match. <Link to="/methodology#report-cards" className="underline">How it's computed</Link></>}>
       <ReportCardBody team={team} season={season} />
     </Section>
