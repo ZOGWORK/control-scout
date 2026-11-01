@@ -59,9 +59,10 @@ describe("OpenSearch", () => {
     expect(r.status).toBe(200);
     const html = await r.text();
     expect(html).toContain("<title>Search: 4215 · Control Scout</title>");
-    // Kept out of search engines by robots.txt, not a tag that would stay in the head after a click through.
-    expect(html).not.toContain('<meta name="robots"');
-    expect(readFileSync(join(process.cwd(), "public", "robots.txt"), "utf8")).toMatch(/^Disallow: \/search$/m);
+    // Kept out of search indexes by its own tag (noindex, follow: its links still lead crawlers to the pages), which
+    // the app removes when it moves on (src/lib/meta.tsx SearchRobotsSync); robots.txt lets crawlers read it.
+    expect(html).toContain('<meta name="robots" content="noindex, follow" data-search />');
+    expect(readFileSync(join(process.cwd(), "public", "robots.txt"), "utf8")).not.toMatch(/^Disallow: \/search/m);
     // The hits as data too, for the app to start from (src/lib/searchBoot.ts).
     const boot = JSON.parse(/<script type="application\/json" id="cs-search-hits">(.*?)<\/script>/.exec(html)![1]);
     expect(boot.q).toBe("4215");

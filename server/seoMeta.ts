@@ -18,7 +18,7 @@ import { ATTENDED, teamKnown } from "./api/teams.js";
 import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
-import { teamHeading, teamTitle } from "../src/shared/teamTitle.js";
+import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
 import { allianceText, shareHeadline, shareImagePath, sharePagePath, tierWords, type ShareCardQuery } from "../src/shared/share.js";
@@ -33,7 +33,7 @@ import { searchAnswer } from "./api/searchAnswer.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, showingLine } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, showingLine, shownPath } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -52,6 +52,9 @@ export interface PageMeta {
   path?: string;
   /** Personal pages (your own data, nothing to index). */
   noindex?: boolean;
+  /** /search: crawled but never indexed ("noindex, follow"), so engines index the pages its results link to, never a
+   *  query URL. Marked data-search: the app keeps it only while on /search (SearchRobotsSync in src/lib/meta.tsx). */
+  searchPage?: boolean;
   /** schema.org structured data (JSON-LD), in the first HTML with the rest of the head. */
   jsonLd?: Record<string, unknown>[];
   /** No such page (an unknown route, team or event): served with HTTP 404, noindex, no canonical. */
@@ -66,6 +69,9 @@ export interface PageMeta {
   /** The page itself, drawn by the server with the app's own component (a team's or an event's: server/firstPaint.ts), and the
    *  answers it was drawn from for the app to start with. Shown in place of bodyHtml when there is one. */
   firstPaint?: FirstPaint;
+  /** Lists a drawn first paint leaves closed or on another tab (a team's events, an event's standings), as already-safe
+   *  HTML: shown under it, so the first HTML has them either way. */
+  moreHtml?: string;
 }
 
 
@@ -205,7 +211,7 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
   if (addr) team.location = { "@type": "Place", address: addr };
   if (t?.school?.trim()) team.affiliation = { "@type": "Organization", name: t.school.trim() };
   // The page is the team's profile (schema.org ProfilePage, its main entity the team), inside the site.
-  const profile = { "@context": "https://schema.org", "@type": "ProfilePage", url, name: `${teamTitle(n, name)} · ${SITE}`, isPartOf: { "@type": "WebSite", "@id": `${o}/#website`, name: SITE, url: `${o}/` }, mainEntity: team };
+  const profile = { "@context": "https://schema.org", "@type": "ProfilePage", url, name: siteTitle(teamTitle(n, name)), isPartOf: { "@type": "WebSite", "@id": `${o}/#website`, name: SITE, url: `${o}/` }, mainEntity: team };
   const crumbs = {
     "@context": "https://schema.org", "@type": "BreadcrumbList",
     itemListElement: [["Home", `${o}/`], ["Teams", canonicalUrl("/teams")], [heading, url]].map(([nm, item], i) => ({ "@type": "ListItem", position: i + 1, name: nm, item })),
@@ -217,12 +223,12 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
     const facts = [seasonInfo(e.season).label, dateLong(e.start), e.rank ? `ranked ${e.rank}` : "", record(e.wins, e.losses, e.ties)].filter(Boolean).join(" · ");
     return `<li><a href="/events/${e.season}/${encodeURIComponent(e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
   }).join("");
-  const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>`
-    + (list ? `<h2>Events</h2><ul>${list}</ul>` : "");
+  const moreHtml = list ? `<h2>Events</h2><ul>${list}</ul>` : "";
+  const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>` + moreHtml;
   // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
   // The page itself as its first paint, when this server can draw it (a production build); bodyHtml otherwise.
   const firstPaint = await teamFirstPaint(n, seasonRaw);
-  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
+  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(moreHtml ? { moreHtml } : {}), ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
@@ -253,8 +259,31 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   if (e.venue || addr) ev.location = { "@type": "Place", ...(e.venue ? { name: e.venue } : {}), ...(addr ? { address: addr } : {}) };
   ev.eventAttendanceMode = `https://schema.org/${e.remote ? "Online" : e.hybrid ? "Mixed" : "Offline"}EventAttendanceMode`;
   ev.eventStatus = "https://schema.org/EventScheduled";
-  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev] };
+  // The first paint's words: the event, then its standings (rank, team, record, ranking score, OPR) as links to the
+  // teams, so a crawler (or a visitor before the app loads) reads the page itself. A league meet's own ranks are
+  // team_event_records' (event_teams holds the league's running standings there), records too.
+  const meet = e.type === "LeagueMeet";
+  const rk = meet ? "r.rank" : "et.rank";
+  const rows = await all<{ team: number; name: string | null; rank: number | null; rp: number | null; wins: number | null; losses: number | null; ties: number | null; opr: number | null }>(
+    `SELECT et.team, t.name, ${rk} rank, ${meet ? "r.rp" : "et.rp"} rp, ${meet ? "r" : "et"}.wins, ${meet ? "r" : "et"}.losses, ${meet ? "r" : "et"}.ties, s.opr_np opr
+     FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team
+     LEFT JOIN team_event_records r ON r.season = et.season AND r.code = et.code AND r.team = et.team
+     LEFT JOIN team_event_stats s ON s.season = et.season AND s.code = et.code AND s.team = et.team
+     WHERE et.season = ? AND et.code = ? ORDER BY ${rk} IS NULL, ${rk}, et.team LIMIT ${EVENT_ROWS}`, [season, code]);
+  const x = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const standings = rows.map((r) => {
+    const facts = [r.rank != null ? `#${r.rank}` : "", record(r.wins, r.losses, r.ties), r.rp != null ? `RS ${Number(r.rp).toFixed(2)}` : "", r.opr != null ? `OPR ${fmt1(r.opr)}` : ""].filter(Boolean).join(" · ");
+    // A placeholder or demo entry has no page of its own (as on the team pages): its name, not a link.
+    const who = x(teamHeading(r.team, r.name));
+    return `<li>${hasTeamPage(r.team, r.name) ? `<a href="/teams/${r.team}">${who}</a>` : who}${facts ? ` <small>${x(facts)}</small>` : ""}</li>`;
+  }).join("");
+  const moreHtml = standings ? `<h2>${rows.some((r) => r.rank != null) ? "Rankings" : "Teams"}</h2><ol>${standings}</ol>` : "";
+  const bodyHtml = `<p>${x(description)}</p>` + moreHtml;
+  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev], bodyHtml, ...(moreHtml ? { moreHtml } : {}) };
 }
+
+/** At most this many teams in an event page's first HTML (the biggest championships run past it). */
+const EVENT_ROWS = 100;
 
 const POWER_DESC = "The weekly top 25 FTC teams, each with a short written take and its rating, OPR and record that week.";
 
@@ -436,12 +465,12 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
 /**
  * /search?q=…: where the address bar's search lands (server/openSearch.ts). The results are in the first paint as
  * plain links, grouped as the app lists them (src/pages/SearchPage.tsx), so a visit shows them before the app has
- * loaded (or without JavaScript), and as data the app starts from (src/lib/searchBoot.ts). Kept out of search
- * engines by robots.txt (a noindex tag here would stay in the head after a click through to a result).
+ * loaded (or without JavaScript), and as data the app starts from (src/lib/searchBoot.ts). Crawlable but never
+ * indexed ("noindex, follow", searchPage): engines index the pages its results link to.
  */
 async function searchMeta(raw: string): Promise<PageMeta> {
   const q = raw.trim().slice(0, 80);
-  if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website" };
+  if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website", searchPage: true };
   // The same readiness check as /api/search (typo matches on an upgraded database).
   await ensureSearchIndex(rebuildSearch);
   const answer = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
@@ -458,13 +487,13 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
   const body = (showing ? `<p>Showing: <b>${esc(showing)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
-    return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
+    return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}<br><small>${esc(shownPath(h))}</small></li>`).join("")}</ul>`;
   }).join("");
   // As typed: the app matches it against its own query (the answer's q has punctuation dropped).
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: `Here's what we found for “${q}”`, type: "website", bodyHtml: body + data,
+    title: `Search: ${q}`, heading: `Here's what we found for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }
@@ -545,7 +574,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 
 /** The head tags for a page: <title>, description, robots, canonical, Open Graph, Twitter. */
 export function headTags(path: string, m: PageMeta): string {
-  const title = m.title ? `${m.title} · ${SITE}` : HOME_TITLE;
+  const title = m.title ? siteTitle(m.title) : HOME_TITLE;
   const url = canonicalUrl(m.path ?? path);
   // A shared matchup previews as its card, and its link (og:url) is the matchup itself; the canonical stays the page's.
   const image = m.share ? `${canonicalOrigin()}${shareImagePath(m.share.query)}` : `${canonicalOrigin()}/og-image.png`;
@@ -556,6 +585,7 @@ export function headTags(path: string, m: PageMeta): string {
     `<meta name="description" content="${esc(m.description)}" />`,
     // A 404's noindex is marked, so the app removes it on moving to a real page (CanonicalSync in src/lib/meta.tsx).
     ...(m.noindex ? [`<meta name="robots" content="noindex"${m.notFound ? " data-not-found" : ""} />`] : []),
+    ...(m.searchPage ? [`<meta name="robots" content="noindex, follow" data-search />`] : []),
     // A 404 names no canonical URL (there's no page to point at).
     ...(m.notFound ? [] : [`<link rel="canonical" href="${esc(url)}" />`]),
     `<meta property="og:type" content="${m.type}" />`,
