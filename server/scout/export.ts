@@ -23,7 +23,7 @@ import { csvCell, streamedBody } from "../api/records.js";
 import { builtinTemplate } from "../../src/shared/scoutDefaults.js";
 import { exportFilename } from "../../src/shared/scoutExport.js";
 import { matchesWords, parseExportFilters, type ExportFilters, type FilterableEntry } from "../../src/shared/scoutFilter.js";
-import type { ScoutField, TemplateKind } from "../../src/shared/scoutTemplate.js";
+import { detailKey, type ScoutField, type TemplateKind } from "../../src/shared/scoutTemplate.js";
 import { currentTemplate } from "./templates.js";
 import { workspaceAccess, workspacePaused } from "./entries.js";
 import { isoOrBlank } from "../../src/shared/scoutEntry.js";
@@ -80,9 +80,11 @@ export function exportColumns(fields: Partial<Record<TemplateKind, ScoutField[]>
   const norm = (s: string) => s.trim().toLowerCase();
   const labelsOf = (k: TemplateKind) => new Set((fields[k] ?? []).map((f) => norm(f.label)));
   const both = kinds.length > 1 ? new Set([...labelsOf("match")].filter((l) => labelsOf("pit").has(l))) : new Set<string>();
-  const cols: ExportColumn[] = kinds.flatMap((kind) => (fields[kind] ?? []).map((f) => ({
-    kind, id: f.id, header: both.has(norm(f.label)) ? `${kind === "match" ? "Match" : "Pit"}: ${f.label}` : f.label,
-  })));
+  // A yes/no + detail field is two columns: its yes/no (as any toggle), then its detail ("<label> (details)").
+  const cols: ExportColumn[] = kinds.flatMap((kind) => (fields[kind] ?? []).flatMap((f) => {
+    const header = both.has(norm(f.label)) ? `${kind === "match" ? "Match" : "Pit"}: ${f.label}` : f.label;
+    return f.type === "toggleDetail" ? [{ kind, id: f.id, header }, { kind, id: detailKey(f.id), header: `${header} (details)` }] : [{ kind, id: f.id, header }];
+  }));
   const count = new Map<string, number>();
   for (const h of [...FIXED_HEADERS, OTHER_FIELDS_HEADER, ...cols.map((c) => c.header)]) count.set(norm(h), (count.get(norm(h)) ?? 0) + 1);
   // Final names are reserved as they're given, so a suffixed name can't land on another (a field labelled

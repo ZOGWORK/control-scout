@@ -44,12 +44,10 @@ describe("matchRows", () => {
 });
 
 describe("MatchesList", () => {
-  it("shows the summary", () => {
-    setup();
-    const tile = (label: string) => screen.getByText(label, { selector: "p" }).parentElement!.textContent;
-    expect(tile("Matches done")).toBe("Matches done1");
-    expect(tile("Team entries")).toBe("Team entries4");
-    expect(tile("Skipped")).toBe("Skipped1");
+  it("words the open match as the page asks (Now beside the match, Next up in Event day's queue)", () => {
+    const { rows } = setup({ nowLabel: "Next up" });
+    expect(rows()[3].textContent).toContain("Next up");
+    expect(rows()[3].getAttribute("aria-label")).toMatch(/, next up$/);
   });
 
   it("names every row in full with its status", () => {

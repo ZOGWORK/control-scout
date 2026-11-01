@@ -51,7 +51,7 @@ import {
 } from "../../src/shared/alliances.js";
 import { normalEventCode, type EventTeamOption } from "../../src/shared/assignments.js";
 import { CONSENSUS_MAX_TEAMS } from "../../src/shared/consensus.js";
-import { parseWorkspaceTemplateId, type ScoutField } from "../../src/shared/scoutTemplate.js";
+import { detailKey, parseWorkspaceTemplateId, type ScoutField } from "../../src/shared/scoutTemplate.js";
 import { accessError, lastSeq, readLiveEntries, requireWorkspaceAdmin, storedEntryFields, workspaceAccess, workspacePaused } from "./entries.js";
 import { eventTeams, listAssignments, listMatchAssignments } from "./assignments.js";
 import { consensusForScope, fieldReader, notACopyWithin, parseTeams } from "./consensus.js";
@@ -463,8 +463,10 @@ export function answersOf(fields: ScoutField[], data: Record<string, unknown>): 
   for (const f of fields) {
     const v = data[f.id];
     if (v == null || v === "" || (Array.isArray(v) && !v.length)) continue;
-    const text = typeof v === "boolean" ? (v ? "Yes" : "No") : Array.isArray(v) ? v.map(String).join(", ")
-      : f.type === "rating" && typeof v === "number" ? `${v} / ${f.max ?? 5}` : String(v);
+    const detail = f.type === "toggleDetail" && v === true ? data[detailKey(f.id)] : undefined;
+    const text = typeof v === "boolean" ? (v ? (typeof detail === "string" && detail.trim() ? `Yes: ${detail.trim()}` : "Yes") : "No") : Array.isArray(v) ? v.map(String).join(", ")
+      : f.type === "rating" && typeof v === "number" ? `${v} / ${f.max ?? 5}`
+      : f.type === "number" && typeof v === "number" && f.unit ? `${v} ${f.unit}` : String(v);
     out.push({ label: f.label, text: text.slice(0, 500) });
   }
   return out;

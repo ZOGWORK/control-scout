@@ -7,7 +7,7 @@
 // locks or reloads mid-match loses nothing.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { newScoutId, personalCopy, saveScoutEntry, scoutDraftBase, ScoutStorageError, templateFor, type ScoutEntry, type ScoutSpace, type ScoutValue } from "./scouting";
-import type { ScoutField, ScoutTemplate } from "../shared/scoutTemplate";
+import { detailKey, type ScoutField, type ScoutTemplate } from "../shared/scoutTemplate";
 import { normalizeMatchLabel, type ScheduleMatch, type WatchedTeam } from "../shared/scoutMatch";
 import { useEntryTemplateState } from "./scoutTemplates";
 
@@ -244,8 +244,10 @@ export function useMatchDraft(o: MatchDraftOptions) {
       const isNew = !d.uuid;
       // A new entry keeps only its template's fields; an edit keeps everything it had (also one whose entry was
       // deleted meanwhile: it's saved as a new entry, answers and all, with the template they were given with).
-      const ids = new Set(tpl.fields.map((f) => f.id));
+      const ids = new Set(tpl.fields.flatMap((f) => (f.type === "toggleDetail" ? [f.id, detailKey(f.id)] : [f.id])));
       const data = isNew ? Object.fromEntries(Object.entries(d.data).filter(([k]) => ids.has(k))) : { ...d.data };
+      // A detail belongs to a yes: with the yes taken back, its detail goes too.
+      for (const f of tpl.fields) if (f.type === "toggleDetail" && data[f.id] !== true) delete data[detailKey(f.id)];
       // A counter shows its lowest value until it's touched: that shown value is the answer.
       if (isNew) for (const f of tpl.fields) if (f.type === "counter" && (f.min ?? 0) > 0 && data[f.id] === undefined) data[f.id] = f.min!;
       if (toPersonal) {

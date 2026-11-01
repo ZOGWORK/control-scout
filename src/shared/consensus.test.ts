@@ -24,6 +24,12 @@ describe("aggregateConsensus", () => {
     expect(JSON.stringify(c)).not.toContain("fast");
   });
 
+  it("a measurement averages only with answers in the same unit", () => {
+    const w = (unit: string): ScoutField => ({ id: "weight", label: "Robot weight", type: "number", phase: "pit", unit });
+    const c = aggregateConsensus(7, [e(1, [w("lb")], { weight: 40 }), e(2, [w("lb")], { weight: 44 }), e(3, [w("kg")], { weight: 18 })]);
+    expect(c.counters.map((x) => [x.id, x.label, x.avg])).toEqual(expect.arrayContaining([["weight:lb", "Robot weight (lb)", 42], ["weight:kg", "Robot weight (kg)", 18]]));
+  });
+
   it("labels and scales come from the newest entry with the field, even one that left it unanswered", () => {
     const c = aggregateConsensus(7, [
       e(1, [rating("speed", "Speed")], { speed: 5 }),

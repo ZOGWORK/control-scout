@@ -66,7 +66,7 @@ function fullPage(url) {
   const q = new URLSearchParams();
   const space = url.searchParams.get("space");
   if (space && /^[A-Za-z0-9_-]{1,64}$/.test(space)) q.set("space", space);
-  q.set("tab", "data");
+  q.set("tab", "planning");
   q.set("view", "picklist");
   const season = url.searchParams.get("season");
   if (season && /^\d{4}$/.test(season)) q.set("season", season);

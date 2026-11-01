@@ -107,7 +107,7 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
       const key = `${e.kind}:${f.id}`;
       if (!labels.has(key)) labels.set(key, f.label);
       if (f.type === "rating" && !scales.has(key)) scales.set(key, f.max ?? 5);
-      if (f.type === "rating" || f.type === "counter") {
+      if (f.type === "rating" || f.type === "counter" || f.type === "number") {
         if (typeof v !== "number" || !Number.isFinite(v)) continue;
         let value = v;
         if (f.type === "rating") {
@@ -119,13 +119,18 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
           if (frac >= STRONG) tally(strengths, key);
           if (frac <= WEAK) tally(weaknesses, key);
         }
-        const k = `${key}:${f.type}`;
+        // A measurement (number + unit) averages like a counter, but only with answers in the same unit: a field
+        // changed from lb to kg keeps its older answers apart (the unit in its id and label), never one average.
+        const type = f.type === "rating" ? "rating" : "counter";
+        const unit = f.type === "number" ? f.unit?.trim().toLowerCase() ?? "" : "";
+        const k = `${key}:${type}${unit ? `:${unit}` : ""}`;
         const cur = nums.get(k);
-        if (cur) { cur.sum += value; cur.n++; } else nums.set(k, { kind: e.kind, id: f.id, label: labels.get(key)!, type: f.type, ...(f.type === "rating" ? { max: scales.get(key)! } : {}), sum: value, n: 1 });
+        const label = unit && !labels.get(key)!.toLowerCase().includes(`(${unit})`) ? `${labels.get(key)!} (${f.unit!.trim()})` : labels.get(key)!;
+        if (cur) { cur.sum += value; cur.n++; } else nums.set(k, { kind: e.kind, id: unit ? `${f.id}:${unit}` : f.id, label, type, ...(type === "rating" ? { max: scales.get(key)! } : {}), sum: value, n: 1 });
       } else if (f.type === "choice") {
         if (typeof v !== "string" || !v || !(f.options ?? []).includes(v)) continue;
         tally(tags, key, v);
-      } else if (f.type === "toggle") {
+      } else if (f.type === "toggle" || f.type === "toggleDetail") {
         if (v === true) tally(tags, key);
       }
     }
@@ -160,7 +165,8 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
 export function fieldGrouper() {
   const ids = new Map<string, string>(); // definition -> layer id
   const taken = new Map<string, number>(); // id -> definitions seen
-  const keyOf = (f: ScoutField) => JSON.stringify([f.id, f.type, f.label.trim().toLowerCase(), f.max ?? null, f.options ?? null]);
+  // The unit too: a weight in lb and one in kg are different questions, never averaged together.
+  const keyOf = (f: ScoutField) => JSON.stringify([f.id, f.type, f.label.trim().toLowerCase(), f.max ?? null, f.options ?? null, f.unit?.trim().toLowerCase() ?? null]);
   return (fields: ScoutField[], data: Record<string, unknown>) => {
     const out: ScoutField[] = [];
     const d: Record<string, unknown> = {};

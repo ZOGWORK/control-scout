@@ -157,7 +157,7 @@ describe("light pages", () => {
     expect(r.headers.get("cache-control")).toBe("no-store");
     const html = await r.text();
     expect(html).toContain("Sign in first");
-    expect(html).toContain(`<a class="full" href="/scout?space=ws1&amp;tab=data&amp;view=picklist&amp;season=2025">Full version</a>`);
+    expect(html).toContain(`<a class="full" href="/scout?space=ws1&amp;tab=planning&amp;view=picklist&amp;season=2025">Full version</a>`);
   });
 });
 
@@ -170,7 +170,7 @@ describe("switched off by the owner (venueLightMode)", () => {
     await setFlag("venueLightMode", false, "owner@example.com");
     try {
       expect((await renderPage(index, "/teams/10005")).html).not.toContain("Open the light version");
-      for (const [path, full] of [[`/lite/events/${S}/NJQ1`, `/events/${S}/NJQ1`], ["/lite/teams/10005?season=" + S, `/teams/10005?season=${S}`], ["/lite/picklist?space=ws1", "/scout?space=ws1&tab=data&view=picklist"]]) {
+      for (const [path, full] of [[`/lite/events/${S}/NJQ1`, `/events/${S}/NJQ1`], ["/lite/teams/10005?season=" + S, `/teams/10005?season=${S}`], ["/lite/picklist?space=ws1", "/scout?space=ws1&tab=planning&view=picklist"]]) {
         const r = await get(path);
         expect(r.status, path).toBe(302);
         expect(r.headers.get("location")).toBe(full);
@@ -190,11 +190,14 @@ describe("addresses", () => {
       ["/events/2025/USNJQ1/match/qual:0:12", "", "/lite/events/2025/USNJQ1/match/qual:0:12"],
       ["/teams/18360", "?season=2024&tab=x", "/lite/teams/18360?season=2024"],
       ["/scout", "?space=7&view=picklist&season=2025&tab=data", "/lite/picklist?space=7&season=2025"],
+      // Pick list & planning with no view opens on the pick list.
+      ["/scout", "?space=7&tab=planning&season=2025", "/lite/picklist?space=7&season=2025"],
     ];
+    expect(liteHref("/scout", "?space=7&tab=planning&view=activity")).toBeNull();
     for (const [path, search, lite] of pairs) expect(liteHref(path, search)).toBe(lite);
     expect(fullHref("/lite/events/2025/USNJQ1")).toBe("/events/2025/USNJQ1");
     expect(fullHref("/lite/teams/18360", "?season=2024")).toBe("/teams/18360?season=2024");
-    expect(fullHref("/lite/picklist", "?space=7")).toBe("/scout?space=7&tab=data&view=picklist");
+    expect(fullHref("/lite/picklist", "?space=7")).toBe("/scout?space=7&tab=planning&view=picklist");
     for (const p of ["/", "/events", "/predict", "/scout", "/scout?view=entries"]) expect(liteHref(p.split("?")[0], p.includes("?") ? p.slice(p.indexOf("?")) : "")).toBeNull();
   });
 });
