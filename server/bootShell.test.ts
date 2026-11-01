@@ -96,11 +96,11 @@ describe("static first paint", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
     const side = (path: string) => bootShell(path, meta).match(/<aside class="csb-side">.*?<\/aside>/)![0];
-    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works", "Settings"]);
+    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works"]);
     // A native <details>: it opens without the app, and is already open on one of its own pages.
     expect(side("/")).toContain('<details class="csb-more"><summary>');
     expect(side("/compare")).toContain('<details class="csb-more" open><summary>');
-    expect(side("/settings")).toContain('<a href="/settings" aria-current="page">');
+    expect(side("/download")).toContain('<a href="/download" aria-current="page">');
     // The rail hides row names visually only: every link keeps its name for screen readers.
     const narrow = BOOT_STYLE.match(/@media \(max-width:1279px\)\{[^\n]*\}/)![0];
     expect(narrow).toContain(".csb-nav a span,.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)");

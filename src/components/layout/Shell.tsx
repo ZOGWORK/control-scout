@@ -10,12 +10,12 @@ import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { MotionConfig } from "motion/react";
 import { m } from "../motion";
 import {
-  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Settings, Sparkles, Star, Trophy, Users,
+  BookOpen, Bookmark, CalendarDays, ChevronDown, ClipboardList, DatabaseZap, Download, Ellipsis, Gavel, House, ListOrdered, PanelLeft, PanelLeftClose, PanelLeftOpen, Scale, Search, Sparkles, Star, Trophy, Users,
 } from "lucide-react";
 import { cn } from "../cn";
 import { useMediaQuery, useMeta } from "../../lib/meta";
 import { Sheet, SheetContent, SheetTitle, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/overlay";
-import { WhatsNewHost, WhatsNewRow, useUnseenRelease } from "../WhatsNew";
+import { WhatsNewHost, WhatsNewRow } from "../WhatsNew";
 import { GlobalSearch } from "./Search";
 import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
 import { ClockWeather, ThemeToggle } from "./TopBarExtras";
@@ -53,7 +53,6 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/rules", label: "Rules", icon: Gavel },
     { to: "/download", label: "Download", icon: Download },
     { to: "/methodology", label: "How it works", icon: BookOpen },
-    { to: "/settings", label: "Settings", icon: Settings },
   ] },
 ];
 
@@ -130,7 +129,7 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
 const MORE_KEY = "cs-nav-more";
 const isUnder = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 
-/** The sidebar's "More" group: Download, How it works, Settings, Owner and What's new, folded away until asked for.
+/** The sidebar's "More" group: Power rankings, Compare, Shortlist, Rules, Download and How it works, folded away until asked for.
  *  It opens by itself on one of its own pages (so the lit row shows); opening or closing it by hand is remembered. */
 function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean }) {
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === "1"; } catch { return false; } });
@@ -138,7 +137,6 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
   const inside = items.some((it) => isUnder(pathname, it.to));
   // Every arrival on one of its pages (from another of them too) shows the lit row.
   useEffect(() => { if (inside) setOpen(true); }, [inside, pathname]);
-  const unseen = useUnseenRelease();
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
   const set = (on: boolean) => { try { localStorage.setItem(MORE_KEY, on ? "1" : "0"); } catch { /* ignore */ } setOpen(on); };
@@ -147,18 +145,13 @@ function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean
     <div className="space-y-(--nav-gap)" onKeyDown={(e) => { if (e.key === "Escape" && open) { e.stopPropagation(); set(false); button.current?.focus(); } }}>
       <RailTip on={collapsed} label={open ? "Fewer pages" : "More pages"}>
         <button ref={button} type="button" onClick={() => set(!open)} aria-expanded={open} aria-controls={id} className={rowClass(false, collapsed, true)}>
-          <span className="relative">
-            <Ellipsis className="size-[18px] shrink-0" aria-hidden />
-            {/* A new release waits under the folded group's What's new. */}
-            {!open && unseen && <span className="absolute -right-1 -top-1 size-2 rounded-full bg-accent ring-2 ring-secondary" aria-hidden />}
-          </span>
-          <span className={collapsed ? "sr-only" : "flex-1 truncate text-left"}>More{!open && unseen && <span className="sr-only"> (new release)</span>}</span>
+          <Ellipsis className="size-[18px] shrink-0" aria-hidden />
+          <span className={collapsed ? "sr-only" : "flex-1 truncate text-left"}>More</span>
           {!collapsed && <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />}
         </button>
       </RailTip>
       <div id={id} role="group" aria-label="More pages" hidden={!open} className="space-y-(--nav-gap)">
         <SectionRows items={items} collapsed={collapsed} dense />
-        <WhatsNewRow collapsed={collapsed} dense />
       </div>
     </div>
   );
@@ -189,9 +182,10 @@ function Sidebar({ rail, wide, onToggle, onMenu }: { rail: boolean; wide: boolea
           </div>
         ))}
       </nav>
-      {/* The fold button, then who's signed in (Control Point's footer: avatar, name, status, Settings, Sign out). */}
+      {/* What's new (always in view) beside the fold button, then who's signed in (Control Point's footer: avatar, name, status, Settings, Sign out). */}
       <div className="shrink-0 space-y-1 border-t border-line p-2">
-        <div className={cn("flex", rail ? "justify-center" : "justify-end")}>
+        <div className={cn("flex items-center gap-1", rail && "flex-col")}>
+          <div className={rail ? "w-full" : "min-w-0 flex-1"}><WhatsNewRow collapsed={rail} dense /></div>
           <RailTip on={rail} label={toggleLabel}>
             <button type="button" onClick={(e) => (wide ? onToggle() : onMenu(e.currentTarget))} aria-label={toggleLabel}
               className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60">
@@ -337,10 +331,10 @@ export function Shell({ children }: { children: ReactNode }) {
                     <SectionRows items={s.items} onNavigate={() => setMenu(false)} />
                   </div>
                 ))}
-                <WhatsNewRow onOpen={() => setMenu(false)} returnTo={toMenu} />
               </nav>
-              {/* The same account footer as the sidebar's, at the foot of the sheet. */}
-              <div className="mt-auto border-t border-line pt-3">
+              {/* What's new, then the same account footer as the sidebar's, at the foot of the sheet. */}
+              <div className="mt-auto space-y-1 border-t border-line pt-3">
+                <WhatsNewRow onOpen={() => setMenu(false)} returnTo={toMenu} />
                 <AccountFooter place="sheet" onNavigate={() => setMenu(false)} />
               </div>
             </SheetContent>
