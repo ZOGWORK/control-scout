@@ -20,8 +20,12 @@ the Unverified list (section 6), not in the table as a pass.
   and session written to the local `.data` database; no real account, nothing sent anywhere). Signed-in flows on the
   live site were not exercised (no test account there): see section 6.
 - **Console.** Each section's live check recorded console errors/warnings on the pages it touched. The final sweep
-  (section 4 of this file's evidence, below) opened 23 routes at both viewports, scrolled each to the bottom, and
-  recorded console errors, warnings, page errors and the site's own 4xx/5xx responses:
+  (headless Chromium, run on 2026-11-01 after #395 was live) opened these 23 routes at both viewports, waited for
+  load plus 3 s, scrolled each to the bottom, and recorded console errors, warnings, page errors and the site's own
+  4xx/5xx responses: `/`, `/events`, `/teams`, `/matches`, `/rankings`, `/teams/4215`, `/teams/4215?season=2024`,
+  `/events/2025/USNJCMP` (plus `?tab=rankings` and `?tab=odds`), `/predict`, `/compare?teams=4215,18360`,
+  `/shortlist`, `/my-team`, `/my-teams`, `/download`, `/settings` (plus `?section=offline` and `?section=about`),
+  `/search?q=4215`, `/methodology`, `/faq`, `/teams/999997`. Results:
   - signed out, live site (release `f53bf23e`): **0** on 22 of 23 routes; the unknown-team 404 page logs the
     browser's "Failed to load resource: 404" line twice (see Blocked B9);
   - signed in, local production build of section M: **0** on 22 of 23 routes, the same two lines on the 404 page.
