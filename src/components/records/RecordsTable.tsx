@@ -855,7 +855,7 @@ function useMoreToTheRight() {
 }
 
 function Alliance({ teams, season, side, noPage }: { teams: number[]; season: number; side: "red" | "blue"; noPage?: number[] }) {
-  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance");
+  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance-ink" : "bg-blue-alliance/12 text-blue-alliance");
   return (
     <span className="inline-flex gap-1">
       {/* A placeholder (an off-season demo team) has no page: its number shows, unlinked, as on event pages. */}

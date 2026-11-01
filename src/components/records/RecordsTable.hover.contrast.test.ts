@@ -55,4 +55,15 @@ describe("Teams table hovered row contrast", () => {
     // The plain alliance red is why: it doesn't make it on dark.
     if (cardBlock === ":root") expect(ratio(rgb(token("@theme", "color-red-alliance")), bg)).toBeLessThan(4.5);
   });
+
+  it.each([
+    ["dark", ":root", "@theme"],
+    ["light", "html.light", "html.light"],
+  ] as const)("%s: red team badges (ink on a 12%% red chip) read at 4.5:1 or more on a hovered row", (_, cardBlock, colorBlock) => {
+    expect(table).toContain('"bg-red-alliance/12 text-red-alliance-ink"');
+    const card = rgb(token(cardBlock, "sh-card")), accent = rgb(token(colorBlock, "color-accent"));
+    const red = rgb(token(colorBlock === "@theme" ? "@theme" : colorBlock, "color-red-alliance"));
+    const chip = over(red, 0.12, over(accent, tint, card));
+    expect(ratio(rgb(token(colorBlock, "color-red-alliance-ink")), chip)).toBeGreaterThanOrEqual(4.5);
+  });
 });
