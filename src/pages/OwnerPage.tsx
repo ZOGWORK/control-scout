@@ -38,6 +38,7 @@ import { StreamsPanel } from "../components/owner/StreamsPanel";
 import { PredictionEnginePanel, TierCalibrationList } from "../components/owner/PredictionEnginePanel";
 import { HeroLinesPanel } from "../components/owner/HeroLinesPanel";
 import { WhatsNewPanel } from "../components/owner/WhatsNewPanel";
+import { VitalsTable } from "../components/owner/VitalsTable";
 import { DigestPanel } from "../components/owner/DigestPanel";
 import { DataPanel } from "../components/owner/DataPanel";
 import { PacksPanel } from "../components/owner/PacksPanel";
@@ -453,6 +454,9 @@ function UsagePanel() {
               </Section>
               <Section title="Requests per day" description="Sync traffic and everything else, UTC days.">
                 <DailyBars daily={u.daily} />
+              </Section>
+              <Section title="Real-user speed" description="Web vitals from visitors who allowed usage statistics, at the 75th percentile, by the page the visit started on. Green is good, amber needs improvement, red is poor.">
+                <VitalsTable all={u.vitals.all} pages={u.vitals.pages} />
               </Section>
               <Section title="Slowest routes" description="By 95th percentile, routes with at least 5 requests in the period.">
                 <RouteTable rows={u.slowest} empty="Not enough requests yet to rank routes by speed." />
