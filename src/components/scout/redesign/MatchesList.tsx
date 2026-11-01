@@ -27,7 +27,8 @@ export interface MatchesListProps {
   currentIndex: number;
   /** Where scouting picks up (nextMatchIndex): matches before it that are still to do count as skipped. */
   nextIndex: number;
-  onOpen: (index: number) => void;
+  /** Open a match (none: read-only, the rows are just rows). */
+  onOpen?: (index: number) => void;
   /** Workspace only: who has the other teams, by normalized match label. Rows show it only when given. */
   others?: Map<string, OtherScout[]>;
   /** The open match's word ("Now" on the match screen, "Next up" in Event day's queue). */
@@ -123,20 +124,22 @@ function AllianceBox({ side, teams, watched, mark }: { side: AllianceSide; teams
   );
 }
 
-const MatchRow = memo(function MatchRow({ row, others, current, mark, nowLabel, onOpen }: { row: MatchRowInfo; others?: OtherScout[]; current: boolean; mark: boolean; nowLabel: string; onOpen: (i: number) => void }) {
+const MatchRow = memo(function MatchRow({ row, others, current, mark, nowLabel, onOpen }: { row: MatchRowInfo; others?: OtherScout[]; current: boolean; mark: boolean; nowLabel: string; onOpen?: (i: number) => void }) {
   const { match: m, status } = row;
   const time = shortTime(m.time);
+  // Read-only (nothing to open): the same row, not a button.
+  const Row = onOpen ? "button" : "div";
   const pill = status === "upcoming" ? (time ? `~${time}` : "To do") : status === "now" ? nowLabel : STATUS_WORDS[status];
   return (
     // Off-screen rows skip layout and paint, so a 120-match event scrolls like a short one.
     <li className="@container border-b border-border [contain-intrinsic-size:auto_76px] [content-visibility:auto] last:border-b-0" data-index={row.index}>
-      <button
-        type="button"
-        onClick={() => onOpen(row.index)}
+      <Row
+        {...(onOpen ? { type: "button" as const, onClick: () => onOpen(row.index) } : { role: "group" })}
         aria-label={rowName(row, others, nowLabel)}
         aria-current={current ? "true" : undefined}
         className={cn(
-          "relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 text-left outline-none transition-[background-color] still-hover:bg-accent/[0.07] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
+          "relative grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-3 text-left outline-none",
+          onOpen && "transition-[background-color] still-hover:bg-accent/[0.07] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60",
           "@3xl:grid-cols-[5.5rem_minmax(0,1fr)_minmax(0,1fr)_7rem]",
           current && "bg-accent/[0.05] before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-accent/70",
         )}
@@ -154,7 +157,7 @@ const MatchRow = memo(function MatchRow({ row, others, current, mark, nowLabel, 
             {others.map((o, i) => <span key={`${o.side}-${o.name}`}>{i > 0 && " · "}{sideName(o.side)}: <span className="text-text-base">{o.name}</span> {o.done ? "✓" : "· assigned"}</span>)}
           </span>
         ) : null}
-      </button>
+      </Row>
     </li>
   );
 });

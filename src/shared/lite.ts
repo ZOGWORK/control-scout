@@ -39,7 +39,8 @@ export function liteHref(path: string, search = ""): string | null {
   if (m) return `${LITE_PREFIX}/events/${m[1]}/${m[2].toUpperCase()}/match/${m[3]}`;
   if ((m = EVENT.exec(path))) return `${LITE_PREFIX}/events/${m[1]}/${m[2].toUpperCase()}`;
   if ((m = TEAM.exec(path))) return `${LITE_PREFIX}/teams/${Number(m[1])}${seasonQuery(params)}`;
-  if (/^\/scout\/?$/i.test(path) && params.get("view") === "picklist") {
+  // The pick list: ?view=picklist, or Pick list & planning with no view (the pick list is its first view).
+  if (/^\/scout\/?$/i.test(path) && (params.get("view") === "picklist" || (params.get("tab") === "planning" && !params.get("view")))) {
     const space = params.get("space");
     const q = new URLSearchParams();
     if (space && SPACE.test(space)) q.set("space", space);

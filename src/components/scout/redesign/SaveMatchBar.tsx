@@ -73,11 +73,14 @@ export function SaveMatchBar({ label, teamCount, nextLabel, nextIndex, emptyTeam
             <Save />{toPersonal ? `Save ${label} to Personal` : `Save ${label}`}
             <span className="font-medium opacity-75">· {teamCount} {teamCount === 1 ? "team" : "teams"}{nextLabel ? ` → ${nextLabel}` : ""}</span>
           </Button>
-          {toPersonal || emptyTeams.length || !sync ? (
+          {/* No sync line to show (a preview): how saving works. */}
+          {(toPersonal || emptyTeams.length > 0 || !sync) && (
             <p className={cn("mt-1.5 text-center text-xs", emptyTeams.length ? "text-warning-text" : "text-muted-foreground")}>
               {toPersonal ? "This workspace is read-only, so Save keeps what you typed in Personal." : emptyHint(emptyTeams)}
             </p>
-          ) : <SaveState sync={sync} savedHere={savedHere} className="mt-1.5 justify-center" />}
+          )}
+          {/* Where the last saves stand shows even on a fresh match (they may still be waiting to sync). */}
+          {sync && !toPersonal && <SaveState sync={sync} savedHere={savedHere} className="mt-1 justify-center" />}
         </>
       )}
       <FieldError id={errId} className="text-center text-sm">{error}</FieldError>

@@ -128,7 +128,7 @@ export function MatchQueue({ event, session, readOnly, onMatch, onManualMatch, a
         <div className="grid gap-2">
           <ScheduleState status="ready" fromDevice={schedule.fromDevice} />
           <MatchesList schedule={schedule.matches} watching={session.watching} scouted={scouted} currentIndex={found >= 0 ? found : next} nextIndex={next}
-            onOpen={(i) => onMatch(schedule.matches[i].label)} others={others} nowLabel={found >= 0 ? "Now" : "Next up"}
+            onOpen={readOnly ? undefined : (i) => onMatch(schedule.matches[i].label)} others={others} nowLabel={found >= 0 ? "Now" : "Next up"}
             listClassName="max-h-[24rem] overflow-y-auto overscroll-contain lg:max-h-[34rem]" />
         </div>
       ) : (

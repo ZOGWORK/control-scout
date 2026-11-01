@@ -121,9 +121,13 @@ export default function ScoutPage() {
   // `from`: the section it opened in (Event day needs a picked event; Entries and assignments don't). `eventCode`: an
   // assignment's event, held only in the space it was opened in; otherwise the form is at the picked event, or the
   // workspace's default event when none is picked (following a change to the default while it's open).
-  const [manual, setManual] = useState<{ from: "event" | "entries"; team?: number; eventCode?: string; space: ScoutSpace; nonce: number } | null>(null);
+  const [manual, setManual] = useState<{ from: "event" | "entries"; team?: number; eventCode?: string; space: ScoutSpace; season: number; nonce: number } | null>(null);
   const pitTeam = /^\d+$/.test(sp.get("pit") ?? "") ? Number(sp.get("pit")) : null;
   const formOpen = !!editEntry || !!manual || pitTeam != null;
+  // A pit form opened while the space could be written to stays open if it goes read-only (its Save keeps the
+  // answers in Personal); a read-only space never opens a new one.
+  const [pitWritable, setPitWritable] = useState<number | null>(null);
+  useEffect(() => { if (pitTeam == null) setPitWritable(null); else if (!readOnly) setPitWritable(pitTeam); }, [pitTeam, readOnly]);
   // The forms' Save bar says Saved (not how saving works) once anything was saved this visit.
   const [savedHere, setSavedHere] = useState(false);
   // Another space's entry can't be edited here: switching closes an edit (a new entry stays open and saves to the new space).
@@ -199,7 +203,7 @@ export default function ScoutPage() {
     const code = eventCode.toUpperCase();
     const from = session?.eventCode === code ? "event" : "entries";
     setSp((x) => { x.set("tab", from); x.delete("view"); x.delete("entry"); x.delete("at"); x.delete("pit"); return x; });
-    setManual({ from, team, eventCode: code, space, nonce: Date.now() });
+    setManual({ from, team, eventCode: code, space, season, nonce: Date.now() });
   };
   const badgeFor = (team: number, eventCode: string | null) => (workspace && eventCode ? assignedLabel(assignIndex.get(assignmentKey(season, eventCode, team)) ?? [], me?.accountId) : null);
   // Tapping an item about an entry opens it (in its season), if this device has it and it wasn't deleted since.
@@ -242,6 +246,8 @@ export default function ScoutPage() {
   const session = scoutSession.session;
   const scoutEvent = useScoutEvent(season, session?.eventCode ?? null);
   // With no event picked, Event day is the picker (no sections above it); Change event (?pick=1) opens it again.
+  // With no event picked, Event day is the picker; a pit form asked for meanwhile (a team page's Scout this team,
+  // ?pit=) waits under it and opens at the event picked. (A match typed in from Entries isn't on Event day.)
   const picking = !spaces.resolving && !readOnly && (sp.get("pick") === "1" || (!session && section === "event"));
   // Match assignments ("Red 1, Q1–Q30"): who has the other teams in the queue, and yours is what a new event starts watching.
   const matchAssignments = useMatchAssignments(workspace && !spaces.resolving ? space : null, season, live);
@@ -252,7 +258,8 @@ export default function ScoutPage() {
   const pickEvent = (code: string) => {
     const changed = !session || session.eventCode !== code.toUpperCase();
     scoutSession.set(code, (changed ? mineAt(code.toUpperCase()) : null) ?? session?.watching ?? DEFAULT_WATCHING);
-    setSp((x) => { x.delete("pick"); x.set("tab", "event"); x.delete("view"); if (changed) x.delete("at"); return x; });
+    // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
+    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); return x; });
   };
   const setWatching = (w: Watching) => { if (session) scoutSession.set(session.eventCode, w); };
   // The match being scouted has its own key (`at`): `match` is the entry list's filter, which this never touches.
@@ -263,9 +270,9 @@ export default function ScoutPage() {
   const openManual = (from: "event" | "entries" = "event") => {
     setSp((x) => { x.set("tab", from); x.delete("view"); x.delete("entry"); x.delete("at"); x.delete("pit"); return x; });
     // From Entries filtered to one team, the form starts with that team.
-    setManual({ from, team: from === "entries" ? teamFilter : undefined, space, nonce: Date.now() });
+    setManual({ from, team: from === "entries" ? teamFilter : undefined, space, season, nonce: Date.now() });
   };
-  const manualEvent = manual ? ((manual.space === space && manual.eventCode) || session?.eventCode || newEntryEventCode(space, wss.defaults, season)) : null;
+  const manualEvent = manual ? ((manual.space === space && manual.season === season && manual.eventCode) || session?.eventCode || newEntryEventCode(space, wss.defaults, season)) : null;
   const manualForm = (back: string) => manual && (
     <div className="grid gap-3">
       <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={() => setManual(null)}><ChevronLeft /> {back}</Button>
@@ -325,10 +332,11 @@ export default function ScoutPage() {
           </div>
         )}
       </PageHeader>
-      {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : picking ? (
-        // No event yet (or Change event): the picker is the page, with no sections above it.
-        <>
-          <EventChooser season={season} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
+      {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : <>
+        {/* No event yet (or Change event): the picker is the page, with no sections above it. What's under it stays
+            mounted (hidden), so an entry being filled in keeps its answers through Change event and back. */}
+        {picking && <>
+          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
             onCancel={session ? () => setSp((x) => { x.delete("pick"); return x; }) : undefined} />
           {!session && (
             <p className="mt-6 text-sm text-muted-foreground">
@@ -336,8 +344,8 @@ export default function ScoutPage() {
               {workspace && <> or the <button type="button" className="font-medium text-accent-text hover:underline" onClick={() => openView("planning", null)}>pick list &amp; planning</button></>}.
             </p>
           )}
-        </>
-      ) : <>
+        </>}
+        <div hidden={picking}>
         {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} />}
         {!session && <div className="mb-4 flex justify-end">{syncChip}</div>}
         <ScoutSections section={section} onSection={setSection} sections={sections}>
@@ -347,7 +355,7 @@ export default function ScoutPage() {
                 action={<Button variant="outline" onClick={() => setSection("entries")}>Open entries</Button>} />
             ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
             : manual?.from === "event" ? manualForm("Event day")
-            : pitTeam != null && !readOnly ? (
+            : pitTeam != null && (!readOnly || pitWritable === pitTeam) ? (
               <div className="grid gap-3">
                 <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closePit}><ChevronLeft /> Event day</Button>
                 <PitScout event={scoutEvent} entries={entries} team={pitTeam} onTeam={openPit} onClose={closePit} onSaved={() => setSavedHere(true)}
@@ -360,18 +368,18 @@ export default function ScoutPage() {
                 <div className="grid min-w-0 gap-3">
                   <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeMatch}><ChevronLeft /> Event day</Button>
                   <MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
-                    readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={openManual} onShown={onMatchShown}
+                    readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openManual()} onShown={onMatchShown}
                     sync={sync} savedHere={savedHere} onAnySave={() => setSavedHere(true)} />
                 </div>
                 <div className="hidden xl:sticky xl:top-20 xl:block">
-                  <MatchQueue event={scoutEvent} session={session} readOnly={!!readOnly} onMatch={openMatch} onManualMatch={openManual}
+                  <MatchQueue event={scoutEvent} session={session} readOnly={!!readOnly} onMatch={openMatch} onManualMatch={() => openManual()}
                     assignments={matchAssignments.list} me={me?.accountId ?? null} scouted={scoutedHere} next={nextHere}
                     done={matchQueueProgress(scoutEvent.schedule.matches, session.watching, scoutedHere).done} current={sp.get("at")} />
                 </div>
               </div>
             ) : (
               <EventDay event={scoutEvent} session={session} entries={entries} readOnly={!!readOnly} onWatching={setWatching} onMatch={openMatch}
-                onManualMatch={openManual} onPit={openPit} assignments={matchAssignments.list} me={me?.accountId ?? null} ourTeams={ourTeams} />
+                onManualMatch={() => openManual()} onPit={openPit} assignments={matchAssignments.list} me={me?.accountId ?? null} ourTeams={ourTeams} />
             )
           ) : section === "entries" ? (
             <div className="grid gap-4">
@@ -460,6 +468,7 @@ export default function ScoutPage() {
             </div>
           ) : null}
         </ScoutSections>
+        </div>
       </>}
       {historyEntry && <HistorySheet entry={historyEntry} me={me && { ...me, readOnly: !!readOnly }} open onOpenChange={(o) => { if (!o) setHistoryFor(null); }} />}
     </div>

@@ -142,6 +142,8 @@ export function EntryEditor(p: EntryEditorProps) {
     if (latest.current.space !== space) return; // switched spaces while checking
     if (err) { setTeamErr(err); return; }
     const { matchLabel: label, data: all, notes, template, fieldsLocked } = latest.current;
+    // Match may have been cleared while the team was being checked.
+    if (kind === "match" && !normalizeMatchLabel(label)) { setMatchErr("Which match? For example Q12."); return; }
     // A new entry keeps only the template's fields (and their details); an edit keeps everything it had.
     const ids = new Set(template.fields.flatMap((f) => (f.type === "toggleDetail" ? [f.id, detailKey(f.id)] : [f.id])));
     const out = initial ? { ...all } : Object.fromEntries(Object.entries(all).filter(([k]) => ids.has(k)));

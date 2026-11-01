@@ -30,7 +30,7 @@ import { controlPointInfo, type Membership } from "../auth/controlPoint.js";
 import type { User } from "../auth/session.js";
 import { isEnabledFor } from "../flags.js";
 import { builtinTemplate } from "../../src/shared/scoutDefaults.js";
-import { workspaceTemplateId, type ScoutField, type TemplateKind } from "../../src/shared/scoutTemplate.js";
+import { detailKey, workspaceTemplateId, type ScoutField, type TemplateKind } from "../../src/shared/scoutTemplate.js";
 import type { ScoutAnswer } from "../../src/shared/scoutEntry.js";
 import { copyUuid } from "./alliances.js";
 import { fieldReader } from "./consensus.js";
@@ -48,8 +48,15 @@ export function fits(f: ScoutField, v: unknown): v is ScoutAnswer {
     case "choice": return typeof v === "string" && (f.options ?? []).includes(v);
     case "counter": return typeof v === "number" && Number.isInteger(v) && v >= (f.min ?? 0) && (f.max == null || v <= f.max);
     case "rating": return typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= (f.max ?? 5);
+    case "number": return typeof v === "number" && Number.isFinite(v) && v >= (f.min ?? 0) && (f.max == null || v <= f.max);
+    case "toggleDetail": return typeof v === "boolean";
     default: return false;
   }
+}
+
+/** A field list with each Yes / no + detail field's detail as a text answer of its own (its id: detailKey). */
+function withDetails(fields: ScoutField[]): ScoutField[] {
+  return fields.flatMap((f) => (f.type === "toggleDetail" ? [f, { id: detailKey(f.id), label: f.label, type: "text" as const, phase: f.phase }] : [f]));
 }
 
 /**
@@ -59,8 +66,8 @@ export function fits(f: ScoutField, v: unknown): v is ScoutAnswer {
  * doesn't clear the answer where it fits). A field the sender asks and could show, left blank there, is cleared.
  */
 export function mapAnswers(data: Record<string, unknown>, from: ScoutField[], to: ScoutField[], existing: Record<string, unknown> = {}): Record<string, ScoutAnswer> {
-  const target = new Map(to.map((f) => [f.id, f]));
-  const asked = new Map(from.map((f) => [f.id, f]));
+  const target = new Map(withDetails(to).map((f) => [f.id, f]));
+  const asked = new Map(withDetails(from).map((f) => [f.id, f]));
   const out: Record<string, ScoutAnswer> = {};
   for (const [k, v] of Object.entries(existing)) {
     const f = target.get(k), sent = asked.get(k);
