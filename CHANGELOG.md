@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.1 — 2026-11-01
+
+On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
+
+### Highlights
+- [home] The Filters button on phone lists is the bright yellow one
+- [home] Opening Filters shows the filters, not the keyboard
+- [fixes] Tap the search box when you want to type
+- [fixes] Typing a place in Filters no longer jumps the sheet back to its top
+
+### Navigation
+- **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#PR)
+
 ## 1.9.9 — 2026-11-01
 
 The maintenance pass is written up: what changed, why, and how it was checked.

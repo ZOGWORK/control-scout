@@ -229,7 +229,9 @@ function PlacePicker({ events, value, onChange }: { events: EventListItem[]; val
           </button>
         )}
       </span>
-      <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2">
+      {/* A fixed height on phones: in the Filters sheet the popover counts toward the sheet's scroll height, so a
+          list that shrank with each letter typed pulled the sheet back to its top, out from under the box. */}
+      <PopoverContent align="start" className="flex max-h-[min(28rem,70dvh)] w-[min(92vw,20rem)] flex-col gap-2 p-2 max-sm:h-[min(22rem,50dvh)]">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="New Jersey, Ontario, Mexico…" aria-label="Search places" className="h-9 pl-8 max-sm:h-10" autoFocus />

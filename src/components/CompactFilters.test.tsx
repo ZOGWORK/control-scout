@@ -26,6 +26,7 @@ function Harness({ onFollowUp }: { onFollowUp?: () => void }) {
       onClearAll={() => setSp(new URLSearchParams())}>
       {(close) => (
         <FilterSection label="Where">
+          <input aria-label="Search" />
           <button type="button" onClick={() => setSp((x) => { x.set("place", "Texas"); return x; })}>Texas</button>
           <button type="button" onClick={() => close(onFollowUp)}>Edit conditions</button>
         </FilterSection>
@@ -101,6 +102,13 @@ describe("CompactFilters sheet", () => {
     expect(dialog.textContent).toContain("12 events");
     expect(screen.getByRole("button", { name: "Texas" })).toBeTruthy();
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+  });
+
+  it("opens with focus on the sheet, not a text box, so a phone keyboard doesn't pop up", async () => {
+    mount();
+    fireEvent.click(filtersButton());
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
   });
 
   it("a control in the sheet changes the URL straight away, and the chip appears", async () => {
