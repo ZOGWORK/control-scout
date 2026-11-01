@@ -126,7 +126,7 @@ function CommonsCard({ entry, events, onMute }: { entry: CommonsEntry; events: C
           {entry.photos.map((p) => p.expired ? (
             <li key={p.id} className="flex size-20 items-center justify-center rounded-lg border border-dashed border-border text-center text-[11px] text-muted-foreground"><span><Camera className="mx-auto mb-1 size-4" aria-hidden />Photo expired</span></li>
           ) : (
-            <li key={p.id}><a href={commonsPhotoUrl(p.id)} target="_blank" rel="noreferrer"><img src={commonsPhotoUrl(p.id)} alt={`${entry.source.name}'s pit photo of ${entry.team}`} loading="lazy" className="size-20 rounded-lg border border-border object-cover" /></a></li>
+            <li key={p.id}><PitPhoto id={p.id} alt={`${entry.source.name}'s pit photo of ${entry.team}`} /></li>
           ))}
         </ul>
       )}
@@ -183,4 +183,11 @@ export function CommonsSection({ team, season }: { team: number; season: number 
       </div>
     </Section>
   );
+}
+
+/** A pit photo, or the same small placeholder as an expired one when it doesn't load (never a broken-image icon). */
+function PitPhoto({ id, alt }: { id: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <span className="flex size-20 items-center justify-center rounded-lg border border-dashed border-border text-center text-[11px] text-muted-foreground" role="img" aria-label={`${alt}: not available`} data-photo-failed><span aria-hidden><Camera className="mx-auto mb-1 size-4" />Photo not available</span></span>;
+  return <a href={commonsPhotoUrl(id)} target="_blank" rel="noreferrer"><img src={commonsPhotoUrl(id)} alt={alt} loading="lazy" onError={() => setFailed(true)} className="size-20 rounded-lg border border-border object-cover" /></a>;
 }

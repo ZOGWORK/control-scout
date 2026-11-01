@@ -530,9 +530,11 @@ function Problem({ title, detail, onClear, clearLabel = "Clear filters" }: { tit
   );
 }
 
+/** At least a screen tall: the table that replaces it always is (50 rows), so the footer stays below the fold
+ *  while it loads instead of showing and then jumping down when the rows arrive (CLS 0.06–0.075, measured). */
 function TableSkeleton() {
   return (
-    <div className="space-y-1.5 rounded-xl border border-line bg-card p-3" aria-busy="true" aria-label="Loading records">
+    <div className="min-h-svh space-y-1.5 rounded-xl border border-line bg-card p-3" aria-busy="true" aria-label="Loading records">
       {Array.from({ length: 8 }, (_, i) => <div key={i} className="skeleton h-8 rounded-md" />)}
     </div>
   );

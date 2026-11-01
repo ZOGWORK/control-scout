@@ -77,6 +77,16 @@ describe("CommonsSection", () => {
     expect(within(block).getByText("Drivetrain: Mecanum")).toBeTruthy();
   });
 
+  it("a pit photo that doesn't load shows a 'not available' placeholder, never a broken image", async () => {
+    h.user = user;
+    body = answer([entry({ scoutedAt: Date.now() - 2 * HOUR, photos: [{ id: "p1", expired: false }] as CommonsEntry["photos"] })]);
+    show();
+    const img = await screen.findByAltText("Robo Owls's pit photo of 18360");
+    fireEvent.error(img);
+    expect(screen.queryByAltText("Robo Owls's pit photo of 18360")).toBeNull();
+    expect(screen.getByRole("img", { name: /pit photo of 18360: not available/ }).textContent).toBe("Photo not available");
+  });
+
   it("shows 0 and no as answers; leaves only unanswered questions out", async () => {
     h.user = user;
     const fields = [
