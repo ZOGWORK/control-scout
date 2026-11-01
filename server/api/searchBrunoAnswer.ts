@@ -44,8 +44,8 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   facts.push(`Control Scout's event records start with the ${seasonLabel(first)} FTC season; nothing earlier is recorded.`);
   if (a.card) {
     const c = a.card;
-    const who = `${c.team.number} ${c.team.name ?? ""}`.trim();
-    facts.push(`${c.title} for team ${who}: ${c.lines.length} found${c.count ? ` (${c.count} ${c.count === 1 ? "time" : "times"})` : ""}.`);
+    const who = c.team ? ` for team ${`${c.team.number} ${c.team.name ?? ""}`.trim()}` : "";
+    facts.push(`${c.title}${who}: ${c.lines.length} found${c.count ? ` (${c.count} ${c.count === 1 ? "time" : "times"})` : ""}.`);
     for (const l of c.lines) facts.push(`- ${lineText(l)}`);
     if (c.none) facts.push(c.none);
     for (const l of c.closest ?? []) facts.push(`- Closest record: ${lineText(l)}`);
@@ -55,7 +55,7 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
     facts.push(`Result: ${h.title}${h.subtitle ? ` (${h.subtitle})` : ""}${extra ? `: ${extra}` : ""}`);
   }
   // The main team's latest season, so "how good are they" has numbers to go on.
-  const team = a.card?.team.number ?? (a.hits[0]?.kind === "team" ? Number(a.hits[0].ref) : null);
+  const team = a.card?.team?.number ?? (a.hits[0]?.kind === "team" ? Number(a.hits[0].ref) : null);
   if (team) {
     const s = await get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number | null; losses: number | null; ties: number | null }>(
       "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties FROM team_season_stats WHERE team = ? ORDER BY season DESC LIMIT 1", [team]);

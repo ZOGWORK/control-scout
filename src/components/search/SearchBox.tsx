@@ -12,7 +12,7 @@ import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
-import { SEARCH_GROUPS, shownPath } from "../../shared/search";
+import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
@@ -220,11 +220,11 @@ export const searchPagePick = (q: string): SearchHit => ({ kind: "place", ref: "
 export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compact?: boolean; onOpen: (href: string) => void }) {
   const lines = card.lines.length ? card.lines : card.closest ?? [];
   const shown = compact ? lines.slice(0, 2) : lines;
-  const who = card.team.name ? `${card.team.name} (${card.team.number})` : `Team ${card.team.number}`;
+  const who = cardWho(card);
   return (
-    <div role="note" aria-label={`${card.title}: ${who}`} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
+    <div role="note" aria-label={who ? `${card.title}: ${who}` : card.title} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
       <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>
-        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}
+        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title}{who && ` · ${who}`}
         {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text">{card.count} {card.count === 1 ? "time" : "times"}</span>}
       </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
@@ -365,7 +365,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
           className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
-            : !ordered.length ? (
+            : !ordered.length && !answer?.card ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search."
                 : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
