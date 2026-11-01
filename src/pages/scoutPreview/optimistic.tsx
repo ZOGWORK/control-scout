@@ -15,7 +15,7 @@ const SEASON = 2025, EVENT = "USMICHQ", ME = 1;
 const NAMES: Record<number, string> = { 1: "Priya", 2: "Marcus", 3: "Jo" };
 const TEAMS: Assignment[] = [[1, 18360, 3, "open"], [1, 7236, 2, "open"], [2, 21010, 0, "open"], [3, 9999, 4, "done"]].map(([who, team, progress, status], i) => ({
   id: i + 1, workspaceId: "preview", season: SEASON, eventCode: EVENT, team: team as number, assigneeAccountId: who as number, assigneeName: NAMES[who as number],
-  createdByAccountId: 9, createdByName: "Coach Rivera", createdAt: 0, status: status as Assignment["status"], doneAt: null, doneByAccountId: null,
+  createdByAccountId: 9, createdByName: "Coach Rivera", createdAt: Date.now() - 2 * 3_600_000, status: status as Assignment["status"], doneAt: null, doneByAccountId: null,
   doneByName: status === "done" ? NAMES[who as number] : null, version: 1, progress: progress as number,
 }));
 const noop = () => {};
