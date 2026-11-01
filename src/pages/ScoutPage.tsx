@@ -3,7 +3,7 @@
 // your account when signed in and online.
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, Loader2, Lock, MessageSquare, Pause, Plus, Save, SearchX, Trash2, X } from "lucide-react";
+import { ChevronLeft, ClipboardCheck, ClipboardList, Cloud, CloudOff, Download, History, Info, ListOrdered, Loader2, Lock, MessageSquare, Pause, Plus, Save, SearchX, Trash2, X } from "lucide-react";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
 import { canDeleteScoutEntry, deleteScoutEntry, isScoutQueued, scoutSyncProblem, localScoutEntries, newScoutId, personalCopy, scoutDraftBase, refusalMessage, SCOUT_REFUSED, type ScoutRefusal, saveScoutEntry, ScoutStorageError, usePendingScoutCounts, useScouting, type ScoutEntry, type ScoutSpace, type ScoutValue } from "../lib/scouting";
@@ -53,10 +53,11 @@ import { teamError } from "../lib/teamCheck";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
 import { ScoutTopBar } from "../components/scout/redesign/ScoutTopBar";
-import { parseScoutTab, ScoutTabs, type ScoutTab } from "../components/scout/redesign/ScoutTabs";
+import { parseScoutTab, scoutListFromUrl, ScoutTabs, type ScoutTab } from "../components/scout/redesign/ScoutTabs";
 import { DataHub, dataHubExportUrl, pitTeams, type DataView } from "../components/scout/redesign/DataHub";
 import { SessionSetup } from "../components/scout/redesign/SessionSetup";
 import { MatchesTab, MatchScout } from "../components/scout/redesign/MatchScout";
+import { cn } from "../components/cn";
 import { useScoutSession } from "../lib/scoutSession";
 import { myMatchAssignment, useMatchAssignments } from "../lib/slotAssignments";
 import { useSavedToLine } from "../lib/adminCopies";
@@ -226,12 +227,12 @@ export default function ScoutPage() {
     window.addEventListener(SCOUT_REFUSED, refused);
     return () => window.removeEventListener(SCOUT_REFUSED, refused);
   }, [space]);
-  // The redesign (docs/mockups/scout-redesign.html): Match (scout one match at a time), Matches (progress at the
-  // event) and Data (everything else). A link from before (?view=…) opens that view under Data. A read-only
+  // The redesign (docs/mockups/scout-redesign.html): Scout (one match at a time, the event's match list one tap
+  // away) and Data (everything else). A link from before (?view=…) opens that view under Data. A read-only
   // workspace adds nothing, so it opens on Data.
   const view = sp.get("view");
   const tab: ScoutTab = sp.has("tab") ? parseScoutTab(sp.get("tab")) : view || readOnly ? "data" : "match";
-  const setTab = (t: ScoutTab) => setSp((x) => { x.set("tab", t); if (t !== "data") x.delete("view"); x.delete("setup"); return x; });
+  const setTab = (t: ScoutTab) => setSp((x) => { x.set("tab", t); if (t !== "data") x.delete("view"); x.delete("setup"); x.delete("list"); return x; });
   const openView = (v: DataView | null) => setSp((x) => { x.set("tab", "data"); x.delete("setup"); if (v) x.set("view", v); else x.delete("view"); return x; });
   // The scouting session: the event and teams, set once (per space and season) and kept on this device.
   const scoutSession = useScoutSession(space, season, newEntryEventCode(space, wss.defaults, season));
@@ -245,7 +246,10 @@ export default function ScoutPage() {
     setSp((x) => { x.delete("setup"); x.set("tab", "match"); if (changed) x.delete("at"); return x; });
   };
   // The match on screen has its own key (`at`): `match` is the entry list's filter, which this never touches.
-  const openMatch = (label: string) => setSp((x) => { x.set("tab", "match"); x.set("at", label); return x; });
+  const openMatch = (label: string) => setSp((x) => { x.set("tab", "match"); x.set("at", label); x.delete("list"); return x; });
+  // Phones and laptops: the event's match list in place of the match (wide screens show it beside the match).
+  const listOpen = scoutListFromUrl(sp);
+  const showList = (on: boolean) => setSp((x) => { x.set("tab", "match"); if (on) x.set("list", "1"); else x.delete("list"); return x; });
   // No schedule to scout from (or a practice match): the full form, with the session's event filled in.
   const openOldForm = (kind: "match" | "pit", team: number | undefined) => {
     // A new entry: never the edit that may still be named in the URL.
@@ -337,7 +341,7 @@ export default function ScoutPage() {
                       </Button>
                     )}
                   </div>}>
-                    {!entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Scout a match from the Match tab, or start one from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
+                    {!entries.length ? <EmptyState icon={ClipboardList} title="No scouting entries yet" description="Scout a match from the Scout tab, or start one from any team page. Entries save on this device first, so scouting works with no signal." /> : <>
                       <EntryFilterBar filters={feed.filters} query={feed.query} sort={feed.sort} options={feed.options} shown={feed.shown.length} total={entries.length}
                         onFilter={feed.setFilter} onSort={feed.setSort} onClear={feed.clear} onWantEvents={() => setWantEvents(true)} />
                       {!feed.shown.length ? (
@@ -360,13 +364,27 @@ export default function ScoutPage() {
             <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are under Data."
               action={<Button variant="outline" onClick={() => openView(null)}>Open Data</Button>} />
           ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
-          : tab === "matches" ? (
-            <div className={SCOUT_COLUMN}><MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} assignments={matchAssignments.list} me={me?.accountId ?? null} /></div>
-          ) : (
-            // Wide screens: the match list beside the match, to see what's done and jump without switching tabs.
+          : (
+            // One Scout tab: the match, and the event's match list one tap away (?list=1). Wide screens show the list
+            // beside the match instead, to see what's done and jump without leaving it.
             <div className="grid gap-8 xl:grid-cols-[minmax(0,48rem)_minmax(0,1fr)]">
-            <div className={SCOUT_COLUMN}><MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
-              readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} onShown={onMatchShown} /></div>
+            <div className={cn(SCOUT_COLUMN, "grid gap-3")}>
+              <div className="flex justify-end xl:hidden">
+                {listOpen
+                  ? <Button variant="outline" size="sm" className="max-sm:h-10" onClick={() => showList(false)}><ChevronLeft /> Back to the match</Button>
+                  : <Button variant="outline" size="sm" className="max-sm:h-10" onClick={() => showList(true)}><ListOrdered /> All matches</Button>}
+              </div>
+              {listOpen && (
+                <section aria-label="Matches at this event" className="xl:hidden">
+                  <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} assignments={matchAssignments.list} me={me?.accountId ?? null} />
+                </section>
+              )}
+              {/* Kept mounted under the list, so a match half typed in (and its timer) is still there on the way back. */}
+              <div className={cn(listOpen && "max-xl:hidden")}>
+                <MatchScout space={space} season={season} session={session} entries={entries} template={matchTemplate} author={me?.accountId ?? null}
+                  readOnly={!!readOnly} spaceName={spaceName} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} onShown={onMatchShown} />
+              </div>
+            </div>
               <aside aria-label="Matches at this event" className="hidden xl:block">
                 <div className="sticky top-20 max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain pr-1">
                   <MatchesTab season={season} session={session} entries={entries} matchLabel={sp.get("at")} onMatch={openMatch} onManual={() => openOldForm("match", undefined)} assignments={matchAssignments.list} me={me?.accountId ?? null} />
