@@ -30,7 +30,7 @@ Colours mean one thing each, read clearly in light mode, and the keyboard focus 
 - **One status look.** My team's event cards used grey Upcoming/Finished badges while the Events page used blue and green chips; both now use the same chips. The live stream marker and Live standings use the danger red token instead of a raw red.
 - **Video red is a token.** Has a recording, Clips, a match's Watch chip and the play button share one video red, deeper on light so small text reads at 4.5:1.
 - **Contrast.** A winning red alliance's score on its tint (4.4:1 on dark) and a series loser's faded chip in the bracket (2.8–3.5:1 on light) now pass 4.5:1. Eliminated alliances and skipped series show a dashed outline instead of fading.
-- **Charts and links.** Compare's trend lines are solid, dashed, dotted and dash-dot with a legend, so they read without colour. Gold links in running text you've opened before read a step quieter. Scrollbars use the theme's colours in Firefox too.
+- **Charts and links.** Compare's trend lines are solid, dashed, dotted and dash-dot with a legend, so they read without colour. Gold links in running text you've opened before read a step quieter. Scrollbars use the theme's colours in Firefox too (#384).
 
 ## 1.8.3 — 2026-11-01
 
