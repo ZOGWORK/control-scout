@@ -52,7 +52,7 @@ const SECTIONS: LegalSectionDef[] = [
         <p>Control Scout works without an account. Browsing teams, events, matches and predictions needs <strong>no sign-in and no personal information</strong>.</p>
         <ul>
           <li><strong>If you sign in:</strong> your email address, an optional display name, and what you choose to sync: my team, tracked teams and events, your shortlist and its notes, scouting entries and match-video links.</li>
-          <li><strong>If you allow anonymous usage statistics:</strong> which pages are viewed. See <a href="#analytics">Usage statistics</a>.</li>
+          <li><strong>If you allow anonymous usage statistics:</strong> which pages are viewed and how fast they load. See <a href="#analytics">Usage statistics</a>.</li>
           <li><strong>If you contact us:</strong> the email address, optional name and message you send through the <In to="/contact">contact form</In>.</li>
           <li><strong>If you report an error:</strong> only when you tap Report, or send a report from Settings: the error message and its technical details (the page, the app version, your browser), with emails, codes and other personal details removed, plus anything you type. Reports go into our private issue tracker on GitHub so we can fix the bug. Your notes and scouting entries are never included.</li>
           <li><strong>Server logs:</strong> like any website, our web server briefly records requests (the page asked for, IP address, browser type) to keep the site secure and working.</li>
@@ -89,6 +89,7 @@ const SECTIONS: LegalSectionDef[] = [
         <p>We'd like to know which pages are useful, so Control Scout may ask whether you allow <strong>anonymous usage statistics</strong>. It's your choice, and the site works exactly the same either way.</p>
         <ul>
           <li><strong>If you allow them,</strong> each page view sends Control Scout's own server: the page's path (like <span className="font-mono text-[0.8125rem]">/events</span>), the domain of the site that linked you here, and a rough screen-size group (phone, tablet or desktop).</li>
+          <li><strong>How fast pages load for you:</strong> when you leave or hide a page, a few timings (how long the page took to appear and to answer a tap, and how much it jumped around while loading) with the same kind of path and screen-size group. Nothing about what's on the page or what you searched for.</li>
           <li><strong>Nothing that identifies you:</strong> no cookies, no IP address stored, no ID that follows you between visits or sites. The statistics go to our server only, never to an analytics company or advertiser.</li>
           <li><strong>If you decline,</strong> nothing is sent.</li>
         </ul>
