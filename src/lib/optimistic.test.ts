@@ -27,7 +27,7 @@ describe("optimistic", () => {
   it("success: shows at once, before the answer, and keeps it", async () => {
     const { s, set } = screenValue("open");
     const req = deferred<{ status: string }>();
-    const done = optimistic({ key: "a1", apply: set("done"), send: () => req.promise, what: "team 1 marked done" });
+    const done = optimistic({ key: "a1", apply: set("done"), send: () => req.promise, reconcile: () => {}, what: "team 1 marked done" });
     expect(s.v).toBe("done"); // before any answer
     req.resolve({ status: "done" });
     expect(await done).toEqual({ ok: true, value: { status: "done" }, current: true });
@@ -49,7 +49,7 @@ describe("optimistic", () => {
   it("failure: rolls back and says it didn't save", async () => {
     const { s, set } = screenValue("open");
     const report = vi.fn();
-    const r = await optimistic({ key: "a1", apply: set("done"), send: async () => { throw new ApiError(500, "Server error"); }, what: "team 1 marked done", report });
+    const r = await optimistic({ key: "a1", apply: set("done"), send: async () => { throw new ApiError(500, "Server error"); }, reconcile: () => {}, what: "team 1 marked done", report });
     expect(r.ok).toBe(false);
     expect(s.v).toBe("open");
     expect(report).toHaveBeenCalledWith("Didn't save: team 1 marked done. Server error. It's back as it was.", expect.any(ApiError));
@@ -57,7 +57,7 @@ describe("optimistic", () => {
 
   it("failure with no report given: an error toast", async () => {
     const { set } = screenValue(false);
-    await optimistic({ key: "s1", apply: set(true), send: async () => { throw new ApiError(0, "Offline", true); }, what: "shared" });
+    await optimistic({ key: "s1", apply: set(true), send: async () => { throw new ApiError(0, "Offline", true); }, reconcile: () => {}, what: "shared" });
     expect(toast.error).toHaveBeenCalledWith("Didn't save: shared. No connection reached the server. It's back as it was.");
   });
 
@@ -65,8 +65,8 @@ describe("optimistic", () => {
     const { set } = screenValue("open");
     const order: string[] = [];
     const first = deferred<string>();
-    const a = optimistic({ key: "a1", apply: set("done"), send: () => { order.push("done"); return first.promise; }, what: "x" });
-    const b = optimistic({ key: "a1", apply: set("open"), send: async () => { order.push("open"); return "open"; }, what: "x" });
+    const a = optimistic({ key: "a1", apply: set("done"), send: () => { order.push("done"); return first.promise; }, reconcile: () => {}, what: "x" });
+    const b = optimistic({ key: "a1", apply: set("open"), send: async () => { order.push("open"); return "open"; }, reconcile: () => {}, what: "x" });
     await Promise.resolve();
     expect(order).toEqual(["done"]); // the second waits for the first's answer
     first.resolve("done");
@@ -101,9 +101,9 @@ describe("optimistic", () => {
     const report = vi.fn();
     const fail = async () => { throw new Error("nope"); };
     await Promise.all([
-      optimistic({ key: "a1", apply: set("done"), send: fail, what: "x", report }),
-      optimistic({ key: "a1", apply: set("open"), send: fail, what: "x", report }),
-      optimistic({ key: "a1", apply: set("done"), send: fail, what: "x", report }),
+      optimistic({ key: "a1", apply: set("done"), send: fail, reconcile: () => {}, what: "x", report }),
+      optimistic({ key: "a1", apply: set("open"), send: fail, reconcile: () => {}, what: "x", report }),
+      optimistic({ key: "a1", apply: set("done"), send: fail, reconcile: () => {}, what: "x", report }),
     ]);
     expect(s.v).toBe("open");
     expect(report).toHaveBeenCalledTimes(1);
@@ -112,11 +112,37 @@ describe("optimistic", () => {
   it("keys are independent", async () => {
     const one = screenValue("open"), two = screenValue("open");
     await Promise.all([
-      optimistic({ key: "a1", apply: one.set("done"), send: async () => { throw new Error("nope"); }, what: "x", report: () => {} }),
-      optimistic({ key: "a2", apply: two.set("done"), send: async () => "done", what: "x" }),
+      optimistic({ key: "a1", apply: one.set("done"), send: async () => { throw new Error("nope"); }, reconcile: () => {}, what: "x", report: () => {} }),
+      optimistic({ key: "a2", apply: two.set("done"), send: async () => "done", reconcile: () => {}, what: "x" }),
     ]);
     expect(one.s.v).toBe("open");
     expect(two.s.v).toBe("done");
+  });
+
+  it("a newer change that fails after an older one saved puts that answer through its own view, not the older one's", async () => {
+    const oldView = vi.fn(), newView = vi.fn();
+    const a = optimistic({ key: "d", apply: () => () => {}, send: async () => "off", reconcile: oldView, what: "x" });
+    const b = optimistic({ key: "d", apply: () => () => {}, send: async () => { throw new Error("nope"); }, reconcile: newView, what: "x", report: () => {} });
+    await Promise.all([a, b]);
+    expect(oldView).not.toHaveBeenCalled();
+    expect(newView).toHaveBeenCalledWith("off");
+  });
+
+  it("a change that went stale while it waited is dropped unsent and quietly", async () => {
+    const { s, set } = screenValue("off");
+    const first = deferred<string>();
+    let account = 1;
+    const sent: string[] = [];
+    const report = vi.fn();
+    const a = optimistic({ key: "d", apply: set("on"), send: () => { sent.push("on"); return first.promise; }, reconcile: (r) => { s.v = r; }, what: "x", report });
+    const mine = account;
+    const b = optimistic({ key: "d", apply: set("off"), send: async () => { sent.push("off"); return "off"; }, reconcile: (r) => { s.v = r; }, what: "x", report, stale: () => account !== mine });
+    account = 2; // signed in as someone else while the first was on its way
+    first.resolve("on");
+    expect(await b).toMatchObject({ ok: false, dropped: true });
+    await a;
+    expect(sent).toEqual(["on"]);
+    expect(report).not.toHaveBeenCalled();
   });
 
   it("didntSave words a plain error and an unknown throw", () => {

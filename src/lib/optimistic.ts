@@ -17,16 +17,23 @@ export interface OptimisticChange<R> {
   apply: () => () => void;
   /** The request. */
   send: () => Promise<R>;
-  /** The server's answer: put its copy in (it may differ from the guess, e.g. a newer version). */
-  reconcile?: (answer: R) => void;
+  /** Put a server answer on screen: this change's own, or an older change's that saved when this one didn't (so it's
+   * always this change's view that's set, even if the older change was made on a view since closed). */
+  reconcile: (answer: R) => void;
   /** What the change was, for the failure message: "team 18360 marked done". */
   what: string;
   /** Say it didn't save (default: an error toast). */
   report?: (message: string, error: unknown) => void;
+  /** Checked just before sending (a change waits for the ones before it): true drops it unsent and quietly, e.g. the
+   * account changed meanwhile, so a request never goes out with the next account's cookie. */
+  stale?: () => boolean;
 }
 
-/** `current`: this was still the newest change to its key when its answer came (an older one's answer changes nothing). */
-export type OptimisticResult<R> = { ok: true; value: R; current: boolean } | { ok: false; error: unknown; current: boolean };
+/** `current`: this was still the newest change to its key when its answer came (an older one's answer changes nothing).
+ * `dropped`: never sent (`stale`). */
+export type OptimisticResult<R> =
+  | { ok: true; value: R; current: boolean }
+  | { ok: false; error: unknown; current: boolean; dropped?: true };
 
 /** The failure message: what didn't save, why, and that the screen is back as it was. */
 export function didntSave(what: string, error: unknown): string {
@@ -43,12 +50,13 @@ interface Chain {
   latest: number;
   /** Back to before the first change still unconfirmed. */
   undo: () => void;
-  /** Back to the newest change the server took (an older one, while a newer one was on its way). */
-  confirmed: (() => void) | null;
+  /** The newest answer the server gave (an older change's, while a newer one was on its way). */
+  confirmed: { value: unknown } | null;
 }
 
 const chains = new Map<string, Chain>();
 let tokens = 0;
+const DROPPED = Symbol("dropped");
 
 /** Tests: forget every key. */
 export function resetOptimistic() { chains.clear(); }
@@ -64,16 +72,28 @@ export function optimistic<R>(c: OptimisticChange<R>): Promise<OptimisticResult<
   if (!chain) { chain = { tail: Promise.resolve(), latest: t, undo, confirmed: null }; chains.set(c.key, chain); }
   chain.latest = t;
   const ch = chain;
-  const run = ch.tail.then(c.send).then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
+  const run = ch.tail
+    .then(() => (c.stale?.() ? Promise.reject(DROPPED) : c.send()))
+    .then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
   ch.tail = run;
-  return run.then((r) => {
+  return run.then((r): OptimisticResult<R> => {
     const current = ch.latest === t;
     if (r.ok) {
       // The server has this one now: a newer change that fails comes back to it, not to before it.
-      ch.confirmed = c.reconcile ? () => c.reconcile!(r.value) : () => { c.apply(); };
-      if (current) c.reconcile?.(r.value);
+      ch.confirmed = { value: r.value };
+      if (current) c.reconcile(r.value);
+    } else if (r.error === DROPPED) {
+      // Never sent (the account changed): nothing to say, and the screen it was on is gone.
+      if (current) chains.delete(c.key);
+      return { ok: false, error: r.error, current, dropped: true };
     } else if (current) {
-      if (ch.confirmed) ch.confirmed(); else ch.undo();
+      if (ch.confirmed) c.reconcile(ch.confirmed.value as R);
+      else {
+        // This view back to before this tap (it may be a newer view than the first change's), then to before the
+        // first change still unconfirmed (the same view, when every tap was made on it).
+        undo();
+        ch.undo();
+      }
       (c.report ?? ((m) => { toast.error(m); }))(didntSave(c.what, r.error), r.error);
     }
     // An older change that failed says nothing: the newer one decides, and the server gets it next.

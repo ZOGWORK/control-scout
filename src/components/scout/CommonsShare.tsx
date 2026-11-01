@@ -42,6 +42,8 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
   const on = guess ?? isShared(c, e.uuid);
   const removed = c.shares.find((s) => s.uuid === e.uuid && s.status === "removed");
   if (removed || c.suspended) {
+    // Taken down: what the switch shows is whether it's shared again if restored (the guess while it's on its way).
+    const kept = removed ? (guess ?? removed.sharedIfRestored) : on;
     return (
       <div role="status" className={`rounded-xl border border-danger/40 bg-danger/[0.06] p-4 text-sm ${className ?? ""}`}>
         <p className="flex items-center gap-1.5 font-medium"><Globe2 className="size-4 text-danger" aria-hidden />{removed ? "Taken down from the scouting commons" : "Your workspace is suspended from the scouting commons"}</p>
@@ -51,13 +53,13 @@ export function CommonsShare({ e, readOnly, unsaved, className }: { e: ScoutEntr
         </p>
         {/* Suspended, or taken down, the workspace can still withdraw the entry, so lifting the suspension or a restore
             won't bring back what it unshared. */}
-        {(removed ? removed.sharedIfRestored : on) && (
+        {(guess !== null || (removed ? removed.sharedIfRestored : on)) && (
           <div className="mt-3 flex items-center justify-between gap-4">
             <label htmlFor={id} className="text-sm">{removed ? "Share it again if it's restored" : "Shared: unshare it"}</label>
-            <Switch id={id} checked disabled={guess !== null || readOnly} onCheckedChange={(v) => { if (!v) toggle(false); }} />
+            <Switch id={id} checked={!!kept} disabled={guess !== null || readOnly} onCheckedChange={(v) => { if (!v) toggle(false); }} />
           </div>
         )}
-        {removed && removed.sharedIfRestored === false && <p className="mt-2 text-muted-foreground">Unshared: it stays out of the commons even if it's restored.</p>}
+        {removed && kept === false && <p className="mt-2 text-muted-foreground">Unshared: it stays out of the commons even if it's restored.</p>}
         {err && <p role="alert" className="mt-2 text-sm text-danger">{err}</p>}
       </div>
     );

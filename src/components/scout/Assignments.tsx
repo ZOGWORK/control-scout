@@ -50,7 +50,11 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
   /** Open a new entry for this team at this event. */
   onScout: (team: number, eventCode: string) => void;
 }) {
-  const { list, loading, error, reload } = state;
+  const { loading, error, reload } = state;
+  const act = useActions(space, state, myAccountId);
+  // Done or Reopen still on its way shows over the server's copy, so a live notice (or an older tap's answer) for the
+  // same assignment can't flip it back meanwhile.
+  const list = useMemo(() => (act.pending.size ? state.list.map((a) => act.pending.get(a.id) ?? a) : state.list), [state.list, act.pending]);
   const isAdmin = admin && !readOnly;
   const ownMatch = useMatchAssignments(matchState ? null : space, season, live ?? "polling");
   const [assignOpen, setAssignOpen] = useState(false);
@@ -63,7 +67,6 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
     for (const rows of m.values()) rows.sort((a, b) => a.team - b.team || a.assigneeName.localeCompare(b.assigneeName));
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [list]);
-  const act = useActions(space, state, myAccountId);
   const first = loading && !list.length;
   return (
     <>
@@ -116,23 +119,29 @@ export function AssignmentsView({ space, workspaceName, season, defaultEvent, st
 
 function useActions(space: string, state: AssignmentsState, myAccountId: number | null) {
   const [busy, setBusy] = useState<number | null>(null);
+  // Guesses on their way, by assignment id (shown over the server's copy until the newest tap's answer is in).
+  const [pending, setPending] = useState<ReadonlyMap<number, Assignment>>(new Map());
+  const guess = (id: number, a: Assignment | null) => setPending((cur) => {
+    const next = new Map(cur);
+    if (a) next.set(id, a); else next.delete(id);
+    return next;
+  });
   const fail = (e: unknown) => toast.error(e instanceof ApiError ? e.message : "Couldn't change that assignment. Try again.");
   return {
     busy,
+    pending,
     // Done and Reopen show at once (a scout taps them team after team on venue wifi) and roll back if the server says no.
     status: (a: Assignment, status: "open" | "done") => {
-      const guess: Assignment = status === "done"
+      const shown: Assignment = status === "done"
         ? { ...a, status, doneAt: Date.now(), doneByAccountId: myAccountId, doneByName: null }
         : { ...a, status, doneAt: null, doneByAccountId: null, doneByName: null };
       const said = toast.success(status === "done" ? `Team ${a.team} marked done` : `Team ${a.team} reopened`);
       void optimistic({
         key: `assignment:${space}:${a.id}`,
-        apply: () => {
-          state.apply({ action: "updated", assignments: [guess] });
-          return () => state.apply({ action: "updated", assignments: [a] });
-        },
+        apply: () => { guess(a.id, shown); return () => guess(a.id, null); },
         send: () => setAssignmentStatus(space, a.id, status),
-        reconcile: (r) => state.apply({ action: "updated", assignments: [r.assignment] }),
+        // The server's copy goes into the list (newer versions win there), and the guess comes off it.
+        reconcile: (r) => { state.apply({ action: "updated", assignments: [r.assignment] }); guess(a.id, null); },
         what: status === "done" ? `team ${a.team} marked done` : `team ${a.team} reopened`,
         report: (m) => { toast.dismiss(said); toast.error(m); },
       });

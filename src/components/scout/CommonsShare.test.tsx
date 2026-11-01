@@ -39,6 +39,9 @@ describe("CommonsShare", () => {
     expect(screen.getByText(/Taken down from the scouting commons/)).toBeTruthy();
     expect(screen.getByText(/\(Not scouting\)/)).toBeTruthy();
     fireEvent.click(screen.getByRole("switch", { name: /Share it again if it's restored/ }));
+    // Off at once, with what that means, before the server answers.
+    expect(screen.getByRole("switch", { name: /Share it again if it's restored/ }).getAttribute("aria-checked")).toBe("false");
+    expect(screen.getByText(/stays out of the commons even if it's restored/)).toBeTruthy();
     await waitFor(() => expect(h.calls).toEqual([["ws1", "e2", false]]));
   });
 
