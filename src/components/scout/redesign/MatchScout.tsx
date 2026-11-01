@@ -4,7 +4,11 @@
 // SaveMatchBar, useMatchDraft); this joins them to the page's state.
 import { useEffect, useMemo, useState } from "react";
 import { MatchHeader, ScheduleState } from "./MatchHeader";
-import { TeamTabs } from "./TeamTabs";
+import { StatusDot, TeamTabs } from "./TeamTabs";
+import { ScoreStrip } from "../forms/ScoreStrip";
+import type { SaveSync } from "../forms/SaveState";
+import { useMediaQuery } from "../../../lib/meta";
+import { cn } from "../../cn";
 import { PhaseForm } from "./PhaseForm";
 import { SaveMatchBar } from "./SaveMatchBar";
 import { QuickMatchForm } from "./QuickMatchForm";
@@ -38,6 +42,12 @@ export interface MatchScoutProps {
   onManual: () => void;
   /** A match came on screen (its normalized label): the page checks for newer questions, as opening the old form did. */
   onShown?: (label: string) => void;
+  /** Where saving stands (the page's sync state), for the Save bar. */
+  sync: SaveSync;
+  /** A save has been made on this screen this visit. */
+  savedHere?: boolean;
+  /** After any save (the page remembers that this visit has saved). */
+  onAnySave?: () => void;
 }
 
 export function MatchScout(p: MatchScoutProps) {
@@ -69,12 +79,12 @@ export function MatchScout(p: MatchScoutProps) {
       {/* A match of its own: its timer, phase and open tab start fresh. */}
       <OneMatch key={`${p.space ?? "personal"}:${p.season}:${session.eventCode}:${schedule.matches[index].key}`} {...p} match={schedule.matches[index]}
         nextLabel={index + 1 < schedule.matches.length ? schedule.matches[index + 1].label : null} nextIndex={Math.min(index + 1, schedule.matches.length - 1)}
-        onSaved={(i) => { p.onMatch(schedule.matches[i].label); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+        onSaved={(i) => { p.onAnySave?.(); p.onMatch(schedule.matches[i].label); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
     </div>
   );
 }
 
-function OneMatch({ space, season, session, entries, template, author, readOnly, spaceName, match, nextLabel, nextIndex, onSaved }: MatchScoutProps & {
+function OneMatch({ space, season, session, entries, template, author, readOnly, spaceName, match, nextLabel, nextIndex, onSaved, sync, savedHere }: MatchScoutProps & {
   match: ScheduleMatch; nextLabel: string | null; nextIndex: number; onSaved: (nextIndex: number) => void;
 }) {
   const teams = useMemo(() => teamsWatched(match, session.watching), [match, session.watching]);
@@ -88,31 +98,46 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   // All four teams: quick rows, one team's full form on request (and back).
   const [full, setFull] = useState(false);
   const quick = session.watching.kind === "all" && !full;
+  // A wide screen shows the robots side by side (one phase and one timer for all); a phone, one tab each.
+  const wide = useMediaQuery("(min-width: 1024px)");
   if (!teams.length) return <p className="text-sm text-muted-foreground">None of the teams you watch are in {match.label}.</p>;
+  const robotForm = (team: number, i: number) => {
+    const t = draft.teams.find((x) => x.watched.team === team)!;
+    return (
+      <div className="grid gap-3">
+        {t.locked && (
+          <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+            {team} was saved with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
+          </p>
+        )}
+        <PhaseForm template={t.template} value={t.data} onChange={(d) => draft.setData(team, d)} notes={t.notes} onNotes={(n) => draft.setNotes(team, n)}
+          notesLabel={`Notes on ${team}`} phase={phase} onPhase={setPhase} timer={timer} lockFields={t.locked} hideTimer={i > 0} />
+      </div>
+    );
+  };
+  const sideBySide = !quick && wide && draft.teams.length > 1;
   return (
     <>
+      <ScoreStrip robots={draft.teams.map((t) => ({ team: t.watched.team, side: t.watched.side, station: t.watched.station, data: t.data, template: t.template }))} />
       {session.watching.kind === "all" && full && (
         <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground" onClick={() => setFull(false)}><ChevronLeft /> Back to all 4 teams</Button>
       )}
       {quick ? (
         <QuickMatchForm teams={draft.teams} onChange={(team, d) => draft.setData(team, d)} onOpenFull={(team) => { setActive(team); setFull(true); }} />
-      ) : <TeamTabs teams={draft.teams.map((t) => ({ watched: t.watched, status: t.status }))} active={active} onSelect={setActive}
-        renderForm={(w) => {
-          const t = draft.teams.find((x) => x.watched.team === w.team)!;
-          return (
-            <div className="grid gap-3">
-              {t.locked && (
-                <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-                  {w.team} was saved with an earlier version of the workspace's fields, which this device hasn't loaded yet. Its answers are kept as they are; you can still change the notes.
-                </p>
-              )}
-              <PhaseForm template={t.template} value={t.data} onChange={(d) => draft.setData(w.team, d)} notes={t.notes} onNotes={(n) => draft.setNotes(w.team, n)}
-                notesLabel={`Notes on ${w.team}`} phase={phase} onPhase={setPhase} timer={timer} lockFields={t.locked} />
-            </div>
-          );
-        }} />}
+      ) : sideBySide ? (
+        <div className="grid items-start gap-4" style={{ gridTemplateColumns: `repeat(${Math.min(draft.teams.length, 2)}, minmax(0, 1fr))` }}>
+          {draft.teams.map((t, i) => (
+            <section key={t.watched.team} aria-label={`${t.watched.team}, ${t.watched.side} ${t.watched.station}`}
+              className={cn("min-w-0 rounded-2xl border-t-[3px] bg-card/40 p-3", t.watched.side === "red" ? "border-red-alliance" : "border-blue-alliance")}>
+              <p className="mb-2 flex items-center gap-2 font-mono text-base font-bold"><StatusDot status={t.status} />{t.watched.team}
+                <span className="font-sans text-xs font-medium text-muted-foreground">{t.watched.side === "red" ? "Red" : "Blue"} {t.watched.station}</span></p>
+              {robotForm(t.watched.team, i)}
+            </section>
+          ))}
+        </div>
+      ) : <TeamTabs teams={draft.teams.map((t) => ({ watched: t.watched, status: t.status }))} active={active} onSelect={setActive} renderForm={(w) => robotForm(w.team, 0)} />}
       <SaveMatchBar label={match.label} teamCount={teams.length} nextLabel={nextLabel} nextIndex={nextIndex} emptyTeams={draft.emptyTeams}
-        toPersonal={draft.toPersonal} savedTo={savedTo} onSave={draft.saveMatch} onSaved={onSaved} />
+        toPersonal={draft.toPersonal} savedTo={savedTo} onSave={draft.saveMatch} onSaved={onSaved} sync={sync} savedHere={savedHere} />
     </>
   );
 }

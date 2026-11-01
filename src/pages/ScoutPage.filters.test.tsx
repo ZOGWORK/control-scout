@@ -148,13 +148,14 @@ describe("Scout feed filters (workspace)", () => {
     expect(exportHref().searchParams.has("team")).toBe(false);
   });
 
-  it("a team filter alone doesn't open the form; Scout this team (new=1) does, with the team", () => {
+  it("a team filter alone doesn't open a form; Scout this team (new=1) opens that team's pit entry on Event day", async () => {
     show("/scout?season=2025&space=901&team=111");
     expect(screen.queryByRole("button", { name: /Save/ })).toBeNull();
     cleanup();
+    localStorage.setItem("cs-scout-session:901", JSON.stringify({ season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" }, setAt: 1 }));
     show("/scout?season=2025&space=901&team=111&new=1");
-    expect(screen.getByRole("button", { name: /Save/ })).toBeTruthy();
-    expect((screen.getByLabelText("Team") as HTMLInputElement).value).toBe("111");
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: /^Team: 111/ })).toBeTruthy();
   });
 });
 

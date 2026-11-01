@@ -12,7 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { orphanBanner, type OrphanState } from "../shared/orphaned";
 import { TooltipProvider } from "../components/ui/overlay";
-import { asEntries } from "./scoutTestUrl";
+import { asEntries, fillTeam, pickedEvent } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: true, state: { videoLinks: {} } },
@@ -32,6 +32,8 @@ const signedIn = (orphaned?: OrphanState): AccountUser => ({
 beforeEach(() => {
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   localStorage.clear();
+  // An event picked in each space: a new entry is at it.
+  pickedEvent([null, "901"]);
   resetFlags({ ...DEFAULT_FLAGS });
   // Synced (an author on the server), so its comment thread loads.
   localStorage.setItem("cs-scout-ws:901:gearheads001", JSON.stringify({ uuid: "gearheads001", ...base, team: 2222, notes: "steady intake", updatedAt: 1000, workspaceId: "901", authorAccountId: 5, authorDisplayName: "Max" }));
@@ -53,7 +55,7 @@ describe("read-only space", () => {
     expect(await screen.findByText(orphanBanner("deleted"))).toBeTruthy();
     expect(screen.getByText("This workspace no longer exists in Control Point — this space is read-only. Your entries are preserved.")).toBeTruthy();
     expect(screen.getByText("2222")).toBeTruthy(); // the entry is still there
-    expect(screen.queryByRole("button", { name: /new entry/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Type a match in/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /template/i })).toBeNull(); // Ada was an admin: no longer changes anything
     expect(screen.queryByRole("button", { name: "Delete entry" })).toBeNull();
     expect(screen.getByRole("link", { name: /export/i })).toBeTruthy(); // reading and exporting still work
@@ -74,14 +76,14 @@ describe("read-only space", () => {
     h.personal.user = signedIn({ at: "2026-10-16T09:00:00.000Z", reason: "no_admin" });
     show("/scout?season=2025&space=901");
     expect(await screen.findByText(orphanBanner("no_admin"))).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /new entry/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Type a match in/ })).toBeNull();
   });
 
   it("going read-only while a new entry is open keeps the draft, and Save keeps it in Personal", async () => {
     h.personal.user = signedIn();
     const view = show("/scout?season=2025&space=901");
-    fireEvent.click(await screen.findByRole("button", { name: /new entry/i }));
-    fireEvent.change(screen.getByLabelText("Team"), { target: { value: "2222" } });
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    fillTeam("2222");
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "typed before the workspace went" } });
     // A live update: the workspace was deleted in Control Point.
     h.personal.user = signedIn({ at: "2026-10-16T09:00:00.000Z", reason: "deleted" });
@@ -98,7 +100,7 @@ describe("read-only space", () => {
   it("a writable space: no banner, writing as ever", async () => {
     h.personal.user = signedIn();
     show("/scout?season=2025&space=901");
-    expect(await screen.findByRole("button", { name: /new entry/i })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Type a match in/ })).toBeTruthy();
     expect(screen.queryByText(/this space is read-only/)).toBeNull();
     expect(screen.getByRole("button", { name: "Edit" })).toBeTruthy();
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Pick list & planning" })); // the admin's Template is under planning

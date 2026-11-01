@@ -11,12 +11,12 @@ import { Button } from "../ui/button";
 import { Input, Label } from "../ui/basic";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleGroup, ToggleGroupItem } from "../ui/controls";
 import { toast } from "../ui/sonner";
-import { ScoutFieldInput } from "./ScoutFieldInput";
+import { BigFieldInput } from "./redesign/BigFieldInput";
 import { templateFor, type ScoutValue } from "../../lib/scouting";
 import { announceTemplateChange, saveWorkspaceTemplate } from "../../lib/scoutTemplates";
 import { seasonLabel } from "../../lib/format";
 import {
-  cleanField, FIELD_TYPE_LABEL, FIELD_TYPES, newFieldId, phaseLabel, phasesFor, TEMPLATE_LIMITS,
+  cleanField, detailKey, FIELD_TYPE_LABEL, FIELD_TYPES, newFieldId, phaseLabel, phasesFor, TEMPLATE_LIMITS,
   type FieldPhase, type FieldType, type ScoutField, type TemplateKind, type WorkspaceTemplate,
 } from "../../shared/scoutTemplate";
 
@@ -35,6 +35,8 @@ export function blankField(type: FieldType, phase: FieldPhase, taken: Iterable<s
   if (type === "counter") return { ...base, max: 20 };
   if (type === "rating") return { ...base, max: TEMPLATE_LIMITS.ratingDefault };
   if (type === "choice") return { ...base, options: ["Option 1", "Option 2"] };
+  if (type === "number") return { ...base, unit: "lb" };
+  if (type === "toggleDetail") return { ...base, detail: "What, and how?" };
   return base;
 }
 
@@ -209,7 +211,9 @@ export function TemplateEditor({ workspaceId, workspaceName, season, template, o
 
 /** Keep a field's settings consistent with its type while it's being edited. */
 function tidy(f: ScoutField): ScoutField {
-  const { options, min, max, ...rest } = f;
+  const { options, min, max, unit, detail, ...rest } = f;
+  if (f.type === "number") return { ...rest, ...(unit ? { unit } : {}), ...(min ? { min } : {}), ...(max != null ? { max } : {}) };
+  if (f.type === "toggleDetail") return { ...rest, ...(detail != null ? { detail } : {}) };
   if (f.type === "choice") return { ...rest, options: options?.length ? options : ["Option 1", "Option 2"] };
   if (f.type === "counter") { const hi = max ?? 20; const lo = Math.min(min ?? 0, hi - 1); return { ...rest, ...(lo > 0 ? { min: lo } : {}), max: hi }; }
   if (f.type === "rating") return { ...rest, max: Math.min(TEMPLATE_LIMITS.ratingMax, Math.max(TEMPLATE_LIMITS.ratingMin, max ?? TEMPLATE_LIMITS.ratingDefault)) };
@@ -221,6 +225,8 @@ function summary(f: ScoutField): string {
   if (f.type === "counter") return `${t} · ${f.min ?? 0} to ${f.max ?? 999}`;
   if (f.type === "rating") return `${t} · 1 to ${f.max ?? 5}`;
   if (f.type === "choice") return `${t} · ${(f.options ?? []).join(", ")}`;
+  if (f.type === "number") return f.unit ? `${t} · ${f.unit}` : t;
+  if (f.type === "toggleDetail") return f.detail ? `${t} · asks “${f.detail}”` : t;
   return t;
 }
 
@@ -263,6 +269,18 @@ function FieldEditor({ f, kind, onChange, onDone }: { f: ScoutField; kind: Templ
         <NumberBox id={`${id}-max`} label={`Steps (${TEMPLATE_LIMITS.ratingMin} to ${TEMPLATE_LIMITS.ratingMax})`} value={f.max ?? 5} lo={TEMPLATE_LIMITS.ratingMin} hi={TEMPLATE_LIMITS.ratingMax} onChange={(v) => onChange({ max: v })} />
       )}
       {f.type === "choice" && <OptionsEditor id={id} options={f.options ?? []} onChange={(options) => onChange({ options })} />}
+      {f.type === "number" && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-unit`}>Unit</Label>
+          <Input id={`${id}-unit`} value={f.unit ?? ""} maxLength={TEMPLATE_LIMITS.unit} placeholder="lb, in, cm…" onChange={(e) => onChange({ unit: e.target.value })} className="h-11 w-32" />
+        </div>
+      )}
+      {f.type === "toggleDetail" && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-detail`}>On yes, ask</Label>
+          <Input id={`${id}-detail`} value={f.detail ?? ""} maxLength={TEMPLATE_LIMITS.detail} placeholder="What, and how reliably?" onChange={(e) => onChange({ detail: e.target.value })} className="h-11" />
+        </div>
+      )}
       <Button type="button" variant="secondary" size="sm" className="max-sm:h-10" onClick={onDone}>Done</Button>
     </div>
   );
@@ -310,7 +328,11 @@ function Preview({ kind, fields }: { kind: TemplateKind; fields: ScoutField[] })
           return (
             <fieldset key={ph} className="min-w-0 rounded-xl border border-border p-4">
               <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">{phaseLabel(ph)}</legend>
-              <div className="space-y-3">{list.map((f) => <ScoutFieldInput key={f.id} idPrefix="preview" f={f} value={data[f.id]} onChange={(v) => setData((d) => ({ ...d, [f.id]: v }))} />)}</div>
+              <div className="space-y-2">{list.map((f) => {
+                const dk = detailKey(f.id), d = data[dk];
+                const set = (k: string, v: ScoutValue | undefined) => setData((x) => { const n = { ...x }; if (v === undefined) delete n[k]; else n[k] = v; return n; });
+                return <BigFieldInput key={f.id} idPrefix="preview" f={f} value={data[f.id]} onChange={(v) => set(f.id, v)} detail={typeof d === "string" ? d : ""} onDetail={(t) => set(dk, t || undefined)} />;
+              })}</div>
             </fieldset>
           );
         })}

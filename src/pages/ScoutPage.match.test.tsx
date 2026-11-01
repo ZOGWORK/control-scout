@@ -72,7 +72,7 @@ describe("Event day", () => {
   it("an entry being filled in keeps its answers through Change event and back", async () => {
     red();
     show("/scout?season=2025&tab=entries");
-    fireEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
     fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Fast intake" } });
     fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
     expect(await screen.findByText("Which event are you scouting?")).toBeTruthy();
@@ -81,10 +81,60 @@ describe("Event day", () => {
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
   });
 
-  it("a team page's Scout this team opens its form even with no event picked", async () => {
-    show("/scout?season=2025&team=4242&new=1");
-    expect(await screen.findByLabelText("Notes")).toBeTruthy();
-    expect(screen.queryByText("Which event are you scouting?")).toBeNull();
+  it("a pit entry and an opened entry keep their answers when another section is opened and closed", async () => {
+    red();
+    saveScoutEntry({ uuid: "keepopen0001", season: 2025, team: 4242, eventCode: "USNJQ1", matchLabel: "Q9", kind: "match", data: {}, notes: "" });
+    show("/scout?season=2025&tab=event&pit=102");
+    fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Entries" }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Event day" }));
+    await waitFor(() => expect(param("tab")).toBe("event"));
+    expect((screen.getAllByLabelText("Notes") as HTMLTextAreaElement[]).map((n) => n.value)).toContain("Pit draft");
+  });
+
+  it("picking another event with a pit entry open asks first, and closes it only on yes", async () => {
+    const real = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).match(/\/api\/events(\?|$)/)
+      ? new Response(JSON.stringify({ events: [{ season: 2025, code: "USOTH1", name: "Other Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Edison", state: "NJ", country: "USA" }] }), { status: 200 })
+      : String(input).includes("/api/events/2025/USOTH1") ? new Response(JSON.stringify({ ...detail, event: { ...detail.event, name: "Other Qualifier", code: "USOTH1" } }), { status: 200 })
+      : real(input)));
+    red();
+    show("/scout?season=2025&tab=event&pit=102");
+    fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    fireEvent.change(await screen.findByPlaceholderText("Search by event name, city or code"), { target: { value: "Other" } });
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Scout Other Qualifier" }));
+    expect(ask).toHaveBeenCalledOnce();
+    expect(param("pit")).toBe("102"); // kept: still on the picker, the draft under it
+    expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!).eventCode).toBe("USNJQ1");
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Scout Other Qualifier" }));
+    await waitFor(() => expect(param("pit")).toBeNull());
+    expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!).eventCode).toBe("USOTH1");
+    ask.mockRestore();
+  });
+
+  it("a typed-in match keeps its answers when another section is opened and closed", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Slow climb" } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Event day" }));
+    await waitFor(() => expect(param("tab")).toBe("event"));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Entries" }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Slow climb");
+  });
+
+  it("a team page's Scout this team with no event picked asks for the event, then opens that team's pit form there", async () => {
+    show("/scout?season=2025&team=102&new=1");
+    expect(await screen.findByText("Which event are you scouting?")).toBeTruthy();
+    await waitFor(() => expect(param("pit")).toBe("102"));
+    red();
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: /^Team: 102/ })).toBeTruthy();
   });
 
   it("Change event opens the picker over the event, with a way back", async () => {
@@ -201,7 +251,10 @@ describe("Event day", () => {
     show("/scout?season=2025");
     const pit = await screen.findByRole("region", { name: "Pit queue" });
     fireEvent.click(await within(pit).findByRole("button", { name: /^102 Bad Wolf, pit to do/ }));
-    await waitFor(() => expect(screen.getByRole("radio", { name: "Pit" }).getAttribute("aria-checked")).toBe("true"));
+    // The pit form for that team, at this event, with the queue's place in it ("Pit X of Y").
+    await waitFor(() => expect(param("pit")).toBe("102"));
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^Pit \d+ of \d+/ })).toBeTruthy();
   });
 
   it("an old ?tab=data link opens Entries, which still has the list", async () => {

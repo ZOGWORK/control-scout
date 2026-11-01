@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.9 — 2026-11-01
+
+The pit and match forms are rebuilt: pick the team by name, see where you are in the queue, and always know whether your entry has synced.
+
+### Highlights
+- [scout] Pit scouting walks the queue: Pit 8 of 18, then the next team
+- [scout] Pick a team by number or name, confirmed by name before you save
+- [offline] Save says Saved, Saving…, Queued offline or Sync failed · Retry
+- [scout] Match scouting counts each robot's taps and the alliance total
+
+### Scout
+- **Pit form.** Opens from the pit queue with "Pit X of Y" and a progress bar, the team's rank, record and OPR beside it, and the rest of the queue next to it on a wide screen (under it on a phone). Saving moves on to the next team in line.
+- **One form for a match typed in by hand** (no schedule, a practice match, an assignment's team) and for any entry opened from Entries. The event is never typed any more: a new entry is at the event you picked (or your workspace's default event); an opened entry keeps its own. Team, event and, for a match, which match are required, with the reason shown right at the field.
+- **Fields fit their answers.** New field types for templates: Number + unit (the robot's weight in lb) and Yes / no + detail (yes asks "what, and how reliably?"). The built-in pit questions use them; their ids and labels are unchanged.
+- **Match form.** On a wide screen the robots you watch sit side by side with one timer; a strip on top counts each robot's taps and each alliance's total (taps only, no points).
+- **Save bar.** Stuck to the bottom of the screen on every form, saying where saving stands from the page's real sync state and how many entries wait to sync.
+- **Export.** The CSV keeps every column it had, in the same order; each Yes / no + detail question adds a "(details)" column right after its own (#383).
+
 ## 1.8.8 — 2026-11-01
 
 Scout is rebuilt around event day: pick your event once, then see what's left to scout, matches and pits side by side.

@@ -55,9 +55,12 @@ export function legacyScoutUrl(sp: URLSearchParams): URLSearchParams | null {
   const tab = sp.get("tab");
   const view = sp.get("view");
   const legacyTab = tab != null && LEGACY_TABS.has(tab);
-  if (!legacyTab && !sp.has("list") && view !== "pit" && !sp.has("setup")) return null;
+  // "Scout this team" from a team page (?new=1&team=…): that team's pit entry on Event day.
+  const scoutTeam = sp.get("new") === "1" && /^\d+$/.test(sp.get("team") ?? "") ? sp.get("team") : null;
+  if (!legacyTab && !sp.has("list") && view !== "pit" && !sp.has("setup") && !scoutTeam) return null;
   const out = new URLSearchParams(sp);
-  out.set("tab", sectionFromUrl(sp));
+  out.set("tab", scoutTeam ? "event" : sectionFromUrl(sp));
+  if (scoutTeam) { out.set("pit", scoutTeam); out.delete("new"); out.delete("team"); }
   out.delete("list");
   // The old setup screen (?setup=1) is the event picker now: Change event in the header.
   if (out.has("setup")) { out.delete("setup"); out.set("pick", "1"); }

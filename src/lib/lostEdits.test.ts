@@ -267,6 +267,12 @@ describe("field-level diffs", () => {
     expect(rows).toHaveLength(4); // the unchanged rating isn't a difference
     expect(rows.at(-1)).toEqual({ key: "notes", label: "Notes", before: "steady", after: "fast" });
   });
+  it("a Yes / no + detail field's detail is named for its question", () => {
+    const pit = builtinTemplate(2025, "pit").fields;
+    const rows = entryDiff({ ...base, kind: "pit", matchLabel: null, data: { endgameCapable: true, endgameCapable__detail: "Hangs" } },
+      { ...base, kind: "pit", matchLabel: null, data: { endgameCapable: true, endgameCapable__detail: "Hangs every match" } }, pit);
+    expect(rows).toEqual([{ key: "f:endgameCapable__detail", label: "Can do the endgame: details", before: "Hangs", after: "Hangs every match" }]);
+  });
   it("an answer no template names keeps its id; a deleted version shows as a status change", () => {
     expect(entryDiff({ ...base, data: { custom1: "x" } }, { ...base, data: { custom1: "y" } }, fields)).toEqual([{ key: "f:custom1", label: "custom1", before: "x", after: "y" }]);
     // Each side reads with its own template: a rating whose scale changed from 5 to 10 keeps "of 5" on the old side.

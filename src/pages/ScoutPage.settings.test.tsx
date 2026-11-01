@@ -12,7 +12,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { ENTRY_POLICY, type WorkspaceSettings } from "../shared/workspaceSettings";
 import { TooltipProvider } from "../components/ui/overlay";
-import { asEntries } from "./scoutTestUrl";
+import { asEntries, formEvent } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
   personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
@@ -54,8 +54,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGlobals(); });
 
 const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
-const openNew = () => fireEvent.click(screen.getByRole("button", { name: /New entry/ }));
-const eventField = () => screen.getByLabelText("Event code") as HTMLInputElement;
+const openNew = () => fireEvent.click(screen.getByRole("button", { name: /Type a match in/ }));
 // The season picker's checked option (an open form's Match/Pit choice is a radio group too).
 const checkedSeason = () => screen.getAllByRole("radio").map((r) => (r.getAttribute("aria-checked") === "true" ? r.getAttribute("aria-label") ?? "" : "")).find((l) => /^\d{4}/.test(l)) ?? "";
 
@@ -64,10 +63,7 @@ describe("workspace defaults on the Scout page", () => {
     show(`/scout?space=${WS}`);
     await waitFor(() => expect(checkedSeason()).toMatch(/^2024/));
     openNew();
-    await waitFor(() => expect(eventField().value).toBe("USNYQ1"));
-    // Typed over: the member's own choice stays.
-    fireEvent.change(eventField(), { target: { value: "USCAQ2" } });
-    expect(eventField().value).toBe("USCAQ2");
+    await waitFor(() => expect(formEvent()).toBe("USNYQ1"));
   });
 
   it("a season in the URL wins (and the default event, for another season, isn't filled in)", async () => {
@@ -76,7 +72,7 @@ describe("workspace defaults on the Scout page", () => {
     await waitFor(() => expect(fetched.some((u) => u.includes("/settings"))).toBe(true));
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(checkedSeason()).toMatch(/^2025/);
-    expect(eventField().value).toBe("");
+    expect(formEvent()).toBe("");
   });
 
   it("Personal is unaffected: no settings request, no default event", async () => {
@@ -84,16 +80,16 @@ describe("workspace defaults on the Scout page", () => {
     openNew();
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(fetched.some((u) => u.includes("/settings"))).toBe(false);
-    expect(eventField().value).toBe("");
+    expect(formEvent()).toBe("");
   });
 
   it("a settings change while the form is open moves an untouched event to the new default", async () => {
     show(`/scout?space=${WS}&season=2024`);
     openNew();
-    await waitFor(() => expect(eventField().value).toBe("USNYQ1"));
+    await waitFor(() => expect(formEvent()).toBe("USNYQ1"));
     settings = settingsAt(3, 2024, "USNYQ9");
     await act(async () => { announceSettingsChange({ space: WS, settingsVersion: 3 }); await new Promise((r) => setTimeout(r, 20)); });
-    await waitFor(() => expect(eventField().value).toBe("USNYQ9"));
+    await waitFor(() => expect(formEvent()).toBe("USNYQ9"));
   });
 
   it("the default applies when the space opens: a later change to it doesn't move the page", async () => {
@@ -108,9 +104,9 @@ describe("workspace defaults on the Scout page", () => {
   it("editing an entry with no event keeps it without one (the default is for new entries only)", async () => {
     saveScoutEntry({ uuid: "editnoevent1", season: 2024, team: 4444, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", workspaceId: WS });
     show(`/scout?space=${WS}&season=2024&entry=editnoevent1`);
-    await waitFor(() => expect(screen.getByLabelText("Event code")).toBeTruthy());
+    expect(await screen.findByText("No event: an older entry, kept as it was.")).toBeTruthy();
     await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
-    expect(eventField().value).toBe("");
+    expect(formEvent()).toBe("");
   });
 
   it("leaving the space and coming back applies the default as it is then", async () => {
