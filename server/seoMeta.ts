@@ -15,6 +15,7 @@ import { eventTypeLabel } from "../src/shared/labels.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { FAQ, faqJsonLd, faqText } from "../src/shared/faq.js";
 import { ATTENDED, teamKnown } from "./api/teams.js";
+import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
@@ -26,13 +27,13 @@ import { staticRankingsHtml } from "./powerRankings/static.js";
 import { isWeekId, weekLabel, type PowerRankingsResponse } from "../src/shared/powerRankings.js";
 import { trackRecordIfReady } from "./api/accuracy.js";
 import { isEnabled } from "./flags.js";
-import type { TrackRecord } from "../src/shared/api.js";
+import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { searchAnswer } from "./api/searchAnswer.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, shownPath } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, showingLine, shownPath } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -65,6 +66,9 @@ export interface PageMeta {
   bodyHtml?: string;
   /** The first paint's <h1> when it's shorter than the title (a team: "4215 Hypnotic Robotics"). */
   heading?: string;
+  /** The page itself, drawn by the server with the app's own component (a team's or an event's: server/firstPaint.ts), and the
+   *  answers it was drawn from for the app to start with. Shown in place of bodyHtml when there is one. */
+  firstPaint?: FirstPaint;
 }
 
 
@@ -152,7 +156,7 @@ export function teamWebsite(raw: string | null | undefined): string | null {
 const TEAM_EVENTS = 8;
 const record = (w: number | null, l: number | null, t: number | null) => (w == null || l == null ? "" : `${w}-${l}-${t ?? 0}`);
 
-async function teamMeta(n: number): Promise<PageMeta> {
+async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
   if (!hasTeamPage(n)) return NOT_FOUND;
   const t = await get<{ name: string | null; city: string | null; state: string | null; country: string | null; school: string | null; rookie_year: number | null; website: string | null }>(
     "SELECT name, city, state, country, school, rookie_year, website FROM teams WHERE number = ?", [n]);
@@ -219,7 +223,9 @@ async function teamMeta(n: number): Promise<PageMeta> {
   const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>`
     + (list ? `<h2>Events</h2><ul>${list}</ul>` : "");
   // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
-  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(t ? { jsonLd: [profile, crumbs] } : {}) };
+  // The page itself as its first paint, when this server can draw it (a production build); bodyHtml otherwise.
+  const firstPaint = await teamFirstPaint(n, seasonRaw);
+  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
@@ -466,7 +472,14 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
   const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...notes.understood.map(esc), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
-  const body = (said.length ? `<p>${said.join("<br>")}</p>` : "") + sections.map((sec) => {
+  const showing = showingLine(answer);
+  // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
+  // "none found" with the closest records under it.
+  const c = answer.card;
+  const cardLines = (ls: SearchCardLine[]) => `<ul>${ls.map((l) => `<li>${l.href ? `<a href="${esc(l.href)}">${esc(l.text)}</a>` : esc(l.text)}${l.detail ? `<br><small>${esc(l.detail)}</small>` : ""}</li>`).join("")}</ul>`;
+  const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc(c.title)} · ${esc(c.team.name ? `${c.team.name} (${c.team.number})` : `Team ${c.team.number}`)}</h2>`
+    + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
+  const body = (showing ? `<p>Showing: <b>${esc(showing)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}<br><small>${esc(shownPath(h))}</small></li>`).join("")}</ul>`;
   }).join("");
@@ -474,7 +487,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: `Results for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading: `Here's what we found for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }
@@ -492,14 +505,18 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   try {
     let m: RegExpMatchArray | null;
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
-    if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]));
+    if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]), qstr(query.season) ?? undefined);
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})$/i))) {
       // Event codes are case-insensitive in the app (the API uppercases them): same here.
       const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
       if (!ev) return NOT_FOUND;
       // A shared match: its own call, or the event's values if it can't be read.
-      return sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
+      const meta = sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
+      // The page itself as its first paint, when this server can draw it (a production build).
+      const q = sp.toString();
+      const firstPaint = await eventFirstPaint(m[1], m[2], q ? `?${q}` : "");
+      return firstPaint ? { ...meta, firstPaint } : meta;
     }
     // A match's scouting report: the match must exist (a key that can't be one is not found too).
     if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/match\/([^/]+)$/i))) {

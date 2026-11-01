@@ -30,6 +30,20 @@ export function useScrolledPast(el: Element | null): boolean {
 let mounted = 0;
 
 /**
+ * Marks the page (<html data-sticky-actions>) while `active`: a bar of actions is pinned above the phone's tab
+ * bar, so the shell pads the page's end and floating prompts (InstallNudge, LiteSuggest) sit above the bar
+ * instead of over it. Counted, so several bars can hold it at once.
+ */
+export function useStickyActionsMarker(active = true) {
+  useEffect(() => {
+    if (!active) return;
+    mounted++;
+    document.documentElement.dataset.stickyActions = "";
+    return () => { if (--mounted === 0) delete document.documentElement.dataset.stickyActions; };
+  }, [active]);
+}
+
+/**
  * The bar itself, rendered into <body> so no transformed ancestor can move
  * it. While one is mounted, <html data-sticky-actions> gives the shell's
  * content extra bottom padding on phones (Shell.tsx), so the page's last
@@ -40,15 +54,16 @@ export function StickyActions({ after, label, children }: { after: Element | nul
   // Watched here, not by the page: the flag flips mid-scroll, and as page state each flip re-rendered the
   // whole page (on a big event, every match row) in the middle of the scroll.
   const show = useScrolledPast(after);
-  useEffect(() => {
-    mounted++;
-    document.documentElement.dataset.stickyActions = "";
-    return () => { if (--mounted === 0) delete document.documentElement.dataset.stickyActions; };
-  }, []);
+  useStickyActionsMarker();
+  // Into the page body once mounted: a page the server draws (src/prerender/page.tsx) has no body to put it in, and
+  // the bar is hidden at first anyway.
+  const [body, setBody] = useState<HTMLElement | null>(null);
+  useEffect(() => { setBody(document.body); }, []);
   // The first-visit privacy banner (ConsentBanner) sits in this same strip above the tab bar:
   // the bar waits until that choice is made, so the two never overlap.
   const { decided } = useConsent();
   const visible = show && decided;
+  if (!body) return null;
   return createPortal(
     <div
       role="region" aria-label={label} inert={!visible}
@@ -60,6 +75,6 @@ export function StickyActions({ after, label, children }: { after: Element | nul
     >
       {children}
     </div>,
-    document.body,
+    body,
   );
 }

@@ -100,7 +100,8 @@ export interface EventBundle {
   event: EventDetail;
   ratings: RatingBookData | null;
   reports: HtmlSnapshot[];
-  picklist: (HtmlSnapshot & { count: number }) | null;
+  /** `teams`: the list's teams in order (bundles saved before it was added: absent). */
+  picklist: (HtmlSnapshot & { count: number; teams?: number[] }) | null;
   rules: RulesSection | null;
   venue: VenueCard;
 }
@@ -163,11 +164,32 @@ export function bundleFinished(b: Pick<SavedBundle, "end">, now = new Date()): b
   return b.end.slice(0, 10) < today;
 }
 
-/** "07:12" (24-hour, device time) for a bundle's data time, with the day when it isn't today. */
+/** "7:12 PM" (12-hour, device time) for a bundle's data time, with the day when it isn't today. */
 export function snapshotClock(iso: string, now = new Date()): string {
   const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  return d.toDateString() === now.toDateString() ? time : `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${time}`;
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  return d.toDateString() === now.toDateString() ? time : `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${time}`;
+}
+
+/** "11:58 AM" for an event-local match time as FIRST reports it ("2025-11-16T11:58:48"); null when it has none. */
+export function matchClock(local: string | null | undefined): string | null {
+  const m = local?.match(/T(\d{2}):(\d{2})/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  return `${h % 12 || 12}:${m[2]} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** A short name for an event's time zone ("PT", else "PST"), for a quiet label next to its times; null when unknown. */
+export function zoneAbbr(zone: string | null | undefined, at = new Date()): string | null {
+  if (!zone) return null;
+  for (const timeZoneName of ["shortGeneric", "short"] as const) {
+    try {
+      const name = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName }).formatToParts(at).find((p) => p.type === "timeZoneName")?.value;
+      // "GMT+10" says less than nothing next to a clock: only a real abbreviation is shown.
+      if (name && !/^(GMT|UTC)[+-]/.test(name)) return name;
+    } catch { /* an engine without shortGeneric, or an unknown zone */ }
+  }
+  return null;
 }
 
 /** How old the data is, short: "just now", "25 min", "3 h 10 min", "2 days". */

@@ -1,4 +1,4 @@
-// The Scout page's Match tab: the session's event, its schedule, and one match at a time for the teams this
+// The Scout page's Scout tab: the session's event, its schedule, and one match at a time for the teams this
 // scout watches (team tabs, one phase at a time, the match timer), saved as one entry per team with one Save
 // that moves on to the next match. The pieces are the redesign's own (MatchHeader, TeamTabs, PhaseForm,
 // SaveMatchBar, useMatchDraft); this joins them to the page's state.
@@ -15,6 +15,7 @@ import { Button } from "../../ui/button";
 import { useMatchTimer } from "./useMatchTimer";
 import { useEventSchedule } from "../../../lib/eventSchedule";
 import { useMatchDraft } from "../../../lib/matchDraft";
+import { useSavedToLine } from "../../../lib/adminCopies";
 import type { ScoutEntry, ScoutSpace } from "../../../lib/scouting";
 import type { ScoutSession } from "../../../lib/scoutSession";
 import type { FieldPhase, ScoutTemplate } from "../../../shared/scoutTemplate";
@@ -81,6 +82,7 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   const teams = useMemo(() => teamsWatched(match, session.watching), [match, session.watching]);
   const draft = useMatchDraft({ space, season, eventCode: session.eventCode, match, teams, template, existing: entries, author, readOnly, spaceName });
   const [phase, setPhase] = useState<FieldPhase>("auto");
+  const savedTo = useSavedToLine(space);
   // One timer for the match: switching team tabs keeps it running, and its phase moves every team's form.
   const timer = useMatchTimer(setPhase);
   const [active, setActive] = useState(teams[0]?.team ?? 0);
@@ -111,12 +113,12 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
           );
         }} />}
       <SaveMatchBar label={match.label} teamCount={teams.length} nextLabel={nextLabel} nextIndex={nextIndex} emptyTeams={draft.emptyTeams}
-        toPersonal={draft.toPersonal} onSave={draft.saveMatch} onSaved={onSaved} />
+        toPersonal={draft.toPersonal} savedTo={savedTo} onSave={draft.saveMatch} onSaved={onSaved} />
     </>
   );
 }
 
-/** The Matches tab: every match at the session's event with how far this scout is, from the same schedule and entries. */
+/** The match list (under "All matches" on the Scout tab, beside the match on wide screens): every match at the session's event with how far this scout is, from the same schedule and entries. */
 export function MatchesTab({ season, session, entries, matchLabel, onMatch, onManual, assignments, me }: Pick<MatchScoutProps, "season" | "session" | "entries" | "matchLabel" | "onMatch" | "onManual"> & {
   /** A workspace's match assignments (useMatchAssignments): each row says who has the other teams. */
   assignments?: readonly MatchAssignment[];

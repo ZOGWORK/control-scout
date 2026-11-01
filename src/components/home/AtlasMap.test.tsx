@@ -96,4 +96,33 @@ describe("AtlasMap spin", () => {
     expect(spy.transitions).toBeGreaterThanOrEqual(3);
     expect(graticule()).not.toBe(before); // and it still turns
   });
+
+  // Each turn redraws every country: on the home page that work competed with typing in the search box beside it.
+  it("holds still while a search box has focus, and turns again once it's left", async () => {
+    const field = document.createElement("div");
+    field.setAttribute("data-search-box", "");
+    field.innerHTML = "<input aria-label=\"Search\" />";
+    document.body.append(field);
+    try {
+      render(<AtlasMap mode="globe" spinning countries={[]} selected={null} onSelect={() => {}} onLoaded={() => {}} onError={() => {}} />);
+      const globe = await screen.findByRole("img");
+      const graticule = () => globe.querySelectorAll("path")[1].getAttribute("d");
+      let now = performance.now();
+      const run = async (n: number) => {
+        for (let i = 0; i < n; i++) {
+          now += 40;
+          await waitFor(() => expect(frames.length).toBeGreaterThan(0));
+          const due = frames.splice(0);
+          await act(async () => { for (const f of due) f(now); });
+        }
+      };
+      field.querySelector("input")!.focus();
+      const before = graticule();
+      await run(3);
+      expect(graticule()).toBe(before);
+      field.querySelector("input")!.blur();
+      await run(3);
+      expect(graticule()).not.toBe(before);
+    } finally { field.remove(); }
+  });
 });

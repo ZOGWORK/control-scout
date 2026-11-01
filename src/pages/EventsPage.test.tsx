@@ -167,8 +167,10 @@ describe("Events page on a phone", () => {
     const box = screen.getByRole("combobox", { name: "Search events" });
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: "amarillo" } });
-    const options = await screen.findAllByRole("option");
-    expect(options.map((o) => o.textContent)).toEqual([expect.stringContaining("All events in Texas"), expect.stringContaining("Amarillo Scrimmage")]);
+    // The results, then the last row: the full results page.
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
+    const options = screen.getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([expect.stringContaining("All events in Texas"), expect.stringContaining("Amarillo Scrimmage"), "See all results for “amarillo”"]);
     expect(searched.at(-1)).toContain("kinds=event%2Cplace"); // the server picks events and places before its limit
     fireEvent.click(options[1]);
     expect(path).toBe("/events/2026/USTXAMS");

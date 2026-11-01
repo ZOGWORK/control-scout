@@ -28,7 +28,8 @@ describe("dataFor: the same paths the pages ask for", () => {
   });
 
   it("the pages still build those paths the same way (update prefetch.ts when they change)", () => {
-    expect(src("TeamPage.tsx")).toContain("useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null)");
+    expect(src("TeamPage.tsx")).toContain("const path = valid ? `/api/teams/${team}${qs({ season })}` : null;");
+    expect(src("TeamPage.tsx")).toContain("useApi<TeamProfile>(path)");
     expect(src("TeamPage.tsx")).toContain("useApi<{ matches: MatchView[] }>(`/api/teams/${team}/matches?season=${season}`)");
     expect(src("EventPage.tsx")).toContain("const path = `/api/events/${season}/${code}`;");
     expect(src("EventsPage.tsx")).toContain("useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`)");

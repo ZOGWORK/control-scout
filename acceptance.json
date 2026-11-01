@@ -1,0 +1,591 @@
+{
+  "at": "2026-11-01T00:52:21.467Z",
+  "results": [
+    {
+      "id": "T1",
+      "name": "\"4215\" → single top team 4215; Enter opens its page",
+      "pass": true,
+      "evidence": [
+        "\"4215\" → step=deterministic top=team 4215 n=1",
+        "link /teams/4215"
+      ]
+    },
+    {
+      "id": "T2",
+      "name": "\"team 4215\" → the same",
+      "pass": true,
+      "evidence": [
+        "\"team 4215\" → step=deterministic top=team 4215 n=1"
+      ]
+    },
+    {
+      "id": "T3",
+      "name": "\"hypnotic\" → 4215 on top",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic\" → step=deterministic top=team 4215 n=1"
+      ]
+    },
+    {
+      "id": "T4",
+      "name": "\"hypnotic ranking point(s)\" → 4215 with rank, record, RS",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic ranking points\" → step=deterministic top=team 4215 n=1 pages=[/rankings]",
+        "facts Ranking score: 3.40 at New Jersey Championship - Parkway Division | Event rank: #6 of 24 | Record: 26-6-0 | Season: 2025–26",
+        "\"hypnotic ranking point\" → step=deterministic top=team 4215 n=1 pages=[/rankings]",
+        "facts Ranking score: 3.40 at New Jersey Championship - Parkway Division | Event rank: #6 of 24 | Record: 26-6-0 | Season: 2025–26"
+      ]
+    },
+    {
+      "id": "T5",
+      "name": "\"hypnotic OPR\" → season OPR and event OPRs",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic OPR\" → step=deterministic top=team 4215 n=1",
+        "facts OPR: 101.6 | OPR rank: #616 of 8,375 | Event OPR: 101.6 at New Jersey Championship - Parkway Division | Season: 2025–26",
+        "events USNJNOM3 52.4, USNJNOM5 63.9, USNJNOM7 58.2, USNJNOLT2 84.4, USNJCMPPKWY 101.6"
+      ]
+    },
+    {
+      "id": "T6",
+      "name": "\"hypnotic OPR at <real event>\" → team at event",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic OPR at New Jersey Championship Parkway\" → step=did-you-mean didYouMean=\"Hypnotic Robotics opr\" top=team 4215 @2025:USNJCMPPKWY n=1",
+        "facts Event OPR: 101.6 | Event rank: #6 | Ranking score: 3.40 | Event: New Jersey Championship - Parkway Division",
+        "link /events/2025/USNJCMPPKWY?team=4215"
+      ]
+    },
+    {
+      "id": "T7",
+      "name": "\"hypnotic OPR at this event\" → event list with OPRs, never a guessed event",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic OPR at this event\" → step=did-you-mean didYouMean=\"Hypnotic Robotics opr\" top=team 4215 n=1",
+        "facts Which event?: Pick an event below",
+        "events USNJNOM3 52.4, USNJNOM5 63.9, USNJNOM7 58.2, USNJNOLT2 84.4, USNJCMPPKWY 101.6"
+      ]
+    },
+    {
+      "id": "T8",
+      "name": "\"hypnotic versus bad wolf history\" → Compare 4215 vs 6980",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic versus bad wolf history\" → step=deterministic top=team 4215 → /compare?teams=4215,6980 n=3"
+      ]
+    },
+    {
+      "id": "T9",
+      "name": "\"hypnotic difficulty through events\" → 4215's schedule difficulty",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic difficulty through events\" → step=deterministic top=team 4215 n=1",
+        "link /teams/4215?season=2025#schedule-difficulty",
+        "facts Latest: 5th-hardest of 24 at New Jersey Championship - Parkway Division | Events rated: 5 | Season: 2025–26"
+      ]
+    },
+    {
+      "id": "T10",
+      "name": "\"records\" → Pages group with the records link, below the results",
+      "pass": true,
+      "evidence": [
+        "\"records\" → step=deterministic top=(none) n=0 pages=[/teams,/matches]"
+      ]
+    },
+    {
+      "id": "T11",
+      "name": "\"rec\" → no Pages group",
+      "pass": true,
+      "evidence": [
+        "\"rec\" → step=deterministic top=team 10285 n=12"
+      ]
+    },
+    {
+      "id": "T12",
+      "name": "misspellings → the right team on top, step reported",
+      "pass": true,
+      "evidence": [
+        "\"hipnotic\" → step=did-you-mean didYouMean=\"Hypnotic Robotics\" top=team 4215 n=1",
+        "\"hypnotik\" → step=did-you-mean didYouMean=\"Hypnotic Robotics\" top=team 4215 n=1",
+        "\"hypnotic rankng pont\" → step=did-you-mean didYouMean=\"Hypnotic Robotics ranking point\" top=team 4215 n=1",
+        "\"bad wulf\" → step=deterministic top=team 6980 n=1"
+      ]
+    },
+    {
+      "id": "T13",
+      "name": "\"asdfgh\" and \"\" → recovery",
+      "pass": true,
+      "evidence": [
+        "\"asdfgh\" → step=recovery top=(none) n=0 understood=[\"No exact match for \\\"asdfgh\\\"\"] closest=[team 32396] browse=[/teams,/events]",
+        "\"\" → step=recovery top=(none) n=0 understood=[\"Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12\"] closest=[] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T14",
+      "name": "a team number with no team → recovery",
+      "pass": true,
+      "evidence": [
+        "\"999998\" → step=recovery top=(none) n=0 understood=[\"A team number: 999998\",\"No FTC team 999998 on record\"] closest=[] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T22",
+      "name": "versus → Compare with the right teams",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic vs bad wolf\" → step=deterministic top=team 4215 → /compare?teams=4215,6980 n=3",
+        "\"bad wolf versus hypnotic\" → step=deterministic top=team 4215 → /compare?teams=4215,6980 n=3"
+      ]
+    },
+    {
+      "id": "T23",
+      "name": "difficulty → the schedule difficulty section",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic schedule difficulty\" → step=deterministic top=team 4215 n=1",
+        "link /teams/4215?season=2025#schedule-difficulty"
+      ]
+    },
+    {
+      "id": "T24",
+      "name": "OPR / RP → their stat lines",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic opr\" → step=deterministic top=team 4215 n=1",
+        "\"hypnotic rp\" → step=deterministic top=team 4215 n=1",
+        "opr: OPR: 101.6 | OPR rank: #616 of 8,375 | Event OPR: 101.6 at New Jersey Championship - Parkway Division | Season: 2025–26",
+        "rp: Ranking score: 3.40 at New Jersey Championship - Parkway Division | Event rank: #6 of 24 | Record: 26-6-0 | Season: 2025–26"
+      ]
+    },
+    {
+      "id": "T25",
+      "name": "named-event OPR → team at event; \"this event\" → the event list",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic opr at east bergen\" → step=did-you-mean didYouMean=\"Hypnotic Robotics opr\" top=team 4215 @2025:USNJNOLT2 n=1",
+        "\"hypnotic opr at this event\" → step=did-you-mean didYouMean=\"Hypnotic Robotics opr\" top=team 4215 n=1"
+      ]
+    },
+    {
+      "id": "T26",
+      "name": "chain order: deterministic → did-you-mean → Bruno → recovery, step per query",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic robotics\" → step=deterministic top=team 4215 n=1",
+        "\"hipnotic robotcs\" → step=did-you-mean didYouMean=\"Hypnotic Robotics\" top=team 4215 n=1",
+        "\"robots that hypnotise\" → step=did-you-mean didYouMean=\"Dread Pirate Robots\" top=team 11545 n=12",
+        "refine \"robots that hypnotise\" → step=ai refined=\"hypnotic robotics\" top=team 4215 n=1",
+        "\"asdfgh\" → step=recovery top=(none) n=0 understood=[\"No exact match for \\\"asdfgh\\\"\"] closest=[team 32396] browse=[/teams,/events]",
+        "refine \"asdfgh\" → step=recovery top=(none) n=0 understood=[\"No exact match for \\\"asdfgh\\\"\"] closest=[team 32396] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T27",
+      "name": "Bruno timeout or error → search's own results stand alone",
+      "pass": true,
+      "evidence": [
+        "slow: base step=did-you-mean didYouMean=\"Bad Wolf\" top=team 6980 n=12; refine → null (nothing added) in 3010 ms",
+        "error: base step=did-you-mean didYouMean=\"Bad Wolf\" top=team 6980 n=12; refine → null (nothing added) in 19 ms"
+      ]
+    },
+    {
+      "id": "T28",
+      "name": "Bruno-refined numbers match the database exactly",
+      "pass": true,
+      "evidence": [
+        "refine → step=ai refined=\"hypnotic robotics opr\" top=team 4215 n=1",
+        "facts OPR: 101.6 | OPR rank: #616 of 8,375 | Event OPR: 101.6 at New Jersey Championship - Parkway Division | Season: 2025–26",
+        "database: team_season_stats 2025 opr_np=101.64"
+      ]
+    },
+    {
+      "id": "T29",
+      "name": "nonsense stat query → recovery, nothing made up",
+      "pass": true,
+      "evidence": [
+        "\"zxqv qqzv opr\" → step=recovery top=(none) n=0 understood=[\"A question about opr\",\"No team or event matched \\\"zxqv qqzv\\\"\"] closest=[] browse=[/teams,/events]",
+        "refine → step=recovery top=(none) n=0 understood=[\"A question about opr\",\"No team or event matched \\\"zxqv qqzv\\\"\"] closest=[] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T70b",
+      "name": "Bruno is never asked by GET /api/search (only /api/search/refine, after)",
+      "pass": true,
+      "evidence": [
+        "fake Control Point calls during 3 weak searches: 0"
+      ]
+    },
+    {
+      "id": "T27b",
+      "name": "Bruno switched off → refine adds nothing, no call made",
+      "pass": true,
+      "evidence": [
+        "refine → null; calls 0"
+      ]
+    },
+    {
+      "id": "T41",
+      "name": "\"  HYPnotic  \" → 4215",
+      "pass": true,
+      "evidence": [
+        "\"  HYPnotic  \" → step=deterministic top=team 4215 n=1"
+      ]
+    },
+    {
+      "id": "T42",
+      "name": "\"hypnotic,\", \"team-4215\", \"4215!\" → 4215",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic,\" → step=deterministic top=team 4215 n=1",
+        "\"team-4215\" → step=deterministic top=team 4215 n=1",
+        "\"4215!\" → step=deterministic top=team 4215 n=1"
+      ]
+    },
+    {
+      "id": "T43",
+      "name": "a 200-character query → an answer, cut to the limit, no error",
+      "pass": true,
+      "evidence": [
+        "200 chars → q length 80 (limit 80), step=deterministic top=team 4215 n=1"
+      ]
+    },
+    {
+      "id": "T44",
+      "name": "whitespace only → recovery",
+      "pass": true,
+      "evidence": [
+        "\"   \t  \" → step=recovery top=(none) n=0 understood=[\"Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12\"] closest=[] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T45",
+      "name": "same query twice with learning off → identical order",
+      "pass": true,
+      "evidence": [
+        "order team 10106, team 10237, team 10391, team 10621, team 10674, team 10870"
+      ]
+    },
+    {
+      "id": "T46",
+      "name": "an event code → that event on top",
+      "pass": true,
+      "evidence": [
+        "\"USNJCMPPKWY\" → step=deterministic top=event 2025:USNJCMPPKWY n=1"
+      ]
+    },
+    {
+      "id": "T47",
+      "name": "\"East Bergen\" → its events, newest season first",
+      "pass": true,
+      "evidence": [
+        "\"East Bergen\" → step=deterministic top=event 2026:USNJNELT2 n=4",
+        "events 2026:USNJNELT2, 2025:USNJNOLT2, 2024:USNJNOLT, 2023:USNJNORTLT2"
+      ]
+    },
+    {
+      "id": "T48",
+      "name": "\"hypnotic at East Bergen\" → team at event",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic at East Bergen\" → step=did-you-mean didYouMean=\"Hypnotic Robotics\" top=team 4215 @2025:USNJNOLT2 n=1",
+        "facts Event OPR: 84.4 | Event rank: #1 | Ranking score: 3.73 | Event: East Bergen Conference Northern League Tournament",
+        "link /events/2025/USNJNOLT2?team=4215"
+      ]
+    },
+    {
+      "id": "T49",
+      "name": "\"hypnotic 2025-26\" → season-labeled results",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic 2025-26\" → step=deterministic top=team 4215 n=1",
+        "subtitle \"2025–26 · River Dell Regional High Sch · Oradell, NJ, USA\", link /teams/4215?season=2025"
+      ]
+    },
+    {
+      "id": "T50",
+      "name": "\"championship\" → many events, newest first, never one guess",
+      "pass": true,
+      "evidence": [
+        "\"championship\" → step=deterministic top=event 2026:USALCMP n=12",
+        "events 2026:USALCMP, 2026:ARCMP, 2026:USAZCMP, 2026:NLCMP, 2026:USCHSCMP, 2026:USCOCMP, 2026:USCTCMP, 2026:USDECMP"
+      ]
+    },
+    {
+      "id": "T51",
+      "name": "a match query → that match",
+      "pass": true,
+      "evidence": [
+        "\"USNJCMPPKWY Q1\" → step=deterministic top=match 2025:USNJCMPPKWY:qual:0:1 n=1"
+      ]
+    },
+    {
+      "id": "T52",
+      "name": "reversed order → the same Compare",
+      "pass": true,
+      "evidence": [
+        "\"bad wolf versus hypnotic\" → step=deterministic top=team 4215 → /compare?teams=4215,6980 n=3"
+      ]
+    },
+    {
+      "id": "T53",
+      "name": "\"hypnotic vs bad wolf\" → Compare",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic vs bad wolf\" → step=deterministic top=team 4215 → /compare?teams=4215,6980 n=3"
+      ]
+    },
+    {
+      "id": "T54",
+      "name": "versus an unknown team → recovery with 4215 and a note",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic vs zzqqxxw\" → step=recovery top=(none) n=0 understood=[\"A comparison of 2 teams\",\"No team found for \\\"zzqqxxw\\\"\"] closest=[team 4215] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T55",
+      "name": "three teams → a three-team Compare",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic vs bad wolf vs cyber dragons\" → step=deterministic top=team 4215 → /compare?teams=4215,6980,10820 n=4"
+      ]
+    },
+    {
+      "id": "T56",
+      "name": "\"hypnotic awards\" → awards; \"hypnotic matches\" → matches",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic awards\" → step=deterministic top=team 4215 n=1",
+        "\"hypnotic matches\" → step=deterministic top=team 4215 n=1 pages=[/matches]",
+        "links /teams/4215?season=2025#awards , /teams/4215?season=2025#matches"
+      ]
+    },
+    {
+      "id": "R1",
+      "name": "a named season's numbers are that season's (typed or in words)",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic opr 2024-25\" → step=deterministic top=team 4215 n=1",
+        "\"hypnotic opr last season\" → step=deterministic top=team 4215 n=1",
+        "2024-25 facts OPR: 144.8 | OPR rank: #370 of 7,608 | Event OPR: 117.3 at New Jersey Championship - Turnpike Division | Season: 2024–25 (database 144.82) link /teams/4215?season=2024",
+        "last season facts OPR: 101.6 | OPR rank: #616 of 8,375 | Event OPR: 101.6 at New Jersey Championship - Parkway Division | Season: 2025–26 link /teams/4215?season=2025"
+      ]
+    },
+    {
+      "id": "R2",
+      "name": "several of a team's events match: a pick, not a guess",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic opr at northern league meet\" → step=did-you-mean didYouMean=\"Hypnotic Robotics opr\" top=team 4215 n=1",
+        "facts Which event?: Several of its events match \"northern league meet\": pick one below, events to pick 5"
+      ]
+    },
+    {
+      "id": "R3",
+      "name": "\"New Jersey Championship rankings\" is the event's rankings, not the state's",
+      "pass": true,
+      "evidence": [
+        "\"New Jersey Championship rankings\" → step=deterministic top=event 2026:USNJCMP n=4 pages=[/rankings]",
+        "link /events/2026/USNJCMP?tab=rankings"
+      ]
+    },
+    {
+      "id": "R4",
+      "name": "versus with a season in words opens Compare on it",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic versus bad wolf reputation last season\" → step=closest top=team 4215 → /compare?teams=4215,6980&season=2025 n=2"
+      ]
+    },
+    {
+      "id": "T62",
+      "name": "\"4215 OR 1=1\" is text",
+      "pass": true,
+      "evidence": [
+        "\"4215 OR 1=1\" → step=did-you-mean didYouMean=\"Team Unlimited\" top=team 1 n=12",
+        "teams before 22346, after 22346"
+      ]
+    },
+    {
+      "id": "T70",
+      "name": "deterministic p50/p95 reported; AI/ML never slows the first result",
+      "pass": true,
+      "evidence": [
+        "60 searches (12 queries × 5, warm): p50 62 ms, p95 1435 ms"
+      ]
+    },
+    {
+      "id": "T18",
+      "name": "a direct /search?q= visit works signed out",
+      "pass": true,
+      "evidence": [
+        "status 200, first paint lists /teams/4215: true"
+      ]
+    },
+    {
+      "id": "T59",
+      "name": "a copied /search?q= link gives the same results signed out",
+      "pass": true,
+      "evidence": [
+        "page top team 4215, API top team 4215, same order: true"
+      ]
+    },
+    {
+      "id": "T20",
+      "name": "/opensearch.xml type and template; head link on every page",
+      "pass": true,
+      "evidence": [
+        "content-type application/opensearchdescription+xml; charset=utf-8",
+        "template http://localhost:5173/search?q={searchTerms}",
+        "/: head link true",
+        "/teams/4215: head link true",
+        "/events: head link true",
+        "/events/2025/USNJCMPPKWY: head link true",
+        "/search?q=hypnotic: head link true",
+        "/rankings: head link true"
+      ]
+    },
+    {
+      "id": "T61",
+      "name": "\"<script>alert(1)</script>\" is shown as harmless text",
+      "pass": true,
+      "evidence": [
+        "page holds a raw \"<script>alert\": false; escaped heading: true; API step=recovery top=(none) n=0 understood=[\"No exact match for \\\"script alert 1 /script\\\"\"] closest=[team 36901, team 32620, team 13295, team 6190, team 8149] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T71",
+      "name": "\"4215 ranking at last year's Decode season, state of New Jersey\" → 4215's 2025–26 view, New Jersey's rankings, intent logged",
+      "pass": true,
+      "evidence": [
+        "\"4215 ranking at last year's Decode season, state of New Jersey\" → step=deterministic top=team 4215 n=2",
+        "intent {\"kind\":\"season-region-ranking\",\"pattern\":\"[team] ranking [season] [region]\",\"met\":true,\"understood\":[\"Team 4215 Hypnotic Robotics\",\"Season 2025–26 (DECODE)\",\"Region: New Jersey\",\"Rankings\"]}",
+        "  team 4215 link /teams/4215?season=2025#events | 4215 Hypnotic Robotics | 2025–26 · Oradell, NJ, USA | ",
+        "  place USA:NJ → /rankings?season=2025&region=USA%3ANJ link /rankings?season=2025&region=USA%3ANJ | New Jersey rankings, 2025–26 | Every ranked team in New Jersey | New Jersey rank: #8 of 193 | World rank: #503 | Season: 2025–26",
+        "POST /api/search/click → 204; search_intents row {\"count\":1,\"met\":1,\"last_seen\":\"2026-11-01\"}"
+      ]
+    },
+    {
+      "id": "T72",
+      "name": "\"hypnotic versus bad wolf reputation\" → Compare 4215 vs 6980 with histories and awards, no reputation score",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic versus bad wolf reputation\" → step=closest top=team 4215 → /compare?teams=4215,6980 n=2",
+        "gap \"There's no reputation score on Control Scout, and none is made up. Their records, event histories and awards are side by side here.\"",
+        "compare 2025: 4215 events 5, awards 2 (Inspire at East Bergen Conference Northern League Tournament; Winner at East Bergen Conference Northern League Tournament)",
+        "compare 2025: 6980 events 4, awards 0 ()",
+        "a reputation figure in the answer or the Compare data: false"
+      ]
+    },
+    {
+      "id": "T73",
+      "name": "a view that doesn't exist → understood intent, closest real result, gap note",
+      "pass": true,
+      "evidence": [
+        "\"hypnotic robot specs\" → step=closest top=team 4215 n=1",
+        "  understood [\"Team 4215 Hypnotic Robotics\",\"Their robot specs\"] gap \"Robot specs (drivetrain, weight, design) aren't tracked yet.\" link /teams/4215",
+        "\"bad wolf team members\" → step=closest top=team 6980 n=1",
+        "  understood [\"Team 6980 Bad Wolf\",\"Their team members\"] gap \"Team members aren't listed: FIRST doesn't publish rosters.\" link /teams/6980",
+        "\"cyber dragons budget\" → step=closest top=team 10820 n=1",
+        "  understood [\"Team 10820 Cyber Dragons\",\"Their budget\"] gap \"Team budgets and costs aren't tracked.\" link /teams/10820",
+        "\"qqzzxx wwvvb\" → step=recovery top=(none) n=0 understood=[\"No team, event or match matched \\\"qqzzxx wwvvb\\\"\"] closest=[] browse=[/teams,/events]"
+      ]
+    },
+    {
+      "id": "T74",
+      "name": "unmet intents: a repeat adds to the count; nothing about who, no query text",
+      "pass": true,
+      "evidence": [
+        "after 3 picks: {\"count\":3,\"met\":0,\"last_seen\":\"2026-11-01\"}",
+        "columns: kind, pattern, met, count, last_seen",
+        "rows holding a team's name or number: 0"
+      ]
+    },
+    {
+      "id": "T75",
+      "name": "the top unmet intents, as patterns with counts (seeded)",
+      "pass": true,
+      "evidence": [
+        "  unmet  16  [team] robot specs   (robot-specs)",
+        "  unmet  13  [team] vs [team] reputation   (compare-reputation)",
+        "  unmet  12  [team] reputation   (reputation)",
+        "  unmet   9  [team] team members   (roster)",
+        "  unmet   6  [team] budget   (budget)",
+        "  unmet   5  [team] social media   (social)",
+        "  met    10  [team] ranking [season] [region]   (season-region-ranking)",
+        "  met     9  ranking [season] [region]   (season-region-ranking)",
+        "  met     4  [team] ranking [region]   (region-ranking)"
+      ]
+    }
+  ],
+  "intents": {
+    "unmet": [
+      {
+        "kind": "robot-specs",
+        "pattern": "[team] robot specs",
+        "met": false,
+        "count": 16,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "compare-reputation",
+        "pattern": "[team] vs [team] reputation",
+        "met": false,
+        "count": 13,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "reputation",
+        "pattern": "[team] reputation",
+        "met": false,
+        "count": 12,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "roster",
+        "pattern": "[team] team members",
+        "met": false,
+        "count": 9,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "budget",
+        "pattern": "[team] budget",
+        "met": false,
+        "count": 6,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "social",
+        "pattern": "[team] social media",
+        "met": false,
+        "count": 5,
+        "lastSeen": "2026-11-01"
+      }
+    ],
+    "met": [
+      {
+        "kind": "season-region-ranking",
+        "pattern": "[team] ranking [season] [region]",
+        "met": true,
+        "count": 10,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "season-region-ranking",
+        "pattern": "ranking [season] [region]",
+        "met": true,
+        "count": 9,
+        "lastSeen": "2026-11-01"
+      },
+      {
+        "kind": "region-ranking",
+        "pattern": "[team] ranking [region]",
+        "met": true,
+        "count": 4,
+        "lastSeen": "2026-11-01"
+      }
+    ]
+  }
+}

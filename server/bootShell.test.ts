@@ -164,6 +164,10 @@ describe("route chunk preload", () => {
     expect(team).toContain('<link rel="modulepreload" crossorigin href="/assets/TeamPage-d.js" />');
     expect(team).toContain('<link rel="modulepreload" crossorigin href="/assets/chart-c.js" />');
     expect(team).toContain('<link rel="preload" as="style" crossorigin href="/assets/chart-c.css" />'); // never render-blocking
+    // Unless the server drew the page whole: its markup is there already, so its own styles apply before it paints.
+    const drawn = routePreloads(file, "/teams/4215", true);
+    expect(drawn).toContain('<link rel="stylesheet" crossorigin href="/assets/chart-c.css" />');
+    expect(drawn).not.toContain('as="style"');
     expect(team).not.toContain("vendor-react");
     expect(team).not.toContain("index-a");
     // A large shared dependency waits for the app (it would compete with the first paint).

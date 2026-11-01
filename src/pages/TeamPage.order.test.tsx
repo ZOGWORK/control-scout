@@ -91,7 +91,9 @@ describe("collapsed sections", () => {
       expect(b.getAttribute("type")).toBe("button");
       expect(b.closest("h2")).toBeTruthy();
       expect(b.getAttribute("aria-expanded")).toBe("false");
-      expect(b.textContent).toMatch(/Show$/);
+      // It says there is more inside: a hint at the contents and a "Show details" pill.
+      expect(b.textContent).toMatch(/Show\sdetails$/);
+      expect(document.getElementById(b.getAttribute("aria-describedby")!)!.textContent!.length).toBeGreaterThan(20);
       expect(b.querySelector("svg")).toBeTruthy();
       expect(document.getElementById(b.getAttribute("aria-controls")!)!.hidden).toBe(true);
     }

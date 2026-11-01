@@ -10,6 +10,7 @@ import {
 import { type ApiError, useApi, qs } from "../lib/api";
 import { NotFoundView } from "../components/NotFoundView";
 import { useAfterFirstPaint } from "../lib/afterPaint";
+import { fromFirstPaint } from "../lib/pageData";
 import { useCurrentSeason, usePredictable, useTitle } from "../lib/meta";
 import { usePersonal, useTeamFlags } from "../lib/personal";
 import { FOLLOWED_TEAM_PATH, useYoursRow } from "../lib/yoursRow";
@@ -54,7 +55,10 @@ export default function TeamPage() {
   const season = sp.get("season");
   // FTC team numbers are 1–999999, digits only (as on the server); anything else can't exist, so don't ask the API.
   const valid = /^\d+$/.test(number ?? "") && team >= 1 && team <= 999_999;
-  const state = useApi<TeamProfile>(valid ? `/api/teams/${team}${qs({ season })}` : null);
+  const path = valid ? `/api/teams/${team}${qs({ season })}` : null;
+  const state = useApi<TeamProfile>(path);
+  // Drawn by the server already (the page's first paint: src/prerender/page.tsx): draw it whole, the same at once.
+  const [drawn] = useState(() => fromFirstPaint(path));
   // Not a team (the server answers these addresses with a 404 too), or a season the API doesn't cover: the branded not-found page.
   const notFound = (state.error as ApiError | undefined)?.status === 404 ? state.error! : null;
   useTitle(!valid || notFound ? "Team not found" : teamTitle(state.data?.team.number ?? team, state.data?.team.name)); // same as the server-rendered title
@@ -67,17 +71,18 @@ export default function TeamPage() {
   }
   return (
     <Async state={state}>
-      {(p) => <Profile p={p} asked={season != null} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
+      {(p) => <Profile p={p} drawn={drawn} asked={season != null} onSeason={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}
     </Async>
   );
 }
 
-function Profile({ p, asked, onSeason }: { p: TeamProfile; asked: boolean; onSeason: (s: number) => void }) {
+function Profile({ p, drawn = false, asked, onSeason }: { p: TeamProfile; drawn?: boolean; asked: boolean; onSeason: (s: number) => void }) {
   const hasResults = p.events.length > 0;
   // 2019–2022: results and stats only (no ratings, predictions or scouting templates).
   const predictable = usePredictable(p.season);
-  // The hero paints first; the sections under it (charts, tables) mount right after.
-  const rest = useAfterFirstPaint();
+  // The hero paints first; the sections under it (charts, tables) mount right after. Unless the server drew the
+  // whole page already: then all of it at once, as drawn.
+  const rest = useAfterFirstPaint(drawn);
   const fellBackFrom = useFellBackFrom(p, asked);
   return (
     <div className="min-w-0">

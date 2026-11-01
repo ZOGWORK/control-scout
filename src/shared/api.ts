@@ -78,7 +78,24 @@ export interface SearchAnswer {
   intent?: SearchIntentNote;
   /** Whether a Bruno AI refinement may help (the results are a guess or there are none): the app then asks /api/search/refine. */
   weak: boolean;
+  /** A direct answer to a question the query asked ("when did hypnotic go to worlds"), from stored data only. */
+  card?: SearchCard;
 }
+
+/** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
+export interface SearchCard {
+  kind: "worlds" | "wins" | "awards" | "next-event" | "next-match";
+  /** "Worlds appearances" */
+  title: string;
+  /** The team it's about. */
+  team: { number: number; name: string | null };
+  lines: SearchCardLine[];
+  /** Nothing found for what was asked, said plainly ("No Worlds appearances found in recorded event history"). */
+  none?: string;
+  /** Under `none`: the closest real records (the team's state championship results), so it's never a dead end. */
+  closest?: SearchCardLine[];
+}
+export interface SearchCardLine { text: string; detail?: string; href?: string }
 
 /** An understood intent (server/api/searchIntents.ts): counted as `kind` and `pattern` (placeholders, no query text). */
 export interface SearchIntentNote {

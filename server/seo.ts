@@ -120,8 +120,9 @@ const fileSize = (f: string) => {
 
 /** <link>s that start loading this page's code chunk with the HTML, rather than after the main
  *  bundle has run and asked for it. Files the entry already loads are left out, and so is a large
- *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint. */
-export function routePreloads(indexFile: string, path: string): string {
+ *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint, except on a page
+ *  the server drew whole (`drawn`): its markup is already there, so the page's own styles apply before it paints. */
+export function routePreloads(indexFile: string, path: string, drawn = false): string {
   const chunks = viteManifest(indexFile);
   const mod = pageModule(path);
   const page = mod && chunks?.[`src/pages/${mod}.tsx`];
@@ -141,7 +142,7 @@ export function routePreloads(indexFile: string, path: string): string {
   walk(page, js, css);
   const dist = dirname(indexFile);
   const tags = [
-    ...[...css].filter((f) => !entryCss.has(f)).map((f) => `<link rel="preload" as="style" crossorigin href="/${f}" />`),
+    ...[...css].filter((f) => !entryCss.has(f)).map((f) => drawn ? `<link rel="stylesheet" crossorigin href="/${f}" />` : `<link rel="preload" as="style" crossorigin href="/${f}" />`),
     ...[...js].filter((f) => !have.has(f) && (f === page.file || fileSize(join(dist, f)) <= PRELOAD_MAX_DEP))
       .map((f) => `<link rel="modulepreload" crossorigin href="/${f}" />`),
   ];
@@ -160,14 +161,29 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // And on /events, whether today has coin flips (coinFlipsHint).
   // And whether the light version is on (the first paint offers it on a slow load: server/bootShell.ts).
   const [meta, hero, flips, lite] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false)]);
-  const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE].filter(Boolean).join("\n    ");
+  // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint waits for the app's
+  // stylesheet and text fonts (FIRST_PAINT_FONTS), so it paints once, styled, never as unstyled text that then changes.
+  const drawn = !!meta.firstPaint && !meta.notFound;
+  const head = [headTags(path, meta), flips, routePreloads(file, path, drawn), BOOT_STYLE, drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
+  const shell = indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
-  const html = afterFirstPaint(nonBlockingCss(indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`)))
+  const html = afterFirstPaint(drawn ? shell : nonBlockingCss(shell), drawn)
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
     .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
   return { status: meta.notFound ? 404 : 200, html };
 }
+
+/**
+ * The app's fonts for a page the server drew whole, with font-display: block: its text paints once the fonts are here
+ * (preloaded with the HTML: the two text fonts in index.html, the mono one, for team numbers, here), never in a
+ * stand-in font that then reflows. The same faces as the stylesheet's (src/index.css), declared after it, so these
+ * win; a font still on its way after 3 s gives way to the stand-in, as usual.
+ */
+export const FIRST_PAINT_FONTS = `<link rel="preload" href="/fonts/JetBrainsMono-400.woff2" as="font" type="font/woff2" crossorigin />`
+  + `<style>@font-face{font-family:"Inter";font-weight:400 800;font-style:normal;font-display:block;src:url("/fonts/Inter.woff2") format("woff2")}`
+  + `@font-face{font-family:"Space Grotesk";font-weight:500 700;font-style:normal;font-display:block;src:url("/fonts/SpaceGrotesk.woff2") format("woff2")}`
+  + `@font-face{font-family:"JetBrains Mono";font-weight:400;font-style:normal;font-display:block;src:url("/fonts/JetBrainsMono-400.woff2") format("woff2")}</style>`;
 
 /** How long the first HTML waits on today's coin flips before going without the hint. */
 export const FLIPS_HINT_MS = 150;
@@ -200,7 +216,7 @@ export async function coinFlipsHint(path: string): Promise<string> {
  * still loads it within a moment (the timer fallback). The page's own preloads (routePreloads) go
  * through the loader too, in the same order.
  */
-export function afterFirstPaint(html: string): string {
+export function afterFirstPaint(html: string, fetchEarly = false): string {
   const entry = /\s*<script type="module"(?:\s+crossorigin)?\s+src="([^"]+)"><\/script>/.exec(html);
   if (!entry) return html;
   const preloads: string[] = [];
@@ -210,7 +226,10 @@ export function afterFirstPaint(html: string): string {
   const loader = `<script>(function(){var d=document,s=0;function go(){if(s)return;s=1;var h=d.head;${list}.forEach(function(u){var l=d.createElement('link');l.rel='modulepreload';l.crossOrigin='anonymous';l.href=u;h.appendChild(l)});`
     + `var e=d.createElement('script');e.type='module';e.crossOrigin='anonymous';e.src=${src};h.appendChild(e)}`
     + `if(window.requestAnimationFrame)requestAnimationFrame(function(){setTimeout(go,0)});setTimeout(go,100)})()</script>`;
-  return rest.replace("</body>", () => `${loader}\n  </body>`);
+  // A page drawn whole by the server waits for the stylesheet before it paints: its code downloads meanwhile (it still
+  // runs only after the first paint) rather than starting once that paint is done.
+  const early = fetchEarly ? [entry[1], ...preloads].map((u) => `<link rel="modulepreload" crossorigin fetchpriority="low" href="${u}" />`).join("") : "";
+  return (early ? rest.replace("</head>", () => `${early}\n  </head>`) : rest).replace("</body>", () => `${loader}\n  </body>`);
 }
 
 /**
