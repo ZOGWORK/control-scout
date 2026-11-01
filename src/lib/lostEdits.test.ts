@@ -263,6 +263,15 @@ describe("an account's turned-down versions", () => {
     expect(JSON.parse(localStorage.getItem("cs-scout-rejected:w1")!)).toEqual({ abc: 123 });
   });
 
+  it("a new stash keeps the markers an earlier sign-in couldn't put back", async () => {
+    const { withLeftovers } = await import("./personal");
+    const now = { entries: [], dirty: [], spaces: { w1: { entries: [], dirty: [], rejected: { b: 2 } } } };
+    const left = { entries: [], dirty: [], rejected: { p: 9 }, spaces: { w1: { entries: [], dirty: [], rejected: { a: 1 } } } };
+    const out = withLeftovers(now, left);
+    expect(out.rejected).toEqual({ p: 9 });
+    expect(out.spaces!.w1.rejected).toEqual({ a: 1, b: 2 });
+  });
+
   it("a device too full to write them hands them back, so the stash isn't dropped", () => {
     localStorage.setItem("cs-scout-rejected:w1", JSON.stringify({ abc: 123 }));
     localStorage.setItem("cs-scout-ws:w1:abc", JSON.stringify({ uuid: "abc", season: 2025, team: 1, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt: 123, workspaceId: "w1" }));

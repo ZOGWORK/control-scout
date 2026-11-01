@@ -43,7 +43,7 @@ export default function PlanningPreview() {
       <div className="min-w-0">
         <SharedPicklist workspaceId={WS} workspaceName="Riverside Robotics" season={S} live="off" me={priya} shortlist={[]} />
       </div>
-      <PlanningRail mine={[asg(1, 20217), asg(2, 19846), asg(3, 23659)]} onScout={() => {}} readOnly={false} activity={activity} onOpenEntry={() => {}} alliancesOn onView={() => {}} />
+      <PlanningRail mine={[asg(1, 20217), asg(2, 19846), asg(3, 23659)]} assignments={{ loading: false, error: null, reload: () => {} }} onScout={() => {}} readOnly={false} activity={activity} onOpenEntry={() => {}} alliancesOn onView={() => {}} />
     </div>
   );
 }

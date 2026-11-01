@@ -468,7 +468,7 @@ export default function ScoutPage() {
                       <SharedPicklist workspaceId={workspace.id} workspaceName={workspaceLabel(workspace)} season={season} live={live} me={pickMe} shortlist={personal.bookmarks ?? []} readOnly={!!readOnly} />
                     </PicklistWithPartner>
                   </div>
-                  <PlanningRail mine={me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open") : []} onScout={scoutAssigned} readOnly={!!readOnly}
+                  <PlanningRail mine={me ? assignments.list.filter((a) => a.assigneeAccountId === me.accountId && a.status === "open") : []} assignments={assignments} onScout={scoutAssigned} readOnly={!!readOnly}
                     activity={activity} onOpenEntry={openEntry} alliancesOn={alliancesOn} onView={(v) => openView("planning", v)} />
                 </div>
               )}

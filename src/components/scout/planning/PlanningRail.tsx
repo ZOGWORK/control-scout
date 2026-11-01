@@ -27,9 +27,11 @@ const More = ({ label, onClick }: { label: string; onClick: () => void }) => (
   <Button variant="ghost" size="sm" className="-mr-2 h-8 text-xs text-muted-foreground" onClick={onClick}>{label} <ArrowRight /></Button>
 );
 
-export function PlanningRail({ mine, onScout, readOnly, activity, onOpenEntry, alliancesOn, onView }: {
+export function PlanningRail({ mine, assignments, onScout, readOnly, activity, onOpenEntry, alliancesOn, onView }: {
   /** This member's open team assignments. */
   mine: readonly Assignment[];
+  /** Where the space's assignments stand: loading, or a load that failed (with a retry). */
+  assignments: { loading: boolean; error: { message: string } | null; reload: () => void };
   onScout: (team: number, eventCode: string) => void;
   readOnly: boolean;
   activity: ActivityState;
@@ -42,7 +44,13 @@ export function PlanningRail({ mine, onScout, readOnly, activity, onOpenEntry, a
   return (
     <div className="grid items-start gap-4 lg:grid-cols-3">
       <RailCard title="Your assignments" icon={<ClipboardCheck />} action={<More label="All assignments" onClick={() => onView("assignments")} />}>
-        {!mine.length ? <p className="px-4 py-3 text-sm text-muted-foreground">Nothing assigned to you right now.</p> : (
+        {!mine.length && assignments.loading ? <p className="px-4 py-3 text-sm text-muted-foreground">Loading…</p>
+          : !mine.length && assignments.error ? (
+            <div role="alert" className="flex flex-wrap items-center gap-2 px-4 py-3 text-sm">
+              <span className="min-w-0 flex-1 text-danger-text">Couldn't load the assignments. {assignments.error.message}</span>
+              <Button size="sm" variant="outline" onClick={assignments.reload}>Retry</Button>
+            </div>
+          ) : !mine.length ? <p className="px-4 py-3 text-sm text-muted-foreground">Nothing assigned to you right now.</p> : (
           <ul className="divide-y divide-border">
             {mine.slice(0, SHOWN).map((a) => (
               <li key={a.id} className="flex items-center gap-3 px-4 py-2">
