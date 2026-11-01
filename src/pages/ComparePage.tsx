@@ -28,6 +28,7 @@ import { awardLabel, num, rankPct, seasonLabel } from "../lib/format";
 import { compareSeasonNote } from "../lib/compareSeasonNote";
 import { CompareConsensus } from "../components/ScoutConsensus";
 import { CompareBrief } from "../components/CompareBrief";
+import { compareEventNames } from "../lib/compareBrief";
 import { cn } from "../components/cn";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
@@ -501,7 +502,7 @@ function Compare({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: number
       </Section>
       {t.length > 1 && (
         <Section title={`Head to head (${d.meetings.length})`} description={`Matches where ${t[0].team.number} played with or against the others this season`}>
-          {d.meetings.length ? <MatchList matches={d.meetings} highlight={t[0].team.number} />
+          {d.meetings.length ? <MatchList matches={d.meetings} highlight={t[0].team.number} eventNames={compareEventNames(d)} />
             : <p className="text-sm text-muted-foreground">They haven't played with or against each other this season.</p>}
         </Section>
       )}
