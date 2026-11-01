@@ -539,6 +539,10 @@ export const XLSX_HEAT: CellStyle[] = [
 
 const PERCENT_FMT = '0.0"%"', DATE_FMT = "yyyy-mm-dd";
 
+/** Excel exports made at once: each holds its banded columns' numbers (8 bytes a value) until it's written. */
+export const XLSX_CONCURRENT = 2;
+let xlsxRunning = 0;
+
 /** An identity column's colour on match rows (the alliances). */
 const ID_TONE: Partial<Record<string, Tone>> = { Red: "redAlliance", Blue: "blueAlliance" };
 
@@ -549,6 +553,15 @@ const ID_TONE: Partial<Record<string, Tone>> = { Red: "redAlliance", Blue: "blue
  * from one fixed list of keys (as the CSV): first for each column's spread and width, then to write them.
  */
 export async function streamRecordsXlsx(season: number, q: RecordsQuery, res: Response, filename: string): Promise<void> {
+  if (xlsxRunning >= XLSX_CONCURRENT) {
+    res.status(503).set({ "Retry-After": "30", "Cache-Control": "no-store" }).json({ error: "Other Excel exports are being made: try again in a moment (CSV works now)" });
+    return;
+  }
+  xlsxRunning++;
+  try { await writeRecordsXlsx(season, q, res, filename); } finally { xlsxRunning--; }
+}
+
+async function writeRecordsXlsx(season: number, q: RecordsQuery, res: Response, filename: string): Promise<void> {
   const src = sourceFor(q.scope);
   const w = whereOf(src, season, q, await resolved(q));
   const ids = ID_HEADERS[q.scope];
@@ -569,6 +582,7 @@ export async function streamRecordsXlsx(season: number, q: RecordsQuery, res: Re
   const keys = await sortedKeys(src, q, w, RECORDS_EXPORT_MAX, 0);
   const chunks = async (each: (rows: AnyRow[]) => Promise<void>) => {
     for (let i = 0; i < keys.length; i += CSV_CHUNK) {
+      if (res.destroyed) throw new Gone(); // the download was cancelled: stop reading
       const raw = await rowsByKeys(src, q, keys.slice(i, i + CSV_CHUNK));
       await each(rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields)));
     }
@@ -577,20 +591,26 @@ export async function streamRecordsXlsx(season: number, q: RecordsQuery, res: Re
   // Pass 1: widths, and each banded column's values (team records only: a match's scores aren't a standing).
   // A header wraps onto two lines: half its length, or its longest word, plus room for the filter arrow.
   const widths = headers.map((h) => Math.max(...h.split(" ").map((w) => w.length), Math.ceil(h.length / 2)) + 4);
-  const spread = defs.map((d) => (q.scope !== "match" && heatable(d) ? ([] as number[]) : null));
-  await chunks(async (rows) => {
-    for (const r of rows) {
-      valuesOf(r).forEach((v, i) => {
-        if (v == null) return;
-        const len = i === dateCol ? 10 : typeof v === "number" ? String(Math.round(v * 100) / 100).length : String(v).length;
-        widths[i] = Math.max(widths[i], Math.min(len + 2, 42));
-      });
-      defs.forEach((d, j) => { const v = r.stats[d.key]; if (spread[j] && typeof v === "number" && Number.isFinite(v)) spread[j]!.push(v); });
-    }
-  });
-  const sorted = spread.map((vs) => {
-    if (!vs || vs.length < HEAT_MIN) return null;
-    const a = Float64Array.from(vs).sort();
+  // One fixed-size array per banded column (sized to the rows, so no growing or copying), sorted in place after.
+  const spread = defs.map((d) => (q.scope !== "match" && heatable(d) ? { a: new Float64Array(keys.length), n: 0 } : null));
+  try {
+    await chunks(async (rows) => {
+      for (const r of rows) {
+        valuesOf(r).forEach((v, i) => {
+          if (v == null) return;
+          const len = i === dateCol ? 10 : typeof v === "number" ? String(Math.round(v * 100) / 100).length : String(v).length;
+          widths[i] = Math.max(widths[i], Math.min(len + 2, 42));
+        });
+        defs.forEach((d, j) => { const v = r.stats[d.key], c = spread[j]; if (c && typeof v === "number" && Number.isFinite(v)) c.a[c.n++] = v; });
+      }
+    });
+  } catch (e) {
+    if (e instanceof Gone) return; // cancelled before anything was sent
+    throw e;
+  }
+  const sorted = spread.map((c) => {
+    if (!c || c.n < HEAT_MIN) return null;
+    const a = c.a.subarray(0, c.n).sort();
     return a[0] === a[a.length - 1] ? null : a;
   });
   const banded = sorted.some(Boolean);

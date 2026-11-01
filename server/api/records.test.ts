@@ -11,7 +11,7 @@ import { createApp } from "../app";
 import { loadSeason } from "../stats/load";
 import { computeRecords, fillAdvancementOdds, fillRecordPredictions } from "../stats/records";
 import { forecasterFor } from "../predict/engine";
-import { compileFilter, recordColumns, recordFolded, RecordsQueryError } from "./records";
+import { compileFilter, recordColumns, recordFolded, RecordsQueryError, XLSX_CONCURRENT } from "./records";
 import { encodeFilterText, foldText, parseFilter } from "../../src/shared/filterDsl";
 import { RECORD_SCOPES, statsFor } from "../../src/shared/statCatalog";
 
@@ -456,5 +456,37 @@ describe("one event's records and region options", () => {
     const { status, body } = await get(`/api/records/${S}/regions`);
     expect(status).toBe(200);
     expect(body.regions.find((r: any) => r.code === "USTX")).toMatchObject({ events: 1 });
+  });
+});
+
+describe("Excel export limits", () => {
+  it(`makes at most ${XLSX_CONCURRENT} Excel exports at once; another is told to try again, and the first ones finish`, async () => {
+    const c = db();
+    const realExec = c.execute.bind(c);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let held = 0;
+    (c as any).execute = async (s: any) => {
+      if (String(s?.sql ?? s).includes("team_event_records")) { held++; await gate; }
+      return realExec(s);
+    };
+    // Its own server: a fresh export rate limit (per app), so this test doesn't spend the other tests' requests.
+    const own = createApp().listen(0);
+    await new Promise((r) => own.once("listening", r));
+    const url = `http://127.0.0.1:${(own.address() as AddressInfo).port}/api/records/${N}/teams?format=xlsx&fields=teamName,totalPointsOpr`;
+    try {
+      const first = Array.from({ length: XLSX_CONCURRENT }, () => fetch(url));
+      while (held < XLSX_CONCURRENT) await new Promise((r) => setTimeout(r, 10));
+      const busy = await fetch(url);
+      expect(busy.status).toBe(503);
+      expect(busy.headers.get("retry-after")).toBe("30");
+      expect((await busy.json()).error).toMatch(/try again/);
+      release();
+      for (const r of await Promise.all(first)) {
+        expect(r.status).toBe(200);
+        expect(Object.keys(unzip(Buffer.from(await r.arrayBuffer())))).toContain("xl/worksheets/sheet1.xml");
+      }
+      expect((await fetch(url)).status).toBe(200); // the slots are free again
+    } finally { release(); (c as any).execute = realExec; own.close(); }
   });
 });
