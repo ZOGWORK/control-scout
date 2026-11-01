@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAnalyticsConsent } from "./consent";
 
-type Cb = (r: { name: string; value: number }) => void;
+type Cb = (r: { name: string; value: number; id: string }) => void;
 let beacons: { url: string; body: Blob }[] = [];
 let cbs: Record<string, Cb> = {};
 const fakeLoad = () => Promise.resolve({
@@ -32,12 +32,12 @@ describe("startVitals", () => {
     const { startVitals } = await import("./vitals");
     startVitals(fakeLoad);
     await Promise.resolve(); await Promise.resolve();
-    cbs.TTFB({ name: "TTFB", value: 320 });
-    cbs.LCP({ name: "LCP", value: 1800 });
+    cbs.TTFB({ name: "TTFB", value: 320, id: "v1" });
+    cbs.LCP({ name: "LCP", value: 1800, id: "v1" });
     hide();
     // Reported from web-vitals' own hidden listener, after ours: a second beacon in the same moment.
-    cbs.CLS({ name: "CLS", value: 0.04 });
-    cbs.INP({ name: "INP", value: 120 });
+    cbs.CLS({ name: "CLS", value: 0.04, id: "v1" });
+    cbs.INP({ name: "INP", value: 120, id: "v1" });
     await Promise.resolve();
     const out = await sent();
     expect(out).toEqual([
@@ -53,10 +53,26 @@ describe("startVitals", () => {
     const { startVitals } = await import("./vitals");
     startVitals(fakeLoad);
     await Promise.resolve(); await Promise.resolve();
-    cbs.LCP({ name: "LCP", value: 1800 });
+    cbs.LCP({ name: "LCP", value: 1800, id: "v1" });
     setAnalyticsConsent(false);
     hide();
     expect(beacons).toEqual([]);
+  });
+
+  it("counts each metric of a load once: a tab hidden, shown and hidden again doesn't send it twice", async () => {
+    setAnalyticsConsent(true);
+    const { startVitals } = await import("./vitals");
+    startVitals(fakeLoad);
+    await Promise.resolve(); await Promise.resolve();
+    cbs.CLS({ name: "CLS", value: 0.04, id: "v1" });
+    hide();
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    cbs.CLS({ name: "CLS", value: 0.09, id: "v1" }); // the same load, grown
+    cbs.CLS({ name: "CLS", value: 0.01, id: "v2" }); // a back/forward-cache restore: a new load
+    hide();
+    await Promise.resolve();
+    expect((await sent()).map((b) => b.m)).toEqual([{ CLS: 0.04 }, { CLS: 0.01 }]);
   });
 
   it("starts once per page", async () => {

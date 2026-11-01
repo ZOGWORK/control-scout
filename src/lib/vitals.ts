@@ -14,7 +14,8 @@ import type { VitalName, VitalsBeacon } from "../shared/vitals";
 // are put down to the page the visit started on.
 const LANDING = typeof location === "undefined" ? "/" : location.pathname;
 
-type Report = { name: string; value: number };
+/** web-vitals gives each metric of each page load an id (a back/forward-cache restore is a new load, with new ids). */
+type Report = { name: string; value: number; id: string };
 
 function send(b: VitalsBeacon): void {
   const body = JSON.stringify(b);
@@ -31,7 +32,7 @@ function onFID(cb: (r: Report) => void): void {
       const e = list.getEntries()[0] as PerformanceEventTiming | undefined;
       if (!e) return;
       po.disconnect();
-      cb({ name: "FID", value: e.processingStart - e.startTime });
+      cb({ name: "FID", value: e.processingStart - e.startTime, id: "fid" });
     });
     po.observe({ type: "first-input", buffered: true });
   } catch { /* not supported */ }
@@ -39,21 +40,32 @@ function onFID(cb: (r: Report) => void): void {
 
 let started = false;
 
-/** Start measuring (once per page). Metrics are held until the tab is hidden, then sent together if consent still holds. */
+/**
+ * Start measuring (once per page). Metrics are held until the tab is hidden, then sent together if consent still holds.
+ * Each metric of a page load is sent once: CLS and INP can still grow when the visitor comes back to the tab, but a
+ * second sample would count that load twice in the histograms, so later values of an id already sent are dropped.
+ */
 export function startVitals(load: () => Promise<Pick<typeof import("web-vitals"), "onLCP" | "onINP" | "onCLS" | "onTTFB">> = () => import("web-vitals")): void {
   if (started || typeof window === "undefined" || typeof PerformanceObserver === "undefined") return;
   started = true;
   const path = routePattern(LANDING);
   let pending: VitalsBeacon["m"] = {};
+  let pendingIds: string[] = [];
+  const sent = new Set<string>();
   let queued = false;
   const flush = () => {
     queued = false;
     const m = pending;
     pending = {};
+    for (const id of pendingIds) sent.add(id);
+    pendingIds = [];
     if (Object.keys(m).length && hasAnalyticsConsent()) send({ path, screen: screenBucket(window.innerWidth), m });
   };
   const put = (r: Report) => {
+    const id = `${r.name}:${r.id}`;
+    if (sent.has(id)) return;
     pending[r.name as VitalName] = r.value;
+    pendingIds.push(id);
     // web-vitals reports LCP, CLS and INP from its own "hidden" listener, which may run after ours: one send for
     // everything reported in that same moment.
     if (document.visibilityState === "hidden" && !queued) { queued = true; queueMicrotask(flush); }
