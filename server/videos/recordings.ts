@@ -1,6 +1,7 @@
 // Event recordings: the YouTube video an event's page plays, and the second each match starts at in it.
 // The owner's stream (server/portal/streams.ts) wins; otherwise FIRST's liveStreamUrl when it names a
-// YouTube video (a channel page or Twitch doesn't: Twitch keeps past broadcasts for days only). YouTube's
+// YouTube video (a channel page or Twitch doesn't: Twitch keeps past broadcasts for days only), or the video
+// a short link there redirects to (server/videos/streamLinks.ts). YouTube's
 // timing for each video (video_meta, migration 43) is read in the background (backfillVideoMeta) and kept;
 // a broadcast still live is read again every few minutes. Reads are a small season map, cached for a minute.
 import { all, run } from "../db.js";
@@ -36,13 +37,18 @@ function seasonData(season: number, now = Date.now()) {
   const hit = cache.get(season);
   if (hit && now - hit.at < TTL_MS) return hit.v;
   const v = (async () => {
-    const [links, official] = await Promise.all([
+    const [links, short, official] = await Promise.all([
       all<{ code: string; livestream: string }>("SELECT code, livestream FROM events WHERE season = ? AND livestream LIKE '%youtu%'", [season]),
+      // Short links followed while their event was on, while FIRST still gives the same link.
+      all<{ code: string; video_id: string }>(
+        `SELECT l.code, l.video_id FROM event_stream_links l JOIN events e ON e.season = l.season AND e.code = l.code
+         WHERE l.season = ? AND l.video_id IS NOT NULL AND e.livestream = l.url`, [season]),
       // Events with FIRST's own per-match videos (championship-level events, mostly).
       all<{ code: string }>("SELECT DISTINCT code FROM matches WHERE season = ? AND video IS NOT NULL AND video != ''", [season]),
     ]);
     const first = new Map<string, string>();
     for (const l of links) { const id = firstVideoId(l.livestream); if (id) first.set(String(l.code), id); }
+    for (const l of short) first.set(String(l.code), String(l.video_id));
     const owner = await seasonStreams(season).catch(() => new Map<string, EventStream>());
     const ids = [...new Set([...first.values(), ...[...owner.values()].map((s) => s.videoId)])];
     const meta = new Map<string, VideoMeta>();
@@ -106,6 +112,9 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
   return v;
 }
 
+/** Drop the season maps, after the links they're read from changed. */
+export function forgetRecordings() { cache = new Map(); kinds = new Map(); }
+
 /** The page's player for an event, or null. */
 export async function eventRecording(season: number, code: string): Promise<Recording | null> {
   return (await seasonRecordings(season)).get(code) ?? null;
@@ -160,7 +169,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
   const now = opts.now ?? Date.now;
   try {
     const links = await all<{ season: number; livestream: string }>("SELECT season, livestream FROM events WHERE livestream LIKE '%youtu%' ORDER BY season DESC, start DESC");
-    const owned = await all<{ video_id: string }>("SELECT video_id FROM event_streams");
+    const owned = await all<{ video_id: string }>("SELECT video_id FROM event_streams UNION SELECT video_id FROM event_stream_links WHERE video_id IS NOT NULL");
     const ids = [...new Set([...owned.map((o) => String(o.video_id)), ...links.map((l) => firstVideoId(l.livestream)).filter((x): x is string => !!x)])];
     const known = new Map<string, VideoMeta>();
     for (let i = 0; i < ids.length; i += 200) {
@@ -184,7 +193,7 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
       else await saveMeta(id, f, now());
       n++;
     }
-    if (n) { cache = new Map(); kinds = new Map(); log(`recordings: read ${n} YouTube video${n === 1 ? "" : "s"}${key ? " (API)" : ""}${errors ? `, ${errors} not readable now` : ""}`); }
+    if (n) { forgetRecordings(); log(`recordings: read ${n} YouTube video${n === 1 ? "" : "s"}${key ? " (API)" : ""}${errors ? `, ${errors} not readable now` : ""}`); }
     return n;
   } finally {
     busy = false;

@@ -1,6 +1,7 @@
 // Preview (dev only): scouting one match for several teams, with team tabs and one Save. Sample schedule and
 // teams; the old ScoutFieldInput list stands in for piece C's form. Save here is a dry run (nothing is written),
-// so the preview never leaves entries on the device: ?team=<n> opens a tab, ?watch=all shows four teams.
+// so the preview never leaves entries on the device: ?team=<n> opens a tab, ?watch=all shows four teams, ?admin=3 is a
+// scout who's an admin of three workspaces (the toast names them).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "../../components/page";
@@ -69,7 +70,7 @@ export default function MatchSavePreview() {
           );
         }} />
       <SaveMatchBar className="mt-4" label={match.label} teamCount={teams.length} nextLabel={next !== index ? SCHEDULE[next].label : null} nextIndex={next}
-        emptyTeams={draft.emptyTeams} onSave={dryRun} onSaved={(i) => { setIndex(i); setActive(teamsWatched(SCHEDULE[i], watching)[0].team); }} />
+        emptyTeams={draft.emptyTeams} savedTo={sp.get("admin") === "3" ? "Saving to Hypnotic Robotics, First Street Kids and Bad Wolf" : null} onSave={dryRun} onSaved={(i) => { setIndex(i); setActive(teamsWatched(SCHEDULE[i], watching)[0].team); }} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { cleanValue, mergeValue, PERSONAL_KEYS, type PersonalKey, type Stamped }
 import { isOwnerEmail } from "../owner.js";
 import { clearMalformedSession, currentUser, deleteUser, endSession, readCookie, startSession, token, userForIdentity, type User } from "./session.js";
 import { emailEnabled, startEmailSignIn, verifyEmailCode } from "./email.js";
+import { copyToAdminSpaces } from "../scout/adminCopies.js";
 import { accessError, checkScoutEntry, cleanScoutEntry, INVALID_ENTRY, pushWorkspaceEntries, storedEntryFields, supersedeBound, supersedes, workspaceAccess, workspacePaused, type ScoutEntryInput } from "../scout/entries.js";
 import { CP_PROVIDER, controlPointEnabled, isWorkspaceId, controlPointInfo, controlPointVia, isCpVia, rememberInfo, linkedAccountId, linkToSharedAccount, logFailure, provenEmailFor, redeemHandoff } from "./controlPoint.js";
 
@@ -281,7 +282,9 @@ export function meRouter(): Router {
       if (await workspacePaused(res, workspaceId)) return;
       const access = await workspaceAccess((req as any).user, workspaceId, { write: true });
       if (!access.ok) { res.status(access.status).json(accessError(access)); return; }
-      return { results: await pushWorkspaceEntries((req as any).user, access.membership, raw) };
+      const user = (req as any).user;
+      // An admin of several workspaces: what they save here is saved in each of the others too (adminCopies.ts).
+      return { results: await copyToAdminSpaces(user, access.membership, await pushWorkspaceEntries(user, access.membership, raw)) };
     }
     const results: { uuid: string; ok: boolean; error?: string; reason?: string }[] = [];
     const good: ScoutEntryInput[] = [];
