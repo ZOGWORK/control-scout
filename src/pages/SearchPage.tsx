@@ -55,7 +55,7 @@ export default function SearchPage() {
               <Button variant="secondary" onClick={retry} disabled={busy}><RefreshCw /> Try again</Button>
             </div>
           )
-          : !sections.length ? (
+          : !sections.length && !answer?.card ? (
             <p className="text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>

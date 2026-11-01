@@ -33,7 +33,7 @@ import { searchAnswer } from "./api/searchAnswer.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, showingLine, shownPath } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref, showingLine, shownPath } from "../src/shared/search.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -483,7 +483,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // "none found" with the closest records under it.
   const c = answer.card;
   const cardLines = (ls: SearchCardLine[]) => `<ul>${ls.map((l) => `<li>${l.href ? `<a href="${esc(l.href)}">${esc(l.text)}</a>` : esc(l.text)}${l.detail ? `<br><small>${esc(l.detail)}</small>` : ""}${l.results?.length ? `<ul>${l.results.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`;
-  const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc(c.title)} · ${esc(c.team.name ? `${c.team.name} (${c.team.number})` : `Team ${c.team.number}`)}</h2>`
+  const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc([c.title, cardWho(c)].filter(Boolean).join(" · "))}</h2>`
     + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
   const body = (showing ? `<p>Showing: <b>${esc(showing)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
