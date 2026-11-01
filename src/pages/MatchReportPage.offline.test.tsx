@@ -7,7 +7,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const h = vi.hoisted(() => ({ reportKeys: ["qual:0:2"] as string[] | undefined }));
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: () => ({ data: undefined, loading: false, error: { offline: true, status: 0, message: "offline" } }) }));
-vi.mock("../lib/offline/useBundle", () => ({ useBundleSnapshot: () => null }));
+vi.mock("../lib/offline/useBundle", () => ({ useBundleSnapshot: () => null, useBundle: (s: number | null) => ({ meta: null, loading: false, bundle: s == null ? null : { reports: [{ key: "qual:0:2" }] } }) }));
 vi.mock("../lib/offline/bundleMeta", async (orig) => ({ ...(await orig<typeof import("../lib/offline/bundleMeta")>()), bundleFor: () => ({ season: 2025, code: "USWABAM1", reportKeys: h.reportKeys }) }));
 
 import MatchReportPage from "./MatchReportPage";
@@ -25,5 +25,11 @@ describe("MatchReportPage offline, report not in the bundle", () => {
   it("stays out of the way when the bundle holds the report (its snapshot answers)", () => {
     mount("qual:0:2");
     expect(screen.queryByText("This match's report isn't saved on this device")).toBeNull();
+  });
+
+  it("a bundle saved before its report list was kept: reads the list from the bundle itself", () => {
+    h.reportKeys = undefined;
+    mount("qual:0:5");
+    expect(screen.getByRole("link", { name: "Open the match on the event page" })).toBeTruthy();
   });
 });
