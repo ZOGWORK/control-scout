@@ -40,7 +40,7 @@ import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, hitHref, showingLine, shownPath } fr
 export const SITE = "Control Scout";
 export const SITE_ALT = "FTC Control Scout";
 const HOME_TITLE = "Control Scout — free FTC scouting & predictions";
-const HOME_DESC = "Search any FTC team, event or match. OPR breakdowns, event-by-event trends, match predictions with a public track record, advancement odds for any team at any event — free, no login.";
+const HOME_DESC = "Search any FTC team, event or match: OPR breakdowns, event-by-event trends, match predictions with a public track record and advancement odds. Free, no login.";
 // Added in turn to a short description until it reaches 120 characters.
 const TAILS = [" Free FTC scouting and predictions, no login.", " OPR breakdowns, match predictions and advancement odds for every FTC team and event."];
 
@@ -137,7 +137,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
   "/scout": { title: "Scout", description: "Your scouting notes on Control Scout.", noindex: true },
-  "/settings": { title: "Settings", description: "Control Scout settings.", noindex: true },
+  "/settings": { title: "Settings", description: "Control Scout settings: theme, text size and offline data.", noindex: true },
   "/digest/unsubscribed": { title: "Email digest", description: "Unsubscribe from the Control Scout email digest.", noindex: true },
 };
 

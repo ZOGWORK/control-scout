@@ -21,6 +21,8 @@ const ROWS: MatchRecordRow[] = [
   // A replayed call the ledger has no tier for: the verdict stays, the percentage doesn't.
   row(4, [5, 6], [7, 8], { redTotalPoints: 90, blueTotalPoints: 60, redPredictedWinPct: 81, highScore: 90, winningMargin: 30 }, null),
 ];
+// An off-season placeholder (no team page) in Q3: shown, not linked.
+ROWS[2].noPage = [3];
 vi.mock("../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../lib/api")>()),
   useApi: (path: string | null) => {
@@ -149,6 +151,18 @@ describe("match records on a phone", () => {
     expect(screen.getByText("A team page")).toBeTruthy();
   });
 
+  it("shows a team with no page (an off-season placeholder) unlinked, on the card and in the table", () => {
+    mount("/matches?season=2025");
+    const blue = within(card("Q3")).getByRole("list", { name: "Blue alliance" });
+    expect(within(blue).getAllByRole("link").map((a) => a.textContent)).toEqual(["4"]);
+    expect(within(blue).getByText("3").closest("a")).toBeNull();
+    cleanup();
+    phone = false;
+    mount("/matches?season=2025");
+    const q3 = screen.getAllByRole("row").find((r) => within(r).queryByRole("link", { name: "Q3" }) || r.textContent?.includes("Q3"))!;
+    expect(within(q3).getByText("3").closest("a")).toBeNull();
+    expect(within(q3).getByText("4").closest("a")?.getAttribute("href")).toBe("/teams/4?season=2025");
+  });
   it("opens the picked columns under a card, and closes them again", () => {
     mount("/matches?season=2025");
     const more = within(card("Q1")).getByRole("button", { name: /More stats/ });

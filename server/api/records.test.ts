@@ -328,6 +328,16 @@ describe("GET /api/records/:season/matches", () => {
     expect(r.body.rows[0]).toMatchObject({ eventCode: "USTST", key: "qual:0:1", label: "Q1", level: "qual", red: [1, 2], blue: [3, 4] });
     expect(r.body.rows[0].stats).toMatchObject({ redTotalPoints: 100, blueTotalPoints: 60, redDcPoints: 70, winningMargin: 40, highScore: 100, combinedScore: 160 });
   });
+  it("names the teams without a page (an off-season placeholder), so the page shows them unlinked", async () => {
+    expect((await get(`/api/records/${S}/matches?sort=highScore`)).body.rows.every((x: any) => !("noPage" in x))).toBe(true);
+    await run("UPDATE teams SET name = 'Off-Season Demo Team' WHERE number = 4");
+    try {
+      const rows = (await get(`/api/records/${S}/matches?sort=highScore`)).body.rows;
+      expect(rows.map((x: any) => x.noPage)).toEqual([[4], [4], [4]]);
+    } finally {
+      await run("UPDATE teams SET name = 'Delta-Drive' WHERE number = 4");
+    }
+  });
   it("narrows by team and level, and sorts by any stat", async () => {
     expect((await get(`/api/records/${S}/matches?team=2&sort=winningMargin&dir=asc`)).body.rows.map((x: any) => x.label)).toEqual(["Q2", "Q3", "Q1"]);
     expect((await get(`/api/records/${S}/matches?team=99`)).body.total).toBe(0);

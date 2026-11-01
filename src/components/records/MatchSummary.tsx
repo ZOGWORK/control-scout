@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, FileText, LayoutList, Sparkles, Table2, Trophy } from "lucide-react";
 import { STAT_BY_KEY, statFor, type MatchRecordRow } from "../../shared/statCatalog";
+import { NO_PAGE_TITLE } from "../../shared/teamPages";
 import { formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { matchOutcome, PREDICTION_FIELD, VERDICT_LABEL, type Side } from "../../lib/records/matchOutcome";
 import type { TableState } from "../../lib/records/urlState";
@@ -163,8 +164,8 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
       </header>
 
       <div className="mt-2 space-y-1.5 px-3">
-        <AllianceLine side="red" teams={r.red} season={r.season} score={o.red} won={o.winner === "red"} played={o.played} />
-        <AllianceLine side="blue" teams={r.blue} season={r.season} score={o.blue} won={o.winner === "blue"} played={o.played} />
+        <AllianceLine side="red" teams={r.red} noPage={r.noPage} season={r.season} score={o.red} won={o.winner === "red"} played={o.played} />
+        <AllianceLine side="blue" teams={r.blue} noPage={r.noPage} season={r.season} score={o.blue} won={o.winner === "blue"} played={o.played} />
       </div>
 
       {p && (
@@ -214,8 +215,9 @@ function MatchCard({ r, cols, open, onToggle }: { r: MatchRecordRow; cols: strin
   );
 }
 
-function AllianceLine({ side, teams, season, score, won, played }: { side: Side; teams: number[]; season: number; score: number | null; won: boolean; played: boolean }) {
+function AllianceLine({ side, teams, noPage, season, score, won, played }: { side: Side; teams: number[]; noPage?: number[]; season: number; score: number | null; won: boolean; played: boolean }) {
   const red = side === "red";
+  const chip = cn("inline-flex h-11 min-w-11 items-center justify-center rounded-md px-1.5 font-mono text-sm font-semibold tabular-nums", red ? RED_INK : "text-blue-alliance");
   return (
     <div className={cn("flex items-center gap-2 rounded-lg border-l-4 py-0.5 pl-2 pr-2.5",
       red ? "border-red-alliance" : "border-blue-alliance",
@@ -223,9 +225,9 @@ function AllianceLine({ side, teams, season, score, won, played }: { side: Side;
       <ul aria-label={`${NAME[side]} alliance`} className="flex min-w-0 flex-wrap gap-0.5">
         {teams.map((t) => (
           <li key={t}>
-            <Link to={`/teams/${t}?season=${season}`} aria-label={`Team ${t}`}
-              className={cn("inline-flex h-11 min-w-11 items-center justify-center rounded-md px-1.5 font-mono text-sm font-semibold tabular-nums outline-none still-hover:underline focus-visible:ring-2 focus-visible:ring-ring/60",
-                red ? RED_INK : "text-blue-alliance")}>{t}</Link>
+            {noPage?.includes(t)
+              ? <span className={chip} title={NO_PAGE_TITLE}>{t}</span>
+              : <Link to={`/teams/${t}?season=${season}`} aria-label={`Team ${t}`} className={cn(chip, "outline-none still-hover:underline focus-visible:ring-2 focus-visible:ring-ring/60")}>{t}</Link>}
           </li>
         ))}
       </ul>
