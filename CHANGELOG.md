@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.0 — 2026-11-01
+
+Every finished event on /events shows it is done, even when no matches were posted.
+
+### Highlights
+- [fixes] Every finished event card has a full green bar
+- [fixes] Events with no results posted say Done instead of no bar or 0/12
+- [fixes] Live and finished events with matches keep their played/total count
+
+### Fixes
+- **Finished bar on every event card.** A finished event with no results posted showed no bar (most scrimmages) or an empty one (0/12), so it didn't read as done next to the others. It now gets a full green bar marked Done. (#PR)
+
 ## 1.9.9 — 2026-11-01
 
 The maintenance pass is written up: what changed, why, and how it was checked.
