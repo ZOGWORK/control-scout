@@ -72,6 +72,7 @@ import { reportsRouter } from "./errorReports.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
+import { vitalsRouter } from "./vitals.js";
 import { abuseMonitor } from "./moderation.js";
 import { homeOverview } from "./api/home.js";
 import { coinFlips, radarEtag } from "./api/coinFlips.js";
@@ -243,7 +244,7 @@ export function createApp(opts: { dist?: string } = {}) {
   // 2 MB JSON parser skips all three.
   const json = express.json({ limit: "2mb" });
   // Same matching as Express routing (case-insensitive, optional trailing slash).
-  app.use((req, res, next) => (/^\/api\/(collect|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
+  app.use((req, res, next) => (/^\/api\/(collect(\/vitals)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
   const api = express.Router();
   // Public FTC data (GET, not account or auth): cacheable for a minute, then
@@ -822,6 +823,7 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/push", limiter(30), pushRouter());
   // The email digest (docs/digest.md): the Settings switch, the unsubscribe link and Resend's bounce reports.
   api.use("/digest", limiter(30), digestRouter());
+  api.use("/collect/vitals", vitalsRouter());
   api.use("/collect", collectRouter());
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());

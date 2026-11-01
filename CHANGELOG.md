@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.1.4 — 2026-11-01
+
+Real-user speed: the owner can see how fast pages load for real visitors.
+
+### Highlights
+- [speed] Real page-load speed, measured on visitors' own devices
+- [speed] Only if you allowed usage statistics, never anything that identifies you
+- [speed] Measured after the page has loaded, so it never slows it down
+
+### Speed
+- **Real-user speed.** Visitors who allowed anonymous usage statistics now also send how fast each page loaded for them (largest paint, response to taps, layout shift, first input delay, server response time) to Control Scout's own server, with the same page path and screen-size group as a page view and nothing else. The measuring code loads after the page has finished loading, so it never slows the page it measures. The owner portal's Usage tab shows them by page next to the API route timings. The privacy page says so. (#412)
+
 ## 2.1.3 — 2026-11-01
 
 A lighter install: one unused library gone, and the brand images are WebP.

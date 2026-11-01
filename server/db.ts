@@ -1809,6 +1809,29 @@ UPDATE scout_alliances SET copies_wanted = 1 WHERE status = 'ended' AND accepted
 ALTER TABLE scout_alliance_copy_queue ADD COLUMN from_ws TEXT;
 `,
   },
+  {
+    version: 69,
+    name: "real-user web vitals (daily histograms only)",
+    sql: `
+-- Web vitals (LCP, INP, CLS, FID, TTFB) from visitors who opted into usage statistics (server/vitals.ts): one row per
+-- UTC day x route pattern of the page the visit started on x screen bucket x metric. No raw events, IPs, user agents
+-- or IDs. count: page loads measured; total/max in the metric's unit (ms; CLS has none);
+-- b0..b11: loads per bucket (upper bounds in VITAL_BUCKETS, src/shared/vitals.ts, the last one open-ended).
+CREATE TABLE web_vitals_daily (
+  day TEXT NOT NULL,
+  path TEXT NOT NULL,
+  screen TEXT NOT NULL,
+  metric TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  max REAL NOT NULL DEFAULT 0,
+  b0 INTEGER NOT NULL DEFAULT 0, b1 INTEGER NOT NULL DEFAULT 0, b2 INTEGER NOT NULL DEFAULT 0, b3 INTEGER NOT NULL DEFAULT 0,
+  b4 INTEGER NOT NULL DEFAULT 0, b5 INTEGER NOT NULL DEFAULT 0, b6 INTEGER NOT NULL DEFAULT 0, b7 INTEGER NOT NULL DEFAULT 0,
+  b8 INTEGER NOT NULL DEFAULT 0, b9 INTEGER NOT NULL DEFAULT 0, b10 INTEGER NOT NULL DEFAULT 0, b11 INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, path, screen, metric)
+) WITHOUT ROWID;
+`,
+  },
 ];
 
 export type Db = Client;

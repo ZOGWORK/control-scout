@@ -14,6 +14,7 @@ import { CanonicalSync, MetaProvider, SearchRobotsSync } from "./lib/meta";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
 import { LiteSuggest } from "./components/layout/LiteSuggest";
 import { PageViews } from "./lib/analytics";
+import { WebVitals } from "./lib/vitals";
 import { installErrorReporting, setReportingPaused } from "./lib/errorReporting";
 import { onFlags, startFlags } from "./lib/flags";
 import { RouteErrorBoundary } from "./components/RouteErrorBoundary";
@@ -199,6 +200,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
             {/* In the main bundle, not a chunk of its own: it's for when chunks are crawling (src/lib/liteSuggest.ts). */}
             <NotOnBareRoute><LiteSuggest /></NotOnBareRoute>
             <PageViews />
+            <WebVitals />
             <OptionalParts>
               <NotOnBareRoute><ErrorReportPrompt /></NotOnBareRoute>
               <NotOnBareRoute><AlertsRunner /></NotOnBareRoute>
