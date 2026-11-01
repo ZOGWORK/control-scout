@@ -55,8 +55,9 @@ export function AllianceView({ workspaceId, workspaceName, season, eventCode, is
   const past = (list ?? []).filter((a) => a.status === "ended").slice(0, 5);
   const canManage = !!st.data?.canManage && isAdmin && !readOnly;
   // An invite link opens this view with ?join=CODE: the join form starts with it.
-  const [sp] = useSearchParams();
+  const [sp, setSp] = useSearchParams();
   const joinCode = normalInviteCode(sp.get("join"));
+  const joined = () => setSp((p) => { const n = new URLSearchParams(p); n.delete("join"); return n; }, { replace: true });
   // The code just made: held here, above the forms (which hide once the alliance exists), until Done.
   const [code, setCode] = useState<{ code: string; until: number | null } | null>(null);
   return (
@@ -67,8 +68,9 @@ export function AllianceView({ workspaceId, workspaceName, season, eventCode, is
           {code && <NewCode code={code.code} until={code.until} onDone={() => setCode(null)} />}
           {active && <LinkedPanel workspaceId={workspaceId} alliance={active} canManage={canManage} onCode={setCode} />}
           {pending.map((a) => <PendingCard key={a.id} workspaceId={workspaceId} alliance={a} canManage={canManage} onCode={setCode} />)}
-          {/* One alliance at a time on screen: the forms come back once it ends (or the invite is cancelled). */}
-          {canManage ? !active && !pending.length && <LinkForms workspaceId={workspaceId} season={season} eventCode={eventCode} joinCode={joinCode} onCode={setCode} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
+          {/* One alliance at a time on screen: the forms come back once it ends (or the invite is cancelled). An invite
+              link always shows the join form (it may be for another event); the server holds one alliance per event. */}
+          {canManage ? ((!active && !pending.length) || joinCode) && <LinkForms key={joinCode ?? ""} workspaceId={workspaceId} season={season} eventCode={eventCode} joinCode={joinCode} onCode={setCode} onJoined={joined} linkedEvents={[...(list ?? [])].filter((a) => a.status !== "ended").map((a) => a.eventCode)} />
             : !active && !pending.length && <EmptyState icon={Handshake} title="No alliance yet" description={readOnly ? "This workspace is read-only." : "An admin of this workspace can start an alliance with other teams at a meet, or join one with a code."} />}
           {past.length > 0 && <PastLinks list={past} />}
         </div>
@@ -383,8 +385,8 @@ function CopiesBox({ id, checked, onChange }: { id: string; checked: boolean; on
   );
 }
 
-function LinkForms({ workspaceId, season, eventCode, linkedEvents, joinCode, onCode }: {
-  workspaceId: string; season: number; eventCode: string | null; linkedEvents: string[]; joinCode: string | null; onCode: OnCode;
+function LinkForms({ workspaceId, season, eventCode, linkedEvents, joinCode, onCode, onJoined }: {
+  workspaceId: string; season: number; eventCode: string | null; linkedEvents: string[]; joinCode: string | null; onCode: OnCode; onJoined: () => void;
 }) {
   const [mode, setMode] = useState<"invite" | "accept">(joinCode ? "accept" : "invite");
   return (
@@ -393,7 +395,7 @@ function LinkForms({ workspaceId, season, eventCode, linkedEvents, joinCode, onC
         <ToggleGroupItem value="invite">Start an alliance</ToggleGroupItem>
         <ToggleGroupItem value="accept">I have a code</ToggleGroupItem>
       </ToggleGroup>
-      {mode === "invite" ? <InviteForm workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={linkedEvents} onCode={onCode} /> : <AcceptForm workspaceId={workspaceId} initial={joinCode} />}
+      {mode === "invite" ? <InviteForm workspaceId={workspaceId} season={season} eventCode={eventCode} linkedEvents={linkedEvents} onCode={onCode} /> : <AcceptForm workspaceId={workspaceId} initial={joinCode} onJoined={onJoined} />}
     </div>
   );
 }
@@ -435,7 +437,7 @@ function NewCode({ code, until, onDone }: { code: string; until: number | null; 
   );
 }
 
-function AcceptForm({ workspaceId, initial }: { workspaceId: string; initial: string | null }) {
+function AcceptForm({ workspaceId, initial, onJoined }: { workspaceId: string; initial: string | null; onJoined: () => void }) {
   const [text, setText] = useState(initial ? formatInviteCode(initial) : "");
   const [keep, setKeep] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -448,6 +450,7 @@ function AcceptForm({ workspaceId, initial }: { workspaceId: string; initial: st
       const others = r.alliance.members.filter((m) => m.workspaceId !== workspaceId).map((m) => m.name);
       toast.success(others.length ? `Linked with ${names(others)}.` : "Joined the alliance.");
       setText("");
+      onJoined();
     }
     catch (e) { toast.error(errorText(e)); }
     finally { setBusy(false); }

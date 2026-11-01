@@ -88,6 +88,17 @@ describe("AllianceView", () => {
     for (const name of [/^end$/i, /remove/i, /invite/i]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
+  it("an invite link shows the join form even while linked at another event", async () => {
+    routes = {
+      "/api/scout/workspaces/w1/alliances?season=2025": list([linked], true),
+      "/api/scout/workspaces/w1/alliances/7/shared": shared,
+      "/api/scout/workspaces/w1/alliances/7/consensus?teams=101": { allianceId: 7, season: 2025, eventCode: "USALQ1", teams: [] },
+    };
+    render(<MemoryRouter initialEntries={["/scout?view=alliance&join=ABCDEFGHJK"]}><AllianceView workspaceId="w1" workspaceName="Gearheads" season={2025} eventCode="USALQ1" isAdmin readOnly={false} /></MemoryRouter>);
+    await screen.findByTestId("alliance-linked");
+    expect(((await screen.findByLabelText("Invite code")) as HTMLInputElement).value).toBe("ABCDE-FGHJK");
+  });
+
   it("an invite link fills in the join form", async () => {
     routes = { "/api/scout/workspaces/w1/alliances?season=2025": list([], true) };
     render(<MemoryRouter initialEntries={["/scout?view=alliance&join=ABCDEFGHJK"]}><AllianceView workspaceId="w1" workspaceName="Gearheads" season={2025} eventCode={null} isAdmin readOnly={false} /></MemoryRouter>);
