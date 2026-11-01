@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.1 — 2026-10-31
+
+The event-day bundle page now opens on the schedule, with plain times and nothing to decode.
+
+### Highlights
+- [offline] An event's bundle opens on its schedule: every match, or one team's
+- [offline] Pick a team right on the page to see just its matches
+- [offline] Times read 7:23 PM, with a short zone (PT) next to them
+- [picklist] The pick list shows its top teams, or stays out of the way when empty
+
+### Event-day bundle
+- **Schedule first.** Below the event name: when the data was saved (one line), Open the event and Rankings, then the schedule from the bundle. With no team set it lists every match; a team picker (the event's own teams, works offline) narrows it to one team's matches, the next one marked. No more empty "Your matches" card asking you to pick a team.
+- **12-hour times.** "Saved 7:23 PM", match times "11:58 AM", and frozen match reports and pick lists say their time the same way. The raw zone name ("America/Los_Angeles") is gone; a short "Times in PT" sits by the times instead.
+- **Pick list, plainly.** "Your team's pick list", whose it is, how many teams and when it was saved, with the top five listed. An empty list, or none, shows no card.
+- **Rules reference closed.** The game rules reference is a closed section at the bottom and only loads when opened.
+- **Less to read.** The separate Event card and the long stale-data notice are gone; an old snapshot says "check live data first" in the same line.
+
 ## 1.7.0 — 2026-10-31
 
 Search reads the whole question: compare teams, ask about a season or a state, and it says plainly what it can't answer yet.
