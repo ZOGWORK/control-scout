@@ -81,6 +81,18 @@ describe("Event day", () => {
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
   });
 
+  it("a typed-in match keeps its answers when another section is opened and closed", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Slow climb" } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Event day" }));
+    await waitFor(() => expect(param("tab")).toBe("event"));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Entries" }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Slow climb");
+  });
+
   it("a team page's Scout this team with no event picked asks for the event, then opens that team's pit form there", async () => {
     show("/scout?season=2025&team=102&new=1");
     expect(await screen.findByText("Which event are you scouting?")).toBeTruthy();

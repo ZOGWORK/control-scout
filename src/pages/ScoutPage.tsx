@@ -355,12 +355,15 @@ export default function ScoutPage() {
         {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} />}
         {!session && <div className="mb-4 flex justify-end">{syncChip}</div>}
         <ScoutSections section={section} onSection={setSection} sections={sections}>
+          {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
+              section and back keeps its team, match, answers and notes. */}
+          {manual && <div hidden={section !== manual.from}>{manualForm(manual.from === "event" ? "Event day" : "Entries")}</div>}
           {section === "event" ? (
             !session ? (
               <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are still here."
                 action={<Button variant="outline" onClick={() => setSection("entries")}>Open entries</Button>} />
             ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
-            : manual?.from === "event" ? manualForm("Event day")
+            : manual?.from === "event" ? null
             : pitTeam != null && (!readOnly || pitWritable === pitTeam) ? (
               <div className="grid gap-3">
                 <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closePit}><ChevronLeft /> Event day</Button>
@@ -397,7 +400,7 @@ export default function ScoutPage() {
                 </ToggleGroup>
                 {seasonRow}
               </div>
-              {manual?.from === "entries" ? manualForm("Entries") : editEntry ? (
+              {manual?.from === "entries" ? null : editEntry ? (
                 // An entry opened from the list (or a link): the same form as a new one, with its own team, event and template.
                 <div className="grid gap-3">
                   <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeEdit}><ChevronLeft /> Entries</Button>

@@ -40,6 +40,9 @@ export function TeamPicker({ teams, value, onChange, error, inputRef, disabled, 
   const looked = useTeamName(picked != null && !listed ? picked : null);
   const options = useMemo(() => matchTeams(teams, text), [teams, text]);
   const typedNumber = /^\d{1,6}$/.test(text.trim()) ? text.trim() : null;
+  // What the arrow keys move through: the matching teams, then "Use team N" for a typed number not on the list.
+  const useTyped = typedNumber && !options.some((t) => String(t.team) === typedNumber) ? typedNumber : null;
+  const choices = [...options.map((t) => String(t.team)), ...(useTyped ? [useTyped] : [])];
 
   const pick = (team: string) => { onChange(team); setText(""); setOpen(false); };
 
@@ -72,16 +75,16 @@ export function TeamPicker({ teams, value, onChange, error, inputRef, disabled, 
         <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input id={id} ref={(el) => { own.current = el; if (typeof inputRef === "function") inputRef(el); else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = el; }}
           value={text} disabled={disabled} autoComplete="off" placeholder={teams.length ? "Team number or name" : "Team number"}
-          inputMode={teams.length ? "text" : "numeric"} role="combobox" aria-expanded={open && options.length > 0} aria-controls={listId} aria-autocomplete="list"
-          aria-activedescendant={open && options[active] ? `${listId}-${active}` : undefined} aria-invalid={!!error || undefined} aria-describedby={error ? errId : undefined}
+          inputMode={teams.length ? "text" : "numeric"} role="combobox" aria-expanded={open && choices.length > 0} aria-controls={listId} aria-autocomplete="list"
+          aria-activedescendant={open && choices[active] ? `${listId}-${active}` : undefined} aria-invalid={!!error || undefined} aria-describedby={error ? errId : undefined}
           onFocus={() => setOpen(true)}
           onChange={(e) => { setText(e.target.value); setOpen(true); setActive(0); }}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(options.length - 1, a + 1)); }
+            if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(choices.length - 1, a + 1)); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }
             else if (e.key === "Enter") {
               e.preventDefault();
-              if (open && options[active]) pick(String(options[active].team));
+              if (open && choices[active]) pick(choices[active]);
               else if (typedNumber) pick(typedNumber);
             } else if (e.key === "Escape") setOpen(false);
           }}
@@ -97,10 +100,11 @@ export function TeamPicker({ teams, value, onChange, error, inputRef, disabled, 
                 <span className="font-mono font-semibold">{t.team}</span><span className="truncate text-sm text-muted-foreground">{t.name}</span>
               </li>
             ))}
-            {typedNumber && !options.some((t) => String(t.team) === typedNumber) && (
-              <li role="option" aria-selected={false} onMouseDown={(ev) => { ev.preventDefault(); pick(typedNumber); }}
-                className="flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-accent/10">
-                Use team <span className="font-mono font-semibold">{typedNumber}</span>{teams.length ? <span className="text-muted-foreground">(not on the list)</span> : null}
+            {useTyped && (
+              <li id={`${listId}-${options.length}`} role="option" aria-selected={active === options.length} onMouseDown={(ev) => { ev.preventDefault(); pick(useTyped); }}
+                onMouseEnter={() => setActive(options.length)}
+                className={cn("flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm", active === options.length && "bg-accent/10")}>
+                Use team <span className="font-mono font-semibold">{useTyped}</span>{teams.length ? <span className="text-muted-foreground">(not on the list)</span> : null}
               </li>
             )}
           </ul>

@@ -162,7 +162,8 @@ export function aggregateConsensus(team: number, entries: ConsensusEntry[], top 
 export function fieldGrouper() {
   const ids = new Map<string, string>(); // definition -> layer id
   const taken = new Map<string, number>(); // id -> definitions seen
-  const keyOf = (f: ScoutField) => JSON.stringify([f.id, f.type, f.label.trim().toLowerCase(), f.max ?? null, f.options ?? null]);
+  // The unit too: a weight in lb and one in kg are different questions, never averaged together.
+  const keyOf = (f: ScoutField) => JSON.stringify([f.id, f.type, f.label.trim().toLowerCase(), f.max ?? null, f.options ?? null, f.unit?.trim().toLowerCase() ?? null]);
   return (fields: ScoutField[], data: Record<string, unknown>) => {
     const out: ScoutField[] = [];
     const d: Record<string, unknown> = {};
