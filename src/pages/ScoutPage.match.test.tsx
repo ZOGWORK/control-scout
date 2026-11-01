@@ -69,6 +69,24 @@ describe("Event day", () => {
     expect(screen.getByText("Next match").parentElement?.textContent).toContain("Q1");
   });
 
+  it("an entry being filled in keeps its answers through Change event and back", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /New entry/ }));
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Fast intake" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    expect(await screen.findByText("Which event are you scouting?")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back to USNJQ1" }));
+    await waitFor(() => expect(param("pick")).toBeNull());
+    expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
+  });
+
+  it("a team page's Scout this team opens its form even with no event picked", async () => {
+    show("/scout?season=2025&team=4242&new=1");
+    expect(await screen.findByLabelText("Notes")).toBeTruthy();
+    expect(screen.queryByText("Which event are you scouting?")).toBeNull();
+  });
+
   it("Change event opens the picker over the event, with a way back", async () => {
     red();
     show("/scout?season=2025");

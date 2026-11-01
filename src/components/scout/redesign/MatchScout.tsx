@@ -81,8 +81,9 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   const draft = useMatchDraft({ space, season, eventCode: session.eventCode, match, teams, template, existing: entries, author, readOnly, spaceName });
   const [phase, setPhase] = useState<FieldPhase>("auto");
   const savedTo = useSavedToLine(space);
-  // One timer for the match: switching team tabs keeps it running, and its phase moves every team's form.
-  const timer = useMatchTimer(setPhase);
+  // One timer for the match: switching team tabs keeps it running, and its phase moves every team's form. Kept
+  // for the visit by match, so stepping back to Event day and in again resumes it.
+  const timer = useMatchTimer(setPhase, `${space ?? "personal"}:${session.eventCode}:${match.key}`);
   const [active, setActive] = useState(teams[0]?.team ?? 0);
   // All four teams: quick rows, one team's full form on request (and back).
   const [full, setFull] = useState(false);

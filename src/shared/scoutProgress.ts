@@ -22,7 +22,9 @@ export interface Progress { done: number; total: number }
  */
 export function pitProgress(entries: readonly Entry[], eventCode: string, teams: readonly number[] | number): Progress {
   const done = pitScouted(entries, eventCode);
-  if (typeof teams === "number") return { done: Math.min(done.size, teams), total: teams };
+  // No team count yet (0 or an empty list): what's scouted still counts, out of an unknown total.
+  if (typeof teams === "number") return { done: teams > 0 ? Math.min(done.size, teams) : done.size, total: teams };
+  if (!teams.length) return { done: done.size, total: 0 };
   return { done: teams.filter((t) => done.has(t)).length, total: teams.length };
 }
 

@@ -247,7 +247,8 @@ export default function ScoutPage() {
   const session = scoutSession.session;
   const scoutEvent = useScoutEvent(season, session?.eventCode ?? null);
   // With no event picked, Event day is the picker (no sections above it); Change event (?pick=1) opens it again.
-  const picking = !spaces.resolving && !readOnly && (sp.get("pick") === "1" || (!session && section === "event"));
+  // (An open entry form, such as a team page's Scout this team, shows even with no event picked.)
+  const picking = !spaces.resolving && !readOnly && (sp.get("pick") === "1" || (!session && section === "event" && !formOpen));
   // Match assignments ("Red 1, Q1–Q30"): who has the other teams in the queue, and yours is what a new event starts watching.
   const matchAssignments = useMatchAssignments(workspace && !spaces.resolving ? space : null, season, live);
   const mineAt = (code: string) => {
@@ -316,10 +317,11 @@ export default function ScoutPage() {
           </div>
         )}
       </PageHeader>
-      {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : picking ? (
-        // No event yet (or Change event): the picker is the page, with no sections above it.
-        <>
-          <EventChooser season={season} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
+      {spaces.resolving ? <LoadingBlock rows={3} label="Loading scout space" /> : <>
+        {/* No event yet (or Change event): the picker is the page, with no sections above it. What's under it stays
+            mounted (hidden), so an entry being filled in keeps its answers through Change event and back. */}
+        {picking && <>
+          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
             onCancel={session ? () => setSp((x) => { x.delete("pick"); return x; }) : undefined} />
           {!session && (
             <p className="mt-6 text-sm text-muted-foreground">
@@ -327,8 +329,8 @@ export default function ScoutPage() {
               {workspace && <> or the <button type="button" className="font-medium text-accent-text hover:underline" onClick={() => openView("planning", null)}>pick list &amp; planning</button></>}.
             </p>
           )}
-        </>
-      ) : <>
+        </>}
+        <div hidden={picking}>
         {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} />}
         {!session && <div className="mb-4 flex justify-end">{syncChip}</div>}
         {formOpen && (
@@ -431,6 +433,7 @@ export default function ScoutPage() {
             </div>
           ) : null}
         </ScoutSections>
+        </div>
       </>}
       {historyEntry && <HistorySheet entry={historyEntry} me={me && { ...me, readOnly: !!readOnly }} open onOpenChange={(o) => { if (!o) setHistoryFor(null); }} />}
     </div>
