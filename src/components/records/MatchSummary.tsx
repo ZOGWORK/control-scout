@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronDown, FileText, LayoutList, Sparkles, Table2, Trophy } from "lucide-react";
 import { STAT_BY_KEY, statFor, type MatchRecordRow } from "../../shared/statCatalog";
-import { NO_PAGE_TITLE } from "../../shared/teamPages";
+import { NoPageTeam } from "./NoPageTeam";
 import { formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { matchOutcome, PREDICTION_FIELD, VERDICT_LABEL, type Side } from "../../lib/records/matchOutcome";
 import type { TableState } from "../../lib/records/urlState";
@@ -226,7 +226,7 @@ function AllianceLine({ side, teams, noPage, season, score, won, played }: { sid
         {teams.map((t) => (
           <li key={t}>
             {noPage?.includes(t)
-              ? <span className={chip} title={NO_PAGE_TITLE}>{t}</span>
+              ? <NoPageTeam team={t} className={chip} />
               : <Link to={`/teams/${t}?season=${season}`} aria-label={`Team ${t}`} className={cn(chip, "outline-none still-hover:underline focus-visible:ring-2 focus-visible:ring-ring/60")}>{t}</Link>}
           </li>
         ))}
