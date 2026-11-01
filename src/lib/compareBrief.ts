@@ -251,6 +251,40 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
   return out;
 }
 
+/** The brief's sentences in three groups for reading: how much data and the overall gap, the game phases, then
+ *  consistency, recency and meetings. Order inside a group is the generator's; empty groups are left out. */
+export const BRIEF_GROUPS: { title: string; topics: BriefTopic[] }[] = [
+  { title: "Sample and overall", topics: ["Sample size", "Overall"] },
+  { title: "By phase", topics: ["Auto", "TeleOp", "Endgame"] },
+  { title: "Form and meetings", topics: ["Consistency", "Recency", "Head to head"] },
+];
+export function briefGroups(sentences: BriefSentence[]): { title: string; items: BriefSentence[] }[] {
+  return BRIEF_GROUPS.map((g) => ({ title: g.title, items: sentences.filter((s) => g.topics.includes(s.topic)) })).filter((g) => g.items.length);
+}
+
+/** A sentence split into plain text and key numbers: decimals (56.3), records (0-2-0), counts of matches, events
+ *  or points ("32 matches", "2 scored matches") and whole OPRs where the sentences put them ("81 to 157.9",
+ *  "OPR 120 vs 98", "event OPR 112", "up 5", "4215 101 (10 matches)"). Team numbers, seasons and dates stay plain. */
+const KEY_NUMBER = new RegExp([
+  String.raw`\b\d+\.\d+\b`,
+  String.raw`\b\d+-\d+-\d+\b`,
+  String.raw`\b\d+(?= (?:vs \d+ )?(?:more |scored |played )?(?:auto |TeleOp |endgame )?(?:matches|match|events|event|points|point)\b)`,
+  String.raw`\b\d+(?= (?:vs|to) \d)`,
+  String.raw`(?<=\b(?:vs|to|up|down) |\(event OPR )\d+\b`,
+  String.raw`\b\d+(?= \(\d+ match)`,
+].join("|"), "g");
+export function keyNumbers(text: string): { text: string; key: boolean }[] {
+  const out: { text: string; key: boolean }[] = [];
+  let at = 0;
+  for (const m of text.matchAll(KEY_NUMBER)) {
+    if (m.index! > at) out.push({ text: text.slice(at, m.index), key: false });
+    out.push({ text: m[0], key: true });
+    at = m.index! + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), key: false });
+  return out;
+}
+
 /** The brief as plain text for the clipboard: one line per sentence, its sources as full links under it. */
 export function briefText(d: CompareView, sentences: BriefSentence[], origin: string, label = seasonLabel(d.season)): string {
   const head = `Comparison brief: ${list(d.teams.map((x) => String(x.team.number)))}, ${label}`;

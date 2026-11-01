@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.1 — 2026-11-01
+
+Compare's brief is spaced out and easier to scan.
+
+### Highlights
+- [teams] The brief is grouped: sample and overall, by phase, form and meetings
+- [teams] Topics get their own column on wide screens
+- [teams] Key numbers in the brief are in bold
+- [teams] Source links sit on a quieter line under each sentence
+
+### Compare
+- The brief on /compare groups its sentences under three small headings, with a divider and room between each one; the topic (Sample size, Overall, Auto …) is a label column at 640px and up and a heading above the sentence on phones
+- Gaps, OPRs, match and event counts and records are bold in each sentence; team numbers, seasons and dates stay plain. The sentences, sources and Copy brief text are unchanged
+
 ## 2.0.0 — 2026-11-01
 
 Search answers are easier to read: spaced out, with bullet points.

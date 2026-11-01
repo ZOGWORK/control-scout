@@ -2,7 +2,7 @@
 // rounding, no winner language, and every number traced back to the data it came from.
 import { describe, expect, it } from "vitest";
 import type { CompareTeam, CompareView, MatchView } from "../shared/api";
-import { BRIEF, WINNER_WORDS, briefText, compareBrief, list, shortDate, type BriefSentence } from "./compareBrief";
+import { BRIEF, BRIEF_GROUPS, WINNER_WORDS, briefGroups, briefText, compareBrief, keyNumbers, list, shortDate, type BriefSentence } from "./compareBrief";
 import { num } from "./format";
 
 type Ev = CompareTeam["events"][number];
@@ -220,6 +220,28 @@ describe("compareBrief: rules that hold for every brief", () => {
 });
 
 describe("helpers", () => {
+  it("groups sentences for reading, keeping the generator's order and every sentence once", () => {
+    const s = compareBrief(view([A, B]));
+    const g = briefGroups(s);
+    expect(g.map((x) => x.title)).toEqual(BRIEF_GROUPS.map((x) => x.title).filter((t) => g.some((x) => x.title === t)));
+    expect(g.flatMap((x) => x.items)).toEqual([...s].sort((a, b) => BRIEF_GROUPS.findIndex((x) => x.topics.includes(a.topic)) - BRIEF_GROUPS.findIndex((x) => x.topics.includes(b.topic))));
+    expect(g[0].items.map((x) => x.topic)).toContain("Sample size");
+    expect(BRIEF_GROUPS.flatMap((x) => x.topics)).toHaveLength(8);
+  });
+  it("picks out the key numbers and leaves team numbers, seasons and dates plain", () => {
+    const keys = (t: string) => keyNumbers(t).filter((x) => x.key).map((x) => x.text);
+    expect(keys("In 2025–26, 4215 played 32 matches at 5 events and 23268 played 51 matches at 7 events.")).toEqual(["32", "5", "51", "7"]);
+    expect(keys("23268 adds an estimated 13 more auto points per match than 4215 (best-event OPR 41.6 vs 28.3; 51 vs 32 matches).")).toEqual(["13", "41.6", "28.3", "51", "32"]);
+    expect(keys("4215 at X on Mar 15, 2026 (event OPR 101.6, up 49.2 on its first event)")).toEqual(["101.6", "49.2"]);
+    expect(keys("in the 2 scored matches against, 4215's alliance went 0-2-0.")).toEqual(["2", "0-2-0"]);
+    // Whole OPRs count too, wherever the sentences put them; the team number before them doesn't.
+    expect(keys("Event OPR ranged 4215 52.4 to 101 over 5 events and 23268 81 to 157.9 over 6 events.")).toEqual(["52.4", "101", "5", "81", "157.9", "6"]);
+    expect(keys("4215 and 6980 are level (best-event OPR 120 vs 98; 10 vs 11 matches).")).toEqual(["120", "98", "10", "11"]);
+    expect(keys("best-event OPR 4215 101 (10 matches), 6980 99.5 (11 matches)")).toEqual(["101", "10", "99.5", "11"]);
+    expect(keys("4215 at X on Mar 1, 2026 (event OPR 112, down 5 on its first event)")).toEqual(["112", "5"]);
+    const t = "Event OPR ranged 4215 52.4 to 101.6 over 5 events.";
+    expect(keyNumbers(t).map((x) => x.text).join("")).toBe(t);
+  });
   it("lists and dates", () => {
     expect(list(["a"])).toBe("a");
     expect(list(["a", "b"])).toBe("a and b");
