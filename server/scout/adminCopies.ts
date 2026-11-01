@@ -54,6 +54,12 @@ export function fits(f: ScoutField, v: unknown): v is ScoutAnswer {
   }
 }
 
+/** Two number fields measure in the same unit (or either isn't a measurement). */
+function sameUnit(a: ScoutField | undefined, b: ScoutField): boolean {
+  if (a?.type !== "number" || b.type !== "number") return true;
+  return (a.unit ?? "").trim().toLowerCase() === (b.unit ?? "").trim().toLowerCase();
+}
+
 /** A field list with each Yes / no + detail field's detail as a text answer of its own (its id: detailKey). */
 function withDetails(fields: ScoutField[]): ScoutField[] {
   return fields.flatMap((f) => (f.type === "toggleDetail" ? [f, { id: detailKey(f.id), label: f.label, type: "text" as const, phase: f.phase }] : [f]));
@@ -71,11 +77,12 @@ export function mapAnswers(data: Record<string, unknown>, from: ScoutField[], to
   const out: Record<string, ScoutAnswer> = {};
   for (const [k, v] of Object.entries(existing)) {
     const f = target.get(k), sent = asked.get(k);
-    if (f && fits(f, v) && (!sent || !fits(sent, v))) out[k] = v;
+    if (f && fits(f, v) && (!sent || !fits(sent, v) || !sameUnit(sent, f))) out[k] = v;
   }
   for (const [k, v] of Object.entries(data)) {
     const f = target.get(k);
-    if (f && fits(f, v)) out[k] = v;
+    // A measurement goes across only in the same unit (40 lb is never written as 40 kg).
+    if (f && fits(f, v) && sameUnit(asked.get(k), f)) out[k] = v;
   }
   return out;
 }

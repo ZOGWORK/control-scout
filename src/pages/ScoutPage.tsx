@@ -245,6 +245,8 @@ export default function ScoutPage() {
   const scoutSession = useScoutSession(space, season, newEntryEventCode(space, wss.defaults, season));
   const session = scoutSession.session;
   const scoutEvent = useScoutEvent(season, session?.eventCode ?? null);
+  // The pit form shows at the picked event (one opened while writable stays open if the space goes read-only).
+  const pitOpen = !!session && pitTeam != null && (!readOnly || pitWritable === pitTeam);
   // With no event picked, Event day is the picker (no sections above it); Change event (?pick=1) opens it again.
   // With no event picked, Event day is the picker; a pit form asked for meanwhile (a team page's Scout this team,
   // ?pit=) waits under it and opens at the event picked. (A match typed in from Entries isn't on Event day.)
@@ -352,19 +354,32 @@ export default function ScoutPage() {
           {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
               section and back keeps its team, match, answers and notes. */}
           {manual && <div hidden={section !== manual.from}>{manualForm(manual.from === "event" ? "Event day" : "Entries")}</div>}
+          {/* Likewise a pit entry being filled in (Event day) and an entry opened to change (Entries). */}
+          {pitOpen && pitTeam != null && <div hidden={section !== "event"}>
+              <div className="grid gap-3">
+                <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closePit}><ChevronLeft /> Event day</Button>
+                <PitScout event={scoutEvent} entries={entries} team={pitTeam} onTeam={openPit} onClose={closePit} onSaved={() => setSavedHere(true)}
+                  season={season} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending} readOnly={!!readOnly} sync={sync} savedHere={savedHere} />
+              </div>
+          </div>}
+          {editEntry && <div hidden={section !== "entries"} className="mb-4">
+                <div className="grid gap-3">
+                  <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeEdit}><ChevronLeft /> Entries</Button>
+                  <h3 className="text-xl font-bold text-foreground">{editEntry.kind === "pit" ? "Pit entry" : `Match ${editEntry.matchLabel ?? ""}`}</h3>
+                  <EntryEditor key={editEntry.uuid} kind={editEntry.kind} season={season} initial={editEntry} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
+                    readOnly={!!readOnly} sync={sync} savedHere={savedHere} event={editEntry.eventCode ? { code: editEntry.eventCode } : null}
+                    teams={session && editEntry.eventCode?.toUpperCase() === session.eventCode ? scoutEvent.teams : []}
+                    onSaved={(e) => { setSavedHere(true); closeEdit(); toast.success(`Saved ${e.team} on this device`); }} onClose={closeEdit} />
+                  {editEntry.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} />}
+                </div>
+          </div>}
           {section === "event" ? (
             !session ? (
               <EmptyState icon={ClipboardList} title="Nothing to scout here" description="This workspace is read-only. Its entries, pick list and export are still here."
                 action={<Button variant="outline" onClick={() => setSection("entries")}>Open entries</Button>} />
             ) : templatePending ? <LoadingBlock rows={3} label="Loading the workspace's fields" />
             : manual?.from === "event" ? null
-            : pitTeam != null && (!readOnly || pitWritable === pitTeam) ? (
-              <div className="grid gap-3">
-                <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closePit}><ChevronLeft /> Event day</Button>
-                <PitScout event={scoutEvent} entries={entries} team={pitTeam} onTeam={openPit} onClose={closePit} onSaved={() => setSavedHere(true)}
-                  season={season} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending} readOnly={!!readOnly} sync={sync} savedHere={savedHere} />
-              </div>
-            )
+            : pitOpen ? null
             : scoutingMatch ? (
               // One match being scouted, with the queue beside it on a wide screen to see what's done and jump.
               <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
@@ -394,18 +409,7 @@ export default function ScoutPage() {
                 </ToggleGroup>
                 {seasonRow}
               </div>
-              {manual?.from === "entries" ? null : editEntry ? (
-                // An entry opened from the list (or a link): the same form as a new one, with its own team, event and template.
-                <div className="grid gap-3">
-                  <Button variant="ghost" size="sm" className="-ml-2 justify-self-start text-muted-foreground max-sm:h-10" onClick={closeEdit}><ChevronLeft /> Entries</Button>
-                  <h3 className="text-xl font-bold text-foreground">{editEntry.kind === "pit" ? "Pit entry" : `Match ${editEntry.matchLabel ?? ""}`}</h3>
-                  <EntryEditor key={editEntry.uuid} kind={editEntry.kind} season={season} initial={editEntry} space={space} spaceName={spaceName} workspaceTemplate={wt.template} templatePending={templatePending}
-                    readOnly={!!readOnly} sync={sync} savedHere={savedHere} event={editEntry.eventCode ? { code: editEntry.eventCode } : null}
-                    teams={session && editEntry.eventCode?.toUpperCase() === session.eventCode ? scoutEvent.teams : []}
-                    onSaved={(e) => { setSavedHere(true); closeEdit(); toast.success(`Saved ${e.team} on this device`); }} onClose={closeEdit} />
-                  {editEntry.workspaceId != null && <EntryComments key={`comments-${editEntry.uuid}`} entry={editEntry} />}
-                </div>
-              ) : view === "recordings" ? (
+              {manual?.from === "entries" || editEntry ? null : view === "recordings" ? (
                 <Section title="Match recordings" description="Videos you recorded in the app stay on this device only — they're never uploaded. YouTube links you add sync with your account.">
                   <Recordings />
                 </Section>

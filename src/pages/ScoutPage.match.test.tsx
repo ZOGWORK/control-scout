@@ -81,6 +81,18 @@ describe("Event day", () => {
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
   });
 
+  it("a pit entry and an opened entry keep their answers when another section is opened and closed", async () => {
+    red();
+    saveScoutEntry({ uuid: "keepopen0001", season: 2025, team: 4242, eventCode: "USNJQ1", matchLabel: "Q9", kind: "match", data: {}, notes: "" });
+    show("/scout?season=2025&tab=event&pit=102");
+    fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Entries" }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Event day" }));
+    await waitFor(() => expect(param("tab")).toBe("event"));
+    expect((screen.getAllByLabelText("Notes") as HTMLTextAreaElement[]).map((n) => n.value)).toContain("Pit draft");
+  });
+
   it("a typed-in match keeps its answers when another section is opened and closed", async () => {
     red();
     show("/scout?season=2025&tab=entries");

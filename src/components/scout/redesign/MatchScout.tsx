@@ -77,7 +77,7 @@ export function MatchScout(p: MatchScoutProps) {
       <MatchHeader schedule={schedule.matches} index={index} watching={session.watching} nextIndex={next}
         progress={(i) => matchProgress(schedule.matches[i], session.watching, scouted)} onIndex={(i) => p.onMatch(schedule.matches[i].label)} />
       {/* A match of its own: its timer, phase and open tab start fresh. */}
-      <OneMatch key={`${session.eventCode}:${schedule.matches[index].key}`} {...p} match={schedule.matches[index]}
+      <OneMatch key={`${p.space ?? "personal"}:${p.season}:${session.eventCode}:${schedule.matches[index].key}`} {...p} match={schedule.matches[index]}
         nextLabel={index + 1 < schedule.matches.length ? schedule.matches[index + 1].label : null} nextIndex={Math.min(index + 1, schedule.matches.length - 1)}
         onSaved={(i) => { p.onAnySave?.(); p.onMatch(schedule.matches[i].label); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
     </div>
@@ -93,7 +93,7 @@ function OneMatch({ space, season, session, entries, template, author, readOnly,
   const savedTo = useSavedToLine(space);
   // One timer for the match: switching team tabs keeps it running, and its phase moves every team's form. Kept
   // for the visit by match, so stepping back to Event day and in again resumes it.
-  const timer = useMatchTimer(setPhase, `${space ?? "personal"}:${session.eventCode}:${match.key}`);
+  const timer = useMatchTimer(setPhase, `${space ?? "personal"}:${season}:${session.eventCode}:${match.key}`);
   const [active, setActive] = useState(teams[0]?.team ?? 0);
   // All four teams: quick rows, one team's full form on request (and back).
   const [full, setFull] = useState(false);
