@@ -694,7 +694,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                     <td className={cn(sticky, td, "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_97%,var(--color-text-base))]")}>
                       <Link to={`/events/${r.season}/${r.eventCode}?match=${encodeURIComponent(r.key)}`} className="block max-w-[13rem] still-hover:text-accent-text max-sm:max-w-[7.5rem]">
                         <span className="font-semibold">{r.label}</span>
-                        <span className="block truncate text-xs text-text-muted">{r.eventName}</span>
+                        <span className="block truncate text-xs text-text-muted" title={r.eventName}>{r.eventName}</span>
                       </Link>
                     </td>
                     <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.red} season={r.season} side="red" /></td>
@@ -721,7 +721,7 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                     {showEvent && "eventCode" in r && (
                       <td className={td}>
                         <Link to={`/events/${r.season}/${r.eventCode}`} className="block max-w-[16rem] still-hover:text-accent-text max-sm:max-w-[9rem]">
-                          <span className="block truncate">{r.eventName}</span>
+                          <span className="block truncate" title={r.eventName}>{r.eventName}</span>
                           <span className="block text-xs text-text-muted">{dateRange(r.eventStart)}</span>
                         </Link>
                       </td>

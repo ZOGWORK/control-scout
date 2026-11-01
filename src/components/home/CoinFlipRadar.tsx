@@ -114,7 +114,7 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
   return (
     <li className="min-w-0">
       <Link to={coinFlipHref(r)} aria-label={label}
-        className={cn("lift group flex h-full flex-col gap-2.5 rounded-xl border bg-card p-3.5 focus-visible:outline-2 focus-visible:outline-accent", closest ? "border-accent/60 bg-accent/[0.05]" : "border-line")}>
+        className={cn("lift group flex h-full flex-col gap-2.5 rounded-xl border bg-card p-3.5 focus-visible:outline-2 focus-visible:outline-ring", closest ? "border-accent/60 bg-accent/[0.05]" : "border-line")}>
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <span className="rounded-md bg-text-base/10 px-1.5 py-0.5 font-mono font-semibold text-text-base">{r.label}</span>
           {clock && <span className="text-text-muted">{clock} venue time</span>}
@@ -124,7 +124,7 @@ function FlipCard({ r, closest }: { r: CoinFlipRow; closest: boolean }) {
             <TierMark tier={r.tier} />
           </span>
         </span>
-        <span className="block truncate text-sm font-medium group-hover:text-accent-text">{r.eventName}{r.place && <span className="font-normal text-text-muted"> · {r.place}</span>}</span>
+        <span className="block truncate text-sm font-medium group-hover:text-accent-text" title={r.eventName}>{r.eventName}{r.place && <span className="font-normal text-text-muted"> · {r.place}</span>}</span>
         <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
           <Teams teams={r.red} side="red" />
           <span className="flex min-w-0 flex-col gap-1.5">
@@ -149,9 +149,9 @@ function DecidedRow({ r }: { r: CoinFlipRow }) {
   const verdict = !winner ? "a tie" : !fav ? "a true coin flip" : winner === fav ? "the call held" : "the other side won";
   return (
     <li>
-      <Link to={coinFlipHref(r)} className="group flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm focus-visible:outline-2 focus-visible:outline-accent">
+      <Link to={coinFlipHref(r)} className="group flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm focus-visible:outline-2 focus-visible:outline-ring">
         <span className="rounded-md bg-text-base/10 px-1.5 py-0.5 font-mono text-xs font-semibold">{r.label}</span>
-        <span className="min-w-0 flex-1 basis-40 truncate group-hover:text-accent-text">{r.eventName}</span>
+        <span className="min-w-0 flex-1 basis-40 truncate group-hover:text-accent-text" title={r.eventName}>{r.eventName}</span>
         <span className="flex items-center gap-1.5 font-mono font-semibold tabular-nums">
           <span className={cn("text-red-alliance", winner === "blue" && "opacity-60")}>{res.red}</span>
           <span className="text-text-muted">–</span>

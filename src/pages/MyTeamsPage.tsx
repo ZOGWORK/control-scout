@@ -222,7 +222,7 @@ function Events({ events, isCurrent, today }: { events: TeamEventRow[]; isCurren
         return (
           <li key={e.code}>
             <Link to={`/events/${e.season}/${e.code}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm hover:bg-text-base/[0.04]">
-              <span className="min-w-0 basis-full truncate font-medium sm:basis-0 sm:flex-1">{e.name}</span>
+              <span className="min-w-0 basis-full truncate font-medium sm:basis-0 sm:flex-1" title={e.name}>{e.name}</span>
               <span className="text-xs text-muted-foreground">{dateRange(e.start, e.end)}</span>
               {next ? <Badge variant="secondary">Upcoming</Badge> : e.rank == null && rec == null && (e.end ?? e.start ?? "") >= today ? <Badge variant="secondary">On now</Badge> : (
                 <span className="flex items-center gap-2 text-xs tabular-nums text-muted-foreground">

@@ -74,7 +74,7 @@ export function SectionHead({ num, eyebrow, title }: { num?: string; eyebrow: st
 export function Prose({ children, className, id }: { children: ReactNode; className?: string; id?: string }) {
   return (
     <Reveal className={cn("mx-auto max-w-2xl", className)}>
-      <div id={id} className="hiw-prose scroll-mt-bar-24 space-y-4 text-[0.9375rem] leading-[1.75] text-foreground/85 sm:text-base [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent [&_a]:underline-offset-2 [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-card [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.86em] [&_h3]:mt-8 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
+      <div id={id} className="hiw-prose prose-links-plain scroll-mt-bar-24 space-y-4 text-[0.9375rem] leading-[1.75] text-foreground/85 sm:text-base [&_a]:text-foreground [&_a]:underline [&_a]:decoration-accent [&_a]:underline-offset-2 [&_code]:rounded [&_code]:border [&_code]:border-border [&_code]:bg-card [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.86em] [&_h3]:mt-8 [&_h3]:font-display [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-foreground [&_strong]:font-semibold [&_strong]:text-foreground">
         {children}
       </div>
     </Reveal>
@@ -264,7 +264,7 @@ export function TipLayer({ children }: { children: ReactNode }) {
           role="status"
           aria-live="polite"
           className={cn(
-            "pointer-events-none fixed z-[90] max-w-[240px] rounded-lg bg-foreground px-2.5 py-1.5 font-mono text-[11.5px] leading-snug text-background shadow-lg transition-opacity duration-150",
+            "pointer-events-none fixed z-[90] max-w-[240px] rounded-lg bg-foreground px-2.5 py-1.5 font-mono text-xs leading-snug text-background shadow-lg transition-opacity duration-150",
             tip ? "opacity-100" : "opacity-0",
           )}
           style={tip ? { left: Math.max(8, Math.min(w - 248, tip.x + 14)), top: Math.max(8, tip.y - 44) } : { left: -9999, top: -9999 }}

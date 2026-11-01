@@ -1,7 +1,7 @@
 // The phone match cards' red text (the 12px verdict, the 14px team numbers, "Won") on its own 15% tint:
 // WCAG AA 4.5:1 in both themes (audit V3-VIS-001, "Mobile Match summary red labels": #f43f5e on #33181e
 // was 4.43:1 on dark). Worked out from the real tokens: src/index.css's card and alliance colours, and the
-// card's own red text token in MatchSummary.tsx.
+// shared red-alliance ink token the card's text uses (MatchSummary.tsx's RED_INK_TOKEN).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { RED_INK_TOKEN } from "./MatchSummary";
@@ -27,20 +27,20 @@ const ratio = (a: string, b: string) => { const [hi, lo] = [lum(a), lum(b)].sort
 const over = (fg: string, alpha: number, bg: string) => `#${rgb(fg).map((v, i) => Math.round(v * alpha + rgb(bg)[i] * (1 - alpha)).toString(16).padStart(2, "0")).join("")}`;
 
 describe("phone match card red text contrast", () => {
-  const darkInk = RED_INK_TOKEN.match(/dark:\[--summary-red-ink:(#[0-9a-f]{6})\]/i)?.[1];
-
-  it("dark: the card's own red text reads at 4.5:1 or more on the red tint (the shared alliance red alone doesn't)", () => {
-    const card = token(":root", "sh-card"), red = token("@theme", "color-red-alliance");
-    const tint = over(red, 0.15, card);
-    expect(darkInk).toBeDefined();
-    expect(ratio(red, tint)).toBeLessThan(4.5); // why the card has its own token
-    expect(ratio(darkInk!, tint)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(darkInk!, card)).toBeGreaterThanOrEqual(4.5); // a losing alliance's lighter 6% tint is closer to the card
+  it("the card's red text is the shared red-alliance ink token", () => {
+    expect(RED_INK_TOKEN).toBe("[--summary-red-ink:var(--color-red-alliance-ink)]");
   });
 
-  it("light: the alliance's text red (the -text token's light value) reads at 4.5:1 or more on the bright red's tint", () => {
-    expect(RED_INK_TOKEN).toContain("[--summary-red-ink:var(--color-red-alliance-text)]");
-    const card = token("html.light", "sh-card"), red = token("html.light", "color-red-alliance"), ink = token("html.light", "color-red-alliance-text");
+  it("dark: the card's own red text reads at 4.5:1 or more on the red tint (the shared alliance red alone doesn't)", () => {
+    const card = token(":root", "sh-card"), red = token("@theme", "color-red-alliance"), darkInk = token("@theme", "color-red-alliance-ink");
+    const tint = over(red, 0.15, card);
+    expect(ratio(red, tint)).toBeLessThan(4.5); // why the card has its own token
+    expect(ratio(darkInk, tint)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(darkInk, card)).toBeGreaterThanOrEqual(4.5); // a losing alliance's lighter 6% tint is closer to the card
+  });
+
+  it("light: the ink token's light value reads at 4.5:1 or more on the bright red's tint", () => {
+    const card = token("html.light", "sh-card"), red = token("html.light", "color-red-alliance"), ink = token("html.light", "color-red-alliance-ink");
     expect(ratio(ink, over(red, 0.15, card))).toBeGreaterThanOrEqual(4.5);
   });
 });
