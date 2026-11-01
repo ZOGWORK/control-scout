@@ -76,6 +76,8 @@ export const PUBLIC_TABLES = [
   "team_reliability",
   // YouTube's public timing of event recordings (migration 43): video ids, broadcast times, lengths.
   "video_meta",
+  // Where FIRST's short stream links led while each event was on (migration 66).
+  "event_stream_links",
 ];
 
 /** True only when replacing the file can't lose anything: it's missing or zero

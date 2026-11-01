@@ -54,7 +54,7 @@ import { SeasonToggle } from "../components/SeasonToggle";
 import { Recordings } from "../components/MatchVideo";
 import { ScoutTopBar } from "../components/scout/redesign/ScoutTopBar";
 import { parseScoutTab, ScoutTabs, type ScoutTab } from "../components/scout/redesign/ScoutTabs";
-import { DataHub, dataHubExportUrl, type DataView } from "../components/scout/redesign/DataHub";
+import { DataHub, dataHubExportUrl, pitTeams, type DataView } from "../components/scout/redesign/DataHub";
 import { SessionSetup } from "../components/scout/redesign/SessionSetup";
 import { MatchesTab, MatchScout } from "../components/scout/redesign/MatchScout";
 import { useScoutSession } from "../lib/scoutSession";
@@ -305,8 +305,8 @@ export default function ScoutPage() {
             {!sub ? (
               <>
                 <DataHub workspace={workspace ? { id: workspace.id, name: spaceName ?? "" } : null} readOnly={!!readOnly} isAdmin={isAdmin} season={season} eventCode={session?.eventCode ?? null}
-                  entryCount={entries.length} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
-                  onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} />
+                  entryCount={entries.length} pitCount={pitTeams(entries)} openForYou={myOpen} alliances={alliancesOn} filters={sp} filteredCount={filtering ? feed.shown.length : null}
+                  onOpen={(v) => (v === "pit" ? openOldForm("pit", teamFilter) : openView(v))} onStartScouting={() => setTab("match")} />
               </>
             ) : <>
               <Button variant="ghost" size="sm" className="-ml-2 mb-3 text-muted-foreground" onClick={() => openView(null)}><ChevronLeft /> Data</Button>
