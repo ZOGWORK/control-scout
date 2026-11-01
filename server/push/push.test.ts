@@ -4,7 +4,7 @@
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import webpush from "web-push";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { all, get, migrate, openDb, run, setDb } from "../db";
 import { createApp } from "../app";
 import { deleteUser, sha256 } from "../auth/session";
@@ -32,6 +32,14 @@ function wall(ms: number, zone = ZONE): string {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
 }
 const localDay = (ms: number, zone = ZONE) => wall(ms, zone).slice(0, 10);
+
+// The reminder and event-start tests use the real clock in Chicago. Within 2 days of a clock change there, a wall
+// time in the repeated or skipped hour is ambiguous and "yesterday" is 23 or 25 hours, so the file runs 3 days on.
+const realNow = Date.now.bind(Date);
+const zoneOffset = (ms: number) => Date.parse(`${wall(ms)}Z`) - Math.floor(ms / 1000) * 1000;
+const shift = zoneOffset(realNow() - 2 * 864e5) === zoneOffset(realNow() + 2 * 864e5) ? 0 : 3 * 864e5;
+beforeAll(() => { if (shift) vi.spyOn(Date, "now").mockImplementation(() => realNow() + shift); });
+afterAll(() => vi.restoreAllMocks());
 
 function useKeys() {
   const k = webpush.generateVAPIDKeys();
