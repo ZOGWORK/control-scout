@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.1 — 2026-11-01
+## 1.8.3 — 2026-11-01
 
 Search answers more questions, and a question on the results page gets a short written answer from Bruno AI.
 
@@ -29,6 +29,34 @@ Search answers more questions, and a question on the results page gets a short w
 - **State championships.** "How many times did 4215 go to states", "did bad wolf make states in 2025" and "… state championship" questions list each region championship the team played (its division, rank, record, OPR and awards), with the count in the card's header. None found, or none in the year asked, is said plainly with the closest real records.
 - **OPR at each event.** Worlds and state championship lines now include the team's OPR there.
 
+## 1.8.2 — 2026-11-01
+
+A scouting alliance can now link more than two teams at a meet.
+
+### Highlights
+- [scout] Link three, four or more teams for shared scouting at one meet
+- [scout] One invite code or link lets every team join; each team is listed
+- [scout] Coverage shows one card per team, each in its own colour
+- [scout] Any team can leave; the team that started it can remove one
+
+### Scouting alliances
+- **Any number of teams.** The team that starts an alliance gets an invite code and a link (Copy link). Any team's admin joins with either, until the code runs out (7 days, or the event's end) or the starter makes a new one. Up to 8 teams. The same rules hold for every team in it: everyone reads everyone's entries and assignments at that event and shares one consensus, nobody joins another team, each team's entries stay editable only in its own workspace, and it ends by itself after the event.
+- **Each team listed, in its colour.** The alliance card lists every team (you, and who started it). Coverage has one card per team in that team's colour, and the per-team bars split by team. The pick list toggle has a View button for each other team.
+- **Leaving and removing.** Any team's admin can leave: the others carry on while at least two are left, and the team that leaves keeps a copy of the others' entries (and they of its), if both agreed. The team that started it can remove a team (it keeps no copies, and can't come back with the same code) or end it for everyone. If the starter leaves, the team that joined next takes over.
+- **Copies.** When it ends, each two teams that both ticked "keep a copy" get each other's entries; a team that didn't tick it neither gives nor gets copies.
+- Existing two-team links carry over unchanged (migration 68) (#379).
+
+## 1.8.1 — 2026-11-01
+
+Add teams to your shortlist right from the Shortlist page.
+
+### Highlights
+- [picklist] Type a team number or name on the Shortlist and press Add team
+- [picklist] Suggestions appear as you type; teams already listed show Added
+- [picklist] An empty Shortlist offers the same box to make your first pick
+
+### Shortlist
+- **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too (#378).
 ## 1.8.0 — 2026-11-01
 
 The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.

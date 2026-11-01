@@ -3,16 +3,16 @@
 // trend line, and a panel that opens in place with the OPR split, event by
 // event chart, prediction snapshot and last five matches. List or grid view.
 // Order and notes live in personal state (this device, synced when signed in).
+// Teams join from any team page's Shortlist button, or from the search box here.
 // A returning scout's candidates come first; the instructions show in full on an
 // empty list and wait behind "How it works" once there are picks.
 import { useCallback, useRef, useState, type RefObject } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale, Search } from "lucide-react";
-import { useSearch } from "../components/layout/Search";
+import { ArrowDownWideNarrow, Bookmark, CalendarDays, Download, LayoutGrid, List, Scale } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useTitle } from "../lib/meta";
 import { usePersonal } from "../lib/personal";
-import type { ShortlistTeam } from "../shared/api";
+import type { SearchHit, ShortlistTeam } from "../shared/api";
 import { PageHeader, EmptyState } from "../components/page";
 import { Async } from "../components/states";
 import { Button } from "../components/ui/button";
@@ -28,13 +28,13 @@ import { TeamColorPicker } from "../components/TeamColorPicker";
 import { NoteField } from "../components/shortlist/NoteField";
 import { TeamDetail } from "../components/shortlist/TeamDetail";
 import { HowItWorks, HowItWorksToggle } from "../components/shortlist/HowItWorks";
+import { AddTeamBox } from "../components/shortlist/AddTeamBox";
 
 const MAX_SHOWN = 100;
 const isPhone = () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
 
 export default function ShortlistPage() {
   useTitle("Shortlist");
-  const search = useSearch();
   const { state, update, stored, user } = usePersonal();
   const current = useCurrentSeason();
   const [sp, setSp] = useSearchParams();
@@ -83,6 +83,19 @@ export default function ShortlistPage() {
       } },
     });
   };
+  // A team found in the box joins the end of the list (never twice).
+  // The first pick swaps the empty page for the list: its toolbar box takes the focus over.
+  const [focusAdd, setFocusAdd] = useState(false);
+  const add = (t: number, hit: SearchHit | null) => {
+    if (!list.length) setFocusAdd(true);
+    const saved = update("bookmarks", (b) => (b.includes(t) ? b : [...b, t]));
+    const name = hit?.title ?? `Team ${t}`;
+    const undo = { label: "Undo", onClick: () => update("bookmarks", (b) => b.filter((x) => x !== t)) };
+    // Signed out, a refused write (storage full or blocked) lasts only until the page reloads: said plainly.
+    if (!saved && !user) toast.warning(`Added ${name} for now, but this device couldn't save it (its storage is full or blocked)`, { action: undo });
+    else toast(`Added ${name} to your shortlist`, { action: undo });
+  };
+  const addBox = (className?: string) => <AddTeamBox listed={list} onAdd={add} className={className} autoFocus={focusAdd} />;
   const sortBy = (label: string, score: (r: ShortlistTeam) => number | null, asc = false) => {
     const before = [...list];
     const rows = shown.map((t) => byTeam.get(t)).filter(Boolean) as ShortlistTeam[];
@@ -111,7 +124,7 @@ export default function ShortlistPage() {
     return (
       <div>
         <PageHeader title="Shortlist" description={<>Your pick list for alliance selection: drag to rank it, open a team for its numbers, keep private notes. {synced}</>} />
-        <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Press Shortlist on any team page to add it here. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex flex-wrap justify-center gap-2"><Button variant="secondary" onClick={search.open}><Search /> Find a team</Button><Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
+        <EmptyState icon={Bookmark} title="Your shortlist is empty" description="Type a team number or name to add it here, or press Shortlist on any team page. Building a pick list? An event's Rankings tab is the place to start." action={<div className="flex w-full max-w-md flex-col items-center gap-3">{addBox("w-full text-left")}<Button variant="outline" asChild><Link to="/events"><CalendarDays /> Browse events</Link></Button></div>} />
         <HowItWorks className="mt-6 max-sm:mt-4" />
       </div>
     );
@@ -134,7 +147,8 @@ export default function ShortlistPage() {
         {list.length > MAX_SHOWN && <p className="mt-2 text-sm text-warning">Showing the first {MAX_SHOWN} of {list.length}.</p>}
         <div className="mt-3 flex flex-wrap items-center gap-2" data-print-hide>
           <SeasonToggle predictOnly value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />
-          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto">
+            {addBox("max-sm:w-full sm:w-72")}
             <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="secondary" size="sm" disabled={!data.data}><ArrowDownWideNarrow /> Order picks</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">

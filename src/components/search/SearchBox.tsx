@@ -7,6 +7,7 @@ import { smoothBehavior } from "../../lib/pageScroll";
 import { ArrowRight, CalendarDays, ChevronDown, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
+import { offlineSource } from "../../lib/offline/saved";
 import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import { useServerFlag } from "../../lib/flags";
@@ -23,7 +24,7 @@ export { hitHref } from "../../shared/search";
 /** How long typing pauses before search asks (each key doesn't send a request). */
 export const SEARCH_DEBOUNCE_MS = 200;
 
-type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean };
+type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean; /** Answered from data saved on this device (it may not know every team). */ saved?: boolean };
 
 /** Debounced search; my team, tracked and shortlisted teams/events rank first among equal matches.
  *  Without `kinds` it asks for the whole answer (step, pages, recovery), and when that answer is weak and Bruno AI
@@ -62,7 +63,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
           if (id !== seq.current) return;
           // Offline (saved data) answers plain hits: the plain list, as before.
           const answer = !kindKey && isAnswer(r) ? r : undefined;
-          setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true });
+          setRes({ q: query, hits: kindKey ? r.hits.filter((h) => kindKey.split(",").includes(h.kind)) : r.hits, answer, live: true, saved: offlineSource(r) != null });
           setError(null);
           if (answer?.weak && brunoOn && refine) {
             setRefining(true);
@@ -95,7 +96,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     } catch { /* counting a click is never worth an error */ }
   }, [res, current]);
   return {
-    hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale,
+    hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale, saved: current && !!res.saved,
     ai: brunoOn && shown && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
     busy: busy || (!!q.trim() && !current), error: current ? error : null, logPick,
     /** The visitor's preferred teams and events, as sent with the search (Bruno's answer is asked with the same). */
