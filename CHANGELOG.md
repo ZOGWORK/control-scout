@@ -29,7 +29,7 @@ Folded cards say what's inside, a team's OPR says how fresh it is, and dates rea
 - **Stats as of.** The Offensive power rating section ends with "Stats updated 2 h ago" (when the stats were last rebuilt), so an old OPR never reads as live.
 - **Terms explained.** The team hero's OPR and Rating labels, and an event's Top OPR, carry a one-line definition on hover or long-press, like Record and Reliability already did.
 - **Folded cards advertise themselves.** The robots' ratings under a prediction (with how many robots), a team's earlier matches on Predict (with how many), the bot's command list and an event bundle's rules each say what's inside before you open them.
-- **One date format.** Seven stamps (pack release dates, offline "results as of", saved predictions, scouting data) used the browser's 10/31/2026; they now read Oct 31, 2026 like every event date.
+- **One date format.** Seven stamps (pack release dates, offline "results as of", saved predictions, scouting data) used the browser's 10/31/2026; they now read Oct 31, 2026 like every event date (#388).
 
 ## 1.8.7 — 2026-11-01
 
