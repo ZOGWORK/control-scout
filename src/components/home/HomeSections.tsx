@@ -87,7 +87,7 @@ export function YourTeam({ team, season }: { team: number; season: number }) {
   const pWin = next?.prediction ? (side === "red" ? next.prediction.pRed : 1 - next.prediction.pRed) : null;
   return (
     <section aria-label="Your team" className="rounded-2xl border border-accent/30 bg-accent/[0.06]">
-      <Link to="/my-team" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl px-4 py-3.5 focus-visible:outline-2 focus-visible:outline-accent @2xl/home:px-5">
+      <Link to="/my-team" className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl px-4 py-3.5 focus-visible:outline-2 focus-visible:outline-ring @2xl/home:px-5">
         <Star className="size-5 shrink-0 fill-accent text-accent" aria-hidden />
         <span className="font-display text-2xl font-semibold tabular-nums text-accent-text">{team}</span>
         <span className="min-w-0">
@@ -173,13 +173,13 @@ function CalendarRow({ e }: { e: EventListItem }) {
   const d = e.start ? new Date(`${e.start}T00:00:00Z`) : null;
   return (
     <li>
-      <Link to={`/events/${e.season}/${e.code}`} className="group flex items-center gap-4 py-3 pr-1 focus-visible:outline-2 focus-visible:outline-accent">
+      <Link to={`/events/${e.season}/${e.code}`} className="group flex items-center gap-4 py-3 pr-1 focus-visible:outline-2 focus-visible:outline-ring">
         <span className="w-11 shrink-0 text-center leading-none" aria-hidden>
           <span className="block text-[11px] font-semibold uppercase tracking-wider text-text-muted">{d ? d.toLocaleDateString(undefined, { month: "short", timeZone: "UTC" }) : "TBA"}</span>
           <span className="mt-1 block font-display text-xl font-semibold tabular-nums">{d ? d.getUTCDate() : "–"}</span>
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-medium group-hover:text-accent-text">{e.name}</span>
+          <span className="block truncate font-medium group-hover:text-accent-text" title={e.name}>{e.name}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-text-muted">
             <span className="inline-flex min-w-0 items-center gap-1 truncate"><MapPin className="size-3.5 shrink-0" aria-hidden />{place(e.city, e.state, e.country) || "Location TBA"}</span>
             {/* The date block on the left shows the first day; a multi-day event says its full span (screen readers always get it). */}

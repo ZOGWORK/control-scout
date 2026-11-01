@@ -84,12 +84,14 @@ export interface SearchAnswer {
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
-  kind: "worlds" | "wins" | "awards" | "next-event" | "next-match";
+  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match";
   /** "Worlds appearances" */
   title: string;
   /** The team it's about. */
   team: { number: number; name: string | null };
   lines: SearchCardLine[];
+  /** "How many times": how many championships `lines` holds (Worlds and states questions). */
+  count?: number;
   /** Nothing found for what was asked, said plainly ("No Worlds appearances found in recorded event history"). */
   none?: string;
   /** Under `none`: the closest real records (the team's state championship results), so it's never a dead end. */

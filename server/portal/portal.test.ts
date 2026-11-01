@@ -150,7 +150,7 @@ describe("feature flags", () => {
       livePredictions: true, advancementOdds: true, bracketOdds: true, powerRankings: true, coinFlips: true, factorSheet: true, offlinePacks: true, eventBundle: true, discordBot: true, workspaceScouting: true, scoutingAlliances: true, scoutingCommons: true, rulesReference: true, venueLightMode: true, scheduleDifficulty: true,
       realtime: true, errorReporting: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true, seasonRoadMap: true,
       // Bruno AI in search starts off (OFF_BY_DEFAULT): the owner turns it on.
-      brunoSearch: false, searchLearning: true,
+      brunoSearch: false, brunoAnswers: true, searchLearning: true,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });

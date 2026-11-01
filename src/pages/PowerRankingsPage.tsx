@@ -22,7 +22,7 @@ import {
 } from "../shared/powerRankings";
 
 /** Styles for the authors' markdown (paragraphs, emphasis, links, lists). */
-const PROSE = "[&_p+p]:mt-2 [&_a]:text-accent-text [&_a]:underline [&_a]:underline-offset-2 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:rounded [&_code]:bg-text-base/[0.06] [&_code]:px-1 [&_blockquote]:border-l-2 [&_blockquote]:border-line [&_blockquote]:pl-3";
+const PROSE = "prose-links [&_p+p]:mt-2 [&_a]:text-accent-text [&_a]:underline [&_a]:underline-offset-2 [&_strong]:font-semibold [&_strong]:text-foreground [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:mt-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_code]:rounded [&_code]:bg-text-base/[0.06] [&_code]:px-1 [&_blockquote]:border-l-2 [&_blockquote]:border-line [&_blockquote]:pl-3";
 
 /** Links inside the authors' HTML that point at this site open in the app, not with a full reload. */
 function useInAppLinks() {

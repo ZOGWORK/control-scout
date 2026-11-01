@@ -508,7 +508,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
       </div>
       <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-5 max-sm:p-4">
-          <h3 className="mb-3 text-base font-semibold">Why: the top 3 factors</h3>
+          <h2 className="mb-3 text-base font-semibold">Why: the top 3 factors</h2>
           <FactorList factors={x.factors} reasons={x.reasons} />
           {x.history ? <PairHistoryLine history={x.history} className="mt-1.5" /> : null}
           <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>

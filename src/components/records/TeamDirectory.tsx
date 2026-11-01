@@ -31,7 +31,7 @@ const SORTS: { key: DirectorySort; label: string }[] = [
   { key: "team", label: "Team number" }, { key: "name", label: "Name" }, { key: "location", label: "Location" },
   { key: "rookie", label: "Rookie year" }, { key: "results", label: "Results first" },
 ];
-const field = "h-9 rounded-lg border border-line bg-card px-3 text-sm font-medium text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent max-sm:h-10";
+const field = "h-9 rounded-lg border border-line bg-card px-3 text-sm font-medium text-text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring max-sm:h-10";
 
 export function TeamDirectory({ season, onSeason }: { season: number; onSeason: (s: number) => void }) {
   const [sp] = useSearchParams();
@@ -262,7 +262,7 @@ function CompactSummary({ data, season, where, resultsHref, onRetry }: { data: D
         ) : withResults}
       </div>
         <button type="button" onClick={() => setAbout(!about)} aria-expanded={about} aria-controls={id} aria-label="What a listing means" title="What a listing means"
-          className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-accent outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-accent/60">
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-accent outline-none hover:bg-text-base/[0.06] focus-visible:ring-2 focus-visible:ring-ring/60">
           <Info className="size-4" aria-hidden />
         </button>
       </div>
@@ -288,7 +288,7 @@ function SortHead({ label, k, also, state, onSort, className }: { label: string;
   const Icon = state.dir === "asc" ? ArrowUp : ArrowDown;
   return (
     <th scope="col" aria-sort={on ? (state.dir === "asc" ? "ascending" : "descending") : "none"} className={cn("px-3 py-2 font-semibold", className)}>
-      <button type="button" onClick={() => onSort(on ? state.sort : k)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md uppercase hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent", on && "text-accent-text")}>
+      <button type="button" onClick={() => onSort(on ? state.sort : k)} className={cn("inline-flex min-h-8 items-center gap-1 rounded-md uppercase hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring", on && "text-accent-text")}>
         {label}{on && <Icon className="size-3.5" aria-hidden />}
       </button>
     </th>
@@ -315,7 +315,7 @@ function Row({ t, readiness, season }: { t: DirectoryTeam; readiness: SeasonRead
       </td>
       <td className="px-2 py-1 text-right">
         <button type="button" onClick={flags.toggleTracked} aria-pressed={flags.tracked} aria-label={flags.tracked ? `Stop tracking ${t.team}` : `Track ${t.team}`} title={flags.tracked ? "Tracked" : "Track this team"}
-          className="inline-flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-accent max-sm:size-10">
+          className="inline-flex size-9 items-center justify-center rounded-lg text-text-muted hover:bg-text-base/[0.06] hover:text-text-base focus-visible:outline-2 focus-visible:outline-ring max-sm:size-10">
           <Star className={cn("size-4", flags.tracked && "fill-accent text-accent")} aria-hidden />
         </button>
       </td>

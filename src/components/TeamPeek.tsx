@@ -105,7 +105,7 @@ function PeekBody({ team, season, eventName, row, status, settled, over, onShowO
               <li key={e.code}>
                 <Link to={`/events/${e.season}/${e.code}`} className="flex items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-text-base/[0.04]">
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{e.name}</span>
+                    <span className="block truncate font-medium" title={e.name}>{e.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">{dateRange(e.start, e.end)}</span>
                   </span>
                   <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground">

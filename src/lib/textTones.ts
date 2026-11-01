@@ -6,10 +6,13 @@
 
 /** An event's status chip (Events list cards). */
 export const EVENT_STATUS_TONE = {
-  live: "bg-red-500/15 text-danger",
+  live: "bg-danger/15 text-danger",
   upcoming: "bg-sky-400/15 text-info",
   finished: "bg-emerald-400/15 text-success",
 } as const;
+
+/** Video and recordings (Has a recording, Clips, a match's Watch chip): the one video red, as text or on its own tint. */
+export const VIDEO_TONE = { text: "text-video", chip: "bg-video/12 text-video" } as const;
 
 /** Colour per event type: the stripe on each Events card (`bar`, a fill) and its type label (`text`). */
 export const EVENT_TYPE_TONE: Record<string, { bar: string; text: string }> = {

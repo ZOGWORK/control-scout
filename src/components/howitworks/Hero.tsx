@@ -106,7 +106,7 @@ function MatchCard() {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5 font-mono text-xs text-muted-foreground">
         <span>{e.label}</span>
         <span className="flex items-center gap-2">
-          <span className="rounded-full border border-border px-2 py-0.5 text-[10.5px] uppercase tracking-wider">{e.tier}</span>
+          <span className="rounded-full border border-border px-2 py-0.5 text-[11px] uppercase tracking-wider">{e.tier}</span>
           {/* The dot pulses only on screen: off it, the animation can't run on the compositor and ticked the page every frame. */}
           <span className="font-semibold text-success"><span aria-hidden className={cn("hiw-live", onScreen && "hiw-live-on")} />Example</span>
         </span>

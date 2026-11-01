@@ -112,11 +112,11 @@ function TrackedCard({ e, current, onPick, picked }: { e: EventListItem; current
   const live = e.status === "live";
   return (
     <CardShell season={e.season} code={e.code} onPick={onPick} picked={picked}
-      className={cn("lift group flex h-full flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5", live ? "border-red-500/40" : "border-border")}>
+      className={cn("lift group flex h-full flex-col gap-1.5 rounded-xl border bg-card px-3 py-2.5", live ? "border-danger/40" : "border-border")}>
       <span className="flex items-center gap-2 text-xs">
         <EventStatusChip status={e.status} className="px-2 py-0.5" />
         {/* On now with a stream to watch on its page, as on the cards below. */}
-        {live && e.stream && <span className="inline-flex items-center gap-1 font-bold text-red-500" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 animate-pulse rounded-full bg-red-500" />LIVE<span className="sr-only"> stream</span></span>}
+        {live && e.stream && <span className="inline-flex items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 animate-pulse rounded-full bg-danger" />LIVE<span className="sr-only"> stream</span></span>}
         {e.season !== current && <span className="ml-auto tabular-nums text-muted-foreground">{seasonLabel(e.season)}</span>}
       </span>
       <span className="truncate text-sm font-medium leading-snug group-hover:text-accent-text" title={e.name}>{e.name}</span>
