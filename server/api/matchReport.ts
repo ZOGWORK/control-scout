@@ -6,7 +6,7 @@
 // Cost: the event detail (cached), plus four small queries for the whole lineup, however many teams, and
 // the season's flag cutoffs (two scans of one season, rebuilt at most every CUTOFF_TTL_MS and then in the
 // background, so after the first build no visitor waits for them).
-import { reliabilityFromRow } from "../../src/shared/reliability.js";
+import { RELIABILITY_COLUMNS, reliabilityFromRow } from "../../src/shared/reliability.js";
 import { all } from "../db.js";
 import { cachedEventDetail } from "./events.js";
 import { matchDetail } from "./matches.js";
@@ -83,7 +83,7 @@ export async function matchReport(season: number, code: string, key: string): Pr
       `SELECT s.team, e.code, e.name, e.start, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.matches FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code
         WHERE s.season = ? AND s.team IN (${ph}) AND s.opr_np IS NOT NULL ORDER BY e.start, e.code`, [season, ...numbers]),
     seasonCutoffs(season),
-    all<any>(`SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ph})`, [season, ...numbers]),
+    all<any>(`SELECT ${RELIABILITY_COLUMNS} FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ph})`, [season, ...numbers]),
   ]);
   const relField = rel.find((r) => Number(r.team) === 0);
   const relBy = new Map(rel.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, relField ? Number(relField.idx) : null)]));
