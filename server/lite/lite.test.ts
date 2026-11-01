@@ -190,7 +190,10 @@ describe("addresses", () => {
       ["/events/2025/USNJQ1/match/qual:0:12", "", "/lite/events/2025/USNJQ1/match/qual:0:12"],
       ["/teams/18360", "?season=2024&tab=x", "/lite/teams/18360?season=2024"],
       ["/scout", "?space=7&view=picklist&season=2025&tab=data", "/lite/picklist?space=7&season=2025"],
+      // Pick list & planning with no view opens on the pick list.
+      ["/scout", "?space=7&tab=planning&season=2025", "/lite/picklist?space=7&season=2025"],
     ];
+    expect(liteHref("/scout", "?space=7&tab=planning&view=activity")).toBeNull();
     for (const [path, search, lite] of pairs) expect(liteHref(path, search)).toBe(lite);
     expect(fullHref("/lite/events/2025/USNJQ1")).toBe("/events/2025/USNJQ1");
     expect(fullHref("/lite/teams/18360", "?season=2024")).toBe("/teams/18360?season=2024");
