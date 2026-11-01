@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.6 — 2026-11-01
+
+Search results get a shorter home page summary, and demo teams stop linking to nothing.
+
+### Highlights
+- [fixes] Off-season demo teams in match records show without a dead link
+- [home] The home page's search summary fits in one search result
+- [fixes] The settings page has a fuller description for browsers
+
+### Search engines and accessibility
+- **Placeholder teams.** Match records listed "Off-Season Demo Team" entries (99999 and the like) as links to a team page that doesn't exist. They now show as plain numbers with a hover note, on the cards and in the table, the same as event pages. (#394)
+- **Descriptions.** The home page's description is 158 characters (was 182, cut off in results) and says the same things. The settings page's (not indexed) is 58 characters, up from 23.
+- **Checked, nothing to change.** No image lacks alt text; the old methodology links redirect (301) to /methodology; 300 sitemap pages all answer 200; an unknown team number gives a 404 page that says so.
+
 ## 1.9.5 — 2026-11-01
 
 Team pages say more without a mouse: award events, full event names, chart axes.

@@ -203,6 +203,8 @@ export interface MatchRecordRow {
    * stat was asked for; null when the ledger has no tier for the call, and then the percentage isn't shown.
    */
   predictionTier?: ConfidenceTier | null;
+  /** Teams in this match with no public page (src/shared/teamPages.ts: an off-season placeholder): shown, not linked. Sent only when there are any. */
+  noPage?: number[];
 }
 
 /** A FIRST region code used by a season's records, with the place most of its events are in. */

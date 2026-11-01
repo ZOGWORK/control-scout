@@ -16,7 +16,7 @@ import {
   DEFAULT_SORT, RECORDS_EXPORT_MAX, RECORDS_MAX_PAGE_SIZE, RECORDS_PAGE_SIZE, RECORD_EVENT_TYPES, STAT_BY_KEY, statFor, statsFor,
   type MatchRecordRow, type RecordRegion, type RecordScope, type RecordsResponse, type StatValues, type TeamEventRecord, type TeamSeasonRecord,
 } from "../../src/shared/statCatalog.js";
-import { teamPageSql } from "../../src/shared/teamPages.js";
+import { isTeamNumber, placeholderNameSql, teamPageSql } from "../../src/shared/teamPages.js";
 
 /** A request the client got wrong (→ 400). */
 export class RecordsQueryError extends Error {}
@@ -340,14 +340,35 @@ type AnyRow = TeamEventRecord | TeamSeasonRecord | MatchRecordRow;
 
 const teamsOf = (s: unknown) => (typeof s === "string" && s ? s.split(" ").map(Number) : []);
 
-function rowsOf(scope: RecordScope, raw: any[], fields: string[], tiers: Map<string, ConfidenceTier> | null = null): AnyRow[] {
+/**
+ * The teams in these match rows that have no public page (an off-season placeholder such as "Off-Season Demo
+ * Team", or a number past six digits): the page shows them unlinked, as event pages do. Null for team scopes.
+ */
+async function teamsWithoutPage(scope: RecordScope, raw: any[]): Promise<Set<number> | null> {
+  if (scope !== "match") return null;
+  const nums = [...new Set(raw.flatMap((r) => [...teamsOf(r._red), ...teamsOf(r._blue)]))];
+  const out = new Set(nums.filter((n) => !isTeamNumber(n)));
+  const known = nums.filter(isTeamNumber);
+  if (known.length) {
+    const found = await all<{ number: number }>(`SELECT number FROM teams WHERE number IN (${known.map(() => "?").join(", ")}) AND ${placeholderNameSql("name")}`, known);
+    for (const r of found) out.add(Number(r.number));
+  }
+  return out;
+}
+
+function rowsOf(scope: RecordScope, raw: any[], fields: string[], tiers: Map<string, ConfidenceTier> | null = null, noPage: Set<number> | null = null): AnyRow[] {
   if (scope === "teamEvent") return raw.map((r): TeamEventRecord => ({ season: Number(r._season), team: Number(r._team), eventCode: r._eventCode, eventName: r._eventName, eventType: r._eventType ?? null, eventStart: r._eventStart ?? null, stats: statsOf(r, fields) }));
   if (scope === "teamSeason") return raw.map((r): TeamSeasonRecord => ({ season: Number(r._season), team: Number(r._team), stats: statsOf(r, fields) }));
-  return raw.map((r): MatchRecordRow => ({
+  return raw.map((r): MatchRecordRow => {
+    const red = teamsOf(r._red), blue = teamsOf(r._blue);
+    const unlinked = noPage?.size ? [...red, ...blue].filter((t) => noPage.has(t)) : [];
+    return {
     season: Number(r._season), eventCode: r._eventCode, eventName: r._eventName, eventType: r._eventType ?? null, eventStart: r._eventStart ?? null,
-    key: `${r._level}:${r._series}:${r._number}`, level: r._level, label: r._label, time: r._time ?? null, red: teamsOf(r._red), blue: teamsOf(r._blue), stats: statsOf(r, fields),
+    key: `${r._level}:${r._series}:${r._number}`, level: r._level, label: r._label, time: r._time ?? null, red, blue, stats: statsOf(r, fields),
     ...(tiers && { predictionTier: tiers.get(matchKeyOf(r)) ?? null }),
-  }));
+    ...(unlinked.length && { noPage: unlinked }),
+    };
+  });
 }
 
 const TIERS: ReadonlySet<string> = new Set<ConfidenceTier>(["provisional", "moderate", "confident"]);
@@ -426,7 +447,7 @@ export async function listRecords(season: number, q: RecordsQuery): Promise<Reco
   ]);
   return {
     season, scope: q.scope, filter: q.filter ? serializeFilter(q.filter) : null, sort: q.sort, dir: q.dir, page: q.page, pageSize: q.pageSize,
-    total: Number(count[0]?.n ?? 0), columns: q.fields, rows: rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields)),
+    total: Number(count[0]?.n ?? 0), columns: q.fields, rows: rowsOf(q.scope, raw, q.fields, await predictionTiers(q.scope, raw, q.fields), await teamsWithoutPage(q.scope, raw)),
   };
 }
 

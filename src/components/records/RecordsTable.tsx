@@ -9,6 +9,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronLeft, ChevronRight, C
 import { apiFetch, useApi, type ApiError } from "../../lib/api";
 import type { FilterGroup } from "../../shared/filterDsl";
 import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
+import { NoPageTeam } from "./NoPageTeam";
 import { countryByCode } from "../../shared/countries";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
@@ -702,8 +703,8 @@ function Table({ data, scope, cols, state, sortBy, code, highlightTeam, schedule
                         <span className="block truncate text-xs text-text-muted" title={r.eventName}>{r.eventName}</span>
                       </Link>
                     </td>
-                    <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.red} season={r.season} side="red" /></td>
-                    <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.blue} season={r.season} side="blue" /></td>
+                    <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.red} season={r.season} side="red" noPage={r.noPage} /></td>
+                    <td className={cn(td, "whitespace-nowrap")}><Alliance teams={r.blue} season={r.season} side="blue" noPage={r.noPage} /></td>
                   </>
                 ) : (
                   <>
@@ -835,12 +836,14 @@ function useMoreToTheRight() {
   return { ref, more };
 }
 
-function Alliance({ teams, season, side }: { teams: number[]; season: number; side: "red" | "blue" }) {
+function Alliance({ teams, season, side, noPage }: { teams: number[]; season: number; side: "red" | "blue"; noPage?: number[] }) {
+  const cls = cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance");
   return (
     <span className="inline-flex gap-1">
-      {teams.map((t) => (
-        <Link key={t} to={`/teams/${t}?season=${season}`} className={cn("rounded-md px-1.5 py-0.5 font-mono text-xs tabular-nums still-hover:brightness-125", side === "red" ? "bg-red-alliance/12 text-red-alliance" : "bg-blue-alliance/12 text-blue-alliance")}>{t}</Link>
-      ))}
+      {/* A placeholder (an off-season demo team) has no page: its number shows, unlinked, as on event pages. */}
+      {teams.map((t) => noPage?.includes(t)
+        ? <NoPageTeam key={t} team={t} className={cls} />
+        : <Link key={t} to={`/teams/${t}?season=${season}`} className={cn(cls, "still-hover:brightness-125")}>{t}</Link>)}
     </span>
   );
 }

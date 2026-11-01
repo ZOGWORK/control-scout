@@ -61,3 +61,6 @@ export const teamPageSql = (col: string, nameCol?: string): string =>
   `(${col} BETWEEN 1 AND ${TEAM_NUMBER_MAX} AND ${nameCol
     ? `NOT ${placeholderNameSql(nameCol)}`
     : `${col} NOT IN (SELECT number FROM teams WHERE ${placeholderNameSql("name")})`})`;
+
+/** Hover text on a team number shown without a link because it has no page. */
+export const NO_PAGE_TITLE = "No team page: a placeholder entry, a different robot at each event";
