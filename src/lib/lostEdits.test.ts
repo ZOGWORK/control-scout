@@ -262,6 +262,20 @@ describe("an account's turned-down versions", () => {
     importLocalScouting(stash);
     expect(JSON.parse(localStorage.getItem("cs-scout-rejected:w1")!)).toEqual({ abc: 123 });
   });
+
+  it("a device too full to write them hands them back, so the stash isn't dropped", () => {
+    localStorage.setItem("cs-scout-rejected:w1", JSON.stringify({ abc: 123 }));
+    localStorage.setItem("cs-scout-ws:w1:abc", JSON.stringify({ uuid: "abc", season: 2025, team: 1, eventCode: null, matchLabel: "Q1", kind: "match", data: {}, notes: "", updatedAt: 123, workspaceId: "w1" }));
+    const stash = exportLocalScouting();
+    clearLocalScouting();
+    const real = Storage.prototype.setItem;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+      if (k.startsWith("cs-scout-rejected:")) throw new DOMException("full", "QuotaExceededError");
+      return real.call(this, k, v);
+    });
+    expect(importLocalScouting(stash).failed?.spaces.w1).toMatchObject({ rejected: { abc: 123 } });
+    spy.mockRestore();
+  });
 });
 
 describe("field-level diffs", () => {

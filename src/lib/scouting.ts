@@ -336,10 +336,11 @@ const rejectedKey = (space: ScoutSpace) => `${REJECTED}${space ?? "personal"}`;
 function rejected(space: ScoutSpace): Record<string, number> {
   try { const r = JSON.parse(localStorage.getItem(rejectedKey(space)) ?? "{}"); return r && typeof r === "object" && !Array.isArray(r) ? r : {}; } catch { return {}; }
 }
-function markRejected(space: ScoutSpace, uuid: string, version: number | null) {
+/** False when it couldn't be written (storage full). */
+function markRejected(space: ScoutSpace, uuid: string, version: number | null): boolean {
   const r = rejected(space);
-  if (version == null) { if (!(uuid in r)) return; delete r[uuid]; } else r[uuid] = version;
-  try { if (Object.keys(r).length) localStorage.setItem(rejectedKey(space), JSON.stringify(r)); else localStorage.removeItem(rejectedKey(space)); } catch { /* storage full: shown as before */ }
+  if (version == null) { if (!(uuid in r)) return true; delete r[uuid]; } else if (r[uuid] === version) return true; else r[uuid] = version;
+  try { if (Object.keys(r).length) localStorage.setItem(rejectedKey(space), JSON.stringify(r)); else localStorage.removeItem(rejectedKey(space)); return true; } catch { return false; }
 }
 /** The server turned down this version of the entry for good: it isn't stored anywhere but this device. */
 export const isScoutRejected = (e: Pick<ScoutEntry, "uuid" | "workspaceId" | "updatedAt">) => rejected(e.workspaceId)[e.uuid] === e.updatedAt;
@@ -439,17 +440,18 @@ export function importLocalScouting(data: ScoutingExport) {
       if (cur && cur.updatedAt >= (Number(e.updatedAt) || 0)) continue;
       try { writeEntry(normalizeScoutEntry(e, space)); } catch { missed.push(e); /* storage full */ }
     }
-    // Turned-down versions come back with their entries (a device too full for these just shows them as before).
-    for (const [u, v] of Object.entries(s.rejected ?? {})) if (typeof v === "number") markRejected(space, u, v);
+    // Turned-down versions come back with their entries; any that can't be written (storage full) are handed back.
+    const rejectedMissed: Record<string, number> = {};
+    for (const [u, v] of Object.entries(s.rejected ?? {})) if (typeof v === "number" && !markRejected(space, u, v)) rejectedMissed[u] = v;
     let queueKept = true;
     try { const d = dirty(space); for (const u of s.dirty ?? []) d.add(u); setDirty(d, space); } catch { queueKept = false; /* storage full */ }
     // The cursor only holds if every entry it covers is back; otherwise the next pull starts over.
     if (space != null) { if (!missed.length && s.cursor) writeCursor(space, s.cursor); else try { localStorage.removeItem(`${WS_CURSOR}${space}`); } catch { /* blocked */ } }
-    if (!missed.length && queueKept) return;
+    if (!missed.length && queueKept && !Object.keys(rejectedMissed).length) return;
     // Hand back the entries that didn't make it, and (if the queue couldn't be written) every queued one.
     const queued = new Set(s.dirty ?? []);
     const back = queueKept ? missed : [...missed, ...(s.entries ?? []).filter((e) => queued.has(e.uuid) && !missed.includes(e))];
-    const out = { entries: back, dirty: back.map((e) => e.uuid).filter((u) => queued.has(u)) };
+    const out = { entries: back, dirty: back.map((e) => e.uuid).filter((u) => queued.has(u)), ...(Object.keys(rejectedMissed).length ? { rejected: rejectedMissed } : {}) };
     if (space == null) Object.assign(failed, out); else failed.spaces[space] = out;
   };
   put(null, data);
@@ -468,7 +470,7 @@ export function importLocalScouting(data: ScoutingExport) {
   }
   window.dispatchEvent(new Event(EVT));
   if (lostBack) window.dispatchEvent(new Event(SCOUT_OVERWRITTEN)); // open notices show what came back
-  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length || Object.keys(failed.unreadable).length;
+  const any = failed.entries.length || Object.keys(failed.spaces).length || Object.keys(failed.lost).length || Object.keys(failed.unreadable).length || Object.keys(failed.rejected ?? {}).length;
   return { failed: any ? failed : null };
 }
 
