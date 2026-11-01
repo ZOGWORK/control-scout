@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.9.7 — 2026-11-01
+
+Settings and Download say what they mean, and every saved season shows its version.
+
+### Highlights
+- [offline] Each season on Download shows its pack version and which is this season
+- [offline] Tap a season's SHA-256 to see the whole hash, on a phone too
+- [offline] The offline-ready line says the pack's size and the seasons it covers
+- [fixes] Settings names offline predictions and the prediction model plainly
+
+### Settings and Download
+- **Settings.** "Lite pack on this device" is now "Offline predictions on this device", and "Prediction engine" is "Prediction model version". (#395)
+- **Season packs.** Each season row shows the pack's version beside its release date, and the season in progress carries a "This season" chip.
+- **Checking a download.** The SHA-256 shown cut short is now a button: a tap (or hover) shows the full hash. Before, the full hash was only in a hover title.
+- **Lite pack.** "Offline predictions are ready" also says the pack's size and its seasons (for example 2023–24 to 2026–27).
+
 ## 1.9.6 — 2026-11-01
 
 Search results get a shorter home page summary, and demo teams stop linking to nothing.
