@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.2 — 2026-10-31
+
+Watch livestream plays on the event page again for events whose stream is a short link, such as Washington's ftcwa.live links.
+
+### Highlights
+- [live] Watch livestream plays on the page for short stream links too
+- [live] Live predictions sit beside those streams, like any other
+- [live] Each league meet keeps its own broadcast, even on a shared link
+
+### Live
+- **Short links followed.** Some regions give FIRST a short link for their stream (ftcwa.live/bardeen) that redirects to the meet's YouTube broadcast. The event page only recognised direct YouTube links, so Watch livestream opened YouTube in a new tab. The server now follows those links on the event's own dates (at the venue) and keeps the video they lead to. The page then plays it in Watch live with the live predictions beside it, and matches get their place in the recording. Each link is checked again every 15 minutes while it leads to a video, in case the broadcast restarts; a check that fails keeps the video found before. Only redirects are followed, never a page's content, and only to public addresses (#369).
+- **Each meet keeps its own video.** A league reuses one short link for every meet, pointing it at the new broadcast each time. The video is kept per event, so last month's meet still plays last month's broadcast, and a meet the next day never takes the one before's broadcast while the link still points at it.
+
 ## 1.7.1 — 2026-10-31
 
 Closed sections on team pages now show there's more inside.

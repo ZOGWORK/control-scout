@@ -1747,6 +1747,24 @@ CREATE TABLE search_intents (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 66,
+    name: "event stream short links",
+    sql: `
+-- Where an event's FIRST liveStreamUrl leads when it isn't a YouTube link itself (a region's short link such as
+-- ftcwa.live/bardeen, redirecting to the meet's YouTube broadcast): server/videos/streamLinks.ts follows it while the
+-- event is on and keeps the video it lands on, so the page plays it. Per event, not per link: a league reuses one
+-- short link for every meet, pointing it at each meet's new broadcast. url: the link followed (a changed link is
+-- followed again); video_id null: it led to no YouTube video.
+CREATE TABLE event_stream_links (
+  season INTEGER NOT NULL, code TEXT NOT NULL,
+  url TEXT NOT NULL,
+  video_id TEXT,
+  checked_at TEXT NOT NULL,
+  PRIMARY KEY (season, code)
+);
+`,
+  },
 ];
 
 export type Db = Client;
