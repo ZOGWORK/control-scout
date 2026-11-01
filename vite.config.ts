@@ -24,7 +24,7 @@ function serviceWorker(): Plugin {
       const offline = all.filter((f) => f.endsWith(".wasm"));
       const built = all.filter((f) => !offline.includes(f));
       // The brand images the shell shows (sidebar logo, the bare mark on the 404 page, home wordmark, favicon): offline too.
-      const brand = ["/logo-56.webp", "/mark.png", "/wordmark.png", "/favicon.ico"];
+      const brand = ["/logo-56.webp", "/mark.webp", "/wordmark.webp", "/favicon.ico"];
       // Not /index.html: the server redirects it to the canonical "/" (a redirect can't be precached cross-host, nor answer a navigation).
       const files = [...new Set(["/", ...built, ...pub("fonts"), "/manifest.webmanifest", ...brand])];
       const hash = createHash("sha256");
