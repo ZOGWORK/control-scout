@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.8.7 — 2026-11-01
+
+The search results page lines up with every other page.
+
+### Highlights
+- [home] Search results start at the same left edge as every other page
+- [home] The results column is a little wider on a laptop
+- [fixes] Spacing checked across sixteen pages: one gutter, no overlaps
+
+### Spacing
+- **Search results page.** It was the one page centred in its own column, its title 190px in from where every other page starts. It now starts at the page's gutter (33px on a laptop, 14px on a phone, measured) and the column is one step wider.
+- **Checked, unchanged.** Page side padding on sixteen pages at 1440 and 390 wide, sticky bars on six long pages at three scroll depths (no two bars overlap), filter bars and sheets at phone width, and the footer at the foot of short pages (#387).
+
 ## 1.8.6 — 2026-11-01
 
 Long names show in full when you point at them, table numbers line up, and headings follow one order.
