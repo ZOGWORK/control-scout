@@ -552,8 +552,9 @@ const td = "density-row px-3 py-1.5 max-sm:px-2.5 max-sm:py-2 sm:pointer-coarse:
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 // The row under the pointer lights up in the accent, sticky first column included (it has its own background),
-// with an accent bar at its left edge, so one team's numbers are easy to follow across the table.
-const rowHover = "still-hover:bg-accent/[0.17]";
+// with an accent bar at its left edge, so one team's numbers are easy to follow across the table. 14% keeps the
+// heat colours at 4.5:1 or more even on the sorted column's own tint (RecordsTable.hover.contrast.test.ts).
+const rowHover = "still-hover:bg-accent/[0.14]";
 const stickyHover = "row-still-hover:bg-[color-mix(in_srgb,var(--color-card)_80%,var(--color-accent))] row-still-hover:shadow-[inset_3px_0_0_var(--color-accent),1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
 
 function SortHead({ k, label, title, state, sortBy, className, tone, align = "right", lead, iconOnly }: { k: string | null; label: ReactNode; title?: string; state: TableState; sortBy: (k: string) => void; className?: string; tone?: string; align?: "left" | "right"; lead?: ReactNode; iconOnly?: boolean }) {
