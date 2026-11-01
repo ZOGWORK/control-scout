@@ -74,6 +74,11 @@ interface Row {
 interface Member {
   ws: string; name: string; keeps: boolean; joined_at: number; left_at: number | null; left_reason: "left" | "removed" | null;
 }
+/** The scout_alliances columns of a Row, each as `alias.column` when given. */
+const rowColumns = (alias?: string) =>
+  ["id", "season", "event_code", "ends_on", "inviter_ws", "inviter_name", "code_hash", "invite_expires_at", "status", "ended_reason", "created_at", "ended_at",
+    "copies_wanted", "copies_made"].map((c) => (alias ? `${alias}.${c}` : c)).join(", ");
+const ROW_COLUMNS = rowColumns(), A_ROW_COLUMNS = rowColumns("a");
 const LIVE = "('pending', 'active')";
 const num = (v: unknown) => (v == null ? null : Number(v));
 const toRow = (r: any): Row => ({
@@ -93,7 +98,7 @@ async function membersOf(ids: number[]): Promise<Map<number, Member[]>> {
   const out = new Map<number, Member[]>(ids.map((id) => [id, []]));
   if (!ids.length) return out;
   const rows = await all<any>(
-    `SELECT * FROM scout_alliance_members WHERE alliance_id IN (${ids.map(() => "?").join(", ")}) ORDER BY joined_at, ws`, ids);
+    `SELECT alliance_id, ws, name, keeps, joined_at, left_at, left_reason FROM scout_alliance_members WHERE alliance_id IN (${ids.map(() => "?").join(", ")}) ORDER BY joined_at, ws`, ids);
   for (const r of rows) out.get(Number(r.alliance_id))?.push(toMember(r));
   return out;
 }
@@ -122,14 +127,14 @@ const eventName = async (r: Row) => (await eventInfo(r.season, r.event_code))?.n
 const viewOf = async (r: Row, workspaceId: string) => view(r, await membersOne(r.id), workspaceId, await eventName(r));
 
 async function rowById(id: number): Promise<Row | null> {
-  const r = await get<any>("SELECT * FROM scout_alliances WHERE id = ?", [id]);
+  const r = await get<any>(`SELECT ${ROW_COLUMNS} FROM scout_alliances WHERE id = ?`, [id]);
   return r ? toRow(r) : null;
 }
 
 /** The pending or active alliance this workspace is in at this event, if any. */
 async function liveLinkAt(workspaceId: string, season: number, eventCode: string): Promise<Row | null> {
   const r = await get<any>(
-    `SELECT a.* FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
+    `SELECT ${A_ROW_COLUMNS} FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
       WHERE a.season = ? AND a.event_code = ? AND a.status IN ${LIVE} AND m.ws = ? AND m.left_at IS NULL LIMIT 1`,
     [season, eventCode, workspaceId]);
   return r ? toRow(r) : null;
@@ -280,7 +285,9 @@ async function makeCopies(r: Row): Promise<void> {
     return on.get(ws)!;
   };
   const members = await membersOne(r.id);
-  const queued = await all<any>("SELECT * FROM scout_alliance_copy_queue WHERE alliance_id = ? ORDER BY to_ws", [r.id]);
+  const queued = await all<any>(
+    `SELECT to_ws, from_ws, origin_ws, origin_uuid, season, team, event_code, match_label, kind, data, notes, updated_at,
+       author_account_id, author_name, editor_account_id, editor_name, template_id, template_version FROM scout_alliance_copy_queue WHERE alliance_id = ? ORDER BY to_ws`, [r.id]);
   const byTo = new Map<string, any[]>();
   for (const e of queued) byTo.set(String(e.to_ws), [...(byTo.get(String(e.to_ws)) ?? []), e]);
   for (const [to, rows] of byTo) {
@@ -372,12 +379,12 @@ function due(r: Row, t: number): AllianceEndReason | null {
 export async function settleAlliances(): Promise<number> {
   const t = now();
   let ended = 0;
-  for (const raw of await all<any>(`SELECT * FROM scout_alliances WHERE status IN ${LIVE}`)) {
+  for (const raw of await all<any>(`SELECT ${ROW_COLUMNS} FROM scout_alliances WHERE status IN ${LIVE}`)) {
     const r = toRow(raw);
     if (due(r, t)) ended += Number(await endLink(r.id, (x) => due(x, now())));
   }
   for (const raw of await all<any>(
-    `SELECT * FROM scout_alliances WHERE id IN (SELECT alliance_id FROM scout_alliance_copy_queue)
+    `SELECT ${ROW_COLUMNS} FROM scout_alliances WHERE id IN (SELECT alliance_id FROM scout_alliance_copy_queue)
         OR (status = 'ended' AND copies_wanted = 1 AND copies_made = 0)`)) {
     await makeCopies(toRow(raw)).catch((e) => console.warn(`[alliances] copies for alliance ${raw.id}: ${(e as Error).message}`));
   }
@@ -392,7 +399,7 @@ export async function settleAlliances(): Promise<number> {
 export async function settleWorkspace(workspaceId: string): Promise<void> {
   const t = now();
   const rows = await all<any>(
-    `SELECT a.* FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
+    `SELECT ${A_ROW_COLUMNS} FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
       WHERE m.ws = ? AND m.left_at IS NULL AND a.status = 'active'`, [workspaceId]);
   for (const raw of rows) {
     const r = toRow(raw);
@@ -579,7 +586,7 @@ export function alliancesRouter(): Router {
     const season = req.query.season === undefined ? null : Number(req.query.season);
     if (season != null && !isSeason(season)) { res.status(400).json({ error: "season must be a year" }); return; }
     const rows = (await all<any>(
-      `SELECT a.* FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
+      `SELECT ${A_ROW_COLUMNS} FROM scout_alliances a JOIN scout_alliance_members m ON m.alliance_id = a.id
         WHERE m.ws = ?${season != null ? " AND a.season = ?" : ""}
         ORDER BY CASE WHEN m.left_at IS NOT NULL THEN 2 WHEN a.status = 'active' THEN 0 WHEN a.status = 'pending' THEN 1 ELSE 2 END,
           COALESCE(m.left_at, a.ended_at, a.created_at) DESC LIMIT 20`,
@@ -617,7 +624,7 @@ export function alliancesRouter(): Router {
               SELECT id, ?, ?, ?, ?, ? FROM scout_alliances WHERE code_hash = ?`,
         args: [m.workspaceId, m.workspaceName, keepCopies ? 1 : 0, m.accountId, t, hashCode(code)],
       }]);
-      const row = toRow(await get<any>("SELECT * FROM scout_alliances WHERE code_hash = ?", [hashCode(code)]));
+      const row = toRow(await get<any>(`SELECT ${ROW_COLUMNS} FROM scout_alliances WHERE code_hash = ?`, [hashCode(code)]));
       res.status(201);
       const body: AllianceInviteResponse = { alliance: await viewOf(row, m.workspaceId), code };
       return body;
@@ -633,7 +640,7 @@ export function alliancesRouter(): Router {
     if (!code) { res.status(400).json({ error: "That isn't an invite code (10 letters and numbers)." }); return; }
     if (typeof keepCopies !== "boolean") { res.status(400).json({ error: "keepCopies must be true or false" }); return; }
     await settleAlliances();
-    const found = await get<any>(`SELECT * FROM scout_alliances WHERE code_hash = ? AND status IN ${LIVE}`, [hashCode(code)]);
+    const found = await get<any>(`SELECT ${ROW_COLUMNS} FROM scout_alliances WHERE code_hash = ? AND status IN ${LIVE}`, [hashCode(code)]);
     if (!found || !codeWorks(toRow(found))) { res.status(404).json({ error: BAD_CODE }); return; }
     const inv = toRow(found);
     // Switched off for the workspace that made the code: nobody joins through it.

@@ -46,6 +46,8 @@ import { logActivity, type ActivityActor } from "./activityLog.js";
 
 const CP_PROVIDER = "control-point";
 
+/** The workspace_assignments columns toAssignment reads (as `a.`). */
+const ASSIGNMENT_COLUMNS = "a.id, a.season, a.event_code, a.team, a.assignee_account_id, a.assignee_name, a.created_by_account_id, a.created_by_name, a.created_at, a.status, a.done_at, a.done_by, a.done_by_name, a.version";
 const toAssignment = (workspaceId: string, r: any, progress = 0): Assignment => ({
   id: Number(r.id), workspaceId, season: Number(r.season), eventCode: String(r.event_code), team: Number(r.team),
   assigneeAccountId: Number(r.assignee_account_id), assigneeName: String(r.assignee_name ?? ""),
@@ -85,14 +87,14 @@ export async function listAssignments(workspaceId: string, f: ListFilter = {}): 
   if (f.eventCode != null) { where.push("a.event_code = ?"); args.push(f.eventCode); }
   if (f.assigneeAccountId != null) { where.push("a.assignee_account_id = ?"); args.push(f.assigneeAccountId); }
   if (f.teams?.length) { where.push(`a.team IN (${f.teams.map(() => "?").join(", ")})`); args.push(...f.teams); }
-  const rows = await all<any>(`SELECT a.* FROM workspace_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id`, args);
+  const rows = await all<any>(`SELECT ${ASSIGNMENT_COLUMNS} FROM workspace_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id`, args);
   return withProgress(workspaceId, rows);
 }
 
 async function byIds(workspaceId: string, ids: number[]): Promise<Assignment[]> {
   if (!ids.length) return [];
   const rows = await all<any>(
-    `SELECT a.* FROM workspace_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE w.cp_workspace_id = ? AND a.id IN (${ids.map(() => "?").join(", ")}) ORDER BY a.id`,
+    `SELECT ${ASSIGNMENT_COLUMNS} FROM workspace_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE w.cp_workspace_id = ? AND a.id IN (${ids.map(() => "?").join(", ")}) ORDER BY a.id`,
     [workspaceId, ...ids]);
   return withProgress(workspaceId, rows);
 }
@@ -227,6 +229,8 @@ const details = (a: Assignment) => ({ assignmentId: a.id, assigneeAccountId: a.a
 
 // --- Match scouting ------------------------------------------------------------------------------
 
+/** The workspace_match_assignments columns toMatchAssignment reads (as `a.`). */
+const MATCH_ASSIGNMENT_COLUMNS = "a.id, a.season, a.event_code, a.watching, a.from_match, a.to_match, a.assignee_account_id, a.assignee_name, a.created_by_account_id, a.created_by_name, a.created_at, a.updated_at, a.version";
 const toMatchAssignment = (workspaceId: string, r: any): MatchAssignment => {
   let watching: Watching = { kind: "all" };
   try { watching = parseWatching(JSON.parse(String(r.watching))) ?? watching; } catch { /* written by us: always JSON */ }
@@ -246,12 +250,12 @@ export async function listMatchAssignments(workspaceId: string, f: Pick<ListFilt
   if (f.season != null) { where.push("a.season = ?"); args.push(f.season); }
   if (f.eventCode != null) { where.push("a.event_code = ?"); args.push(f.eventCode); }
   if (f.assigneeAccountId != null) { where.push("a.assignee_account_id = ?"); args.push(f.assigneeAccountId); }
-  const rows = await all<any>(`SELECT a.* FROM workspace_match_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id`, args);
+  const rows = await all<any>(`SELECT ${MATCH_ASSIGNMENT_COLUMNS} FROM workspace_match_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE ${where.join(" AND ")} ORDER BY a.id`, args);
   return rows.map((r) => toMatchAssignment(workspaceId, r));
 }
 
 async function matchAssignmentById(workspaceId: string, id: number): Promise<MatchAssignment | null> {
-  const r = await get<any>("SELECT a.* FROM workspace_match_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE w.cp_workspace_id = ? AND a.id = ?", [workspaceId, id]);
+  const r = await get<any>(`SELECT ${MATCH_ASSIGNMENT_COLUMNS} FROM workspace_match_assignments a JOIN workspaces w ON w.id = a.workspace_id WHERE w.cp_workspace_id = ? AND a.id = ?`, [workspaceId, id]);
   return r ? toMatchAssignment(workspaceId, r) : null;
 }
 

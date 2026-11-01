@@ -76,6 +76,8 @@ const parseDetails = (raw: unknown): Record<string, unknown> => {
 };
 
 /** A stored row as the API and the stream send it. */
+/** The workspace_activity columns toItem reads (as `a.`). */
+const ITEM_COLUMNS = "a.id, a.at, a.actor_account_id, a.actor_name, a.type, a.subject, a.details";
 export const toItem = (workspaceId: string, r: any): ActivityItem => ({
   id: Number(r.id), workspaceId, at: Number(r.at),
   actor: { accountId: r.actor_account_id == null ? null : Number(r.actor_account_id), name: String(r.actor_name ?? "") },
@@ -129,7 +131,7 @@ export async function logActivity(workspaceId: string, actor: ActivityActor, typ
       let replaced: number | null = null;
       if (opts.coalesce && actor.accountId != null) {
         const last = await get<any>(
-          `SELECT a.* FROM workspace_activity a JOIN workspaces w ON w.id = a.workspace_id
+          `SELECT ${ITEM_COLUMNS} FROM workspace_activity a JOIN workspaces w ON w.id = a.workspace_id
             WHERE w.cp_workspace_id = ? AND a.subject = ? ORDER BY a.id DESC LIMIT 1`, [workspaceId, subject]);
         if (last && last.type === type && Number(last.actor_account_id) === actor.accountId && at - Number(last.at) < COALESCE_MS) {
           const earlier = parseDetails(last.details);
@@ -160,7 +162,7 @@ export async function logActivity(workspaceId: string, actor: ActivityActor, typ
 export async function listActivity(workspaceId: string, before: number | null, limit = PAGE_LIMIT): Promise<{ items: ActivityItem[]; more: boolean }> {
   const n = Math.max(1, Math.min(PAGE_MAX, Math.floor(limit)));
   const rows = await all<any>(
-    `SELECT a.* FROM workspace_activity a JOIN workspaces w ON w.id = a.workspace_id
+    `SELECT ${ITEM_COLUMNS} FROM workspace_activity a JOIN workspaces w ON w.id = a.workspace_id
       WHERE w.cp_workspace_id = ? AND a.at >= ? ${before != null ? "AND a.id < ?" : ""} ORDER BY a.id DESC LIMIT ?`,
     [workspaceId, Date.now() - RETENTION_MS, ...(before != null ? [before] : []), n + 1]);
   return { items: rows.slice(0, n).map((r) => toItem(workspaceId, r)), more: rows.length > n };
