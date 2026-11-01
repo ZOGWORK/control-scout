@@ -62,6 +62,13 @@ const eventHref = (season: number, code: string) => `/events/${season}/${encodeU
 const teamHref = (season: number, team: number) => `/teams/${team}?season=${season}`;
 const matchHref = (m: MatchView) => `/events/${m.season}/${encodeURIComponent(m.code)}/match/${encodeURIComponent(m.key)}`;
 
+/** Event names by code from every compared team's season, so a match names its event rather than its code. */
+export function compareEventNames(d: CompareView): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const x of d.teams) for (const e of x.events) if (e.name && !out[e.code]) out[e.code] = e.name;
+  return out;
+}
+
 /** The season value of a phase: the table's number. */
 function seasonValue(x: CompareTeam, k: Phase): number | null {
   const v = x.stats?.opr[k].value;
@@ -88,6 +95,7 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
   const season = d.season;
   const n = (x: CompareTeam) => String(x.team.number);
   const enough = t.filter((x) => matches(x) >= BRIEF.minMatches);
+  const names = compareEventNames(d);
 
   // Sample size: one sentence for everyone, then a plain one for each team too thin or with nothing.
   const played = t.filter((x) => matches(x) > 0);
@@ -244,10 +252,46 @@ export function compareBrief(d: CompareView, label = seasonLabel(d.season)): Bri
       out.push({
         topic: "Head to head", kind: "fact",
         text: `${first} met ${others} in ${plural(met.length, "played match", "played matches")} (opponents in ${against.length}, partners in ${together}${against.length + together > met.length ? "; a match can be both" : ""})${record}.`,
-        sources: met.slice(0, BRIEF.maxMatchLinks).map((m) => ({ label: `${m.code} ${m.label}`, href: matchHref(m) })),
+        sources: met.slice(0, BRIEF.maxMatchLinks).map((m) => ({ label: `${m.label} at ${names[m.code] ?? m.code}`, href: matchHref(m) })),
       });
     }
   }
+  return out;
+}
+
+/** The brief's sentences in three groups for reading: how much data and the overall gap, the game phases, then
+ *  consistency, recency and meetings. Order inside a group is the generator's; empty groups are left out. */
+export const BRIEF_GROUPS: { title: string; topics: BriefTopic[] }[] = [
+  { title: "Sample and overall", topics: ["Sample size", "Overall"] },
+  { title: "By phase", topics: ["Auto", "TeleOp", "Endgame"] },
+  { title: "Form and meetings", topics: ["Consistency", "Recency", "Head to head"] },
+];
+export function briefGroups(sentences: BriefSentence[]): { title: string; items: BriefSentence[] }[] {
+  return BRIEF_GROUPS.map((g) => ({ title: g.title, items: sentences.filter((s) => g.topics.includes(s.topic)) })).filter((g) => g.items.length);
+}
+
+/** A sentence split into plain text and key numbers: decimals (56.3), records (0-2-0), counts of matches, events
+ *  or points ("32 matches", "2 scored matches") and whole OPRs where the sentences put them ("81 to 157.9",
+ *  "OPR 120 vs 98", "event OPR 112", "up 5", "4215 101 (10 matches)"), a negative OPR with its sign. Team numbers,
+ *  seasons and dates stay plain. */
+const SIGN = String.raw`(?:(?<=^|[\s(])-)?`;
+const KEY_NUMBER = new RegExp([
+  String.raw`\b\d+-\d+-\d+\b`,
+  SIGN + String.raw`\b\d+\.\d+\b`,
+  String.raw`\b\d+(?= (?:vs -?\d+ )?(?:or more |more |scored |played )?(?:auto |TeleOp |endgame )?(?:matches|match|events|event|points|point)\b)`,
+  SIGN + String.raw`\b\d+(?= (?:vs|to) -?\d)`,
+  String.raw`(?<=\b(?:vs|to|up|down) |\(event OPR )-?\d+\b`,
+  SIGN + String.raw`\b\d+(?= \(\d+ match)`,
+].join("|"), "g");
+export function keyNumbers(text: string): { text: string; key: boolean }[] {
+  const out: { text: string; key: boolean }[] = [];
+  let at = 0;
+  for (const m of text.matchAll(KEY_NUMBER)) {
+    if (m.index! > at) out.push({ text: text.slice(at, m.index), key: false });
+    out.push({ text: m[0], key: true });
+    at = m.index! + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at), key: false });
   return out;
 }
 

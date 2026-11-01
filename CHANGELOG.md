@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.1 — 2026-11-01
+## 2.0.3 — 2026-11-01
 
 On a phone, the Filters button stands out and opening it no longer pops up the keyboard.
 
@@ -27,6 +27,45 @@ On a phone, the Filters button stands out and opening it no longer pops up the k
 
 ### Navigation
 - **Filters on phones.** On Events, Teams, Matches, Rankings and Records the Filters button is the filled accent button and always says "Filters", with the count of filters on beside it. The sheet opens with focus on itself rather than its search box, so the phone keyboard stays down until you tap the box. On Events, the place search inside the sheet keeps one height while you type, so the sheet no longer scrolls back to its top with each letter. (#402)
+## 2.0.2 — 2026-11-01
+
+Compare's brief is spaced out and easier to scan.
+
+### Highlights
+- [teams] The brief is grouped: sample and overall, by phase, form and meetings
+- [teams] Topics get their own column on wide screens
+- [teams] Key numbers in the brief are in bold
+- [teams] Source links sit on a quieter line under each sentence
+
+### Compare
+- The brief on /compare groups its sentences under three small headings, with a divider and room between each one; the topic (Sample size, Overall, Auto …) is a label column at 640px and up and a heading above the sentence on phones
+- Gaps, OPRs, match and event counts and records are bold in each sentence; team numbers, seasons and dates stay plain. The sentences, sources and Copy brief text are unchanged (#405)
+
+## 2.0.1 — 2026-11-01
+
+Compare's head-to-head names each event instead of showing its code.
+
+### Highlights
+- [teams] Head-to-head matches on Compare are grouped under the event's name
+- [teams] The brief names the event in its head-to-head links too
+- [fixes] An event no compared team lists still falls back to its code
+
+### Compare
+- The head-to-head list on /compare groups matches under each event's name (from the compared teams' seasons), still linking to the event; it showed codes like USNJNOM5 before
+- The brief's head-to-head sources name the match and its event ("Q25 at P1-4 PM Northern League Meet") instead of "USNJNOM5 Q25" (#403)
+
+## 2.0.0 — 2026-11-01
+
+Search answers are easier to read: spaced out, with bullet points.
+
+### Highlights
+- [fixes] Bruno AI answers in a sentence, then a bullet per record
+- [fixes] Worlds and states rows are divided, each result its own bullet
+- [fixes] The "how many times" count shows as a badge in the card title
+
+### Search
+- Bruno AI's answer on /search is one sentence, then a short bullet line for each record behind it; every number in the bullets is checked against the records like the sentence (#399)
+- The Worlds and states cards on /search put a line between events: the name, then when and where, then rank, record, OPR and awards as bullets. The search dropdown keeps each event to two lines
 
 ## 1.9.9 — 2026-11-01
 
