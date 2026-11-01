@@ -17,19 +17,22 @@ export function BrunoAnswer({ q, prefer = "", ready, className }: { q: string; p
   const on = useServerFlag("brunoAnswers");
   const query = q.trim();
   const asks = on && ready && isBrunoQuestion(query);
-  const [state, setState] = useState<{ q: string; text: string | null; busy: boolean }>({ q: "", text: null, busy: false });
+  // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
+  const key = `${query}
+${prefer}`;
+  const [state, setState] = useState<{ key: string; text: string | null; busy: boolean }>({ key: "", text: null, busy: false });
   useEffect(() => {
     if (!asks) return undefined;
     let live = true;
     const t = setTimeout(() => {
-      setState({ q: query, text: null, busy: true });
+      setState({ key, text: null, busy: true });
       apiFetch<{ text: string } | null>(`/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
-        .then((r) => { if (live) setState({ q: query, text: r?.text ?? null, busy: false }); })
-        .catch(() => { if (live) setState({ q: query, text: null, busy: false }); });
+        .then((r) => { if (live) setState({ key, text: r?.text ?? null, busy: false }); })
+        .catch(() => { if (live) setState({ key, text: null, busy: false }); });
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); };
-  }, [asks, query, prefer]);
-  if (!asks || state.q !== query || (!state.busy && !state.text)) return null;
+  }, [asks, query, prefer, key]);
+  if (!asks || state.key !== key || (!state.busy && !state.text)) return null;
   return (
     <div role="note" aria-label="Bruno AI's answer" aria-busy={state.busy || undefined} data-bruno-answer
       className={cn("rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3", className)}>

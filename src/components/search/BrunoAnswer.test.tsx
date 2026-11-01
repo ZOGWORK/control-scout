@@ -38,6 +38,15 @@ describe("Bruno's answer on /search", () => {
     await settle();
     expect(pending[0].url).toBe(`/api/search/bruno?q=${encodeURIComponent(Q)}&prefer=${encodeURIComponent("team:4215,team:6980")}`);
   });
+  it("an answer read with other preferred teams never shows under new ones", async () => {
+    const { rerender } = render(<BrunoAnswer q={Q} prefer="team:4215" ready />);
+    await settle();
+    await answer("Hypnotic Robotics (4215) went to states 3 times.");
+    rerender(<BrunoAnswer q={Q} prefer="team:6980" ready />);
+    expect(screen.queryByRole("note")).toBeNull();
+    await settle();
+    expect(pending[0].url).toContain(encodeURIComponent("team:6980"));
+  });
   it("shows nothing when he has no answer", async () => {
     render(<BrunoAnswer q={Q} ready />);
     await settle();
