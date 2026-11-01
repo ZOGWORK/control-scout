@@ -35,7 +35,7 @@ Every search result shows where it goes, and a link to a team's OPR or ranking o
 
 ### Behind the scenes
 - The results page asks search engines not to list it ("noindex, follow"): its links still lead them to the team and event pages. robots.txt now lets crawlers read it; /api stays out.
-- The sitemap lists a team only once it has played at an event (a team that has only signed up has no numbers yet), and no longer lists Compare, which is empty until teams are picked.
+- The sitemap lists a team only once it has played at an event (a team that has only signed up has no numbers yet), and no longer lists Compare, which is empty until teams are picked (#376).
 
 ## 1.7.8 — 2026-10-31
 
