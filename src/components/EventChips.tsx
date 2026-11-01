@@ -13,6 +13,16 @@ export function EventStatusChip({ status, className }: { status: EventSummary["s
   return <span className={cn(CHIP, EVENT_STATUS_TONE[status === "upcoming" ? "upcoming" : "finished"], className)} data-event-chip="status">{status === "upcoming" ? "Upcoming" : "Finished"}</span>;
 }
 
+/** The one "on now" dot: red, with a ping ring that motion-reduce turns off. Sized by `className` (default size-2). */
+export function LiveDot({ className }: { className?: string }) {
+  return (
+    <span aria-hidden className={cn("relative inline-flex size-2 shrink-0", className)} data-live-dot>
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-destructive opacity-60 motion-reduce:hidden" />
+      <span className="relative inline-flex size-full rounded-full bg-destructive" />
+    </span>
+  );
+}
+
 export function EventTypeChip({ type, label, className }: { type: string | null; label: string; className?: string }) {
   const text = EVENT_TYPE_TONE[type ?? ""]?.text ?? "text-muted-foreground";
   return <span className={cn(CHIP, EVENT_TYPE_CHIP_FILL, text, className)} data-event-chip="type">{label}</span>;

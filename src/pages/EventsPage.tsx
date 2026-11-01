@@ -21,7 +21,7 @@ import { cn } from "../components/cn";
 import { CoinFlipRadarSection } from "../components/home/CoinFlipRadar";
 import { CurrentlyTracking } from "../components/CurrentlyTracking";
 import { EVENT_FILTER_COUNT, EVENT_TYPE_TONE } from "../lib/textTones";
-import { EventStatusChip } from "../components/EventChips";
+import { EventStatusChip, LiveDot } from "../components/EventChips";
 import { dateRange, place, seasonLabel } from "../lib/format";
 import { eventTypeLabel } from "../shared/labels";
 import { regionLabel, regionNames } from "../shared/regions";
@@ -321,7 +321,7 @@ const EventTile = memo(function EventTile({ e }: { e: EventListItem }) {
         <EventStatusChip status={e.status} className="px-2 py-0.5" />
         <span className={cn("truncate font-semibold", tone.text)}>{e.typeLabel}</span>
         {/* On now with a stream to watch on its page (Watch live). */}
-        {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><span aria-hidden className="size-2 rounded-full bg-danger" />LIVE<span className="sr-only"> stream</span></span>}
+        {e.status === "live" && e.stream && <span className="inline-flex shrink-0 items-center gap-1 font-bold text-danger" title="Live stream on the event page" data-stream-live><LiveDot />LIVE<span className="sr-only"> stream</span></span>}
         {/* Finished with something to watch: the recording, or matches that link to their own second in it. */}
         {e.status === "finished" && e.video && <span className="inline-flex shrink-0 items-center gap-1 font-semibold text-video" title={e.video === "clips" ? "Recording with a Watch button on each match" : "Recording on the event page"} data-video={e.video}><MonitorPlay className="size-3.5" aria-hidden />{e.video === "clips" ? "Clips" : "Video"}</span>}
         {e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" />{e.teams}</span>}

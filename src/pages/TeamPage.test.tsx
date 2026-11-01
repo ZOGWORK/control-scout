@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { OprSection, RowRecord } from "./TeamPage";
+import { AwardsAllTime, OprSection, RowRecord } from "./TeamPage";
 import type { TeamEventRow, TeamProfile } from "../shared/api";
 
 // useMeta as the app's metadata would answer it (null: not loaded yet, as with no provider), and the current season.
@@ -94,5 +94,15 @@ describe("OprSection's data-as-of stamp", () => {
   it("says nothing while the time isn't known", () => {
     render(<MemoryRouter><OprSection p={profile} /></MemoryRouter>);
     expect(screen.queryByText(/Stats updated/)).toBeNull();
+  });
+});
+
+describe("AwardsAllTime", () => {
+  it("names the event on each award, in the chip (a tooltip never opens on a tap)", () => {
+    const p = { ...profile, awardsAllTime: [{ season: 2025, code: "USNJCMP", event: "New Jersey Championship", type: "Inspire", placement: 1 }] } as unknown as TeamProfile;
+    render(<MemoryRouter><AwardsAllTime p={p} /></MemoryRouter>);
+    const link = screen.getByRole("link");
+    expect(link.getAttribute("href")).toBe("/events/2025/USNJCMP");
+    expect(link.textContent).toContain("New Jersey Championship");
   });
 });
