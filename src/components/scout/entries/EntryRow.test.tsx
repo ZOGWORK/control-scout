@@ -1,19 +1,19 @@
 // @vitest-environment jsdom
-// A shared entry's card on a phone: with two assigned scouts (long names) its actions used to sit past the
+// A shared entry's row in Entries on a phone: with two assigned scouts (long names) its actions used to sit past the
 // screen's edge. The card can't grow wider than its column, the long badge wraps, and the actions (named as
 // a group for the entry) wrap under the details instead of being pushed out. jsdom has no layout, so this
 // checks the structure that makes it wrap; the 390px geometry is checked in a browser (see the PR).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import type { ScoutEntry } from "../lib/scouting";
-import { TooltipProvider } from "../components/ui/overlay";
+import type { ScoutEntry } from "../../../lib/scouting";
+import { TooltipProvider } from "../../ui/overlay";
 
-vi.mock("../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, syncReady: false, state: { videoLinks: {} } }) }));
-vi.mock("../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
-vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
+vi.mock("../../../lib/personal", () => ({ usePersonal: () => ({ user: null, providers: {}, syncReady: false, state: { videoLinks: {} } }) }));
+vi.mock("../../../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
+vi.mock("../../MatchVideo", () => ({ Recordings: () => null }));
 
-const { EntryCard, entryDate } = await import("./ScoutPage");
+const { EntryRow: EntryCard, entryDate } = await import("./EntryRow");
 
 const entry = {
   uuid: "card00000001", season: 2025, team: 18360, eventCode: "USTST1", matchLabel: "Q12", kind: "match", data: {}, notes: "",
@@ -111,7 +111,7 @@ describe("a shared entry's attribution time", () => {
     }
   });
 
-  it("a queued change says Syncing…; synced, nothing (the calm state)", () => {
+  it("a queued change says Syncing…; a synced one says Synced (every row says where it stands)", () => {
     const e = shared(Date.now() - 60_000);
     localStorage.setItem("cs-scout-ws-dirty:901", JSON.stringify([e.uuid]));
     showShared(e);
@@ -121,7 +121,37 @@ describe("a shared entry's attribution time", () => {
     cleanup();
     localStorage.clear();
     showShared(e);
-    expect(screen.getByRole("listitem").querySelector("[data-save-state]")).toBeNull();
+    const synced = screen.getByRole("listitem").querySelector("[data-save-state]")!;
+    expect(synced.getAttribute("data-save-state")).toBe("saved");
+    expect(synced.textContent).toBe("Entry 18360 match Q12: Synced");
+  });
+
+  it("an entry the server turned down for good never reads as Synced", async () => {
+    const e = shared(Date.now());
+    localStorage.setItem("cs-scout-rejected:901", JSON.stringify({ [e.uuid]: e.updatedAt }));
+    showShared(e);
+    const state = screen.getByRole("listitem").querySelector("[data-save-state]")!;
+    expect(state.getAttribute("data-save-state")).toBe("attention");
+    expect(state.textContent).toContain("Not synced: kept on this device");
+    cleanup();
+    // Another version (the server's copy pulled over it, another account's): no warning.
+    showShared({ ...e, updatedAt: (e.updatedAt as number) - 1000 } as ScoutEntry);
+    expect(screen.getByRole("listitem").querySelector("[data-save-state]")!.textContent).toContain("Synced");
+    cleanup();
+    // Signing out clears it with the rest of the account's scouting data.
+    const { clearLocalScouting } = await import("../../../lib/scouting");
+    clearLocalScouting();
+    expect(localStorage.getItem("cs-scout-rejected:901")).toBeNull();
+    localStorage.clear();
+  });
+
+  it("a Personal entry: On this device with no account, Waiting to sync while queued, Synced once it is", () => {
+    const p = { ...shared(Date.now()), uuid: "personal0002", workspaceId: null } as unknown as ScoutEntry;
+    render(<TooltipProvider><MemoryRouter><ul><EntryCard e={p} signedIn={false} assigned={null} canDelete readOnly={false} comments={0} onEdit={() => {}} onHistory={() => {}} /></ul></MemoryRouter></TooltipProvider>);
+    expect(screen.getByRole("listitem").querySelector("[data-save-state]")!.textContent).toContain("On this device");
+    cleanup();
+    showShared(p);
+    expect(screen.getByRole("listitem").querySelector("[data-save-state]")!.textContent).toContain("Synced");
   });
 
   it("a real time still reads as relative", () => {

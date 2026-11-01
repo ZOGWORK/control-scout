@@ -67,7 +67,7 @@ export function TierIcon({ tier }: { tier: ConfidenceTier }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button type="button" className={cn(STATUS_CHIP, "tap-44 w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
+        <button type="button" className={cn(STATUS_CHIP, "w-[18px] justify-center border px-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 [&_svg]:size-3", t.cls)} data-tier={tier}>
           <t.icon aria-hidden /><span className="sr-only">Confidence: {t.label.toLowerCase()}</span>
         </button>
       </PopoverTrigger>
@@ -301,7 +301,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
       {/* The call, in its own track so it never runs into the blue box: line 1 the pick and its bar, line 2 small status chips. */}
       <div className="col-start-2 row-start-1 flex min-w-0 flex-col items-end gap-1 text-right @3xl:col-start-4" data-call>
         {p && fav ? (
-          // A tap shows the call's detail too (TapTooltip): the button does nothing else.
+          // A tap shows the call's detail too (TapTooltip): the button does nothing else. Its widened tap area
+          // (tap-44) stops at the status chips below, which sit above it (data-call-status), so it never takes their taps.
           <TapTooltip className="max-w-72" trigger={
               <button type="button" className="tap-44 flex items-center gap-1.5 whitespace-nowrap rounded-md text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
                 {/* The name is the text ("Picked Red 58%"). Under 20rem of row the word is only for screen readers: the
@@ -321,7 +322,7 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
           </span>
         )}
         {(p || m.video || m.clip || videos > 0) && (
-          <div className="flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted" data-call-status>
+          <div className="relative z-[1] flex flex-wrap items-center justify-end gap-1 text-[11px] text-text-muted" data-call-status>
             {/* Right and Upset share one width, so the chips after them line up from row to row. */}
             {called === true && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-success/12 text-success")} data-outcome="right"><Check className="size-3" aria-hidden /> Right</span>}
             {called === false && <span className={cn(STATUS_CHIP, "min-w-[3.25rem] justify-center bg-warning/12 text-warning")} data-outcome="upset"><X className="size-3" aria-hidden /> Upset</span>}

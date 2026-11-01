@@ -316,10 +316,12 @@ export function OprSection({ p }: { p: TeamProfile }) {
   const s = p.stats;
   const [open, setOpen] = useState<(typeof OPR_CARDS)[number][0] | null>(null);
   const predictable = usePredictable(p.season);
-  // When the stats were last rebuilt, so last week's OPR never reads as live. Not for a page drawn from a saved
-  // season offline: the server's time would date numbers that are older (the page's offline note dates those).
+  // When the stats were last rebuilt, so last week's OPR never reads as live. Only for the current season (the
+  // regular rebuild covers only that one, so the time would date an older season's numbers wrongly), and not for
+  // a page drawn from a saved season offline (the server's time would date older numbers; its offline note does).
   const metaStatsAt = useMeta()?.statsAt;
-  const statsAt = offlineSource(p) ? null : metaStatsAt;
+  const current = useCurrentSeason();
+  const statsAt = offlineSource(p) || p.season !== current ? null : metaStatsAt;
   return (
     <Section id="opr" title="Offensive power rating" description={<>Best event OPR this season and its world rank. Non-penalty points, computed with standard least squares{p.season >= 2024 ? "; TeleOp includes the endgame, as FIRST reports it" : ""}. <Link to="/methodology#opr" className="underline">How it's computed</Link>{statsAt && <span className="whitespace-nowrap"> · Stats updated {ago(statsAt)}</span>}</>}>
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -517,7 +519,8 @@ function AwardsAllTime({ p }: { p: TeamProfile }) {
   if (!p.awardsAllTime.length) return null;
   return (
     <Section id="awards" title={`Awards (${p.awardsAllTime.length})`} description="Every award in the seasons we cover">
-      <div className="flex flex-wrap gap-2">
+      {/* Rows a little further apart on a touch screen, so one chip's 44px tap area (tap-44) never reaches the next row. */}
+      <div className="flex flex-wrap gap-2 pointer-coarse:gap-y-[10px]">
         {p.awardsAllTime.map((a, i) => (
           <Tooltip key={i}>
             <TooltipTrigger asChild>

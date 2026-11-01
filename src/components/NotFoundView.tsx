@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useNotFoundHead } from "../lib/meta";
 import { ArrowRight, CalendarDays, House, Sparkles, Users, type LucideIcon } from "lucide-react";
-import { SEARCH_HINT, hitHref, usePageSearch } from "./layout/Search";
+import { SEARCH_HINT, hitHref, usePageSearch, useSearch } from "./layout/Search";
 import { SearchBox } from "./search/SearchBox";
 import { Reveal } from "./motion";
 
@@ -26,6 +26,7 @@ export function NotFoundView({ title = "This page is off the field", description
 }) {
   // The page's own search: the top-bar field steps aside while this is shown.
   const searchRef = usePageSearch();
+  const { restoreFocus } = useSearch();
   useNotFoundHead();
   const nav = useNavigate();
   return (
@@ -40,7 +41,7 @@ export function NotFoundView({ title = "This page is off the field", description
       <p className="mt-3 max-w-xl text-sm text-muted-foreground sm:text-base">{description}</p>
       {action && <div className="mt-4">{action}</div>}
       <SearchBox
-        inputRef={searchRef} hint={SEARCH_HINT} size="lg"
+        inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} size="lg"
         label="Search teams, events and matches"
         placeholder="Team number or name, or an event…"
         onPick={(h) => nav(hitHref(h))}
