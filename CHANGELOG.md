@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.1 — 2026-10-31
+
+Closed sections on team pages now show there's more inside.
+
+### Highlights
+
+- [teams] Closed team sections are cards with a line on what's inside
+- [teams] A "Show details" button that turns to "Hide" once open
+- [teams] Each card has a faint gradient in its own colours
+
+### Team pages
+
+- A closed section shows its one-line summary and a pill button in its own colours (green to orange for Reliability, yellow, blue and purple for the report card, blue to red for Schedule difficulty) instead of a small grey "Show" at the edge of the row. Screen readers hear the section name as the button and the summary as its description. (#368)
+
 ## 1.7.0 — 2026-10-31
 
 Search reads the whole question: compare teams, ask about a season or a state, and it says plainly what it can't answer yet.

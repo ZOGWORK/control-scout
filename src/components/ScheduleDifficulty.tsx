@@ -101,7 +101,8 @@ export function TeamScheduleSection({ team, season, events }: { team: number; se
   const on = useFlag("scheduleDifficulty");
   if (!on) return null;
   return (
-    <Section collapsible id="schedule-difficulty" title="Schedule difficulty" description="How hard this team's qualification draw is at each event, next to the rest of the field">
+    <Section collapsible id="schedule-difficulty" title="Schedule difficulty" summary="How hard each event's qualification draw was"
+      tint={['var(--color-info)', 'var(--color-danger)']} description="How hard this team's qualification draw is at each event, next to the rest of the field">
       <TeamScheduleBody team={team} season={season} events={events} />
     </Section>
   );
