@@ -157,6 +157,9 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   return { saved: won.data as T };
 }
 
+/** The error for a request its caller cancelled (an AbortError, as fetch's own). */
+const callerAborted = () => new DOMException("The request was cancelled", "AbortError");
+
 export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number }): Promise<T> {
   const { json, _tries = 0, ...rest } = init ?? {};
   // navigator.onLine is only a hint: iOS (above all a home-screen app back from the background) can report
@@ -182,13 +185,16 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     });
     request.catch(() => {}); // aborted once a saved answer is used: nobody waits on it then
     const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl) : await request;
+    // The caller let it go (a newer search): nobody waits on an answer, so none is made from saved data either.
+    if (outer?.aborted) throw callerAborted();
     if (!(got instanceof Response)) { setUsingSaved(true); return got.saved; }
     res = got;
     answered = true;
   } catch (e) {
     if (e instanceof ApiError) throw e;
-    // Unreachable, unless the page let the request go itself (it moved on).
-    if (!outer?.aborted) watch.failed();
+    // The page let the request go itself (it moved on): not unreachable, and no saved-data answer (or Offline badge).
+    if (outer?.aborted) throw callerAborted();
+    watch.failed();
     return offlineOr<T>(path, rest.method, unreachable());
   } finally {
     // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).

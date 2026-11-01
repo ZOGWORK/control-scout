@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.0.3 — 2026-11-01
+## 2.0.5 — 2026-11-01
 
 Tables export to Excel in colour, like they look on the site.
 
@@ -29,6 +29,32 @@ Tables export to Excel in colour, like they look on the site.
 - On team tables every number is banded from bold green (best fifth of the exported rows) to bold red (worst fifth), flipped for lower-is-better stats such as rank, penalties and schedule difficulty; match tables colour each score by its alliance
 - Event start dates are real dates (no more `#######` in a narrow column) and percentages show as percentages. The CSV is unchanged for scripts
 
+## 2.0.4 — 2026-11-01
+
+Search answers "world record score bio buzz" and "4215 high score".
+
+### Highlights
+- [rankings] Ask for a season's record score, by game name or season
+- [teams] Ask for a team's highest scores, with the alliance it played on
+- [fixes] Before a season's first official match, scrimmage bests show
+
+### Search
+- "World record score bio buzz", "highest score in 2025-26", "4215 high score" and "hypnotic best score in decode" get a card with the 5 best match scores: without penalties, official events only, each linking to its match with its alliance and the score with penalties (#401)
+- A game's name is read with any spacing ("bio buzz", "BIOBUZZ", "into the deep"); with no season named, the latest one played
+- With no official match played yet in that season, the card says there's no record yet and lists the best scrimmage scores instead
+## 2.0.3 — 2026-11-01
+
+Search waits for you to stop typing, and Enter works the first time.
+
+### Highlights
+- [speed] Search waits a second after your last letter before it looks
+- [speed] A newer search cancels the older one still on its way
+- [fixes] Enter searches at once and closes the phone keyboard
+
+### Search
+- Results are asked for once typing pauses for a second, not after every letter, and a request for an older query is cancelled when a newer one starts (#400)
+- Enter on the search page runs the search straight away instead of waiting out the pause, and closes the phone keyboard so the results show. Its key reads "Search"
+- In a box that picks a team or event, Enter before the results are in opens the top one when they arrive, so one press is enough
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.

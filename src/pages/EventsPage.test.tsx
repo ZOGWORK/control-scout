@@ -168,7 +168,7 @@ describe("Events page on a phone", () => {
     fireEvent.focus(box);
     fireEvent.change(box, { target: { value: "amarillo" } });
     // The results, then the last row: the full results page.
-    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3));
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(3), { timeout: 4000 }); // after the typing pause
     const options = screen.getAllByRole("option");
     expect(options.map((o) => o.textContent)).toEqual([expect.stringContaining("All events in Texas"), expect.stringContaining("Amarillo Scrimmage"), "See all results for “amarillo”"]);
     expect(searched.at(-1)).toContain("kinds=event%2Cplace"); // the server picks events and places before its limit

@@ -20,7 +20,7 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const { hits, answer, busy, error, retry, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const nav = useNavigate();
   const showing = answer ? showingLine({ ...answer, hits }) : null;
@@ -36,11 +36,12 @@ export default function SearchPage() {
       </h1>
       {showing && <p className="mt-1.5 text-sm text-muted-foreground">Showing: <span className="font-medium text-foreground">{showing}</span></p>}
       {/* A plain GET form to this page (the browser's own idea of the site's search), kept in the app. */}
-      <form role="search" action="/search" method="get" className="mt-4" onSubmit={(e) => e.preventDefault()}>
+      {/* Enter (a phone's Search key): results now, not after the typing pause, and the keyboard closes so they show. */}
+      <form role="search" action="/search" method="get" className="mt-4" onSubmit={(e) => { e.preventDefault(); searchNow(); e.currentTarget.querySelector("input")?.blur(); }}>
         <label className="flex h-11 items-center gap-2.5 rounded-xl border border-border bg-card px-3 text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]">
           {busy ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" /> : <Search className="size-4 shrink-0 text-accent" />}
           <input
-            type="search" name="q" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search teams, events and matches"
+            type="search" name="q" enterKeyHint="search" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search teams, events and matches"
             placeholder="Team number, team or event name, or a match like USNJCMP Q12"
             className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
@@ -55,7 +56,7 @@ export default function SearchPage() {
               <Button variant="secondary" onClick={retry} disabled={busy}><RefreshCw /> Try again</Button>
             </div>
           )
-          : !sections.length ? (
+          : !sections.length && !answer?.card ? (
             <p className="text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search." : <>Nothing matches “{query}”.</>}</p>
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>

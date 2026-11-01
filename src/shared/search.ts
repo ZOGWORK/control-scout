@@ -135,6 +135,10 @@ const teamName = (h: SearchHit) => { const m = /^(\d+)\s+(.+)$/.exec(h.title); r
 
 /** What the results page shows, in a line ("Hypnotic Robotics (4215) vs Bad Wolf (6980) — Compare"): the top result
  *  as the answer read it, and what it opens on. Null when nothing was found. */
+/** Who a question's card is about ("Hypnotic Robotics (4215)"), or null for a whole season's. */
+export const cardWho = (c: { team?: { number: number; name: string | null } }): string | null =>
+  c.team ? (c.team.name ? `${c.team.name} (${c.team.number})` : `Team ${c.team.number}`) : null;
+
 export function showingLine(a: { hits: SearchHit[]; step: string; card?: { title: string } }): string | null {
   const top = a.hits[0];
   if (!top || a.step === "recovery") return null;

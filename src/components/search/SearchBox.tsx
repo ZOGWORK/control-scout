@@ -12,7 +12,7 @@ import { usePersonal } from "../../lib/personal";
 import { useMeta } from "../../lib/meta";
 import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
-import { SEARCH_GROUPS, shownPath } from "../../shared/search";
+import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
 import { seasonLabel } from "../../lib/format";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
@@ -22,7 +22,8 @@ export type HitKind = SearchHit["kind"];
 export { hitHref } from "../../shared/search";
 
 /** How long typing pauses before search asks (each key doesn't send a request). */
-export const SEARCH_DEBOUNCE_MS = 200;
+/** How long typing must pause before results are asked for: nothing is searched letter by letter. Enter skips it. */
+export const SEARCH_DEBOUNCE_MS = 1000;
 
 type Answered = { q: string; hits: SearchHit[]; answer?: SearchAnswer; /** Fetched here (not the first paint's): only these stay on screen for a newer query. */ live?: boolean; /** Answered from data saved on this device (it may not know every team). */ saved?: boolean };
 
@@ -41,6 +42,10 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   // Bumped by retry(): the same query asked again after a failure.
   const [attempt, setAttempt] = useState(0);
   const seq = useRef(0);
+  // The search waiting out the typing pause: Enter (searchNow) runs it at once.
+  const waiting = useRef<{ q: string; run: () => void } | null>(null);
+  // The query last asked about (null before the first): only a changed one, typed, waits for the pause.
+  const lastQ = useRef<string | null>(null);
   const brunoOn = useServerFlag("brunoSearch");
   const { state } = usePersonal();
   const prefer = useMemo(() => [...new Set([
@@ -56,11 +61,16 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
     // A new request: an earlier query's Bruno AI suggestion goes (it never reappears for a retyped query or a failed one).
     setRefining(false);
     setAi(null);
+    const typed = lastQ.current !== null && lastQ.current !== query;
+    lastQ.current = query;
     if (!query) { setRes({ q: "", hits: [] }); setError(null); setBusy(false); return; }
     setBusy(true);
-    const t = setTimeout(() => {
+    // A newer query (or leaving) drops the older request: the server isn't kept busy with queries nobody waits for.
+    const ctrl = new AbortController();
+    const run = () => {
+      waiting.current = null;
       // A box limited to some kinds asks the server for only those, so other kinds (often teams) can't crowd its own out.
-      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
+      apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}${kindKey ? `&kinds=${encodeURIComponent(kindKey)}` : "&answer=1"}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`, { signal: ctrl.signal })
         .then((r) => {
           if (id !== seq.current) return;
           // Offline (saved data) answers plain hits: the plain list, as before.
@@ -78,10 +88,15 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
         })
         .catch((e) => { if (id === seq.current) { setRes({ q: query, hits: [] }); setError(e.message); } }) // the query is answered (with an error): the spinner stops
         .finally(() => { if (id === seq.current) setBusy(false); });
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    };
+    // Opening a page with its query, a retry or a change of preferred teams asks at once.
+    const t = setTimeout(run, typed ? SEARCH_DEBOUNCE_MS : 0);
+    waiting.current = { q: query, run: () => { clearTimeout(t); run(); } };
+    return () => { clearTimeout(t); ctrl.abort(); waiting.current = null; };
   }, [q, prefer, kindKey, limit, brunoOn, refine, attempt]);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  /** Enter: search this query now, without waiting for the typing pause. */
+  const searchNow = useCallback(() => { if (waiting.current?.q === q.trim()) waiting.current.run(); }, [q]);
   const current = res.q === q.trim();
   // While a newer query is on its way, the last answer stays on screen (dimmed, marked stale) instead of the list
   // emptying at every keystroke: typing never flickers to a bare "Searching…" between replies.
@@ -101,7 +116,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   return {
     hits: shown ? res.hits : [], answer: shown ? res.answer : undefined, stale, saved: current && !!res.saved,
     ai: brunoOn && shown && ai?.q === res.q ? ai.answer : null, refining: brunoOn && current && refining,
-    busy: busy || (!!q.trim() && !current), error: current ? error : null, retry, logPick,
+    busy: busy || (!!q.trim() && !current), error: current ? error : null, retry, searchNow, logPick,
     /** The visitor's preferred teams and events, as sent with the search (Bruno's answer is asked with the same). */
     prefer,
   };
@@ -205,11 +220,11 @@ export const searchPagePick = (q: string): SearchHit => ({ kind: "place", ref: "
 export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compact?: boolean; onOpen: (href: string) => void }) {
   const lines = card.lines.length ? card.lines : card.closest ?? [];
   const shown = compact ? lines.slice(0, 2) : lines;
-  const who = card.team.name ? `${card.team.name} (${card.team.number})` : `Team ${card.team.number}`;
+  const who = cardWho(card);
   return (
-    <div role="note" aria-label={`${card.title}: ${who}`} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
+    <div role="note" aria-label={who ? `${card.title}: ${who}` : card.title} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
       <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>
-        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title} · {who}
+        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title}{who && ` · ${who}`}
         {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text">{card.count} {card.count === 1 ? "time" : "times"}</span>}
       </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
@@ -246,7 +261,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const [open, setOpen] = useState(!!initialQuery);
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   const [active, setActive] = useState(-1);
-  const { hits, answer, ai, refining, busy, error, logPick, stale } = useSearchHits(q, kinds);
+  const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(q, kinds);
   const { sections, notes } = useSections(hits, answer, ai);
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
@@ -294,6 +309,16 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   }, [open]);
   const go = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
   const pick = (h: SearchHit) => { logPick(h); go(h); };
+  // Enter pressed before a picker's results were in: the query it was pressed on, until they arrive.
+  const enterFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!enterFor.current) return;
+    // Closed (Escape, a click away, leaving the field) or retyped: the Enter is dropped, never acted on later.
+    if (!open || enterFor.current !== q.trim()) { enterFor.current = null; return; }
+    if (busy || stale) return;
+    enterFor.current = null;
+    if (ordered[0]) pick(ordered[0].hit);
+  });
   const query = q.trim();
   // The last row: the full results page. Its index is right after the results', so the arrow keys reach it too.
   const full = seeAll && !!query;
@@ -306,7 +331,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
         {busy ? <Loader2 className={cn("shrink-0 animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("shrink-0 text-accent", lg ? "size-5" : "size-4")} />}
         <input
-          ref={inputRef} value={q} autoFocus={autoFocus}
+          ref={inputRef} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
@@ -317,7 +342,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
               e.preventDefault();
               if (!stale && active >= 0 && ordered[active]) pick(ordered[active].hit);
               else if (full) openFull();
-              else if (!stale && ordered[0]) pick(ordered[0].hit);
+              else if (!stale && !busy && ordered[0]) pick(ordered[0].hit);
+              // A picker box whose results aren't in yet: ask now, and open the top result when they arrive (one press).
+              else { enterFor.current = query; searchNow(); }
               return;
             }
             if (!count) return;
@@ -338,7 +365,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
           className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
-            : !ordered.length ? (
+            : !ordered.length && !answer?.card ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search."
                 : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
