@@ -53,6 +53,13 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     // close has rendered (a hidden element can't take focus).
     requestAnimationFrame(() => { if (el?.isConnected) el.focus({ preventScroll: true }); });
   }, []);
+  // Focus moving anywhere but a search field (Tab away, a click, a pick) ends that visit: the saved opener goes,
+  // so a later Escape never jumps back to it. Escape itself blurs to the body (no focusin), so it keeps it.
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => { if (e.target !== inputRef.current && e.target !== pageRef.current) returnTo.current = null; };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, []);
   const open = useCallback(() => {
     const was = document.activeElement;
     // The shortcut again while already in a search field keeps the control it was first opened from.
