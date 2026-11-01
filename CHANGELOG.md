@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.8.1 — 2026-11-01
+## 1.8.2 — 2026-11-01
 
 A scouting alliance can now link more than two teams at a meet.
 
@@ -32,6 +32,17 @@ A scouting alliance can now link more than two teams at a meet.
 - **Copies.** When it ends, each two teams that both ticked "keep a copy" get each other's entries; a team that didn't tick it neither gives nor gets copies.
 - Existing two-team links carry over unchanged (migration 68) (#379).
 
+## 1.8.1 — 2026-11-01
+
+Add teams to your shortlist right from the Shortlist page.
+
+### Highlights
+- [picklist] Type a team number or name on the Shortlist and press Add team
+- [picklist] Suggestions appear as you type; teams already listed show Added
+- [picklist] An empty Shortlist offers the same box to make your first pick
+
+### Shortlist
+- **Add team.** A search box beside Order picks and CSV suggests teams as you type (the site's own team search). Pick one, or type an exact number and press Enter or Add team, and it joins the end of your list: synced to your account when signed in, saved on this device when not. A team already on the list shows as Added and is never added twice. It works with the keyboard (arrow keys, Enter, Escape) and at phone width, and the empty Shortlist offers it too (#378).
 ## 1.8.0 — 2026-11-01
 
 The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.
