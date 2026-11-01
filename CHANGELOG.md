@@ -28,10 +28,10 @@ Setting up Scout takes fewer taps and no hunting for the next step.
 
 ### Scout
 
-- **Scout and Data.** Match and Matches were one job split in two, so they are one Scout tab now. It opens on the match to scout, as Match did; "All matches" shows the event's match list in its place (wide screens still show it beside the match) and tapping a match goes back to scouting it. Old links to the Matches tab open the list.
-- **One event picker.** "Where are you scouting?" is a search box with a short list under it (today's events first, then your team's, then the next ones; Show more for the rest), instead of a list and a separate "Search all events" box.
-- **Moved on after a pick.** Picking an event folds the list to one "Scouting at … · Change" row and brings what you're watching into view (no glide if you asked for reduced motion). A suggested or running event starts folded.
-- **Start in reach.** Once an event is picked, Start scouting is pinned at the bottom of the screen (above the tab bar on phones), bigger, and says what it will start ("Red alliance at …").
+- **Scout and Data.** Match and Matches were one job split in two, so they are one Scout tab now. It opens on the match to scout, as Match did; "All matches" shows the event's match list in its place (wide screens still show it beside the match) and tapping a match goes back to scouting it. Old links to the Matches tab open the list. (#373)
+- **One event picker.** "Where are you scouting?" is a search box with a short list under it (today's events first, then your team's, then the next ones; Show more for the rest), instead of a list and a separate "Search all events" box. (#373)
+- **Moved on after a pick.** Picking an event folds the list to one "Scouting at … · Change" row and brings what you're watching into view (no glide if you asked for reduced motion). A suggested or running event starts folded. (#373)
+- **Start in reach.** Once an event is picked, Start scouting is pinned at the bottom of the screen (above the tab bar on phones), bigger, and says what it will start ("Red alliance at …"). (#373)
 
 ## 1.7.1 — 2026-10-31
 
