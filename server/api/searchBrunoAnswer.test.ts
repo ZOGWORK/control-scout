@@ -8,12 +8,15 @@ import { migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, grounded, resetBrunoAnswerCache } from "./searchBrunoAnswer";
+import { BRUNO_ANSWER_TIMEOUT_MS, answerFacts, brunoAnswer, grounded, partialAnswer, previewOf, resetBrunoAnswerCache, type BrunoAnswer } from "./searchBrunoAnswer";
 import { isBrunoQuestion } from "../../src/shared/search";
 
 let fake: Server;
 let reply: unknown = { text: null };
-let mode: "ok" | "error" | "slow" = "ok";
+let mode: "ok" | "error" | "slow" | "kill" | "plain" = "ok";
+/** Streamed replies (Accept: application/x-ndjson) come in pieces this long, this far apart. */
+const PIECE = 9;
+const PIECE_MS = 15;
 const asked: { question: string; facts: string[] }[] = [];
 
 beforeAll(async () => {
@@ -33,8 +36,22 @@ beforeAll(async () => {
     req.on("end", () => {
       asked.push(JSON.parse(body));
       const send = () => res.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify(reply));
+      const streamed = /x-ndjson/.test(String(req.headers.accept)) && mode !== "plain";
       if (req.url !== "/internal/bruno/search-answer") res.writeHead(404).end("{}");
       else if (mode === "error") res.writeHead(502).end('{"error":"ai_failed"}');
+      else if (streamed && (mode === "ok" || mode === "kill")) {
+        // As Control Point streams it: the model's raw JSON in pieces, then the parsed answer (or, killed, nothing more).
+        const raw = JSON.stringify(reply);
+        res.writeHead(200, { "Content-Type": "application/x-ndjson" });
+        let i = 0;
+        const next = () => {
+          if (mode === "kill" && i >= raw.length / 2) { res.destroy(); return; }
+          if (i < raw.length) { res.write(`${JSON.stringify({ d: raw.slice(i, i + PIECE) })}\n`); i += PIECE; setTimeout(next, PIECE_MS); return; }
+          const r = reply as { text: string | null; points?: string[] };
+          res.end(`${JSON.stringify({ answer: { text: r.text, points: r.points ?? [] } })}\n`);
+        };
+        next();
+      }
       else if (mode === "slow") setTimeout(send, BRUNO_ANSWER_TIMEOUT_MS + 1000);
       else send();
     });
@@ -144,4 +161,92 @@ describe("asking Bruno", () => {
     reply = { text: "4215 went to states 2 times." };
     expect(await brunoAnswer(Q)).toEqual(withPoints(reply));
   }, 30_000);
+});
+
+describe("streamed to the page", () => {
+  const ANSWER = { text: "Hypnotic Robotics (4215) went to states 2 times since 2023–24.", points: ["2023–24: ranked #3, OPR 111.5", "2024–25: ranked #7, OPR 117.3"] };
+  /** brunoAnswer with a page watching: what it saw while he wrote, and the answer. */
+  const watched = async (q = Q) => {
+    const seen: (BrunoAnswer | null)[] = [];
+    const answer = await brunoAnswer(q, {}, Date.now(), (p) => seen.push(p));
+    return { seen, answer };
+  };
+  it("shows the answer as he writes it, and ends at the same answer as the plain call", async () => {
+    reply = ANSWER;
+    const { seen, answer } = await watched();
+    expect(seen.length).toBeGreaterThan(3);
+    // Each part grows from the last, and the last is the answer itself.
+    for (let i = 1; i < seen.length; i++) expect(seen[i]!.text.startsWith(seen[i - 1]!.text)).toBe(true);
+    expect(seen.at(-1)).toEqual(ANSWER);
+    resetBrunoAnswerCache();
+    expect(answer).toEqual(await brunoAnswer(Q));
+    expect(answer).toEqual(ANSWER);
+  });
+  it("never shows a number still being written, or one the facts don't have", async () => {
+    reply = ANSWER;
+    const { seen } = await watched();
+    // "111.5" never shows as "11" or "111.": a number shows only once it's whole.
+    for (const p of seen) for (const s of [p!.text, ...p!.points]) expect(s).not.toMatch(/(^|\D)(11|111\.?|202|2023–?2?)$/);
+    resetBrunoAnswerCache();
+    reply = { text: "Hypnotic Robotics went to states 6 times since 2023–24.", points: [] };
+    const bad = await watched();
+    expect(bad.answer).toBeNull();
+    // What he wrote before the made-up number showed, then was dropped; nothing after it.
+    expect(bad.seen.at(-1)).toBeNull();
+    expect(bad.seen.slice(0, -1).every((p) => p && !/6/.test(p.text))).toBe(true);
+  });
+  it("a stream killed part-way gives no answer, isn't cached, and the next ask answers whole", async () => {
+    reply = ANSWER;
+    mode = "kill";
+    const { seen, answer } = await watched();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(answer).toBeNull();
+    mode = "ok";
+    expect(await brunoAnswer(Q)).toEqual(ANSWER);
+    expect(asked).toHaveLength(2);
+  });
+  it("a plain ask while a stream is in flight shares its call and gets the same answer", async () => {
+    reply = ANSWER;
+    const streamed = watched();
+    await new Promise((r) => setTimeout(r, PIECE_MS * 3));
+    const plain = await brunoAnswer(Q);
+    expect(plain).toEqual((await streamed).answer);
+    expect(asked).toHaveLength(1);
+  });
+  it("a second page joins where the first stands; a cached answer comes whole, with nothing streamed", async () => {
+    reply = ANSWER;
+    const first = watched();
+    await new Promise((r) => setTimeout(r, PIECE_MS * 8));
+    const second = await watched();
+    expect(second.seen[0]!.text.length).toBeGreaterThan(0);
+    expect(second.answer).toEqual((await first).answer);
+    const cached = await watched();
+    expect(cached).toEqual({ seen: [], answer: ANSWER });
+    expect(asked).toHaveLength(1);
+  });
+  it("a Control Point that answers whole (not streamed) is read as before", async () => {
+    reply = ANSWER;
+    mode = "plain";
+    expect(await watched()).toEqual({ seen: [], answer: ANSWER });
+  });
+});
+
+describe("reading a reply as it's written", () => {
+  it("takes the sentence and the points begun, escapes and all", () => {
+    expect(partialAnswer('{"text": "Yes, 3 ti')).toEqual({ text: "Yes, 3 ti", points: [], open: true });
+    expect(partialAnswer('{"text": "Say \\"hi\\" \\u00e9", "points": ["a", "b')).toEqual({ text: 'Say "hi" é', points: ["a", "b"], open: true });
+    expect(partialAnswer('{"text": "Yes.", "points": ["a"]}')).toEqual({ text: "Yes.", points: ["a"], open: false });
+    expect(partialAnswer('{"text": null')).toEqual({ text: "", points: [], open: true });
+    expect(partialAnswer('{"te')).toEqual({ text: "", points: [], open: true });
+    // A half-written escape waits for the rest.
+    expect(partialAnswer('{"text": "a\\u00')).toEqual({ text: "a", points: [], open: true });
+  });
+  it("holds back a number still being written, and drops a part with a made-up one", () => {
+    const facts = ["OPR 111.5"];
+    expect(previewOf('{"text": "OPR 11', facts, "q")).toEqual({ text: "OPR", points: [] });
+    expect(previewOf('{"text": "OPR 111.5 and', facts, "q")).toEqual({ text: "OPR 111.5 and", points: [] });
+    expect(previewOf('{"text": "OPR 111.5", "points": ["OPR 1', facts, "q")).toEqual({ text: "OPR 111.5", points: ["OPR"] });
+    expect(previewOf('{"text": "OPR 120 and', facts, "q")).toBeUndefined();
+    expect(previewOf('{"text": null}', facts, "q")).toBeNull();
+  });
 });
