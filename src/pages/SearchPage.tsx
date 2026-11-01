@@ -27,8 +27,9 @@ export default function SearchPage() {
   useTitle(query ? `Search: ${query}` : "Search");
   // Typing replaces the address (no history entry per letter), so Back leaves the page.
   const setQ = (v: string) => setParams(v ? { q: v } : {}, { replace: true });
+  // The column starts at the page gutter like every other page (it sat centred, its title 190px in from the rest).
   return (
-    <div className="mx-auto w-full max-w-3xl px-1 pt-4 sm:pt-8">
+    <div className="w-full max-w-4xl pt-4 sm:pt-8">
       <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
         {query ? <>Here's what we found for “{query}”</> : "Search"}
       </h1>
