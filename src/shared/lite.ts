@@ -5,10 +5,12 @@
 //   /events/2025/USNJQ1                    ⇄ /lite/events/2025/USNJQ1
 //   /events/2025/USNJQ1/match/qual:0:12    ⇄ /lite/events/2025/USNJQ1/match/qual:0:12
 //   /teams/18360?season=2024               ⇄ /lite/teams/18360?season=2024
-//   /scout?space=7&view=picklist&season=…  ⇄ /lite/picklist?space=7&season=…
+//   /scout?space=7&tab=planning&view=picklist&season=…  ⇄ /lite/picklist?space=7&season=…
 //
 // Any rich page can also be asked for as ?lite=1 (the server redirects to its twin). A light page always links
 // back to its full version: light mode is never somewhere a good connection gets stuck.
+
+import { picklistQuery } from "./scoutSections";
 
 export const LITE_PREFIX = "/lite";
 
@@ -37,7 +39,8 @@ export function liteHref(path: string, search = ""): string | null {
   if (m) return `${LITE_PREFIX}/events/${m[1]}/${m[2].toUpperCase()}/match/${m[3]}`;
   if ((m = EVENT.exec(path))) return `${LITE_PREFIX}/events/${m[1]}/${m[2].toUpperCase()}`;
   if ((m = TEAM.exec(path))) return `${LITE_PREFIX}/teams/${Number(m[1])}${seasonQuery(params)}`;
-  if (/^\/scout\/?$/i.test(path) && params.get("view") === "picklist") {
+  // The pick list: ?view=picklist, or Pick list & planning with no view (the pick list is its first view).
+  if (/^\/scout\/?$/i.test(path) && (params.get("view") === "picklist" || (params.get("tab") === "planning" && !params.get("view")))) {
     const space = params.get("space");
     const q = new URLSearchParams();
     if (space && SPACE.test(space)) q.set("space", space);
@@ -58,14 +61,9 @@ export function fullHref(path: string, search = ""): string {
   if ((m = EVENT.exec(rest))) return `/events/${m[1]}/${m[2]}`;
   if ((m = TEAM.exec(rest))) return `/teams/${Number(m[1])}${seasonQuery(params)}`;
   if (/^\/picklist\/?$/i.test(rest)) {
-    const q = new URLSearchParams();
     const space = params.get("space");
-    if (space && SPACE.test(space)) q.set("space", space);
-    q.set("tab", "data");
-    q.set("view", "picklist");
     const s = params.get("season");
-    if (s && /^\d{4}$/.test(s)) q.set("season", s);
-    return `/scout?${q.toString()}`;
+    return `/scout?${picklistQuery(space && SPACE.test(space) ? space : null, s && /^\d{4}$/.test(s) ? s : null).toString()}`;
   }
   return "/";
 }

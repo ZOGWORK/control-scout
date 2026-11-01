@@ -39,8 +39,10 @@ export function usePredictable(season: number): boolean {
 
 /** True while a CSS media query matches (e.g. phone width), following changes. */
 export function useMediaQuery(query: string): boolean {
-  const [on, setOn] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  // No matchMedia (an old browser, a test runner): never matches.
+  const [on, setOn] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches);
   useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
     const m = window.matchMedia(query);
     const fn = () => setOn(m.matches);
     fn();

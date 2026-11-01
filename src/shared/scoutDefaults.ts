@@ -51,9 +51,11 @@ const PIT: ScoutField[] = [
   { id: "drivetrain", label: "Drivetrain", type: "choice", phase: "pit", options: ["Mecanum", "Tank", "Swerve", "Other"] },
   { id: "autoRoutines", label: "Auto routines", type: "counter", phase: "pit", max: 10 },
   { id: "preferredStart", label: "Preferred start", type: "choice", phase: "pit", options: ["Near", "Far", "Either"] },
-  { id: "endgameCapable", label: "Can do the endgame", type: "toggle", phase: "pit" },
-  { id: "canDefend", label: "Willing to play defense", type: "toggle", phase: "pit" },
-  { id: "weight", label: "Robot weight (lb)", type: "counter", phase: "pit", max: 60 },
+  // Ids and labels are what entries and the CSV export have always used: only the controls changed (a yes, then
+  // what; a weight typed in, in lb). Old answers read the same (true / false, a number).
+  { id: "endgameCapable", label: "Can do the endgame", type: "toggleDetail", phase: "pit", detail: "What, and how reliably?" },
+  { id: "canDefend", label: "Willing to play defense", type: "toggleDetail", phase: "pit", detail: "How? Pushing, blocking, notes" },
+  { id: "weight", label: "Robot weight (lb)", type: "number", phase: "pit", max: 200, unit: "lb" },
 ];
 
 /** The built-in default template (Personal, and any workspace that hasn't customised that kind). */

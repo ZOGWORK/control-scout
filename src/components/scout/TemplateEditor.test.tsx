@@ -103,7 +103,7 @@ describe("TemplateEditor", () => {
     const fields = [{ id: "climb", label: "Climbed the bar", type: "toggle" as const, phase: "endgame" as const }];
     show({ workspaceId: "901", season: 2025, version: 3, settingsVersion: 3, match: fields, pit: null, updatedAt: null, updatedBy: "Coach" });
     fireEvent.click(screen.getByRole("radio", { name: /Preview/ }));
-    expect(screen.getByRole("switch", { name: "Climbed the bar" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Climbed the bar", pressed: false })).toBeTruthy();
     expect(screen.getByText(/Version 3 · saved by Coach/)).toBeTruthy();
   });
 });
