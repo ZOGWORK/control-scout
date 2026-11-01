@@ -88,19 +88,27 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
   const v = (async () => {
     const [recs, { official }] = await Promise.all([seasonRecordings(season), seasonData(season)]);
     const out = new Map<string, "clips" | "recording">();
-    const timed = [...recs].filter(([, r]) => r.meta?.status === "ok" && timingTrusted(r.meta));
+    // Every recording with a broadcast start: whether its timing holds can depend on the event's last match (timingTrusted).
+    const timed = [...recs].filter(([, r]) => r.meta?.status === "ok" && r.meta.start);
     const withClip = new Set<string>();
     for (let i = 0; i < timed.length; i += 200) {
       const part = timed.slice(i, i + 200);
       const rows = await all<{ code: string; time: string; timezone: string | null }>(
         `SELECT m.code, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
          WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
-      const by = new Map(part);
+      const starts = new Map<string, string[]>();
       for (const r of rows) {
-        const code = String(r.code);
-        if (withClip.has(code) || !actualStart(r.time)) continue;
+        if (!actualStart(r.time)) continue;
         const ms = localToUtcMs(r.time, r.timezone);
-        if (ms != null && clipSecond(new Date(ms).toISOString(), by.get(code)!.meta!, now) != null) withClip.add(code);
+        if (ms == null) continue;
+        const code = String(r.code);
+        (starts.get(code) ?? starts.set(code, []).get(code)!).push(new Date(ms).toISOString());
+      }
+      for (const [code, rec] of part) {
+        const s = starts.get(code);
+        if (!s) continue;
+        const timing = { ...rec.meta!, lastMatch: lastStart(s) };
+        if (timingTrusted(timing) && s.some((at) => clipSecond(at, timing, now) != null)) withClip.add(code);
       }
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
@@ -122,10 +130,16 @@ export async function eventRecording(season: number, code: string): Promise<Reco
 
 export const recordingStream = (r: Recording): EventStream => ({ videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source === "first" ? { source: "first" as const } : {}) });
 
+/** The latest of some UTC ISO times, or null. */
+const lastStart = (times: (string | null | undefined)[]) => times.reduce<string | null>((a, t) => (t && (!a || Date.parse(t) > Date.parse(a)) ? t : a), null);
+
 /** The matches with their place in the recording (clip); the given objects are never changed. */
 export function withClips(matches: MatchView[], r: Recording | null, now = Date.now()): MatchView[] {
-  const m = r?.meta;
-  if (!r || !m || m.status !== "ok" || !timingTrusted(m)) return matches;
+  const meta = r?.meta;
+  if (!r || !meta || meta.status !== "ok") return matches;
+  // The event's last played match with a real start, so a recording trimmed at the event's end is told from one with a gap.
+  const m = { ...meta, lastMatch: lastStart(matches.filter((x) => x.played && actualStart(x.time)).map((x) => x.startsAt)) };
+  if (!timingTrusted(m)) return matches;
   return matches.map((x) => {
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
     const t = x.played && actualStart(x.time) ? clipSecond(x.startsAt, m, now) : null;

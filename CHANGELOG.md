@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.0.3 — 2026-11-01
+
+Matches link to their moment in the event's video again when the stream was left running after the event.
+
+### Highlights
+- [live] Match timestamps show for streams cut at the event's end
+- [live] Each match jumps to its own moment in the recording
+- [live] A video with a real gap mid-event still shows no timestamps
+
+### Live
+- **Trimmed recordings get timestamps.** A stream left running for hours after an event, then cut where the event ended, made its video much shorter than its broadcast. That looked the same as a stream that dropped out mid-event, so every match lost its timestamp (Salk League Meet: 10 h 26 min broadcast, 5 h 10 min video). The event's last match now tells the two apart. When the video ends within half an hour of the last match's start, and the broadcast ran on afterwards for at least as long as is missing, the missing time is all after the event and every match keeps its second. A video that loses time during the event still gets no timestamps, so no match lands on the wrong one (#PR).
+
 ## 2.0.2 — 2026-11-01
 
 Compare's brief is spaced out and easier to scan.
