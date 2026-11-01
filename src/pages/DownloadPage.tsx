@@ -95,6 +95,9 @@ export default function DownloadPage() {
   );
 }
 
+/** ", 2023–24 to 2026–27" (or one season) for the seasons a pack covers; nothing for none (a pack built before any ratings). */
+export const seasonSpan = (seasons: number[]) => !seasons.length ? "" : seasons.length === 1 ? `, ${seasonLabel(seasons[0])}` : `, ${seasonLabel(Math.min(...seasons))} to ${seasonLabel(Math.max(...seasons))}`;
+
 function LiteStatus({ local, m, syncing, waiting, onGet }: { local: PackMeta | null; m: PackManifest; syncing: boolean; waiting: boolean; onGet: () => void }) {
   if (!m.lite) return null;
   const current = local?.version === m.version;
@@ -102,7 +105,7 @@ function LiteStatus({ local, m, syncing, waiting, onGet }: { local: PackMeta | n
     <p className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm" role="status">
       {current || (local && !syncing) ? <CheckCircle2 className="size-4 text-success" /> : syncing ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <WifiOff className="size-4 text-muted-foreground" />}
       {current
-        ? <span>Offline predictions are ready on this device: lite pack {local!.version} ({fmtBytes(local!.bytes)}, {m.lite.seasons.length === 1 ? seasonLabel(m.lite.seasons[0]) : `${seasonLabel(Math.min(...m.lite.seasons))} to ${seasonLabel(Math.max(...m.lite.seasons))}`}), saved automatically {ago(new Date(local!.savedAt).toISOString())}.</span>
+        ? <span>Offline predictions are ready on this device: lite pack {local!.version} ({fmtBytes(local!.bytes)}{seasonSpan(m.lite.seasons)}), saved automatically {ago(new Date(local!.savedAt).toISOString())}.</span>
         : syncing
           ? <span>Getting offline predictions ready on this device ({local ? `updating ${local.version} → ${m.version}` : fmtBytes(m.lite.bytes)})…</span>
           : waiting
