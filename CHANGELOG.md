@@ -15,17 +15,30 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.1.3 — 2026-11-01
+## 2.1.4 — 2026-11-01
 
 Bruno's answer on Search shows up as he writes it.
 
 ### Highlights
 - [speed] Bruno's answer on Search appears word by word, not after a wait
 - [speed] Same answer as before, checked the same way before it shows
-- [fixes] A dropped connection mid-answer still ends with his whole answer, shown once
+- [fixes] A dropped connection mid-answer still ends with his answer, once
 
 ### Search
 - **Bruno's answer streams in.** A question on /search used to show a placeholder until Bruno had written his whole answer; now his sentence and points appear as he writes them and end at exactly the answer he gave before. Every part is checked against the records before it shows (a number still being written waits for its last digit), and a part with a number the records don't have is taken back. If the stream breaks, the page keeps what it showed and fetches the answer the old way, once. Same model call, prompt and cache. (#415)
+
+## 2.1.3 — 2026-11-01
+
+A lighter install: one unused library gone, and the brand images are WebP.
+
+### Highlights
+- [speed] The 404 page's brand mark is a smaller WebP image
+- [offline] The offline copy stores the WebP brand images, a little smaller
+- [speed] One unused library removed from the app
+
+### Speed
+- **Brand images as WebP.** The bare mark (404 page) and the wordmark are now WebP like the rest of the app's images: 19 KB → 14.5 KB and 14 KB → 12.7 KB. The PNG mark stays for the share-card renderer. (#411)
+- **One unused library removed.** The command-menu package was left over from the old search box; nothing used it.
 
 ## 2.1.2 — 2026-11-01
 
