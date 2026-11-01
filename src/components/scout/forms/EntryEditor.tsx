@@ -116,8 +116,8 @@ export function EntryEditor(p: EntryEditorProps) {
   const [checking, setChecking] = useState(false);
   const teamRef = useRef<HTMLInputElement>(null);
   const saveRef = useRef<HTMLButtonElement>(null);
-  const latest = useRef({ teamText, matchLabel, data, notes, space, template, fieldsLocked });
-  latest.current = { teamText, matchLabel, data, notes, space, template, fieldsLocked };
+  const latest = useRef({ teamText, matchLabel, data, notes, space, template, fieldsLocked, eventCode });
+  latest.current = { teamText, matchLabel, data, notes, space, template, fieldsLocked, eventCode };
   // The server version this edit started from (Task 16): a newer one arriving while open is one this save never saw.
   const draftBase = useRef(initial ? scoutDraftBase(initial) : undefined);
   const open = useRef(true);
@@ -140,6 +140,7 @@ export function EntryEditor(p: EntryEditorProps) {
     }
     if (latest.current.teamText !== team) return; // changed while checking: the next Save checks the new one
     if (latest.current.space !== space) return; // switched spaces while checking
+    if (latest.current.eventCode !== eventCode) { setChecking(false); return; } // another event picked while checking: the next Save is there
     if (err) { setTeamErr(err); return; }
     const { matchLabel: label, data: all, notes, template, fieldsLocked } = latest.current;
     // Match may have been cleared while the team was being checked.

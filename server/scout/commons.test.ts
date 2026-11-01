@@ -316,6 +316,15 @@ describe("scouting commons: the layer and the owner's count", () => {
     expect(c.data).toEqual({ weight: 42 }); // same question, other spacing and case
   });
 
+  it("a number field in another unit (same id and label) stays apart", async () => {
+    const { fieldGrouper } = await import("./commons");
+    const group = fieldGrouper();
+    const w = { id: "weight", label: "Weight", type: "number" as const, phase: "pit" as const, max: 200 };
+    expect(group([{ ...w, unit: "lb" }], { weight: 40 }).data).toEqual({ weight: 40 });
+    expect(group([{ ...w, unit: "kg" }], { weight: 18 }).data).toEqual({ "weight~2": 18 });
+    expect(group([{ ...w, unit: " LB" }], { weight: 41 }).data).toEqual({ weight: 41 });
+  });
+
   it("a reader who joins a workspace stops seeing its shares as commons within the refresh, no sign-in needed", async () => {
     const { adminA, loner, owner } = await cast();
     await openEvent(owner);

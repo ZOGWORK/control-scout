@@ -66,6 +66,18 @@ describe("TeamPicker", () => {
     expect(value).toBe("31337");
   });
 
+  it("the arrow keys reach Use team for a number off the list, even when listed teams match too", () => {
+    let value = "";
+    render(<TeamPicker teams={teams} value="" onChange={(v) => { value = v; }} />);
+    const box = screen.getByRole("combobox", { name: "Team" });
+    fireEvent.change(box, { target: { value: "10" } }); // 102 and 1020 match; 10 isn't listed
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    fireEvent.keyDown(box, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: /Use team 10/ }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(value).toBe("10");
+  });
+
   it("shows its error inline", () => {
     render(<TeamPicker teams={teams} value="" onChange={() => {}} error="Pick the team first." />);
     expect(screen.getByText("Pick the team first.")).toBeTruthy();
