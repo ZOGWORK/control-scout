@@ -114,6 +114,44 @@ export async function brunoSearchAnswer(question: string, facts: string[], timeo
   return internal<{ text: string | null; points?: unknown }>("/internal/bruno/search-answer", { method: "POST", body: { question, facts } }, timeoutMs);
 }
 
+/**
+ * The same call, streamed (Accept: application/x-ndjson): `onRaw` gets the model's raw reply so far each time a piece
+ * arrives, and the result is the same answer brunoSearchAnswer gives. A Control Point that answers plain JSON (the
+ * whole answer at once, or an error) is read as brunoSearchAnswer reads it. Throws on network errors, timeouts,
+ * non-2xx answers, an error line, and a stream that ends without its answer.
+ */
+export async function brunoSearchAnswerStream(question: string, facts: string[], timeoutMs: number, onRaw: (raw: string) => void): Promise<{ text: string | null; points?: unknown }> {
+  const res = await fetch(`${env.controlPointInternalUrl!.replace(/\/$/, "")}/internal/bruno/search-answer`, {
+    method: "POST",
+    headers: { "X-Internal-Key": env.controlPointInternalKey!, "Content-Type": "application/json", Accept: "application/x-ndjson" },
+    body: JSON.stringify({ question, facts }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!/application\/x-ndjson/.test(res.headers.get("content-type") ?? "") || !res.body) {
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw Object.assign(new Error((data as { error?: string } | null)?.error ?? `Control Point answered ${res.status}`), { status: res.status });
+    return data as { text: string | null; points?: unknown };
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let raw = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    buffer += decoder.decode(value, { stream: !done });
+    const lines = buffer.split("\n");
+    buffer = done ? "" : lines.pop()!;
+    for (const l of lines) {
+      if (!l.trim()) continue;
+      const o = JSON.parse(l) as { d?: unknown; answer?: { text: string | null; points?: unknown }; error?: unknown };
+      if (typeof o.d === "string") { raw += o.d; onRaw(raw); }
+      else if (o.answer) { reader.cancel().catch(() => {}); return o.answer; }
+      else if (o.error) throw new Error(String(o.error));
+    }
+    if (done) throw new Error("stream_ended");
+  }
+}
+
 /** When each account answer was asked for: an answer asked before Scout dropped a membership can't restore it (withoutDropped). */
 const askedAtOf = new WeakMap<object, number>();
 const stamped = <T extends object>(a: T, asked: number): T => { askedAtOf.set(a, asked); return a; };

@@ -1,10 +1,12 @@
 // Bruno's written answer on /search (server/api/searchBrunoAnswer.ts): a question ("how many times did 4215 go to
 // states") gets a sentence from Bruno AI above the results, then a bullet per record behind it, written only from the records search found
 // for it. Asked once the question has settled (not per letter) and search's results are in; nothing is shown while
-// he's off, unreachable or has nothing to add, so the page never waits on him.
+// he's off, unreachable or has nothing to add, so the page never waits on him. His answer streams in as he writes it
+// (lib/brunoStream.ts), each part already checked; the note says it's his only once he's done.
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import { streamBrunoAnswer, type BrunoAnswerBody } from "../../lib/brunoStream";
 import { useServerFlag } from "../../lib/flags";
 import { isBrunoQuestion } from "../../shared/search";
 import { cn } from "../cn";
@@ -24,13 +26,19 @@ ${prefer}`;
   useEffect(() => {
     if (!asks) return undefined;
     let live = true;
+    const stop = new AbortController();
     const t = setTimeout(() => {
       setState({ key, text: null, points: [], busy: true });
-      apiFetch<{ text: string; points?: string[] } | null>(`/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`)
-        .then((r) => { if (live) setState({ key, text: r?.text ?? null, points: r?.points ?? [], busy: false }); })
-        .catch(() => { if (live) setState({ key, text: null, points: [], busy: false }); });
+      const url = `/api/search/bruno?q=${encodeURIComponent(query)}${prefer ? `&prefer=${encodeURIComponent(prefer)}` : ""}`;
+      const show = (r: BrunoAnswerBody | null) => { if (live) setState({ key, text: r?.text ?? null, points: r?.points ?? [], busy: false }); };
+      const none = () => { if (live) setState({ key, text: null, points: [], busy: false }); };
+      // Streamed: his answer shows as he writes it. A stream that breaks keeps what's shown and asks the plain way,
+      // which shares the same model call on the server (or its cached answer), and replaces it with the answer.
+      streamBrunoAnswer(`${url}&stream=1`, (p) => { if (live) setState({ key, text: p?.text ?? null, points: p?.points ?? [], busy: true }); }, stop.signal)
+        .then(show)
+        .catch(() => { if (live) apiFetch<BrunoAnswerBody | null>(url).then(show).catch(none); });
     }, BRUNO_SETTLE_MS);
-    return () => { live = false; clearTimeout(t); };
+    return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key]);
   if (!asks || state.key !== key || (!state.busy && !state.text)) return null;
   return (
@@ -39,7 +47,7 @@ ${prefer}`;
       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
         <Sparkles className={cn("size-3.5 shrink-0", state.busy && "animate-pulse")} />Bruno AI
       </p>
-      {state.busy
+      {!state.text
         ? <div className="mt-2.5 space-y-1.5" aria-label="Bruno is reading the results"><div className="h-3 w-11/12 animate-pulse rounded bg-violet-400/20" /><div className="h-3 w-7/12 animate-pulse rounded bg-violet-400/20" /></div>
         : (
           <>

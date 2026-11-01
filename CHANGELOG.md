@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.1.6 — 2026-11-01
+## 2.1.7 — 2026-11-01
 
 Long lists scroll smoothly on phones.
 
@@ -26,6 +26,18 @@ Long lists scroll smoothly on phones.
 
 ### Speed
 - **Long lists render only what's on screen.** Match lists (an event's schedule, a team's season), an event's standings and its records tables, once past 60 rows, now draw the rows in view plus a few either side; spacers keep the page its full height, so the scrollbar and Back to where you were behave as before. Short lists are unchanged. Find in page (Ctrl/⌘+F) and printing still get every row, keyboard focus is never dropped, and screen readers still hear the table's full row count. (#416)
+
+## 2.1.6 — 2026-11-01
+
+Bruno's answer on Search shows up as he writes it.
+
+### Highlights
+- [speed] Bruno's answer on Search appears word by word, not after a wait
+- [speed] Same answer as before, checked the same way before it shows
+- [fixes] A dropped connection mid-answer still ends with his answer, once
+
+### Search
+- **Bruno's answer streams in.** A question on /search used to show a placeholder until Bruno had written his whole answer; now his sentence and points appear as he writes them and end at exactly the answer he gave before. Every part is checked against the records before it shows (a number still being written waits for its last digit), and a part with a number the records don't have is taken back. If the stream breaks, the page keeps what it showed and fetches the answer the old way, once. Same model call, prompt and cache. (#415)
 
 ## 2.1.5 — 2026-11-01
 
