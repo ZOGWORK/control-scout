@@ -167,7 +167,7 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
     }
     // The team's page on that season first (its events, ranks and records), then the region's rankings.
     // (A season named in the query is already on the team's subtitle and link: searchAnswer's own season rule.)
-    if (team) hits.push({ ...team, linkSeason: s, section: "events", subtitle: season != null ? team.subtitle : [seasonLabel(s), team.subtitle].filter(Boolean).join(" · "), facts: undefined, events: undefined });
+    if (team) hits.push({ ...team, linkSeason: s, section: "ranking", subtitle: season != null ? team.subtitle : [seasonLabel(s), team.subtitle].filter(Boolean).join(" · "), facts: undefined, events: undefined });
     hits.push(view);
   } else if (compare || team) {
     const top = base.hits[0];

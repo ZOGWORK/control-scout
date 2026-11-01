@@ -1,5 +1,5 @@
 {
-  "at": "2026-11-01T00:52:21.467Z",
+  "at": "2026-11-01T02:29:53.678Z",
   "results": [
     {
       "id": "T1",
@@ -185,8 +185,8 @@
       "name": "Bruno timeout or error → search's own results stand alone",
       "pass": true,
       "evidence": [
-        "slow: base step=did-you-mean didYouMean=\"Bad Wolf\" top=team 6980 n=12; refine → null (nothing added) in 3010 ms",
-        "error: base step=did-you-mean didYouMean=\"Bad Wolf\" top=team 6980 n=12; refine → null (nothing added) in 19 ms"
+        "slow: base step=did-you-mean didYouMean=\"Bad Wolf\" top=team 6980 n=12; refine → null (nothing added) in 3017 ms",
+        "error: base step=did-you-mean didYouMean=\"Bad Wolf\" top=team 6980 n=12; refine → null (nothing added) in 9 ms"
       ]
     },
     {
@@ -368,8 +368,8 @@
       "evidence": [
         "\"hypnotic opr 2024-25\" → step=deterministic top=team 4215 n=1",
         "\"hypnotic opr last season\" → step=deterministic top=team 4215 n=1",
-        "2024-25 facts OPR: 144.8 | OPR rank: #370 of 7,608 | Event OPR: 117.3 at New Jersey Championship - Turnpike Division | Season: 2024–25 (database 144.82) link /teams/4215?season=2024",
-        "last season facts OPR: 101.6 | OPR rank: #616 of 8,375 | Event OPR: 101.6 at New Jersey Championship - Parkway Division | Season: 2025–26 link /teams/4215?season=2025"
+        "2024-25 facts OPR: 144.8 | OPR rank: #370 of 7,608 | Event OPR: 117.3 at New Jersey Championship - Turnpike Division | Season: 2024–25 (database 144.82) link /teams/4215?season=2024#opr",
+        "last season facts OPR: 101.6 | OPR rank: #616 of 8,375 | Event OPR: 101.6 at New Jersey Championship - Parkway Division | Season: 2025–26 link /teams/4215?season=2025#opr"
       ]
     },
     {
@@ -412,7 +412,7 @@
       "name": "deterministic p50/p95 reported; AI/ML never slows the first result",
       "pass": true,
       "evidence": [
-        "60 searches (12 queries × 5, warm): p50 62 ms, p95 1435 ms"
+        "60 searches (12 queries × 5, warm): p50 35 ms, p95 781 ms"
       ]
     },
     {
@@ -461,7 +461,7 @@
       "evidence": [
         "\"4215 ranking at last year's Decode season, state of New Jersey\" → step=deterministic top=team 4215 n=2",
         "intent {\"kind\":\"season-region-ranking\",\"pattern\":\"[team] ranking [season] [region]\",\"met\":true,\"understood\":[\"Team 4215 Hypnotic Robotics\",\"Season 2025–26 (DECODE)\",\"Region: New Jersey\",\"Rankings\"]}",
-        "  team 4215 link /teams/4215?season=2025#events | 4215 Hypnotic Robotics | 2025–26 · Oradell, NJ, USA | ",
+        "  team 4215 link /teams/4215?season=2025#ranking | 4215 Hypnotic Robotics | 2025–26 · Oradell, NJ, USA | ",
         "  place USA:NJ → /rankings?season=2025&region=USA%3ANJ link /rankings?season=2025&region=USA%3ANJ | New Jersey rankings, 2025–26 | Every ranked team in New Jersey | New Jersey rank: #8 of 193 | World rank: #503 | Season: 2025–26",
         "POST /api/search/click → 204; search_intents row {\"count\":1,\"met\":1,\"last_seen\":\"2026-11-01\"}"
       ]
