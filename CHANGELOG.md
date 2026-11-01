@@ -25,7 +25,7 @@ Offline data updates itself on Wi-Fi: no more pop-ups asking you to update it.
 - [offline] Prefer to be asked? Pick "Ask me" in Settings › Offline data
 
 ### Offline
-- **Updates without asking.** "Download automatically" is now the default for saved seasons' updates, so a newer release downloads in the background instead of showing a pop-up and a notification. Where the browser doesn't say whether it's on Wi-Fi (Safari and every iPhone), it counts as Wi-Fi rather than asking. Known mobile data with "Wi-Fi only", or Data Saver on, waits quietly until the connection allows it. Anyone who chose "Ask me" is still asked. (#PR)
+- **Updates without asking.** "Download automatically" is now the default for saved seasons' updates, so a newer release downloads in the background instead of showing a pop-up and a notification. Where the browser doesn't say whether it's on Wi-Fi (Safari and every iPhone), it counts as Wi-Fi rather than asking. Known mobile data with "Wi-Fi only", or Data Saver on, waits quietly until the connection allows it. Anyone who chose "Ask me" is still asked. (#409)
 
 ## 2.0.8 — 2026-11-01
 
