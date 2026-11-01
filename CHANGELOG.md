@@ -28,7 +28,7 @@ Scout once for all your teams: an admin of several team workspaces has every ent
 - **Saved in every team you run.** When you're an admin of more than one team workspace, each match or pit entry you save in one of them is also saved in the others, every time. Each team gets its own copy, made by you, in its history and activity feed, and its members can edit it like any of their entries. It happens on the server when the entry syncs, so an entry saved with no signal is copied once it goes up.
 - **Edits follow, deletes don't.** Changing your entry, in any of those teams, changes it in the others too. A teammate's change stays in their own team. Deleting it in one team leaves the others' copies alone, and a copy a team deleted stays deleted.
 - **Each team's own questions.** Answers go to the questions the other team asks with the same field; anything it doesn't ask, or that doesn't fit its version of the question, is left out there. Notes are copied as they are; photos stay with the entry they were added to.
-- **Only where you're an admin.** Entries saved in Personal, in a team where you're a member, or that a teammate made, stay where they are. A team whose scouting is paused or that's read-only gets nothing.
+- **Only where you're an admin.** Entries saved in Personal, in a team where you're a member, or that a teammate made, stay where they are. A team whose scouting is paused or that's read-only gets nothing. (#371)
 
 ## 1.7.0 — 2026-10-31
 
