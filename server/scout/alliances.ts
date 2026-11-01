@@ -304,6 +304,11 @@ export const copyUuid = (originWorkspace: string, originUuid: string) =>
   `cp-${createHash("sha256").update(`${originWorkspace}\n${originUuid}`).digest("hex").slice(0, 40)}`;
 
 const WS = "(SELECT id FROM workspaces WHERE cp_workspace_id = ?)";
+/**
+ * The copy is still queued when it's written: removing a team deletes its queue in the removal's own write, so a copy
+ * read for delivery before a removal and written after it is never made.
+ */
+const STILL_QUEUED = "EXISTS (SELECT 1 FROM scout_alliance_copy_queue q WHERE q.alliance_id = ? AND q.to_ws = ? AND q.origin_ws = ? AND q.origin_uuid = ?)";
 
 async function copyQueued(r: Row, to: string, toName: string, rows: any[]): Promise<void> {
   await serialized(to, async () => {
@@ -318,19 +323,21 @@ async function copyQueued(r: Row, to: string, toName: string, rows: any[]): Prom
       uuids.push(uuid);
       // A template of another workspace isn't readable here: the copy reads with the built-in fields (as consensus would).
       const ownTemplate = !parseWorkspaceTemplateId(e.template_id ?? null);
+      const queued = [r.id, to, e.origin_ws, e.origin_uuid];
       stmts.push({
         sql: `INSERT INTO workspace_scout_entries
                 (workspace_id, uuid, season, team, event_code, match_label, kind, data, notes, updated_at, deleted,
                  author_account_id, author_name, editor_account_id, editor_name, template_id, template_version, seq)
-              VALUES (${WS}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?,
-                (SELECT COALESCE(MAX(s.seq), 0) + 1 FROM workspace_scout_entries s WHERE s.workspace_id = ${WS}))
+              SELECT ${WS}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?,
+                (SELECT COALESCE(MAX(s.seq), 0) + 1 FROM workspace_scout_entries s WHERE s.workspace_id = ${WS})
+               WHERE ${STILL_QUEUED}
               ON CONFLICT(workspace_id, uuid) DO NOTHING`,
         args: [to, uuid, e.season, e.team, e.event_code, e.match_label, e.kind, e.data, e.notes ?? "", e.updated_at,
           e.author_account_id, e.author_name ?? "", e.editor_account_id, e.editor_name ?? "",
-          ownTemplate ? e.template_id ?? null : null, ownTemplate ? e.template_version ?? null : null, to],
+          ownTemplate ? e.template_id ?? null : null, ownTemplate ? e.template_version ?? null : null, to, ...queued],
       }, ...versionStatements(to, uuid, before, { restored: false, fromVersion: null }), {
-        sql: "INSERT OR IGNORE INTO scout_alliance_copies (to_ws, copy_uuid, origin_ws, origin_uuid, alliance_id) VALUES (?, ?, ?, ?, ?)",
-        args: [to, uuid, e.origin_ws, e.origin_uuid, r.id],
+        sql: `INSERT OR IGNORE INTO scout_alliance_copies (to_ws, copy_uuid, origin_ws, origin_uuid, alliance_id) SELECT ?, ?, ?, ?, ? WHERE ${STILL_QUEUED}`,
+        args: [to, uuid, e.origin_ws, e.origin_uuid, r.id, ...queued],
       }, {
         sql: "DELETE FROM scout_alliance_copy_queue WHERE alliance_id = ? AND to_ws = ? AND origin_ws = ? AND origin_uuid = ?",
         args: [r.id, to, e.origin_ws, e.origin_uuid],
