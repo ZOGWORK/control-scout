@@ -544,8 +544,9 @@ function TableSkeleton() {
 // header row, FloatingHead, reuses them).
 const th = "bg-card shadow-[inset_0_-2px_0_color-mix(in_srgb,var(--color-text-base)_20%,transparent)] h-10 whitespace-nowrap px-3 pb-2 align-bottom text-[11px] font-bold uppercase tracking-wider max-sm:h-10 max-sm:px-2.5 max-sm:pb-2";
 // Body cells: dense on a laptop too (about twice the rows in the first screen at 1440x900, and more columns before
-// the table scrolls sideways); a phone keeps its own sizes (the max-sm: values).
-const td = "density-row px-3 py-1.5 max-sm:px-2.5 max-sm:py-2";
+// the table scrolls sideways); a phone keeps its own sizes (the max-sm: values). A touch screen wider than a phone
+// (a tablet) keeps rows 44px tall, so one row's compare box can't take a tap meant for the next (tap-44).
+const td = "density-row px-3 py-1.5 max-sm:px-2.5 max-sm:py-2 sm:pointer-coarse:py-3";
 // Grid lines a step stronger than the app's hairlines: rows and columns stay easy to follow across a wide table.
 const grid = "border-text-base/15";
 const sticky = "sticky left-0 z-10 bg-card shadow-[1px_0_0_color-mix(in_srgb,var(--color-text-base)_22%,transparent)]";
