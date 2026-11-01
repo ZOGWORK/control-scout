@@ -26,7 +26,7 @@ The search results page lines up with every other page.
 
 ### Spacing
 - **Search results page.** It was the one page centred in its own column, its title 190px in from where every other page starts. It now starts at the page's gutter (33px on a laptop, 14px on a phone, measured) and the column is one step wider.
-- **Checked, unchanged.** Page side padding on sixteen pages at 1440 and 390 wide, sticky bars on six long pages at three scroll depths (no two bars overlap), filter bars and sheets at phone width, and the footer at the foot of short pages.
+- **Checked, unchanged.** Page side padding on sixteen pages at 1440 and 390 wide, sticky bars on six long pages at three scroll depths (no two bars overlap), filter bars and sheets at phone width, and the footer at the foot of short pages (#387).
 
 ## 1.8.6 — 2026-11-01
 
