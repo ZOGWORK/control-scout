@@ -15,6 +15,16 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 1.7.9 — 2026-10-31
+
+The owner portal's Slowest routes shows routes that are really slow, not live connections left open for hours.
+
+### Highlights
+- [fixes] Slowest routes no longer lists live streams that stayed open for hours
+
+### Owner portal
+- **Live streams are timed to the moment they open.** The notification inbox, advancement odds and workspace live streams stay open as long as their page does, so timing them until they closed put hours-long "latencies" at the top of Slowest routes. They now count how long they took to open, and a reader leaving later is no error (an error is still counted when the stream is refused, as when live updates are switched off). Stream rows counted the old way are cleared once, so the last 14 days aren't skewed by them.
+
 ## 1.7.8 — 2026-10-31
 
 Press Enter for every result, and ask search a question: when a team went to Worlds, what it won, when it plays next.
