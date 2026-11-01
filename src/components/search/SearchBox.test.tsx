@@ -42,7 +42,7 @@ async function openWith(onPick: (h: SearchHit) => void) {
   const input = screen.getByLabelText("Search") as HTMLInputElement;
   act(() => input.focus());
   fireEvent.change(input, { target: { value: "bit" } });
-  await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(4)); // three results and "See all results"
+  await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(4), { timeout: 4000 }); // three results and "See all results", after the typing pause
   return input;
 }
 

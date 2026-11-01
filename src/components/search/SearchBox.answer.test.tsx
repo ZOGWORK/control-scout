@@ -54,6 +54,35 @@ describe("live search", () => {
     expect(screen.getByRole("option", { name: /4215 Hypnotic Robotics/ })).toBeTruthy();
     expect(onPick).not.toHaveBeenCalled();
   });
+  it("waits for typing to pause: nothing is asked letter by letter, and a pause shorter than the wait asks nothing", async () => {
+    const { input } = mount();
+    for (const v of ["w", "wo", "wor", "worl", "world"]) {
+      fireEvent.change(input, { target: { value: v } });
+      await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS - 100); });
+    }
+    expect(pending).toHaveLength(0);
+    await act(async () => { vi.advanceTimersByTime(105); });
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=world&")]);
+  });
+  it("Enter before the pause is over opens the full results page with one press", async () => {
+    const { input, onPick } = mount();
+    fireEvent.change(input, { target: { value: "bio buzz record" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledTimes(1);
+    expect(onPick.mock.calls[0][0].href).toBe("/search?q=bio%20buzz%20record");
+  });
+  it("a picker box (no results page): one Enter before its results are in asks now and opens the top one when they arrive", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} kinds={["team"]} seeAll={false} placeholder="Find a team" label="Find a team" />);
+    const input = screen.getByRole("combobox", { name: "Find a team" }) as HTMLInputElement;
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "hypno" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=hypno&")]); // no pause
+    expect(onPick).not.toHaveBeenCalled();
+    await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
+  });
   it("an older reply arriving last never replaces the newer one (T15)", async () => {
     const { input } = mount();
     await type(input, "bad");
