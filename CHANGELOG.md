@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 1.7.2 — 2026-10-31
+## 1.7.6 — 2026-10-31
 
 Setting up Scout takes fewer taps and no hunting for the next step.
 
@@ -32,6 +32,49 @@ Setting up Scout takes fewer taps and no hunting for the next step.
 - **One event picker.** "Where are you scouting?" is a search box with a short list under it (today's events first, then your team's, then the next ones; Show more for the rest), instead of a list and a separate "Search all events" box.
 - **Moved on after a pick.** Picking an event folds the list to one "Scouting at … · Change" row and brings what you're watching into view (no glide if you asked for reduced motion). A suggested or running event starts folded.
 - **Start in reach.** Once an event is picked, Start scouting is pinned at the bottom of the screen (above the tab bar on phones), bigger, and says what it will start ("Red alliance at …").
+
+## 1.7.4 — 2026-10-31
+
+Scout once for all your teams: an admin of several team workspaces has every entry they save kept in each of them.
+
+### Highlights
+- [workspace] Admin of several teams? Each entry you save goes to all of them
+- [scout] After Save, a line names every team it goes to
+- [workspace] Edit it in any of those teams and the others follow
+
+### Scouting
+- **Saved in every team you run.** When you're an admin of more than one team workspace, each match or pit entry you save in one of them is also saved in the others, every time. Each team gets its own copy, made by you, in its history and activity feed, and its members can edit it like any of their entries. It happens on the server when the entry syncs, so an entry saved with no signal is copied once it goes up.
+- **Edits follow, deletes don't.** Changing your entry, in any of those teams, changes it in the others too. A teammate's change stays in their own team. Deleting it in one team leaves the others' copies alone, and a copy a team deleted stays deleted.
+- **Each team's own questions.** Answers go to the questions the other team asks with the same field; anything it doesn't ask, or that doesn't fit its version of the question, is left out there. Notes are copied as they are; photos stay with the entry they were added to.
+- **Only where you're an admin.** Entries saved in Personal, in a team where you're a member, or that a teammate made, stay where they are. A team whose scouting is paused or that's read-only gets nothing. (#371)
+
+## 1.7.3 — 2026-10-31
+
+The Scout page's Data tab is sorted into a few large cards instead of one long list, so it's clear where to look.
+
+### Highlights
+- [scout] Data tab: big cards in three groups, your data first
+- [scout] Each card says one live count, like entries this season
+- [scout] Nothing scouted yet? The card says so, with a Start scouting button
+
+### Scout
+- **Grouped cards.** The Data tab's nine rows are now three groups. "Your data" holds Entries, Pit scouting and Match recordings; "Team planning" (workspaces only) holds Pick list, Assignments and Scouting alliance. Entries and Pick list are the wide cards, first in their group. On a phone the wide card fills the row and the others sit two to a row.
+- **One fact per card.** Each card shows a count it already has: entries in the season, pit progress at the session's event (or robots written up), videos on this device, and assignments open for you.
+- **Empty says what to do.** A card with nothing in it yet says how to start rather than showing 0, and the empty Entries card has a Start scouting button that opens the Match tab. A read-only workspace shows no button.
+- **Manage, kept quiet.** Activity, Template (admins) and Export CSV are plain buttons at the bottom. Export CSV still carries the entry list's filters. Every view the old list opened is still there (#370).
+
+## 1.7.2 — 2026-10-31
+
+Watch livestream plays on the event page again for events whose stream is a short link, such as Washington's ftcwa.live links.
+
+### Highlights
+- [live] Watch livestream plays on the page for short stream links too
+- [live] Live predictions sit beside those streams, like any other
+- [live] Each league meet keeps its own broadcast, even on a shared link
+
+### Live
+- **Short links followed.** Some regions give FIRST a short link for their stream (ftcwa.live/bardeen) that redirects to the meet's YouTube broadcast. The event page only recognised direct YouTube links, so Watch livestream opened YouTube in a new tab. The server now follows those links on the event's own dates (at the venue) and keeps the video they lead to. The page then plays it in Watch live with the live predictions beside it, and matches get their place in the recording. Each link is checked again every 15 minutes while it leads to a video, in case the broadcast restarts; a check that fails keeps the video found before. Only redirects are followed, never a page's content, and only to public addresses (#369).
+- **Each meet keeps its own video.** A league reuses one short link for every meet, pointing it at the new broadcast each time. The video is kept per event, so last month's meet still plays last month's broadcast, and a meet the next day never takes the one before's broadcast while the link still points at it.
 
 ## 1.7.1 — 2026-10-31
 

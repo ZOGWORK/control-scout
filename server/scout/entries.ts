@@ -31,6 +31,7 @@
 //   check, a fresh updatedAt, attributed to whoever restores; it's logged as
 //   entry.version_restored.
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
+import type { InStatement } from "@libsql/client";
 import { all, get, writeBatch } from "../db.js";
 import { controlPointEnabled, isWorkspaceId, linkedAccountId, MEMBERSHIP_TTL, membershipAnsweredAt, workspaceMembership, type Membership } from "../auth/controlPoint.js";
 import { formerMember, orphanState } from "./orphans.js";
@@ -245,7 +246,11 @@ const UPSERT = `INSERT INTO workspace_scout_entries
       OR (excluded.deleted = 0 AND workspace_scout_entries.deleted = 0))`; // mayWrite, in the same statement as the write
 
 /** Per entry. ok: the stored copy (ours, or a newer edit that beat it). error "forbidden": refused by mayWrite; `entry` is the server's copy for the device to put back. */
-export interface PushResult { uuid: string; ok: boolean; error?: string; reason?: EntryProblem; entry?: WorkspaceEntryOut }
+export interface PushResult {
+  uuid: string; ok: boolean; error?: string; reason?: EntryProblem; entry?: WorkspaceEntryOut;
+  /** The other workspaces this entry is also saved in (an admin of several: adminCopies.ts). Absent: none. */
+  copiedTo?: { workspaceId: string; name: string }[];
+}
 
 /**
  * Write a batch of entries into a workspace (membership already checked).
@@ -269,27 +274,7 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
     results.push({ uuid: e.uuid, ok: true });
   }
   if (!good.length) return results;
-  // Anything that must settle before this workspace's entries change (bus.ts: an alliance whose event is over ends first).
-  await beforeEntriesWrite(m.workspaceId);
-  // One write at a time per workspace, so the live streams get entries in seq order (bus.ts).
-  const stored = await serialized(m.workspaceId, async () => {
-    const before = await lastSeq(m.workspaceId);
-    const prior = await storedVersions(m.workspaceId, good.map((e) => e.uuid));
-    // Restores: which kept version each brings back (for its history row and the activity feed).
-    const restored = await versionsAt(m.workspaceId, good.filter((e) => e.restoredFrom != null).map((e) => ({ uuid: e.uuid, updatedAt: e.restoredFrom! })));
-    const rows = await writeWorkspaceEntries(user, m, good, before, prior, restored);
-    // Written by this push: a new seq (an entry beaten by a newer edit, refused, or resent unchanged, keeps its old one).
-    const written = [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq);
-    publishEntries(m.workspaceId, written);
-    // The activity feed, once the write has committed: only entries this push changed (never throws).
-    const sentNow = new Map(good.map((e) => [e.uuid, e]));
-    await logEntryWrites(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, written.map((after) => {
-      const fromAt = sentNow.get(after.uuid)?.restoredFrom;
-      const from = restored.get(after.uuid);
-      return { before: prior.get(after.uuid), after, ...(fromAt != null ? { restore: { fromAt, fromVersion: from?.versionNo ?? null, fromName: from?.name ?? null } } : {}) };
-    }));
-    return rows;
-  });
+  const { stored } = await writeIntoWorkspace(user, m, () => ({ entries: good }));
   const sent = new Map(good.map((e) => [e.uuid, e]));
   for (const r of results) {
     if (!r.ok) continue;
@@ -304,12 +289,49 @@ export async function pushWorkspaceEntries(user: User, m: Membership, raw: unkno
 const withoutSeq = ({ seq: _s, ...e }: LiveEntry): WorkspaceEntryOut => e;
 
 /**
+ * Write entries into one workspace as `m` (membership already checked): settle what must settle first
+ * (beforeEntriesWrite), then, one write at a time per workspace, upsert them (newer wins, mayWrite), add their
+ * versions, publish what changed in seq order and log it in the activity feed. `build` runs inside the serialized
+ * section with the stored versions of `uuids` (so what it decides can't be split by another write); it returns the
+ * entries to write and any statements to run in the same batch after them. Returns what's stored for each entry
+ * written, with its seq, and the entries `build` chose.
+ */
+export async function writeIntoWorkspace(user: User, m: Membership,
+  build: (prior: Map<string, EntryBefore>) => { entries: ScoutEntryInput[]; after?: InStatement[] }, uuids?: string[]): Promise<{ stored: Map<string, LiveEntry>; entries: ScoutEntryInput[] }> {
+  // Anything that must settle before this workspace's entries change (bus.ts: an alliance whose event is over ends first).
+  await beforeEntriesWrite(m.workspaceId);
+  // One write at a time per workspace, so the live streams get entries in seq order (bus.ts).
+  return serialized(m.workspaceId, async () => {
+    const before = await lastSeq(m.workspaceId);
+    const known = uuids ? await storedVersions(m.workspaceId, uuids) : null;
+    const plan = build(known ?? new Map());
+    const good = plan.entries;
+    if (!good.length) return { stored: new Map<string, LiveEntry>(), entries: good };
+    const prior = known ?? await storedVersions(m.workspaceId, good.map((e) => e.uuid));
+    // Restores: which kept version each brings back (for its history row and the activity feed).
+    const restored = await versionsAt(m.workspaceId, good.filter((e) => e.restoredFrom != null).map((e) => ({ uuid: e.uuid, updatedAt: e.restoredFrom! })));
+    const rows = await writeWorkspaceEntries(user, m, good, before, prior, restored, plan.after ?? []);
+    // Written by this push: a new seq (an entry beaten by a newer edit, refused, or resent unchanged, keeps its old one).
+    const written = [...rows.values()].filter((e) => e.seq > before).sort((a, b) => a.seq - b.seq);
+    publishEntries(m.workspaceId, written);
+    // The activity feed, once the write has committed: only entries this push changed (never throws).
+    const sentNow = new Map(good.map((e) => [e.uuid, e]));
+    await logEntryWrites(m.workspaceId, { accountId: m.accountId, name: writerName(user) }, written.map((after) => {
+      const fromAt = sentNow.get(after.uuid)?.restoredFrom;
+      const from = restored.get(after.uuid);
+      return { before: prior.get(after.uuid), after, ...(fromAt != null ? { restore: { fromAt, fromVersion: from?.versionNo ?? null, fromName: from?.name ?? null } } : {}) };
+    }));
+    return { stored: rows, entries: good };
+  });
+}
+
+/**
  * Upsert the entries (newer updatedAt wins) and read back what's stored for each, with its seq. Each write that
  * changes its entry (against `prior`, the stored versions read in this serialized section) also records a
  * version, in the same transaction, if the upsert took it (history.ts).
  */
 async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntryInput[], beforeSeq: number, prior: Map<string, EntryBefore>,
-  restored: Map<string, { versionNo: number }>): Promise<Map<string, LiveEntry>> {
+  restored: Map<string, { versionNo: number }>, after: InStatement[] = []): Promise<Map<string, LiveEntry>> {
   const now = new Date().toISOString(), name = writerName(user), bound = supersedeBound();
   await writeBatch([
     // Lazily: the workspace's first entry creates its mirror row.
@@ -325,6 +347,7 @@ async function writeWorkspaceEntries(user: User, m: Membership, good: ScoutEntry
         ? versionStatements(m.workspaceId, e.uuid, beforeSeq, { restored: e.restoredFrom != null && !e.deleted, fromVersion: e.deleted ? null : restored.get(e.uuid)?.versionNo ?? null })
         : []),
     ]),
+    ...after,
   ]);
   return readLiveEntries(m.workspaceId, good.map((e) => e.uuid));
 }
@@ -339,7 +362,7 @@ function templateChanged(before: EntryBefore | undefined, e: ScoutEntryInput): b
 }
 
 /** The stored version of these entries before a write (for the activity feed: added, edited, deleted, or nothing). */
-async function storedVersions(workspaceId: string, uuids: string[]): Promise<Map<string, EntryBefore>> {
+export async function storedVersions(workspaceId: string, uuids: string[]): Promise<Map<string, EntryBefore>> {
   if (!uuids.length) return new Map();
   const rows = await all<any>(
     `SELECT w.uuid, w.deleted, w.season, w.team, w.event_code, w.match_label, w.kind, w.data, w.notes, w.template_id, w.template_version FROM workspace_scout_entries w
