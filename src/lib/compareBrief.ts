@@ -264,14 +264,16 @@ export function briefGroups(sentences: BriefSentence[]): { title: string; items:
 
 /** A sentence split into plain text and key numbers: decimals (56.3), records (0-2-0), counts of matches, events
  *  or points ("32 matches", "2 scored matches") and whole OPRs where the sentences put them ("81 to 157.9",
- *  "OPR 120 vs 98", "event OPR 112", "up 5", "4215 101 (10 matches)"). Team numbers, seasons and dates stay plain. */
+ *  "OPR 120 vs 98", "event OPR 112", "up 5", "4215 101 (10 matches)"), a negative OPR with its sign. Team numbers,
+ *  seasons and dates stay plain. */
+const SIGN = String.raw`(?:(?<=^|[\s(])-)?`;
 const KEY_NUMBER = new RegExp([
-  String.raw`\b\d+\.\d+\b`,
   String.raw`\b\d+-\d+-\d+\b`,
-  String.raw`\b\d+(?= (?:vs \d+ )?(?:more |scored |played )?(?:auto |TeleOp |endgame )?(?:matches|match|events|event|points|point)\b)`,
-  String.raw`\b\d+(?= (?:vs|to) \d)`,
-  String.raw`(?<=\b(?:vs|to|up|down) |\(event OPR )\d+\b`,
-  String.raw`\b\d+(?= \(\d+ match)`,
+  SIGN + String.raw`\b\d+\.\d+\b`,
+  String.raw`\b\d+(?= (?:vs -?\d+ )?(?:or more |more |scored |played )?(?:auto |TeleOp |endgame )?(?:matches|match|events|event|points|point)\b)`,
+  SIGN + String.raw`\b\d+(?= (?:vs|to) -?\d)`,
+  String.raw`(?<=\b(?:vs|to|up|down) |\(event OPR )-?\d+\b`,
+  SIGN + String.raw`\b\d+(?= \(\d+ match)`,
 ].join("|"), "g");
 export function keyNumbers(text: string): { text: string; key: boolean }[] {
   const out: { text: string; key: boolean }[] = [];

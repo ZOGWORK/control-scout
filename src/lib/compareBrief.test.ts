@@ -239,6 +239,13 @@ describe("helpers", () => {
     expect(keys("4215 and 6980 are level (best-event OPR 120 vs 98; 10 vs 11 matches).")).toEqual(["120", "98", "10", "11"]);
     expect(keys("best-event OPR 4215 101 (10 matches), 6980 99.5 (11 matches)")).toEqual(["101", "10", "99.5", "11"]);
     expect(keys("4215 at X on Mar 1, 2026 (event OPR 112, down 5 on its first event)")).toEqual(["112", "5"]);
+    // A gap with level teams at the top, and negative OPRs with their sign (whole or decimal).
+    expect(keys("1 and 2 are level at the top, 13 or more points per match ahead of 3: best-event OPR 1 90 (6 matches), 2 90 (6 matches) and 3 77 (6 matches).")).toEqual(["13", "90", "6", "90", "6", "77", "6"]);
+    expect(keys("4215 at X on Mar 1, 2026 (event OPR -15, down 20.5 on its first event)")).toEqual(["-15", "20.5"]);
+    expect(keys("Event OPR ranged 4215 -3.5 to 12 over 2 events and 6980 -8 to -2 over 2 events.")).toEqual(["-3.5", "12", "2", "-8", "-2", "2"]);
+    // The generator's own three-team sentence, end to end.
+    const T = (number: number, opr: number) => team(number, 6, [ev(`E${number}`, "2026-01-01", opr)]);
+    expect(keys(one(compareBrief(view([T(1, 90), T(2, 90), T(3, 77)])), "Overall").text)).toContain("13");
     const t = "Event OPR ranged 4215 52.4 to 101.6 over 5 events.";
     expect(keyNumbers(t).map((x) => x.text).join("")).toBe(t);
   });
