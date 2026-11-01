@@ -106,7 +106,7 @@ export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: numbe
     ro.observe(el);
     return () => ro.disconnect();
   }, [enabled]);
-  // The row holding focus (a row's button, a link in it), kept rendered while it is off screen. Known by its key,
+  // The row holding focus (a row's button, a link in it), kept rendered with its neighbours while it is off screen. Known by its key,
   // so a re-sort that moves it (live standings refreshing) still keeps that row.
   const keyOf = (i: number) => (key ? key(i) : i);
   const keyRef = useRef(keyOf);
@@ -131,8 +131,11 @@ export function useVirtualRows<E extends HTMLElement = HTMLElement>(count: numbe
     // Where the focused row is now (only looked for while a row has focus).
     let at = -1;
     for (let i = 0; i < r.count; i++) if (keyRef.current(i) === focused) { at = i; break; }
-    if (at >= 0 && !out.includes(at)) { out.push(at); out.sort((a, b) => a - b); }
-    return out;
+    if (at < 0) return out;
+    // With a row either side, so Tab and Shift+Tab from it reach the next and previous rows (and the browser
+    // scrolls them into view, bringing the window along), not whatever is rendered beyond the gap.
+    for (const i of [at - 1, at, at + 1]) if (i >= 0 && i < r.count && !out.includes(i)) out.push(i);
+    return out.sort((a, b) => a - b);
     // The rows' order is read through keyRef: while a row has focus, a re-sort (a new key function) looks again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focused, focused == null ? null : key]);

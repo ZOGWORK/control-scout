@@ -170,6 +170,10 @@ describe("keyboard focus", () => {
     const gap = container.querySelector<HTMLElement>("[data-gap]");
     expect(Number(gap?.dataset.gap)).toBeGreaterThan(400 * ROW_H);
     expect(container.textContent).toContain("Item 501");
+    // Its neighbours stay too, so Tab / Shift+Tab from it go to the next and previous rows, not across the gap.
+    const names = [...container.querySelectorAll("button")].map((b) => b.textContent);
+    expect(names.slice(0, 3)).toEqual(["Item 2", "Item 3", "Item 4"]);
+    expect(names).not.toContain("Item 5");
   });
 });
 
