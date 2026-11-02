@@ -1,98 +1,104 @@
 // @vitest-environment jsdom
-// The event picker: events on today first, then the ones your teams are at, then by date, with a search for the
-// rest. Each card says whether your teams compete there, how far scouting has got there (from the space's
-// entries), and has one action: Scout this event.
+// The event picker is the Events page's list: the same filter bar and cards by week, each card a link to its event
+// with its own Scout button under it. Your teams' events are marked and listed first as quick picks, and a card
+// says how far this space's scouting has got there once there's any.
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import type { EventListItem } from "../../../shared/api";
 
-const ev = (code: string, name: string, start: string, end = start, matchesTotal = 0, teams = 0) =>
-  ({ season: 2026, code, name, start, end, city: "Newark", state: "NJ", matchesTotal, teams }) as unknown as EventListItem;
+const ev = (code: string, name: string, start: string, status: EventListItem["status"], end = start, matchesTotal = 0, teams = 0) =>
+  ({ season: 2026, code, name, start, end, status, type: "Qualifier", typeLabel: "Qualifier", city: "Newark", state: "NJ", country: "USA", matchesTotal, matchesPlayed: 0, teams }) as unknown as EventListItem;
 // Today is Sat Nov 7 2026.
-const UPCOMING = [
-  ev("USNJQ3", "NJ Qualifier 3", "2026-11-14"),
-  ev("USNYQ1", "NY Qualifier 1", "2026-11-07", "2026-11-07", 30, 24),
-  ev("USNJQ2", "NJ Qualifier 2", "2026-11-21"),
-  ev("USNJCMP", "NJ Championship", "2027-02-20", "2027-02-21"),
+const EVENTS = [
+  ev("USNJQ3", "NJ Qualifier 3", "2026-11-14", "upcoming"),
+  ev("USNYQ1", "NY Qualifier 1", "2026-11-07", "live", "2026-11-07", 30, 24),
+  ev("USNJQ2", "NJ Qualifier 2", "2026-11-21", "upcoming"),
+  ev("USNJQ1", "NJ Qualifier 1", "2026-10-31", "finished", "2026-10-31", 28),
 ];
-const PAST = ev("USNJQ1", "NJ Qualifier 1", "2026-10-31", "2026-10-31", 28);
-const SEARCHABLE = [...UPCOMING, PAST, ev("USPAQ1", "Philadelphia Qualifier", "2026-12-05")];
+const asked: (string | null)[] = [];
+vi.mock("../../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 vi.mock("../../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/api")>()),
-  apiFetch: async (url: string) => {
-    const u = new URL(url, "http://x");
-    if (u.pathname.startsWith("/api/teams/")) return { events: [{ season: 2026, code: "USNJQ2", start: "2026-11-21", end: "2026-11-21" }, { season: 2026, code: "USNJQ1", start: "2026-10-31", end: "2026-10-31" }] };
-    if (u.searchParams.get("from")) return { events: UPCOMING };
-    const q = (u.searchParams.get("q") ?? "").toLowerCase();
-    return { events: SEARCHABLE.filter((e) => e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q)) };
-  },
+  useApi: (path: string | null) => (asked.push(path), { data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
+  apiFetch: async () => ({ events: [{ season: 2026, code: "USNJQ2", start: "2026-11-21", end: "2026-11-21" }, { season: 2026, code: "USNJQ1", start: "2026-10-31", end: "2026-10-31" }] }),
 }));
 
-const { EventChooser, orderEvents } = await import("./EventChooser");
+const { EventChooser, ourUpcoming } = await import("./EventChooser");
 
 beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(2026, 10, 7, 9, 0)); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
-const cards = () => within(screen.getByRole("list", { name: "Events" })).getAllByRole("listitem");
 const entry = (team: number, kind: "pit" | "match", eventCode: string, matchLabel: string | null = null) => ({ team, kind, eventCode, matchLabel });
+const card = (name: string) => screen.getByRole("listitem", { name });
+const show = (props: Partial<Parameters<typeof EventChooser>[0]> = {}) =>
+  render(<MemoryRouter><EventChooser season={2026} currentSeason={2026} onSeason={() => {}} entries={[]} ourTeams={[]} onPick={() => {}} {...props} /></MemoryRouter>);
 
-describe("orderEvents", () => {
-  it("puts events on today first, then your teams', then the rest by date, and leaves out finished ones", () => {
-    const rows = orderEvents([...UPCOMING, PAST], "2026-11-07", new Map([["USNJQ2", [4215]]]));
-    expect(rows.map((r) => r.event.code)).toEqual(["USNYQ1", "USNJQ2", "USNJQ3", "USNJCMP"]);
-    expect(rows[0]).toMatchObject({ today: true, ours: [] });
-    expect(rows[1]).toMatchObject({ today: false, ours: [4215] });
-  });
-  it("counts a multi-day event as on today through its last day", () => {
-    expect(orderEvents([ev("A", "A", "2026-11-06", "2026-11-08")], "2026-11-07")[0].today).toBe(true);
+describe("ourUpcoming", () => {
+  it("is your teams' events not over yet, by date", () => {
+    const ours = new Map([["USNJQ2", [4215]], ["USNJQ1", [4215]], ["USNYQ1", [99]]]);
+    expect(ourUpcoming(EVENTS, ours, "2026-11-07").map((e) => e.code)).toEqual(["USNYQ1", "USNJQ2"]);
   });
 });
 
 describe("EventChooser", () => {
-  it("lists events in order, marks where your team competes, and shows this space's progress there", async () => {
-    const entries = [entry(1, "pit", "USNYQ1"), entry(2, "pit", "USNYQ1"), entry(2, "pit", "USNYQ1"), entry(3, "match", "USNYQ1", "Q1"), entry(4, "match", "usnyq1", "q1"), entry(5, "match", "USNYQ1", "Q2"), entry(6, "pit", "USNJQ3")];
-    render(<EventChooser season={2026} entries={entries} ourTeams={[4215]} onPick={() => {}} />);
-    await waitFor(() => expect(cards()).toHaveLength(4));
-    expect(cards().map((c) => within(c).getAllByText(/Qualifier|Championship/)[0].textContent)).toEqual(["NY Qualifier 1", "NJ Qualifier 2", "NJ Qualifier 3", "NJ Championship"]);
-    const today = cards()[0];
-    expect(within(today).getByText("Today")).toBeTruthy();
-    // Two teams' pits out of 24, and two matches with entries out of 30 (Q1 counted once, however it's spelled).
-    expect(within(today).getByText("2 / 24")).toBeTruthy();
-    expect(within(today).getByText("2 / 30")).toBeTruthy();
-    expect(within(today).getByText("None of your teams are listed here")).toBeTruthy();
-    expect(within(cards()[1]).getByText("Your team 4215 is competing")).toBeTruthy();
-  });
-
-  it("says nothing about your teams when the account has none", async () => {
-    render(<EventChooser season={2026} entries={[]} ourTeams={[]} onPick={() => {}} />);
-    await waitFor(() => expect(cards()).toHaveLength(4));
-    expect(screen.queryByText(/your team/i)).toBeNull();
-  });
-
-  it("has one action per event, which picks it", async () => {
+  it("has the Events page's filter bar and cards, each with a link to the event and its own Scout button", async () => {
     const onPick = vi.fn();
-    render(<EventChooser season={2026} entries={[]} ourTeams={[]} onPick={onPick} />);
-    await waitFor(() => expect(cards()).toHaveLength(4));
-    expect(within(cards()[1]).getAllByRole("button")).toHaveLength(1);
-    fireEvent.click(within(cards()[1]).getByRole("button", { name: "Scout NJ Qualifier 3" }));
+    show({ onPick });
+    await waitFor(() => expect(card("NJ Qualifier 3")).toBeTruthy());
+    expect(screen.getByRole("button", { name: /^Place:/ })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Event type" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Live now/ })).toBeTruthy();
+    const c = card("NJ Qualifier 3");
+    expect(within(c).getByRole("link").getAttribute("href")).toBe("/events/2026/USNJQ3");
+    // The button sits beside the link, never inside it.
+    expect(within(within(c).getByRole("link")).queryByRole("button")).toBeNull();
+    fireEvent.click(within(c).getByRole("button", { name: "Scout NJ Qualifier 3" }));
     expect(onPick).toHaveBeenCalledWith("USNJQ3");
   });
 
-  it("keeps the event already picked on screen even when it's over, with a way back to it", async () => {
-    const onCancel = vi.fn();
-    render(<EventChooser season={2026} entries={[]} ourTeams={[]} current="USNJQ1" onPick={() => {}} onCancel={onCancel} />);
-    await waitFor(() => expect(cards()).toHaveLength(5));
-    expect(within(cards()[0]).getByText("Picked")).toBeTruthy();
-    expect(within(cards()[0]).getByRole("button", { name: "Scout NJ Qualifier 1" }).textContent).toContain("Keep scouting this event");
-    fireEvent.click(screen.getByRole("button", { name: "Back to USNJQ1" }));
-    expect(onCancel).toHaveBeenCalled();
+  it("lists every event type, practice days too (a pit can be scouted at any)", async () => {
+    show();
+    await waitFor(() => expect(card("NJ Qualifier 3")).toBeTruthy());
+    expect(asked.some((p) => p?.startsWith("/api/events") && new URL(p, "http://x").searchParams.get("all") === "1")).toBe(true);
   });
 
-  it("searches by name, city or code", async () => {
-    render(<EventChooser season={2026} entries={[]} ourTeams={[]} onPick={() => {}} />);
-    await waitFor(() => expect(cards()).toHaveLength(4));
-    fireEvent.change(screen.getByPlaceholderText("Search by event name, city or code"), { target: { value: "phila" } });
-    await waitFor(() => expect(cards()).toHaveLength(1));
-    expect(within(cards()[0]).getByText("Philadelphia Qualifier")).toBeTruthy();
+  it("filters like the Events page: by text and by status", async () => {
+    show();
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(4));
+    fireEvent.click(screen.getByRole("button", { name: /^Finished/ }));
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+    expect(card("NJ Qualifier 1")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^All/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Filter events" }), { target: { value: "NY" } });
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+    expect(card("NY Qualifier 1")).toBeTruthy();
+  });
+
+  it("marks your team's events, lists them first as quick picks, and shows this space's progress", async () => {
+    const onPick = vi.fn();
+    const entries = [entry(1, "pit", "USNYQ1"), entry(2, "pit", "USNYQ1"), entry(3, "match", "USNYQ1", "Q1"), entry(4, "match", "usnyq1", "q1")];
+    show({ onPick, ourTeams: [4215], entries });
+    await waitFor(() => expect(within(card("NJ Qualifier 2")).getByText("Your team 4215 is competing")).toBeTruthy());
+    expect(within(card("NJ Qualifier 3")).queryByText(/your team/i)).toBeNull();
+    // Two pits of 24, one match of 30 (Q1 counted once, however it's spelled).
+    expect(within(card("NY Qualifier 1")).getByText("2 / 24")).toBeTruthy();
+    expect(within(card("NY Qualifier 1")).getByText("1 / 30")).toBeTruthy();
+    expect(within(card("NJ Qualifier 3")).queryByText(/Scouted/)).toBeNull();
+    // The quick pick: upcoming only (USNJQ1 is over).
+    const quick = screen.getAllByRole("button", { name: "Scout NJ Qualifier 2" }).find((b) => !b.closest("li"))!;
+    fireEvent.click(quick);
+    expect(onPick).toHaveBeenCalledWith("USNJQ2");
+    expect(screen.getAllByRole("button", { name: "Scout NJ Qualifier 1" })).toHaveLength(1);
+  });
+
+  it("rings the event picked now, with Keep scouting and a way back", async () => {
+    const onCancel = vi.fn();
+    show({ current: "USNJQ1", onCancel });
+    await waitFor(() => expect(card("NJ Qualifier 1")).toBeTruthy());
+    expect(within(card("NJ Qualifier 1")).getByRole("button", { name: "Scout NJ Qualifier 1" }).textContent).toContain("Keep scouting this event");
+    expect(within(card("NJ Qualifier 3")).getByRole("button").textContent).toContain("Scout this event");
+    fireEvent.click(screen.getByRole("button", { name: "Back to USNJQ1" }));
+    expect(onCancel).toHaveBeenCalled();
   });
 });

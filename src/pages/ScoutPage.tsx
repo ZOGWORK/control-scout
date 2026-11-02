@@ -267,6 +267,16 @@ export default function ScoutPage() {
     // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
     setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
+  // Another season in the picker: Scout's session and entry forms are per season, so an entry being filled in (a
+  // pit entry, a typed-in match or an opened entry) would lose its answers. Ask first, then close it. A team still
+  // waiting for its event (Scout this team, no event yet) stays chosen.
+  const pickSeason = (y: number) => {
+    if (y === season) return;
+    const draft = pitOpen ? `the pit entry for ${pitTeam}` : manual ? "the match you're typing in" : editing ? "the entry you have open" : null;
+    if (draft && !window.confirm(`Leave ${draft}? What you've typed in it isn't saved.`)) return;
+    if (manual) setManual(null);
+    setSp((x) => { x.set("season", String(y)); if (pitOpen) x.delete("pit"); x.delete("entry"); return x; });
+  };
   // Stop scouting: this device leaves the event (entries stay, saved or queued). An open pit entry or typed-in
   // match on Event day asks first, as Change event does; one typed in from Entries stays open, kept at this event
   // (it would otherwise fall back to the workspace's default). Undo in the toast picks the same event and watching back up.
@@ -359,7 +369,7 @@ export default function ScoutPage() {
         {/* No event yet (or Change event): the picker is the page, with no sections above it. What's under it stays
             mounted (hidden), so an entry being filled in keeps its answers through Change event and back. */}
         {picking && <>
-          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
+          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} currentSeason={current} onSeason={pickSeason} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
             onCancel={session ? () => setSp((x) => { x.delete("pick"); return x; }) : undefined} />
           {!session && (
             <p className="mt-6 text-sm text-muted-foreground">
