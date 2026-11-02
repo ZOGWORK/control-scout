@@ -100,6 +100,18 @@ describe("the suggestions are options (keyboard)", () => {
   });
 });
 
+describe("a dismissed suggestion", () => {
+  it("Down, Escape, Enter: the closed list's highlight is gone, so nothing runs", () => {
+    const { input, onPick, focus } = mount({ examples: true });
+    focus();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
 describe("example chips", () => {
   it("an empty field's list offers real example queries; tapping one runs it on the full results page", () => {
     const { onPick, focus } = mount({ examples: true });
