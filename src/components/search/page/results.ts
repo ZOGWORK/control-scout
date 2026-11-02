@@ -57,14 +57,16 @@ export function eventFacts(h: SearchHit, today = todayIso()): EventFacts {
 export const isCompare = (h: SearchHit) => (h.kind as string) === "compare" || !!h.href?.startsWith("/compare");
 
 /** The team numbers a Compare puts side by side, from its link (/compare?teams=4215,23268). */
+/** A Compare link's query (/compare?teams=…&season=…#awards: the part before any #). */
+const compareQuery = (h: SearchHit) => new URLSearchParams(h.href?.split("#")[0].split("?")[1] ?? "");
+
 export function compareTeams(h: SearchHit): number[] {
-  const q = h.href?.split("?")[1] ?? "";
-  return (new URLSearchParams(q).get("teams") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  return (compareQuery(h).get("teams") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
 }
 
 /** The season a Compare's link asks for (/compare?teams=…&season=2024), or null for the current one. */
 export function compareSeason(h: SearchHit): number | null {
-  const s = Number(new URLSearchParams(h.href?.split("?")[1] ?? "").get("season"));
+  const s = Number(compareQuery(h).get("season"));
   return Number.isInteger(s) && s > 2000 ? s : null;
 }
 
