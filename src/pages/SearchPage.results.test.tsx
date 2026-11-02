@@ -220,6 +220,13 @@ describe("search results page, Phase 2 cards", () => {
     expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
   });
 
+  it("groups a championship division across years by its own name", () => {
+    state.answer = answer([ev("A", "2024 FIRST Championship - Edison Division", "2024-04-17", 2023), ev("B", "FIRST Championship - FIRST Tech Challenge - Edison Division", "2025-04-16", 2024)]);
+    const { container } = show("/search?q=edison%20division");
+    expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["2023–24", "2024–25"]);
+  });
+
   it("how good is X: the team's standing once, as blocks, with a win rate", () => {
     summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: "20-4-0", opr: 119.7, oprRank: 388, of: 8308 };
     state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);

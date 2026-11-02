@@ -19,7 +19,7 @@ import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../comp
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
-import { appearanceStats, appearances, isQualityQuestion, standing } from "../components/search/page/records";
+import { appearanceStats, appearances, eventName, isQualityQuestion, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
@@ -221,12 +221,16 @@ function ResultSection({ s, summaries, fuzzyWord, twoCol, onOpen }: { s: ViewSec
   );
 }
 
+/** An event's name for grouping: a championship division by its own name ("Edison Division", whatever the year's
+ *  championship was called), anything else by its whole name. */
+const nameKey = (h: SearchHit) => eventName(h.title).title.trim().toLowerCase();
+
 /** Events that share a name across seasons, as one group (a card with a tab per season) where the first stood.
  *  Every event stays reachable; two with one name in the same season stay apart. */
 function bySeasons(hits: SearchHit[]): SearchHit[][] {
   const groups: SearchHit[][] = [];
   for (const h of hits) {
-    const g = groups.find((x) => x[0].title.trim().toLowerCase() === h.title.trim().toLowerCase() && !x.some((y) => y.season === h.season));
+    const g = groups.find((x) => nameKey(x[0]) === nameKey(h) && !x.some((y) => y.season === h.season));
     if (g) g.push(h); else groups.push([h]);
   }
   return groups;
