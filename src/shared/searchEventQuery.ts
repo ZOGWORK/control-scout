@@ -100,7 +100,10 @@ export function readEventQuery(raw: string): EventQuery | null {
     if (PLACE_MARKERS.has(rest[i].toLowerCase()) && i + 1 < rest.length) {
       let j = i + 1;
       while (j < rest.length && !PLACE_MARKERS.has(rest[j].toLowerCase())) j++;
-      const full = rest.slice(i + 1, j);
+      // Leading little words go ("in the Northern Territory"); those inside a name stay ("District of Columbia").
+      let k = i + 1;
+      while (k < j && STOPWORDS.has(rest[k].toLowerCase())) k++;
+      const full = rest.slice(k, j);
       // The longest leading run of words that's a region, its own little words kept ("District of Columbia");
       // what's left of the segment, little words out, is a city or venue.
       let n = Math.min(full.length, 5), r: Region | null = null;

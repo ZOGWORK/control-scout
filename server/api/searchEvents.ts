@@ -25,6 +25,12 @@ export const searchToday = (now = Date.now()) => new Date(now).toISOString().sli
 
 /** Today's date at the event's venue (its own calendar, as its status reads it), UTC when its time zone is unknown:
  *  "upcoming" and "past" are read on it, so a meet under way in Los Angeles at 02:00 UTC is still upcoming. */
+/** localToday for one moment, each time zone worked out once (a search reads it for every event). */
+export function localTodays(now: number): (timezone: string | null) => string {
+  const seen = new Map<string, string>();
+  return (tz) => { const k = tz ?? ""; let d = seen.get(k); if (d == null) seen.set(k, (d = localToday(now, tz))); return d; };
+}
+
 export function localToday(now: number, timezone: string | null): string {
   if (timezone) {
     try { return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now); } catch { /* unknown zone */ }
@@ -45,9 +51,9 @@ export function eventHit(r: Row, now = Date.now()): SearchHit {
 }
 
 /** Upcoming soonest first, then past most recent first: the two never interleave (brief Requirement 9). */
-export function chronological<T extends { start: string | null; end: string | null; code: string; timezone?: string | null }>(rows: T[], now: number): T[] {
+export function chronological<T extends { start: string | null; end: string | null; code: string; timezone?: string | null }>(rows: T[], now: number, dayAt = localTodays(now)): T[] {
   const last = (r: T) => r.end ?? r.start ?? "";
-  const ended = (r: T) => last(r) < localToday(now, r.timezone ?? null);
+  const ended = (r: T) => last(r) < dayAt(r.timezone ?? null);
   const up = rows.filter((r) => !ended(r)).sort((a, b) => (a.start ?? "").localeCompare(b.start ?? "") || a.code.localeCompare(b.code));
   const past = rows.filter(ended).sort((a, b) => (b.start ?? "").localeCompare(a.start ?? "") || a.code.localeCompare(b.code));
   return [...up, ...past];
@@ -55,7 +61,7 @@ export function chronological<T extends { start: string | null; end: string | nu
 
 /** The events matching every part of `e` (each part can be left out: `drop`). */
 async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time?: boolean; year?: boolean } = {}): Promise<Row[]> {
-  const today = searchToday(now);
+  const today = searchToday(now), dayAt = localTodays(now);
   const where: string[] = ["(type IS NULL OR type <> 'VolunteerSignup')"];
   const args: (string | number)[] = [];
   if (e.season != null && !drop.year) { where.push("season = ?"); args.push(e.season); }
@@ -70,8 +76,8 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     if (w.to) { where.push("start <= ?"); args.push(w.to); }
   }
   let rows = await all<Row>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args);
-  if (e.time === "upcoming" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") >= localToday(now, r.timezone));
-  if (e.time === "past" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") < localToday(now, r.timezone));
+  if (e.time === "upcoming" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") >= dayAt(r.timezone));
+  if (e.time === "past" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") < dayAt(r.timezone));
   // The kind of event: its type, or (no type stored) the word in its name ("… League Meet"). The most specific word
   // decides (eventTypesOf).
   const allowed = eventTypesOf(e.kinds);
@@ -87,7 +93,7 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     const qs = e.words.flatMap((w) => words(w));
     rows = rows.filter((r) => allIn(qs, `${r.name} ${r.city ?? ""} ${r.venue ?? ""} ${r.code}`));
   }
-  return chronological(rows, now);
+  return chronological(rows, now, dayAt);
 }
 
 /** Event words whose own name says the kind ("… League Meet"), for an event stored with no type. */
