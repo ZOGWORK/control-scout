@@ -17,7 +17,7 @@ import { ROSTER } from "../data/registrations.js";
 import { ATTENDED } from "./teams.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
-export type QuestionKind = Exclude<SearchCard["kind"], "high-scores" | "rule">;
+export type QuestionKind = Exclude<SearchCard["kind"], "high-scores" | "rule" | "leaderboard" | "event-awards">;
 
 export interface ParsedQuestion {
   kind: QuestionKind;
@@ -43,6 +43,9 @@ const YEAR = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/i;
 
 /** The question `q` asks, or null when it isn't one of these. */
 export function parseQuestion(q: string): ParsedQuestion | null {
+  // "when does 4215 play next": its next match.
+  const playNext = /\b(?:when\s+(?:does|do|will|is)\s+)?(.+?)\s+(?:play(?:ing)?\s+next|plays?\s+next)\b/i.exec(q);
+  if (playNext) { const core = coreOf(playNext[1]); return core ? { kind: "next-match", core, year: null } : null; }
   const next = /\bnext\s+(match|game|event|competition|tournament|meet)\b/i.exec(q);
   if (next) {
     const core = coreOf(q.replace(next[0], " "));

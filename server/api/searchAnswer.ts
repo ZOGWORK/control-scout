@@ -21,6 +21,7 @@ import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
 import { ruleAnswer } from "./searchRules.js";
+import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
@@ -107,7 +108,9 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
   const shown = opts.limit ?? 12;
   const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
-  const out = read === typed ? a : { ...a, q: typed, pages: pagesFor(typed) };
+  // The page words as typed ("records" stays a page word); links the answer added itself (a region's rankings) stay.
+  const own = (p: { href: string }) => !pagesFor(read).some((x) => x.href === p.href);
+  const out = read === typed ? a : { ...a, q: typed, pages: [...a.pages.filter(own), ...pagesFor(typed).filter((p) => !a.pages.some((x) => x.href === p.href && own(x)))] };
   return { ...out, hits: out.hits.slice(0, shown), understood: out.understood ?? understoodOf(out) };
 }
 
@@ -147,6 +150,14 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
+
+  // 0. A question a view answers ("top teams in New Jersey", "highest OPR", "will 4215 win their next match", "who won
+  // Inspire at …", "how are predictions calculated"): that view's numbers and link (./searchAsks.ts).
+  const ask = opts.intents === false ? null : readAsk(q);
+  if (ask) {
+    const a = await askAnswer(q, ask, { prefer, ask: (x) => searchAnswer(x, { ...opts, learn: false }) });
+    if (a) return a;
+  }
 
   // 0. A rules question ("Can robots descore … in autonomous?", "G402", "penalty for pinning"): the Rules quick
   // reference's matching entries, or a plain "no rule found". Never team names (./searchRules.ts).
