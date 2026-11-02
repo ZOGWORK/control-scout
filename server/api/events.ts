@@ -11,7 +11,7 @@ import { registerCache } from "../caches.js";
 import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "../data/live.js";
 import { eventStatus } from "../../src/shared/eventDay.js";
 import { toEventInput } from "../../src/shared/eventInput.js";
-import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
+import { meetStandingByTeam } from "../../src/shared/meetStandings.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventOver, eventScheduleDifficulty, postedQuals } from "../../src/shared/scheduleDifficulty.js";
 import { eventBracket } from "./bracket.js";
@@ -194,16 +194,8 @@ export { toEventInput };
 /** A league meet's own standing by team (src/shared/meetStandings.ts): its played qualification matches, with
  *  their bonus ranking points (stored with the match, not in the match view). */
 async function meetOf(season: number, code: string, matches: MatchView[]): Promise<Map<number, NonNullable<FieldRow["meet"]>>> {
-  const quals = matches.filter((m) => m.level === "qual" && m.played && m.red.score && m.blue.score);
-  const bonusRows = quals.length ? await all<any>("SELECT series, number, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND played = 1", [season, code]) : [];
+  const played = matches.some((m) => m.level === "qual" && m.played);
+  const bonusRows = played ? await all<any>("SELECT series, number, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND played = 1", [season, code]) : [];
   const bonusBy = new Map(bonusRows.map((b) => [`${b.series}:${b.number}`, b]));
-  const side = (m: MatchView, s: "red" | "blue"): MeetSide => {
-    const a = m[s], sc = a.score!, b = bonusBy.get(`${m.series}:${m.number}`)?.[`${s}_bonus`];
-    return {
-      teams: a.teams.map((t) => ({ team: t.number, counts: !t.surrogate, noShow: !t.onField, dq: t.dq })),
-      total: sc.total, np: sc.np, auto: sc.auto, endgame: sc.endgame, tips: sc.tips ?? null, bonus: b ? JSON.parse(b) : null,
-    };
-  };
-  const rows = meetStandings(season, quals.map((m) => ({ red: side(m, "red"), blue: side(m, "blue") })));
-  return new Map(rows.map(({ team, ...x }) => [team, x]));
+  return meetStandingByTeam(season, matches, (series, number, s) => bonusBy.get(`${series}:${number}`)?.[`${s}_bonus`]);
 }

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, wrap, type SeasonDb } from "./readers";
-import { packDb, season2024, season2025 } from "./testFixture";
+import { mt, packDb, played, season2024, season2025, team } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
 import { SCHEDULE_COLUMNS, scheduleDifficulty, scheduleRows, withoutRemaining } from "../../shared/scheduleDifficulty";
 
@@ -292,5 +292,32 @@ describe("offline schedule difficulty (a team stat in the pack)", () => {
     const db = await packDb(2025, { events: [{ season: 2025, code: "USNJQ1", name: "Q1", type: "Qualifier", start: "2025-11-01" }] });
     db.run("DROP TABLE team_schedule_difficulty");
     expect(readEventDetail({ season: 2025, db: wrap(db) }, "USNJQ1")!.scheduleDifficulty).toBeNull();
+  });
+});
+
+describe("offline league meet (as the server's: the meet's own standing, no league W-L that doesn't add up)", () => {
+  let pack: SeasonDb;
+  beforeAll(async () => {
+    // FIRST's league standing: 100 shows 10-0-0 over 16 played; at this meet it won both.
+    const et = (t: number, rank: number, wins: number, played: number) => ({ season: 2025, code: "MEET", team: t, rank, rp: 2, tbp: 9, wins, losses: 0, ties: 0, qual_played: played, dq: 0 });
+    pack = { season: 2025, db: wrap(await packDb(2025, {
+      teams: [team(100, "Gearheads", "Newark"), team(200, "Bolt", "Trenton"), team(300, "Cogs", "Camden"), team(400, "Sprockets", "Hoboken"), team(500, "Spare", "Edison")],
+      events: [{ season: 2025, code: "MEET", name: "League Meet", type: "LeagueMeet", start: "2025-11-01", end: "2025-11-01", timezone: "America/New_York", remote: 0, source: "first" }],
+      event_teams: [et(100, 4, 10, 16), et(200, 1, 2, 2), et(300, 2, 1, 2), et(400, 3, 1, 2), et(500, 5, 10, 16)],
+      matches: [played("MEET", "qual", 1, "Q1", "2025-11-01T09:00:00", 120, 80), played("MEET", "qual", 2, "Q2", "2025-11-01T09:10:00", 90, 110)],
+      match_teams: [
+        mt("MEET", "qual", 1, 100, "red", 1), mt("MEET", "qual", 1, 200, "red", 2), mt("MEET", "qual", 1, 300, "blue", 1), mt("MEET", "qual", 1, 400, "blue", 2),
+        mt("MEET", "qual", 2, 100, "blue", 1), mt("MEET", "qual", 2, 400, "blue", 2), mt("MEET", "qual", 2, 200, "red", 1), mt("MEET", "qual", 2, 300, "red", 2),
+      ],
+    })) };
+  });
+
+  it("carries the meet's standing, leaves 500 (not at the meet) without one, and drops the record that doesn't add up", () => {
+    const f = readEventDetail(pack, "MEET")!.field;
+    const one = f.find((r) => r.team === 100)!;
+    expect(one).toMatchObject({ rank: 4, wins: null, losses: null, ties: null });
+    expect(one.meet).toMatchObject({ rank: 1, wins: 2, losses: 0, played: 2 });
+    expect(f.find((r) => r.team === 500)!.meet).toBeNull();
+    expect(f.find((r) => r.team === 200)).toMatchObject({ wins: 2, losses: 0 });
   });
 });

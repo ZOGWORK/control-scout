@@ -250,7 +250,7 @@ function Rankings({ m, mine }: { m: DisplayModel; mine: ReadonlySet<number> }) {
               <tr key={r.team} className="border-t border-white/5">
                 <td className="py-[calc(var(--u)*0.45)] text-zinc-400">{r.rank}</td>
                 <td className={cn("font-semibold", mine.has(r.team) ? VOLT : "text-zinc-50")}>{r.team}</td>
-                <td className="text-right text-zinc-300">{r.wins ?? 0}–{r.losses ?? 0}–{r.ties ?? 0}</td>
+                <td className="text-right text-zinc-300">{r.wins == null ? "–" : `${r.wins}–${r.losses ?? 0}–${r.ties ?? 0}`}</td>
                 <td className="text-right">{r.opr.np == null ? "—" : r.opr.np.toFixed(1)}</td>
               </tr>
             ))}
