@@ -867,6 +867,11 @@ export function createApp(opts: { dist?: string } = {}) {
     const q = req.originalUrl.indexOf("?");
     res.redirect(301, `/teams${q >= 0 ? req.originalUrl.slice(q) : ""}`);
   });
+  // /support is the other name people try for the donations page.
+  app.get("/support", (req, res) => {
+    const q = req.originalUrl.indexOf("?");
+    res.redirect(301, `/donate${q >= 0 ? req.originalUrl.slice(q) : ""}`);
+  });
   // IndexNow's key file, /<key>.txt (server/indexNow.ts): any other name goes on to the 404.
   app.get(/^\/[A-Za-z0-9-]{8,128}\.txt$/, indexNowKeyRoute);
 

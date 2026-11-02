@@ -14,6 +14,7 @@ export const FOOTER_LINKS: { to: string; label: string }[] = [
   { to: "/terms", label: "Terms" },
   { to: "/faq", label: "FAQ" },
   { to: "/contact", label: "Contact" },
+  { to: "/donate", label: "Donate" },
 ];
 
 const LINK = "tap-44 rounded py-1 font-medium hover:text-text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
