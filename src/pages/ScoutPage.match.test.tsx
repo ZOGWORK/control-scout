@@ -11,6 +11,7 @@ import { resetFlags } from "../lib/flags";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
 import type { MatchView } from "../shared/api";
+import { toast } from "../components/ui/sonner";
 
 const h = vi.hoisted(() => ({ personal: { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, bookmarks: [], myTeam: null } } }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
@@ -146,6 +147,54 @@ describe("Event day", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to USNJQ1" }));
     await waitFor(() => expect(param("pick")).toBeNull());
     expect(await screen.findByRole("region", { name: "Match queue" })).toBeTruthy();
+  });
+
+  it("Stop scouting leaves the event for Entries, and Undo picks it back up", async () => {
+    red();
+    const told = vi.spyOn(toast, "success");
+    show("/scout?season=2025");
+    fireEvent.click(await screen.findByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect(localStorage.getItem("cs-scout-session:personal")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Event you're scouting" })).toBeNull();
+    const undo = (told.mock.calls[0][1] as { action: { label: string; onClick: () => void } }).action;
+    expect(undo.label).toBe("Undo");
+    act(() => undo.onClick());
+    await waitFor(() => expect(param("tab")).toBe("event"));
+    expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!)).toMatchObject({ eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    expect(await screen.findByRole("region", { name: "Match queue" })).toBeTruthy();
+  });
+
+  it("Stop scouting from a view (Recordings) still opens Entries", async () => {
+    red();
+    show("/scout?season=2025&tab=entries&view=recordings");
+    fireEvent.click(await screen.findByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect(param("view")).toBeNull();
+  });
+
+  it("a match typed in from Entries stays at the event it was typed at after Stop scouting", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    expect(await screen.findByRole("heading", { name: "Type a match in" })).toBeTruthy();
+    expect(screen.getAllByText(/USNJQ1/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(localStorage.getItem("cs-scout-session:personal")).toBeNull());
+    expect(screen.getByRole("heading", { name: "Type a match in" })).toBeTruthy();
+    expect(screen.getAllByText(/USNJQ1/).length).toBeGreaterThan(0);
+  });
+
+  it("Stop scouting with a pit entry open asks first, and staying keeps the event", async () => {
+    red();
+    const ask = vi.fn(() => false);
+    vi.stubGlobal("confirm", ask);
+    show("/scout?season=2025&tab=event&pit=102");
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Stop scouting/ }));
+    expect(ask).toHaveBeenCalledWith(expect.stringMatching(/pit entry for 102/));
+    expect(localStorage.getItem("cs-scout-session:personal")).not.toBeNull();
+    expect(param("pit")).toBe("102");
   });
 
   it("what you watch changes from the strip, at once", async () => {
