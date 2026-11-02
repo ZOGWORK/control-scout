@@ -14,13 +14,15 @@
 // "recovery" when there's nothing, or only near matches to teams that never played (those are listed as closest).
 // Learned click weights (./searchLearn.ts) may re-rank the results, never add one. Bruno AI is never asked here:
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
-import type { SearchAnswer, SearchHit, SearchRecovery } from "../../src/shared/api.js";
-import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, onlyPageWords, pagesFor } from "../../src/shared/search.js";
+import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
+import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
 import { conversationQuery, nameWords, singularize } from "../../src/shared/searchQuery.js";
+import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
+import { eventSetAnswer } from "./searchEvents.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
-import { fuzzyScore, normalize, words } from "./fuzzy.js";
+import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
@@ -41,6 +43,8 @@ export interface AnswerOptions {
    *  whether it ended in "?". */
   typed?: string;
   asked?: boolean;
+  /** The time "upcoming", "past" and "this weekend" are read from (tests). */
+  now?: number;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
@@ -125,8 +129,44 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const typed = cleanQuery(raw);
   const read = singularize(typed);
   // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").
-  const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")) });
-  return read === typed ? a : { ...a, q: typed, pages: pagesFor(typed) };
+  // One reading for every surface (brief Requirement 2): the answer is worked out on the page's full list, whatever
+  // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
+  const shown = opts.limit ?? 12;
+  const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
+  const out = read === typed ? a : { ...a, q: typed, pages: pagesFor(typed) };
+  return { ...out, hits: out.hits.slice(0, shown), understood: out.understood ?? understoodOf(out) };
+}
+
+/** What an answer understood the query as, in words (SearchUnderstood): never a result's title for a set of results. */
+export function understoodOf(a: SearchAnswer): SearchUnderstood {
+  const top = a.hits[0];
+  if (a.card) { const who = cardWho(a.card); return { kind: "question", label: who ? `${who} · ${a.card.title}` : a.card.title }; }
+  if (a.step === "recovery") return { kind: "names", label: a.recovery?.understood[0] ?? `No match for "${a.q}"` };
+  if (top?.href?.startsWith("/compare")) return { kind: "compare", label: showingLine(a) ?? "Compare" };
+  if (a.intent) return { kind: top?.kind === "team" ? "team" : "names", label: a.intent.understood.join(" · ") };
+  if (a.step === "did-you-mean" && a.didYouMean) return { kind: "names", label: `Closest names to "${a.q}" (did you mean "${a.didYouMean}"?)` };
+  // One team the words name exactly: that team (and what was asked about it).
+  if (top?.kind === "team" && top.match === "exact" && (a.hits.length === 1 || top.facts || top.section || a.hits[1]?.match !== "exact")) return { kind: "team", label: showingLine(a) ?? teamWords(top.title) };
+  if (top?.kind === "match") return { kind: "names", label: top.title };
+  return { kind: "names", label: `Teams, events and matches matching "${nameWords(a.q)}"` };
+}
+
+/** Marks each team and event hit exact or fuzzy (SearchHit.match): exact when every word typed starts a word of its
+ *  name (or is its number or code); fuzzy otherwise, naming the words that matched somewhere (its school, city or
+ *  venue, a typo, the middle of a word). Exact hits stay first; fuzzy ones keep their order after them. */
+function markMatches(rest: string, hits: SearchHit[]): SearchHit[] {
+  const qs = words(nameWords(searchIntent(rest)?.rest ?? rest)).filter((w) => !SEARCH_FILLER.has(w));
+  if (!qs.length) return hits;
+  const marked = hits.map((h): SearchHit => {
+    if (h.kind !== "team" && h.kind !== "event") return h;
+    if (h.href || h.match) return h;
+    const own = words(h.kind === "team" ? `${h.ref} ${nameOf(h)}` : `${h.title} ${h.ref.split(":")[1] ?? ""}`);
+    if (qs.every((q) => own.some((w) => w === q || w.startsWith(q)))) return { ...h, match: "exact" };
+    const all = words(`${h.title} ${h.subtitle}`);
+    const matched = qs.filter((q) => all.some((w) => wordScore(q, w) >= 0.6 || w.includes(q)));
+    return { ...h, match: "fuzzy", ...(matched.length ? { matched } : {}) };
+  });
+  return [...marked.filter((h) => h.match !== "fuzzy"), ...marked.filter((h) => h.match === "fuzzy")];
 }
 
 async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswer> {
@@ -158,6 +198,17 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (conv !== q) {
     const a = await searchAnswer(opts.asked ? `${conv}?` : conv, opts);
     return { ...a, q, pages: pagesFor(q) };
+  }
+
+  // 0d. A set of events read from a place, a time or a year ("upcoming meets in New Jersey", "meets this weekend",
+  // "2024 Houston Championship Edison Division"), or a region alone ("New Jersey", "NJ"): the events themselves,
+  // filtered on their stored fields and listed by date (./searchEvents.ts). Never a did-you-mean.
+  const evq = opts.intents === false ? null : readEventQuery(q);
+  if (evq) return eventSetAnswer(q, evq, { now: opts.now });
+  const region = opts.intents === false || /d/.test(q) ? null : regionOf(q.split(" "));
+  if (region) {
+    const teams = (await search(q, limit, prefer)).filter((h) => h.kind === "team");
+    return eventSetAnswer(q, { kinds: [], time: null, year: null, season: null, region, where: null, words: [] }, { now: opts.now, others: teams });
   }
 
   // 1. A team number, alone or as "team 4215" / "team-4215" / "#4215".
@@ -218,6 +269,13 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }
 
+  // Word by word is never the answer: it's the closest matches, each naming the word it matched (brief Requirement 6).
+  if (byWords) {
+    const ws = words(nameWords(rest, opts.asked));
+    const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
+    return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);
+  }
+
   if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
   if (!hits.length) {
     const understood = intent?.topic ? [`A question about ${TOPIC_LABEL[intent.topic].toLowerCase()}`, `No team or event matched "${intent.rest}"`] : [`No team, event or match matched "${q}"`];
@@ -235,9 +293,15 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   }
   // Learned order, read under the same key a pick is counted under (learnQuery).
   if (opts.learn !== false) hits = await rerank(nameWords(rest), hits, { pinTop: exact });
-  if (score >= WEAK_SCORE && !byWords) return answer(q, { hits: uniq(hits), step: "deterministic" });
+  const marked = markMatches(rest, uniq(hits));
+  // A correction ("did you mean") only for a genuine near miss to a name: the top hit's own name is close to what was
+  // typed but not it ("hipnotic robotics"). Words found only in a school, city or venue ("River Dell") are results,
+  // labelled as fuzzy matches, never a "correction" to some unrelated name.
+  const top = marked[0];
+  const nearName = top.match === "fuzzy" && fuzzyScore(searchIntent(rest)?.rest ?? rest, nameOf(top)) >= 0.6;
+  if (!nearName) return answer(q, { hits: marked, step: "deterministic" });
   const topic = (intent ?? searchIntent(rest, true))?.phrase;
-  return answer(q, { hits: uniq(hits), step: "did-you-mean", didYouMean: `${nameOf(hits[0])}${topic ? ` ${topic}` : ""}` });
+  return answer(q, { hits: marked, step: "did-you-mean", didYouMean: `${nameOf(top)}${topic ? ` ${topic}` : ""}` });
 }
 
 /** The query a pick of `raw`'s results is learned under: what the ranking read (an intent's core, short forms spelled

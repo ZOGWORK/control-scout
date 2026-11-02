@@ -64,6 +64,8 @@ export function answerSections(answer: SearchAnswer, ai?: SearchAnswer | null): 
   }
   if (answer.step === "did-you-mean" && answer.didYouMean) notes.didYouMean = answer.didYouMean;
   if (answer.intent) { notes.understood = [`Understood: ${answer.intent.understood.join(" · ")}`]; if (answer.intent.gap) notes.gap = answer.intent.gap; }
+  // A labelled fallback ("No league meets at X — showing all league meets in New Jersey instead"): said above the list.
+  if (answer.understood?.fallback) notes.understood = [...notes.understood, answer.understood.fallback];
   sections.push(...byKind(answer.hits, "", true));
   if (answer.step === "recovery" && answer.recovery) {
     notes.understood = answer.recovery.understood;

@@ -248,8 +248,8 @@ registerCache("Search typo index", () => { rowsCache = null; });
 
 /** What the search index holds and how (server/stats/job.ts rebuildSearch): raised when that changes, so a server
  *  running the new code rebuilds the index once instead of waiting for the next stats run.
- *  2: team titles as "18061 | Simply Complex" (number and name each once). */
-export const SEARCH_INDEX_SCHEMA = 2;
+ *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words. */
+export const SEARCH_INDEX_SCHEMA = 3;
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next

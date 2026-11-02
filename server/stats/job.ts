@@ -424,7 +424,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   // Only teams with a page (src/shared/teamPages.ts): a hit must lead somewhere.
   const teams = await all<any>(`SELECT t.number, t.name, t.school, t.city, t.state, t.country, MAX(s.season) last FROM teams t LEFT JOIN team_seasons s ON s.team = t.number
     WHERE ${teamPageSql("t.number", "t.name")} GROUP BY t.number`);
-  const events = await all<any>("SELECT season, code, name, city, state, country, start, type FROM events");
+  const events = await all<any>("SELECT season, code, name, venue, city, state, country, start, type FROM events");
   const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }, { sql: "DELETE FROM search_fuzzy", args: [] }];
   for (const t of teams) {
     const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
@@ -438,7 +438,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   for (const e of events) {
     const place = [e.city, e.state, e.country].filter(Boolean).join(", ");
     const subtitle = [e.code, e.start, place].filter(Boolean).join(" · "), weight = e.season === CURRENT_SEASON ? 2 : 1;
-    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${place} ${regionNames(e.state, e.country)}`] });
+    stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, `${e.code} ${e.name} ${e.venue ?? ""} ${place} ${regionNames(e.state, e.country)}`] });
     stmts.push({ sql: "INSERT INTO search_fuzzy (kind, ref, season, weight, title, subtitle, name) VALUES ('event', ?, ?, ?, ?, ?, ?)", args: [`${e.season}:${e.code}`, e.season, weight, e.name, subtitle, normalize(`${e.name} ${e.city ?? ""}`)] });
   }
   await writeBatch(stmts, 5000);
