@@ -67,6 +67,9 @@ export const env = {
   /** In-app error reports → GitHub issues (docs/error-reporting.md): a fine-grained PAT, Issues read/write on
    *  Control-Point-FTC/control-scout only. Unset: reports are only stored. Never sent to the browser or logged. */
   get githubReportToken() { return str("GITHUB_REPORT_TOKEN"); },
+  /** The supporters page (server/sponsors.ts): a GitHub token of the Sponsors profile's owner that may read its
+   *  sponsorships, private ones included (only counted, never named). Unset: the page says it isn't set up. Never logged. */
+  get githubSponsorsToken() { return str("GITHUB_SPONSORS_TOKEN"); },
   /** Owner allowlist (comma-separated emails): who may read owner-only data such as GET /api/reports/errors. */
   get ownerEmails() { return (str("OWNER_EMAILS") ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean); },
   /** Entry photos in Cloudflare R2 (docs/r2-photos.md). All unset: photos are off and their UI hidden. Never logged. */

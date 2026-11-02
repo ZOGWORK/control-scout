@@ -69,6 +69,7 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
+import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
 import { cachedPublicUsage, collectRouter, PUBLIC_USAGE_MAX_AGE_S, statsRouter } from "./analytics.js";
@@ -327,6 +328,13 @@ export function createApp(opts: { dist?: string } = {}) {
     // An unreadable feed answers 200 with its reason (the panel says so), but isn't kept by caches.
     res.setHeader("Cache-Control", u.reason === "error" ? "no-store" : `public, max-age=${PUBLIC_USAGE_MAX_AGE_S}, must-revalidate`);
     return u;
+  }));
+
+  // GitHub Sponsors as the sponsors chose there: public ones by name, private ones counted (server/sponsors.ts).
+  api.get("/supporters", h(async (_req, res) => {
+    const s = await supporters();
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return s;
   }));
 
   api.get("/search", h(async (req) => {

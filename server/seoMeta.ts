@@ -134,6 +134,7 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/rules": { title: "BIOBUZZ rules quick reference", description: "Searchable summaries of the most-cited FTC BIOBUZZ game rules and Q&A rulings, stamped with the manual revision they follow. Works offline at the venue." },
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/donate": { title: "Support Control Scout", description: "Control Scout is free and stays free. Donations through GitHub Sponsors help pay for the domain, hosting and email. Not tax-deductible, and they unlock nothing." },
+  "/supporters": { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", noindex: true },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
