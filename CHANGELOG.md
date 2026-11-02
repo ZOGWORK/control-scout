@@ -33,7 +33,7 @@ FTC One Search's results page reads at a glance: events as cards, a Compare of i
 - **Team cards.** Each team result carries its season record, OPR and world OPR rank as small badges, only where the data has them; early in a season, before a team has played, they show last season's, labelled with it.
 - **Exact and word matches apart.** When some teams only share a word with the search, they're listed under "Other teams" below the top match instead of mixed in with it.
 - **No dead ends.** When nothing matches, the page says so in its title (never "Here's what we found" above an empty page), says what search covers and what the query was read as, lists the closest matches labelled as such, and links to browse events and teams plus a few searches to try.
-- **Cleaner cards.** Result cards no longer print the web address they open; the whole card is one link, with its destination as a "View …" label. The magnifier in the page's search box now runs the search.
+- **Cleaner cards.** Result cards no longer print the web address they open; the whole card is one link, with its destination as a "View …" label. The magnifier in the page's search box now runs the search. (#429)
 
 ## 2.2.4 — 2026-11-02
 
