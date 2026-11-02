@@ -34,7 +34,7 @@ FTC One Search understands places, venues, dates and years: "upcoming meets in N
 - **What was understood.** Every answer says what search understood ("League meets in New Jersey", "Upcoming league meets in New Jersey at River Dell High School"), shown where /search said "Showing:". It never names a single event for a set of events.
 - **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
 - **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
-- **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams.
+- **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams. (#434)
 
 ## 2.3.1 — 2026-11-02
 
