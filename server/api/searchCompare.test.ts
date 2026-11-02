@@ -68,3 +68,28 @@ describe("a name several teams share (Requirement 13.4)", () => {
     expect(a.understood?.label).toBe('Which "ultraviolet"? 2 teams have that name: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ)');
   });
 });
+
+describe("Greptile on #436", () => {
+  it("your own team wins a shared name even before it has played", async () => {
+    expect((await ask("ultraviolet vs hypnotic", ["team:18304"])).hits[0]).toMatchObject({ ref: "4215,18304", compare: { resolved: [{ number: 18304, rule: "your team", candidates: [18304, 20245, 23268] }] } });
+  });
+  it("records the played rule when it decides", async () => {
+    // Twin Gears 11111 played 2024, 22222 played 2025: the newest wins; a never-played twin is out first.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (33333, 'Solo Star', 'Austin', 'TX', 'USA'), (33334, 'Solo Star', 'Reno', 'NV', 'USA')");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'X', 33333, 40, 5)");
+    expect((await ask("solo star vs hypnotic")).hits[0]).toMatchObject({ ref: "4215,33333", compare: { resolved: [{ number: 33333, rule: "the only one that has played", candidates: [33333, 33334] }] } });
+  });
+  it("any trailing words: the side's last words go until it names a team", async () => {
+    for (const q of ["4215 vs 6980 please", "4215 vs 6980 performance", "hypnotic vs bad wolf please"]) expect((await ask(q)).hits[0], q).toMatchObject({ kind: "compare", ref: "4215,6980" });
+  });
+  it("several sides tied: the question for each, never a one-team Compare", async () => {
+    const a = await ask("ultraviolet vs twin gears");
+    // Twin Gears resolves by newest season (22222); Ultraviolet stays tied between the two 2025 teams.
+    expect(a.hits.filter((h) => h.kind === "compare").every((h) => h.ref.split(",").length === 2)).toBe(true);
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (44441, 'Mirror', 'Austin', 'TX', 'USA'), (44442, 'Mirror', 'Reno', 'NV', 'USA')");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'X', 44441, 40, 5), (2025, 'X', 44442, 40, 5)");
+    const b = await ask("ultraviolet vs mirror");
+    expect(b.hits.filter((h) => h.kind === "compare")).toEqual([]);
+    expect(b.understood?.label).toMatch(/^Which "ultraviolet"\? .* · Which "mirror"\? 2 teams have that name/);
+  });
+});
