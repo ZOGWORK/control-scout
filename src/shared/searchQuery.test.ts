@@ -78,3 +78,12 @@ describe("team titles", () => {
     expect(teamWords("18061 | Simply Complex")).toBe("18061 Simply Complex");
   });
 });
+
+describe("Greptile on #427", () => {
+  it("takes every time phrase out, not just the first", () => {
+    expect(nameWords("upcoming qualifiers this weekend in New Jersey")).toBe("qualifier New Jersey");
+  });
+  it("changes only listed plurals, never a word Object has", () => {
+    expect(singularize("constructor toString meets")).toBe("constructor toString meet");
+  });
+});

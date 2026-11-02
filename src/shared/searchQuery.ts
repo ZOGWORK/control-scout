@@ -23,7 +23,7 @@ export const PLURALS: Record<string, string> = {
 
 /** "Meets in New Jersey" → "meet in New Jersey": each plural word in PLURALS as its singular, every other word as typed. */
 export function singularize(q: string): string {
-  return q.replace(/\p{L}+/gu, (w) => PLURALS[w.toLowerCase()] ?? w);
+  return q.replace(/\p{L}+/gu, (w) => (Object.hasOwn(PLURALS, w.toLowerCase()) ? PLURALS[w.toLowerCase()] : w));
 }
 
 /** Words that never name a team or event when other words do (Requirement 1.1 of the FTC One Search brief). */
@@ -119,8 +119,8 @@ export function nameWords(q: string, asked = false): string {
   const one = singularize((stripConversation(q)?.rest ?? q).trim().replace(/\s+/g, " "));
   if (!one) return one;
   let rest = one;
-  const time = timePhrase(rest);
-  if (time) rest = time.rest;
+  // Every time phrase goes ("upcoming qualifiers this weekend"): each pass takes one out, so this ends.
+  for (let time = timePhrase(rest); time; time = timePhrase(rest)) rest = time.rest;
   const question = asked || isQuestionForm(q);
   const ws = rest.split(" ").filter((w) => {
     if (!w) return false;
