@@ -98,3 +98,10 @@ describe("Greptile on #434", () => {
     expect(eventTypesOf(["meet", "tournament"])).toEqual(["LeagueMeet", "LeagueTournament"]);
   });
 });
+
+describe("questions about events are not event sets", () => {
+  it("leaves who-wins and award questions to their readers", () => {
+    for (const q of ["who will win New Jersey Championship", "who won Inspire at New Jersey Championship", "New Jersey Championship winner", "who will advance from NJ meets"]) expect(readEventQuery(q), q).toBeNull();
+    expect(readEventQuery("when is the next meet in NJ")).toMatchObject({ time: "upcoming", region: { key: "USA:NJ" } });
+  });
+});
