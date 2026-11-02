@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.3 — 2026-11-02
+
+FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
+
+### Highlights
+- [teams] "4215 vs 6980" is a Compare of its own, above the teams
+- [teams] A Compare names each team's number and place
+- [fixes] "Ultraviolet vs Hypnotic history": extra words keep the versus
+- [fixes] A name several teams share is picked by fixed rules, or asked
+
+### Search
+- **Compare is its own kind.** A versus query ("4215 vs 6980", "hypnotic vs bad wolf", "ultraviolet vs hypnotic history") answers with one Compare row that opens /compare with both teams. It has its own group above Teams and is never counted as a team. Each side is named with its number and place ("Hypnotic Robotics (4215) · Oradell, NJ").
+- **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
+- **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#PRNUM)
+
 ## 2.3.2 — 2026-11-02
 
 FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.

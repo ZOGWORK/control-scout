@@ -197,7 +197,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   );
 }
 
-const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass, event: CalendarDays, team: Shield } as const;
+const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass, event: CalendarDays, team: Shield, compare: ArrowLeftRight } as const;
 
 /** A plain row (places, matches, a team's events, pages): its name and details, no web address. */
 export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof typeof ROW_ICON; sub?: boolean; onOpen: () => void }) {
