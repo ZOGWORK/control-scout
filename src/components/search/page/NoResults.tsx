@@ -34,7 +34,7 @@ export function NoResults({ query, understood, fallback, closest, onOpen }: {
       {!!fallback?.hits.length && (
         <section aria-label={fallback.label}>
           <h2 className="mb-2 text-sm font-medium text-foreground" data-fallback-label>{fallback.label}</h2>
-          {!!fbEvents.length && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{fbEvents.map((h) => <EventCard key={h.ref} h={h} onOpen={() => onOpen(h)} />)}</div>}
+          {!!fbEvents.length && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{fbEvents.map((h) => <EventCard key={h.ref} h={h} onOpen={onOpen} />)}</div>}
           {!!fbOther.length && (
             <ul className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
               {fbOther.map((h) => <li key={`${h.kind}:${h.ref}`} className="border-b border-border last:border-b-0"><ResultRow h={h} icon={h.kind === "team" ? "team" : h.kind} onOpen={() => onOpen(h)} /></li>)}

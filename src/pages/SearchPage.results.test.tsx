@@ -84,7 +84,7 @@ describe("search results page", () => {
   it("filters narrow the events in the address, and clearing returns all of them", () => {
     state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("B", "Old Meet", "2020-01-11", 2019), ev("C", "Later Meet", "2099-12-01")]);
     const { container } = show("/search?q=meets%20in%20nj");
-    const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("p.line-clamp-2")?.textContent);
+    const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("a.line-clamp-2")?.textContent);
     expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
     fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }));
     expect(loc).toBe("/search?q=meets+in+nj&when=upcoming");
@@ -184,5 +184,51 @@ describe("search results page", () => {
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Team 7149 — Worlds Appearances");
     expect(container.querySelector("[data-context-badge]")!.textContent).toBe("ENFORCERS (7149) · Worlds appearances");
+  });
+});
+
+describe("search results page, Phase 2 cards", () => {
+  const worlds = (season: string, div: string, rank: number, opr: number) => ({
+    text: `FIRST Championship - Houston - World Championship - FIRST Tech Challenge - ${div} Division`,
+    detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
+  });
+
+  it("a championship question's records: stats, a timeline whose nodes jump to their cards, short titles and pills", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 2, lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect(container.querySelector("[data-stat-banner]")!.textContent).toContain("Best division rank#3");
+    const card = container.querySelector('[data-appearance="2021"]') as HTMLElement;
+    expect(card.textContent).toContain("Franklin Division");
+    expect(card.textContent).not.toContain("FIRST Tech Challenge");
+    expect(card.querySelector("[data-pills]")!.textContent).toBe("Rank#20Record4–4–0OPR124.8");
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this); };
+    fireEvent.click(container.querySelector('[data-node="2022"]')!);
+    const target = container.querySelector('[data-appearance="2022"]') as HTMLElement;
+    expect(scrolled).toEqual([target]);
+    expect(target.dataset.highlight).toBe("on");
+  });
+
+  it("event cards: one link over the card, quick links beside it (never inside), season tabs for a name held in several seasons", () => {
+    state.answer = answer([ev("A", "Ohio State Championship", "2020-02-11", 2019), ev("B", "Ohio State Championship", "2021-02-11", 2020)]);
+    const { container } = show("/search?q=x");
+    const cards = container.querySelectorAll('[data-result="event"]');
+    expect(cards).toHaveLength(1);
+    for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
+    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
+    fireEvent.click(screen.getByRole("tab", { name: "2020–21" }));
+    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
+  });
+
+  it("how good is X: the team's standing once, as blocks, with a win rate", () => {
+    summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: "20-4-0", opr: 119.7, oprRank: 388, of: 8308 };
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    const banner = container.querySelector("[data-quality-banner]")!.textContent!;
+    expect(banner).toContain("Top 4.7%");
+    expect(banner).toContain("Elite");
+    expect(banner).toContain("83.3%");
+    expect(banner.match(/20-4-0/g)).toHaveLength(1);
+    expect(container.querySelector('[data-result="team"]')!.textContent).toContain("18061 | Simply Complex");
   });
 });

@@ -2,6 +2,7 @@
 // (status, date, place up front), a team carries its season numbers as small badges, and a Compare is an action of
 // its own, never a team. Each card is one link to where it opens, its destination said as a "View …" cue inside it
 // (a styled label, not a second control); no card shows a web address. The header dropdown keeps its compact rows.
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeftRight, ArrowRight, CalendarDays, Compass, FileText, MapPin, Shield, Swords, Users } from "lucide-react";
 import type { SearchHit, TeamSummary } from "../../../shared/api";
@@ -12,7 +13,8 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { EventStatusChip } from "../../EventChips";
 import { HitFacts } from "../SearchBox";
 import { cn } from "../../cn";
-import { compareTeams, eventFacts } from "./results";
+import { compareTeams, eventFacts, teamParts } from "./results";
+import { eventName } from "./records";
 
 /** "View event →": where the card goes, as part of the card's own link. */
 function Cta({ children }: { children: string }) {
@@ -24,6 +26,9 @@ function Cta({ children }: { children: string }) {
 }
 
 const nf = new Intl.NumberFormat();
+
+/** "18061 | Simply Complex": number and name, each once (the server's title, in either of its forms). */
+const teamTitle = (t: string) => { const p = teamParts(t); return p?.name ? `${p.number} | ${p.name}` : t; };
 
 /** A team's numbers and the season they're from. */
 export interface SeasonSummary { s: TeamSummary; season: number }
@@ -37,28 +42,58 @@ export function teamSeasons(now: TeamSummary[] | undefined, before: TeamSummary[
   return out;
 }
 
-export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
-  const e = eventFacts(h);
+/** An event's own pages, each only where it has something: its teams always, matches, rankings and playoffs once
+ *  it has started (all are tabs of the event page). */
+function quickLinks(h: SearchHit, status: string): { label: string; tab: string }[] {
+  const links = [{ label: "Teams", tab: "teams" }];
+  if (status !== "upcoming") links.unshift({ label: "Matches", tab: "matches" }, { label: "Rankings", tab: "rankings" });
+  if (status === "finished") links.push({ label: "Playoffs", tab: "playoffs" });
+  return links;
+}
+
+/** An event as a block: status, type and teams up top, a short title (a division's own name, its championship as a
+ *  badge), date and place, then its own pages. The title's link covers the whole card (one link, no nesting); the
+ *  quick links sit above it. Events that share a name across seasons are one card with a tab per season. */
+export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: SearchHit) => void; seasons?: SearchHit[] }) {
+  const [pick, setPick] = useState(h.ref);
+  const cur = seasons?.find((x) => x.ref === pick) ?? h;
+  const e = eventFacts(cur);
   const tone = EVENT_TYPE_TONE[e.type ?? ""];
+  const { title, badges } = eventName(cur.title);
+  const [s, c] = cur.ref.split(":");
   return (
-    <Link to={hitHref(h)} onClick={onOpen} data-result="event"
-      className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
+    <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone?.bar ?? "bg-text-base/25")} />
+      {seasons && seasons.length > 1 && (
+        <div role="tablist" aria-label={`${title}: season`} className="relative z-10 mb-2 flex flex-wrap gap-1" data-season-tabs>
+          {seasons.map((x) => (
+            <button key={x.ref} type="button" role="tab" aria-selected={x.ref === cur.ref} onClick={() => setPick(x.ref)}
+              className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums", x.ref === cur.ref ? "bg-accent text-accent-ink" : "bg-muted text-muted-foreground hover:text-foreground")}>
+              {x.season != null ? seasonLabel(x.season) : "—"}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         {e.status === "started"
           ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
           : <EventStatusChip status={e.status} className="px-2 py-0.5" />}
         {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
-        {h.season != null && <span className="rounded bg-muted px-1.5 py-px text-[11px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
-        {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden />{e.teams}<span className="sr-only"> teams</span></span>}
+        {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden />{e.teams}<span className="sr-only"> teams registered</span></span>}
       </div>
-      <p className="mt-2 line-clamp-2 font-medium leading-snug text-foreground group-hover:text-accent-text">{h.title}</p>
+      <Link to={hitHref(cur)} onClick={() => onOpen(cur)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:text-accent-text after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
+      <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
+        {[...badges, e.place, cur.season != null ? seasonLabel(cur.season) : null].filter(Boolean).map((b) => <span key={b} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{b}</span>)}
+      </p>
       <div className="mt-auto space-y-1 pt-3 text-xs max-sm:pt-2 text-muted-foreground">
         <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><CalendarDays className="size-4 shrink-0 text-accent" aria-hidden />{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</p>
-        {(e.venue || e.place) && <p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{[e.venue, e.place].filter(Boolean).join(" · ")}</span></p>}
+        {e.venue && <p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{e.venue}</span></p>}
       </div>
-      <div className="mt-3 max-sm:hidden"><Cta>View event</Cta></div>
-    </Link>
+      <nav aria-label={`${title}: pages`} className="relative z-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-quick-links>
+        {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-sm:py-1">{l.label}</Link>)}
+        <span className="ml-auto max-sm:hidden" aria-hidden><Cta>View event</Cta></span>
+      </nav>
+    </div>
   );
 }
 
@@ -89,11 +124,11 @@ export function TeamCard({ h, summary, onOpen }: { h: SearchHit; summary?: Seaso
       className="lift group flex items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
-        <span className="block break-words text-sm font-medium text-foreground group-hover:text-accent-text">{h.title}</span>
+        <span className="block break-words text-sm font-medium text-foreground group-hover:text-accent-text">{teamTitle(h.title)}</span>
         {h.subtitle && <span className="block truncate text-xs text-muted-foreground">{h.subtitle}</span>}
         {h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
-      <span className="shrink-0 self-center max-sm:hidden"><Cta>Team profile</Cta></span>
+      <span className="shrink-0 self-center max-sm:hidden"><Cta>View scouting profile</Cta></span>
     </Link>
   );
 }
