@@ -1,0 +1,138 @@
+// Event sets on a small fixture (server/api/searchEvents.ts): the FTC One Search brief's place, venue, time and year
+// tests, the chronological order, the labelled fallback, and one reading for every limit.
+import { beforeAll, describe, expect, it } from "vitest";
+import { migrate, openDb, run, setDb } from "../db";
+import { rebuildSearch } from "../stats/job";
+import { CURRENT_SEASON } from "../data/seasons";
+import { searchAnswer } from "./searchAnswer";
+import { showingLine } from "../../src/shared/search";
+import { answerSections } from "../../src/shared/searchSections";
+
+const S = CURRENT_SEASON;
+// Monday 2026-11-02, noon UTC: "today" in every test here.
+const now = Date.parse("2026-11-02T12:00:00Z");
+const ask = (q: string, limit = 25) => searchAnswer(q, { now, limit, learn: false });
+const refs = (hits: { kind: string; ref: string }[]) => hits.filter((h) => h.kind === "event").map((h) => h.ref.split(":")[1]);
+
+beforeAll(async () => {
+  const c = openDb(":memory:");
+  setDb(c);
+  await migrate(c);
+  const ev: [number, string, string, string, string | null, string, string, string][] = [
+    // season, code, name, type, venue, city, state, start
+    [S, "USNJSOM1", "P1-1 Southern League Meet", "LeagueMeet", "Holmdel High School", "Holmdel", "NJ", "2026-10-24"],
+    [S, "USNJNOM1", "P1-4 Northern League Meet", "LeagueMeet", "Westfield High School", "Westfield", "NJ", "2026-11-01"],
+    [S, "USNJNEM2", "P1-5 AM Northeast League Meet", "LeagueMeet", "Don Bosco Prep High School", "Ramsey", "NJ", "2026-11-07"],
+    [S, "USNJNEM4", "P2-1 Northeast League Meet", "LeagueMeet", "Dumont High School", "Dumont", "NJ", "2026-11-14"],
+    [S, "USNJNEM6", "P2-8 Northeast League Meet", "LeagueMeet", "River Dell High School", "Oradell", "NJ", "2026-12-13"],
+    [S, "USNJCMP", "New Jersey Championship", "Championship", "Kean University", "Union", "NJ", "2027-03-14"],
+    [S, "USNJHPN", "Practice Day-Central", "Scrimmage", "Highland Park High School", "Highland Park", "NJ", "2026-10-18"],
+    [S, "USMOSLM", "SLU Meet", "LeagueMeet", "SLU", "St Louis", "MO", "2026-11-08"],
+    [S - 1, "USNJNEM9", "Last Season Northeast League Meet", "LeagueMeet", "River Dell High School", "Oradell", "NJ", "2025-12-13"],
+    [S - 3, "FTCCMP1EDIS", "2024 FIRST Championship - Edison Division", "FIRSTChampionship", "George R. Brown", "Houston", "TX", "2024-04-15"],
+    [S - 1, "FTCCMP1EDIS", "FIRST Championship - Edison Division", "FIRSTChampionship", "George R. Brown", "Houston", "TX", "2026-04-29"],
+  ];
+  for (const [season, code, name, type, venue, city, state, start] of ev) {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, ?, ?, ?, ?, ?, ?, 'USA', ?, ?, 'test')", [season, code, name, type, venue, city, state, start, start]);
+  }
+  for (const [n, name, city] of [[4215, "Hypnotic Robotics", "Oradell"], [6980, "Bad Wolf", "Oradell"], [37525, "Oncoming Storm - Red", "Penfield"]] as const) {
+    await run("INSERT INTO teams (number, name, school, city, state, country) VALUES (?, ?, ?, ?, ?, 'USA')", [n, name, n === 37525 ? null : "River Dell Regional High Sch", city, n === 37525 ? "NY" : "NJ"]);
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [S, n]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'USNJNEM2', ?, 50, 5)", [S, n]);
+  }
+  await rebuildSearch();
+});
+
+describe("event sets (brief Section 3)", () => {
+  it("1–2: meets in New Jersey, labelled as asked, the same for every plural and preposition", async () => {
+    const a = await ask("Meets in New Jersey");
+    expect(a.step).toBe("deterministic");
+    expect(a.didYouMean).toBeUndefined();
+    expect(a.understood).toMatchObject({ kind: "events", label: "League meets in New Jersey", place: { key: "USA:NJ" }, season: S });
+    expect(showingLine(a)).toBe("League meets in New Jersey");
+    expect(refs(a.hits)).not.toContain("USMOSLM"); // never St Louis
+    expect(refs(a.hits)).not.toContain("USNJHPN"); // a scrimmage isn't a meet
+    for (const q of ["Meet in New Jersey", "Meet at new Jersey", "Meets at New Jersey"]) expect((await ask(q)).hits, q).toEqual(a.hits);
+  });
+  it("11: upcoming soonest first, then past most recent first, never interleaved", async () => {
+    expect(refs((await ask("meets in New Jersey")).hits)).toEqual(["USNJNEM2", "USNJNEM4", "USNJNEM6", "USNJNOM1", "USNJSOM1"]);
+    const a = await ask("meets in New Jersey");
+    expect(a.hits.filter((h) => h.kind === "event").map((h) => h.event?.status)).toEqual(["upcoming", "upcoming", "upcoming", "finished", "finished"]);
+  });
+  it("3 and 7: upcoming and past", async () => {
+    const up = await ask("upcoming meets in New Jersey");
+    expect(refs(up.hits)).toEqual(["USNJNEM2", "USNJNEM4", "USNJNEM6"]);
+    expect(up.understood).toMatchObject({ label: "Upcoming league meets in New Jersey", time: "upcoming", window: { from: "2026-11-02", to: null } });
+    expect(up.hits.some((h) => h.ref === "37525")).toBe(false); // never Oncoming Storm
+    const past = await ask("past meets in New Jersey");
+    expect(refs(past.hits)).toEqual(["USNJNOM1", "USNJSOM1"]);
+    expect(past.understood?.label).toBe("Past league meets in New Jersey");
+  });
+  it("4: a venue composes with the place; a venue with no events falls back, labelled", async () => {
+    const a = await ask("meets in New Jersey at River dell high school");
+    expect(refs(a.hits)).toEqual(["USNJNEM6"]);
+    expect(a.understood).toMatchObject({ label: "League meets in New Jersey at River Dell High School" });
+    expect(a.understood?.fallback).toBeUndefined();
+    const none = await ask("meets at Nonexistent High School in New Jersey");
+    expect(none.step).toBe("deterministic");
+    expect(none.understood?.fallback).toBe("No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead");
+    expect(refs(none.hits)).toEqual(refs((await ask("meets in New Jersey")).hits));
+    expect(answerSections(none).notes.understood).toContain(none.understood!.fallback);
+  });
+  it("5: 'New Jersey' and 'NJ' list the place first, then its events, then its teams", async () => {
+    for (const q of ["New Jersey", "NJ"]) {
+      const a = await ask(q);
+      expect(a.hits[0], q).toMatchObject({ kind: "place", ref: "USA:NJ", title: "All events in New Jersey" });
+      expect(refs(a.hits).length, q).toBeGreaterThan(0);
+      const kinds = a.hits.map((h) => h.kind);
+      expect(kinds.lastIndexOf("event"), q).toBeLessThan(kinds.indexOf("team") === -1 ? Infinity : kinds.indexOf("team"));
+    }
+  });
+  it("6: this weekend is the coming Saturday and Sunday", async () => {
+    const a = await ask("meets this weekend");
+    expect(a.understood).toMatchObject({ label: "This weekend's league meets", window: { from: "2026-11-07", to: "2026-11-08" } });
+    expect(refs(a.hits)).toEqual(["USNJNEM2", "USMOSLM"]);
+  });
+  it("21: a year scopes to events held that year, never another year's", async () => {
+    const a = await ask("2024 Houston Championship Edison Division");
+    expect(a.hits.map((h) => h.ref)).toEqual([`${S - 3}:FTCCMP1EDIS`]);
+    const none = await ask("2019 Houston Championship Edison Division");
+    expect(none.step).toBe("recovery");
+    expect(none.hits).toEqual([]);
+    expect(none.recovery?.understood).toContain("No events held in 2019 match");
+    expect(none.recovery?.closest.map((h) => h.ref)).toContain(`${S - 3}:FTCCMP1EDIS`); // other years, labelled as closest
+    expect(refs((await ask("NJ State Championship")).hits)).toEqual(["USNJCMP"]);
+  });
+});
+
+describe("one reading for every surface (Requirement 2)", () => {
+  it("a smaller limit is the top of the same list, with the same step and label", async () => {
+    for (const q of ["meets in New Jersey", "hypnotic", "River Dell", "New Jersey", "4215 vs 6980", "hipnotic robotics"]) {
+      const page = await ask(q, 25), box = await ask(q, 3);
+      expect(box.step, q).toBe(page.step);
+      expect(box.understood, q).toEqual(page.understood);
+      expect(box.hits, q).toEqual(page.hits.slice(0, 3));
+    }
+  });
+});
+
+describe("corrections and fuzzy matches (Requirements 4, 14.3)", () => {
+  it("names a correction only for a near miss to a name", async () => {
+    const typo = await ask("hipnotic robotics");
+    expect(typo).toMatchObject({ step: "did-you-mean", didYouMean: "Hypnotic Robotics" });
+    // Words found only in a school or venue aren't a "correction": results, marked fuzzy.
+    const venue = await ask("River Dell");
+    expect(venue.step).toBe("deterministic");
+    expect(venue.didYouMean).toBeUndefined();
+    expect(venue.hits.map((h) => h.match)).toEqual(venue.hits.map(() => "fuzzy"));
+    expect(refs(venue.hits)).toContain("USNJNEM6"); // its venue is now searchable
+  });
+  it("lists exact matches before fuzzy ones, naming the word a fuzzy one matched", async () => {
+    const a = await ask("oradell");
+    for (const h of a.hits) expect(h.match).toBe("fuzzy");
+    expect(a.hits.find((h) => h.kind === "team")?.matched).toEqual(["oradell"]);
+    const b = await ask("hypnotic");
+    expect(b.hits[0]).toMatchObject({ ref: "4215", match: "exact" });
+    expect(b.understood).toMatchObject({ kind: "team", label: "Hypnotic Robotics (4215)" });
+  });
+});

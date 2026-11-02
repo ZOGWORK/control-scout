@@ -126,14 +126,14 @@ const TIME_LABEL: Record<SearchTime, string> = {
 /** "Upcoming league meets in New Jersey at River Dell High School": the event set as understood, in words, never an
  *  event's name. `where`: the venue or city as the data spells it, when it matched (else the words typed).
  *  `drop`: parts left out (a fallback's label). */
-export function eventSetLabel(e: EventQuery, opts: { where?: string | null; seasonLabel?: (s: number) => string; drop?: ("where" | "time")[] } = {}): string {
+export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; city: boolean } | null; seasonLabel?: (s: number) => string; drop?: ("where" | "time")[] } = {}): string {
   const drop = new Set(opts.drop ?? []);
   const kind = e.kinds.length === 1 ? EVENT_LABEL[e.kinds[0]] : "Events";
   const time = e.time && !drop.has("time") ? TIME_LABEL[e.time] : null;
   const what = time ? `${time} ${kind.toLowerCase()}` : kind;
   const words = e.words.length ? ` matching "${e.words.join(" ")}"` : "";
   const place = e.region ? ` in ${e.region.name}` : "";
-  const where = e.where && !drop.has("where") ? ` at ${opts.where ?? titleCase(e.where)}` : "";
+  const where = e.where && !drop.has("where") ? (opts.where ? ` ${opts.where.city ? "in" : "at"} ${opts.where.text}` : ` at ${titleCase(e.where)}`) : "";
   const when = e.season != null ? `, ${opts.seasonLabel ? opts.seasonLabel(e.season) : e.season}` : e.year != null ? ` held in ${e.year}` : "";
   return `${what}${words}${place}${where}${when}`;
 }

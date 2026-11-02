@@ -74,14 +74,15 @@ async function rowsFor(e: EventQuery, today: string, drop: { where?: boolean; ti
   return chronological(rows, today);
 }
 
-/** How the data spells the venue or city the query named, when every matched event shares it. */
-function whereAsStored(e: EventQuery, rows: Row[]): string | null {
+/** How the data spells the venue or city the query named, when every matched event shares it: "at River Dell High
+ *  School" (a venue), "in Oradell" (a city). */
+function whereAsStored(e: EventQuery, rows: Row[]): { text: string; city: boolean } | null {
   if (!e.where || !rows.length) return null;
   const qs = words(e.where).filter((w) => !STOPWORDS.has(w));
   for (const field of ["venue", "city"] as const) {
     const vals = new Set(rows.map((r) => r[field]?.replace(/[,\s]+$/, "") ?? ""));
     const [only] = [...vals];
-    if (vals.size === 1 && only && allIn(qs, only)) return only;
+    if (vals.size === 1 && only && allIn(qs, only)) return { text: only, city: field === "city" };
   }
   return null;
 }
