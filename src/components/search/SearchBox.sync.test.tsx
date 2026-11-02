@@ -66,6 +66,10 @@ describe("the top bar", () => {
     fireEvent.click(screen.getByRole("button", { name: "go /teams/4215" }));
     expect(input.value).toBe("");
   });
+  it("holds it on any spelling of the path the router serves (/Search/)", () => {
+    mount("/Search/?q=4215");
+    expect((screen.getByRole("combobox", { name: "Search teams, events and matches" }) as HTMLInputElement).value).toBe("4215");
+  });
   it("is empty on other pages", () => {
     mount("/teams/4215");
     expect((screen.getByRole("combobox", { name: "Search teams, events and matches" }) as HTMLInputElement).value).toBe("");

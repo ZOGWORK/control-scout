@@ -96,7 +96,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
   const nav = useNavigate();
   // On the full results page the top bar holds its query: that's where it's refined (the page has no box of its own).
   const loc = useLocation();
-  const syncQuery = loc.pathname === "/search" ? new URLSearchParams(loc.search).get("q") ?? "" : undefined;
+  const syncQuery = /^\/search\/?$/i.test(loc.pathname) ? new URLSearchParams(loc.search).get("q") ?? "" : undefined;
   if (pageClaimed) return null;
   return (
     <>

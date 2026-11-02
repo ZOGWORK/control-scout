@@ -439,6 +439,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     </>
   ) : undefined);
   const showList = open && (query ? !idle : !!hintContent);
+  // A closed list highlights nothing: Enter after Escape never opens a row or suggestion that was dismissed.
+  useEffect(() => { if (!showList) { setActive(-1); activeKey.current = null; } }, [showList]);
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
