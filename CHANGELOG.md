@@ -26,7 +26,7 @@ FTC One Search answers rules questions from the Rules quick reference, never wit
 
 ### Search
 - **Rules questions go to the rules.** A rule number ("G402", "rule 10.5.1"), a query starting with "penalty", "foul" or "rule", or a question with a rule word (descore, pin, foul, inspection, control, hoard, …) is answered from the season's Rules quick reference (the same data as /rules, the `rulesReference` setting). A rule is listed only when every word asked is in it. Each rule shows its number, summary and penalty, linked to its entry on /rules. When no rule matches, the answer says so and never guesses. No team is ever listed for a rules question. "Can Control" on its own is still a team.
-- **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#PRNUM)
+- **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#437)
 
 ## 2.3.5 — 2026-11-02
 
