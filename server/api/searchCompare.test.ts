@@ -93,3 +93,13 @@ describe("Greptile on #436", () => {
     expect(b.understood?.label).toMatch(/^Which "ultraviolet"\? .* · Which "mirror"\? 2 teams have that name/);
   });
 });
+
+describe("Greptile on #436, round 2", () => {
+  it("a shared name is found however it's spelled: accents, case, punctuation", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (55551, 'Café Robotics', 'Austin', 'TX', 'USA'), (55552, 'Cafe Robotics', 'Newark', 'NJ', 'USA')");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'X', 55551, 40, 5), (2025, 'X', 55552, 40, 5)");
+    await rebuildSearch();
+    // Both are candidates; the NJ one is picked by state beside Hypnotic.
+    expect((await ask("cafe robotics vs hypnotic")).hits[0]).toMatchObject({ ref: "4215,55552", compare: { resolved: [{ candidates: [55551, 55552] }] } });
+  });
+});
