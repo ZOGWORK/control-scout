@@ -15,6 +15,25 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.7 — 2026-11-02
+
+FTC One Search answers more questions: who's on top in a state, who leads a stat, who won an award, and what Predict says.
+
+### Highlights
+- [rankings] "Top teams in New Jersey" shows the state's top five
+- [rankings] "Highest OPR", "best auto team" and "most wins" list the leaders
+- [predict] "Will 4215 win their next match?" opens Predict on its matches
+- [history] "Who won Inspire at …" names the winners from the event's results
+- [teams] Team rows show their season OPR, record and rank
+
+### Search
+- **Leaderboards by place.** "Top teams in New Jersey", "NJ rankings" and "best team in NJ" show the region's top five from the live rankings, each with its place in the region and in the world. They also link the region's full ranking.
+- **Stat leaders.** "Highest OPR", "best auto team", "best teleop", "best endgame" and "who has the most wins" list the season's top five by that number (OPR without penalties, or its auto, teleop or endgame part; wins with losses as the tie-break), optionally for a region ("highest OPR in NJ"). Only teams with 3 or more matches count. No other stat is ever inferred.
+- **Predictions and advancement.** "Will 4215 win their next match" shows its next match and opens Predict on its matches. "4215 vs 6980 who wins" shows the Compare and opens Predict with both teams filled in. "Who will win New Jersey Championship" opens the event's odds. "Will 4215 advance to states" and "what does 4215 need to advance" open the advancement simulator for the team.
+- **Event awards.** "Who won Inspire at New Jersey Championship" (and Think, Innovate, Design, Reach, Sustain, Connect, Control, Compass, Judges' Choice) lists the winners from the event's results. For an event that hasn't happened yet, it shows the latest season that gave the award, with that season named.
+- **Team questions.** "When does 4215 play next" shows its next match, or says plainly that none is scheduled yet. "How are predictions calculated" puts the methodology page first in Pages.
+- **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#PRNUM)
+
 ## 2.3.6 — 2026-11-02
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
