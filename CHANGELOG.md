@@ -26,7 +26,7 @@ FTC One Search's results page says what it found once: a clean title, one line f
 
 ### Search
 - **One title, one badge.** The results page (/search) no longer repeats your search three times. Its title names what was found (a team and what was asked, a comparison, or the server's reading such as "Events in New Jersey"), never the words as typed; one badge below says how the search was read ("ENFORCERS (7149) · Worlds appearances"). A correction ("Did you mean …") still says so on its own line. A small "FTC One Search" label sits above the title.
-- **Refine from the top bar.** The page's own search box is gone; the top bar holds your search on /search, so change it there and press Enter. Results, their order and the cards are unchanged.
+- **Refine from the top bar.** The page's own search box is gone; the top bar holds your search on /search, so change it there and press Enter. Results, their order and the cards are unchanged. (#431)
 
 ## 2.2.8 — 2026-11-02
 
