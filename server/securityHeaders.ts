@@ -7,8 +7,10 @@
 //   - Permissions-Policy: camera and microphone for this site only (recording a match, MatchVideo.tsx); every
 //     powerful feature the app never uses is off. Fullscreen, picture-in-picture and the rest stay at the browser's
 //     default, so the YouTube player's own `allow` list still works.
-//   - Content-Security-Policy on the app's HTML: report-only until the reports (POST /api/csp-report, logged once
-//     per kind) are clean, then CSP_ENFORCE=1 enforces it. Inline scripts are pinned by hash, from each page as sent.
+//   - Content-Security-Policy on the app's HTML: enforced in production (launch re-audit, 2026-11-01: a headless
+//     pass over 29 routes at desktop and phone size found no violation on a real page), report-only in development;
+//     CSP_ENFORCE=0 is the off switch. Violations still go to POST /api/csp-report, logged once per kind. Inline
+//     scripts are pinned by hash, from each page as sent.
 import { createHash } from "node:crypto";
 import express, { type NextFunction, type Request, type Response, type Router } from "express";
 import { env } from "./env.js";
@@ -88,7 +90,7 @@ export function buildCsp(scriptHashes: string[], reportUri: string | null = CSP_
   return directives.map(([k, v]) => `${k} ${v.join(" ")}`).join("; ");
 }
 
-/** Report-only unless CSP_ENFORCE=1. */
+/** Enforced in production unless CSP_ENFORCE=0; report-only elsewhere unless CSP_ENFORCE=1 (env.cspEnforce). */
 export const cspHeaderName = () => (env.cspEnforce ? "Content-Security-Policy" : "Content-Security-Policy-Report-Only");
 
 /** Sets the page's CSP for this HTML (call just before sending it). */
@@ -155,7 +157,7 @@ export function summarizeCspReports(body: unknown): string[] {
 
 /**
  * POST /api/csp-report: counted in memory and logged once per kind (directive + blocked origin), so the server's
- * log shows what an enforcing policy would block before CSP_ENFORCE is switched on. Always 204, never an error.
+ * log shows what the policy blocks (or, report-only, would block). Always 204, never an error.
  */
 export function cspReportRouter(log: (m: string) => void = (m) => console.log(m)): Router {
   const r = express.Router();
