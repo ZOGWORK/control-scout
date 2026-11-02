@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.0 — 2026-11-02
+## 2.3.1 — 2026-11-02
 
 FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
 
@@ -31,6 +31,24 @@ FTC One Search reads what you type the way you meant it: plurals, little words a
 - **A question's opening is the question.** "how good is", "how strong is", "how is", "what is the rank of", "what's the record of", "where is", "tell me about", "show me" and the rest of the list in `src/shared/searchQuery.ts` are read as the question, never as part of a name: "how good is simply complex" searches "simply complex" and shows its season's OPR, rank and record. Only the opening goes, so "how good is Good Enough" is Good Enough, and "good teams" (no opening) still searches for "good".
 - **Time words and a question's own words never name a team.** "upcoming", "this weekend" and the like (and "past", "recent", "latest" next to a word like "meets") are never matched against names, so "upcoming meets" can't turn into the team Oncoming Storm. In a question ("Can robots…?"), words like can, will and does aren't searched for either; "Can Control" on its own is still a team's name.
 - **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline. (#427)
+
+## 2.3.0 — 2026-11-02
+
+FTC One Search's answers read at a glance: a timeline and stats for a team's championship trips, a team's standing for "how good is", and shorter event cards.
+
+### Highlights
+- [teams] "When did a team go to Worlds" shows a timeline of its OPR by season
+- [teams] Stats counted from the records: trips, streak, best rank, peak OPR
+- [teams] "How good is" a team shows its record, world rank, standing and win rate
+- [teams] Event results use short titles, badges, stat pills and quick links
+- [teams] An event held in several seasons gets a tab for each season
+
+### Search
+- **Championship timeline.** A question about a team's Worlds or state championship trips shows its OPR across the seasons; point at a season for its division, rank, record and OPR, and select it to jump to that trip's card below.
+- **Stats counted from the records.** Total trips, the longest back-to-back streak, the best division rank, the peak OPR and the most frequent division, each counted from the trips listed (left out when there's nothing to count, never shown as zero). When Bruno AI answers, his sentence stays and these stand in for his bullet list.
+- **How good is a team.** The season record, world OPR rank, OPR, a standing tier (top 5% Elite, 15% Excellent, 35% Strong, 60% Solid, else Developing; rank over ranked teams, one decimal) and a win rate (a tie counts as half a win), each shown once.
+- **Shorter event cards.** A championship division is titled by its own name ("Franklin Division") with the championship, place and season as badges; rank, record and OPR as pills; status, teams registered and quick links to the event's teams, matches, rankings and playoffs where it has them.
+- **Season tabs and team cards.** An event held in several seasons is one card with a tab per season. Team cards read "18061 | Simply Complex" with their season numbers and a View scouting profile link. Results and their order are unchanged. (#432)
 
 ## 2.2.9 — 2026-11-02
 

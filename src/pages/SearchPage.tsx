@@ -12,14 +12,16 @@
 // (./search/page/NoResults.tsx).
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, ScanSearch } from "lucide-react";
+import { Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
+import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
+import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -77,13 +79,26 @@ export default function SearchPage() {
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
   const badge = !found || !ax ? null : contextBadge({ ...ax, hits }, notes.understood);
   const open = (h: SearchHit) => logPick(h);
+  // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
+  const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
+  const topTeam = hits.find((h) => h.kind === "team" && !isCompare(h));
+  const topSum = topTeam && isQualityQuestion(query) ? summaries.get(Number(topTeam.ref)) : undefined;
+  const std = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
+  // Only a standing with numbers to show becomes the summary; its team's card then drops the same numbers.
+  const quality = std && hasNumbers(std) ? std : null;
+  const cardSums = useMemo(() => {
+    if (!quality || !topTeam) return summaries;
+    const m = new Map(summaries);
+    m.delete(Number(topTeam.ref));
+    return m;
+  }, [quality, topTeam, summaries]);
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-        {!query ? "Search" : found ? pageTitle(ax, hits) : busy || error ? "Search results" : <>No matches for “{query}”</>}
+        {!query ? "Search" : found ? pageTitle(ax, hits, isQualityQuestion(query)) : busy || error ? "Search results" : <>No matches for “{query}”</>}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
@@ -105,8 +120,7 @@ export default function SearchPage() {
               : (
                 <NoResults
                   query={query} onOpen={open}
-                  understood={ax?.interpreted ? [ax.interpreted] : notes.understood}
-                  fallback={ax?.fallback}
+                  understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
                   closest={sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? []}
                 />
               )
@@ -114,18 +128,32 @@ export default function SearchPage() {
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               {/* The badge carries what was understood; a correction ("Did you mean …") and a gap still say so here. */}
               <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" />
+              {/* The server found nothing for all of it and shows the nearest set instead: said plainly, above that set. */}
+              {ax?.understood?.fallback && (
+                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground" data-fallback-label>
+                  <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
+                </p>
+              )}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
               <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
                 <div className="min-w-0">
-                  <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" />
-                  {answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
+                  <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" ask={!isQualityQuestion(query)}>
+                    {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
+                  </BrunoAnswer>
+                  {/* A question's records: as cards the timeline jumps to (championships), else the answer card as before. */}
+                  {apps.length ? (
+                    <section aria-label={answer!.card!.title} className="mb-5" data-section="records">
+                      <h2 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{answer!.card!.title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{apps.length}</span></h2>
+                      <div className="grid gap-3 sm:grid-cols-2">{apps.map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
+                    </section>
+                  ) : answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compare</h2>
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} fuzzyWord={ax?.fuzzyWord} twoCol={!!h2h} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={cardSums} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!h2h} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>
@@ -178,7 +206,7 @@ function ResultSection({ s, summaries, fuzzyWord, twoCol, onOpen }: { s: ViewSec
         {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
       </h2>
       {s.id === "event" ? (
-        <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>{s.rows.map((r) => <EventCard key={r.key} h={r.hit} onOpen={() => onOpen(r.hit)} />)}</div>
+        <div className={cn("grid gap-3 sm:grid-cols-2", twoCol ? "2xl:grid-cols-3" : "xl:grid-cols-3")}>{bySeasons(s.rows.map((r) => r.hit)).map((g) => <EventCard key={g[0].ref} h={g[0]} seasons={g} onOpen={onOpen} />)}</div>
       ) : teamish ? (
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
@@ -204,4 +232,19 @@ function ResultSection({ s, summaries, fuzzyWord, twoCol, onOpen }: { s: ViewSec
       )}
     </section>
   );
+}
+
+/** An event's name for grouping: a championship division by its own name ("Edison Division", whatever the year's
+ *  championship was called), anything else by its whole name. */
+const nameKey = (h: SearchHit) => eventName(h.title).title.trim().toLowerCase();
+
+/** Events that share a name across seasons, as one group (a card with a tab per season) where the first stood.
+ *  Every event stays reachable; two with one name in the same season stay apart. */
+function bySeasons(hits: SearchHit[]): SearchHit[][] {
+  const groups: SearchHit[][] = [];
+  for (const h of hits) {
+    const g = groups.find((x) => nameKey(x[0]) === nameKey(h) && !x.some((y) => y.season === h.season));
+    if (g) g.push(h); else groups.push([h]);
+  }
+  return groups;
 }
