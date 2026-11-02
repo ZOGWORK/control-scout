@@ -25,7 +25,7 @@ You can stop scouting an event.
 - [scout] An open pit entry or typed-in match asks before you leave
 
 ### Scout
-- **Stop scouting.** The event bar on Scout had only Change event, so there was no way to leave an event without picking another. Stop scouting, next to it, ends this device's session at the event and opens Entries; everything scouted there stays (saved or waiting to sync). The toast's Undo goes back to the same event, watching what you were. A pit entry or typed-in match still open asks first, as Change event does. (#PR)
+- **Stop scouting.** The event bar on Scout had only Change event, so there was no way to leave an event without picking another. Stop scouting, next to it, ends this device's session at the event and opens Entries; everything scouted there stays (saved or waiting to sync). The toast's Undo goes back to the same event, watching what you were. A pit entry or typed-in match still open asks first, as Change event does. On a phone the two buttons sit side by side. Also fixed: with no event picked, Entries showed the sync chip twice. (#PR)
 
 ## 2.1.7 — 2026-11-01
 

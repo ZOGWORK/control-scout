@@ -368,7 +368,6 @@ export default function ScoutPage() {
         </>}
         <div hidden={picking}>
         {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} />}
-        {!session && <div className="mb-4 flex justify-end">{syncChip}</div>}
         <ScoutSections section={section} onSection={setSection} sections={sections}>
           {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
               section and back keeps its team, match, answers and notes. */}

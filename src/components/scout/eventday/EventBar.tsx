@@ -43,8 +43,11 @@ export function EventBar({ event, onChange, onStop, status }: {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {status}
-        {onChange && <Button variant="outline" onClick={onChange} className="max-sm:h-11"><ArrowLeftRight /> Change event</Button>}
-        {onStop && <Button variant="outline" onClick={onStop} className="max-sm:h-11"><LogOut /> Stop scouting</Button>}
+        {/* Side by side, the full width on a phone. */}
+        {(onChange || onStop) && <div className="flex gap-2 max-sm:w-full">
+          {onChange && <Button variant="outline" onClick={onChange} className="max-sm:h-11 max-sm:flex-1"><ArrowLeftRight /> Change event</Button>}
+          {onStop && <Button variant="outline" onClick={onStop} className="max-sm:h-11 max-sm:flex-1"><LogOut /> Stop scouting</Button>}
+        </div>}
       </div>
     </section>
   );
