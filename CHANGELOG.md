@@ -25,7 +25,7 @@ FTC One Search shows a team's numbers once: when the summary has them, the team'
 - [fixes] Other teams in the results keep their own numbers
 
 ### Search
-- **Each number once.** For a question like "how good is Simply Complex", the summary holds the team's record, world OPR rank and OPR; the team's card under it now shows its name, place and View scouting profile only, where before it repeated those numbers. Results and their order are unchanged.
+- **Each number once.** For a question like "how good is Simply Complex", the summary holds the team's record, world OPR rank and OPR; the team's card under it now shows its name, place and View scouting profile only, where before it repeated those numbers. Results and their order are unchanged. (#435)
 
 ## 2.3.2 — 2026-11-02
 
