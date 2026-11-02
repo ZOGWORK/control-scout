@@ -13,7 +13,7 @@ import { dateRange, seasonLabel } from "../../../lib/format";
 import { EventStatusChip } from "../../EventChips";
 import { HitFacts } from "../SearchBox";
 import { cn } from "../../cn";
-import { compareTeams, eventFacts, teamParts } from "./results";
+import { compareSides, compareTeams, eventFacts, teamParts } from "./results";
 import { eventName } from "./records";
 
 /** "View event →": where the card goes, as part of the card's own link. */
@@ -136,6 +136,7 @@ export function TeamCard({ h, summary, onOpen }: { h: SearchHit; summary?: Seaso
 /** "X vs Y": both sides by number, name and place, as an action (volt), never as a team row. */
 export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void }) {
   const nums = compareTeams(h);
+  const sides = compareSides(h);
   const names = h.title.split(/\s+vs\.?\s+/i);
   return (
     <Link to={hitHref(h)} onClick={onOpen} data-result="compare"
@@ -143,10 +144,10 @@ export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries:
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-ink"><ArrowLeftRight className="size-4.5" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block break-words font-display text-base font-semibold text-foreground">
-          {nums.length >= 2 ? nums.map((n, i) => <span key={n}>{i > 0 && <span className="px-1.5 text-accent-text">vs</span>}{summaries.get(n)?.s.name ?? names[i]?.replace(/^\d+\s*\|?\s*/, "") ?? "Team"} ({n})</span>) : h.title}
+          {nums.length >= 2 ? nums.map((n, i) => <span key={n}>{i > 0 && <span className="px-1.5 text-accent-text">vs</span>}{sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? teamParts(names[i] ?? "")?.name ?? "Team"} ({n})</span>) : h.title}
         </span>
         <span className="mt-1 block space-y-0.5 text-xs text-muted-foreground">
-          {nums.map((n) => { const s = summaries.get(n)?.s; return s?.place ? <span key={n} className="block truncate">{n}: {s.place}</span> : null; })}
+          {nums.map((n) => { const place = sides.find((x) => x.number === n)?.place || summaries.get(n)?.s.place; return place ? <span key={n} className="block truncate">{n}: {place}</span> : null; })}
         </span>
         <span className="mt-1 block text-xs text-foreground/80">Compare side by side: records, OPR and event history</span>
         <span className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-xs font-semibold text-accent-ink" data-cta>View comparison<ArrowRight className="size-3.5" aria-hidden /></span>

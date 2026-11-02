@@ -4,7 +4,8 @@
 // Presentation only: nothing here adds, drops or reorders a result except the filters the visitor picks.
 import type { SearchHit } from "../../../shared/api";
 import { isCompare } from "../../../shared/searchPage";
-export { contextBadge, isCompare, pageTitle, teamParts, type AnswerExtra } from "../../../shared/searchPage";
+export { contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
+import { hitHref } from "../../../shared/search";
 import { eventTypeLabel } from "../../../shared/labels";
 
 /** "started": begun, and without its last day we can't say whether it's still on (the server sent only its first). */
@@ -24,9 +25,11 @@ export interface EventFacts {
 }
 
 /** The event facts the server may send with an event hit (the search-engine work): every field optional. */
-interface HitEvent { start?: string | null; end?: string | null; status?: EventStatus; type?: string | null; typeLabel?: string | null; city?: string | null; state?: string | null; country?: string | null; venue?: string | null; teams?: number | null }
+interface HitEvent { start?: string | null; end?: string | null; status?: EventStatus; type?: string | null; typeLabel?: string | null; venue?: string | null; teams?: number | null }
 /** Fields a newer server adds to a hit or an answer; read defensively, so the page works with or without them. */
-type Extra = SearchHit & { event?: HitEvent; match?: "exact" | "fuzzy" };
+/** A Compare's sides as the server names them: number, name and place. */
+export interface CompareSide { number: number; name: string; place: string }
+type Extra = SearchHit & { event?: HitEvent; match?: "exact" | "fuzzy"; matched?: string[]; compare?: { teams?: CompareSide[] } };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -53,7 +56,8 @@ export function eventFacts(h: SearchHit, today = todayIso()): EventFacts {
   const code = h.ref.split(":")[1] ?? parts[0] ?? "";
   const start = ev?.start ?? parts.find((p) => DAY.test(p)) ?? null;
   const end = ev?.end ?? null;
-  const place = ev ? [ev.city, ev.state, ev.country].filter(Boolean).join(", ") || null : parts.filter((p) => p !== code && !DAY.test(p)).join(" · ") || null;
+  // The place stays in the subtitle ("CODE · start · place"), with or without the server's event facts.
+  const place = parts.filter((p) => p !== code && !DAY.test(p)).join(" · ") || null;
   return {
     code, start, end, place,
     status: ev?.status ?? statusOf(start, end, today),
@@ -65,9 +69,14 @@ export function eventFacts(h: SearchHit, today = todayIso()): EventFacts {
 
 /** The team numbers a Compare puts side by side, from its link (/compare?teams=4215,23268). */
 /** A Compare link's query (/compare?teams=…&season=…#awards: the part before any #). */
-const compareQuery = (h: SearchHit) => new URLSearchParams(h.href?.split("#")[0].split("?")[1] ?? "");
+const compareQuery = (h: SearchHit) => new URLSearchParams(hitHref(h).split("#")[0].split("?")[1] ?? "");
+
+/** A Compare's sides as the server names them (number, name, place), when it does. */
+export const compareSides = (h: SearchHit): CompareSide[] => (h as Extra).compare?.teams ?? [];
 
 export function compareTeams(h: SearchHit): number[] {
+  const sides = compareSides(h);
+  if (sides.length) return sides.map((s) => s.number);
   return (compareQuery(h).get("teams") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
 }
 
@@ -79,6 +88,12 @@ export function compareSeason(h: SearchHit): number | null {
 
 /** A team hit that matched only on a shared word (the server marks it), not the name asked for. */
 export const isFuzzy = (h: SearchHit) => (h as Extra).match === "fuzzy";
+
+/** The typed words fuzzy hits matched ("good"), for their group's heading; null when the server doesn't say. */
+export function fuzzyWords(hits: SearchHit[]): string | null {
+  const words = [...new Set(hits.filter(isFuzzy).flatMap((h) => (h as Extra).matched ?? []))];
+  return words.length ? words.join(", ") : null;
+}
 
 // ── Filters (the page's own, in its address: ?when=upcoming&season=2025&type=LeagueMeet) ──
 

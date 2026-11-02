@@ -103,8 +103,8 @@ describe("search results page", () => {
   });
 
   it("splits exact team matches from ones that only share a word", () => {
-    const fuzzy = (h: SearchHit) => ({ ...h, match: "fuzzy" as const });
-    state.answer = { ...answer([team(18061, "Simply Complex", "Plainsboro, NJ"), fuzzy(team(7100, "Good Enough", "X")), fuzzy(team(16215, "Goodfellas", "Y"))]), fuzzyWord: "good" } as SearchAnswer;
+    const fuzzy = (h: SearchHit) => ({ ...h, match: "fuzzy" as const, matched: ["good"] });
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ"), fuzzy(team(7100, "Good Enough", "X")), fuzzy(team(16215, "Goodfellas", "Y"))]);
     const { container } = show("/search?q=x");
     expect(within(container.querySelector('[data-section="top"]') as HTMLElement).getAllByRole("link")).toHaveLength(1);
     const other = container.querySelector('[data-section="fuzzy"]') as HTMLElement;
@@ -154,18 +154,27 @@ describe("search results page", () => {
   });
 
   it("shows the server's fallback under its own label, never as the answer", () => {
-    state.answer = { ...answer([], { step: "recovery", recovery: { understood: [], closest: [], browse: [] } }), interpreted: "Events in New Jersey at River Dell High School", fallback: { label: "No events at River Dell High School — showing all New Jersey events instead", hits: [ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13")] } } as SearchAnswer;
+    state.answer = { ...answer([ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13")]), understood: { label: "League meets in New Jersey at River Dell High School", fallback: "No league meets at River Dell High School in New Jersey — showing all league meets in New Jersey instead" } } as SearchAnswer;
     const { container } = show("/search?q=x");
-    expect(container.querySelector("[data-fallback-label]")!.textContent).toContain("showing all New Jersey events instead");
-    expect(container.querySelector("[data-understood]")!.textContent).toContain("River Dell High School");
+    expect(container.querySelector("[data-fallback-label]")!.textContent).toContain("showing all league meets in New Jersey instead");
+    expect(container.querySelector("[data-context-badge]")!.textContent).toContain("River Dell High School");
     expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
   });
 
   it("names the interpreted query, not a result, when the server reads it", () => {
-    state.answer = { ...answer([ev("A", "P1-1 Southern League Meet", "2099-11-17")]), interpreted: "Events in New Jersey" } as SearchAnswer;
+    state.answer = { ...answer([ev("A", "P1-1 Southern League Meet", "2099-11-17")]), understood: { label: "Events in New Jersey" } } as SearchAnswer;
     const { container } = show("/search?q=meets%20in%20new%20jersey");
     expect(container.querySelector("[data-context-badge]")!.textContent).toBe("Events in New Jersey");
     expect(container.textContent).not.toContain("Southern League Meet”");
+  });
+
+  it("a Compare names its sides as the server does (kind compare, compare.teams)", () => {
+    state.answer = answer([{ kind: "compare" as SearchHit["kind"], ref: "4215,23268", title: "4215 | Hypnotic Robotics vs 23268 | Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268",
+      compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }] } } as SearchHit]);
+    const { container } = show("/search?q=x");
+    const card = container.querySelector('[data-result="compare"]')!;
+    expect(card.textContent).toContain("Hypnotic Robotics (4215)vsUltraviolet (23268)");
+    expect(card.textContent).toContain("23268: Hackettstown, NJ");
   });
 
   it("titles the page by what was found, with one context badge and no second search box", () => {

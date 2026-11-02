@@ -3,8 +3,13 @@
 import type { SearchAnswer, SearchHit } from "./api.js";
 import { showingLine } from "./search.js";
 
-/** Fields a newer server adds to an answer (the search-engine work); read defensively. */
-export type AnswerExtra = SearchAnswer & { interpreted?: string; fuzzyWord?: string; fallback?: { label: string; hits: SearchHit[] } };
+/** What the server says it understood (the search-engine work, `SearchAnswer.understood`): the one line to show, and
+ *  when the hits are a fallback rather than the answer, the line that says so. Read defensively (older servers lack it). */
+export interface UnderstoodLine { label: string; fallback?: string; total?: number }
+export type AnswerExtra = SearchAnswer & { understood?: UnderstoodLine };
+
+/** The server's reading of the query, in words ("League meets in New Jersey"), when it sends one. */
+export const readingOf = (a: AnswerExtra | undefined): string | null => a?.understood?.label?.trim() || null;
 
 /** A Compare: its own kind from the server, or (an older server) a team hit that opens /compare. */
 export const isCompare = (h: SearchHit) => (h.kind as string) === "compare" || !!h.href?.startsWith("/compare");
@@ -26,7 +31,8 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTe
   if (card) return card.team ? `Team ${card.team.number} — ${capWords(card.title)}` : card.title;
   const top = hits[0];
   if (top && isCompare(top)) return top.title.split(/\s+vs\.?\s+/i).map((t) => { const p = teamParts(t); return p ? `${p.name} (${p.number})` : t; }).join(" vs ");
-  if (a?.interpreted) return a.interpreted;
+  const read = readingOf(a);
+  if (read) return read;
   if (top?.kind === "team" && (a?.step === "deterministic" || !a || (aboutTeam && a.step !== "recovery"))) { const p = teamParts(top.title); if (p) return p.name ? `${p.name} (${p.number})` : `Team ${p.number}`; }
   return "Search results";
 }
@@ -37,7 +43,8 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTe
  *  opens on ("ENFORCERS (7149) · Worlds appearances"). Never one event's or place's name (a list of events isn't
  *  "showing" its first). */
 export function contextBadge(a: AnswerExtra, understood: string[] = []): string | null {
-  if (a.interpreted) return a.interpreted;
+  const label = readingOf(a);
+  if (label) return label;
   const read = understood.map((u) => u.replace(/^Understood:\s*/, "").trim()).filter(Boolean);
   if (read.length) return read.join(" · ");
   const top = a.hits[0];

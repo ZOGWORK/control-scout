@@ -12,7 +12,7 @@
 // (./search/page/NoResults.tsx).
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { RefreshCw, ScanSearch } from "lucide-react";
+import { Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
@@ -21,7 +21,7 @@ import { NoResults } from "../components/search/page/NoResults";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -112,8 +112,7 @@ export default function SearchPage() {
               : (
                 <NoResults
                   query={query} onOpen={open}
-                  understood={ax?.interpreted ? [ax.interpreted] : notes.understood}
-                  fallback={ax?.fallback}
+                  understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
                   closest={sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? []}
                 />
               )
@@ -121,6 +120,12 @@ export default function SearchPage() {
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               {/* The badge carries what was understood; a correction ("Did you mean …") and a gap still say so here. */}
               <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" />
+              {/* The server found nothing for all of it and shows the nearest set instead: said plainly, above that set. */}
+              {ax?.understood?.fallback && (
+                <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground" data-fallback-label>
+                  <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
+                </p>
+              )}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
               <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
                 <div className="min-w-0">
@@ -140,7 +145,7 @@ export default function SearchPage() {
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} fuzzyWord={ax?.fuzzyWord} twoCol={!!h2h} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!h2h} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>
