@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.2.0 — 2026-11-02
+## 2.2.1 — 2026-11-02
 
 Scout's event picker is the Events list, with a Scout button on every card.
 
@@ -26,6 +26,18 @@ Scout's event picker is the Events list, with a Scout button on every card.
 
 ### Scout
 - **The event picker matches the Events page.** Until an event is picked (and after Change event), Scout shows the Events page's filter bar and its cards by week, any event of the season, past ones too. Each card keeps its link to the event and gets a Scout button under it, which picks the event; the event picked now has a gold ring and Keep scouting. A card says when your team competes there and, once this space has entries there, how many pits and matches are scouted. Above the filters: your teams' upcoming events and the events you track, each one tap from scouting it. The filters stay on the picker (Scout's own address keeps the entry list's), and the season picker switches Scout's season. (#421)
+
+## 2.2.0 — 2026-11-02
+
+You can stop scouting an event.
+
+### Highlights
+- [scout] Stop scouting, beside Change event, leaves the event you're scouting
+- [scout] Your entries stay, and Undo picks the event back up
+- [scout] An open pit entry or typed-in match asks before you leave
+
+### Scout
+- **Stop scouting.** The event bar on Scout had only Change event, so there was no way to leave an event without picking another. Stop scouting, next to it, ends this device's session at the event and opens Entries; everything scouted there stays (saved or waiting to sync). The toast's Undo goes back to the same event, watching what you were. A pit entry or a match being typed in on Event day asks first, as Change event does; a match typed in from Entries stays open and still saves at the event it was typed at. On a phone the two buttons sit side by side. Also fixed: with no event picked, Entries showed the sync chip twice. (#420)
 
 ## 2.1.9 — 2026-11-02
 

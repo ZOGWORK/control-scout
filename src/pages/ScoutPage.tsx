@@ -277,6 +277,23 @@ export default function ScoutPage() {
     if (manual) setManual(null);
     setSp((x) => { x.set("season", String(y)); if (pitOpen) x.delete("pit"); x.delete("entry"); return x; });
   };
+  // Stop scouting: this device leaves the event (entries stay, saved or queued). An open pit entry or typed-in
+  // match on Event day asks first, as Change event does; one typed in from Entries stays open, kept at this event
+  // (it would otherwise fall back to the workspace's default). Undo in the toast picks the same event and watching back up.
+  const stopScouting = () => {
+    if (!session) return;
+    const open = pitOpen ? `the pit entry for ${pitTeam}` : manual?.from === "event" ? "the match you're typing in" : null;
+    if (open && !window.confirm(`Stop scouting and leave ${open}? What you've typed in it isn't saved.`)) return;
+    const was = session;
+    scoutSession.end();
+    if (manual?.from === "event") setManual(null);
+    else if (manual && !(manual.space === space && manual.season === season && manual.eventCode)) setManual({ ...manual, eventCode: was.eventCode, space, season });
+    setSp((x) => { x.delete("at"); x.delete("pit"); x.delete("pick"); x.delete("view"); x.set("tab", "entries"); return x; });
+    toast.success(`Stopped scouting ${scoutEvent.info?.name || was.eventCode}`, {
+      description: "Your entries are kept. Pick an event on Event day to scout again.",
+      action: { label: "Undo", onClick: () => { scoutSession.set(was.eventCode, was.watching); setSp((x) => { x.delete("view"); x.set("tab", "event"); return x; }); } },
+    });
+  };
   const setWatching = (w: Watching) => { if (session) scoutSession.set(session.eventCode, w); };
   // The match being scouted has its own key (`at`): `match` is the entry list's filter, which this never touches.
   const openMatch = (label: string) => setSp((x) => { x.set("tab", "event"); x.set("at", label); return x; });
@@ -362,8 +379,7 @@ export default function ScoutPage() {
           )}
         </>}
         <div hidden={picking}>
-        {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} />}
-        {!session && <div className="mb-4 flex justify-end">{syncChip}</div>}
+        {session && <EventBar event={scoutEvent} status={syncChip} onChange={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} onStop={readOnly ? null : stopScouting} />}
         <ScoutSections section={section} onSection={setSection} sections={sections}>
           {/* A match typed in stays mounted (hidden in other sections) until Save or Cancel, so stepping to another
               section and back keeps its team, match, answers and notes. */}
