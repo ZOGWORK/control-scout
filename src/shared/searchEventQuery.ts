@@ -12,7 +12,7 @@
 //   - Time (src/shared/searchQuery.ts TIME_WORDS) is a date window (timeWindow).
 //   - Year: "2024" means events held in calendar 2024 (a 2024 Houston championship belongs to the 2023–24 season);
 //     "2023-24" means that season. No year: the current season.
-import { findRegions, type Region } from "./regions.js";
+import { findRegions, isRegionCode, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, singularize, timePhrase } from "./searchQuery.js";
 import { SEARCH_TOPICS } from "./search.js";
 
@@ -102,7 +102,7 @@ export function readEventQuery(raw: string): EventQuery | null {
       while (j < rest.length && !PLACE_MARKERS.has(rest[j].toLowerCase())) j++;
       // Leading little words go ("in the Northern Territory"); those inside a name stay ("District of Columbia").
       let k = i + 1;
-      while (k < j && STOPWORDS.has(rest[k].toLowerCase())) k++;
+      while (k < j && STOPWORDS.has(rest[k].toLowerCase()) && !isRegionCode(rest[k])) k++;
       const full = rest.slice(k, j);
       // The longest leading run of words that's a region, its own little words kept ("District of Columbia");
       // what's left of the segment, little words out, is a city or venue.

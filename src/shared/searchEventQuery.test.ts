@@ -80,6 +80,8 @@ describe("Greptile on #434", () => {
   it("keeps a region's own little words", () => {
     expect(readEventQuery("meets in District of Columbia")).toMatchObject({ region: { key: "USA:DC" }, where: null });
     expect(readEventQuery("meets in the Northern Territory")).toMatchObject({ region: { key: "Australia:NT" }, where: null });
+    expect(readEventQuery("meets in ON")).toMatchObject({ region: { key: "Canada:ON" } });
+    expect(readEventQuery("meets in IN")).toMatchObject({ region: { key: "USA:IN" } });
     expect(readEventQuery("meets in the New Jersey")).toMatchObject({ region: { key: "USA:NJ" }, where: null });
   });
   it("leaves an event's page and a season in words to their own readers", () => {
