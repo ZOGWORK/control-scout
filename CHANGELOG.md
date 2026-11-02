@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.2.7 — 2026-11-02
+## 2.2.8 — 2026-11-02
 
 FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
 
@@ -31,6 +31,19 @@ FTC One Search reads what you type the way you meant it: plurals, little words a
 - **A question's opening is the question.** "how good is", "how strong is", "how is", "what is the rank of", "what's the record of", "where is", "tell me about", "show me" and the rest of the list in `src/shared/searchQuery.ts` are read as the question, never as part of a name: "how good is simply complex" searches "simply complex" and shows its season's OPR, rank and record. Only the opening goes, so "how good is Good Enough" is Good Enough, and "good teams" (no opening) still searches for "good".
 - **Time words and a question's own words never name a team.** "upcoming", "this weekend" and the like (and "past", "recent", "latest" next to a word like "meets") are never matched against names, so "upcoming meets" can't turn into the team Oncoming Storm. In a question ("Can robots…?"), words like can, will and does aren't searched for either; "Can Control" on its own is still a team's name.
 - **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline. (#427)
+
+## 2.2.7 — 2026-11-02
+
+FTC One Search: the search you ran stays in the top bar.
+
+### Highlights
+- [home] On the results page, your search stays in the top bar's search box
+- [home] Change a word there and press Enter to refine it
+- [fixes] Opening the results page no longer empties the search box
+
+### Search
+- **Your search stays in the top bar.** On the full results page (/search) the top bar's box shows the query you ran, follows it when it changes, and is where you refine it: edit it and press Enter (or the magnifier) for the new results. Until you edit it, it doesn't search again, since the results are already on the page. On every other page the box starts empty, as before. (#430)
+
 ## 2.2.6 — 2026-11-02
 
 FTC One Search: recent searches, example searches, and a clearly labelled "did you mean".
