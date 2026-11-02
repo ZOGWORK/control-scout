@@ -4,7 +4,7 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { offlineSource } from "../../lib/offline/saved";
@@ -123,7 +123,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   };
 }
 
-const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event: CalendarDays, match: Swords };
+const ICONS: Record<HitKind, typeof Users> = { compare: ArrowLeftRight, place: MapPin, team: Users, event: CalendarDays, match: Swords };
 export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
 
 /** A row's icon: its kind's, or its section's for pages, browsing and Bruno AI's suggestion. */

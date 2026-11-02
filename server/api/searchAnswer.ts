@@ -19,6 +19,7 @@ import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_L
 import { conversationQuery, nameWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
+import { versusAnswer } from "./searchCompare.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
@@ -93,35 +94,6 @@ const answer = (q: string, a: Partial<SearchAnswer> & Pick<SearchAnswer, "hits" 
 
 const recovery = (q: string, understood: string[], closest: SearchHit[] = []): SearchAnswer =>
   answer(q, { hits: [], step: "recovery", recovery: { understood, closest, browse: SEARCH_BROWSE } satisfies SearchRecovery });
-
-/** "hypnotic versus bad wolf history": Compare for the teams named (2–4, in number order), or null when it isn't one. */
-async function versus(q: string, prefer: ReadonlySet<string>, season: number | null): Promise<SearchAnswer | null> {
-  const sides = q.split(VERSUS).map((s) => s.trim()).filter(Boolean);
-  if (sides.length < 2) return null;
-  const found: SearchHit[] = [], missing: string[] = [];
-  for (const side of sides) {
-    // Topic and filler words name no team ("… history").
-    const name = (searchIntent(side)?.rest ?? side).trim();
-    // A name matching only a team that never played (a test registration, "ZZZ delete this team") names no team here.
-    const hit = (await search(name, 5, prefer)).find((h) => h.kind === "team");
-    const team = hit && (/^\d+$/.test(name) || (await played(hit.ref))) ? hit : undefined;
-    if (team && !found.some((t) => t.ref === team.ref)) found.push(team); else if (!team) missing.push(side);
-  }
-  const shown = found.slice(0, 4);
-  if (shown.length >= 2 && !missing.length) {
-    const nums = shown.map((t) => Number(t.ref)).sort((a, b) => a - b);
-    const extra = found.length > 4 ? ` (Compare holds 4: ${found.length - 4} left out)` : "";
-    // "… awards": Compare opened on its events-and-awards section.
-    const awards = /\bawards?\b/i.test(q);
-    const top: SearchHit = {
-      ...shown.find((t) => Number(t.ref) === nums[0])!, href: `/compare?teams=${nums.join(",")}${season != null ? `&season=${season}` : ""}${awards ? "#awards" : ""}`,
-      title: nums.map((n) => teamWords(shown.find((t) => Number(t.ref) === n)!.title)).join(" vs "), subtitle: `${awards ? "Compare their events and awards side by side" : "Compare side by side: records, OPR and event history"}${extra}`,
-    };
-    return answer(q, { hits: [top, ...shown], step: "deterministic" });
-  }
-  // A side with no team: never a half-empty Compare. The teams found, and a note on the rest.
-  return recovery(q, [`A comparison of ${sides.length} teams`, ...missing.map((m) => `No team found for "${m}"`)], found);
-}
 
 /** Search's answer for `raw` (docs/search.md). Plurals are read as their singular first (src/shared/searchQuery.ts),
  *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
@@ -236,7 +208,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 2. Teams side by side (in a season, when one is named).
   // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 4215").
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
-  const vs = await versus(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
+  const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;
 
   // 3. The search, on the season-free, short-forms-expanded query; the name-and-topic reading when it fits better.
