@@ -111,7 +111,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
  * linking to the event opened on the team. "… at this event", or an event none of the team's matches: the team with
  * its events and their OPRs, for the visitor to pick: never a guessed event. Null when the query isn't one of these.
  */
-async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked?: number | null): Promise<SearchHit[] | null> {
+export async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked?: number | null): Promise<SearchHit[] | null> {
   const m = /^(.+?)\s+at\s+(.+)$/i.exec(q.trim());
   if (!m || MATCH_RE.test(q.trim()) || (kinds?.size && !kinds.has("team"))) return null;
   const intent = searchIntent(m[1]) ?? searchIntent(m[1], true);

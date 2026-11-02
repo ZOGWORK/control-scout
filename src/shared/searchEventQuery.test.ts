@@ -81,6 +81,9 @@ describe("Greptile on #434", () => {
     expect(readEventQuery("meets in District of Columbia")).toMatchObject({ region: { key: "USA:DC" }, where: null });
     expect(readEventQuery("meets in the Northern Territory")).toMatchObject({ region: { key: "Australia:NT" }, where: null });
     expect(readEventQuery("meets in ON")).toMatchObject({ region: { key: "Canada:ON" } });
+    expect(readEventQuery("meets in NSW")).toMatchObject({ region: { key: "Australia:NSW" }, where: null });
+    expect(readEventQuery("meets in qld")).toMatchObject({ region: { key: "Australia:QLD" } });
+    expect(readEventQuery("meets in VIC")).toMatchObject({ region: { key: "Australia:VIC" } });
     expect(readEventQuery("meets in IN")).toMatchObject({ region: { key: "USA:IN" } });
     expect(readEventQuery("meets in the New Jersey")).toMatchObject({ region: { key: "USA:NJ" }, where: null });
   });
@@ -93,5 +96,12 @@ describe("Greptile on #434", () => {
     expect(eventTypesOf(["event", "meet"])).toEqual(["LeagueMeet"]);
     expect(eventTypesOf(["event"])).toBeNull();
     expect(eventTypesOf(["meet", "tournament"])).toEqual(["LeagueMeet", "LeagueTournament"]);
+  });
+});
+
+describe("questions about events are not event sets", () => {
+  it("leaves who-wins and award questions to their readers", () => {
+    for (const q of ["who will win New Jersey Championship", "who won Inspire at New Jersey Championship", "New Jersey Championship winner", "who will advance from NJ meets"]) expect(readEventQuery(q), q).toBeNull();
+    expect(readEventQuery("when is the next meet in NJ")).toMatchObject({ time: "upcoming", region: { key: "USA:NJ" } });
   });
 });
