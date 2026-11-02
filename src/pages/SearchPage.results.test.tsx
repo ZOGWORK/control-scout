@@ -84,7 +84,7 @@ describe("search results page", () => {
   it("filters narrow the events in the address, and clearing returns all of them", () => {
     state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("B", "Old Meet", "2020-01-11", 2019), ev("C", "Later Meet", "2099-12-01")]);
     const { container } = show("/search?q=meets%20in%20nj");
-    const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("p.line-clamp-2")?.textContent);
+    const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("a.line-clamp-2")?.textContent);
     expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
     fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }));
     expect(loc).toBe("/search?q=meets+in+nj&when=upcoming");
@@ -103,8 +103,8 @@ describe("search results page", () => {
   });
 
   it("splits exact team matches from ones that only share a word", () => {
-    const fuzzy = (h: SearchHit) => ({ ...h, match: "fuzzy" as const });
-    state.answer = { ...answer([team(18061, "Simply Complex", "Plainsboro, NJ"), fuzzy(team(7100, "Good Enough", "X")), fuzzy(team(16215, "Goodfellas", "Y"))]), fuzzyWord: "good" } as SearchAnswer;
+    const fuzzy = (h: SearchHit) => ({ ...h, match: "fuzzy" as const, matched: ["good"] });
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ"), fuzzy(team(7100, "Good Enough", "X")), fuzzy(team(16215, "Goodfellas", "Y"))]);
     const { container } = show("/search?q=x");
     expect(within(container.querySelector('[data-section="top"]') as HTMLElement).getAllByRole("link")).toHaveLength(1);
     const other = container.querySelector('[data-section="fuzzy"]') as HTMLElement;
@@ -154,18 +154,27 @@ describe("search results page", () => {
   });
 
   it("shows the server's fallback under its own label, never as the answer", () => {
-    state.answer = { ...answer([], { step: "recovery", recovery: { understood: [], closest: [], browse: [] } }), interpreted: "Events in New Jersey at River Dell High School", fallback: { label: "No events at River Dell High School — showing all New Jersey events instead", hits: [ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13")] } } as SearchAnswer;
+    state.answer = { ...answer([ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13")]), understood: { label: "League meets in New Jersey at River Dell High School", fallback: "No league meets at River Dell High School in New Jersey — showing all league meets in New Jersey instead" } } as SearchAnswer;
     const { container } = show("/search?q=x");
-    expect(container.querySelector("[data-fallback-label]")!.textContent).toContain("showing all New Jersey events instead");
-    expect(container.querySelector("[data-understood]")!.textContent).toContain("River Dell High School");
+    expect(container.querySelector("[data-fallback-label]")!.textContent).toContain("showing all league meets in New Jersey instead");
+    expect(container.querySelector("[data-context-badge]")!.textContent).toContain("River Dell High School");
     expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
   });
 
   it("names the interpreted query, not a result, when the server reads it", () => {
-    state.answer = { ...answer([ev("A", "P1-1 Southern League Meet", "2099-11-17")]), interpreted: "Events in New Jersey" } as SearchAnswer;
+    state.answer = { ...answer([ev("A", "P1-1 Southern League Meet", "2099-11-17")]), understood: { label: "Events in New Jersey" } } as SearchAnswer;
     const { container } = show("/search?q=meets%20in%20new%20jersey");
     expect(container.querySelector("[data-context-badge]")!.textContent).toBe("Events in New Jersey");
     expect(container.textContent).not.toContain("Southern League Meet”");
+  });
+
+  it("a Compare names its sides as the server does (kind compare, compare.teams)", () => {
+    state.answer = answer([{ kind: "compare" as SearchHit["kind"], ref: "4215,23268", title: "4215 | Hypnotic Robotics vs 23268 | Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268",
+      compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }] } } as SearchHit]);
+    const { container } = show("/search?q=x");
+    const card = container.querySelector('[data-result="compare"]')!;
+    expect(card.textContent).toContain("Hypnotic Robotics (4215)vsUltraviolet (23268)");
+    expect(card.textContent).toContain("23268: Hackettstown, NJ");
   });
 
   it("titles the page by what was found, with one context badge and no second search box", () => {
@@ -184,5 +193,68 @@ describe("search results page", () => {
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Team 7149 — Worlds Appearances");
     expect(container.querySelector("[data-context-badge]")!.textContent).toBe("ENFORCERS (7149) · Worlds appearances");
+  });
+});
+
+describe("search results page, Phase 2 cards", () => {
+  const worlds = (season: string, div: string, rank: number, opr: number) => ({
+    text: `FIRST Championship - Houston - World Championship - FIRST Tech Challenge - ${div} Division`,
+    detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
+  });
+
+  it("a championship question's records: stats, a timeline whose nodes jump to their cards, short titles and pills", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 2, lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect(container.querySelector("[data-stat-banner]")!.textContent).toContain("Best division rank#3");
+    const card = container.querySelector('[data-appearance="2021"]') as HTMLElement;
+    expect(card.textContent).toContain("Franklin Division");
+    expect(card.textContent).not.toContain("FIRST Tech Challenge");
+    expect(card.querySelector("[data-pills]")!.textContent).toBe("Rank#20Record4–4–0OPR124.8");
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) { scrolled.push(this); };
+    fireEvent.click(container.querySelector('[data-node="2022"]')!);
+    const target = container.querySelector('[data-appearance="2022"]') as HTMLElement;
+    expect(scrolled).toEqual([target]);
+    expect(target.dataset.highlight).toBe("on");
+  });
+
+  it("event cards: one link over the card, quick links beside it (never inside), season tabs for a name held in several seasons", () => {
+    state.answer = answer([ev("A", "Ohio State Championship", "2020-02-11", 2019), ev("B", "Ohio State Championship", "2021-02-11", 2020)]);
+    const { container } = show("/search?q=x");
+    const cards = container.querySelectorAll('[data-result="event"]');
+    expect(cards).toHaveLength(1);
+    for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
+    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
+    fireEvent.click(screen.getByRole("button", { name: "2020–21", pressed: false }));
+    expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
+  });
+
+  it("groups a championship division across years by its own name", () => {
+    state.answer = answer([ev("A", "2024 FIRST Championship - Edison Division", "2024-04-17", 2023), ev("B", "FIRST Championship - FIRST Tech Challenge - Edison Division", "2025-04-16", 2024)]);
+    const { container } = show("/search?q=edison%20division");
+    expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
+    expect([...container.querySelectorAll("[data-season-tabs] button")].map((t) => t.textContent)).toEqual(["2023–24", "2024–25"]);
+  });
+
+  it("how good is X: the team's standing once, as blocks, with a win rate", () => {
+    summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: "20-4-0", opr: 119.7, oprRank: 388, of: 8308 };
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    const banner = container.querySelector("[data-quality-banner]")!.textContent!;
+    expect(banner).toContain("Top 4.7%");
+    expect(banner).toContain("Elite");
+    expect(banner).toContain("83.3%");
+    expect(banner.match(/20-4-0/g)).toHaveLength(1);
+    const card = container.querySelector('[data-result="team"]')!.textContent!;
+    expect(card).toContain("18061 | Simply Complex");
+    expect(card).not.toContain("20-4-0");
+  });
+
+  it("how good is X with no numbers: no empty summary, the card keeps its line", () => {
+    summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: null, opr: null, oprRank: null, of: null };
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    expect(container.querySelector("[data-quality-banner]")).toBeNull();
+    expect(container.textContent).not.toContain("Counted from the records below");
   });
 });
