@@ -2,7 +2,7 @@
 // stays fully usable (no modal, no focus trap). Content only: teams, events
 // and matches, plus the site pages a whole word names (docs/search.md) —
 // navigation lives in the nav.
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
 import { ArrowRight, CalendarDays, ChevronDown, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
@@ -212,6 +212,30 @@ export interface SearchBoxProps {
   seeAll?: boolean;
 }
 
+/** A phone's keyboard (and its accessory bar) covers the bottom of the page without making it shorter: while it's
+ *  up, the list's height is what's left between its top and the keyboard, so no row sits underneath. Null otherwise
+ *  (no keyboard, pinch-zoomed, or no visualViewport): the list keeps its usual height. */
+export function useRoomAboveKeyboard(el: RefObject<HTMLElement | null>, on: boolean): number | null {
+  const [room, setRoom] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!on || !vv) { setRoom(null); return; }
+    const fit = () => {
+      const top = el.current?.getBoundingClientRect().top;
+      const keyboard = window.innerHeight - vv.height > 150 && Math.abs(vv.scale - 1) < 0.01;
+      // The visible area's bottom, in the same (layout viewport) coordinates as the list's top.
+      // Exactly the room there is, however little: a taller list would put its last rows under the keyboard.
+      setRoom(top == null || !keyboard ? null : Math.max(0, Math.floor(vv.offsetTop + vv.height - top - 12)));
+    };
+    fit();
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+    window.addEventListener("scroll", fit, { passive: true });
+    return () => { vv.removeEventListener("resize", fit); vv.removeEventListener("scroll", fit); window.removeEventListener("scroll", fit); };
+  }, [el, on]);
+  return room;
+}
+
 /** The full results page for a query: where plain Enter and the last row go. */
 export const searchPagePick = (q: string): SearchHit => ({ kind: "place", ref: "search", title: `See all results for “${q}”`, subtitle: "", season: null, href: `/search?q=${encodeURIComponent(q)}` });
 
@@ -266,6 +290,13 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  // The field itself (the caller's inputRef is set too): the magnifier focuses it when there's nothing to search.
+  const field = useRef<HTMLInputElement | null>(null);
+  const setField = useCallback((el: HTMLInputElement | null) => {
+    field.current = el;
+    if (typeof inputRef === "function") inputRef(el);
+    else if (inputRef) (inputRef as { current: HTMLInputElement | null }).current = el;
+  }, [inputRef]);
   // How many results sit below the visible part of the dropdown (drives the "more below" cue).
   const [below, setBelow] = useState(0);
   const measure = () => {
@@ -324,29 +355,42 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const full = seeAll && !!query;
   const count = ordered.length + (full ? 1 : 0);
   const openFull = () => go(searchPagePick(query));
+  // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
+  // page (a picker box: its top result, once it's current).
+  const submit = (highlighted: boolean) => {
+    if (highlighted && !stale && active >= 0 && ordered[active]) pick(ordered[active].hit);
+    else if (full) openFull();
+    else if (!stale && !busy && ordered[0]) pick(ordered[0].hit);
+    // A picker box whose results aren't in yet: ask now, and open the top result when they arrive (one press).
+    // (Open again first: a list closed meanwhile would drop the pending pick.)
+    else { setOpen(true); enterFor.current = query; searchNow(); }
+  };
   const showList = open && (query ? true : !!emptyHint);
+  const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
     <div ref={box} data-search-box data-tour={tour} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
-        {busy ? <Loader2 className={cn("shrink-0 animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("shrink-0 text-accent", lg ? "size-5" : "size-4")} />}
+        {/* The magnifier searches, like Enter: it never just focuses the field (only an empty one, with nothing to
+            search). The press keeps focus in the field so the list stays open until the search goes; going closes
+            the keyboard. */}
+        <button
+          type="button" aria-label="Run search" data-search-submit
+          onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()}
+          onClick={() => { if (query) submit(false); else field.current?.focus(); }}
+          className={cn("-ml-1 flex shrink-0 items-center justify-center rounded-lg outline-none hover:bg-accent/10 focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:size-11 pointer-coarse:-my-1", lg ? "size-9 -mr-1" : "size-7 -mr-1.5")}
+        >
+          {busy ? <Loader2 className={cn("animate-spin text-muted-foreground", lg ? "size-5" : "size-4")} /> : <Search className={cn("text-accent", lg ? "size-5" : "size-4")} />}
+        </button>
         <input
-          ref={inputRef} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"}
+          ref={setField} value={q} autoFocus={autoFocus} enterKeyHint={full ? "search" : "go"}
           onChange={(e) => { setQ(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={(e) => {
             // Escape: closes the list and stays in the field; again clears it; on an empty, closed field, leaves it.
             if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); onEscape?.(); } return; }
             // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
-            if (e.key === "Enter" && query) {
-              e.preventDefault();
-              if (!stale && active >= 0 && ordered[active]) pick(ordered[active].hit);
-              else if (full) openFull();
-              else if (!stale && !busy && ordered[0]) pick(ordered[0].hit);
-              // A picker box whose results aren't in yet: ask now, and open the top result when they arrive (one press).
-              else { enterFor.current = query; searchNow(); }
-              return;
-            }
+            if (e.key === "Enter" && query) { e.preventDefault(); submit(true); return; }
             if (!count) return;
             if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % count); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? count - 1 : i - 1)); }
@@ -363,6 +407,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         <m.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
           className="absolute inset-x-0 top-full z-40 mt-1.5 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-[0_18px_40px_-16px_rgba(0,0,0,.55)]">
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
+          style={room != null ? { maxHeight: `min(26rem, ${room}px)` } : undefined}
           className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
           {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length && !answer?.card ? (
