@@ -7,11 +7,15 @@
 //   3. the newest season played
 //   4. the same state or province as a team another side named ("ultraviolet vs hypnotic": Hypnotic is in NJ, so the
 //      Ultraviolet from Hackettstown, NJ)
-// Still tied: no team is guessed. The answer lists one Compare per candidate, each naming its team's place, for the
-// visitor to pick. Trailing words ("history", "record", "stats") never break the versus: they're topic words.
+// Every team with exactly that name is a candidate (from the teams table, never cut by a display limit), and the pick
+// is recorded with its rule (`compare.resolved`). Still tied: no team is guessed. With one side tied, one Compare per
+// candidate (all of them), each naming its team's place, for the visitor to pick; with several sides tied, the
+// question for each, and no Compare until they're picked.
+// Trailing words never break the versus: topic words ("history", "record", "stats") are dropped, and when a side
+// still names no team, its last words are dropped one at a time until it does ("6980 please" → 6980).
 import type { SearchAnswer, SearchCompareSide, SearchHit } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, VERSUS, pagesFor } from "../../src/shared/search.js";
-import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
+import { cleanTeamName, searchTeamTitle, teamWords } from "../../src/shared/teamTitle.js";
 import { all } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
@@ -30,28 +34,55 @@ const placeOf = (t: TeamFacts) => [t.city, t.state].filter(Boolean).join(", ") |
 const sideOf = (t: TeamFacts): SearchCompareSide => ({ number: t.number, name: cleanTeamName(t.number, t.name) ?? "", place: placeOf(t) });
 
 /** What one side of a versus names: a team, several equally (a shared name), or nothing. */
-type Side = { typed: string; team: TeamFacts | null; tied: TeamFacts[]; rule?: string };
+type Side = { typed: string; team: TeamFacts | null; tied: TeamFacts[]; rule?: string; candidates: number[] };
+
+/** Every team named exactly `name` (FIRST's stored name, a number inside it left out), whatever search would show. */
+async function exactNamed(name: string): Promise<number[]> {
+  const rows = await all<{ number: number; name: string }>("SELECT number, name FROM teams WHERE name LIKE ?", [`%${name.replace(/[%_]/g, "")}%`]);
+  return rows.filter((r) => normalize(cleanTeamName(Number(r.number), r.name) ?? "") === normalize(name)).map((r) => Number(r.number));
+}
+
+/** The team (or teams, tied) one side names, from its words as typed. */
+async function sideTeams(name: string, prefer: ReadonlySet<string>, best: boolean): Promise<{ exact: number[] } | { best: number } | null> {
+  if (/^\d+$/.test(name)) return (await teamFacts([Number(name)])).has(Number(name)) ? { exact: [Number(name)] } : null;
+  const exact = await exactNamed(name);
+  if (exact.length) return { exact };
+  if (!best) return null;
+  const top = (await search(name, 5, prefer)).find((h) => h.kind === "team");
+  return top ? { best: Number(top.ref) } : null;
+}
 
 async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Side> {
   // Topic and filler words name no team ("… history").
-  const name = (searchIntent(typed)?.rest ?? typed).trim();
-  const hits = (await search(name, 10, prefer)).filter((h) => h.kind === "team");
-  if (/^\d+$/.test(name)) {
-    const t = (await teamFacts([Number(name)])).get(Number(name));
-    return { typed, team: hits.some((h) => h.ref === name) && t ? t : null, tied: [] };
+  const words = (searchIntent(typed)?.rest ?? typed).trim().split(/\s+/).filter(Boolean);
+  // The whole side first, then without its last words ("6980 please" → "6980"): an exact name or number, then
+  // search's best team.
+  let found: Awaited<ReturnType<typeof sideTeams>> = null;
+  for (const best of [false, true]) {
+    for (let n = words.length; n >= 1 && !found; n--) found = await sideTeams(words.slice(0, n).join(" "), prefer, best);
+    if (found) break;
   }
-  // Every team whose name is exactly what was typed; otherwise search's best team.
-  const exact = hits.filter((h) => normalize(teamNameOf(h.title)) === normalize(name));
-  const facts = await teamFacts((exact.length ? exact : hits.slice(0, 1)).map((h) => Number(h.ref)));
-  let cands = [...facts.values()].filter((t) => t.lastPlayed != null); // rule 2: a team that never played names nothing
-  if (cands.length <= 1) return { typed, team: cands[0] ?? null, tied: [] };
-  const mine = cands.filter((t) => prefer.has(`team:${t.number}`));
-  if (mine.length === 1) return { typed, team: mine[0], tied: [], rule: "your team" };
-  if (mine.length > 1) cands = mine;
+  const none: Side = { typed, team: null, tied: [], candidates: [] };
+  if (!found) return none;
+  const typedNumber = /^\d+$/.test(words.join(" "));
+  const nums = "best" in found ? [found.best] : found.exact;
+  const all = [...(await teamFacts(nums)).values()].sort((a, b) => a.number - b.number);
+  const candidates = all.length > 1 ? all.map((t) => t.number) : [];
+  const pick = (team: TeamFacts, rule?: string): Side => ({ typed, team, tied: [], ...(rule ? { rule } : {}), candidates });
+  // 1. Your own team, played or not.
+  const mine = all.filter((t) => prefer.has(`team:${t.number}`));
+  if (mine.length === 1) return pick(mine[0], all.length > 1 ? "your team" : undefined);
+  let cands = mine.length > 1 ? mine : all;
+  // 2. A team that has played: a registration alone names nothing (a typed number still names its team).
+  const played = cands.filter((t) => t.lastPlayed != null);
+  if (!played.length) return mine.length > 1 ? { typed, team: null, tied: mine, candidates } : typedNumber && all.length === 1 ? pick(all[0]) : none;
+  if (played.length === 1) return pick(played[0], all.length > 1 ? "the only one that has played" : undefined);
+  cands = played;
+  // 3. The newest season played.
   const newest = Math.max(...cands.map((t) => t.lastPlayed!));
   const recent = cands.filter((t) => t.lastPlayed === newest);
-  if (recent.length === 1) return { typed, team: recent[0], tied: [], rule: "the one that played most recently" };
-  return { typed, team: null, tied: recent.sort((a, b) => a.number - b.number) };
+  if (recent.length === 1) return pick(recent[0], "the one that played most recently");
+  return { typed, team: null, tied: recent, candidates };
 }
 
 /** Compare's hit for these teams (number order). */
@@ -84,7 +115,7 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
     const local = side.tied.filter((t) => states.has(`${t.country}:${t.state}`));
     if (local.length === 1) { side.team = local[0]; side.rule = `the one in the same state as the other team (${local[0].state})`; side.tied = []; }
   }
-  const resolved = sides.filter((s) => s.team && s.rule).map((s) => ({ typed: s.typed, number: s.team!.number, rule: s.rule!, candidates: [] as number[] }));
+  const resolved = sides.filter((s) => s.team && s.rule).map((s) => ({ typed: s.typed, number: s.team!.number, rule: s.rule!, candidates: s.candidates }));
   const known = [...new Map(sides.filter((s) => s.team).map((s) => [s.team!.number, s.team!])).values()];
   const missing = sides.filter((s) => !s.team && !s.tied.length).map((s) => s.typed);
   // Hits search already built for these teams (with their subtitles), so team rows look as they do everywhere.
@@ -101,25 +132,19 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
     };
   }
   if (ambiguous.length) {
-    // Still tied under the rules: one Compare per candidate of the first shared name, each naming its team's place.
-    const side = ambiguous[0];
+    // Still tied under the rules. One side tied: one Compare per candidate (every one), each with the teams the other
+    // sides named. Several sides tied: the question for each, and the candidates to open; no Compare is guessed.
+    const which = (side: Side) => `Which "${side.typed}"? ${side.tied.length} teams have that name: ${side.tied.map((t) => `${t.number} (${placeOf(t)})`).join(", ")}`;
     const others = known.slice(0, 3);
-    const hits = side.tied.slice(0, 4).map((c) => compareHit([...others, c], q, season, [], ""));
-    const label = `Which "${side.typed}"? ${side.tied.length} teams have that name: ${side.tied.map((t) => `${t.number} (${placeOf(t)})`).join(", ")}`;
+    const hits = ambiguous.length === 1 && others.length ? ambiguous[0].tied.map((c) => compareHit([...others, c], q, season, resolved, "")) : [];
     return {
-      q, hits: [...hits, ...others.map((t) => teamHit(t, teamRows)), ...side.tied.map((t) => teamHit(t, teamRows))], pages: pagesFor(q), step: "deterministic", weak: false,
-      understood: { kind: "compare", label },
+      q, hits: [...hits, ...others.map((t) => teamHit(t, teamRows)), ...ambiguous.flatMap((s) => s.tied.map((t) => teamHit(t, teamRows)))], pages: pagesFor(q), step: "deterministic", weak: false,
+      understood: { kind: "compare", label: ambiguous.map(which).join(" · ") },
     };
   }
   const shown = known.slice(0, 4);
   if (shown.length < 2) return null;
   const extra = known.length > 4 ? ` (Compare holds 4: ${known.length - 4} left out)` : "";
-  // The candidates a shared name had, for the record of which team was picked and why.
-  for (const r of resolved) {
-    const name = (searchIntent(r.typed)?.rest ?? r.typed).trim();
-    const hits = (await search(name, 10, prefer)).filter((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(name));
-    r.candidates = hits.map((h) => Number(h.ref)).sort((a, b) => a - b);
-  }
   const top = compareHit(shown, q, season, resolved, extra);
   const label = `Compare: ${understoodTeams([...shown].sort((a, b) => a.number - b.number))}`;
   return { q, hits: [top, ...shown.map((t) => teamHit(t, teamRows))], pages: pagesFor(q), step: "deterministic", weak: false, understood: { kind: "compare", label } };
