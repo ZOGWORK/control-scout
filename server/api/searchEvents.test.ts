@@ -134,5 +134,6 @@ describe("corrections and fuzzy matches (Requirements 4, 14.3)", () => {
     const b = await ask("hypnotic");
     expect(b.hits[0]).toMatchObject({ ref: "4215", match: "exact" });
     expect(b.understood).toMatchObject({ kind: "team", label: "Hypnotic Robotics (4215)" });
+    expect((await ask("4215")).understood).toMatchObject({ kind: "team", label: "Hypnotic Robotics (4215)" });
   });
 });

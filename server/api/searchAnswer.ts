@@ -146,7 +146,7 @@ export function understoodOf(a: SearchAnswer): SearchUnderstood {
   if (a.intent) return { kind: top?.kind === "team" ? "team" : "names", label: a.intent.understood.join(" · ") };
   if (a.step === "did-you-mean" && a.didYouMean) return { kind: "names", label: `Closest names to "${a.q}" (did you mean "${a.didYouMean}"?)` };
   // One team the words name exactly: that team (and what was asked about it).
-  if (top?.kind === "team" && top.match === "exact" && (a.hits.length === 1 || top.facts || top.section || a.hits[1]?.match !== "exact")) return { kind: "team", label: showingLine(a) ?? teamWords(top.title) };
+  if (top?.kind === "team" && top.match !== "fuzzy" && (a.hits.length === 1 || top.facts || top.section || a.hits[1]?.match !== "exact")) return { kind: "team", label: showingLine(a) ?? teamWords(top.title) };
   if (top?.kind === "match") return { kind: "names", label: top.title };
   return { kind: "names", label: `Teams, events and matches matching "${nameWords(a.q)}"` };
 }
