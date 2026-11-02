@@ -25,11 +25,12 @@ export async function ruleAnswer(q: string, rq: RuleQuery): Promise<SearchAnswer
   const base = { q, hits: [], pages, step: "deterministic" as const, weak: false, understood: { kind: "question" as const, label: `A rules question: ${rq.id ? `rule ${rq.id}` : `"${asked}"`}` } };
   const title = `Rules quick reference · ${ref.game} ${ref.label} (manual ${ref.manual.revision})`;
   if (!(await isEnabled("rulesReference").catch(() => false))) {
-    return { ...base, pages: pagesFor(q), card: { kind: "rule", title, lines: [], none: `The rules quick reference is switched off for now. Check the official game manual: ${ref.manual.url}` } };
+    return { ...base, pages: pagesFor(q), card: { kind: "rule", title, lines: [{ text: `${ref.game} game manual`, detail: `FIRST's official manual, ${ref.manual.revision}`, href: ref.manual.url }], none: "The rules quick reference is switched off for now. The official game manual has every rule." } };
   }
   const rules = rulesFor(ref, rq);
   const lines: SearchCardLine[] = rules.slice(0, MAX_RULES).map((r) => ({
-    text: `${r.id} · ${r.title}`, detail: r.summary, ...(r.penalty ? { results: [`Penalty: ${r.penalty}`] } : {}), href: `/rules#${encodeURIComponent(r.id)}`,
+    text: `${r.id} · ${r.title}`, detail: r.summary, // Scoring entries (section 10.5) hold what they're worth, as /rules shows them; the rest, a penalty.
+    ...(r.penalty ? { results: [`${r.section.startsWith("10.5") ? "Worth" : "Penalty"}: ${r.penalty}`] } : {}), href: `/rules#${encodeURIComponent(r.id)}`,
   }));
   const more = rules.length > MAX_RULES ? ` (${rules.length - MAX_RULES} more on the Rules page)` : "";
   return {

@@ -272,7 +272,10 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
             {shown.map((l, i) => (
               <li key={i} className={cn(!compact && "py-2.5 first:pt-1 last:pb-0.5")}>
                 {l.href
-                  ? <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline">{l.text}</a>
+                  ? /^https?:\/\//.test(l.href)
+                    // Another site (FIRST's manual): an ordinary link, in a new tab.
+                    ? <a href={l.href} target="_blank" rel="noopener noreferrer" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} className="font-medium text-accent-text hover:underline">{l.text}</a>
+                    : <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline">{l.text}</a>
                   : <span className="font-medium text-foreground">{l.text}</span>}
                 {l.detail && <span className={cn("block text-muted-foreground", !compact && "mt-0.5 text-xs")}>{l.detail}</span>}
                 {!!l.results?.length && (compact

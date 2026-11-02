@@ -12,8 +12,11 @@
 //   - Time (src/shared/searchQuery.ts TIME_WORDS) is a date window (timeWindow).
 //   - Year: "2024" means events held in calendar 2024 (a 2024 Houston championship belongs to the 2023–24 season);
 //     "2023-24" means that season. No year: the current season.
-import { findRegions, isRegionCode, type Region } from "./regions.js";
-import { QUESTION_WORDS, STOPWORDS, singularize, timePhrase } from "./searchQuery.js";
+import { findRegions, isRegionCode, regionLabel, type Region } from "./regions.js";
+import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize, timePhrase } from "./searchQuery.js";
+
+/** Words that ask something of events rather than name them. */
+const ASKS = new Set(["win", "wins", "won", "winner", "winners", "winning", "advance", "advances", "advancing", "beat", "predict", "prediction", "odds", "award", "awards", "inspire"]);
 import { SEARCH_TOPICS } from "./search.js";
 
 /** The event types (FIRST's, as stored in events.type) each event word means. An event word also matches an event
@@ -67,7 +70,16 @@ export function regionOf(ws: string[]): Region | null {
   if (!text) return null;
   if (/^[a-z]{2}$/i.test(text) && !/^[A-Z]{2}$/.test(text) && WORD_CODES.has(text.toLowerCase())) return null;
   const f = text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? null;
+  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? australianCode(text);
+}
+
+/** An Australian state's own three-letter code ("NSW", "QLD"): the ones no US or Canadian code shares. "VIC", "TAS"
+ *  and "ACT" are words too, so only in capitals. (SA, WA and NT are US or Canadian codes as well: their names only.) */
+function australianCode(text: string): Region | null {
+  const code = /^(?:nsw|qld)$/i.test(text) ? text.toUpperCase() : /^(?:VIC|TAS|ACT)$/.test(text) ? text : null;
+  if (!code) return null;
+  const r = findRegions(regionLabel(`Australia:${code}`)).find((x) => x.key === `Australia:${code}`);
+  return r ?? null;
 }
 
 /** The event set a query asks for, or null when it isn't one (the rules are at the top of this file). */
@@ -122,6 +134,9 @@ export function readEventQuery(raw: string): EventQuery | null {
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
   if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
   const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^states?$/i.test(w)); });
+  // A question about the events ("who will win the NJ championship", "who won Inspire at …") or an action word
+  // ("winner", "advance") asks something of them, read elsewhere: not the set of events itself.
+  if (named.some((w) => ASKS.has(w.toLowerCase())) || (named.length && isQuestionForm(raw))) return null;
   const scoped = !!(time || year != null || season != null || region || where.length);
   if (!(kinds.length && scoped) && !(time && (region || where.length))) return null;
   return { kinds: [...new Set(kinds.map((k) => k.toLowerCase()))], time, year, season, region, where: where.join(" ") || null, words: named };

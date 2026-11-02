@@ -27,7 +27,7 @@ import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
-import { search, searchIntent } from "./search.js";
+import { search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
@@ -136,9 +136,11 @@ function markMatches(rest: string, hits: SearchHit[]): SearchHit[] {
   if (!qs.length) return hits;
   const marked = hits.map((h): SearchHit => {
     if (h.kind !== "team" && h.kind !== "event") return h;
-    if (h.href || h.match) return h;
+    if (h.href || h.match || h.atEvent) return h;
     const own = words(h.kind === "team" ? `${h.ref} ${nameOf(h)}` : `${h.title} ${h.ref.split(":")[1] ?? ""}`);
     if (qs.every((q) => own.some((w) => w === q || w.startsWith(q)))) return { ...h, match: "exact" };
+    // A name typed without its spaces ("badwolf" for Bad Wolf) is that name.
+    if (qs.join("") === words(nameOf(h)).join("")) return { ...h, match: "exact" };
     const all = words(`${h.title} ${h.subtitle}`);
     const matched = qs.filter((q) => all.some((w) => wordScore(q, w) >= 0.6 || w.includes(q)));
     return { ...h, match: "fuzzy", ...(matched.length ? { matched } : {}) };
@@ -161,7 +163,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // 0. A rules question ("Can robots descore … in autonomous?", "G402", "penalty for pinning"): the Rules quick
   // reference's matching entries, or a plain "no rule found". Never team names (./searchRules.ts).
-  const rq = opts.intents === false ? null : readRuleQuery(q, opts.asked);
+  // A season's best scores ("what was the highest scoring match this season?") stay that question's.
+  const rq = opts.intents === false || parseHighScore(q) ? null : readRuleQuery(q, opts.asked);
   if (rq) return ruleAnswer(q, rq);
 
   // 0a. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
@@ -194,7 +197,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // "2024 Houston Championship Edison Division"), or a region alone ("New Jersey", "NJ"): the events themselves,
   // filtered on their stored fields and listed by date (./searchEvents.ts). Never a did-you-mean.
   const evq = opts.intents === false ? null : readEventQuery(q);
-  if (evq) return eventSetAnswer(q, evq, { now: opts.now });
+  // A team at one of its events ("hypnotic at New Jersey Championship") is the team's answer, not a set of events.
+  const teamAt = evq?.words.length && /\sat\s/i.test(q) ? await teamAtEventAnswer(q, limit, prefer) : null;
+  if (evq && !teamAt) return eventSetAnswer(q, evq, { now: opts.now });
   const region = opts.intents === false || /\d/.test(q) ? null : regionOf(q.split(" "));
   if (region) {
     const teams = (await search(q, limit, prefer)).filter((h) => h.kind === "team");
