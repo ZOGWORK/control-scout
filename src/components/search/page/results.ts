@@ -4,7 +4,7 @@
 // Presentation only: nothing here adds, drops or reorders a result except the filters the visitor picks.
 import type { SearchHit } from "../../../shared/api";
 import { isCompare } from "../../../shared/searchPage";
-export { contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
+export { badgeUnder, contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
 import { hitHref } from "../../../shared/search";
 import { eventTypeLabel } from "../../../shared/labels";
 
