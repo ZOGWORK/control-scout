@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchHit } from "./api";
 import { contextBadge, pageTitle, teamParts } from "./searchPage";
 
-const a = (hits: SearchHit[], extra: Partial<SearchAnswer> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
+const a = (hits: SearchHit[], extra: Partial<Omit<SearchAnswer, "understood">> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
 const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
 
 describe("teamParts", () => {

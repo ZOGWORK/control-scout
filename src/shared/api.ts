@@ -51,6 +51,51 @@ export interface SearchHit {
   events?: SearchEventPick[];
   /** A feature this result opens instead of the team's page ("hypnotic versus bad wolf" → Compare): a site path. */
   href?: string;
+  /** An event's dates, type, venue and status (from its stored dates, as on the Events list): event hits only. */
+  event?: SearchEventInfo;
+  /** How the hit matched: "exact" (every word typed names it) or "fuzzy" (a typo, a part of a word, or only its
+   *  school, city or venue matched). Fuzzy hits come after exact ones and are listed apart ("Other teams matching …"). */
+  match?: "exact" | "fuzzy";
+  /** Fuzzy hits: the words typed that matched it ("good"), to name in that group's heading. */
+  matched?: string[];
+}
+
+/** An event hit's facts, for its date and status and for filters on /search (time, season, type). */
+export interface SearchEventInfo {
+  start: string | null;
+  end: string | null;
+  /** FIRST's type as stored ("LeagueMeet", "Qualifier", "Championship", …). */
+  type: string | null;
+  venue: string | null;
+  /** By the event's own calendar (src/shared/eventDay.ts eventStatus): before, on or after its dates. */
+  status: "upcoming" | "live" | "finished";
+}
+
+/**
+ * What search understood the query as (server/api/searchAnswer.ts): the line every surface shows for "Showing results
+ * for …", the context badge and the live "we understood" hint. Never a result's title.
+ */
+export interface SearchUnderstood {
+  /** "Upcoming league meets in New Jersey", "Hypnotic Robotics (4215) · Worlds appearances", "No match for "xyzzy"". */
+  label: string;
+  /** events: a set of events read from a place, time or year (chronological order); team: one team (and what about
+   *  it); compare: teams side by side; question: a question's answer card; names: names matched to the words typed. */
+  kind: "events" | "team" | "compare" | "question" | "names";
+  /** Events: the time asked for, and its date window (YYYY-MM-DD, open ends null). */
+  time?: "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+  window?: { from: string | null; to: string | null };
+  /** Events: the region ("USA:NJ", "New Jersey"), the city or venue words, the calendar year, the season. */
+  place?: { key: string; name: string };
+  where?: string;
+  year?: number;
+  season?: number;
+  /** Events: FIRST types the event words mean ("meets" → LeagueMeet); none for "events". */
+  eventTypes?: string[];
+  /** Events: how many matched in all (the hits are capped at the page's limit). */
+  total?: number;
+  /** The hits are a labelled fallback, not the answer: "No league meets at X in New Jersey — showing all league meets
+   *  in New Jersey instead". Show it above the list. */
+  fallback?: string;
 }
 
 /** A site page a whole query word names ("records" → the records pages): listed apart, below the results. */
@@ -80,6 +125,8 @@ export interface SearchAnswer {
   weak: boolean;
   /** A direct answer to a question the query asked ("when did hypnotic go to worlds"), from stored data only. */
   card?: SearchCard;
+  /** What the query was understood as (always set by the server's answer). */
+  understood?: SearchUnderstood;
 }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */

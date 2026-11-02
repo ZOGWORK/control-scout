@@ -68,7 +68,9 @@ describe("the fixed rules", () => {
     expect((await searchAnswer("   ")).step).toBe("recovery");
     expect(cleanQuery("  HYPnotic,  ")).toBe("HYPnotic");
     expect(cleanQuery("x".repeat(200))).toHaveLength(80);
-    expect(order((await searchAnswer("4215 OR 1=1")).hits)).toContain("4215");
+    // Matched word by word: a closest match, labelled as one (never presented as the answer).
+    const sql = await searchAnswer("4215 OR 1=1");
+    expect(order([...sql.hits, ...(sql.recovery?.closest ?? [])])).toContain("4215");
   });
 });
 

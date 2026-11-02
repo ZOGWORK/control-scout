@@ -139,7 +139,9 @@ const teamName = (h: SearchHit) => { const m = /^(\d+)(?:\s*\|\s*|\s+)(.+)$/.exe
 export const cardWho = (c: { team?: { number: number; name: string | null } }): string | null =>
   c.team ? (c.team.name ? `${c.team.name} (${c.team.number})` : `Team ${c.team.number}`) : null;
 
-export function showingLine(a: { hits: SearchHit[]; step: string; card?: { title: string } }): string | null {
+export function showingLine(a: { hits: SearchHit[]; step: string; card?: { title: string }; understood?: { label: string } }): string | null {
+  // What the server understood the query as (SearchAnswer.understood): the line names the query, never a top hit.
+  if (a.understood?.label && a.step !== "recovery") return a.understood.label;
   const top = a.hits[0];
   if (!top || a.step === "recovery") return null;
   if (top.href?.startsWith("/compare")) {

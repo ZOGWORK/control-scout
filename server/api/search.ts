@@ -111,7 +111,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
  * linking to the event opened on the team. "… at this event", or an event none of the team's matches: the team with
  * its events and their OPRs, for the visitor to pick: never a guessed event. Null when the query isn't one of these.
  */
-async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked?: number | null): Promise<SearchHit[] | null> {
+export async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked?: number | null): Promise<SearchHit[] | null> {
   const m = /^(.+?)\s+at\s+(.+)$/i.exec(q.trim());
   if (!m || MATCH_RE.test(q.trim()) || (kinds?.size && !kinds.has("team"))) return null;
   const intent = searchIntent(m[1]) ?? searchIntent(m[1], true);
@@ -248,8 +248,8 @@ registerCache("Search typo index", () => { rowsCache = null; });
 
 /** What the search index holds and how (server/stats/job.ts rebuildSearch): raised when that changes, so a server
  *  running the new code rebuilds the index once instead of waiting for the next stats run.
- *  2: team titles as "18061 | Simply Complex" (number and name each once). */
-export const SEARCH_INDEX_SCHEMA = 2;
+ *  2: team titles as "18061 | Simply Complex" (number and name each once). 3: events' venues are searchable words. */
+export const SEARCH_INDEX_SCHEMA = 3;
 
 /**
  * A database upgraded to migration 4 has an empty typo index until the next
