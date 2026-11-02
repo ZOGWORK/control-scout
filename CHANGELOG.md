@@ -21,11 +21,11 @@ Team and event pages show up seconds sooner on slow venue Wi-Fi.
 
 ### Highlights
 - [speed] On slow venue Wi-Fi, team and event pages show seconds sooner
-- [speed] The page still paints once, in its own fonts, with nothing moving afterwards
+- [speed] The page still paints once, in its own fonts, with nothing jumping
 - [speed] The rest of the app downloads after the page is up, not alongside it
 
 ### Speed
-- **Team and event pages no longer wait on the whole stylesheet.** The page the server draws now carries just the styles its own markup uses, inline, and waits only for its text fonts. The app's full stylesheet and its code start downloading once those fonts are here, instead of sharing a slow connection with them. On a 400 kbps line (phone CPU, cold cache) a team page went from 5.4 s to 3.7 s before anything showed in a local production build; the page still paints once, with no layout shift.
+- **Team and event pages no longer wait on the whole stylesheet.** The page the server draws now carries just the styles its own markup uses, inline, and waits only for its text fonts. The app's full stylesheet and its code start downloading once those fonts are here, instead of sharing a slow connection with them. On a 400 kbps line (phone CPU, cold cache) a team page went from 5.4 s to 3.7 s before anything showed in a local production build; the page still paints once, with no layout shift. (#424)
 
 ## 2.2.1 — 2026-11-02
 
