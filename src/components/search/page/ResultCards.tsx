@@ -118,7 +118,9 @@ export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) 
   );
 }
 
-export function TeamCard({ h, summary, onOpen }: { h: SearchHit; summary?: SeasonSummary; onOpen: () => void }) {
+/** `bare`: the page's summary already shows this team's numbers, so the card shows none (neither the server's facts
+ *  nor the season badges): each number once. */
+export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?: SeasonSummary; bare?: boolean; onOpen: () => void }) {
   return (
     <Link to={hitHref(h)} onClick={onOpen} data-result="team"
       className="lift group flex items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
@@ -126,7 +128,7 @@ export function TeamCard({ h, summary, onOpen }: { h: SearchHit; summary?: Seaso
       <span className="min-w-0 flex-1">
         <span className="block break-words text-sm font-medium text-foreground group-hover:text-accent-text">{teamTitle(h.title)}</span>
         {h.subtitle && <span className="block truncate text-xs text-muted-foreground">{h.subtitle}</span>}
-        {h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
+        {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
       <span className="shrink-0 self-center max-sm:hidden"><Cta>View scouting profile</Cta></span>
     </Link>

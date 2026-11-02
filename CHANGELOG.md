@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.3 — 2026-11-02
+## 2.3.4 — 2026-11-02
 
 FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.
 
@@ -35,6 +35,18 @@ FTC One Search understands places, venues, dates and years: "upcoming meets in N
 - **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
 - **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
 - **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams. (#434)
+
+## 2.3.3 — 2026-11-02
+
+FTC One Search shows a team's numbers once: when the summary has them, the team's card below doesn't repeat them.
+
+### Highlights
+- [fixes] "How good is" a team shows its record, OPR and rank once, in the summary
+- [fixes] The team's card below keeps its name, place and profile link
+- [fixes] Other teams in the results keep their own numbers
+
+### Search
+- **Each number once.** For a question like "how good is Simply Complex", the summary holds the team's record, world OPR rank and OPR; the team's card under it now shows its name, place and View scouting profile only, where before it repeated those numbers. Results and their order are unchanged. (#435)
 
 ## 2.3.2 — 2026-11-02
 
