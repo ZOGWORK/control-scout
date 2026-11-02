@@ -20,12 +20,12 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 A league meet's Teams tab shows what happened at the meet.
 
 ### Highlights
-- [fixes] A league meet's Teams tab lists the teams at that meet, with their record there
+- [fixes] A league meet's Teams tab lists that meet's teams and records
 - [fixes] The odds tab's "Rank now" at a meet is the meet's rank and record
 - [fixes] A league record that doesn't add up is no longer shown
 
 ### Events
-- **League meets show the meet's own record.** At a league meet FIRST publishes the league's running standing, whose W-L-T counts only each team's best matches: 2025 USNJNOM3 showed Hypnotic Robotics and Bad Wolf both 10-0-0 after 16 matches, when they went 5-1-0 and 2-4-0 at the meet. The Teams tab now lists the teams that played at the meet, with the meet's own rank and record (the Rankings tab already used them), and the odds tab's "Rank now" does the same. Anywhere a league event's W-L-T doesn't add up to the matches played, it is left out rather than shown. Other events are unchanged. (#PR)
+- **League meets show the meet's own record.** At a league meet FIRST publishes the league's running standing, whose W-L-T counts only each team's best matches: 2025 USNJNOM3 showed Hypnotic Robotics and Bad Wolf both 10-0-0 after 16 matches, when they went 5-1-0 and 2-4-0 at the meet. The Teams tab now lists the teams that played at the meet, with the meet's own rank and record (the Rankings tab already used them), and the odds tab's "Rank now" does the same. Anywhere a league event's W-L-T doesn't add up to the matches played, it is left out rather than shown. Other events are unchanged. (#418)
 
 ## 2.1.7 — 2026-11-01
 
