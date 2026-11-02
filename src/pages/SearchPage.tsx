@@ -151,7 +151,7 @@ export default function SearchPage() {
                 {panel === "summary" && (
                   <aside aria-label="Summary" className="mb-4 space-y-3 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="summary">
                     {summary}
-                    {aboutTeam && <TeamLinks team={aboutTeam} />}
+                    {aboutTeam && <TeamLinks team={aboutTeam} season={apps.length ? null : quality?.season} />}
                   </aside>
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
@@ -266,14 +266,16 @@ function bySeasons(hits: SearchHit[]): SearchHit[][] {
   return groups;
 }
 
-/** The team's own pages a summary leads on to (its scouting profile's parts and Compare), all existing routes. */
-function TeamLinks({ team }: { team: number }) {
+/** The team's own pages a summary leads on to (its scouting profile's parts and Compare), all existing routes, in the
+ *  season the summary is about when it's about one (a standing). Awards isn't one: the profile has no awards section
+ *  for a team without any, so that link could lead nowhere. */
+function TeamLinks({ team, season }: { team: number; season?: number | null }) {
+  const q = season != null ? `?season=${season}` : "";
   const links = [
-    { label: "Scouting profile", to: `/teams/${team}` },
-    { label: "Season road map", to: `/teams/${team}#history` },
-    { label: "Matches", to: `/teams/${team}#matches` },
-    { label: "Awards", to: `/teams/${team}#awards` },
-    { label: "Compare with another team", to: `/compare?teams=${team}` },
+    { label: "Scouting profile", to: `/teams/${team}${q}` },
+    { label: "Season road map", to: `/teams/${team}${q}#history` },
+    { label: "Matches", to: `/teams/${team}${q}#matches` },
+    { label: "Compare with another team", to: `/compare?teams=${team}${season != null ? `&season=${season}` : ""}` },
   ];
   return (
     <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>

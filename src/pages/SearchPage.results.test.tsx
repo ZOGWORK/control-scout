@@ -248,6 +248,9 @@ describe("search results page, Phase 2 cards", () => {
     const card = container.querySelector('[data-result="team"]')!.textContent!;
     expect(card).toContain("18061 | Simply Complex");
     expect(card).not.toContain("20-4-0");
+    const links = [...container.querySelectorAll("[data-team-links] a")].map((l) => l.getAttribute("href"));
+    expect(links.some((l) => /^\/teams\/18061\?season=\d{4}#matches$/.test(l!))).toBe(true);
+    expect(links.some((l) => l!.includes("#awards"))).toBe(false);
   });
 
   it("how good is X with no numbers: no empty summary, the card keeps its line", () => {
