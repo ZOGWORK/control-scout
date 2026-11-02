@@ -87,3 +87,13 @@ describe("Greptile on #427", () => {
     expect(singularize("constructor toString meets")).toBe("constructor toString meet");
   });
 });
+
+describe("Greptile on #427: a place's own words stay", () => {
+  it("keeps IN and ON typed as codes, and the little words of a region's name", () => {
+    expect(nameWords("meets IN")).toBe("meet IN");
+    expect(nameWords("events ON")).toBe("event ON");
+    expect(nameWords("meets in Indiana")).toBe("meet Indiana");
+    expect(nameWords("events in District of Columbia")).toBe("event District of Columbia");
+    expect(nameWords("team in the united states of america")).toBe("team united states of america");
+  });
+});
