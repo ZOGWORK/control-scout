@@ -176,7 +176,8 @@ describe("Enter and the full results page", () => {
     await type(input, "hypnotic opr");
     await reply(/q=hypnotic/, answer("hypnotic opr", { hits: [{ ...t("4215", "Hypnotic Robotics"), section: "opr" }, { ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
     const paths = [...document.querySelectorAll("[data-path]")].map((p) => p.textContent);
-    expect(paths).toEqual(["controlscout.org/teams/4215#opr", "controlscout.org/compare?teams=4215,6980"]);
+    // The Compare leads, in its own group above the teams.
+    expect(paths).toEqual(["controlscout.org/compare?teams=4215,6980", "controlscout.org/teams/4215#opr"]);
   });
   it("nothing found is never a bare dead end: a hint and the row to the full page", async () => {
     const { input } = mount();
@@ -318,7 +319,7 @@ describe("the answer's parts", () => {
     const { input } = mount();
     await type(input, "hypnotic vs bad wolf reputation");
     await reply(/q=hypnotic/, answer("hypnotic vs bad wolf reputation", { step: "closest", hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
-    fireEvent.click(screen.getByRole("option", { name: /vs 6980/ }));
+    fireEvent.click(screen.getByRole("option", { name: /Compare side by side/ }));
     expect(beacon).toHaveBeenCalledTimes(1);
   });
 });

@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.5 — 2026-11-02
+
+FTC One Search: the search dropdown groups what it found, Comparisons first, and says what it understood.
+
+### Highlights
+- [home] "4215 vs 6980" shows a Compare shortcut above the teams in the dropdown
+- [home] The dropdown says what it understood: "League meets in New Jersey"
+- [home] Event rows in the dropdown show their dates and place
+- [fixes] Teams that only share a word with your search are listed apart
+
+### Search
+- **Comparisons first.** A versus search ("4215 vs 6980", "ultraviolet vs hypnotic") puts the comparison in its own Comparisons group at the top of the dropdown, with a side-by-side icon, both teams by name and number, and a Compare button. It is no longer listed (or counted) as one of the teams.
+- **What it understood.** Above the results, the dropdown names what search read your query as ("Understood: Upcoming league meets in New Jersey"), the same words the results page uses. A spelling correction still says "Did you mean …?" instead.
+- **Teams, events, pages.** Team rows have the team badge icon, and show the team's season OPR when the server sends it. Event rows show the season, the dates ("Nov 7, 2026") and the place in place of the event code and a raw date, with Live while an event is on. A set of events counts the whole set ("Events 14 of 26"), so the dropdown and the results page agree. Site pages stay in their own Pages group below.
+- **Exact matches apart.** When some teams only share a word with your search, they're listed under "Other teams matching “…”", below the exact match, as on the results page.
+- **Example searches.** "meets in New Jersey" joins the example searches in the empty box. (#PR)
+
 ## 2.3.4 — 2026-11-02
 
 FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.

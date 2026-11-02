@@ -4,7 +4,7 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { offlineSource } from "../../lib/offline/saved";
@@ -15,7 +15,10 @@ import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shar
 import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
 import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearches } from "./discover";
-import { seasonLabel } from "../../lib/format";
+import { dateRange, seasonLabel } from "../../lib/format";
+import { EventStatusChip } from "../EventChips";
+import { dropdownNotes, dropdownSections, groupCount, teamOpr, type DropId } from "./dropdown";
+import { compareSides, compareTeams, eventFacts, teamParts } from "./page/results";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
 
 export type HitKind = SearchHit["kind"];
@@ -127,10 +130,13 @@ const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event
 export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
 
 /** A row's icon: its kind's, or its section's for pages, browsing and Bruno AI's suggestion. */
-export function rowIcon(section: SectionId, row: AnswerRow): typeof Users {
+export function rowIcon(section: SectionId | DropId, row: AnswerRow): typeof Users {
   if (section === "pages") return FileText;
   if (section === "browse") return Compass;
+  if (section === "compare") return ArrowLeftRight;
   if (row.sub) return CalendarDays;
+  // A team's own badge (as on the results page), never the people icon a whole set of teams has.
+  if (row.hit.kind === "team") return Shield;
   return ICONS[row.hit.kind];
 }
 
@@ -174,10 +180,16 @@ export function HitFacts({ facts }: { facts: SearchFact[] }) {
 
 /** One row's text: the name (wrapping before it cuts: event divisions differ only at the end), then season and
  *  details, the numbers asked about, and where it opens ("controlscout.org/teams/4215#opr"). */
-export function HitText({ h }: { h: SearchHit }) {
+/** `opr`: a team row's one compact number, its season OPR, when the server sends it and the row shows no asked-for
+ *  numbers of its own (the full set of badges is on the results page). */
+export function HitText({ h, opr }: { h: SearchHit; opr?: boolean }) {
+  const o = opr && !h.facts?.length ? teamOpr(h) : null;
   return (
     <span className="min-w-0 flex-1">
-      <span className="line-clamp-2 break-words">{h.title}</span>
+      <span className="flex min-w-0 items-start gap-2">
+        <span className="line-clamp-2 min-w-0 flex-1 break-words">{h.title}</span>
+        {o != null && <span className="mt-px shrink-0 rounded-md border border-border bg-muted/50 px-1.5 py-px text-[11px]" data-opr><span className="text-muted-foreground">OPR </span><span className="font-semibold tabular-nums text-foreground">{o.toFixed(1)}</span></span>}
+      </span>
       {(h.subtitle || h.season != null) && (
         <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
           {(h.kind === "event" || h.kind === "match" || h.atEvent) && h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
@@ -187,6 +199,49 @@ export function HitText({ h }: { h: SearchHit }) {
       {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
       <span className="mt-0.5 block truncate font-mono text-[11px] text-accent-text/80" data-path>{shownPath(h)}</span>
     </span>
+  );
+}
+
+/** An event row: its name (a division's in full), then season, dates and place from the event's own facts, and Live
+ *  while it's on. No event code or raw date: the row reads like the Events list. */
+export function EventText({ h }: { h: SearchHit }) {
+  const e = eventFacts(h);
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="line-clamp-2 break-words">{h.title}</span>
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" data-event-when>
+        {h.season != null && <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
+        {e.status === "live" && <EventStatusChip status="live" className="shrink-0 px-1.5 py-px text-[10px]" />}
+        <span className="shrink-0 tabular-nums text-foreground/80">{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</span>
+        {e.place && <span className="truncate">· {e.place}</span>}
+      </span>
+      <span className="mt-0.5 block truncate font-mono text-[11px] text-accent-text/80" data-path>{shownPath(h)}</span>
+    </span>
+  );
+}
+
+/** "X vs Y" as an action, not a team: its own icon and accent, both teams by name and number, and where it goes. */
+function CompareRow({ id, h, active, onPick, onHover }: { id: string; h: SearchHit; active: boolean; onPick: () => void; onHover: () => void }) {
+  const sides = compareSides(h);
+  const names = h.title.split(/\s+vs\.?\s+/i);
+  const nums = compareTeams(h);
+  const who = nums.length >= 2
+    ? nums.map((n, i) => { const name = sides.find((x) => x.number === n)?.name ?? teamParts(names[i] ?? "")?.name; return name ? `${name} (${n})` : `Team ${n}`; })
+    : [h.title];
+  return (
+    <div
+      id={id} role="option" aria-selected={active} data-compare
+      onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={onPick} onPointerMove={onHover}
+      className={cn("mx-0.5 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm", active ? "border-accent bg-accent/[0.16]" : "border-accent/40 bg-accent/[0.07]")}
+    >
+      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-ink"><ArrowLeftRight className="size-4" aria-hidden /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block break-words font-medium text-foreground">{who.map((w, i) => <span key={i}>{i > 0 && <span className="px-1 text-accent-text">vs</span>}{w}</span>)}</span>
+        <span className="block truncate text-xs text-muted-foreground">Compare side by side: records, OPR and event history</span>
+        <span className="mt-0.5 block truncate font-mono text-[11px] text-accent-text/80" data-path>{shownPath(h)}</span>
+      </span>
+      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink max-[380px]:hidden">Compare<ArrowRight className="size-3.5" aria-hidden /></span>
+    </div>
   );
 }
 
@@ -307,7 +362,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   const [active, setActive] = useState(-1);
   const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(idle ? "" : q, kinds);
-  const { sections, notes } = useSections(hits, answer, ai);
+  const { sections: answered, notes: answerNotes } = useSections(hits, answer, ai);
+  // The page's order, a Compare first in its own group, and the live "we understood" line (Requirement 17).
+  const sections = useMemo(() => dropdownSections(answered, hits), [answered, hits]);
+  const notes = useMemo(() => dropdownNotes(answerNotes, answer), [answerNotes, answer]);
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -498,10 +556,11 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                   <div key={s.id} role="group" aria-label={s.title}>
                     <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
                       {s.id === "ai" && <Sparkles className="size-3" />}{s.title}
-                      {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{s.rows.filter((r) => !r.sub).length}</span>}
+                      {s.id !== "pages" && s.id !== "browse" && s.id !== "compare" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80" data-count>{groupCount(s, answer)}</span>}
                     </p>
                     {s.rows.map((r) => {
                       const i = ordered.indexOf(r);
+                      if (s.id === "compare") return <CompareRow key={r.key} id={`${listId}-${i}`} h={r.hit} active={i === active} onPick={() => pick(r.hit)} onHover={() => setActive(i)} />;
                       const Icon = rowIcon(s.id, r);
                       return (
                         <div
@@ -512,7 +571,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                           className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm", r.sub && "pl-9", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}
                         >
                           <Icon className={cn("size-4 shrink-0", r.hit.kind === "place" && !r.hit.href ? "text-accent" : "text-muted-foreground")} />
-                          <HitText h={r.hit} />
+                          {r.hit.kind === "event" && !r.sub ? <EventText h={r.hit} /> : <HitText h={r.hit} opr={r.hit.kind === "team" && !r.sub} />}
                         </div>
                       );
                     })}
