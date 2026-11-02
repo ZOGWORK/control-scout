@@ -3,7 +3,7 @@
 // for it. Asked once the question has settled (not per letter) and search's results are in; nothing is shown while
 // he's off, unreachable or has nothing to add, so the page never waits on him. His answer streams in as he writes it
 // (lib/brunoStream.ts), each part already checked; the note says it's his only once he's done.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { streamBrunoAnswer, type BrunoAnswerBody } from "../../lib/brunoStream";
@@ -14,11 +14,14 @@ import { cn } from "../cn";
 /** How long the question must stay unchanged before Bruno is asked. */
 export const BRUNO_SETTLE_MS = 600;
 
-/** `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results. */
-export function BrunoAnswer({ q, prefer = "", ready, className }: { q: string; prefer?: string; ready: boolean; className?: string }) {
+/** `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results.
+ *  `children`: a summary computed from the records (timeline, stat banner), shown at the top of the card, and on its
+ *  own (as "Summary") when Bruno is off or has nothing to add. `ask` false: the summary already says all he would
+ *  (a team's standing), so he isn't asked. */
+export function BrunoAnswer({ q, prefer = "", ready, className, children, ask = true }: { q: string; prefer?: string; ready: boolean; className?: string; children?: ReactNode; ask?: boolean }) {
   const on = useServerFlag("brunoAnswers");
   const query = q.trim();
-  const asks = on && ready && isBrunoQuestion(query);
+  const asks = ask && on && ready && isBrunoQuestion(query);
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
   const key = `${query}
 ${prefer}`;
@@ -40,7 +43,16 @@ ${prefer}`;
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key]);
-  if (!asks || state.key !== key || (!state.busy && !state.text)) return null;
+  if (!asks || state.key !== key || (!state.busy && !state.text)) {
+    if (!children) return null;
+    return (
+      <div role="note" aria-label="Summary" data-search-summary className={cn("rounded-xl border border-border bg-card/60 px-4 py-3.5", className)}>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Summary</p>
+        <div className="mt-2.5">{children}</div>
+        <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">Counted from the records below.</p>
+      </div>
+    );
+  }
   return (
     <div role="note" aria-label="Bruno AI's answer" aria-busy={state.busy || undefined} data-bruno-answer
       className={cn("rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5", className)}>
@@ -52,13 +64,15 @@ ${prefer}`;
         : (
           <>
             <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">{state.text}</p>
-            {!!state.points.length && (
+            {/* With a summary (below), it stands in for his bullets: they'd repeat the same records. */}
+            {!children && !!state.points.length && (
               <ul className="mt-2.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90 marker:text-violet-500 dark:marker:text-violet-300">
                 {state.points.map((p, i) => <li key={i} className="pl-0.5">{p}</li>)}
               </ul>
             )}
           </>
         )}
+      {children && <div className="mt-3" data-search-summary>{children}</div>}
       {!state.busy && <p className="mt-3 border-t border-violet-400/20 pt-2 text-[11px] text-muted-foreground">Written by Bruno AI from the records below. Check them before relying on it.</p>}
     </div>
   );

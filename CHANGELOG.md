@@ -15,14 +15,14 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.2.8 — 2026-11-02
+## 2.3.2 — 2026-11-02
 
 FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.
 
 ### Highlights
 - [fixes] "Upcoming meets in New Jersey" lists the next ones, soonest first
 - [fixes] Search names what it understood, never one event's name
-- [fixes] Venues work: "meets at River Dell High School" finds the meets held there
+- [fixes] "Meets at River Dell High School" finds the meets held there
 - [fixes] "2024 Houston Championship" finds 2024's, never this season's
 - [fixes] Nothing at that venue? Search says so and shows the state's meets
 
@@ -34,9 +34,9 @@ FTC One Search understands places, venues, dates and years: "upcoming meets in N
 - **What was understood.** Every answer says what search understood ("League meets in New Jersey", "Upcoming league meets in New Jersey at River Dell High School"), shown where /search said "Showing:". It never names a single event for a set of events.
 - **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
 - **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
-- **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams.
+- **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams. (#434)
 
-## 2.2.7 — 2026-11-02
+## 2.3.1 — 2026-11-02
 
 FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
 
@@ -52,6 +52,70 @@ FTC One Search reads what you type the way you meant it: plurals, little words a
 - **A question's opening is the question.** "how good is", "how strong is", "how is", "what is the rank of", "what's the record of", "where is", "tell me about", "show me" and the rest of the list in `src/shared/searchQuery.ts` are read as the question, never as part of a name: "how good is simply complex" searches "simply complex" and shows its season's OPR, rank and record. Only the opening goes, so "how good is Good Enough" is Good Enough, and "good teams" (no opening) still searches for "good".
 - **Time words and a question's own words never name a team.** "upcoming", "this weekend" and the like (and "past", "recent", "latest" next to a word like "meets") are never matched against names, so "upcoming meets" can't turn into the team Oncoming Storm. In a question ("Can robots…?"), words like can, will and does aren't searched for either; "Can Control" on its own is still a team's name.
 - **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline. (#427)
+
+## 2.3.0 — 2026-11-02
+
+FTC One Search's answers read at a glance: a timeline and stats for a team's championship trips, a team's standing for "how good is", and shorter event cards.
+
+### Highlights
+- [teams] "When did a team go to Worlds" shows a timeline of its OPR by season
+- [teams] Stats counted from the records: trips, streak, best rank, peak OPR
+- [teams] "How good is" a team shows its record, world rank, standing and win rate
+- [teams] Event results use short titles, badges, stat pills and quick links
+- [teams] An event held in several seasons gets a tab for each season
+
+### Search
+- **Championship timeline.** A question about a team's Worlds or state championship trips shows its OPR across the seasons; point at a season for its division, rank, record and OPR, and select it to jump to that trip's card below.
+- **Stats counted from the records.** Total trips, the longest back-to-back streak, the best division rank, the peak OPR and the most frequent division, each counted from the trips listed (left out when there's nothing to count, never shown as zero). When Bruno AI answers, his sentence stays and these stand in for his bullet list.
+- **How good is a team.** The season record, world OPR rank, OPR, a standing tier (top 5% Elite, 15% Excellent, 35% Strong, 60% Solid, else Developing; rank over ranked teams, one decimal) and a win rate (a tie counts as half a win), each shown once.
+- **Shorter event cards.** A championship division is titled by its own name ("Franklin Division") with the championship, place and season as badges; rank, record and OPR as pills; status, teams registered and quick links to the event's teams, matches, rankings and playoffs where it has them.
+- **Season tabs and team cards.** An event held in several seasons is one card with a tab per season. Team cards read "18061 | Simply Complex" with their season numbers and a View scouting profile link. Results and their order are unchanged. (#432)
+
+## 2.2.9 — 2026-11-02
+
+FTC One Search's results page says what it found once: a clean title, one line for how it read your search, and the search itself in the top bar.
+
+### Highlights
+- [teams] Search results are titled by what was found, not the words you typed
+- [teams] One badge says how your search was read, instead of two lines
+- [teams] Refine a search in the top bar; no second search box on the page
+
+### Search
+- **One title, one badge.** The results page (/search) no longer repeats your search three times. Its title names what was found (a team and what was asked, a comparison, or the server's reading such as "Events in New Jersey"), never the words as typed; one badge below says how the search was read ("ENFORCERS (7149) · Worlds appearances"). A correction ("Did you mean …") still says so on its own line. A small "FTC One Search" label sits above the title.
+- **Refine from the top bar.** The page's own search box is gone; the top bar holds your search on /search, so change it there and press Enter. Results, their order and the cards are unchanged. (#431)
+
+## 2.2.8 — 2026-11-02
+
+FTC One Search's results page reads at a glance: events as cards, a Compare of its own, filters, and no dead ends.
+
+### Highlights
+- [teams] Search results show events as cards, date and status up front
+- [teams] Filter search results by upcoming or past, season and event type
+- [teams] A "team vs team" search gets its own Compare card and a preview
+- [teams] Team results show their record, OPR and OPR rank
+- [fixes] A search that finds nothing says what it understood and what to try
+
+### Search
+- **Event cards.** On the full results page (/search) each event is a card like the Events list's: Upcoming, Live, Started (begun, end date not known) or Finished, its season, the date in bold and the place. The header's dropdown stays a compact list.
+- **Filters on the page.** Upcoming / Past / All, a season and an event type (only the seasons and types the results hold) narrow the results without leaving /search. They live in the address, so a refresh, Back or a shared link keeps them, and Clear filters brings back exactly the unfiltered results in the same order.
+- **Compare is not a team.** A "ultraviolet vs hypnotic" search shows the Compare as its own card above the teams, with a swap icon, both teams by name, number and place, and a View comparison button; the Teams count no longer includes it. On a desktop a head-to-head preview sits beside the results (season record, OPR and OPR rank for both sides) with a link to the full comparison.
+- **Team cards.** Each team result carries its season record, OPR and world OPR rank as small badges, only where the data has them; early in a season, before a team has played, they show last season's, labelled with it.
+- **Exact and word matches apart.** When some teams only share a word with the search, they're listed under "Other teams" below the top match instead of mixed in with it.
+- **No dead ends.** When nothing matches, the page says so in its title (never "Here's what we found" above an empty page), says what search covers and what the query was read as, lists the closest matches labelled as such, and links to browse events and teams plus a few searches to try.
+- **Cleaner cards.** Result cards no longer print the web address they open; the whole card is one link, with its destination as a "View …" label. The magnifier in the page's search box now runs the search. (#429)
+
+## 2.2.7 — 2026-11-02
+
+FTC One Search: the search you ran stays in the top bar.
+
+### Highlights
+- [home] On the results page, your search stays in the top bar's search box
+- [home] Change a word there and press Enter to refine it
+- [fixes] Opening the results page no longer empties the search box
+
+### Search
+- **Your search stays in the top bar.** On the full results page (/search) the top bar's box shows the query you ran, follows it when it changes, and is where you refine it: edit it and press Enter (or the magnifier) for the new results. Until you edit it, it doesn't search again, since the results are already on the page. On every other page the box starts empty, as before. (#430)
+
 ## 2.2.6 — 2026-11-02
 
 FTC One Search: recent searches, example searches, and a clearly labelled "did you mean".
