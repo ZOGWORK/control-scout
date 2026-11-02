@@ -62,6 +62,12 @@ export function compareTeams(h: SearchHit): number[] {
   return (new URLSearchParams(q).get("teams") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
 }
 
+/** The season a Compare's link asks for (/compare?teams=…&season=2024), or null for the current one. */
+export function compareSeason(h: SearchHit): number | null {
+  const s = Number(new URLSearchParams(h.href?.split("?")[1] ?? "").get("season"));
+  return Number.isInteger(s) && s > 2000 ? s : null;
+}
+
 /** A team hit that matched only on a shared word (the server marks it), not the name asked for. */
 export const isFuzzy = (h: SearchHit) => (h as Extra).match === "fuzzy";
 

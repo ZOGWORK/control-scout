@@ -123,7 +123,8 @@ export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries:
 export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; now?: TeamSummary[]; before?: TeamSummary[]; season: number }) {
   const nums = compareTeams(h).slice(0, 2);
   // One season for both sides, so the rows compare like with like: this season once either side has numbers in it.
-  const useNow = nums.some((n) => { const t = now?.find((x) => x.team === n); return !!t && hasNumbers(t); });
+  // With no earlier season to fall back on (a Compare that names its season), always this one.
+  const useNow = !before || nums.some((n) => { const t = now?.find((x) => x.team === n); return !!t && hasNumbers(t); });
   const season = useNow ? current : current - 1;
   const sides = nums.map((n) => ({ n, s: (useNow ? now : before)?.find((x) => x.team === n) ?? now?.find((x) => x.team === n) }));
   const rows: [string, (s: TeamSummary) => string | null][] = [
@@ -174,6 +175,7 @@ export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof 
             <span className="truncate">{h.subtitle}</span>
           </span>
         )}
+        {h.facts?.length ? <HitFacts facts={h.facts} /> : null}
       </span>
       <ArrowRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
     </Link>

@@ -18,7 +18,7 @@ import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../comp
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareTeams, filterChoices, isCompare, isFuzzy, keeps, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT, showingLine } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -49,7 +49,8 @@ export default function SearchPage() {
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
   const view = useMemo(() => shape(sections, filters), [sections, filters.when, filters.season, filters.type]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
-  const found = sections.some((s) => RESULT_KINDS.has(s.id) && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card;
+  // Site pages a query names ("rules", "rankings") are an answer too.
+  const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card;
   const events = hits.filter((h) => h.kind === "event").length;
   const filtersOn = anyFilter(filters);
 
@@ -58,14 +59,17 @@ export default function SearchPage() {
     ...compares.flatMap(compareTeams),
     ...hits.filter((h) => h.kind === "team" && !isCompare(h)).map((h) => Number(h.ref)).filter(Number.isInteger),
   ])].slice(0, 100), [hits, compares]);
-  // Early in a season most teams have no numbers yet: those show last season's, labelled with it.
+  // A Compare that names a season ("4215 vs 6980 2024-25") previews that season, like the comparison it opens.
+  // Otherwise: this season, and early in it (most teams have no numbers yet) last season's, labelled with it.
+  const h2h = compares.find((c) => compareTeams(c).length >= 2);
+  const asked = h2h ? compareSeason(h2h) : null;
+  const base = asked ?? season;
   const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
-  const now = useApi<{ teams: TeamSummary[] }>(sumPath(season));
-  const before = useApi<{ teams: TeamSummary[] }>(sumPath(season - 1));
-  const summaries = useMemo(() => teamSeasons(now.data?.teams, before.data?.teams, season), [now.data, before.data, season]);
+  const now = useApi<{ teams: TeamSummary[] }>(sumPath(base));
+  const before = useApi<{ teams: TeamSummary[] }>(asked == null ? sumPath(season - 1) : null);
+  const summaries = useMemo(() => teamSeasons(now.data?.teams, asked == null ? before.data?.teams : undefined, base), [now.data, before.data, base, asked]);
 
   const showing = !found ? null : ax?.interpreted ?? (answer ? showingLine({ ...answer, hits }) : null);
-  const h2h = compares.find((c) => compareTeams(c).length >= 2);
   const open = (h: SearchHit) => logPick(h);
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
@@ -110,7 +114,7 @@ export default function SearchPage() {
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               <AnswerNotesView notes={notes} className="mb-4 text-sm" />
-              {(events >= 2 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
+              {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
               <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
                 <div className="min-w-0">
                   <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" />
@@ -129,7 +133,7 @@ export default function SearchPage() {
                     </div>
                   )}
                 </div>
-                {h2h && <div className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)]"><HeadToHead h={h2h} now={now.data?.teams} before={before.data?.teams} season={season} /></div>}
+                {h2h && <div className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)]"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
               </div>
             </div>
           )}

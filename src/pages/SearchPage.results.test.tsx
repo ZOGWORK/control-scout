@@ -17,7 +17,8 @@ const summaries: TeamSummary[] = [
   { team: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ", opr: 101.4, oprRank: 120, of: 8308, rating: null, ratingSd: null, record: "12-3-0", lastEvent: null, nextEvent: null },
   { team: 23268, name: "Ultraviolet", place: "Hackettstown, NJ", opr: null, oprRank: null, of: null, rating: null, ratingSd: null, record: null, lastEvent: null, nextEvent: null },
 ];
-vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => ({ data: p ? { teams: summaries } : undefined, error: null, loading: false }) }));
+const paths = vi.hoisted(() => [] as (string | null)[]);
+vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
 
 const { default: SearchPage } = await import("./SearchPage");
@@ -101,6 +102,35 @@ describe("search results page", () => {
     const other = container.querySelector('[data-section="fuzzy"]') as HTMLElement;
     expect(other.textContent).toContain("Other teams matching “good”");
     expect(within(other).getAllByRole("link")).toHaveLength(2);
+  });
+
+  it("a query that names a site page is answered, not a dead end", () => {
+    state.answer = answer([], { pages: [{ title: "Rules", href: "/rules" }] });
+    const { container } = show("/search?q=rules");
+    expect(screen.getByRole("link", { name: /Rules/ }).getAttribute("href")).toBe("/rules");
+    expect(container.querySelector("[data-no-results]")).toBeNull();
+  });
+
+  it("previews the season a Compare asks for", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2024, href: "/compare?teams=4215,23268&season=2024" };
+    state.answer = answer([compare]);
+    paths.length = 0;
+    show("/search?q=x");
+    expect(paths.filter(Boolean).every((p) => p!.includes("season=2024"))).toBe(true);
+    expect(screen.getByText("2024–25 record")).toBeTruthy();
+  });
+
+  it("shows the numbers a row was asked for", () => {
+    state.answer = answer([{ kind: "place", ref: "USA:NJ", title: "4215 in New Jersey", subtitle: "", season: 2025, facts: [{ label: "Region rank", value: "#3 of 120" }] }]);
+    show("/search?q=x");
+    expect(screen.getByText("#3 of 120")).toBeTruthy();
+  });
+
+  it("offers the season filter for matches from several seasons", () => {
+    const m = (season: number): SearchHit => ({ kind: "match", ref: `${season}:X:qual:0:1`, title: `Q1 · X ${season}`, subtitle: "", season });
+    state.answer = answer([m(2024), m(2025)]);
+    show("/search?q=x");
+    expect(screen.getByRole("combobox", { name: "Season" })).toBeTruthy();
   });
 
   it("never dead-ends: says what search covers, what was understood, labeled closest matches and places to go", () => {
