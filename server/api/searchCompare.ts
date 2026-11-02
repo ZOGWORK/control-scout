@@ -36,10 +36,16 @@ const sideOf = (t: TeamFacts): SearchCompareSide => ({ number: t.number, name: c
 /** What one side of a versus names: a team, several equally (a shared name), or nothing. */
 type Side = { typed: string; team: TeamFacts | null; tied: TeamFacts[]; rule?: string; candidates: number[] };
 
-/** Every team named exactly `name` (FIRST's stored name, a number inside it left out), whatever search would show. */
+/** Every team named exactly `name` (FIRST's stored name, a number inside it left out; accents, case, punctuation and
+ *  spacing as search folds them), whatever search would show. Candidates come from the search index (which folds the
+ *  same way, "cafe" finds "Café") and a plain name match, then the same equality decides. */
 async function exactNamed(name: string): Promise<number[]> {
-  const rows = await all<{ number: number; name: string }>("SELECT number, name FROM teams WHERE name LIKE ?", [`%${name.replace(/[%_]/g, "")}%`]);
-  return rows.filter((r) => normalize(cleanTeamName(Number(r.number), r.name) ?? "") === normalize(name)).map((r) => Number(r.number));
+  const viaIndex = (await search(name, 50, new Set(), new Set(["team"]))).filter((h) => h.kind === "team").map((h) => Number(h.ref));
+  const viaName = (await all<{ number: number }>("SELECT number FROM teams WHERE name LIKE ?", [`%${name.replace(/[%_]/g, "")}%`])).map((r) => Number(r.number));
+  const nums = [...new Set([...viaIndex, ...viaName])];
+  if (!nums.length) return [];
+  const rows = await all<{ number: number; name: string }>(`SELECT number, name FROM teams WHERE number IN (${nums.map(() => "?").join(",")})`, nums);
+  return rows.filter((r) => normalize(cleanTeamName(Number(r.number), r.name) ?? "") === normalize(name)).map((r) => Number(r.number)).sort((x, y) => x - y);
 }
 
 /** The team (or teams, tied) one side names, from its words as typed. */
