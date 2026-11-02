@@ -16,10 +16,11 @@ const EVENTS = [
   ev("USNJQ2", "NJ Qualifier 2", "2026-11-21", "upcoming"),
   ev("USNJQ1", "NJ Qualifier 1", "2026-10-31", "finished", "2026-10-31", 28),
 ];
+const asked: (string | null)[] = [];
 vi.mock("../../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: null, tracked: { teams: [], events: [] }, bookmarks: [] } }) }));
 vi.mock("../../../lib/api", async (orig) => ({
   ...(await orig<typeof import("../../../lib/api")>()),
-  useApi: (path: string | null) => ({ data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
+  useApi: (path: string | null) => (asked.push(path), { data: path?.startsWith("/api/events") ? { events: EVENTS } : undefined, error: undefined, loading: false, reload: () => {} }),
   apiFetch: async () => ({ events: [{ season: 2026, code: "USNJQ2", start: "2026-11-21", end: "2026-11-21" }, { season: 2026, code: "USNJQ1", start: "2026-10-31", end: "2026-10-31" }] }),
 }));
 
@@ -54,6 +55,12 @@ describe("EventChooser", () => {
     expect(within(within(c).getByRole("link")).queryByRole("button")).toBeNull();
     fireEvent.click(within(c).getByRole("button", { name: "Scout NJ Qualifier 3" }));
     expect(onPick).toHaveBeenCalledWith("USNJQ3");
+  });
+
+  it("lists every event type, practice days too (a pit can be scouted at any)", async () => {
+    show();
+    await waitFor(() => expect(card("NJ Qualifier 3")).toBeTruthy());
+    expect(asked.some((p) => p?.startsWith("/api/events") && new URL(p, "http://x").searchParams.get("all") === "1")).toBe(true);
   });
 
   it("filters like the Events page: by text and by status", async () => {

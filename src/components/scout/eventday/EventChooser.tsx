@@ -32,6 +32,9 @@ export function ourUpcoming(events: readonly EventListItem[], ours: ReadonlyMap<
     .sort((a, b) => (a.start ?? "9").localeCompare(b.start ?? "9") || a.name.localeCompare(b.name));
 }
 
+/** Enough for any season's every event (the list's own default is 2,000). */
+const ALL_EVENTS = 3000;
+
 type Entry = Parameters<typeof pitProgress>[0][number];
 
 export interface EventChooserProps {
@@ -56,7 +59,9 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   const start = (current ?? "").trim().toUpperCase();
   const titleId = useId();
   const teamsKey = [...new Set(ourTeams)].sort((a, b) => a - b).join(",");
-  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season })}`);
+  // Every event type, practice days and the like too (the Events page leaves out types with no matches): a pit
+  // can be scouted at any of them.
+  const state = useApi<{ events: EventListItem[] }>(`/api/events${qs({ season, all: 1, limit: ALL_EVENTS })}`);
 
   // The filters live here, not in the URL: Scout's own query string is the entry list's.
   const [f, setF] = useState<Record<string, string>>({});

@@ -15,6 +15,11 @@ import type { MatchView } from "../shared/api";
 
 const h = vi.hoisted(() => ({ personal: { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, bookmarks: [], myTeam: null, tracked: { teams: [], events: [] } } } }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
+// The picker's season menu, as one button (the real one is a Radix select): picks the next season.
+vi.mock("../components/records/Controls", async (orig) => ({
+  ...(await orig<typeof import("../components/records/Controls")>()),
+  SeasonSelect: ({ value, onChange }: { value: number; onChange: (s: number) => void }) => <button type="button" onClick={() => onChange(value + 1)}>Next season</button>,
+}));
 vi.mock("../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
 vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
 
@@ -115,6 +120,23 @@ describe("Event day", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scout Other Qualifier" }));
     await waitFor(() => expect(param("pit")).toBeNull());
     expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!).eventCode).toBe("USOTH1");
+    ask.mockRestore();
+  });
+
+  it("another season in the picker with a pit entry open asks first, and switches only on yes", async () => {
+    red();
+    show("/scout?season=2025&tab=event&pit=102");
+    fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Next season" }));
+    expect(ask).toHaveBeenCalledOnce();
+    expect(param("season")).toBe("2025");
+    expect(param("pit")).toBe("102");
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next season" }));
+    await waitFor(() => expect(param("season")).toBe("2026"));
+    expect(param("pit")).toBeNull();
     ask.mockRestore();
   });
 

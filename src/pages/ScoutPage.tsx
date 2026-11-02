@@ -267,6 +267,12 @@ export default function ScoutPage() {
     // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
     setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
+  // Another season in the picker: Scout's session is per season, so an open pit entry would close with it. Ask first.
+  const pickSeason = (y: number) => {
+    if (y === season) return;
+    if (pitOpen && !window.confirm(`Leave the pit entry for ${pitTeam}? What you've typed in it isn't saved.`)) return;
+    setSp((x) => { x.set("season", String(y)); x.delete("pit"); return x; });
+  };
   const setWatching = (w: Watching) => { if (session) scoutSession.set(session.eventCode, w); };
   // The match being scouted has its own key (`at`): `match` is the entry list's filter, which this never touches.
   const openMatch = (label: string) => setSp((x) => { x.set("tab", "event"); x.set("at", label); return x; });
@@ -342,7 +348,7 @@ export default function ScoutPage() {
         {/* No event yet (or Change event): the picker is the page, with no sections above it. What's under it stays
             mounted (hidden), so an entry being filled in keeps its answers through Change event and back. */}
         {picking && <>
-          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} currentSeason={current} onSeason={(y) => setSp((x) => { x.set("season", String(y)); return x; })} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
+          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} currentSeason={current} onSeason={pickSeason} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
             onCancel={session ? () => setSp((x) => { x.delete("pick"); return x; }) : undefined} />
           {!session && (
             <p className="mt-6 text-sm text-muted-foreground">
