@@ -15,6 +15,27 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.2.8 — 2026-11-02
+
+FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.
+
+### Highlights
+- [fixes] "Upcoming meets in New Jersey" lists the next ones, soonest first
+- [fixes] Search names what it understood, never one event's name
+- [fixes] Venues work: "meets at River Dell High School" finds the meets held there
+- [fixes] "2024 Houston Championship" finds 2024's, never this season's
+- [fixes] Nothing at that venue? Search says so and shows the state's meets
+
+### Search
+- **Places, venues and cities.** A kind of event ("meets", "championships", "events") with a place is read as that set of events: a state by name or code ("New Jersey", "NJ"), a city ("meets in Oradell") or a venue ("meets in New Jersey at River Dell High School"), filtered on each event's own stored state, city and venue. Event venues are now searchable words too, so "River Dell" finds the meets held there.
+- **Dates.** "upcoming" is from today on, "past" is before today, "this weekend" is the coming Saturday and Sunday (on a Sunday, the weekend under way), "next weekend" the one after, and "this week", "next week", "this month" and "next month" likewise. "when is the next meet in New Jersey" reads as upcoming. Time words are never matched against names.
+- **Years.** "2024" means events held in 2024 (the 2024 Houston championship is part of the 2023–24 season); "2023-24" means that season; no year means the current season. A year with no matching event says so, with other years' events listed as closest matches, and is never swapped for the current season's.
+- **Order.** A set of events is listed by date, never by relevance: upcoming events soonest first, then past ones most recent first. The two groups never mix.
+- **What was understood.** Every answer says what search understood ("League meets in New Jersey", "Upcoming league meets in New Jersey at River Dell High School"), shown where /search said "Showing:". It never names a single event for a set of events.
+- **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
+- **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
+- **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams.
+
 ## 2.2.7 — 2026-11-02
 
 FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
