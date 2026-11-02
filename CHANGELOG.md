@@ -27,7 +27,7 @@ FTC One Search: recent searches, example searches, and a clearly labelled "did y
 ### Search
 - **Recent searches.** The top-bar search and the not-found page's search remember what you searched for, on this device only: click into the empty box and your last few searches are there, one tap to run one again, with Clear to remove them all. They're never sent anywhere (Settings › Clear all local data removes them too). Pickers, like Predict's team box, don't record anything.
 - **Example searches.** The same empty box offers example searches that run straight away: "4215 vs 6980", "when did 4215 go to worlds", "will 4215 win their next match" and "4215 record".
-- **"Did you mean" is labelled.** When search corrects a query, the line above the results reads "Did you mean “…”? Showing results for that, not “what you typed”.", so a correction is never mistaken for what you asked.
+- **"Did you mean" is labelled.** When search corrects a query, the line above the results reads "Did you mean “…”? Showing results for that, not “what you typed”.", so a correction is never mistaken for what you asked. (#428)
 
 ## 2.2.5 — 2026-11-02
 
