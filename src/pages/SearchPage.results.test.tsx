@@ -238,7 +238,7 @@ describe("search results page, Phase 2 cards", () => {
 
   it("how good is X: the team's standing once, as blocks, with a win rate", () => {
     summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: "20-4-0", opr: 119.7, oprRank: 388, of: 8308 };
-    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    state.answer = answer([{ ...team(18061, "Simply Complex", "Plainsboro, NJ"), facts: [{ label: "OPR", value: "119.7" }, { label: "Record", value: "20-4-0" }] }]);
     const { container } = show("/search?q=how%20good%20is%20simply%20complex");
     const banner = container.querySelector("[data-quality-banner]")!.textContent!;
     expect(banner).toContain("Top 4.7%");

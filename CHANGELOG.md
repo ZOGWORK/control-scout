@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.3 — 2026-11-02
+
+FTC One Search shows a team's numbers once: when the summary has them, the team's card below doesn't repeat them.
+
+### Highlights
+- [fixes] "How good is" a team shows its record, OPR and rank once, in the summary
+- [fixes] The team's card below keeps its name, place and profile link
+- [fixes] Other teams in the results keep their own numbers
+
+### Search
+- **Each number once.** For a question like "how good is Simply Complex", the summary holds the team's record, world OPR rank and OPR; the team's card under it now shows its name, place and View scouting profile only, where before it repeated those numbers. Results and their order are unchanged.
+
 ## 2.3.2 — 2026-11-02
 
 FTC One Search on a wide screen: results on the left, one panel on the right, and no clock or weather on the search page.

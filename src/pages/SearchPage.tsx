@@ -84,14 +84,9 @@ export default function SearchPage() {
   const topTeam = hits.find((h) => h.kind === "team" && !isCompare(h));
   const topSum = topTeam && isQualityQuestion(query) ? summaries.get(Number(topTeam.ref)) : undefined;
   const std = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
-  // Only a standing with numbers to show becomes the summary; its team's card then drops the same numbers.
+  // Only a standing with numbers to show becomes the summary; its team's card then shows none of the same numbers.
   const quality = std && hasNumbers(std) ? std : null;
-  const cardSums = useMemo(() => {
-    if (!quality || !topTeam) return summaries;
-    const m = new Map(summaries);
-    m.delete(Number(topTeam.ref));
-    return m;
-  }, [quality, topTeam, summaries]);
+  const covered = quality && topTeam ? Number(topTeam.ref) : null;
   // The one right-hand panel (desktop): a versus query's head-to-head, else a question's computed summary.
   const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
@@ -169,7 +164,7 @@ export default function SearchPage() {
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={cardSums} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>
@@ -209,7 +204,7 @@ function shape(sections: AnswerSection[], f: PageFilters): ViewSection[] {
   return out;
 }
 
-function ResultSection({ s, summaries, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
   const count = s.rows.filter((r) => !r.sub).length;
   const title = s.id === "fuzzy" && fuzzyWord ? `Other teams matching “${fuzzyWord}”` : s.title;
   const teamish = s.id === "team" || s.id === "top" || s.id === "fuzzy";
@@ -228,7 +223,7 @@ function ResultSection({ s, summaries, fuzzyWord, twoCol, onOpen }: { s: ViewSec
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
             <div key={head.key}>
-              <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} onOpen={() => onOpen(head.hit)} />
+              <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
               {!!subs.length && (
                 <ul className="mt-1 overflow-hidden rounded-xl border border-border bg-card">
                   {subs.map((r) => <li key={r.key} className="border-b border-border last:border-b-0"><ResultRow h={r.hit} icon="event" sub onOpen={() => onOpen(r.hit)} /></li>)}
