@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.2.5 — 2026-11-02
+## 2.2.7 — 2026-11-02
 
 FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
 
@@ -31,6 +31,33 @@ FTC One Search reads what you type the way you meant it: plurals, little words a
 - **A question's opening is the question.** "how good is", "how strong is", "how is", "what is the rank of", "what's the record of", "where is", "tell me about", "show me" and the rest of the list in `src/shared/searchQuery.ts` are read as the question, never as part of a name: "how good is simply complex" searches "simply complex" and shows its season's OPR, rank and record. Only the opening goes, so "how good is Good Enough" is Good Enough, and "good teams" (no opening) still searches for "good".
 - **Time words and a question's own words never name a team.** "upcoming", "this weekend" and the like (and "past", "recent", "latest" next to a word like "meets") are never matched against names, so "upcoming meets" can't turn into the team Oncoming Storm. In a question ("Can robots…?"), words like can, will and does aren't searched for either; "Can Control" on its own is still a team's name.
 - **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline. (#427)
+## 2.2.6 — 2026-11-02
+
+FTC One Search: recent searches, example searches, and a clearly labelled "did you mean".
+
+### Highlights
+- [home] Your recent searches show when you click into an empty search box
+- [home] Example searches in the box show what else you can ask
+- [fixes] A spelling correction now says "Did you mean …?" with what you typed
+
+### Search
+- **Recent searches.** The top-bar search and the not-found page's search remember what you searched for, on this device only: click into the empty box and your last few searches are there, one tap to run one again, with Clear to remove them all. They're never sent anywhere (Settings › Clear all local data removes them too). Pickers, like Predict's team box, don't record anything.
+- **Example searches.** The same empty box offers example searches that run straight away: "4215 vs 6980", "when did 4215 go to worlds", "will 4215 win their next match" and "4215 record".
+- **"Did you mean" is labelled.** When search corrects a query, the line above the results reads "Did you mean “…”? Showing results for that, not “what you typed”.", so a correction is never mistaken for what you asked. (#428)
+
+## 2.2.5 — 2026-11-02
+
+FTC One Search: the magnifier searches, and the list stays clear of a phone's keyboard.
+
+### Highlights
+- [fixes] Tapping the magnifier in a search box runs the search, just like Enter
+- [fixes] On a phone the results list now ends above the keyboard
+- [fixes] Typing fast never leaves an older search's results looking current
+
+### Search
+- **The magnifier searches.** In every search box (Home, the top bar, Predict's picker, Events, the not-found page) the magnifier icon is now a button: tapping it opens the full results page for what's typed, exactly like Enter or the keyboard's Search key, and the keyboard closes so the results show. In a box that picks something (Predict's team picker) it opens the top result, as Enter does. On an empty box it just puts the cursor in the field. Clear (×) and the top bar's phone search button work as before.
+- **Results clear the phone keyboard.** While the on-screen keyboard is up, the results list is only as tall as the space between the box and the keyboard (and its accessory bar), so every row can be reached by scrolling the list. The rows look the same.
+- **The list always answers what's typed.** A new test types fast ("Meets", then "Meets in New Jersey", then more) and checks that an older query's results are never shown as current: while the newer one is on its way the older list stays dimmed and marked as updating, then is replaced. (#425)
 
 ## 2.2.4 — 2026-11-02
 
