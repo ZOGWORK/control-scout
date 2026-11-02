@@ -27,7 +27,7 @@ Five built-in themes, picked in Settings.
 
 ### Appearance
 - **Themes.** Settings → Appearance → Theme now lists Light, Dim, Dark, Midnight and System as cards, each with a small preview in its own colours. Choosing one applies at once with no reload, is saved on the device and to your account when you're signed in, and is in place before the page first paints (no flash of another theme). System follows your device's light or dark setting, live. Only colours change: surfaces, text, lines and component colours. The yellow accent, the logo and the layout are the same in every theme.
-- **The theme is chosen in Settings only.** The sun and moon button in the top bar is gone, so the app never offers or asks for a theme anywhere else.
+- **The theme is chosen in Settings only.** The sun and moon button in the top bar is gone, so the app never offers or asks for a theme anywhere else. (#417)
 
 ## 2.1.7 — 2026-11-01
 
