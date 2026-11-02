@@ -1,7 +1,7 @@
 // Reading an event set from a query (src/shared/searchEventQuery.ts): place, city or venue, time, year, kind.
 // The answers on data are in server/api/searchEvents.test.ts.
 import { describe, expect, it } from "vitest";
-import { eventSetLabel, readEventQuery, regionOf, timeWindow } from "./searchEventQuery";
+import { eventSetLabel, eventTypesOf, readEventQuery, regionOf, timeWindow } from "./searchEventQuery";
 
 describe("reading an event set", () => {
   it("reads a place by name or code, with any plural or preposition", () => {
@@ -64,5 +64,32 @@ describe("time windows", () => {
     expect(timeWindow("past", "2026-11-02")).toEqual({ from: null, to: "2026-11-01" });
     expect(timeWindow("this-week", "2026-11-02")).toEqual({ from: "2026-11-02", to: "2026-11-08" });
     expect(timeWindow("next-month", "2026-11-02")).toEqual({ from: "2026-12-01", to: "2026-12-31" });
+  });
+});
+
+describe("Greptile on #434", () => {
+  it("weeks and months are whole calendar ones", () => {
+    expect(timeWindow("this-week", "2026-11-04")).toEqual({ from: "2026-11-02", to: "2026-11-08" }); // a Wednesday
+    expect(timeWindow("this-week", "2026-11-08")).toEqual({ from: "2026-11-02", to: "2026-11-08" }); // a Sunday
+    expect(timeWindow("this-month", "2026-11-20")).toEqual({ from: "2026-11-01", to: "2026-11-30" });
+  });
+  it("reads a season with a four-digit ending", () => {
+    expect(readEventQuery("2024–2025 championships in Texas")).toMatchObject({ season: 2024, year: null, region: { key: "USA:TX" } });
+    expect(readEventQuery("2024-2026 championships in Texas")).toBeNull();
+  });
+  it("keeps a region's own little words", () => {
+    expect(readEventQuery("meets in District of Columbia")).toMatchObject({ region: { key: "USA:DC" }, where: null });
+    expect(readEventQuery("meets in the Northern Territory")).toMatchObject({ region: { key: "Australia:NT" }, where: null });
+    expect(readEventQuery("meets in the New Jersey")).toMatchObject({ region: { key: "USA:NJ" }, where: null });
+  });
+  it("leaves an event's page and a season in words to their own readers", () => {
+    expect(readEventQuery("New Jersey Championship rankings")).toBeNull();
+    expect(readEventQuery("meets in NJ last season")).toBeNull();
+  });
+  it("a more specific event word narrows a broader one", () => {
+    expect(eventTypesOf(["league", "meet"])).toEqual(["LeagueMeet"]);
+    expect(eventTypesOf(["event", "meet"])).toEqual(["LeagueMeet"]);
+    expect(eventTypesOf(["event"])).toBeNull();
+    expect(eventTypesOf(["meet", "tournament"])).toEqual(["LeagueMeet", "LeagueTournament"]);
   });
 });

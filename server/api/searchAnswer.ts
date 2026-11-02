@@ -184,7 +184,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // filtered on their stored fields and listed by date (./searchEvents.ts). Never a did-you-mean.
   const evq = opts.intents === false ? null : readEventQuery(q);
   if (evq) return eventSetAnswer(q, evq, { now: opts.now });
-  const region = opts.intents === false || /d/.test(q) ? null : regionOf(q.split(" "));
+  const region = opts.intents === false || /\d/.test(q) ? null : regionOf(q.split(" "));
   if (region) {
     const teams = (await search(q, limit, prefer)).filter((h) => h.kind === "team");
     return eventSetAnswer(q, { kinds: [], time: null, year: null, season: null, region, where: null, words: [] }, { now: opts.now, others: teams });

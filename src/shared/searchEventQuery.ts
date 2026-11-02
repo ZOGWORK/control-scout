@@ -14,6 +14,7 @@
 //     "2023-24" means that season. No year: the current season.
 import { findRegions, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, singularize, timePhrase } from "./searchQuery.js";
+import { SEARCH_TOPICS } from "./search.js";
 
 /** The event types (FIRST's, as stored in events.type) each event word means. An event word also matches an event
  *  whose own name has it ("… League Meet"). "event", "competition" and "comp" mean any type. */
@@ -77,14 +78,19 @@ export function readEventQuery(raw: string): EventQuery | null {
   const t = timePhrase(q);
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }
   let year: number | null = null, season: number | null = null;
-  const y = /(?:^|\s)(20\d\d)(?:\s*[-–/]\s*(\d\d))?(?=\s|$)/.exec(q);
+  const y = /(?:^|\s)(20\d\d)(?:\s*[-–/]\s*(\d\d(?:\d\d)?))?(?=\s|$)/.exec(q);
   if (y) {
-    if (y[2] && (Number(y[1]) + 1) % 100 === Number(y[2])) season = Number(y[1]);
+    // "2024-25" and "2024–2025" are the season that starts in 2024.
+    if (y[2] && (y[2].length === 2 ? (Number(y[1]) + 1) % 100 : Number(y[1]) + 1) === Number(y[2])) season = Number(y[1]);
     else if (!y[2]) year = Number(y[1]);
     if (season != null || year != null) q = `${q.slice(0, y.index)} ${q.slice(y.index + y[0].length)}`.replace(/\s+/g, " ").trim();
   }
   // Any other number (a team, a match) isn't an event set.
   if (/\d/.test(q)) return null;
+  // A page of an event ("New Jersey Championship rankings") or a season in words ("last season") is read elsewhere
+  // (./search.ts SEARCH_TOPICS, server/api/searchIntents.ts): not a set of events.
+  const lowerQ = ` ${q.toLowerCase()} `;
+  if (SEARCH_TOPICS.some(([t]) => lowerQ.includes(` ${t} `)) || /\s(?:last|this|next|previous)\s+(?:season|year)\s/.test(lowerQ)) return null;
   const tokens = q.split(" ").filter(Boolean);
   const kinds: string[] = [], rest: string[] = [];
   for (const w of tokens) (Object.hasOwn(EVENT_TYPES, w.toLowerCase()) ? kinds : rest).push(w);
@@ -94,16 +100,21 @@ export function readEventQuery(raw: string): EventQuery | null {
     if (PLACE_MARKERS.has(rest[i].toLowerCase()) && i + 1 < rest.length) {
       let j = i + 1;
       while (j < rest.length && !PLACE_MARKERS.has(rest[j].toLowerCase())) j++;
-      const seg = rest.slice(i + 1, j).filter((x) => !STOPWORDS.has(x.toLowerCase()));
-      // The longest leading run of words that's a region; what's left of the segment is a city or venue.
-      let n = Math.min(seg.length, 4), r: Region | null = null;
-      for (; n >= 1; n--) if ((r = regionOf(seg.slice(0, n)))) break;
-      if (r && !region) { region = r; if (n < seg.length) where.push(seg.slice(n).join(" ")); } else if (seg.length) where.push(seg.join(" "));
+      // Leading little words go ("in the Northern Territory"); those inside a name stay ("District of Columbia").
+      let k = i + 1;
+      while (k < j && STOPWORDS.has(rest[k].toLowerCase())) k++;
+      const full = rest.slice(k, j);
+      // The longest leading run of words that's a region, its own little words kept ("District of Columbia");
+      // what's left of the segment, little words out, is a city or venue.
+      let n = Math.min(full.length, 5), r: Region | null = null;
+      for (; n >= 1; n--) if ((r = regionOf(full.slice(0, n)))) break;
+      const tail = (k: number) => full.slice(k).filter((x) => !STOPWORDS.has(x.toLowerCase()));
+      if (r && !region) { region = r; if (tail(n).length) where.push(tail(n).join(" ")); } else if (tail(0).length) where.push(tail(0).join(" "));
       i = j;
     } else words.push(rest[i++]);
   }
   // A region named bare ("NJ state championship", "New Jersey meets").
-  for (let a = 0; !region && a < words.length; a++) for (let n = Math.min(4, words.length - a); n >= 1; n--) {
+  for (let a = 0; !region && a < words.length; a++) for (let n = Math.min(5, words.length - a); n >= 1; n--) {
     const r = regionOf(words.slice(a, a + n));
     if (r) { region = r; words.splice(a, n); break; }
   }
@@ -143,8 +154,8 @@ export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; cit
  * the window when any of its dates is.
  *   upcoming      today on (an event under way counts)          past        before today
  *   this-weekend  the coming Saturday and Sunday, Monday–Saturday; on a Sunday, the weekend under way (yesterday, today)
- *   next-weekend  the weekend after that                          this-week   today to Sunday (weeks run Monday–Sunday)
- *   next-week     the next Monday to Sunday                       this-month  today to the month's last day
+ *   next-weekend  the weekend after that                          this-week   this Monday to Sunday (weeks run Monday–Sunday)
+ *   next-week     the next Monday to Sunday                       this-month  the whole calendar month
  *   next-month    the whole next calendar month
  */
 export function timeWindow(time: SearchTime, today: string): { from: string | null; to: string | null } {
@@ -158,9 +169,18 @@ export function timeWindow(time: SearchTime, today: string): { from: string | nu
     case "past": return { from: null, to: add(-1) };
     case "this-weekend": return { from: add(toSat), to: add(toSun) };
     case "next-weekend": return { from: add(toSat + 7), to: add(toSun + 7) };
-    case "this-week": return { from: today, to: add(toSun) };
+    case "this-week": return { from: add(day === 0 ? -6 : 1 - day), to: add(toSun) };
     case "next-week": return { from: add(toSun + 1), to: add(toSun + 7) };
-    case "this-month": return { from: today, to: iso(d.getUTCFullYear(), d.getUTCMonth() + 1, 0) };
+    case "this-month": return { from: iso(d.getUTCFullYear(), d.getUTCMonth(), 1), to: iso(d.getUTCFullYear(), d.getUTCMonth() + 1, 0) };
     case "next-month": return { from: iso(d.getUTCFullYear(), d.getUTCMonth() + 1, 1), to: iso(d.getUTCFullYear(), d.getUTCMonth() + 2, 0) };
   }
+}
+
+/** The FIRST types a query's event words allow, or null for any: a more specific word narrows a broader one ("league
+ *  meet" is LeagueMeet, never LeagueTournament), and "event" or "competition" beside a kind adds nothing. */
+export function eventTypesOf(kinds: string[]): string[] | null {
+  const sets = kinds.map((k) => (Object.hasOwn(EVENT_TYPES, k) ? EVENT_TYPES[k] : null)).filter((t): t is string[] => !!t);
+  if (!sets.length) return null;
+  const both = sets.reduce((a, b) => a.filter((t) => b.includes(t)));
+  return both.length ? both : [...new Set(sets.flat())];
 }

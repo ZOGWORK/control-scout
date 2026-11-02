@@ -40,6 +40,11 @@ beforeAll(async () => {
     await run("INSERT INTO team_seasons (season, team) VALUES (?, ?)", [S, n]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'USNJNEM2', ?, 50, 5)", [S, n]);
   }
+  // A Los Angeles meet on Nov 2 (its own calendar), a two-day meet under way, and a league tournament in NJ.
+  await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, timezone, source) VALUES (?, 'USCALAM', 'LA League Meet', 'LeagueMeet', 'LA High', 'Los Angeles', 'CA', 'USA', '2026-11-02', '2026-11-02', 'America/Los_Angeles', 'test')", [S]);
+  await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USTXTWO', 'Two Day League Meet', 'LeagueMeet', 'Austin High', 'Austin', 'TX', 'USA', '2026-11-01', '2026-11-03', 'test')", [S]);
+  await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USTXOLD', 'Done League Meet', 'LeagueMeet', 'Dallas High', 'Dallas', 'TX', 'USA', '2026-10-10', '2026-10-10', 'test')", [S]);
+  await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USNJLT', 'NJ League Tournament', 'LeagueTournament', 'Kean', 'Union', 'NJ', 'USA', '2027-02-07', '2027-02-07', 'test')", [S]);
   await rebuildSearch();
 });
 
@@ -135,5 +140,38 @@ describe("corrections and fuzzy matches (Requirements 4, 14.3)", () => {
     expect(b.hits[0]).toMatchObject({ ref: "4215", match: "exact" });
     expect(b.understood).toMatchObject({ kind: "team", label: "Hypnotic Robotics (4215)" });
     expect((await ask("4215")).understood).toMatchObject({ kind: "team", label: "Hypnotic Robotics (4215)" });
+  });
+});
+
+describe("Greptile on #434", () => {
+  it("upcoming and past read each event's own calendar: a meet under way is upcoming, never past", async () => {
+    // 02:00 UTC on Nov 3 is still Nov 2 in Los Angeles.
+    const late = Date.parse("2026-11-03T02:00:00Z");
+    const up = await searchAnswer("upcoming meets in California", { now: late, limit: 25, learn: false });
+    expect(refs(up.hits)).toContain("USCALAM");
+    const past = await searchAnswer("past meets in California", { now: late, limit: 25, learn: false });
+    // No past meet there: the meet under way is only a labelled fallback, never a past answer.
+    expect(past.understood?.fallback).toBe("No past league meets in California — showing league meets in California instead");
+    expect(refs((await ask("past meets in Texas")).hits)).toEqual(["USTXOLD"]);
+    expect(refs((await ask("upcoming meets in Texas")).hits)).toContain("USTXTWO");
+  });
+  it("league meets are meets, never league tournaments", async () => {
+    expect(refs((await ask("league meets in New Jersey")).hits)).not.toContain("USNJLT");
+    expect(refs((await ask("league events in New Jersey")).hits)).toContain("USNJLT");
+  });
+  it("a full state name is a region answer like its code", async () => {
+    expect((await ask("New Jersey")).understood).toMatchObject({ kind: "events" });
+    expect((await ask("Maryland")).understood?.kind).not.toBe("names");
+  });
+  it("a region's events come before its teams in the sections", async () => {
+    expect(answerSections(await ask("New Jersey")).sections.map((x) => x.id).slice(0, 3)).toEqual(["place", "event", "team"]);
+  });
+});
+
+describe("the first HTML of /search (Greptile on #434)", () => {
+  it("says a fallback is a fallback, beside the badge", async () => {
+    const { pageMeta } = await import("../seoMeta");
+    const html = (await pageMeta("/search", { q: "meets at Nonexistent High School in New Jersey" })).bodyHtml!;
+    expect(html).toContain("No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead");
   });
 });

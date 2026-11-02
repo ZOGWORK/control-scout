@@ -121,7 +121,7 @@ describe("the answer cards", () => {
   it("the first HTML of /search carries the answer: what it shows, the card's records, or its none-found note", async () => {
     const { pageMeta } = await import("../seoMeta");
     const yes = (await pageMeta("/search", { q: "when did hypnotic go to worlds" })).bodyHtml!;
-    expect(yes).toContain("Showing: <b>Hypnotic Robotics (4215) · Worlds appearances</b>");
+    expect(yes).toContain("<p><b>Hypnotic Robotics (4215) · Worlds appearances</b></p>"); // the one badge: the server's reading (understood.label)
     expect(yes).toContain('<a href="/events/2023/FTCCMP1EDIS?team=4215">2024 FIRST Championship - Edison Division</a>');
     expect(yes).toContain("<ul><li>Ranked #3</li><li>9-1-0 in quals</li><li>Finalist Alliance</li></ul>"); // how it went, without JavaScript too
     const no = (await pageMeta("/search", { q: "has bad wolf won anything" })).bodyHtml!;

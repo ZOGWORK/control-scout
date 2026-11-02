@@ -12,6 +12,7 @@
 //   3. Names are matched without the stopwords (STOPWORDS: "in", "at", "the", …), the time words (TIME_WORDS:
 //      "upcoming", "this weekend", …) and a question's own words (QUESTION_WORDS: "can", "will", …) when the query
 //      is a question. Those words say what kind of answer is wanted, never which team or event.
+import { REGION_PHRASES, isRegionCode } from "./regions.js";
 import { SEARCH_TOPICS, type SearchTopic } from "./search.js";
 
 /** The plurals read as their singular (lower case). Every pair has its own test (server/api/search.test.ts). */
@@ -23,7 +24,7 @@ export const PLURALS: Record<string, string> = {
 
 /** "Meets in New Jersey" → "meet in New Jersey": each plural word in PLURALS as its singular, every other word as typed. */
 export function singularize(q: string): string {
-  return q.replace(/\p{L}+/gu, (w) => PLURALS[w.toLowerCase()] ?? w);
+  return q.replace(/\p{L}+/gu, (w) => (Object.hasOwn(PLURALS, w.toLowerCase()) ? PLURALS[w.toLowerCase()] : w));
 }
 
 /** Words that never name a team or event when other words do (Requirement 1.1 of the FTC One Search brief). */
@@ -109,6 +110,19 @@ function restOf(q: string, p: string): string {
   return q.trim();
 }
 
+/** Indexes of `ws` inside a region name with a little word in it ("district of columbia"). */
+function placeWords(ws: string[]): Set<number> {
+  const lower = ws.map((w) => w.toLowerCase()), kept = new Set<number>();
+  for (const p of REGION_PHRASES) {
+    const pw = p.split(" ");
+    if (!pw.some((w) => STOPWORDS.has(w))) continue;
+    for (let i = 0; i + pw.length <= lower.length; i++) {
+      if (pw.every((w, k) => lower[i + k] === w)) pw.forEach((_, k) => kept.add(i + k));
+    }
+  }
+  return kept;
+}
+
 /**
  * The words of `q` that can name a team or event, as one string: plurals singular, stopwords, time words and (in a
  * question) question words out. When taking them out would leave nothing ("the", "upcoming"), the query as typed
@@ -119,12 +133,15 @@ export function nameWords(q: string, asked = false): string {
   const one = singularize((stripConversation(q)?.rest ?? q).trim().replace(/\s+/g, " "));
   if (!one) return one;
   let rest = one;
-  const time = timePhrase(rest);
-  if (time) rest = time.rest;
+  // Every time phrase goes ("upcoming qualifiers this weekend"): each pass takes one out, so this ends.
+  for (let time = timePhrase(rest); time; time = timePhrase(rest)) rest = time.rest;
   const question = asked || isQuestionForm(q);
-  const ws = rest.split(" ").filter((w) => {
-    if (!w) return false;
+  const all = rest.split(" ").filter(Boolean);
+  const place = placeWords(all);
+  const ws = all.filter((w, i) => {
     const l = w.toLowerCase();
+    // A place's own words stay: "IN" and "ON" typed as codes (Indiana, Ontario), "of" in "District of Columbia".
+    if (place.has(i) || isRegionCode(w)) return true;
     return !STOPWORDS.has(l) && !(question && QUESTION_WORDS.has(l));
   });
   return ws.length ? ws.join(" ") : one;

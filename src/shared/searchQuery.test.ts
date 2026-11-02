@@ -78,3 +78,25 @@ describe("team titles", () => {
     expect(teamWords("18061 | Simply Complex")).toBe("18061 Simply Complex");
   });
 });
+
+describe("Greptile on #427", () => {
+  it("takes every time phrase out, not just the first", () => {
+    expect(nameWords("upcoming qualifiers this weekend in New Jersey")).toBe("qualifier New Jersey");
+  });
+  it("changes only listed plurals, never a word Object has", () => {
+    expect(singularize("constructor toString meets")).toBe("constructor toString meet");
+  });
+});
+
+describe("Greptile on #427: a place's own words stay", () => {
+  it("keeps IN and ON typed as codes, and the little words of a region's name", () => {
+    expect(nameWords("meets IN")).toBe("meet IN");
+    expect(nameWords("events ON")).toBe("event ON");
+    // Only codes: capitals don't keep an ordinary little word.
+    expect(nameWords("THE GEARHEADS")).toBe("GEARHEADS");
+    expect(nameWords("MEET AT OAKLAND")).toBe("MEET OAKLAND");
+    expect(nameWords("meets in Indiana")).toBe("meet Indiana");
+    expect(nameWords("events in District of Columbia")).toBe("event District of Columbia");
+    expect(nameWords("team in the united states of america")).toBe("team united states of america");
+  });
+});

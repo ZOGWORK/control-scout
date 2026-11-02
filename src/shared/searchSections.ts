@@ -66,7 +66,13 @@ export function answerSections(answer: SearchAnswer, ai?: SearchAnswer | null): 
   if (answer.intent) { notes.understood = [`Understood: ${answer.intent.understood.join(" · ")}`]; if (answer.intent.gap) notes.gap = answer.intent.gap; }
   // A labelled fallback ("No league meets at X — showing all league meets in New Jersey instead"): said above the list.
   if (answer.understood?.fallback) notes.understood = [...notes.understood, answer.understood.fallback];
-  sections.push(...byKind(answer.hits, "", true));
+  const groups = byKind(answer.hits, "", true);
+  // A set of events ("New Jersey", "meets in NJ") lists its events before any teams, as the answer orders them.
+  if (answer.understood?.kind === "events") {
+    const ev = groups.findIndex((g) => g.id === "event"), tm = groups.findIndex((g) => g.id === "team");
+    if (ev > tm && tm >= 0) groups.splice(tm, 0, ...groups.splice(ev, 1));
+  }
+  sections.push(...groups);
   if (answer.step === "recovery" && answer.recovery) {
     notes.understood = answer.recovery.understood;
     if (answer.recovery.closest.length) sections.push({ id: "closest", title: "Closest matches", rows: answer.recovery.closest.flatMap((h) => rowsOf(h, "closest/")) });
