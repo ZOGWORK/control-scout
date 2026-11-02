@@ -11,7 +11,9 @@ import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
 import { ALLIANCE_HUES } from "../components/PlayoffBracket";
 
-type Theme = "dark" | "light";
+type Theme = "dark" | "light" | "dim" | "midnight";
+/** The dark family: Tailwind's `dark:` variant applies (index.css's `html:not(.light)`) and they share dark's status colours. */
+const DARK_FAMILY = new Set<Theme>(["dim", "dark", "midnight"]);
 
 const css = readFileSync(new URL("../index.css", import.meta.url), "utf8");
 const twTheme = readFileSync(createRequire(import.meta.url).resolve("tailwindcss/theme.css"), "utf8");
@@ -24,8 +26,13 @@ function block(src: string, selector: string) {
   return Object.fromEntries([...body.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
 }
 const palette = block(twTheme, "@theme default {");
-const dark = { ...palette, ...block(css, "@theme {"), ...block(css, ":root {\n  --sh-background") };
-const vars: Record<Theme, Record<string, string>> = { dark, light: { ...dark, ...block(css, "html.light {") } };
+const dark = { ...palette, ...block(css, "@theme {"), ...block(css.slice(css.indexOf(":root {\n  --sh-background")), ":root {") };
+const vars: Record<Theme, Record<string, string>> = {
+  dark,
+  light: { ...dark, ...block(css, "html.light {") },
+  dim: { ...dark, ...block(css, "html.dim {") },
+  midnight: { ...dark, ...block(css, "html.midnight {") },
+};
 
 function value(theme: Theme, name: string, depth = 0): RGBA {
   const raw = vars[theme][name];
@@ -45,9 +52,9 @@ function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | nul
   let found: RGBA | null = null;
   for (const cls of classes.split(/\s+/)) {
     const [variant, util] = cls.includes(":") ? [cls.slice(0, cls.lastIndexOf(":")), cls.slice(cls.lastIndexOf(":") + 1)] : ["", cls];
-    // Only the resting, theme-matching state: `dark:` applies on dark, hover/focus never.
+    // Only the resting, theme-matching state: `dark:` applies on every dark-family theme, hover/focus never.
     if (variant && variant !== "dark" && !variant.startsWith("[&")) continue;
-    if (variant === "dark" && theme !== "dark") continue;
+    if (variant === "dark" && !DARK_FAMILY.has(theme)) continue;
     // Alpha as a step (`/12`) or arbitrary (`/[0.08]`, `/[8%]`).
     const m = new RegExp(`^!?${prop}-([a-z]+(?:-[a-z]+)*(?:-\\d{2,3})?)(?:/(\\d+)|/\\[([\\d.]+)(%?)\\])?$`).exec(util);
     const known = m && vars[theme][`--color-${m[1]}`];
@@ -59,8 +66,8 @@ function utility(theme: Theme, classes: string, prop: "text" | "bg"): RGBA | nul
     const textToken = prop === "text" && theme === "light" && !m[2] && !m[3] && !util.startsWith("!") && vars.light[`--color-${m[1]}-text`] && TEXT_SWAPPED.has(m[1]);
     const c = value(theme, textToken ? `--color-${m[1]}-text` : `--color-${m[1]}`);
     const alpha = m[2] ? +m[2] / 100 : m[3] ? (m[4] ? +m[3] / 100 : +m[3]) : c[3];
-    // A plain class sets the colour unless a `dark:` one already did for dark.
-    if (variant === "dark" || !found || theme === "light") found = [c[0], c[1], c[2], alpha];
+    // A plain class sets the colour unless a `dark:` one already did for a dark-family theme.
+    if (variant === "dark" || !found || !DARK_FAMILY.has(theme)) found = [c[0], c[1], c[2], alpha];
     if (variant === "dark") break;
   }
   return found;
@@ -83,10 +90,14 @@ function measure(theme: Theme, classes: string, { surface = "--color-card", inhe
   return { ratio, pair };
 }
 
-const THEMES: Theme[] = ["light", "dark"];
+const THEMES: Theme[] = ["light", "dim", "dark", "midnight"];
 const AA = 4.5, LARGE = 3;
 
-describe("text tones reach WCAG AA in both themes", () => {
+describe("text tones reach WCAG AA in every theme", () => {
+  it("the `dark:` variant covers Dim and Midnight, so measuring them with dark's `dark:` classes is right", () => {
+    expect(css).toContain("@custom-variant dark (&:where(html:not(.light), html:not(.light) *));");
+  });
+
   for (const theme of THEMES) {
     it(`event status chips (${theme})`, () => {
       for (const [k, cls] of Object.entries(EVENT_STATUS_TONE)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
@@ -151,10 +162,16 @@ describe("text tones reach WCAG AA in both themes", () => {
     });
     it(`the keyboard focus ring stands out from the page at the strength rings use (${theme})`, () => {
       // WCAG 2.2 non-text contrast: 3:1 for the ring against what's next to it (ring-ring/60, the global outline at 70%).
-      for (const surface of ["--color-card", "--color-secondary"]) for (const a of [0.6, 0.7]) {
+      for (const surface of ["--color-background", "--color-card", "--color-secondary"]) for (const a of [0.6, 0.7]) {
         const bg = value(theme, surface), ring = value(theme, "--color-ring");
         const r = contrast(over([ring[0], ring[1], ring[2], a], bg), bg);
         expect(r, `ring at ${a} on ${surface}: ${r.toFixed(2)}`).toBeGreaterThanOrEqual(LARGE);
+      }
+    });
+    it(`body and muted text on every surface, page to popover (${theme})`, () => {
+      for (const surface of ["--color-background", "--color-card", "--color-popover", "--color-muted", "--color-secondary"]) for (const text of ["--color-foreground", "--color-muted-foreground"]) {
+        const r = contrast(value(theme, text), value(theme, surface));
+        expect(r, `${text} on ${surface}: ${r.toFixed(2)}`).toBeGreaterThanOrEqual(AA);
       }
     });
     it(`records column tones, header text and chips (${theme})`, () => {
