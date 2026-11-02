@@ -26,7 +26,7 @@ FTC One Search on a wide screen: results on the left, one panel on the right, an
 
 ### Search
 - **Results left, one panel right.** On a desktop the results take about two thirds of the width. The right third holds at most one panel, picked by the search: a versus search shows the two teams' record against each other; a question shows its summary (timeline, stats or standing) with links to the team's pages. When both apply, the versus record keeps the column and the summary goes below the results. On a phone it's one column with the summary first. Results and their order are unchanged.
-- **No clock or weather on search.** The top bar's clock and weather are hidden on the search page only, to leave room for the search; every other page still shows them.
+- **No clock or weather on search.** The top bar's clock and weather are hidden on the search page only, to leave room for the search; every other page still shows them. (#433)
 
 ## 2.3.1 — 2026-11-02
 
