@@ -148,10 +148,12 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];
+  const none = e.year != null ? `No events held in ${e.year} match` : e.season != null ? `No ${seasonLabel(e.season)} events match` : "No events match";
+  // The label carries the no-match line too: it's the one line surfaces show.
   return {
-    q, hits: [], pages: pagesFor(q), step: "recovery", weak: true, understood: { ...base, label: asked, total: 0 },
+    q, hits: [], pages: pagesFor(q), step: "recovery", weak: true, understood: { ...base, label: `${asked}: ${lower(none)}`, total: 0 },
     recovery: {
-      understood: [asked, e.year != null ? `No events held in ${e.year} match` : e.season != null ? `No ${seasonLabel(e.season)} events match` : "No events match"],
+      understood: [asked, none],
       closest: otherYears.map((r) => eventHit(r, now)),
       browse: e.region ? [{ title: `All events in ${e.region.name}`, href: `/events?region=${encodeURIComponent(e.region.key)}` }, ...SEARCH_BROWSE] : SEARCH_BROWSE,
     },
