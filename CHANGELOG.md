@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.0 — 2026-11-02
+
+FTC One Search's answers read at a glance: a timeline and stats for a team's championship trips, a team's standing for "how good is", and shorter event cards.
+
+### Highlights
+- [teams] "When did a team go to Worlds" shows a timeline of its OPR by season
+- [teams] Stats counted from the records: trips, streak, best rank, peak OPR
+- [teams] "How good is" a team shows its record, world rank, standing and win rate
+- [teams] Event results use short titles, badges, stat pills and quick links
+- [teams] An event held in several seasons gets a tab for each season
+
+### Search
+- **Championship timeline.** A question about a team's Worlds or state championship trips shows its OPR across the seasons; point at a season for its division, rank, record and OPR, and select it to jump to that trip's card below.
+- **Stats counted from the records.** Total trips, the longest back-to-back streak, the best division rank, the peak OPR and the most frequent division, each counted from the trips listed (left out when there's nothing to count, never shown as zero). When Bruno AI answers, his sentence stays and these stand in for his bullet list.
+- **How good is a team.** The season record, world OPR rank, OPR, a standing tier (top 5% Elite, 15% Excellent, 35% Strong, 60% Solid, else Developing; rank over ranked teams, one decimal) and a win rate (a tie counts as half a win), each shown once.
+- **Shorter event cards.** A championship division is titled by its own name ("Franklin Division") with the championship, place and season as badges; rank, record and OPR as pills; status, teams registered and quick links to the event's teams, matches, rankings and playoffs where it has them.
+- **Season tabs and team cards.** An event held in several seasons is one card with a tab per season. Team cards read "18061 | Simply Complex" with their season numbers and a View scouting profile link. Results and their order are unchanged.
+
 ## 2.2.9 — 2026-11-02
 
 FTC One Search's results page says what it found once: a clean title, one line for how it read your search, and the search itself in the top bar.
