@@ -25,7 +25,7 @@ FTC One Search: the search you ran stays in the top bar.
 - [fixes] Opening the results page no longer empties the search box
 
 ### Search
-- **Your search stays in the top bar.** On the full results page (/search) the top bar's box shows the query you ran, follows it when it changes, and is where you refine it: edit it and press Enter (or the magnifier) for the new results. Until you edit it, it doesn't search again, since the results are already on the page. On every other page the box starts empty, as before.
+- **Your search stays in the top bar.** On the full results page (/search) the top bar's box shows the query you ran, follows it when it changes, and is where you refine it: edit it and press Enter (or the magnifier) for the new results. Until you edit it, it doesn't search again, since the results are already on the page. On every other page the box starts empty, as before. (#430)
 
 ## 2.2.6 — 2026-11-02
 
