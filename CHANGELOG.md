@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.2.9 — 2026-11-02
+
+FTC One Search's results page says what it found once: a clean title, one line for how it read your search, and the search itself in the top bar.
+
+### Highlights
+- [teams] Search results are titled by what was found, not the words you typed
+- [teams] One badge says how your search was read, instead of two lines
+- [teams] Refine a search from the top bar; the page no longer has a second search box
+
+### Search
+- **One title, one badge.** The results page (/search) no longer repeats your search three times. Its title names what was found (a team and what was asked, a comparison, or the server's reading such as "Events in New Jersey"), never the words as typed; one badge below says how the search was read ("ENFORCERS (7149) · Worlds appearances"). A correction ("Did you mean …") still says so on its own line. A small "FTC One Search" label sits above the title.
+- **Refine from the top bar.** The page's own search box is gone; the top bar holds your search on /search, so change it there and press Enter. Results, their order and the cards are unchanged.
+
 ## 2.2.8 — 2026-11-02
 
 FTC One Search's results page reads at a glance: events as cards, a Compare of its own, filters, and no dead ends.
