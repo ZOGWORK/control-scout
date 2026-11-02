@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.1.8 — 2026-11-01
+## 2.1.9 — 2026-11-02
 
 You can stop scouting an event.
 
@@ -26,6 +26,18 @@ You can stop scouting an event.
 
 ### Scout
 - **Stop scouting.** The event bar on Scout had only Change event, so there was no way to leave an event without picking another. Stop scouting, next to it, ends this device's session at the event and opens Entries; everything scouted there stays (saved or waiting to sync). The toast's Undo goes back to the same event, watching what you were. A pit entry or a match being typed in on Event day asks first, as Change event does; a match typed in from Entries stays open and still saves at the event it was typed at. On a phone the two buttons sit side by side. Also fixed: with no event picked, Entries showed the sync chip twice. (#420)
+
+## 2.1.8 — 2026-11-01
+
+A league meet's Teams tab shows what happened at the meet.
+
+### Highlights
+- [fixes] A league meet's Teams tab lists that meet's teams and records
+- [fixes] The odds tab's "Rank now" at a meet is the meet's rank and record
+- [fixes] A league record that doesn't add up is no longer shown
+
+### Events
+- **League meets show the meet's own record.** At a league meet FIRST publishes the league's running standing, whose W-L-T counts only each team's best matches: 2025 USNJNOM3 showed Hypnotic Robotics and Bad Wolf both 10-0-0 after 16 matches, when they went 5-1-0 and 2-4-0 at the meet. The Teams tab now lists the teams that played at the meet, with the meet's own rank and record (the Rankings tab already used them), and the odds tab's "Rank now" does the same. Anywhere a league event's W-L-T doesn't add up to the matches played, it is left out rather than shown. Other events are unchanged. (#418)
 
 ## 2.1.7 — 2026-11-01
 

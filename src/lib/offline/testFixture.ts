@@ -24,9 +24,9 @@ export async function packDb(season: number, rows: Rows): Promise<Database> {
   return db;
 }
 
-const team = (number: number, name: string, city: string) => ({ number, name, full_name: `${name} Robotics`, school: `${name} High`, sponsors: JSON.stringify(["Acme"]), city, state: "NJ", country: "USA", rookie_year: 2015, website: null, home_region: "USNJ" });
-const mt = (code: string, level: string, number: number, team: number, alliance: string, station: number, onField = 1) => ({ season: 2025, code, level, series: level === "qual" ? 0 : 1, number, team, alliance, station, surrogate: 0, dq: 0, on_field: onField });
-const played = (code: string, level: string, number: number, label: string, time: string, red: number, blue: number) => ({
+export const team = (number: number, name: string, city: string) => ({ number, name, full_name: `${name} Robotics`, school: `${name} High`, sponsors: JSON.stringify(["Acme"]), city, state: "NJ", country: "USA", rookie_year: 2015, website: null, home_region: "USNJ" });
+export const mt = (code: string, level: string, number: number, team: number, alliance: string, station: number, onField = 1) => ({ season: 2025, code, level, series: level === "qual" ? 0 : 1, number, team, alliance, station, surrogate: 0, dq: 0, on_field: onField });
+export const played = (code: string, level: string, number: number, label: string, time: string, red: number, blue: number) => ({
   season: 2025, code, level, series: level === "qual" ? 0 : 1, number, label, description: label, time, played: 1,
   red_total: red, red_np: red - 5, red_auto: 20, red_teleop: red - 45, red_endgame: 20, red_pen: 5, red_bonus: null,
   blue_total: blue, blue_np: blue, blue_auto: 15, blue_teleop: blue - 35, blue_endgame: 20, blue_pen: 0, blue_bonus: null, video: null, source: "first",
