@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.3 — 2026-11-02
+## 2.3.4 — 2026-11-02
 
 FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
 
@@ -30,7 +30,7 @@ FTC One Search compares teams as a Compare, never as a team, and says which team
 - **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
 - **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#PRNUM)
 
-## 2.3.2 — 2026-11-02
+## 2.3.3 — 2026-11-02
 
 FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.
 
@@ -50,6 +50,19 @@ FTC One Search understands places, venues, dates and years: "upcoming meets in N
 - **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
 - **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
 - **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams. (#434)
+
+## 2.3.2 — 2026-11-02
+
+FTC One Search on a wide screen: results on the left, one panel on the right, and no clock or weather on the search page.
+
+### Highlights
+- [teams] On a wide screen, results fill the left and one panel sits on the right
+- [teams] The right panel is a team-vs-team record, or a question's summary
+- [teams] The search page hides the clock and weather; other pages keep them
+
+### Search
+- **Results left, one panel right.** On a desktop the results take about two thirds of the width. The right third holds at most one panel, picked by the search: a versus search shows the two teams' record against each other; a question shows its summary (timeline, stats or standing) with links to the team's pages. When both apply, the versus record keeps the column and the summary goes below the results. On a phone it's one column with the summary first. Results and their order are unchanged.
+- **No clock or weather on search.** The top bar's clock and weather are hidden on the search page only, to leave room for the search; every other page still shows them. (#433)
 
 ## 2.3.1 — 2026-11-02
 

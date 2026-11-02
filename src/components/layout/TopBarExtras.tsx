@@ -15,6 +15,12 @@ export function formatWeather(w: Weather | null): string | null {
   return `${t}° · ${w.summary || ""}`.replace(/ · $/, "");
 }
 
+/** Pages where the clock and weather are left out of the top bar. TEMPORARY (FTC One Search, Part B Phase 3): hidden on
+ *  /search only, to keep its top bar clear while the results page is reworked. To bring it back there, empty this list
+ *  (Shell.tsx renders <ClockWeather /> where showsClockWeather(pathname) is true). */
+export const CLOCK_WEATHER_HIDDEN = [/^\/search\/?$/i];
+export const showsClockWeather = (pathname: string) => !CLOCK_WEATHER_HIDDEN.some((r) => r.test(pathname));
+
 export function ClockWeather() {
   const { state } = usePersonal();
   const team = state.myTeam;
