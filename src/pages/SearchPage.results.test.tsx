@@ -248,9 +248,17 @@ describe("search results page, Phase 2 cards", () => {
     const card = container.querySelector('[data-result="team"]')!.textContent!;
     expect(card).toContain("18061 | Simply Complex");
     expect(card).not.toContain("20-4-0");
+    expect(card).not.toContain("119.7");
     const links = [...container.querySelectorAll("[data-team-links] a")].map((l) => l.getAttribute("href"));
     expect(links.some((l) => /^\/teams\/18061\?season=\d{4}#matches$/.test(l!))).toBe(true);
     expect(links.some((l) => l!.includes("#awards"))).toBe(false);
+  });
+
+  it("how good is X at an event: the card keeps its event facts", () => {
+    summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: "20-4-0", opr: 119.7, oprRank: 388, of: 8308 };
+    state.answer = answer([{ ...team(18061, "Simply Complex", "Plainsboro, NJ"), atEvent: "2025:USNJCMP", facts: [{ label: "Event OPR", value: "131.2" }, { label: "Rank", value: "#2" }] }]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex%20at%20nj%20championship");
+    expect(container.querySelector('[data-result="team"]')!.textContent).toContain("131.2");
   });
 
   it("how good is X with no numbers: no empty summary, the card keeps its line", () => {

@@ -86,7 +86,8 @@ export default function SearchPage() {
   const std = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
   // Only a standing with numbers to show becomes the summary; its team's card then shows none of the same numbers.
   const quality = std && hasNumbers(std) ? std : null;
-  const covered = quality && topTeam ? Number(topTeam.ref) : null;
+  // A team-at-an-event answer keeps its card's facts: those are the event's numbers, not the summary's season ones.
+  const covered = quality && topTeam && !topTeam.atEvent ? Number(topTeam.ref) : null;
   // The one right-hand panel (desktop): a versus query's head-to-head, else a question's computed summary.
   const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
