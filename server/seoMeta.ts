@@ -33,7 +33,8 @@ import { searchAnswer } from "./api/searchAnswer.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref, showingLine } from "../src/shared/search.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref } from "../src/shared/search.js";
+import { contextBadge, pageTitle } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -478,15 +479,16 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
-  const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...notes.understood.map(esc), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
-  const showing = showingLine(answer);
+  const badge = contextBadge(answer, notes.understood);
+  // The badge says what was understood; with none (nothing found), the reading's own lines do.
+  const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...(badge ? [] : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
   // "none found" with the closest records under it.
   const c = answer.card;
   const cardLines = (ls: SearchCardLine[]) => `<ul>${ls.map((l) => `<li>${l.href ? `<a href="${esc(l.href)}">${esc(l.text)}</a>` : esc(l.text)}${l.detail ? `<br><small>${esc(l.detail)}</small>` : ""}${l.results?.length ? `<ul>${l.results.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`;
   const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc([c.title, cardWho(c)].filter(Boolean).join(" · "))}</h2>`
     + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
-  const body = (showing ? `<p>Showing: <b>${esc(showing)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
+  const body = (badge ? `<p><b>${esc(badge)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
   }).join("");
@@ -494,7 +496,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: n || c || answer.pages.length ? `Here's what we found for “${q}”` : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading: n || c || answer.pages.length ? pageTitle(answer, answer.hits) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }
