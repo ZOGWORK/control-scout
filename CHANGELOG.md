@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.2.3 — 2026-11-02
+
+A supporters page thanks the people who chip in.
+
+### Highlights
+- [home] A new Supporters page thanks everyone who sponsors Control Scout
+- [home] Sponsors choose on GitHub to be named or anonymous
+- [home] No amounts are ever shown
+
+### Site
+- **Supporters page.** /supporters lists the people who sponsor Control Scout on GitHub, as each chose there: public sponsors by their GitHub name and the month they started, private ones as one anonymous count. No amounts or tiers are read or shown. The list comes from GitHub Sponsors and is kept in memory for up to an hour, never stored; until the server has its GitHub token the page says it isn't set up. Linked from /donate, kept out of search engines. The privacy policy has a new Donations section. (#423)
+
 ## 2.2.2 — 2026-11-02
 
 A quiet way to chip in, for anyone who wants to.
