@@ -13,8 +13,8 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { AnimatePresence } from "motion/react";
 import { m } from "../components/motion";
 import {
-  ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Monitor, Moon, Palette,
-  Star, Sun, Upload, UserRound, Users, X,
+  ArrowDown, ArrowUp, BellRing, Bug, ClipboardList, Download, ExternalLink, HardDriveDownload, Info, KeyRound, Link2, LogOut, Mail, Palette,
+  Star, Upload, UserRound, Users, X,
   Megaphone,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
@@ -36,6 +36,7 @@ import { INBOX_CATEGORIES, INBOX_CATEGORY_INFO, INBOX_TOGGLE, inboxCategoryOn } 
 import { UPSET_THRESHOLD } from "../shared/push";
 import { PushDevice } from "../components/settings/PushDevice";
 import { DigestSetting } from "../components/settings/DigestSetting";
+import { ThemePicker } from "../components/settings/ThemePicker";
 import { PageHeader } from "../components/page";
 import { Button } from "../components/ui/button";
 import { Badge, FieldError, Input, Textarea } from "../components/ui/basic";
@@ -308,12 +309,8 @@ function Appearance() {
   return (
     <div>
       <Group title="Display" description="Yours alone, on every device, inside a workspace's scout space too.">
-        <Row label="Theme" description="System follows your device's light or dark setting.">
-          <ToggleGroup type="single" value={s.theme} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, theme: v as typeof s.theme })); }} aria-label="Theme">
-            <ToggleGroupItem value="dark"><Moon className="size-3.5" /> Dark</ToggleGroupItem>
-            <ToggleGroupItem value="light"><Sun className="size-3.5" /> Light</ToggleGroupItem>
-            <ToggleGroupItem value="system"><Monitor className="size-3.5" /> System</ToggleGroupItem>
-          </ToggleGroup>
+        <Row label="Theme" description="Changes colours only; the layout stays the same. Saved to your account when you're signed in." stack>
+          <ThemePicker value={s.theme} onChange={(theme) => update("settings", (x) => ({ ...x, theme }))} />
         </Row>
         <Row label="Density" description="Compact fits more on screen: tighter spacing in lists and tables.">
           <ToggleGroup type="single" value={s.density} onValueChange={(v) => { if (v) update("settings", (x) => ({ ...x, density: v as typeof s.density })); }} aria-label="Density">

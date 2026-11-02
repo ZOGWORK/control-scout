@@ -6,7 +6,7 @@ changelog in `packages/predict-engine/CHANGELOG.md`.
 Each release opens with a `### Highlights` block: 3 to 5 short lines a visitor
 would notice, each starting with a `[tag]` that picks its icon (home, predict,
 teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
-picklist, history, fixes). What's new shows them first; the groups below are
+picklist, history, fixes, appearance). What's new shows them first; the groups below are
 the full release notes, one click away.
 
 Releases count 1.1, 1.2, 1.3 …, the last number being the step inside one:
@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.1.9 — 2026-11-02
+## 2.2.0 — 2026-11-02
 
 Scout's event picker is the Events list, with a Scout button on every card.
 
@@ -26,6 +26,21 @@ Scout's event picker is the Events list, with a Scout button on every card.
 
 ### Scout
 - **The event picker matches the Events page.** Until an event is picked (and after Change event), Scout shows the Events page's filter bar and its cards by week, any event of the season, past ones too. Each card keeps its link to the event and gets a Scout button under it, which picks the event; the event picked now has a gold ring and Keep scouting. A card says when your team competes there and, once this space has entries there, how many pits and matches are scouted. Above the filters: your teams' upcoming events and the events you track, each one tap from scouting it. The filters stay on the picker (Scout's own address keeps the entry list's), and the season picker switches Scout's season. (#421)
+
+## 2.1.9 — 2026-11-02
+
+Five built-in themes, picked in Settings.
+
+### Highlights
+- [appearance] New themes: Dim (soft dark grey) and Midnight (true black)
+- [appearance] Light, Dark and System are still there, and Dark stays the default
+- [appearance] Choose one in Settings → Appearance; nothing else asks you
+- [appearance] Every page, chart and the home globe is drawn for each theme
+
+### Appearance
+- **Themes.** Settings → Appearance → Theme now lists Light, Dim, Dark, Midnight and System as cards, each with a small preview in its own colours. Choosing one applies at once with no reload, is saved on the device and to your account when you're signed in, and is in place before the page first paints (no flash of another theme). System follows your device's light or dark setting, live. Only colours change: surfaces, text, lines and component colours. The yellow accent, the logo and the layout are the same in every theme.
+- **The theme is chosen in Settings only.** The sun and moon button in the top bar is gone, so the app never offers or asks for a theme anywhere else. (#417)
+
 ## 2.1.8 — 2026-11-01
 
 A league meet's Teams tab shows what happened at the meet.

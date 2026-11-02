@@ -3,7 +3,7 @@
 // a few one-line highlights with coloured icons, and keeps the full notes behind "Full release notes".
 import { useId, useMemo, useState, type ComponentType } from "react";
 import {
-  Bell, ChevronDown, ClipboardList, CloudDownload, FileText, History, House, ListOrdered, Radio, Share2,
+  Bell, ChevronDown, ClipboardList, CloudDownload, FileText, History, House, ListOrdered, Palette, Radio, Share2,
   Sparkles, Target, Trophy, Users, UsersRound, Wrench, Zap,
 } from "lucide-react";
 import md from "../../CHANGELOG.md?raw";
@@ -30,6 +30,7 @@ const TAGS: Record<HighlightTag, Tone> = {
   picklist: { icon: ListOrdered, tone: "bg-violet-500/15 text-violet-600 dark:text-violet-300" },
   history: { icon: History, tone: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300" },
   fixes: { icon: Wrench, tone: "bg-lime-500/15 text-lime-700 dark:text-lime-300" },
+  appearance: { icon: Palette, tone: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300" },
 };
 const FALLBACK: Tone = { icon: Sparkles, tone: "bg-accent-soft text-accent-text" };
 const toneOf = (tag: string | null): Tone => (tag && Object.hasOwn(TAGS, tag) ? TAGS[tag as HighlightTag] : FALLBACK);
