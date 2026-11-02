@@ -15,7 +15,7 @@ import { Loader2, RefreshCw, Search } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
-import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard } from "../components/search/page/ResultCards";
+import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { anyFilter, compareTeams, filterChoices, isCompare, isFuzzy, keeps, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
@@ -58,8 +58,11 @@ export default function SearchPage() {
     ...compares.flatMap(compareTeams),
     ...hits.filter((h) => h.kind === "team" && !isCompare(h)).map((h) => Number(h.ref)).filter(Number.isInteger),
   ])].slice(0, 100), [hits, compares]);
-  const summary = useApi<{ teams: TeamSummary[] }>(teamNums.length ? `/api/teams-summary${qs({ season, teams: teamNums.join(",") })}` : null);
-  const summaries = useMemo(() => new Map((summary.data?.teams ?? []).map((t) => [t.team, t])), [summary.data]);
+  // Early in a season most teams have no numbers yet: those show last season's, labelled with it.
+  const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
+  const now = useApi<{ teams: TeamSummary[] }>(sumPath(season));
+  const before = useApi<{ teams: TeamSummary[] }>(sumPath(season - 1));
+  const summaries = useMemo(() => teamSeasons(now.data?.teams, before.data?.teams, season), [now.data, before.data, season]);
 
   const showing = !found ? null : ax?.interpreted ?? (answer ? showingLine({ ...answer, hits }) : null);
   const h2h = compares.find((c) => compareTeams(c).length >= 2);
@@ -118,7 +121,7 @@ export default function SearchPage() {
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} season={season} fuzzyWord={ax?.fuzzyWord} twoCol={!!h2h} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} fuzzyWord={ax?.fuzzyWord} twoCol={!!h2h} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>
@@ -126,7 +129,7 @@ export default function SearchPage() {
                     </div>
                   )}
                 </div>
-                {h2h && <div className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)]"><HeadToHead h={h2h} summaries={summaries} season={season} /></div>}
+                {h2h && <div className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)]"><HeadToHead h={h2h} now={now.data?.teams} before={before.data?.teams} season={season} /></div>}
               </div>
             </div>
           )}
@@ -157,7 +160,7 @@ function shape(sections: AnswerSection[], f: PageFilters): ViewSection[] {
   return out;
 }
 
-function ResultSection({ s, summaries, season, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, TeamSummary>; season: number; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+function ResultSection({ s, summaries, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
   const count = s.rows.filter((r) => !r.sub).length;
   const title = s.id === "fuzzy" && fuzzyWord ? `Other teams matching “${fuzzyWord}”` : s.title;
   const teamish = s.id === "team" || s.id === "top" || s.id === "fuzzy";
@@ -176,7 +179,7 @@ function ResultSection({ s, summaries, season, fuzzyWord, twoCol, onOpen }: { s:
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
             <div key={head.key}>
-              <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} season={season} onOpen={() => onOpen(head.hit)} />
+              <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} onOpen={() => onOpen(head.hit)} />
               {!!subs.length && (
                 <ul className="mt-1 overflow-hidden rounded-xl border border-border bg-card">
                   {subs.map((r) => <li key={r.key} className="border-b border-border last:border-b-0"><ResultRow h={r.hit} icon="event" sub onOpen={() => onOpen(r.hit)} /></li>)}

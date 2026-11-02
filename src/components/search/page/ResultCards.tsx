@@ -25,12 +25,24 @@ function Cta({ children }: { children: string }) {
 
 const nf = new Intl.NumberFormat();
 
+/** A team's numbers and the season they're from. */
+export interface SeasonSummary { s: TeamSummary; season: number }
+const hasNumbers = (t: TeamSummary) => t.record != null || t.opr != null;
+
+/** Each team's summary for this season, or last season's when this one has no numbers for it yet (early season). */
+export function teamSeasons(now: TeamSummary[] | undefined, before: TeamSummary[] | undefined, season: number): Map<number, SeasonSummary> {
+  const out = new Map<number, SeasonSummary>();
+  for (const t of before ?? []) out.set(t.team, { s: t, season: season - 1 });
+  for (const t of now ?? []) if (hasNumbers(t) || !out.has(t.team) || !hasNumbers(out.get(t.team)!.s)) out.set(t.team, { s: t, season });
+  return out;
+}
+
 export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
   const e = eventFacts(h);
   const tone = EVENT_TYPE_TONE[e.type ?? ""];
   return (
     <Link to={hitHref(h)} onClick={onOpen} data-result="event"
-      className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5">
+      className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone?.bar ?? "bg-text-base/25")} />
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <EventStatusChip status={e.status} className="px-2 py-0.5" />
@@ -39,18 +51,19 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
         {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden />{e.teams}<span className="sr-only"> teams</span></span>}
       </div>
       <p className="mt-2 line-clamp-2 font-medium leading-snug text-foreground group-hover:text-accent-text">{h.title}</p>
-      <div className="mt-auto space-y-1 pt-3 text-xs text-muted-foreground">
+      <div className="mt-auto space-y-1 pt-3 text-xs max-sm:pt-2 text-muted-foreground">
         <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><CalendarDays className="size-4 shrink-0 text-accent" aria-hidden />{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</p>
         {(e.venue || e.place) && <p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{[e.venue, e.place].filter(Boolean).join(" · ")}</span></p>}
       </div>
-      <div className="mt-3"><Cta>View event</Cta></div>
+      <div className="mt-3 max-sm:hidden"><Cta>View event</Cta></div>
     </Link>
   );
 }
 
 /** A team's season numbers, each only when the data has it (never a placeholder). */
-export function TeamBadges({ s, season }: { s: TeamSummary | undefined; season: number }) {
-  if (!s) return null;
+export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) {
+  if (!summary) return null;
+  const { s, season } = summary;
   const badges: { label: string; value: string }[] = [];
   if (s.record) badges.push({ label: seasonLabel(season), value: s.record });
   if (s.opr != null) badges.push({ label: "OPR", value: s.opr.toFixed(1) });
@@ -68,7 +81,7 @@ export function TeamBadges({ s, season }: { s: TeamSummary | undefined; season: 
   );
 }
 
-export function TeamCard({ h, summary, season, onOpen }: { h: SearchHit; summary?: TeamSummary; season: number; onOpen: () => void }) {
+export function TeamCard({ h, summary, onOpen }: { h: SearchHit; summary?: SeasonSummary; onOpen: () => void }) {
   return (
     <Link to={hitHref(h)} onClick={onOpen} data-result="team"
       className="lift group flex items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
@@ -76,7 +89,7 @@ export function TeamCard({ h, summary, season, onOpen }: { h: SearchHit; summary
       <span className="min-w-0 flex-1">
         <span className="block break-words text-sm font-medium text-foreground group-hover:text-accent-text">{h.title}</span>
         {h.subtitle && <span className="block truncate text-xs text-muted-foreground">{h.subtitle}</span>}
-        {h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges s={summary} season={season} />}
+        {h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
       <span className="shrink-0 self-center max-sm:hidden"><Cta>Team profile</Cta></span>
     </Link>
@@ -84,7 +97,7 @@ export function TeamCard({ h, summary, season, onOpen }: { h: SearchHit; summary
 }
 
 /** "X vs Y": both sides by number, name and place, as an action (volt), never as a team row. */
-export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries: Map<number, TeamSummary>; onOpen: () => void }) {
+export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void }) {
   const nums = compareTeams(h);
   const names = h.title.split(/\s+vs\.?\s+/i);
   return (
@@ -93,10 +106,10 @@ export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries:
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-ink"><ArrowLeftRight className="size-4.5" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block break-words font-display text-base font-semibold text-foreground">
-          {nums.length >= 2 ? nums.map((n, i) => <span key={n}>{i > 0 && <span className="px-1.5 text-accent-text">vs</span>}{summaries.get(n)?.name ?? names[i]?.replace(/^\d+\s*\|?\s*/, "") ?? "Team"} ({n})</span>) : h.title}
+          {nums.length >= 2 ? nums.map((n, i) => <span key={n}>{i > 0 && <span className="px-1.5 text-accent-text">vs</span>}{summaries.get(n)?.s.name ?? names[i]?.replace(/^\d+\s*\|?\s*/, "") ?? "Team"} ({n})</span>) : h.title}
         </span>
         <span className="mt-1 block space-y-0.5 text-xs text-muted-foreground">
-          {nums.map((n) => { const s = summaries.get(n); return s?.place ? <span key={n} className="block truncate">{n}: {s.place}</span> : null; })}
+          {nums.map((n) => { const s = summaries.get(n)?.s; return s?.place ? <span key={n} className="block truncate">{n}: {s.place}</span> : null; })}
         </span>
         <span className="mt-1 block text-xs text-foreground/80">Compare side by side: records, OPR and event history</span>
         <span className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-xs font-semibold text-accent-ink" data-cta>View comparison<ArrowRight className="size-3.5" aria-hidden /></span>
@@ -107,8 +120,12 @@ export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries:
 
 /** Head-to-head at a glance (desktop, beside the results): each side's season record, OPR and OPR rank. A preview
  *  only: the full comparison is a link away. */
-export function HeadToHead({ h, summaries, season }: { h: SearchHit; summaries: Map<number, TeamSummary>; season: number }) {
-  const sides = compareTeams(h).slice(0, 2).map((n) => ({ n, s: summaries.get(n) }));
+export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; now?: TeamSummary[]; before?: TeamSummary[]; season: number }) {
+  const nums = compareTeams(h).slice(0, 2);
+  // One season for both sides, so the rows compare like with like: this season once either side has numbers in it.
+  const useNow = nums.some((n) => { const t = now?.find((x) => x.team === n); return !!t && hasNumbers(t); });
+  const season = useNow ? current : current - 1;
+  const sides = nums.map((n) => ({ n, s: (useNow ? now : before)?.find((x) => x.team === n) ?? now?.find((x) => x.team === n) }));
   const rows: [string, (s: TeamSummary) => string | null][] = [
     [`${seasonLabel(season)} record`, (s) => s.record],
     ["OPR", (s) => (s.opr != null ? s.opr.toFixed(1) : null)],
@@ -135,7 +152,7 @@ export function HeadToHead({ h, summaries, season }: { h: SearchHit; summaries: 
             </div>
           ))}
         </dl>
-      ) : <p className="mt-3 text-xs text-muted-foreground">No {seasonLabel(season)} numbers yet for these teams.</p>}
+      ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
       <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
