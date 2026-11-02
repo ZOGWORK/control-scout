@@ -50,7 +50,7 @@ describe("recent searches (on this device only)", () => {
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
     focus();
     const recent = screen.getByRole("group", { name: "Recent searches" });
-    const row = within(recent).getByRole("button", { name: "4215 vs 6980" });
+    const row = within(recent).getByRole("option", { name: "4215 vs 6980" });
     expect(fireEvent.pointerDown(row)).toBe(false); // the tap keeps the list open until it lands
     fireEvent.click(row);
     expect(onPick).toHaveBeenCalledTimes(2);
@@ -82,11 +82,29 @@ describe("recent searches (on this device only)", () => {
   });
 });
 
+describe("the suggestions are options (keyboard)", () => {
+  it("Down and Up walk recent searches then examples; Enter runs the highlighted one", () => {
+    addRecentSearch("hypnotic robotics");
+    const { input, onPick, focus } = mount({ discover: true, examples: true });
+    focus();
+    const options = screen.getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual(["hypnotic robotics", ...SEARCH_EXAMPLES]);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input.getAttribute("aria-activedescendant")).toBe(options[0].id);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "ArrowUp" }); // wraps to the last example
+    expect(input.getAttribute("aria-activedescendant")).toBe(options.at(-1)!.id);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: `/search?q=${encodeURIComponent(SEARCH_EXAMPLES.at(-1)!)}` }));
+  });
+});
+
 describe("example chips", () => {
   it("an empty field's list offers real example queries; tapping one runs it on the full results page", () => {
     const { onPick, focus } = mount({ examples: true });
     focus();
-    const chips = within(screen.getByRole("group", { name: "Example searches" })).getAllByRole("button");
+    const chips = within(screen.getByRole("group", { name: "Example searches" })).getAllByRole("option");
     expect(chips.map((c) => c.textContent)).toEqual([...SEARCH_EXAMPLES]);
     fireEvent.click(chips[0]);
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: `/search?q=${encodeURIComponent(SEARCH_EXAMPLES[0])}` }));
@@ -100,6 +118,19 @@ describe("example chips", () => {
   });
 });
 
+describe("answer card links", () => {
+  it("opening a link in a question's answer card remembers the question", async () => {
+    const { input, onPick, focus } = mount({ discover: true });
+    focus();
+    fireEvent.change(input, { target: { value: "when did 4215 go to worlds" } });
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await reply(/q=when/, answer("when did 4215 go to worlds", { hits: [t("4215", "Hypnotic Robotics")], card: { kind: "worlds", title: "Worlds appearances", lines: [{ text: "2024–25: FIRST Championship", href: "/events/2024/FTCCMP1" }] } }));
+    fireEvent.click(screen.getByRole("link", { name: "2024–25: FIRST Championship" }));
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/events/2024/FTCCMP1" }));
+    expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual(["when did 4215 go to worlds"]);
+  });
+});
+
 describe("did you mean", () => {
   it("a correction is labelled as one, with what was typed", async () => {
     const { input, focus } = mount();
@@ -108,5 +139,8 @@ describe("did you mean", () => {
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     await reply(/q=hypnotik/, answer("hypnotik robotcs", { step: "did-you-mean", didYouMean: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
     expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean “hypnotic robotics”? Showing results for that, not “hypnotik robotcs”.");
+    // Typing on: the old correction (dimmed, stale) never names the new text as the mistake.
+    fireEvent.change(input, { target: { value: "6980" } });
+    expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean “hypnotic robotics”? Showing results for that.");
   });
 });
