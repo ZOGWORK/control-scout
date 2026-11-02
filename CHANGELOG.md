@@ -22,7 +22,7 @@ FTC One Search's results page says what it found once: a clean title, one line f
 ### Highlights
 - [teams] Search results are titled by what was found, not the words you typed
 - [teams] One badge says how your search was read, instead of two lines
-- [teams] Refine a search from the top bar; the page no longer has a second search box
+- [teams] Refine a search in the top bar; no second search box on the page
 
 ### Search
 - **One title, one badge.** The results page (/search) no longer repeats your search three times. Its title names what was found (a team and what was asked, a comparison, or the server's reading such as "Events in New Jersey"), never the words as typed; one badge below says how the search was read ("ENFORCERS (7149) · Worlds appearances"). A correction ("Did you mean …") still says so on its own line. A small "FTC One Search" label sits above the title.

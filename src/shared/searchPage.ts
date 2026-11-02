@@ -29,12 +29,16 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[]): string
   return "Search results";
 }
 
-/** The one badge under the title: how the query was read. The server's reading when it sends one; else a team or a
- *  Compare and what it opens on ("ENFORCERS (7149) · Worlds appearances"); else what was understood. Never one
- *  event's or place's name (a list of events isn't "showing" its first). */
+/** The one badge under the title: how the query was read, in full. The server's reading when it sends one; else
+ *  everything it understood ("Team 4215 Hypnotic Robotics · Season 2024–25 · Their high scores without penalties",
+ *  "A comparison: … · …"), so no detail is lost by folding those lines into one; else a team or a Compare and what it
+ *  opens on ("ENFORCERS (7149) · Worlds appearances"). Never one event's or place's name (a list of events isn't
+ *  "showing" its first). */
 export function contextBadge(a: AnswerExtra, understood: string[] = []): string | null {
   if (a.interpreted) return a.interpreted;
+  const read = understood.map((u) => u.replace(/^Understood:\s*/, "").trim()).filter(Boolean);
+  if (read.length) return read.join(" · ");
   const top = a.hits[0];
   if (top && (top.kind === "team" || isCompare(top))) { const s = showingLine(a); if (s) return s.replace(" — ", " · "); }
-  return understood[0]?.replace(/^Understood:\s*/, "") || null;
+  return null;
 }

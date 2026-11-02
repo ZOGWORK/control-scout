@@ -181,8 +181,8 @@ describe("search results page", () => {
 
   it("titles a question's answer by its team and what was asked", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, lines: [], count: 5 } });
-    show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Team 7149 — Worlds Appearances");
-    expect(screen.getByText("ENFORCERS (7149) · Worlds appearances")).toBeTruthy();
+    expect(container.querySelector("[data-context-badge]")!.textContent).toBe("ENFORCERS (7149) · Worlds appearances");
   });
 });
