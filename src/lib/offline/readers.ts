@@ -351,8 +351,9 @@ function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
 
 /** Search the saved seasons: a match ("USNJQ1 Q12"), team numbers, then names. `kinds` (like the server's): only those, before the limit. */
 export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): SearchHit[] {
-  // The words that can name something, read as the server reads them (src/shared/searchQuery.ts).
-  const query = nameWords(q);
+  // The words that can name something, read as the server reads them (src/shared/searchQuery.ts): its punctuation out
+  // first (server/api/searchAnswer.ts cleanQuery), a "?" still making it a question.
+  const query = nameWords(q.replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ").replace(/\s+/g, " ").trim(), /\?\s*$/.test(q));
   if (!query) return [];
   const saved = [...dbs].sort((a, b) => b.season - a.season);
   const out: SearchHit[] = [];

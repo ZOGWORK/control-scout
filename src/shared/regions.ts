@@ -64,3 +64,13 @@ export function findRegions(q: string): Region[] {
   if (exact.length || f.length < 4) return exact.map(({ names: _, ...r }) => r);
   return ALL.filter((r) => r.names.some((n) => n.startsWith(f))).slice(0, 3).map(({ names: _, ...r }) => r);
 }
+
+/** Every region and country name of more than one word, lower case ("district of columbia", "united states of america"),
+ *  so search keeps a little word that is part of one. */
+export const REGION_PHRASES: readonly string[] = [
+  ...Object.values(STATES).flatMap((m) => Object.values(m).flatMap((v) => v.split("|"))),
+  ...Object.keys(COUNTRY), "United States of America",
+].map(fold).filter((n) => n.includes(" "));
+
+/** A US or Canadian state code, as typed alone ("IN" Indiana, "ON" Ontario): the codes findRegions reads. */
+export const isRegionCode = (w: string): boolean => /^[A-Z]{2}$/.test(w) && (Object.hasOwn(US, w) || Object.hasOwn(CA, w));

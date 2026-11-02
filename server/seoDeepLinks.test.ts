@@ -98,10 +98,11 @@ describe("event pages", () => {
 });
 
 describe("/search", () => {
-  it("is noindex, follow, and shows each result's full address", async () => {
+  it("is noindex, follow, and links each result without printing its web address", async () => {
     const m = await pageMeta("/search", { q: "4215" });
     expect(headTags("/search", m)).toContain('<meta name="robots" content="noindex, follow" data-search />');
-    expect(m.bodyHtml).toContain("controlscout.org/teams/4215");
+    expect(m.bodyHtml).toContain('href="/teams/4215"');
+    expect(m.bodyHtml).not.toContain("controlscout.org/teams/4215");
     // Its empty page too: never indexed.
     expect(headTags("/search", await pageMeta("/search"))).toContain('content="noindex, follow"');
   });
