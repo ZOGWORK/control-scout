@@ -65,12 +65,12 @@ export function readRuleQuery(q: string, asked = false): RuleQuery | null {
   const strong = ws.filter((w) => RULE_WORDS.has(w));
   const period = ws.some((w) => PERIOD_WORDS.has(w)) && (strong.length > 0 || ws.some((w) => w === "robot" || w === "robots"));
   const opens = /^(?:penalty|penalties|foul|fouls|rule|rules)$/.test(ws[0]) && ws.length > 1;
-  const pastWords = [...new Set(ws.map(one).filter((w) => PAST_GAME_WORDS[w] != null))];
+  const pastWords = [...new Set(ws.map(one).filter((w) => Object.hasOwn(PAST_GAME_WORDS, w)))];
   const pastAsked = pastWords.length > 0 && (strong.length > 0 || period || ws.some((w) => PAST_CONTEXT.has(one(w))));
   const question = asked || isQuestionForm(q);
   if (!id && !opens && !(question && (strong.length || period || pastAsked))) return null;
   if (id) return { keywords: [], id: id.toUpperCase() };
-  const keywords = [...new Set(ws.filter((w) => !STOPWORDS.has(w) && !QUESTION_WORDS.has(w) && !RULE_FRAME.has(w) && !/^\d+$/.test(w) && w.length > 1).map((w) => SYNONYM[w] ?? w))];
+  const keywords = [...new Set(ws.filter((w) => !STOPWORDS.has(w) && !QUESTION_WORDS.has(w) && !RULE_FRAME.has(w) && !/^\d+$/.test(w) && w.length > 1).map((w) => (Object.hasOwn(SYNONYM, w) ? SYNONYM[w] : w)))];
   return pastWords.length ? { keywords, id: null, past: Object.fromEntries(pastWords.map((w) => [w, PAST_GAME_WORDS[w]])) } : { keywords, id: null };
 }
 
