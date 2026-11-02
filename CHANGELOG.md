@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.2.3 — 2026-11-02
+## 2.2.4 — 2026-11-02
 
 A supporters page thanks the people who chip in.
 
@@ -27,7 +27,7 @@ A supporters page thanks the people who chip in.
 ### Site
 - **Supporters page.** /supporters lists the people who sponsor Control Scout on GitHub, as each chose there: public sponsors by their GitHub name and the month they started, private ones as one anonymous count. No amounts or tiers are read or shown. The list comes from GitHub Sponsors and is kept in memory for up to an hour, never stored; until the server has its GitHub token the page says it isn't set up. Linked from /donate, kept out of search engines. The privacy policy has a new Donations section. (#423)
 
-## 2.2.2 — 2026-11-02
+## 2.2.3 — 2026-11-02
 
 A quiet way to chip in, for anyone who wants to.
 
@@ -38,6 +38,19 @@ A quiet way to chip in, for anyone who wants to.
 
 ### Site
 - **Donate page.** /donate says plainly that Control Scout is free and stays free, that donations only help pay for the domain, hosting and email, that they are not tax-deductible (it is run by an individual developer), and that they unlock no features, perks or priority help. Its one button opens GitHub Sponsors in a new tab, where GitHub and Stripe take the payment; nothing about a donation reaches Control Scout. Linked from the site footer and the foot of Home, nowhere else; /support goes to the same page. (#422)
+
+## 2.2.2 — 2026-11-02
+
+Team and event pages show up seconds sooner on slow venue Wi-Fi.
+
+### Highlights
+- [speed] On slow venue Wi-Fi, team and event pages show seconds sooner
+- [speed] The page still paints once, in its own fonts, with nothing jumping
+- [speed] The rest of the app downloads after the page is up, not alongside it
+
+### Speed
+- **Team and event pages no longer wait on the whole stylesheet.** The page the server draws now carries just the styles its own markup uses, inline, and waits only for its text fonts. The app's full stylesheet and its code start downloading once those fonts are here, instead of sharing a slow connection with them. On a 400 kbps line (phone CPU, cold cache) a team page went from 5.4 s to 3.7 s before anything showed in a local production build; the page still paints once, with no layout shift. (#424)
+
 ## 2.2.1 — 2026-11-02
 
 Scout's event picker is the Events list, with a Scout button on every card.
