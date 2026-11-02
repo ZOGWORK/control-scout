@@ -104,13 +104,13 @@ export function canonicalQuery(pathname: string, search: string): string {
   return s ? `?${s}` : "";
 }
 
-/** /search's "noindex, follow" (server/seoMeta.ts searchMeta), kept only while on /search: a click through to a
- *  result must never carry it onto the team or event page. */
+/** /search's and /supporters' "noindex, follow" (server/seoMeta.ts), kept only while on those pages: a click through
+ *  to a result must never carry it onto the team or event page, and arriving from another page still adds it. */
 export function SearchRobotsSync() {
   const { pathname } = useLocation();
   useEffect(() => {
     const tag = document.querySelector<HTMLMetaElement>('meta[name="robots"][data-search]');
-    if (!/^\/search\/?$/i.test(pathname)) { tag?.remove(); return; }
+    if (!/^\/(search|supporters)\/?$/i.test(pathname)) { tag?.remove(); return; }
     if (!tag) {
       const m = document.createElement("meta");
       m.name = "robots"; m.content = "noindex, follow"; m.setAttribute("data-search", "");

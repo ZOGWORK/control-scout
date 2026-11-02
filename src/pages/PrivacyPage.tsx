@@ -6,7 +6,7 @@ import { useTitle } from "../lib/meta";
 import { PageHeader } from "../components/page";
 import { Ext, In, LegalSections, ShortVersion, type LegalSectionDef } from "../components/legal";
 
-export const PRIVACY_UPDATED = "1 November 2026";
+export const PRIVACY_UPDATED = "2 November 2026";
 
 const COOKIES: { name: string; what: string; lasts: string }[] = [
   { name: "cs_session", what: "Keeps you signed in. Set only when you sign in; scripts on the page can't read it.", lasts: "30 days, or until you sign out" },
@@ -112,6 +112,11 @@ const SECTIONS: LegalSectionDef[] = [
   {
     id: "sources", title: "Where the FTC data comes from", body: (
       <p>Teams, events, matches, rankings and awards are public FTC information from the official <Ext href="https://ftc-events.firstinspires.org">FIRST Events API</Ext>, with <Ext href="https://ftcscout.org">FTC Scout</Ext> as a fallback. It includes team numbers and names, team locations (city and region) and match results, never information about individual students. Control Scout is not affiliated with or endorsed by <i>FIRST</i>®.</p>
+    ),
+  },
+  {
+    id: "donations", title: "Donations", body: (
+      <p>Donations go through <Ext href="https://github.com/sponsors">GitHub Sponsors</Ext>, where GitHub and Stripe handle the payment; Control Scout never sees card details or amounts. GitHub asks each sponsor whether to be public. Public sponsors' GitHub names are shown on the <In to="/supporters">supporters page</In>; private sponsors are only counted. Control Scout reads that list from GitHub and keeps it in memory for up to an hour; it is never stored.</p>
     ),
   },
   {

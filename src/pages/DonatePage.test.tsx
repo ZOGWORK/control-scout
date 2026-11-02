@@ -31,6 +31,7 @@ describe("Donate page", () => {
     expect(text).toMatch(/not a nonprofit or a charity/);
     expect(text).toMatch(/unlocks no features/);
     expect(text).toMatch(/never sees, stores or touches your card details/);
+    expect(text).toMatch(/never shows how much anyone gave/);
     // No amounts or tiers in Scout's own copy, and nothing to fill in.
     expect(text).not.toMatch(/[$€£]\s?\d/);
     expect(container.querySelector("form, input, select, textarea")).toBeNull();

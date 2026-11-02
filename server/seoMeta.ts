@@ -563,6 +563,9 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   }
   // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).
   if (p === "/faq") return { title: STATIC["/faq"].title, description: fitDescription(STATIC["/faq"].description), type: "website", jsonLd: [faqJsonLd(canonicalOrigin())], bodyHtml: faqHtml() };
+  // The supporters list names people: never indexed, at any spelling of the address. Marked like /search's, so the
+  // app drops it once the visitor moves on (src/lib/meta.tsx SearchRobotsSync).
+  if (/^\/supporters$/i.test(p)) return { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", type: "website", searchPage: true };
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.

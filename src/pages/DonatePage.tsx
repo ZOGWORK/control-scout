@@ -1,6 +1,7 @@
 // /donate: a quiet page for anyone who wants to chip in. Control Scout stays free; a donation only helps
 // pay the running costs, is not tax-deductible, and unlocks nothing. The button leaves the site for
-// GitHub Sponsors (SPONSOR_URL), where GitHub and Stripe take the payment: nothing about it reaches Scout.
+// GitHub Sponsors (SPONSOR_URL), where GitHub and Stripe take the payment. Scout only reads back who chose to
+// be public, for /supporters (server/sponsors.ts); never an amount.
 // Linked from the site footer and Home's footer, nowhere else. /support redirects here.
 import { CreditCard, ExternalLink, Gift, Heart, Receipt, Server, Unlock } from "lucide-react";
 import { useTitle } from "../lib/meta";
@@ -27,8 +28,8 @@ export default function DonatePage() {
             <CreditCard className="size-[18px] text-text-muted" aria-hidden /> How paying works
           </h2>
           <Prose>
-            <p>The button takes you off controlscout.org to <strong>GitHub Sponsors</strong>. GitHub and Stripe handle the payment there. Control Scout never sees, stores or touches your card details, and keeps no record of who gave or how much.</p>
-            <p>Questions? <In to="/contact">Get in touch</In>.</p>
+            <p>The button takes you off controlscout.org to <strong>GitHub Sponsors</strong>. GitHub and Stripe handle the payment there. Control Scout never sees, stores or touches your card details, and never shows how much anyone gave.</p>
+            <p>GitHub asks whether your sponsorship is public. Public sponsors are thanked by name on the <In to="/supporters">supporters page</In>; private ones are counted there as anonymous. Questions? <In to="/contact">Get in touch</In>.</p>
           </Prose>
         </div>
         <Button size="lg" asChild className="max-sm:w-full">

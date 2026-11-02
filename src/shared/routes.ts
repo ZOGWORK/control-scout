@@ -7,7 +7,7 @@
 /** A lazily loaded page module under src/pages (the file name without .tsx). */
 export type PageModule =
   | "TeamPage" | "EventsPage" | "RecordsPage" | "RankingsPage" | "EventPage" | "PredictPage" | "ComparePage" | "MyTeamPage" | "MyTeamsPage"
-  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "NotFound";
+  | "ShortlistPage" | "ScoutPage" | "DownloadPage" | "SettingsPage" | "MethodologyPage" | "PrivacyPage" | "TermsPage" | "ContactPage" | "DonatePage" | "SupportersPage" | "FaqPage" | "RulesPage" | "MatchReportPage" | "PowerRankingsPage" | "EventDisplayPage" | "DigestUnsubscribedPage" | "BundlePage" | "SearchPage" | "NotFound";
 
 // React Router matches case-insensitively, a trailing slash included: so do these.
 const ROUTES: [RegExp, PageModule | null][] = [
@@ -36,6 +36,7 @@ const ROUTES: [RegExp, PageModule | null][] = [
   [/^\/contact\/?$/i, "ContactPage"],
   [/^\/donate\/?$/i, "DonatePage"],
   [/^\/support\/?$/i, null], // a redirect to /donate
+  [/^\/supporters\/?$/i, "SupportersPage"],
   [/^\/faq\/?$/i, "FaqPage"],
   [/^\/rules\/?$/i, "RulesPage"],
   [/^\/power-rankings(\/[^/]+)?\/?$/i, "PowerRankingsPage"],
@@ -56,7 +57,7 @@ const TITLES: [RegExp, string][] = [
   [/^\/teams\/[^/]+$/, "Team"], [/^\/teams$/, "Teams"], [/^\/rankings$/, "Rankings"], [/^\/matches$/, "Match records"], [/^\/events\/[^/]+\/[^/]+$/, "Event"], [/^\/events$/, "Events"], [/^\/predict(\/accuracy)?$/, "Predict"],
   [/^\/compare$/, "Compare"], [/^\/my-team$/, "My team"], [/^\/my-teams$/, "My teams"], [/^\/shortlist$/, "Shortlist"], [/^\/scout$/, "Scout"], [/^\/download$/, "Download"],
   [/^\/bundle\/[^/]+\/[^/]+$/, "Event-day bundle"], [/^\/bundle\/[^/]+\/[^/]+\/picklist$/, "Pick list snapshot"],
-  [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works)$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
+  [/^\/settings$/, "Settings"], [/^\/(methodology|predict\/how-it-works)$/, "How it works"], [/^\/privacy$/, "Privacy"], [/^\/terms$/, "Terms"], [/^\/contact$/, "Contact"], [/^\/(donate|support)$/, "Donate"], [/^\/supporters$/, "Supporters"], [/^\/faq$/, "FAQ"], [/^\/rules$/, "Rules"],
   [/^\/power-rankings(\/[^/]+)?$/, "Power rankings"], [/^\/digest\/unsubscribed$/, "Email digest"], [/^\/search$/, "Search"],
 ];
 

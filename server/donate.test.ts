@@ -5,7 +5,7 @@ import type { Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, setDb } from "./db";
 import { createApp } from "./app";
-import { pageMeta } from "./seoMeta";
+import { headTags, pageMeta } from "./seoMeta";
 import { resetSitemapCache, sitemapEntries } from "./sitemap";
 
 let server: Server;
@@ -37,5 +37,14 @@ describe("donate page", () => {
     expect(m.noindex).toBeFalsy();
     expect(m.description).toMatch(/Not tax-deductible/);
     expect(m.description).not.toMatch(/\b(charity|nonprofit)\b/i);
+  });
+
+  it("/supporters is never indexed, at any spelling, with a robots tag the app can drop on leaving", async () => {
+    for (const p of ["/supporters", "/Supporters"]) {
+      const m = await pageMeta(p);
+      expect(m.searchPage, p).toBe(true);
+      expect(headTags(p, m), p).toContain('<meta name="robots" content="noindex, follow" data-search />');
+    }
+    expect((await sitemapEntries()).some((e) => new URL(e.loc).pathname === "/supporters")).toBe(false);
   });
 });
