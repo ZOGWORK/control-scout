@@ -19,6 +19,8 @@ import { regionNames } from "../../shared/regions";
 import { projectionsViewFromRows, type ProjectionsView } from "../../shared/projections";
 import { recordSql, recordsFromRows } from "../../shared/eventRecord";
 import { teamEventRows, teamEventsQuery } from "../../shared/teamEventRows";
+import { meetStandingByTeam } from "../../shared/meetStandings";
+import { LEAGUE_TYPES, recordAddsUp } from "../../shared/eventStanding";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -144,6 +146,8 @@ export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
   teleop: Number(r[`${p}_teleop`] ?? 0), endgame: Number(r[`${p}_endgame`] ?? 0), pen: Number(r[`${p}_pen`] ?? 0),
+  // TIPS (2026's second tiebreaker, a league meet's standing): packs built before it was packed have no column.
+  ...(r[`${p}_tips`] != null ? { tips: Number(r[`${p}_tips`]) } : {}),
 };
 
 /** Matches with lineups. Played matches carry no prediction (the pack holds no
@@ -252,21 +256,28 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
   // Season OPR for the "At a glance" card before the event starts (as server/api/events.ts).
   const seasonOprBy = new Map(db.all("SELECT s.team, s.opr_np FROM team_season_stats s JOIN event_teams et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?", [season, code])
     .map((o) => [Number(o.team), o.opr_np == null ? null : Number(o.opr_np)]));
+  const matches = readMatchViews(sdb, { code }, opts);
+  // As server/api/events.ts: a league meet's own standing, and no league W-L-T that doesn't add up.
+  const bonus = r.type === "LeagueMeet" ? new Map(db.all("SELECT series, number, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND played = 1", [season, code]).map((b) => [`${b.series}:${b.number}`, b])) : null;
+  const meet = bonus ? meetStandingByTeam(season, matches, (series, number, s) => bonus.get(`${series}:${number}`)?.[`${s}_bonus`] as string | null) : null;
+  const league = LEAGUE_TYPES.has(r.type);
   const field: FieldRow[] = entries.map((e) => {
     const o = oprBy.get(Number(e.team));
+    const rec = !league || recordAddsUp(e.wins, e.losses, e.ties, e.qual_played) ? e : { wins: null, losses: null, ties: null };
     return {
       team: Number(e.team), name: e.name ?? null, city: e.city ?? null, state: e.state ?? null, rank: e.rank, rp: e.rp, tbp: e.tbp,
-      wins: e.wins, losses: e.losses, ties: e.ties, qualPlayed: e.qual_played,
+      wins: rec.wins, losses: rec.losses, ties: rec.ties, qualPlayed: e.qual_played,
       opr: { np: o?.opr_np ?? null, auto: o?.opr_auto ?? null, teleop: o?.opr_teleop ?? null, endgame: o?.opr_endgame ?? null, pen: o?.opr_pen ?? null },
       avgNp: o?.avg_np ?? null,
       rating: opts.rating?.(season, Number(e.team)) ?? null,
       seasonOpr: seasonOprBy.get(Number(e.team)) ?? null,
+      ...(meet ? { meet: meet.get(Number(e.team)) ?? null } : {}),
     };
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
   return {
     event: { ...summary(r), website: r.website ?? null, livestream: r.livestream ?? null, timezone: r.timezone ?? null, source: r.source },
     field,
-    matches: readMatchViews(sdb, { code }, opts),
+    matches,
     alliances: alliances.map((a) => ({ number: a.number, name: a.name, captain: a.captain, pick1: a.pick1, pick2: a.pick2, backup: a.backup })),
     awards: awards.map((a) => ({ type: a.type, placement: a.placement, team: a.team, name: a.name })),
     advancement: adv ? { slots: adv.slots, advancesTo: adv.advances_to, rows: JSON.parse(adv.rows) } : null,
