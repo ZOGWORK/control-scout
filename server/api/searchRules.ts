@@ -8,13 +8,12 @@ import { pagesFor } from "../../src/shared/search.js";
 import { pastSeasonOf, rulesFor, type RuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { ruleReference } from "../../src/shared/rules/index.js";
 import { hasRuleReference } from "../../src/shared/rules/seasons.js";
+import { pastManual } from "../../src/shared/rules/pastManuals.js";
 import { CURRENT_SEASON, seasonInfo } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
 
 /** The most rules one card lists; the rest are on /rules. */
 const MAX_RULES = 5;
-/** FIRST's page of game and season materials, past games' manuals among them. */
-const FIRST_SEASON_MATERIALS = "https://www.firstinspires.org/resource-library/ftc/game-and-season-info";
 
 export async function ruleAnswer(q: string, rq: RuleQuery): Promise<SearchAnswer> {
   // A past game's piece ("sample": INTO THE DEEP): that season's reference, or which game it is and a link to it.
@@ -45,6 +44,7 @@ export async function ruleAnswer(q: string, rq: RuleQuery): Promise<SearchAnswer
 function pastGameAnswer(q: string, rq: RuleQuery, past: { season: number; words: string[] }): SearchAnswer {
   const game = seasonInfo(past.season);
   const now = seasonInfo(CURRENT_SEASON);
+  const manual = pastManual(past.season);
   const quoted = past.words.map((w) => `"${w}"`).join(" and ");
   return {
     q, hits: [], step: "deterministic", weak: false,
@@ -55,7 +55,7 @@ function pastGameAnswer(q: string, rq: RuleQuery, past: { season: number; words:
       title: `${game.game} ${game.label} rules`,
       lines: [
         { text: `${quoted} ${past.words.length > 1 ? "are" : "is"} from ${game.game} (${game.label})`, detail: `Not this season's ${now.game}. There's no ${game.game} quick reference here; its rules are in that season's game manual.` },
-        { text: `${game.game} game manual`, detail: "FIRST's game and season materials, past seasons' manuals included", href: FIRST_SEASON_MATERIALS },
+        { text: `${game.game} game manual`, detail: manual.what, href: manual.url },
         { text: `${game.game} ${game.label} season`, detail: "Its events and results", href: `/events?season=${past.season}` },
       ],
     },

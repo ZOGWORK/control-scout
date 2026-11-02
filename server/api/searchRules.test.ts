@@ -47,6 +47,10 @@ describe("the answer", () => {
     expect(a.card).toMatchObject({ kind: "rule", title: "INTO THE DEEP 2024–25 rules" });
     expect(a.card!.lines.map((l) => l.text)).toEqual(['"sample" is from INTO THE DEEP (2024–25)', "INTO THE DEEP game manual", "INTO THE DEEP 2024–25 season"]);
     expect(a.card!.lines[2].href).toBe("/events?season=2024");
+    expect(a.card!.lines[1]).toMatchObject({ detail: "Competition Manual (PDF)", href: "https://ftc-resources.firstinspires.org/ftc/archive/2025/game/manual" });
+    // Each past game links its own manual: CENTERSTAGE's pixels, POWERPLAY's cones.
+    expect((await searchAnswer("can robots score pixels on the backdrop?")).card!.lines[1].href).toBe("https://ftc-resources.firstinspires.org/ftc/archive/2024/game/gm2");
+    expect((await searchAnswer("how many points is a cone worth?")).card!.lines[1].href).toBe("https://ftc-resources.firstinspires.org/ftc/archive/2023/game/gm2");
     expect(a.understood).toMatchObject({ kind: "question", season: 2024 });
   });
   it("no rule in this season's reference is said plainly, never guessed", async () => {
