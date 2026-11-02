@@ -64,6 +64,14 @@ describe("search results page", () => {
     for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
   });
 
+  it("a team asked for in a named season shows that season's numbers, never another's", () => {
+    state.answer = answer([{ ...team(4215, "Hypnotic Robotics", "Oradell, NJ"), linkSeason: 2024 }]);
+    paths.length = 0;
+    const { container } = show("/search?q=4215%202024-25");
+    expect(paths.filter(Boolean).every((p) => p!.includes("season=2024"))).toBe(true);
+    expect(container.querySelector('[data-result="team"]')!.textContent).toContain("2024–25");
+  });
+
   it("shows each event as a block with its date and status", () => {
     state.answer = answer([ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13"), ev("USNJQ1", "Old Meet", "2020-01-11", 2019)]);
     const { container } = show("/search?q=x");

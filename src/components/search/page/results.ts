@@ -5,7 +5,8 @@
 import type { SearchAnswer, SearchHit } from "../../../shared/api";
 import { eventTypeLabel } from "../../../shared/labels";
 
-export type EventStatus = "upcoming" | "live" | "finished";
+/** "started": begun, and without its last day we can't say whether it's still on (the server sent only its first). */
+export type EventStatus = "upcoming" | "live" | "started" | "finished";
 
 /** An event hit's facts for its card: the server's own when it sends them, else read off its subtitle ("CODE · start · place"). */
 export interface EventFacts {
@@ -31,11 +32,18 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 /** Today as the server and the Events list count it (UTC date). */
 export const todayIso = (now = new Date()) => now.toISOString().slice(0, 10);
 
-/** Upcoming before its first day, finished after its last, live in between (no last day: the first). */
+/** The longest an FTC event runs (the Championship's four days): with no last day known, an event this far past its
+ *  first is over. */
+const MAX_EVENT_DAYS = 4;
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+
+/** Upcoming before its first day, finished after its last, live in between. With no last day: "started" from its
+ *  first day until it must be over (never called finished, or live, on a guess). */
 export function statusOf(start: string | null, end: string | null, today = todayIso()): EventStatus {
   if (!start) return "upcoming";
   if (start > today) return "upcoming";
-  return (end ?? start) < today ? "finished" : "live";
+  if (end) return end < today ? "finished" : "live";
+  return daysBetween(start, today) >= MAX_EVENT_DAYS ? "finished" : "started";
 }
 
 export function eventFacts(h: SearchHit, today = todayIso()): EventFacts {

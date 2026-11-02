@@ -45,7 +45,9 @@ export function EventCard({ h, onOpen }: { h: SearchHit; onOpen: () => void }) {
       className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone?.bar ?? "bg-text-base/25")} />
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <EventStatusChip status={e.status} className="px-2 py-0.5" />
+        {e.status === "started"
+          ? <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-foreground/80" data-event-chip="status">Started</span>
+          : <EventStatusChip status={e.status} className="px-2 py-0.5" />}
         {e.type && <span className={cn("truncate font-semibold", tone?.text ?? "text-muted-foreground")}>{e.typeLabel ?? eventTypeLabel(e.type)}</span>}
         {h.season != null && <span className="rounded bg-muted px-1.5 py-px text-[11px] font-medium tabular-nums text-foreground/80">{seasonLabel(h.season)}</span>}
         {e.teams != null && e.teams > 0 && <span className="ml-auto inline-flex shrink-0 items-center gap-1 tabular-nums text-muted-foreground"><Users className="size-3.5" aria-hidden />{e.teams}<span className="sr-only"> teams</span></span>}

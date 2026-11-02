@@ -13,3 +13,19 @@ describe("Compare links", () => {
   });
   it("no season: the current one", () => expect(compareSeason(cmp("/compare?teams=4215,6980"))).toBeNull());
 });
+
+describe("statusOf", () => {
+  const today = "2026-11-02";
+  it("uses the last day when known", async () => {
+    const { statusOf } = await import("./results");
+    expect(statusOf("2026-11-01", "2026-11-03", today)).toBe("live");
+    expect(statusOf("2026-10-30", "2026-11-01", today)).toBe("finished");
+    expect(statusOf("2026-11-05", null, today)).toBe("upcoming");
+  });
+  it("without a last day, never calls a just-begun event finished", async () => {
+    const { statusOf } = await import("./results");
+    expect(statusOf("2026-11-01", null, today)).toBe("started");
+    expect(statusOf("2026-10-30", null, today)).toBe("started");
+    expect(statusOf("2026-10-29", null, today)).toBe("finished");
+  });
+});

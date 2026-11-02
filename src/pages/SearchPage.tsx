@@ -43,7 +43,8 @@ export default function SearchPage() {
   useTitle(query ? `Search: ${query}` : "Search");
   // Typing replaces the address (no history entry per letter), so Back leaves the page. A new query starts unfiltered.
   const setQ = (v: string) => setParams(v ? { q: v } : {}, { replace: true });
-  const setFilters = (f: PageFilters) => setParams(withFilters(params, f), { replace: true });
+  // Each filter change is a step Back can undo.
+  const setFilters = (f: PageFilters) => setParams(withFilters(params, f));
 
   // A Compare is its own card above the teams, never one of them (nor counted with them).
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
@@ -59,15 +60,20 @@ export default function SearchPage() {
     ...compares.flatMap(compareTeams),
     ...hits.filter((h) => h.kind === "team" && !isCompare(h)).map((h) => Number(h.ref)).filter(Number.isInteger),
   ])].slice(0, 100), [hits, compares]);
-  // A Compare that names a season ("4215 vs 6980 2024-25") previews that season, like the comparison it opens.
-  // Otherwise: this season, and early in it (most teams have no numbers yet) last season's, labelled with it.
+  // A query that names a season ("4215 vs 6980 2024-25", "4215 2024-25": the Compare's link, a team hit's linkSeason)
+  // shows that season, like the page it opens. Otherwise: this season, and early in it (most teams have no numbers
+  // yet) last season's, labelled with it. A team hit asking for yet another season gets no badges (never another's).
   const h2h = compares.find((c) => compareTeams(c).length >= 2);
-  const asked = h2h ? compareSeason(h2h) : null;
+  const asked = (h2h ? compareSeason(h2h) : null) ?? hits.find((h) => h.kind === "team" && h.linkSeason != null)?.linkSeason ?? null;
   const base = asked ?? season;
   const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
   const now = useApi<{ teams: TeamSummary[] }>(sumPath(base));
   const before = useApi<{ teams: TeamSummary[] }>(asked == null ? sumPath(season - 1) : null);
-  const summaries = useMemo(() => teamSeasons(now.data?.teams, asked == null ? before.data?.teams : undefined, base), [now.data, before.data, base, asked]);
+  const summaries = useMemo(() => {
+    const m = teamSeasons(now.data?.teams, asked == null ? before.data?.teams : undefined, base);
+    for (const h of hits) if (h.kind === "team" && h.linkSeason != null && h.linkSeason !== base) m.delete(Number(h.ref));
+    return m;
+  }, [now.data, before.data, base, asked, hits]);
 
   const showing = !found ? null : ax?.interpreted ?? (answer ? showingLine({ ...answer, hits }) : null);
   const open = (h: SearchHit) => logPick(h);
