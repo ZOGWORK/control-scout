@@ -152,7 +152,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // 0. A rules question ("Can robots descore … in autonomous?", "G402", "penalty for pinning"): the Rules quick
   // reference's matching entries, or a plain "no rule found". Never team names (./searchRules.ts).
-  const rq = opts.intents === false ? null : readRuleQuery(q, opts.asked);
+  // A season's best scores ("what was the highest scoring match this season?") stay that question's.
+  const rq = opts.intents === false || parseHighScore(q) ? null : readRuleQuery(q, opts.asked);
   if (rq) return ruleAnswer(q, rq);
 
   // 0a. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.

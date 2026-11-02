@@ -70,10 +70,35 @@ describe("the answer", () => {
     await setFlag("rulesReference", false, "test"); invalidateFlags();
     const a = await searchAnswer("penalty for hoarding");
     expect(a.hits).toEqual([]);
-    expect(a.card).toMatchObject({ kind: "rule", lines: [] });
+    expect(a.card).toMatchObject({ kind: "rule" });
+    expect(a.card!.lines.map((l) => l.text)).toEqual(["BIOBUZZ game manual"]); // the manual, never a rule
     expect(a.card!.none).toMatch(/switched off/);
   });
   it("a team named Can is still found by its name", async () => {
     expect((await searchAnswer("can control")).hits[0]).toMatchObject({ ref: "29548" });
+  });
+});
+
+describe("Greptile on #437", () => {
+  it("leaves team questions, best-score questions and match numbers to their own readers", () => {
+    for (const q of ["how good is Can Control", "where is Can Control", "USNJCMP Q123", "q123", "m12"]) expect(readRuleQuery(q), q).toBeNull();
+    expect(readRuleQuery("G402")).toMatchObject({ id: "G402" });
+    expect(readRuleQuery("T201")).toMatchObject({ id: "T201" });
+  });
+  it("a best-score question is never a rules card", async () => {
+    expect((await searchAnswer("What was the highest scoring match this season?")).card?.kind).not.toBe("rule");
+  });
+  it("a number asked about an older game's piece is that game's", async () => {
+    expect(readRuleQuery("does G402 apply to samples?")).toEqual({ keywords: [], id: "G402", past: { sample: 2024 } });
+    expect((await searchAnswer("does G402 apply to samples?")).card?.title).toBe("INTO THE DEEP 2024–25 rules");
+  });
+  it("scoring entries say what they're worth, not a penalty", async () => {
+    const line = (await searchAnswer("rule 10.5.1")).card?.lines[0];
+    expect(line?.results?.[0]).toMatch(/^Worth: /);
+  });
+  it("switched off: the official manual as a real link", async () => {
+    await setFlag("rulesReference", false, "test"); invalidateFlags();
+    const a = await searchAnswer("penalty for hoarding");
+    expect(a.card?.lines[0]?.href).toMatch(/^https:\/\/ftc-resources\.firstinspires\.org\//);
   });
 });

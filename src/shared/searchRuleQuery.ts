@@ -12,7 +12,7 @@
 //     word is from and linking that season (server/api/searchRules.ts). It counts only beside a rule word, a period
 //     word, "robot", "score" or "point" ("who are the rubber ducks?" stays a name), and only when the current
 //     reference doesn't use the word itself (a later game can reuse one).
-import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize } from "./searchQuery.js";
+import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize, stripConversation } from "./searchQuery.js";
 import type { RuleEntry, SeasonReference } from "./rules/types.js";
 
 /** Words that make a question a rules question. */
@@ -45,7 +45,9 @@ const PAST_CONTEXT = new Set(["robot", "score", "scoring", "point", "descore"]);
 /** "samples" → "sample", for the past-game lookups. */
 const one = (w: string) => (w.length > 3 ? w.replace(/s$/, "") : w);
 
-const RULE_ID = /^(?:[a-z]\d{3}|\d{1,2}(?:\.\d{1,2}){1,3})$/i;
+/** A rule number: the manual's own prefixes (G game, R robot, I inspection, T tournament, E event) or a section
+ *  ("10.5.1"). Never Q/M/F/P with digits: those are matches ("USNJCMP Q123"). */
+const RULE_ID = /^(?:[grite]\d{3}|\d{1,2}(?:\.\d{1,2}){1,3})$/i;
 const fold = (s: string) => s.normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^a-z0-9.\s-]/g, " ");
 
 export interface RuleQuery {
@@ -59,6 +61,8 @@ export interface RuleQuery {
 
 /** The rule question `q` asks, or null when it isn't one. `asked`: the query as typed ended in "?". */
 export function readRuleQuery(q: string, asked = false): RuleQuery | null {
+  // A question about a team ("how good is Can Control", "where is Can Control") is the team's, whatever its name holds.
+  if (stripConversation(q)) return null;
   const ws = fold(singularize(q)).split(/\s+/).map((w) => w.replace(/^[.-]+|[.-]+$/g, "")).filter(Boolean);
   if (!ws.length) return null;
   const id = ws.find((w) => RULE_ID.test(w) && (/^[a-z]/.test(w) || ws.includes("rule"))) ?? null;
@@ -69,9 +73,11 @@ export function readRuleQuery(q: string, asked = false): RuleQuery | null {
   const pastAsked = pastWords.length > 0 && (strong.length > 0 || period || ws.some((w) => PAST_CONTEXT.has(one(w))));
   const question = asked || isQuestionForm(q);
   if (!id && !opens && !(question && (strong.length || period || pastAsked))) return null;
-  if (id) return { keywords: [], id: id.toUpperCase() };
+  const past = pastWords.length ? { past: Object.fromEntries(pastWords.map((w) => [w, PAST_GAME_WORDS[w]])) } : {};
+  // A number asked about an older game's piece ("does G402 apply to samples?") is that game's rule.
+  if (id) return { keywords: [], id: id.toUpperCase(), ...past };
   const keywords = [...new Set(ws.filter((w) => !STOPWORDS.has(w) && !QUESTION_WORDS.has(w) && !RULE_FRAME.has(w) && !/^\d+$/.test(w) && w.length > 1).map((w) => (Object.hasOwn(SYNONYM, w) ? SYNONYM[w] : w)))];
-  return pastWords.length ? { keywords, id: null, past: Object.fromEntries(pastWords.map((w) => [w, PAST_GAME_WORDS[w]])) } : { keywords, id: null };
+  return { keywords, id: null, ...past };
 }
 
 const haystack = (r: RuleEntry, section: string) => fold(`${r.id} ${r.title} ${r.summary} ${r.penalty ?? ""} ${(r.keywords ?? []).join(" ")} ${section}`).split(/\s+/).filter(Boolean);
