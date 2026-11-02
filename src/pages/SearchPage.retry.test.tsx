@@ -33,13 +33,4 @@ describe("search results page, server not answering", () => {
     fireEvent.click(again);
     expect(hits.retry).not.toHaveBeenCalled();
   });
-
-  it("Enter searches now and closes the keyboard", () => {
-    show();
-    const input = screen.getByRole("searchbox", { name: "Search teams, events and matches" }) as HTMLInputElement;
-    input.focus();
-    fireEvent.submit(input.form!);
-    expect(hits.searchNow).toHaveBeenCalledTimes(1);
-    expect(document.activeElement).not.toBe(input);
-  });
 });

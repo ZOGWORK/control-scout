@@ -2,7 +2,9 @@
 // type and place (for its card and the page's filters), which hit is a Compare (its own card, above the teams),
 // and which team hits are exact matches and which only share a word (src/pages/SearchPage.tsx).
 // Presentation only: nothing here adds, drops or reorders a result except the filters the visitor picks.
-import type { SearchAnswer, SearchHit } from "../../../shared/api";
+import type { SearchHit } from "../../../shared/api";
+import { isCompare } from "../../../shared/searchPage";
+export { contextBadge, isCompare, pageTitle, teamParts, type AnswerExtra } from "../../../shared/searchPage";
 import { eventTypeLabel } from "../../../shared/labels";
 
 /** "started": begun, and without its last day we can't say whether it's still on (the server sent only its first). */
@@ -25,7 +27,6 @@ export interface EventFacts {
 interface HitEvent { start?: string | null; end?: string | null; status?: EventStatus; type?: string | null; typeLabel?: string | null; city?: string | null; state?: string | null; country?: string | null; venue?: string | null; teams?: number | null }
 /** Fields a newer server adds to a hit or an answer; read defensively, so the page works with or without them. */
 type Extra = SearchHit & { event?: HitEvent; match?: "exact" | "fuzzy" };
-export type AnswerExtra = SearchAnswer & { interpreted?: string; fuzzyWord?: string; fallback?: { label: string; hits: SearchHit[] } };
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -61,8 +62,6 @@ export function eventFacts(h: SearchHit, today = todayIso()): EventFacts {
   };
 }
 
-/** A Compare: its own kind from the server, or (an older server) a team hit that opens /compare. */
-export const isCompare = (h: SearchHit) => (h.kind as string) === "compare" || !!h.href?.startsWith("/compare");
 
 /** The team numbers a Compare puts side by side, from its link (/compare?teams=4215,23268). */
 /** A Compare link's query (/compare?teams=…&season=…#awards: the part before any #). */
