@@ -224,7 +224,8 @@ export function useRoomAboveKeyboard(el: RefObject<HTMLElement | null>, on: bool
       const top = el.current?.getBoundingClientRect().top;
       const keyboard = window.innerHeight - vv.height > 150 && Math.abs(vv.scale - 1) < 0.01;
       // The visible area's bottom, in the same (layout viewport) coordinates as the list's top.
-      setRoom(top == null || !keyboard ? null : Math.max(120, Math.floor(vv.offsetTop + vv.height - top - 12)));
+      // Exactly the room there is, however little: a taller list would put its last rows under the keyboard.
+      setRoom(top == null || !keyboard ? null : Math.max(0, Math.floor(vv.offsetTop + vv.height - top - 12)));
     };
     fit();
     vv.addEventListener("resize", fit);
@@ -361,7 +362,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     else if (full) openFull();
     else if (!stale && !busy && ordered[0]) pick(ordered[0].hit);
     // A picker box whose results aren't in yet: ask now, and open the top result when they arrive (one press).
-    else { enterFor.current = query; searchNow(); }
+    // (Open again first: a list closed meanwhile would drop the pending pick.)
+    else { setOpen(true); enterFor.current = query; searchNow(); }
   };
   const showList = open && (query ? true : !!emptyHint);
   const room = useRoomAboveKeyboard(list, showList);

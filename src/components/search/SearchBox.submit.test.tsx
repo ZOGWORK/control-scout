@@ -78,6 +78,15 @@ describe("the magnifier searches (Req 5, test 10)", () => {
     await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
   });
+  it("a picker whose list was closed (Escape) still opens its top result when the magnifier is tapped", async () => {
+    const { input, onPick, magnifier } = mount({ kinds: ["team"], seeAll: false });
+    change(input, "hypno");
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    fireEvent.click(magnifier);
+    await reply(/q=hypno/, { hits: [t("4215", "Hypnotic Robotics")] });
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ ref: "4215" }));
+  });
 });
 
 describe("the dropdown always shows the current query (Req 3, test 9)", () => {
@@ -127,6 +136,12 @@ describe("phone keyboard (Bug J)", () => {
     change(input, "hawaii");
     // jsdom has no layout: the list's top is 0, so the room is the visible height less the margin.
     expect(screen.getByRole("listbox").style.maxHeight).toBe(`min(26rem, ${window.innerHeight - 340 - 12}px)`);
+  });
+  it("with little room left, the list is only as tall as that room (its last rows never sit under the keyboard)", async () => {
+    viewport(60);
+    const { input } = mount();
+    change(input, "hawaii");
+    expect(screen.getByRole("listbox").style.maxHeight).toBe("min(26rem, 48px)");
   });
   it("without a keyboard the list keeps its usual height", async () => {
     viewport(window.innerHeight);
