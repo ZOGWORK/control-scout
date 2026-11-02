@@ -90,7 +90,7 @@ export default function SearchPage() {
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-        {!query ? "Search" : found ? pageTitle(ax, hits) : busy || error ? "Search results" : <>No matches for “{query}”</>}
+        {!query ? "Search" : found ? pageTitle(ax, hits, isQualityQuestion(query)) : busy || error ? "Search results" : <>No matches for “{query}”</>}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
