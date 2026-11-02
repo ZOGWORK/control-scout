@@ -146,6 +146,8 @@ export function readTeamProfile(dbs: SeasonDb[], number: number, season?: number
 const score = (r: any, p: "red" | "blue") => r[`${p}_np`] == null ? null : {
   total: Number(r[`${p}_total`]), np: Number(r[`${p}_np`]), auto: Number(r[`${p}_auto`] ?? 0),
   teleop: Number(r[`${p}_teleop`] ?? 0), endgame: Number(r[`${p}_endgame`] ?? 0), pen: Number(r[`${p}_pen`] ?? 0),
+  // TIPS (2026's second tiebreaker, a league meet's standing): packs built before it was packed have no column.
+  ...(r[`${p}_tips`] != null ? { tips: Number(r[`${p}_tips`]) } : {}),
 };
 
 /** Matches with lineups. Played matches carry no prediction (the pack holds no

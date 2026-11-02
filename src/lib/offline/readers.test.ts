@@ -321,3 +321,26 @@ describe("offline league meet (as the server's: the meet's own standing, no leag
     expect(f.find((r) => r.team === 200)).toMatchObject({ wins: 2, losses: 0 });
   });
 });
+
+describe("offline TIPS (2026's tiebreaker after non-foul points)", () => {
+  const ev = { season: 2026, code: "M26", name: "Meet", type: "LeagueMeet", start: "2026-11-01", end: "2026-11-01", timezone: "America/New_York", remote: 0, source: "first" };
+  const m = (n: number, redTips: number | undefined) => ({ season: 2026, code: "M26", level: "qual", series: 0, number: n, label: `Q${n}`, time: `2026-11-01T09:0${n}:00`, played: 1,
+    red_total: 50, red_np: 50, red_auto: 10, red_teleop: 30, red_endgame: 10, red_pen: 0, blue_total: 50, blue_np: 50, blue_auto: 10, blue_teleop: 30, blue_endgame: 10, blue_pen: 0, source: "first",
+    ...(redTips != null ? { red_tips: redTips, blue_tips: 0 } : {}) });
+  const lineup = (code: string) => [1, 2].flatMap((n) => [
+    { season: 2026, code, level: "qual", series: 0, number: n, team: n === 1 ? 100 : 300, alliance: "red", station: 1, surrogate: 0, dq: 0, on_field: 1 },
+    { season: 2026, code, level: "qual", series: 0, number: n, team: n === 1 ? 200 : 400, alliance: "blue", station: 1, surrogate: 0, dq: 0, on_field: 1 },
+  ]);
+
+  it("reads a match's TIPS from the pack, so tied teams at a meet split on it; an older pack without the column still reads", async () => {
+    const et = [100, 200, 300, 400].map((team) => ({ season: 2026, code: "M26", team, rank: null, rp: null, tbp: null, wins: 0, losses: 0, ties: 1, qual_played: 1, dq: 0 }));
+    const pack = { season: 2026, db: wrap(await packDb(2026, { events: [ev], event_teams: et, matches: [m(1, 0), m(2, 7)], match_teams: lineup("M26") })) };
+    const d = readEventDetail(pack, "M26")!;
+    expect(d.matches.find((x) => x.number === 2)!.red.score!.tips).toBe(7);
+    // Two ties: all four level on ranking score and non-foul points, so 300's 7 TIPS put it first (by number it'd be 3rd).
+    const rank = (t: number) => d.field.find((r) => r.team === t)!.meet!.rank;
+    expect([rank(300), rank(100), rank(200), rank(400)]).toEqual([1, 2, 3, 4]);
+    const old = { season: 2026, db: wrap(await packDb(2026, { events: [ev], matches: [m(1, undefined)], match_teams: lineup("M26").slice(0, 2) })) };
+    expect(readEventDetail(old, "M26")!.matches[0].red.score).not.toHaveProperty("tips");
+  });
+});
