@@ -15,6 +15,7 @@ import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js"
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventOver, eventScheduleDifficulty, postedQuals } from "../../src/shared/scheduleDifficulty.js";
 import { eventBracket } from "./bracket.js";
+import { LEAGUE_TYPES, recordAddsUp } from "../../src/shared/eventStanding.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -107,12 +108,15 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   const oprBy = new Map(oprs.map((o) => [Number(o.team), o]));
   const f = isLegacy(season) ? null : await liveForecaster(season).catch(() => null);
   const book = f?.book(season) ?? null;
+  const league = LEAGUE_TYPES.has(r.type);
   const field: FieldRow[] = entries.map((e) => {
     const o = oprBy.get(Number(e.team));
     const rt = book?.ratings.has(Number(e.team)) ? book.get(Number(e.team)) : null;
+    // A league record that doesn't add up to the matches played (src/shared/eventStanding.ts) is left out, not shown.
+    const rec = !league || recordAddsUp(e.wins, e.losses, e.ties, e.qual_played) ? e : { wins: null, losses: null, ties: null };
     return {
       team: Number(e.team), name: e.name ?? null, city: e.city ?? null, state: e.state ?? null, rank: e.rank, rp: e.rp, tbp: e.tbp,
-      wins: e.wins, losses: e.losses, ties: e.ties, qualPlayed: e.qual_played,
+      wins: rec.wins, losses: rec.losses, ties: rec.ties, qualPlayed: e.qual_played,
       opr: { np: o?.opr_np ?? null, auto: o?.opr_auto ?? null, teleop: o?.opr_teleop ?? null, endgame: o?.opr_endgame ?? null, pen: o?.opr_pen ?? null },
       avgNp: o?.avg_np ?? null,
       rating: rt ? { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n } : null,

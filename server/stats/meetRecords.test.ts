@@ -59,4 +59,14 @@ describe("league meet rankings", () => {
     expect(one.meet).toMatchObject({ rank: 1, rs: 3.5, wins: 2, losses: 0, played: 2 });
     expect((await eventDetail(S, "QUAL"))!.field.every((f) => !("meet" in f))).toBe(true);
   });
+
+  it("a league record that doesn't add up to the matches played is left out; elsewhere it's kept as published", async () => {
+    // FIRST's league standing counts only each team's best matches: 2025 USNJNOM3 showed 10-0-0 over 16 played.
+    for (const code of ["MEET", "QUAL"]) await run("UPDATE event_teams SET wins = 10, losses = 0, ties = 0, qual_played = 16 WHERE season = ? AND code = ? AND team = 1", [S, code]);
+    await run("UPDATE event_teams SET wins = 1, losses = 1, ties = 0, qual_played = 2 WHERE season = ? AND code = 'MEET' AND team = 3", [S]);
+    const meet = (await eventDetail(S, "MEET"))!.field;
+    expect(meet.find((f) => f.team === 1)).toMatchObject({ wins: null, losses: null, ties: null, qualPlayed: 16 });
+    expect(meet.find((f) => f.team === 3)).toMatchObject({ wins: 1, losses: 1, ties: 0 });
+    expect((await eventDetail(S, "QUAL"))!.field.find((f) => f.team === 1)).toMatchObject({ wins: 10, losses: 0, ties: 0 });
+  });
 });
