@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.1.8 — 2026-11-01
+
+A quiet way to chip in, for anyone who wants to.
+
+### Highlights
+- [home] A new Donate page explains how to support the site's running costs
+- [home] Control Scout stays free: a donation unlocks nothing
+- [home] Paying happens on GitHub Sponsors; Control Scout never sees card details
+
+### Site
+- **Donate page.** /donate says plainly that Control Scout is free and stays free, that donations only help pay for the domain, hosting and email, that they are not tax-deductible (it is run by an individual developer), and that they unlock no features, perks or priority help. Its one button opens GitHub Sponsors in a new tab, where GitHub and Stripe take the payment; nothing about a donation reaches Control Scout. Linked from the site footer and the foot of Home, nowhere else; /support goes to the same page.
+
 ## 2.1.7 — 2026-11-01
 
 Long lists scroll smoothly on phones.

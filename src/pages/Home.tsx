@@ -72,6 +72,7 @@ export default function Home() {
           <Link to="/methodology" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">How the numbers work</Link>
           <Link to="/download" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Offline packs</Link>
           <Link to="/compare" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Compare teams</Link>
+          <Link to="/donate" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Support Control Scout</Link>
         </span>
       </footer>
     </div>
