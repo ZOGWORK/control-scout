@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.5 — 2026-11-02
+## 2.3.6 — 2026-11-02
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
 
@@ -28,7 +28,7 @@ FTC One Search answers rules questions from the Rules quick reference, never wit
 - **Rules questions go to the rules.** A rule number ("G402", "rule 10.5.1"), a query starting with "penalty", "foul" or "rule", or a question with a rule word (descore, pin, foul, inspection, control, hoard, …) is answered from the season's Rules quick reference (the same data as /rules, the `rulesReference` setting). A rule is listed only when every word asked is in it. Each rule shows its number, summary and penalty, linked to its entry on /rules. When no rule matches, the answer says so and never guesses. No team is ever listed for a rules question. "Can Control" on its own is still a team.
 - **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#PRNUM)
 
-## 2.3.4 — 2026-11-02
+## 2.3.5 — 2026-11-02
 
 FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
 
@@ -43,7 +43,7 @@ FTC One Search compares teams as a Compare, never as a team, and says which team
 - **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
 - **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#436)
 
-## 2.3.3 — 2026-11-02
+## 2.3.4 — 2026-11-02
 
 FTC One Search understands places, venues, dates and years: "upcoming meets in New Jersey" lists exactly those, soonest first.
 
@@ -63,6 +63,18 @@ FTC One Search understands places, venues, dates and years: "upcoming meets in N
 - **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
 - **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
 - **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams. (#434)
+
+## 2.3.3 — 2026-11-02
+
+FTC One Search shows a team's numbers once: when the summary has them, the team's card below doesn't repeat them.
+
+### Highlights
+- [fixes] "How good is" a team shows its record, OPR and rank once, in the summary
+- [fixes] The team's card below keeps its name, place and profile link
+- [fixes] Other teams in the results keep their own numbers
+
+### Search
+- **Each number once.** For a question like "how good is Simply Complex", the summary holds the team's record, world OPR rank and OPR; the team's card under it now shows its name, place and View scouting profile only, where before it repeated those numbers. Results and their order are unchanged. (#435)
 
 ## 2.3.2 — 2026-11-02
 

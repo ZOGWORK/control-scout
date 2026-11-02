@@ -105,6 +105,7 @@ describe("event sets (brief Section 3)", () => {
     expect(none.step).toBe("recovery");
     expect(none.hits).toEqual([]);
     expect(none.recovery?.understood).toContain("No events held in 2019 match");
+    expect(none.understood?.label).toMatch(/: no events held in 2019 match$/); // the one line surfaces show says it
     expect(none.recovery?.closest.map((h) => h.ref)).toContain(`${S - 3}:FTCCMP1EDIS`); // other years, labelled as closest
     expect(refs((await ask("NJ State Championship")).hits)).toEqual(["USNJCMP"]);
   });
