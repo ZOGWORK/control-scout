@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetTitle, Tooltip, TooltipContent, TooltipProvid
 import { WhatsNewHost, WhatsNewRow } from "../WhatsNew";
 import { GlobalSearch } from "./Search";
 import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
-import { ClockWeather, ThemeToggle } from "./TopBarExtras";
+import { ClockWeather } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
@@ -295,7 +295,6 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               <OfflineStatus />
               <ClockWeather />
-              <ThemeToggle />
               {/* The notification inbox: top right, in the header only (never the sidebar). */}
               <InboxBell />
             </header>}

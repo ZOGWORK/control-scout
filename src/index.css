@@ -172,6 +172,48 @@ html.light {
   color-scheme: light;
 }
 
+/* Dim and Midnight are dark themes (the `dark:` variant applies, and every status, alliance and accent colour is
+   dark's), so each one swaps only the surfaces, text and lines. Dim: soft dark grey, text a step down from white,
+   so nothing glares. Midnight: true black for night and OLED screens, cards one step up so they still read. */
+html.dim {
+  --sh-background: #1e1f23;
+  --sh-foreground: #e4e4e7;
+  --sh-card: #232428;
+  --sh-card-foreground: #e4e4e7;
+  --sh-popover: #2a2b30;
+  --sh-popover-foreground: #e4e4e7;
+  --sh-muted: #2d2e33;
+  --sh-muted-foreground: #b4b4bd;
+  --sh-border: #ffffff1a;
+  --sh-input: #ffffff26;
+  --color-secondary: #19191c;
+  --color-scrollbar: #45464e;
+  --color-scrollbar-hover: #55565f;
+  /* The surfaces above are as light as dark's raw palette text (violet 400 chips, red 400 tones) allows at 4.5:1.
+     The reds that sit on tints or the hovered row's gold wash go a step lighter than dark's to keep AA there:
+     video (4.1:1 on its Watch chip at dark's #ff4d6d), destructive and the red alliance ink (3.8:1 on a hovered
+     sorted Teams cell at rose 400). textTones.test.ts and the records contrast tests measure every one. */
+  --color-video: #ff7089;
+  --sh-destructive: #fd8c9c;
+  --color-red-alliance-ink: #fd8c9c;
+}
+
+html.midnight {
+  --sh-background: #000000;
+  --sh-foreground: #f4f4f5;
+  --sh-card: #08080a;
+  --sh-card-foreground: #f4f4f5;
+  --sh-popover: #0e0e11;
+  --sh-popover-foreground: #f4f4f5;
+  --sh-muted: #121215;
+  --sh-muted-foreground: #a1a1aa;
+  --sh-border: #ffffff12;
+  --sh-input: #ffffff1a;
+  --color-secondary: #000000;
+  --color-scrollbar: #222227;
+  --color-scrollbar-hover: #33333a;
+}
+
 /* The page scrolls the document (src/lib/pageScroll.ts), under the shell's sticky top bar (Shell.tsx):
    --header-h is that bar's height. Whatever the page scrolls to (#anchors, scrollIntoView) stops below
    the bar: by default just under it, and scroll-mt-bar-N puts N more spacing steps between the two.

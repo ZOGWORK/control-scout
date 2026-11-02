@@ -10,8 +10,13 @@ import { MAX_TEAM_COLORS, teamColorById } from "./teamColors.js";
 export interface TrackedState { teams: number[]; events: string[] } // events: "season:CODE"
 export interface VideoLink { url: string; title: string | null; addedAt: number }
 export interface SavedPrediction { id: string; season: number; red: number[]; blue: number[]; winProbRed: number; predictedRed: number; predictedBlue: number; tier: string; savedAt: number; note?: string }
+/** The built-in themes, in the order Settings lists them. Dim and Midnight are dark themes (html.dim / html.midnight
+ *  swap only surfaces and text, src/index.css); System follows the device's light or dark setting. */
+export const THEMES = ["light", "dim", "dark", "midnight", "system"] as const;
+export type ThemeChoice = (typeof THEMES)[number];
+
 export interface Settings {
-  theme: "dark" | "light" | "system";
+  theme: ThemeChoice;
   density: "comfortable" | "compact";
   /** Animated background (on by default; reduced motion always stills it). */
   ambient: boolean;
@@ -88,7 +93,7 @@ export function cleanValue<K extends PersonalKey>(key: K, v: unknown): PersonalS
     case "settings": {
       const o = (v ?? {}) as Partial<Settings>;
       return {
-        theme: ["dark", "light", "system"].includes(o.theme as string) ? o.theme : DEFAULT_SETTINGS.theme,
+        theme: (THEMES as readonly string[]).includes(o.theme as string) ? o.theme : DEFAULT_SETTINGS.theme,
         density: o.density === "compact" ? "compact" : "comfortable",
         ambient: o.ambient !== false,
         // Known switches only, booleans only. The inbox's are kept only when present (missing: on).

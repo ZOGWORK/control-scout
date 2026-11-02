@@ -43,4 +43,14 @@ describe("phone match card red text contrast", () => {
     const card = token("html.light", "sh-card"), red = token("html.light", "color-red-alliance"), ink = token("html.light", "color-red-alliance-ink");
     expect(ratio(ink, over(red, 0.15, card))).toBeGreaterThanOrEqual(4.5);
   });
+
+  // Dim and Midnight keep dark's alliance red, on their own card; Dim's lighter card takes a lighter ink of its own.
+  it.each(["dim", "midnight"])("%s: the ink reads at 4.5:1 or more on the red tint over this theme's card", (theme) => {
+    const own = css.slice(css.indexOf(`html.${theme} {`), css.indexOf("\n}", css.indexOf(`html.${theme} {`)));
+    expect(own).not.toContain("--color-red-alliance:");
+    const card = token(`html.${theme}`, "sh-card"), red = token("@theme", "color-red-alliance");
+    const ink = token(own.includes("--color-red-alliance-ink:") ? `html.${theme}` : "@theme", "color-red-alliance-ink");
+    expect(ratio(ink, over(red, 0.15, card))).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(ink, card)).toBeGreaterThanOrEqual(4.5);
+  });
 });
