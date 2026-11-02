@@ -9,7 +9,7 @@ export interface ChangelogHighlight { tag: string | null; text: string }
 export interface ChangelogEntry { version: string; date: string; summary: string; highlights: ChangelogHighlight[]; groups: ChangelogGroup[] }
 
 /** The `[tag]`s a highlight can start with; each has its own icon and colour in What's new. */
-export const HIGHLIGHT_TAGS = ["home", "predict", "teams", "scout", "offline", "speed", "live", "report", "alerts", "rankings", "share", "workspace", "picklist", "history", "fixes"] as const;
+export const HIGHLIGHT_TAGS = ["home", "predict", "teams", "scout", "offline", "speed", "live", "report", "alerts", "rankings", "share", "workspace", "picklist", "history", "fixes", "appearance"] as const;
 export type HighlightTag = (typeof HIGHLIGHT_TAGS)[number];
 
 /** The heading of a release's digest block; its bullets become `highlights`, not a group of the full notes. */
