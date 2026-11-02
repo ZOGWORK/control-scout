@@ -30,7 +30,7 @@ FTC One Search reads what you type the way you meant it: plurals, little words a
 - **Little words don't have to match.** in, at, on, the, a, an, for, of and this are left out when other words name the team or event, so "meet at New Jersey" and "meet in New Jersey" find the same meets.
 - **A question's opening is the question.** "how good is", "how strong is", "how is", "what is the rank of", "what's the record of", "where is", "tell me about", "show me" and the rest of the list in `src/shared/searchQuery.ts` are read as the question, never as part of a name: "how good is simply complex" searches "simply complex" and shows its season's OPR, rank and record. Only the opening goes, so "how good is Good Enough" is Good Enough, and "good teams" (no opening) still searches for "good".
 - **Time words and a question's own words never name a team.** "upcoming", "this weekend" and the like (and "past", "recent", "latest" next to a word like "meets") are never matched against names, so "upcoming meets" can't turn into the team Oncoming Storm. In a question ("Can robots…?"), words like can, will and does aren't searched for either; "Can Control" on its own is still a team's name.
-- **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline.
+- **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline. (#427)
 
 ## 2.2.4 — 2026-11-02
 
