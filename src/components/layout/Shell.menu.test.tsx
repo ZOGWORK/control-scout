@@ -13,7 +13,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 const personal = vi.hoisted(() => ({ user: null as null | { id: number; email: string; displayName: string | null; createdAt: string }, sync: "local", offlineAccount: false, signOut: vi.fn(async () => {}) }));
 vi.mock("../../lib/personal", () => ({ SIGNED_IN: "cs-signed-in", usePersonal: () => ({ ...personal, providers: {}, state: { myTeam: null }, syncReady: false }) }));
 vi.mock("./Search", () => ({ GlobalSearch: () => null }));
-vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null }));
+vi.mock("./TopBarExtras", () => ({ ClockWeather: () => null, showsClockWeather: () => true }));
 vi.mock("./InboxBell", () => ({ InboxBell: () => null }));
 vi.mock("./Ambient", () => ({ Ambient: () => null }));
 vi.mock("./SiteFooter", () => ({ SiteFooter: () => null }));
