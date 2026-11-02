@@ -1,0 +1,63 @@
+// A rules question's answer (src/shared/searchRuleQuery.ts reads it): the matching entries of the season's Rules
+// quick reference (src/shared/rules, the only rules source in Control Scout: our summaries of FIRST's game manual,
+// each with its manual revision), as a card, each rule linked to its entry on /rules. Never team or event hits.
+// No rule found, or the reference switched off (flag rulesReference): said plainly, with the Rules page and the
+// official manual to go to. The /search page asks Bruno AI for a written answer to questions on its own, as before.
+import type { SearchAnswer, SearchCardLine } from "../../src/shared/api.js";
+import { pagesFor } from "../../src/shared/search.js";
+import { pastSeasonOf, rulesFor, type RuleQuery } from "../../src/shared/searchRuleQuery.js";
+import { ruleReference } from "../../src/shared/rules/index.js";
+import { hasRuleReference } from "../../src/shared/rules/seasons.js";
+import { CURRENT_SEASON, seasonInfo } from "../data/seasons.js";
+import { isEnabled } from "../flags.js";
+
+/** The most rules one card lists; the rest are on /rules. */
+const MAX_RULES = 5;
+/** FIRST's page of game and season materials, past games' manuals among them. */
+const FIRST_SEASON_MATERIALS = "https://www.firstinspires.org/resource-library/ftc/game-and-season-info";
+
+export async function ruleAnswer(q: string, rq: RuleQuery): Promise<SearchAnswer> {
+  // A past game's piece ("sample": INTO THE DEEP): that season's reference, or which game it is and a link to it.
+  const past = pastSeasonOf(ruleReference(CURRENT_SEASON), rq);
+  if (past && !hasRuleReference(past.season)) return pastGameAnswer(q, rq, past);
+  const ref = ruleReference(past?.season ?? CURRENT_SEASON);
+  const pages = [...pagesFor(q).filter((p) => p.href !== "/rules"), { title: "Rules", href: "/rules" }];
+  const asked = rq.id ?? rq.keywords.join(" ");
+  const base = { q, hits: [], pages, step: "deterministic" as const, weak: false, understood: { kind: "question" as const, label: `A rules question: ${rq.id ? `rule ${rq.id}` : `"${asked}"`}` } };
+  const title = `Rules quick reference · ${ref.game} ${ref.label} (manual ${ref.manual.revision})`;
+  if (!(await isEnabled("rulesReference").catch(() => false))) {
+    return { ...base, pages: pagesFor(q), card: { kind: "rule", title, lines: [], none: `The rules quick reference is switched off for now. Check the official game manual: ${ref.manual.url}` } };
+  }
+  const rules = rulesFor(ref, rq);
+  const lines: SearchCardLine[] = rules.slice(0, MAX_RULES).map((r) => ({
+    text: `${r.id} · ${r.title}`, detail: r.summary, ...(r.penalty ? { results: [`Penalty: ${r.penalty}`] } : {}), href: `/rules#${encodeURIComponent(r.id)}`,
+  }));
+  const more = rules.length > MAX_RULES ? ` (${rules.length - MAX_RULES} more on the Rules page)` : "";
+  return {
+    ...base,
+    card: rules.length
+      ? { kind: "rule", title: `${title}${more}`, lines }
+      : { kind: "rule", title, lines: [], none: `No rule found for "${asked}" in the ${ref.game} ${ref.label} quick reference. Try the Rules page, or ask the question in full on the official Q&A.` },
+  };
+}
+
+/** A rules question about a past game we hold no quick reference for: never this season's rules, never a guess. */
+function pastGameAnswer(q: string, rq: RuleQuery, past: { season: number; words: string[] }): SearchAnswer {
+  const game = seasonInfo(past.season);
+  const now = seasonInfo(CURRENT_SEASON);
+  const quoted = past.words.map((w) => `"${w}"`).join(" and ");
+  return {
+    q, hits: [], step: "deterministic", weak: false,
+    pages: pagesFor(q),
+    understood: { kind: "question", label: `A rules question about ${game.game} (${game.label}): ${quoted}`, season: past.season },
+    card: {
+      kind: "rule",
+      title: `${game.game} ${game.label} rules`,
+      lines: [
+        { text: `${quoted} ${past.words.length > 1 ? "are" : "is"} from ${game.game} (${game.label})`, detail: `Not this season's ${now.game}. There's no ${game.game} quick reference here; its rules are in that season's game manual.` },
+        { text: `${game.game} game manual`, detail: "FIRST's game and season materials, past seasons' manuals included", href: FIRST_SEASON_MATERIALS },
+        { text: `${game.game} ${game.label} season`, detail: "Its events and results", href: `/events?season=${past.season}` },
+      ],
+    },
+  };
+}

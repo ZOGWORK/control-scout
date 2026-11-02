@@ -17,7 +17,7 @@ import { ROSTER } from "../data/registrations.js";
 import { ATTENDED } from "./teams.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
-export type QuestionKind = Exclude<SearchCard["kind"], "high-scores">;
+export type QuestionKind = Exclude<SearchCard["kind"], "high-scores" | "rule">;
 
 export interface ParsedQuestion {
   kind: QuestionKind;
