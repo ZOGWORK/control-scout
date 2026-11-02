@@ -89,11 +89,19 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
     return () => { live = false; };
   }, [season, teamsKey]);
 
+  // The entries by event, sorted once: each card counts only its own event's, not the whole list.
+  const byEvent = useMemo(() => {
+    const m = new Map<string, Entry[]>();
+    for (const x of entries) { const k = (x.eventCode ?? "").trim().toUpperCase(); if (k) m.set(k, [...(m.get(k) ?? []), x]); }
+    return m;
+  }, [entries]);
+
   const tileAction = useCallback<TileAction>((e) => {
     const picked = e.code === start;
     const mine = ours.get(e.code) ?? [];
-    const pit = pitProgress(entries, e.code, e.teams ?? 0);
-    const matches = matchesWithEntries(entries, e.code, e.matchesTotal ?? 0);
+    const mineEntries = byEvent.get(e.code.toUpperCase()) ?? [];
+    const pit = pitProgress(mineEntries, e.code, e.teams ?? 0);
+    const matches = matchesWithEntries(mineEntries, e.code, e.matchesTotal ?? 0);
     const count = (p: { done: number; total: number }) => (p.total > 0 ? `${p.done} / ${p.total}` : `${p.done}`);
     const strong = picked || mine.length > 0 || e.status === "live" || isOnToday(e, today);
     return {
@@ -112,7 +120,7 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
         </div>
       ),
     };
-  }, [start, ours, entries, today, onPick]);
+  }, [start, ours, byEvent, today, onPick]);
 
   const events = state.data?.events;
   const mineSoon = useMemo(() => ourUpcoming(events ?? [], ours, today), [events, ours, today]);

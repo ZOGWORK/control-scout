@@ -161,6 +161,17 @@ describe("Event day", () => {
     expect(screen.getByRole("group", { name: /^Team: 102/ })).toBeTruthy();
   });
 
+  it("another season while a team waits for its event keeps the team, without asking", async () => {
+    show("/scout?season=2025&team=102&new=1");
+    await waitFor(() => expect(param("pit")).toBe("102"));
+    const ask = vi.spyOn(window, "confirm");
+    fireEvent.click(await screen.findByRole("button", { name: "Next season" }));
+    await waitFor(() => expect(param("season")).toBe("2026"));
+    expect(param("pit")).toBe("102");
+    expect(ask).not.toHaveBeenCalled();
+    ask.mockRestore();
+  });
+
   it("Change event opens the picker over the event, with a way back", async () => {
     red();
     show("/scout?season=2025");
