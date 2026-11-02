@@ -175,6 +175,8 @@ describe("offline search (same hits as /api/search)", () => {
     expect(readSearch(dbs(), "new jersey qualifiers")).toEqual(readSearch(dbs(), "new jersey qualifier"));
     expect(readSearch(dbs(), "upcoming qualifiers in new jersey")).toEqual(readSearch(dbs(), "qualifier new jersey"));
     expect(readSearch(dbs(), "qualifier new jersey")[0]).toMatchObject({ ref: "2025:USNJQ1" });
+    // Punctuation read as the server reads it: "this weekend?" is a time phrase, never a name word.
+    expect(readSearch(dbs(), "new jersey qualifiers this weekend?")).toEqual(readSearch(dbs(), "qualifier new jersey"));
     // A conversational opening is the question, offline too.
     expect(readSearch(dbs(), "show me 100")[0]).toMatchObject({ kind: "team", ref: "100" });
     expect(readSearch(dbs(), "how good is gearheads")[0]).toMatchObject({ kind: "team", ref: "100" });
