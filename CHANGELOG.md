@@ -31,7 +31,7 @@ FTC One Search's answers read at a glance: a timeline and stats for a team's cha
 - **Stats counted from the records.** Total trips, the longest back-to-back streak, the best division rank, the peak OPR and the most frequent division, each counted from the trips listed (left out when there's nothing to count, never shown as zero). When Bruno AI answers, his sentence stays and these stand in for his bullet list.
 - **How good is a team.** The season record, world OPR rank, OPR, a standing tier (top 5% Elite, 15% Excellent, 35% Strong, 60% Solid, else Developing; rank over ranked teams, one decimal) and a win rate (a tie counts as half a win), each shown once.
 - **Shorter event cards.** A championship division is titled by its own name ("Franklin Division") with the championship, place and season as badges; rank, record and OPR as pills; status, teams registered and quick links to the event's teams, matches, rankings and playoffs where it has them.
-- **Season tabs and team cards.** An event held in several seasons is one card with a tab per season. Team cards read "18061 | Simply Complex" with their season numbers and a View scouting profile link. Results and their order are unchanged.
+- **Season tabs and team cards.** An event held in several seasons is one card with a tab per season. Team cards read "18061 | Simply Complex" with their season numbers and a View scouting profile link. Results and their order are unchanged. (#432)
 
 ## 2.2.9 — 2026-11-02
 
