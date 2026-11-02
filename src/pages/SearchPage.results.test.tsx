@@ -258,3 +258,31 @@ describe("search results page, Phase 2 cards", () => {
     expect(container.textContent).not.toContain("Counted from the records below");
   });
 });
+
+describe("search results page, Phase 3 layout", () => {
+  it("one right-hand panel: a versus query's head-to-head", () => {
+    state.answer = answer([{ kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" }]);
+    const { container } = show("/search?q=x");
+    expect(container.querySelector("[data-layout]")!.getAttribute("data-layout")).toBe("versus");
+    expect(container.querySelectorAll("[data-panel]")).toHaveLength(1);
+  });
+
+  it("a question's summary takes the panel, before the records in the page (first on a phone), with the team's pages", () => {
+    state.answer = answer([], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 2, lines: [
+      { text: "A - Franklin Division", detail: "2021–22 · Apr 2022 · Houston, TX", results: ["Ranked #20"] },
+      { text: "A - Ochoa Division", detail: "2022–23 · Apr 2023 · Houston, TX", results: ["Ranked #3"] },
+    ] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    const panel = container.querySelector('[data-panel="summary"]')!;
+    expect(panel.querySelector("[data-stat-banner]")).toBeTruthy();
+    expect(panel.compareDocumentPosition(container.querySelector('[data-section="records"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(panel as HTMLElement).getByRole("link", { name: /Scouting profile/ }).getAttribute("href")).toBe("/teams/7149");
+  });
+
+  it("plain results: one column", () => {
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17")]);
+    const { container } = show("/search?q=x");
+    expect(container.querySelector("[data-layout]")!.getAttribute("data-layout")).toBe("single");
+    expect(container.querySelector("[data-panel]")).toBeNull();
+  });
+});

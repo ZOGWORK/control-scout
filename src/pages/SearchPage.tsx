@@ -11,8 +11,8 @@
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
 import { useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Info, RefreshCw, ScanSearch } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
@@ -92,6 +92,14 @@ export default function SearchPage() {
     m.delete(Number(topTeam.ref));
     return m;
   }, [quality, topTeam, summaries]);
+  // The one right-hand panel (desktop): a versus query's head-to-head, else a question's computed summary.
+  const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
+  const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
+  const summary = (
+    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0" ask={!isQualityQuestion(query)}>
+      {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
+    </BrunoAnswer>
+  );
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
@@ -135,12 +143,20 @@ export default function SearchPage() {
                 </p>
               )}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
-              <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
-                <div className="min-w-0">
-                  <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" ask={!isQualityQuestion(query)}>
-                    {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
-                  </BrunoAnswer>
-                  {/* A question's records: as cards the timeline jumps to (championships), else the answer card as before. */}
+              {/* Desktop: results left (65%), at most one panel right (35%), chosen by the query: a versus query's
+                  head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
+                  both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
+                  the summary first (H1, badge, summary, cards). */}
+              <div className={cn(panel && "lg:grid lg:grid-cols-[minmax(0,65fr)_minmax(0,35fr)] lg:items-start lg:gap-6")} data-layout={panel ?? "single"}>
+                {panel === "summary" && (
+                  <aside aria-label="Summary" className="mb-4 space-y-3 lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="summary">
+                    {summary}
+                    {aboutTeam && <TeamLinks team={aboutTeam} />}
+                  </aside>
+                )}
+                <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+                  {!panel && summary}
+                  {/* A question's records: as cards the timeline jumps to (championships, oldest first), else the answer card as before. */}
                   {apps.length ? (
                     <section aria-label={answer!.card!.title} className="mb-5" data-section="records">
                       <h2 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{answer!.card!.title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{apps.length}</span></h2>
@@ -153,15 +169,16 @@ export default function SearchPage() {
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={cardSums} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!h2h} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={cardSums} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>
                       <button type="button" onClick={() => setFilters({ when: "all", season: null, type: null })} className="mt-1.5 text-sm font-medium text-accent-text hover:underline">Clear filters</button>
                     </div>
                   )}
+                  {panel === "versus" && summary}
                 </div>
-                {h2h && <div className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)]"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
+                {panel === "versus" && h2h && <aside aria-label="Head-to-head" className="max-lg:hidden lg:sticky lg:top-[calc(var(--header-h)+1rem)] lg:col-start-2 lg:row-start-1" data-panel="versus"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></aside>}
               </div>
             </div>
           )}
@@ -247,4 +264,23 @@ function bySeasons(hits: SearchHit[]): SearchHit[][] {
     if (g) g.push(h); else groups.push([h]);
   }
   return groups;
+}
+
+/** The team's own pages a summary leads on to (its scouting profile's parts and Compare), all existing routes. */
+function TeamLinks({ team }: { team: number }) {
+  const links = [
+    { label: "Scouting profile", to: `/teams/${team}` },
+    { label: "Season road map", to: `/teams/${team}#history` },
+    { label: "Matches", to: `/teams/${team}#matches` },
+    { label: "Awards", to: `/teams/${team}#awards` },
+    { label: "Compare with another team", to: `/compare?teams=${team}` },
+  ];
+  return (
+    <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>
+      <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Team {team}</p>
+      <ul className="mt-1.5">
+        {links.map((l) => <li key={l.to}><Link to={l.to} className="flex items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-accent/[0.08] hover:text-accent-text">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
+      </ul>
+    </nav>
+  );
 }

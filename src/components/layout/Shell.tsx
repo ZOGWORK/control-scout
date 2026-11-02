@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetTitle, Tooltip, TooltipContent, TooltipProvid
 import { WhatsNewHost, WhatsNewRow } from "../WhatsNew";
 import { GlobalSearch } from "./Search";
 import { AccountFooter, AccountProvider, useAccountPanel } from "./AccountMenu";
-import { ClockWeather } from "./TopBarExtras";
+import { ClockWeather, showsClockWeather } from "./TopBarExtras";
 import { OfflineStatus } from "../OfflineNote";
 import { InboxBell } from "./InboxBell";
 import { usePersonal } from "../../lib/personal";
@@ -294,7 +294,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <p className="hidden truncate text-sm text-text-muted md:block"><span>Control Scout / </span><span className="text-text-base">{title}</span></p>
               <div className="flex flex-1 justify-end md:justify-center"><GlobalSearch part="field" /></div>
               <OfflineStatus />
-              <ClockWeather />
+              {showsClockWeather(loc.pathname) && <ClockWeather />}
               {/* The notification inbox: top right, in the header only (never the sidebar). */}
               <InboxBell />
             </header>}
