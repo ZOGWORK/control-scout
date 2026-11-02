@@ -268,7 +268,8 @@ export default function ScoutPage() {
     setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
   // Stop scouting: this device leaves the event (entries stay, saved or queued). An open pit entry or typed-in
-  // match asks first, as Change event does; Undo in the toast picks the same event and watching back up.
+  // match on Event day asks first, as Change event does; one typed in from Entries stays open, kept at this event
+  // (it would otherwise fall back to the workspace's default). Undo in the toast picks the same event and watching back up.
   const stopScouting = () => {
     if (!session) return;
     const open = pitOpen ? `the pit entry for ${pitTeam}` : manual?.from === "event" ? "the match you're typing in" : null;
@@ -276,10 +277,11 @@ export default function ScoutPage() {
     const was = session;
     scoutSession.end();
     if (manual?.from === "event") setManual(null);
-    setSp((x) => { x.delete("at"); x.delete("pit"); x.delete("pick"); x.set("tab", "entries"); return x; });
+    else if (manual && !(manual.space === space && manual.season === season && manual.eventCode)) setManual({ ...manual, eventCode: was.eventCode, space, season });
+    setSp((x) => { x.delete("at"); x.delete("pit"); x.delete("pick"); x.delete("view"); x.set("tab", "entries"); return x; });
     toast.success(`Stopped scouting ${scoutEvent.info?.name || was.eventCode}`, {
       description: "Your entries are kept. Pick an event on Event day to scout again.",
-      action: { label: "Undo", onClick: () => { scoutSession.set(was.eventCode, was.watching); setSp((x) => { x.set("tab", "event"); return x; }); } },
+      action: { label: "Undo", onClick: () => { scoutSession.set(was.eventCode, was.watching); setSp((x) => { x.delete("view"); x.set("tab", "event"); return x; }); } },
     });
   };
   const setWatching = (w: Watching) => { if (session) scoutSession.set(session.eventCode, w); };

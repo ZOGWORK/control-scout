@@ -165,6 +165,26 @@ describe("Event day", () => {
     expect(await screen.findByRole("region", { name: "Match queue" })).toBeTruthy();
   });
 
+  it("Stop scouting from a view (Recordings) still opens Entries", async () => {
+    red();
+    show("/scout?season=2025&tab=entries&view=recordings");
+    fireEvent.click(await screen.findByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect(param("view")).toBeNull();
+  });
+
+  it("a match typed in from Entries stays at the event it was typed at after Stop scouting", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    expect(await screen.findByRole("heading", { name: "Type a match in" })).toBeTruthy();
+    expect(screen.getAllByText(/USNJQ1/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(localStorage.getItem("cs-scout-session:personal")).toBeNull());
+    expect(screen.getByRole("heading", { name: "Type a match in" })).toBeTruthy();
+    expect(screen.getAllByText(/USNJQ1/).length).toBeGreaterThan(0);
+  });
+
   it("Stop scouting with a pit entry open asks first, and staying keeps the event", async () => {
     red();
     const ask = vi.fn(() => false);
