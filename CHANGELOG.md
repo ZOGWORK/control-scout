@@ -25,7 +25,7 @@ Scout's event picker is the Events list, with a Scout button on every card.
 - [scout] Your teams' events and the ones you track sit on top as quick picks
 
 ### Scout
-- **The event picker matches the Events page.** Until an event is picked (and after Change event), Scout shows the Events page's filter bar and its cards by week, any event of the season, past ones too. Each card keeps its link to the event and gets a Scout button under it, which picks the event; the event picked now has a gold ring and Keep scouting. A card says when your team competes there and, once this space has entries there, how many pits and matches are scouted. Above the filters: your teams' upcoming events and the events you track, each one tap from scouting it. The filters stay on the picker (Scout's own address keeps the entry list's), and the season picker switches Scout's season.
+- **The event picker matches the Events page.** Until an event is picked (and after Change event), Scout shows the Events page's filter bar and its cards by week, any event of the season, past ones too. Each card keeps its link to the event and gets a Scout button under it, which picks the event; the event picked now has a gold ring and Keep scouting. A card says when your team competes there and, once this space has entries there, how many pits and matches are scouted. Above the filters: your teams' upcoming events and the events you track, each one tap from scouting it. The filters stay on the picker (Scout's own address keeps the entry list's), and the season picker switches Scout's season. (#421)
 
 ## 2.1.7 — 2026-11-01
 
