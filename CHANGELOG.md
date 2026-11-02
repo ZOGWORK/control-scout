@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.2.7 — 2026-11-02
+## 2.2.8 — 2026-11-02
 
 FTC One Search's results page reads at a glance: events as cards, a Compare of its own, filters, and no dead ends.
 
@@ -27,13 +27,26 @@ FTC One Search's results page reads at a glance: events as cards, a Compare of i
 - [fixes] A search that finds nothing says what it understood and what to try
 
 ### Search
-- **Event cards.** On the full results page (/search) each event is a card like the Events list's: Upcoming, Live or Finished, its season, the date in bold and the place. The header's dropdown stays a compact list.
+- **Event cards.** On the full results page (/search) each event is a card like the Events list's: Upcoming, Live, Started (begun, end date not known) or Finished, its season, the date in bold and the place. The header's dropdown stays a compact list.
 - **Filters on the page.** Upcoming / Past / All, a season and an event type (only the seasons and types the results hold) narrow the results without leaving /search. They live in the address, so a refresh, Back or a shared link keeps them, and Clear filters brings back exactly the unfiltered results in the same order.
 - **Compare is not a team.** A "ultraviolet vs hypnotic" search shows the Compare as its own card above the teams, with a swap icon, both teams by name, number and place, and a View comparison button; the Teams count no longer includes it. On a desktop a head-to-head preview sits beside the results (season record, OPR and OPR rank for both sides) with a link to the full comparison.
 - **Team cards.** Each team result carries its season record, OPR and world OPR rank as small badges, only where the data has them; early in a season, before a team has played, they show last season's, labelled with it.
 - **Exact and word matches apart.** When some teams only share a word with the search, they're listed under "Other teams" below the top match instead of mixed in with it.
 - **No dead ends.** When nothing matches, the page says so in its title (never "Here's what we found" above an empty page), says what search covers and what the query was read as, lists the closest matches labelled as such, and links to browse events and teams plus a few searches to try.
 - **Cleaner cards.** Result cards no longer print the web address they open; the whole card is one link, with its destination as a "View …" label. The magnifier in the page's search box now runs the search. (#429)
+
+## 2.2.7 — 2026-11-02
+
+FTC One Search: the search you ran stays in the top bar.
+
+### Highlights
+- [home] On the results page, your search stays in the top bar's search box
+- [home] Change a word there and press Enter to refine it
+- [fixes] Opening the results page no longer empties the search box
+
+### Search
+- **Your search stays in the top bar.** On the full results page (/search) the top bar's box shows the query you ran, follows it when it changes, and is where you refine it: edit it and press Enter (or the magnifier) for the new results. Until you edit it, it doesn't search again, since the results are already on the page. On every other page the box starts empty, as before. (#430)
+
 ## 2.2.6 — 2026-11-02
 
 FTC One Search: recent searches, example searches, and a clearly labelled "did you mean".
