@@ -26,8 +26,8 @@ FTC One Search: the magnifier searches, and the list stays clear of a phone's ke
 
 ### Search
 - **The magnifier searches.** In every search box (Home, the top bar, Predict's picker, Events, the not-found page) the magnifier icon is now a button: tapping it opens the full results page for what's typed, exactly like Enter or the keyboard's Search key, and the keyboard closes so the results show. In a box that picks something (Predict's team picker) it opens the top result, as Enter does. On an empty box it just puts the cursor in the field. Clear (×) and the top bar's phone search button work as before.
-- **Results clear the phone keyboard.** While the on-screen keyboard is up, the results list is only as tall as the space between the box and the keyboard (and its accessory bar), so every row can be reached by scrolling the list. The rows look the same.
-- **The list always answers what's typed.** A new test types fast ("Meets", then "Meets in New Jersey", then more) and checks that an older query's results are never shown as current: while the newer one is on its way the older list stays dimmed and marked as updating, then is replaced.
+- **Results clear the phone keyboard.** While the on-screen keyboard is up, the results list is only as tall as the space between the box and the keyboard (and its accessory bar), so every row can be reached by scrolling the list. The rows look the same. (#425)
+- **The list always answers what's typed.** A new test types fast ("Meets", then "Meets in New Jersey", then more) and checks that an older query's results are never shown as current: while the newer one is on its way the older list stays dimmed and marked as updating, then is replaced. (#425)
 
 ## 2.2.4 — 2026-11-02
 
