@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.1 — 2026-11-02
+
+FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
+
+### Highlights
+- [fixes] "Meets in New Jersey" finds the same meets as "meet in New Jersey"
+- [fixes] "How good is Simply Complex" shows that team, not every "good" one
+- [fixes] Teams read "18061 | Simply Complex": the number once, the name once
+- [fixes] Questions like "Can robots descore…" no longer list teams named "Can"
+
+### Search
+- **Plurals read as their singular.** meets, events, matches, teams, tournaments, championships, qualifiers, scrimmages, leagues, divisions, competitions, premiers and kickoffs are read as the singular before any name is matched, so each pair finds exactly the same results. (Before, a word was matched as a prefix, and "meets" can never be the start of "meet": "Meets in New Jersey" found nothing.)
+- **Little words don't have to match.** in, at, on, the, a, an, for, of and this are left out when other words name the team or event, so "meet at New Jersey" and "meet in New Jersey" find the same meets.
+- **A question's opening is the question.** "how good is", "how strong is", "how is", "what is the rank of", "what's the record of", "where is", "tell me about", "show me" and the rest of the list in `src/shared/searchQuery.ts` are read as the question, never as part of a name: "how good is simply complex" searches "simply complex" and shows its season's OPR, rank and record. Only the opening goes, so "how good is Good Enough" is Good Enough, and "good teams" (no opening) still searches for "good".
+- **Time words and a question's own words never name a team.** "upcoming", "this weekend" and the like (and "past", "recent", "latest" next to a word like "meets") are never matched against names, so "upcoming meets" can't turn into the team Oncoming Storm. In a question ("Can robots…?"), words like can, will and does aren't searched for either; "Can Control" on its own is still a team's name.
+- **Team titles once each.** Every team in search reads "number | name" (`18061 | Simply Complex`), with a number FIRST stores inside the name ("Simply Complex 18061") shown only once, in the header box, on /search, in the address bar's search and offline. (#427)
+
 ## 2.3.0 — 2026-11-02
 
 FTC One Search's answers read at a glance: a timeline and stats for a team's championship trips, a team's standing for "how good is", and shorter event cards.

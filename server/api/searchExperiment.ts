@@ -13,6 +13,7 @@ import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS } from "../../src/shared/search.js";
 import { fuzzyScore, normalize, words } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
+import { teamNameOf } from "../../src/shared/teamTitle.js";
 
 export interface AiCall { ms: number; promptTokens: number; outputTokens: number; rewrite: string | null; error?: string }
 
@@ -35,7 +36,7 @@ const LIMIT = 12;
 export const WEAK_SCORE = 0.9;
 
 const isTopicWord = (w: string) => SEARCH_TOPICS.some(([p]) => p.split(" ").includes(w));
-const nameOf = (h: SearchHit) => (h.kind === "team" ? h.title.replace(/^\d+\s+/, "") : h.title);
+const nameOf = (h: SearchHit) => (h.kind === "team" ? teamNameOf(h.title) : h.title);
 
 /** How closely the top hit matches the name part of what was typed (1: exactly; a number counts as exact). */
 export function topScore(q: string, hits: SearchHit[]): number {

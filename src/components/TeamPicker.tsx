@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { Loader2, Plus, Search } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import type { SearchHit } from "../shared/api";
+import { teamNameOf } from "../shared/teamTitle";
 import { cn } from "./cn";
 import { m } from "./motion";
 
@@ -13,7 +14,7 @@ interface Option { team: number; name: string; place: string }
 async function searchTeams(q: string): Promise<Option[]> {
   const r = await apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${encodeURIComponent(q)}&limit=12`);
   return r.hits.filter((h) => h.kind === "team" && /^\d+$/.test(h.ref))
-    .map((h) => ({ team: Number(h.ref), name: h.title.replace(/^\d+\s*/, ""), place: h.subtitle }));
+    .map((h) => ({ team: Number(h.ref), name: teamNameOf(h.title), place: h.subtitle }));
 }
 
 export function TeamPicker({ onPick, exclude = [], disabled, busy, error, onEdit, label = "Add a team", placeholder = "Add a team: number or name", autoFocus, inputRef, className }: {

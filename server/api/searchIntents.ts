@@ -15,6 +15,7 @@ import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS } from "../data/seasons.js";
 import { all, run } from "../db.js";
 import { defaultRankingsSeason, regionPlace } from "./rankings.js";
 import { teamSeason } from "./searchFacts.js";
+import { teamWords } from "../../src/shared/teamTitle.js";
 
 /** Things people ask search for that no view answers yet: the note says so, and the closest real result stands. */
 const MISSING: { id: string; words: RegExp; label: string; note: (compare: boolean) => string }[] = [
@@ -136,7 +137,7 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
   const season = it.season ?? null;
   const understood: string[] = [];
   if (compare) understood.push(`A comparison: ${base.hits[0].title}`);
-  else if (team) understood.push(`Team ${team.title}`);
+  else if (team) understood.push(`Team ${teamWords(team.title)}`);
   if (season != null) understood.push(`Season ${seasonLabel(season)}${it.game ? ` (${it.game})` : ""}`);
   if (it.region) understood.push(`Region: ${it.region.name}`);
   if (it.ranking) understood.push("Rankings");
@@ -163,7 +164,7 @@ export async function intentAnswer(q: string, it: ParsedIntent, base: SearchAnsw
     } else if (team) {
       const place = await regionPlace(s, Number(team.ref), { country: it.region.country, state: it.region.state });
       if (place) view.facts = [{ label: `${it.region.name} rank`, value: `#${place.rank} of ${place.of.toLocaleString("en-US")}` }, { label: "World rank", value: `#${place.world.toLocaleString("en-US")}` }, { label: "Season", value: seasonLabel(s) }];
-      else gap ??= `${team.title} isn't ranked in ${it.region.name} for ${seasonLabel(s)}.`;
+      else gap ??= `${teamWords(team.title)} isn't ranked in ${it.region.name} for ${seasonLabel(s)}.`;
     }
     // The team's page on that season first (its events, ranks and records), then the region's rankings.
     // (A season named in the query is already on the team's subtitle and link: searchAnswer's own season rule.)

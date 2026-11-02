@@ -130,8 +130,8 @@ export const SEARCH_HITS_ID = "cs-search-hits";
 const SECTION_LABEL: Partial<Record<NonNullable<SearchHit["section"]>, string>> = {
   awards: "Awards", matches: "Matches", events: "Season road map", ranking: "Ranking and record", opr: "OPR", history: "Season road map", "schedule-difficulty": "Schedule difficulty", rankings: "Rankings", odds: "Advancement odds", playoffs: "Playoffs",
 };
-/** "4215 Hypnotic Robotics" → "Hypnotic Robotics (4215)". */
-const teamName = (h: SearchHit) => { const m = /^(\d+)\s+(.+)$/.exec(h.title); return m ? `${m[2]} (${m[1]})` : h.title; };
+/** "4215 | Hypnotic Robotics" (or an older "4215 Hypnotic Robotics") → "Hypnotic Robotics (4215)". */
+const teamName = (h: SearchHit) => { const m = /^(\d+)(?:\s*\|\s*|\s+)(.+)$/.exec(h.title); return m ? `${m[2]} (${m[1]})` : h.title; };
 
 /** What the results page shows, in a line ("Hypnotic Robotics (4215) vs Bad Wolf (6980) — Compare"): the top result
  *  as the answer read it, and what it opens on. Null when nothing was found. */

@@ -62,30 +62,30 @@ describe("search", () => {
     expect(refs).not.toContain("2025:USNJCMP");
   });
   it("tolerates typos in team names", async () => {
-    expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");
-    expect((await titles("cyber dragns"))[0]).toBe("10820 Cyber Dragons");
+    expect((await titles("X Drvie"))[0]).toBe("16321 | X Drive");
+    expect((await titles("cyber dragns"))[0]).toBe("10820 | Cyber Dragons");
   });
   it("matches as you type", async () => {
-    expect((await titles("pymb"))[0]).toBe("18360 Pymble Pyrophosphate");
-    expect((await titles("x dri"))[0]).toBe("16321 X Drive");
+    expect((await titles("pymb"))[0]).toBe("18360 | Pymble Pyrophosphate");
+    expect((await titles("x dri"))[0]).toBe("16321 | X Drive");
   });
   it("ranks your own teams first after an exact number match", async () => {
     const pref = new Set(["team:16321"]);
-    expect((await search("16", 5, pref)).map((h) => h.title)).toEqual(["16321 X Drive", "1622 Team Spyder", "16000 Gear Maniacs"]);
+    expect((await search("16", 5, pref)).map((h) => h.title)).toEqual(["16321 | X Drive", "1622 | Team Spyder", "16000 | Gear Maniacs"]);
     // An exact match still wins over a preferred one.
-    expect((await search("1622", 5, pref))[0].title).toBe("1622 Team Spyder");
+    expect((await search("1622", 5, pref))[0].title).toBe("1622 | Team Spyder");
     // Typo fallback (no shared trigram): equally good matches tip toward your team too.
     const both = (await search("dirve", 5)).map((h) => h.ref);
     expect(both).toEqual(expect.arrayContaining(["16321", "5555"]));
     expect((await search("dirve", 5, new Set(["team:5555"])))[0].ref).toBe("5555");
     expect((await search("dirve", 5, new Set(["team:16321"])))[0].ref).toBe("16321");
     // Text: near-tied matches tip toward your team.
-    expect((await search("dragons", 5, new Set(["team:10820"])))[0].title).toBe("10820 Cyber Dragons");
+    expect((await search("dragons", 5, new Set(["team:10820"])))[0].title).toBe("10820 | Cyber Dragons");
   });
 
   it("prefix-matches team numbers, exact number first", async () => {
-    expect(await titles("16")).toEqual(["1622 Team Spyder", "16000 Gear Maniacs", "16321 X Drive"]);
-    expect((await titles("4215"))[0]).toBe("4215 Hypnotic Robotics");
+    expect(await titles("16")).toEqual(["1622 | Team Spyder", "16000 | Gear Maniacs", "16321 | X Drive"]);
+    expect((await titles("4215"))[0]).toBe("4215 | Hypnotic Robotics");
     expect(await titles("0")).toEqual([]);
   });
   it("finds events by misspelled name, and matches by code", async () => {
@@ -93,13 +93,13 @@ describe("search", () => {
     expect((await titles("AUSYQ1 Q12"))[0]).toBe("Q12 · Sydney South Qualifier");
   });
   it("finds short swapped typos that share no trigram (dirve → Drive)", async () => {
-    expect(await titles("dirve")).toContain("16321 X Drive"); // ties with "Drive Team" (preference test)
+    expect(await titles("dirve")).toContain("16321 | X Drive"); // ties with "Drive Team" (preference test)
   });
   it("matches across punctuation in stored names (Robo-Raptors)", async () => {
-    expect((await titles("robo raptrs"))[0]).toBe("2222 Robo-Raptors");
+    expect((await titles("robo raptrs"))[0]).toBe("2222 | Robo-Raptors");
   });
   it("keeps non-Latin names searchable", async () => {
-    expect((await titles("机器人"))[0]).toBe("3333 机器人队");
+    expect((await titles("机器人"))[0]).toBe("3333 | 机器人队");
   });
   it("still finds events by year", async () => {
     expect(await titles("2025")).toContain("Sydney South Qualifier");
@@ -108,7 +108,7 @@ describe("search", () => {
     await run("DELETE FROM search_fuzzy");
     await ensureSearchIndex(rebuildSearch);
     expect(Number((await dbAll<{ n: number }>("SELECT COUNT(*) n FROM search_fuzzy"))[0].n)).toBeGreaterThan(0);
-    expect((await titles("X Drvie"))[0]).toBe("16321 X Drive");
+    expect((await titles("X Drvie"))[0]).toBe("16321 | X Drive");
   });
   it("recovers after a failed index read instead of caching the failure", async () => {
     const c = (await import("../db")).db();
@@ -118,7 +118,7 @@ describe("search", () => {
     await run("UPDATE kv SET value = '\"v-fail\"' WHERE key = 'search:version'");
     await expect(search("dirve", 5)).rejects.toThrow("db down");
     fail = false;
-    expect(await titles("dirve")).toContain("16321 X Drive"); // ties with "Drive Team" (preference test)
+    expect(await titles("dirve")).toContain("16321 | X Drive"); // ties with "Drive Team" (preference test)
     (c as any).execute = real;
   });
   it("keeps to the asked kinds before the limit, so teams can't crowd events out", async () => {
@@ -203,6 +203,47 @@ describe("search with a topic", () => {
     expect((await search("drive team", 5))[0].section).toBeUndefined();
     expect((await search("match point", 5))[0]).toMatchObject({ ref: "7777" });
     expect((await search("AUSYQ1 Q12", 5))[0]).toMatchObject({ kind: "match" });
-    expect((await search("4215", 5))[0]).toEqual({ kind: "team", ref: "4215", title: "4215 Hypnotic Robotics", subtitle: "Ames", season: 2026 });
+    expect((await search("4215", 5))[0]).toEqual({ kind: "team", ref: "4215", title: "4215 | Hypnotic Robotics", subtitle: "Ames", season: 2026 });
+  });
+});
+
+// Plurals read as their singular before the word index's prefix step (src/shared/searchQuery.ts): a prefix term
+// "meets"* can never find the word "meet", so each pair must return the same results. One test per pair.
+describe("plurals and stopwords", () => {
+  const PAIRS: [string, string, string][] = [
+    // [singular, plural, the event name that holds the singular]
+    ["meet", "meets", "Garden League Meet"], ["event", "events", "Garden Robotics Event"], ["tournament", "tournaments", "Garden League Tournament"],
+    ["championship", "championships", "Garden State Championship"], ["qualifier", "qualifiers", "Garden Qualifier"],
+    ["scrimmage", "scrimmages", "Garden Scrimmage"], ["league", "leagues", "Garden Robotics League"], ["division", "divisions", "Garden Edison Division"],
+    ["competition", "competitions", "Garden Robot Competition"], ["premier", "premiers", "Garden Premier"], ["kickoff", "kickoffs", "Garden Kickoff"],
+  ];
+  beforeAll(async () => {
+    for (const [i, [, , name]] of PAIRS.entries()) await run("INSERT INTO events (season, code, name, city, state, country, start, source) VALUES (2026, ?, ?, 'Edison', 'NJ', 'USA', '2026-12-01', 'first')", [`USNJGD${i}`, name]);
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (18061, 'Simply Complex 18061', 'Plainsboro', 'NJ', 'USA')");
+    await rebuildSearch();
+  });
+  for (const [one, many, name] of PAIRS) {
+    it(`"${many}" finds what "${one}" finds`, async () => {
+      for (const q of [`garden ${one}`, `${one} in new jersey`, `${one} at new jersey`]) {
+        const plural = q.replace(new RegExp(`\\b${one}\\b`), many);
+        expect(plural, q).not.toBe(q);
+        const a = await search(q, 25), b = await search(plural, 25);
+        expect(b, plural).toEqual(a);
+        if (q.startsWith("garden")) expect(a.map((h) => h.title), q).toContain(name);
+      }
+    });
+  }
+  it(`"matches" and "teams" read the same as "match" and "team"`, async () => {
+    expect(await search("AUSYQ1 matches", 5)).toEqual(await search("AUSYQ1 match", 5));
+    expect(await search("drive teams", 5)).toEqual(await search("drive team", 5));
+    expect((await search("drive teams", 5))[0]).toMatchObject({ ref: "5555" });
+  });
+  it("matches the same set with 'in' or 'at', and never a name for 'upcoming'", async () => {
+    expect(await search("meets at new jersey", 25)).toEqual(await search("meet in new jersey", 25));
+    expect((await search("upcoming meets in new jersey", 25)).map((h) => h.title)).toContain("Garden League Meet");
+  });
+  it("titles a team with its number and name once each, a name that repeats the number included", async () => {
+    expect((await search("18061", 5))[0].title).toBe("18061 | Simply Complex");
+    expect((await search("simply complex", 5))[0].title).toBe("18061 | Simply Complex");
   });
 });

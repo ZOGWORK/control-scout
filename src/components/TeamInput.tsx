@@ -5,6 +5,7 @@ import { Input } from "./ui/basic";
 import { apiFetch } from "../lib/api";
 import { offlineSource } from "../lib/offline/saved";
 import type { SearchHit } from "../shared/api";
+import { teamNameOf } from "../shared/teamTitle";
 import { cn } from "./cn";
 
 const nameCache = new Map<number, string | null>();
@@ -21,7 +22,7 @@ export async function lookupTeamName(n: number, deadlineMs = LOOKUP_DEADLINE_MS)
   if (nameCache.has(n)) return nameCache.get(n);
   const lookup = apiFetch<{ hits: SearchHit[] }>(`/api/search?q=${n}&limit=3`).then((r) => {
     const hit = r.hits.find((h) => h.kind === "team" && h.ref === String(n));
-    const v = hit ? hit.title.replace(/^\d+\s*/, "") || "" : null;
+    const v = hit ? teamNameOf(hit.title) || "" : null;
     if (offlineSource(r)) return v ?? undefined;
     nameCache.set(n, v);
     return v;

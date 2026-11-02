@@ -16,7 +16,9 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, onlyPageWords, pagesFor } from "../../src/shared/search.js";
+import { conversationQuery, nameWords, singularize } from "../../src/shared/searchQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
+import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
 import { fuzzyScore, normalize, words } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
@@ -35,6 +37,10 @@ export interface AnswerOptions {
   intents?: boolean;
   /** A season the query named in words ("last season", read by ./searchIntents.ts): as if typed as "2024-25". */
   season?: number | null;
+  /** Set by searchAnswer for its own query: the query as typed (cleaned, its plurals kept: page words read it), and
+   *  whether it ended in "?". */
+  typed?: string;
+  asked?: boolean;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
@@ -47,7 +53,7 @@ const MATCH_WORDS = /\b(q|qual|m|match|f|final)\s*-?\s*\d{1,3}\b/i;
 const expandShortForms = (q: string) => (MATCH_WORDS.test(q) ? q : q.split(" ").map((w) => SHORT_FORMS[w.toLowerCase()] ?? w).join(" "));
 
 const isTopicWord = (w: string) => SEARCH_TOPICS.some(([p]) => p.split(" ").includes(w));
-const nameOf = (h: SearchHit) => (h.kind === "team" ? h.title.replace(/^\d+\s+/, "") : h.title);
+const nameOf = (h: SearchHit) => (h.kind === "team" ? teamNameOf(h.title) : h.title);
 const key = (h: SearchHit) => `${h.kind}:${h.ref}`;
 const uniq = (hs: SearchHit[]) => { const seen = new Set<string>(); return hs.filter((h) => !seen.has(key(h)) && !!seen.add(key(h))); };
 
@@ -105,7 +111,7 @@ async function versus(q: string, prefer: ReadonlySet<string>, season: number | n
     const awards = /\bawards?\b/i.test(q);
     const top: SearchHit = {
       ...shown.find((t) => Number(t.ref) === nums[0])!, href: `/compare?teams=${nums.join(",")}${season != null ? `&season=${season}` : ""}${awards ? "#awards" : ""}`,
-      title: nums.map((n) => shown.find((t) => Number(t.ref) === n)!.title).join(" vs "), subtitle: `${awards ? "Compare their events and awards side by side" : "Compare side by side: records, OPR and event history"}${extra}`,
+      title: nums.map((n) => teamWords(shown.find((t) => Number(t.ref) === n)!.title)).join(" vs "), subtitle: `${awards ? "Compare their events and awards side by side" : "Compare side by side: records, OPR and event history"}${extra}`,
     };
     return answer(q, { hits: [top, ...shown], step: "deterministic" });
   }
@@ -113,10 +119,19 @@ async function versus(q: string, prefer: ReadonlySet<string>, season: number | n
   return recovery(q, [`A comparison of ${sides.length} teams`, ...missing.map((m) => `No team found for "${m}"`)], found);
 }
 
-/** Search's answer for `raw` (docs/search.md). */
+/** Search's answer for `raw` (docs/search.md). Plurals are read as their singular first (src/shared/searchQuery.ts),
+ *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  const typed = cleanQuery(raw);
+  const read = singularize(typed);
+  // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").
+  const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")) });
+  return read === typed ? a : { ...a, q: typed, pages: pagesFor(typed) };
+}
+
+async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
-  const q = cleanQuery(raw);
+  const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
 
   // 0. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
@@ -134,6 +149,15 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
     const base = await searchAnswer(question.core, { ...opts, intents: false });
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) return questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
+  }
+
+  // 0c. A conversational opening ("how good is simply complex", "where is 4215"): the question's frame, never part of
+  // a name. What follows it is searched, with what the opening asks about ("how good is": the season's OPR, rank and
+  // record) read as that topic.
+  const conv = opts.intents === false ? q : conversationQuery(q);
+  if (conv !== q) {
+    const a = await searchAnswer(opts.asked ? `${conv}?` : conv, opts);
+    return { ...a, q, pages: pagesFor(q) };
   }
 
   // 1. A team number, alone or as "team 4215" / "team-4215" / "#4215".
@@ -168,17 +192,17 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // A season named makes a team's numbers and link that season's.
   const typed = seasonOf(expandShortForms(q));
   const rest = typed.rest, season = typed.season ?? opts.season ?? null;
-  let hits = await search(rest, limit, prefer, undefined, season);
+  let hits = await search(rest, limit, prefer, undefined, season, opts.asked);
   const intent = searchIntent(rest);
   if (hits.length && intent && !intent.topic) {
-    const alt = await search(intent.rest, limit, prefer, undefined, season);
+    const alt = await search(intent.rest, limit, prefer, undefined, season, opts.asked);
     if (topScore(rest, alt) > topScore(rest, hits)) hits = alt;
   }
 
   // 4. Word by word: a result matching more words first; words matching nothing are ignored.
   let byWords = false;
   if (!hits.length) {
-    const ws = words(rest).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !SEARCH_FILLER.has(w) && !isTopicWord(w));
+    const ws = words(nameWords(rest, opts.asked)).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !SEARCH_FILLER.has(w) && !isTopicWord(w));
     const count = new Map<string, { h: SearchHit; n: number; first: number }>();
     for (const [i, w] of ws.entries()) for (const h of await search(w, limit, prefer, undefined, season)) {
       const c = count.get(key(h)) ?? { h, n: 0, first: i };
@@ -194,7 +218,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }
 
-  if (!hits.length && onlyPageWords(q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
+  if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
   if (!hits.length) {
     const understood = intent?.topic ? [`A question about ${TOPIC_LABEL[intent.topic].toLowerCase()}`, `No team or event matched "${intent.rest}"`] : [`No team, event or match matched "${q}"`];
     return recovery(q, understood);
@@ -204,13 +228,13 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   const exact = score >= 0.999;
   // Only a site page's word ("rankings", "rules") that near-matches names ("Iron Hawkings"): the page is the answer,
   // not a guess at a team. A name beside it ("hipnotic rankings") keeps its corrected results.
-  if (score < WEAK_SCORE && onlyPageWords(q)) return answer(q, { hits: [], step: "deterministic" });
+  if (score < WEAK_SCORE && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" });
   // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result.
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
   }
   // Learned order, read under the same key a pick is counted under (learnQuery).
-  if (opts.learn !== false) hits = await rerank(rest, hits, { pinTop: exact });
+  if (opts.learn !== false) hits = await rerank(nameWords(rest), hits, { pinTop: exact });
   if (score >= WEAK_SCORE && !byWords) return answer(q, { hits: uniq(hits), step: "deterministic" });
   const topic = (intent ?? searchIntent(rest, true))?.phrase;
   return answer(q, { hits: uniq(hits), step: "did-you-mean", didYouMean: `${nameOf(hits[0])}${topic ? ` ${topic}` : ""}` });
@@ -219,7 +243,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
 /** The query a pick of `raw`'s results is learned under: what the ranking read (an intent's core, short forms spelled
  *  out, the season taken off), so "champs" and "championship" teach the same order. */
 export function learnQuery(raw: string): string {
-  const q = cleanQuery(raw);
+  const q = conversationQuery(singularize(cleanQuery(raw)));
   const it = parseIntent(q);
-  return seasonOf(expandShortForms(it && it.core !== q && it.core ? it.core : q)).rest;
+  return nameWords(seasonOf(expandShortForms(it && it.core !== q && it.core ? it.core : q)).rest);
 }

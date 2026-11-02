@@ -70,7 +70,7 @@ describe("OpenSearch", () => {
     // Titled by what was found, never the query as typed.
     expect(html).toContain("Hypnotic Robotics (4215)");
     expect(html).not.toContain("Here's what we found");
-    expect(html).toContain('<a href="/teams/4215">4215 Hypnotic Robotics</a>');
+    expect(html).toContain('<a href="/teams/4215">4215 | Hypnotic Robotics</a>');
     // The app's own route for it, so the page stays when the app takes over.
     expect(pageModule("/search")).toBe("SearchPage");
     expect(pageTitle("/search")).toBe("Search");
