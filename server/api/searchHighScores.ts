@@ -9,6 +9,7 @@ import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../
 import { dateRange, place, seasonLabel } from "../../src/shared/format.js";
 import { get, all } from "../db.js";
 import { CURRENT_SEASON, SEASONS, ownScorePenalties } from "../data/seasons.js";
+import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
 /** Events whose matches count for a record. */
 const RECORD_TYPES = ["Qualifier", "LeagueMeet", "LeagueTournament", "Championship", "FIRSTChampionship", "Premier", "SuperQualifier", "Official"];
@@ -104,11 +105,11 @@ async function best(season: number, team: number | null, types: string[]): Promi
 
 /** The answer: the card, then the team (when one was asked about) and the rest of search's hits. */
 export async function highScoreAnswer(q: string, it: HighScoreQuestion, team: SearchHit | null, rest: SearchHit[], pages: SearchAnswer["pages"]): Promise<SearchAnswer> {
-  const name = team ? team.title.replace(/^\d+\s*/, "").trim() || null : null;
+  const name = team ? teamNameOf(team.title) || null : null;
   // The season read once, so the team's link opens the same season as the card.
   const season = await seasonFor(it.season, team ? Number(team.ref) : null);
   const card = await highScoreCard({ ...it, season }, team ? { number: Number(team.ref), name } : null);
-  const understood = [team ? `Team ${team.title}` : "", `Highest match scores without penalties${season != null ? ` in ${seasonLabel(season)}${it.game ? ` (${it.game})` : ""}` : ""}`].filter(Boolean);
+  const understood = [team ? `Team ${teamWords(team.title)}` : "", `Highest match scores without penalties${season != null ? ` in ${seasonLabel(season)}${it.game ? ` (${it.game})` : ""}` : ""}`].filter(Boolean);
   return {
     q, hits: team ? [{ ...team, section: "matches", ...(season != null ? { linkSeason: season } : {}), facts: undefined, events: undefined }, ...rest.filter((h) => !(h.kind === "team" && h.ref === team.ref))] : [],
     pages, step: "deterministic", weak: false, card,

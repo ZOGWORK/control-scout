@@ -14,6 +14,8 @@ import { isEnabled } from "../flags.js";
 import { findRegions } from "../../src/shared/regions.js";
 import { registerCache } from "../caches.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
+import { searchTeamTitle, teamNameOf } from "../../src/shared/teamTitle.js";
+import { nameWords } from "../../src/shared/searchQuery.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -122,7 +124,7 @@ async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<s
   const vague = /^(?:this|that|the|an?|my|our)?\s*(?:event|meet|tournament|competition|one|comp)?$/i.test(where);
   const found = vague ? null : await teamAtEvent(Number(team.ref), where, asked);
   const pick = found && "event" in found ? found : null;
-  if (!intent?.topic && (!pick || (fuzzyScore(named, team.title.replace(/^\d+\s+/, "")) < 0.75 && !named.split(" ").includes(team.ref)))) return null;
+  if (!intent?.topic && (!pick || (fuzzyScore(named, teamNameOf(team.title)) < 0.75 && !named.split(" ").includes(team.ref)))) return null;
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
   if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts }, ...others];
   const { season } = await teamSeason(Number(team.ref), asked);
@@ -133,7 +135,9 @@ async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<s
 }
 
 async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
-  const query = q.trim();
+  // The words that can name something (src/shared/searchQuery.ts): plurals singular, no stopwords, time words or a
+  // question's own words, so "meets in New Jersey" matches what "meet New Jersey" does and "upcoming" never names a team.
+  const query = nameWords(q);
   if (!query) return [];
   const allow = (k: SearchHit["kind"]) => !kinds?.size || kinds.has(k);
   // The same choice inside the index queries, so their row caps hold only wanted kinds.
@@ -169,7 +173,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
        ORDER BY t.number = ? DESC, t.number IN (${preferred.map(() => "?").join(",") || "NULL"}) DESC, cs.season IS NOT NULL DESC, t.number LIMIT ?`,
       [CURRENT_SEASON, ...ranges.flat(), p, ...preferred, query.length >= 4 ? Math.ceil(limit / 2) : limit],
     );
-    for (const t of rows) push({ kind: "team", ref: String(t.number), title: `${t.number} ${t.name ?? ""}`.trim(), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
+    for (const t of rows) push({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
     if (out.length >= limit) return out.slice(0, limit);
   }
   // Other numbers: only 4+ digits (a year, digits of an event code) go on to the
@@ -241,15 +245,21 @@ async function fuzzyRows(): Promise<FuzzyRow[]> {
 }
 registerCache("Search typo index", () => { rowsCache = null; });
 
+/** What the search index holds and how (server/stats/job.ts rebuildSearch): raised when that changes, so a server
+ *  running the new code rebuilds the index once instead of waiting for the next stats run.
+ *  2: team titles as "18061 | Simply Complex" (number and name each once). */
+export const SEARCH_INDEX_SCHEMA = 2;
+
 /**
  * A database upgraded to migration 4 has an empty typo index until the next
- * stats run: fill it now (once) so typo search works straight away.
+ * stats run, and one built by older code holds the old shape (SEARCH_INDEX_SCHEMA): fill it now (once) so search
+ * works straight away.
  */
 let ensured: Promise<void> | null = null;
 export function ensureSearchIndex(rebuild: () => Promise<void>): Promise<void> {
   ensured ??= (async () => {
-    const [fz, ws] = await Promise.all([get<{ n: number }>("SELECT COUNT(*) n FROM search_fuzzy"), get<{ n: number }>("SELECT COUNT(*) n FROM search")]);
-    if (!Number(fz?.n) && Number(ws?.n)) await rebuild();
+    const [fz, ws, schema] = await Promise.all([get<{ n: number }>("SELECT COUNT(*) n FROM search_fuzzy"), get<{ n: number }>("SELECT COUNT(*) n FROM search"), kvGet<number>("search:schema")]);
+    if (Number(ws?.n) && (!Number(fz?.n) || Number(schema ?? 0) < SEARCH_INDEX_SCHEMA)) await rebuild();
   })().catch((e) => { ensured = null; throw e; });
   return ensured;
 }

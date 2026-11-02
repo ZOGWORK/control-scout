@@ -15,6 +15,7 @@ import { eventToday } from "../../src/shared/eventDay.js";
 import { all } from "../db.js";
 import { ROSTER } from "../data/registrations.js";
 import { ATTENDED } from "./teams.js";
+import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 
 export type QuestionKind = Exclude<SearchCard["kind"], "high-scores">;
 
@@ -204,11 +205,11 @@ async function nextEvents(n: number): Promise<SearchCardLine[]> {
 
 /** The answer for a question: the team found for its core (`team`, from search), the card, and the rest of search's hits. */
 export async function questionAnswer(q: string, it: ParsedQuestion, team: SearchHit, rest: SearchHit[], pages: SearchAnswer["pages"]): Promise<SearchAnswer> {
-  const name = team.title.replace(/^\d+\s*/, "").trim() || null;
+  const name = teamNameOf(team.title) || null;
   const card = await questionCard(it, { number: Number(team.ref), name });
   const top: SearchHit = { ...team, section: SECTION[it.kind], facts: undefined, events: undefined };
   return {
     q, hits: [top, ...rest.filter((h) => !(h.kind === "team" && h.ref === team.ref))], pages, step: "deterministic", weak: false, card,
-    intent: { kind: `question-${it.kind}`, pattern: PATTERN[it.kind], met: true, understood: [`Team ${team.title}`, `Their ${TITLE[it.kind].toLowerCase()}${it.year != null ? ` in ${it.year}` : ""}`] },
+    intent: { kind: `question-${it.kind}`, pattern: PATTERN[it.kind], met: true, understood: [`Team ${teamWords(team.title)}`, `Their ${TITLE[it.kind].toLowerCase()}${it.year != null ? ` in ${it.year}` : ""}`] },
   };
 }

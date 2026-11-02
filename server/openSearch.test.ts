@@ -68,7 +68,7 @@ describe("OpenSearch", () => {
     expect(boot.q).toBe("4215");
     expect(boot.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     expect(html).toContain("Here's what we found for “4215”");
-    expect(html).toContain('<a href="/teams/4215">4215 Hypnotic Robotics</a>');
+    expect(html).toContain('<a href="/teams/4215">4215 | Hypnotic Robotics</a>');
     // The app's own route for it, so the page stays when the app takes over.
     expect(pageModule("/search")).toBe("SearchPage");
     expect(pageTitle("/search")).toBe("Search");

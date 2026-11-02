@@ -1,0 +1,120 @@
+// How search reads the words of a query before it matches any name (docs/search.md, "Reading the query"). Fixed
+// rules, no model: the server's search (server/api/search.ts, server/api/searchAnswer.ts) and the app's offline
+// search read a query the same way, so "meets in New Jersey" and "meet in New Jersey" are one query everywhere.
+//
+// In order:
+//   1. Plurals: the words in PLURALS become their singular ("meets" → "meet"). The name index matches each word as
+//      a prefix ("meet"* finds "meet" and "meets"), but a plural prefix can never find the singular ("meets"* misses
+//      "meet"), so the singular is the only spelling that finds both.
+//   2. A conversational opening (CONVERSATIONAL: "how good is", "where is", …) is the question's frame, not part
+//      of a name: "how good is simply complex" searches "simply complex". Only the opening goes, never the same word
+//      later ("how good is good enough" searches "good enough"), and a word with no opening ("good teams") stays.
+//   3. Names are matched without the stopwords (STOPWORDS: "in", "at", "the", …), the time words (TIME_WORDS:
+//      "upcoming", "this weekend", …) and a question's own words (QUESTION_WORDS: "can", "will", …) when the query
+//      is a question. Those words say what kind of answer is wanted, never which team or event.
+import type { SearchTopic } from "./search.js";
+
+/** The plurals read as their singular (lower case). Every pair has its own test (server/api/search.test.ts). */
+export const PLURALS: Record<string, string> = {
+  meets: "meet", events: "event", matches: "match", teams: "team", tournaments: "tournament",
+  championships: "championship", qualifiers: "qualifier", scrimmages: "scrimmage", leagues: "league",
+  divisions: "division", competitions: "competition", premiers: "premier", kickoffs: "kickoff",
+};
+
+/** "Meets in New Jersey" → "meet in New Jersey": each plural word in PLURALS as its singular, every other word as typed. */
+export function singularize(q: string): string {
+  return q.replace(/\p{L}+/gu, (w) => PLURALS[w.toLowerCase()] ?? w);
+}
+
+/** Words that never name a team or event when other words do (Requirement 1.1 of the FTC One Search brief). */
+export const STOPWORDS = new Set(["in", "at", "on", "the", "a", "an", "for", "of", "this"]);
+
+/** Words about when, never what: "upcoming meets in New Jersey" is New Jersey's meets from today on. "past",
+ *  "recent", "previous" and "latest" are time words only beside an event word ("past meets"), so a name with one
+ *  stays a name. Phrases are matched as whole words; longer ones first. */
+export const TIME_WORDS = ["this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest"];
+const ALWAYS_TIME = new Set(["this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
+
+/** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */
+export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp"]);
+
+/** A question's own words: dropped from name matching when the query reads as a question (starts with one and has
+ *  at least three words, or ended in "?"), so "can robots descore samples" never searches for teams named "Can". */
+export const QUESTION_WORDS = new Set(["can", "could", "will", "would", "should", "may", "might", "must", "why", "how", "what", "whats", "which", "who", "whom", "whose", "when", "where", "is", "are", "was", "were", "do", "does", "did", "has", "have", "had"]);
+
+/** The conversational openings read as the question's frame (lower case, whole words, longest first). `topic`: what
+ *  the opening asks about the team ("how good is X" asks for its season: OPR, rank and record). */
+export const CONVERSATIONAL: { words: string; topic?: SearchTopic }[] = ([
+  { words: "how good is", topic: "stats" }, { words: "how good are", topic: "stats" }, { words: "how good was", topic: "stats" },
+  { words: "how strong is", topic: "stats" }, { words: "how strong are", topic: "stats" },
+  { words: "how well is", topic: "stats" }, { words: "how well are", topic: "stats" },
+  { words: "how is", topic: "stats" }, { words: "how are", topic: "stats" },
+  { words: "what is the rank of", topic: "rankings" }, { words: "what's the rank of", topic: "rankings" }, { words: "whats the rank of", topic: "rankings" },
+  { words: "what is the ranking of", topic: "rankings" }, { words: "what's the ranking of", topic: "rankings" },
+  { words: "what is the record of", topic: "record" }, { words: "what's the record of", topic: "record" },
+  { words: "where is" }, { words: "where are" }, { words: "where's" },
+  { words: "tell me about" }, { words: "show me" }, { words: "what about" }, { words: "info on" }, { words: "info about" },
+  { words: "information on" }, { words: "information about" }, { words: "look up" }, { words: "search for" }, { words: "find me" },
+] as { words: string; topic?: SearchTopic }[]).sort((a, b) => b.words.split(" ").length - a.words.split(" ").length);
+
+/** "how good is simply complex" → { rest: "simply complex", opening: "how good is", topic: "stats" }; null when the
+ *  query has no opening, or nothing would be left after it. A trailing "?" or "doing" ("how is 4215 doing") goes too. */
+export function stripConversation(q: string): { rest: string; opening: string; topic?: SearchTopic } | null {
+  const t = q.trim().replace(/\s+/g, " ");
+  const lower = t.toLowerCase();
+  for (const c of CONVERSATIONAL) {
+    if (!(lower === c.words || lower.startsWith(`${c.words} `))) continue;
+    const rest = t.slice(c.words.length).replace(/[?!.]+$/, "").replace(/\s+doing$/i, "").trim();
+    return rest ? { rest, opening: c.words, ...(c.topic ? { topic: c.topic } : {}) } : null;
+  }
+  return null;
+}
+
+/** Whether the query reads as a question: it ended in "?" or starts with a question word and has three words or more. */
+export function isQuestionForm(q: string): boolean {
+  const t = q.trim();
+  if (/\?\s*$/.test(t)) return true;
+  const ws = t.toLowerCase().split(/\s+/).filter(Boolean);
+  return ws.length >= 3 && QUESTION_WORDS.has(ws[0]);
+}
+
+/** The time phrase in a query, and the query without it ("upcoming meets in NJ" → "upcoming", "meets in NJ"). */
+export function timePhrase(q: string): { phrase: string; rest: string } | null {
+  const lower = ` ${q.toLowerCase().replace(/\s+/g, " ").trim()} `;
+  const hasEventWord = singularize(q).toLowerCase().split(/[^\p{L}]+/u).some((w) => EVENT_WORDS.has(w));
+  for (const p of TIME_WORDS) {
+    if (!ALWAYS_TIME.has(p) && !hasEventWord) continue;
+    if (!lower.includes(` ${p} `)) continue;
+    return { phrase: p, rest: restOf(q, p) };
+  }
+  return null;
+}
+
+/** `q` with the whole-word phrase `p` taken out once, every other word as typed. */
+function restOf(q: string, p: string): string {
+  const ws = q.trim().split(/\s+/), pw = p.split(" ");
+  for (let i = 0; i + pw.length <= ws.length; i++) {
+    if (pw.every((w, k) => ws[i + k].toLowerCase() === w)) return [...ws.slice(0, i), ...ws.slice(i + pw.length)].join(" ");
+  }
+  return q.trim();
+}
+
+/**
+ * The words of `q` that can name a team or event, as one string: plurals singular, stopwords, time words and (in a
+ * question) question words out. When taking them out would leave nothing ("the", "upcoming"), the query as typed
+ * (plurals singular) is kept, so a name made only of such words still searches.
+ */
+export function nameWords(q: string): string {
+  const one = singularize(q.trim().replace(/\s+/g, " "));
+  if (!one) return one;
+  let rest = one;
+  const time = timePhrase(rest);
+  if (time) rest = time.rest;
+  const question = isQuestionForm(q);
+  const ws = rest.split(" ").filter((w) => {
+    if (!w) return false;
+    const l = w.toLowerCase();
+    return !STOPWORDS.has(l) && !(question && QUESTION_WORDS.has(l));
+  });
+  return ws.length ? ws.join(" ") : one;
+}

@@ -26,6 +26,8 @@ import { refreshReportCards } from "./reportCards.js";
 import { computeReliability } from "./reliability.js";
 import { teamPageTest } from "../teamPages.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
+import { searchTeamTitle } from "../../src/shared/teamTitle.js";
+import { SEARCH_INDEX_SCHEMA } from "../api/search.js";
 
 type Log = (m: string) => void;
 const r1 = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
@@ -426,7 +428,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   const stmts: InStatement[] = [{ sql: "DELETE FROM search", args: [] }, { sql: "DELETE FROM search_fuzzy", args: [] }];
   for (const t of teams) {
     const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
-    const title = `${t.number} ${t.name ?? ""}`.trim(), subtitle = [t.school, place].filter(Boolean).join(" · ");
+    const title = searchTeamTitle(t.number, t.name), subtitle = [t.school, place].filter(Boolean).join(" · ");
     const weight = t.last === CURRENT_SEASON ? 2 : 1;
     stmts.push({ sql: "INSERT INTO search (kind, ref, season, weight, title, subtitle, terms) VALUES ('team', ?, ?, ?, ?, ?, ?)", args: [String(t.number), t.last ?? null, weight, title, subtitle, `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`] });
     // Typo-tolerant index: the name people type (team name + school).
@@ -441,6 +443,7 @@ export async function rebuildSearch(log: Log = () => {}): Promise<void> {
   }
   await writeBatch(stmts, 5000);
   await kvSet("search:version", new Date().toISOString());
+  await kvSet("search:schema", SEARCH_INDEX_SCHEMA);
   log(`search: ${teams.length} teams, ${events.length} events (word + trigram indexes)`);
 }
 

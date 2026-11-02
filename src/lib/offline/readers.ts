@@ -21,6 +21,8 @@ import { recordSql, recordsFromRows } from "../../shared/eventRecord";
 import { teamEventRows, teamEventsQuery } from "../../shared/teamEventRows";
 import { meetStandingByTeam } from "../../shared/meetStandings";
 import { LEAGUE_TYPES, recordAddsUp } from "../../shared/eventStanding";
+import { searchTeamTitle } from "../../shared/teamTitle";
+import { nameWords } from "../../shared/searchQuery";
 
 /** Rows as plain objects (column → value), like the server's `all`. */
 export interface Db { all<T = any>(sql: string, params?: SqlValue[]): T[] }
@@ -335,7 +337,7 @@ function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
   const rows = [
     ...db.all("SELECT number, name, school, city, state, country FROM teams").map((t) => {
       const place = [t.city, t.state, t.country].filter(Boolean).join(", ");
-      const title = `${t.number} ${t.name ?? ""}`.trim();
+      const title = searchTeamTitle(t.number, t.name);
       return row("team", String(t.number), title, [t.school, place].filter(Boolean).join(" · "), `${t.number} ${t.name ?? ""} ${t.school ?? ""} ${place} ${regionNames(t.state, t.country)}`, `${t.name ?? ""} ${t.school ?? ""}`);
     }),
     ...db.all("SELECT code, name, city, state, country, start FROM events").map((e) => {
@@ -349,7 +351,8 @@ function rowsOf({ season, db }: SeasonDb, newest: number): Row[] {
 
 /** Search the saved seasons: a match ("USNJQ1 Q12"), team numbers, then names. `kinds` (like the server's): only those, before the limit. */
 export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>): SearchHit[] {
-  const query = q.trim();
+  // The words that can name something, read as the server reads them (src/shared/searchQuery.ts).
+  const query = nameWords(q);
   if (!query) return [];
   const saved = [...dbs].sort((a, b) => b.season - a.season);
   const out: SearchHit[] = [];
@@ -378,7 +381,7 @@ export function readSearch(dbs: SeasonDb[], q: string, limit = 15, prefer: Reado
       || Number(b.season === newest) - Number(a.season === newest)
       || a.t.number - b.t.number);
     for (const { t, season } of ranked.slice(0, query.length >= 4 ? Math.ceil(limit / 2) : limit)) {
-      push({ kind: "team", ref: String(t.number), title: `${t.number} ${t.name ?? ""}`.trim(), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season });
+      push({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season });
     }
     if (out.length >= limit) return out.slice(0, limit);
   }

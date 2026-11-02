@@ -162,13 +162,19 @@ describe("offline team matches (same shape as /api/teams/:n/matches)", () => {
 describe("offline search (same hits as /api/search)", () => {
   const dbs = () => [s24, s25];
   it("jumps to an exact team number, in the newest season that has it", () => {
-    expect(readSearch(dbs(), "100")).toEqual([{ kind: "team", ref: "100", title: "100 Gearheads", subtitle: "Newark, NJ, USA", season: 2025 }]);
+    expect(readSearch(dbs(), "100")).toEqual([{ kind: "team", ref: "100", title: "100 | Gearheads", subtitle: "Newark, NJ, USA", season: 2025 }]);
     expect(readSearch(dbs(), "999")[0]).toMatchObject({ ref: "999", season: 2024 });
   });
 
   it("matches names by prefix and with typos", () => {
-    expect(readSearch(dbs(), "gear")[0]).toMatchObject({ kind: "team", ref: "100", title: "100 Gearheads" });
+    expect(readSearch(dbs(), "gear")[0]).toMatchObject({ kind: "team", ref: "100", title: "100 | Gearheads" });
     expect(readSearch(dbs(), "gaerheads")[0]).toMatchObject({ kind: "team", ref: "100" });
+  });
+
+  it("reads plurals, stopwords and time words as the server does", () => {
+    expect(readSearch(dbs(), "new jersey qualifiers")).toEqual(readSearch(dbs(), "new jersey qualifier"));
+    expect(readSearch(dbs(), "upcoming qualifiers in new jersey")).toEqual(readSearch(dbs(), "qualifier new jersey"));
+    expect(readSearch(dbs(), "qualifier new jersey")[0]).toMatchObject({ ref: "2025:USNJQ1" });
   });
 
   it("finds events by name or code", () => {
