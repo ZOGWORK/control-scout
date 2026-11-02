@@ -225,7 +225,7 @@ describe("search results page, Phase 2 cards", () => {
     expect(cards).toHaveLength(1);
     for (const a of container.querySelectorAll("a")) expect(a.querySelector("a, button")).toBeNull();
     expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Teams" }).getAttribute("href")).toBe("/events/2019/A?tab=teams");
-    fireEvent.click(screen.getByRole("tab", { name: "2020–21" }));
+    fireEvent.click(screen.getByRole("button", { name: "2020–21", pressed: false }));
     expect(within(cards[0] as HTMLElement).getByRole("link", { name: "Ohio State Championship" }).getAttribute("href")).toBe("/events/2020/B");
   });
 
@@ -233,7 +233,7 @@ describe("search results page, Phase 2 cards", () => {
     state.answer = answer([ev("A", "2024 FIRST Championship - Edison Division", "2024-04-17", 2023), ev("B", "FIRST Championship - FIRST Tech Challenge - Edison Division", "2025-04-16", 2024)]);
     const { container } = show("/search?q=edison%20division");
     expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["2023–24", "2024–25"]);
+    expect([...container.querySelectorAll("[data-season-tabs] button")].map((t) => t.textContent)).toEqual(["2023–24", "2024–25"]);
   });
 
   it("how good is X: the team's standing once, as blocks, with a win rate", () => {
@@ -245,6 +245,16 @@ describe("search results page, Phase 2 cards", () => {
     expect(banner).toContain("Elite");
     expect(banner).toContain("83.3%");
     expect(banner.match(/20-4-0/g)).toHaveLength(1);
-    expect(container.querySelector('[data-result="team"]')!.textContent).toContain("18061 | Simply Complex");
+    const card = container.querySelector('[data-result="team"]')!.textContent!;
+    expect(card).toContain("18061 | Simply Complex");
+    expect(card).not.toContain("20-4-0");
+  });
+
+  it("how good is X with no numbers: no empty summary, the card keeps its line", () => {
+    summaries[0] = { ...summaries[0], team: 18061, name: "Simply Complex", record: null, opr: null, oprRank: null, of: null };
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    expect(container.querySelector("[data-quality-banner]")).toBeNull();
+    expect(container.textContent).not.toContain("Counted from the records below");
   });
 });

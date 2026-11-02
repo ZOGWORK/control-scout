@@ -19,7 +19,7 @@ import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../comp
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
-import { appearanceStats, appearances, eventName, isQualityQuestion, standing } from "../components/search/page/records";
+import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
@@ -83,7 +83,15 @@ export default function SearchPage() {
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
   const topTeam = hits.find((h) => h.kind === "team" && !isCompare(h));
   const topSum = topTeam && isQualityQuestion(query) ? summaries.get(Number(topTeam.ref)) : undefined;
-  const quality = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
+  const std = topSum && !answer?.card ? standing(topSum.s, topSum.season) : null;
+  // Only a standing with numbers to show becomes the summary; its team's card then drops the same numbers.
+  const quality = std && hasNumbers(std) ? std : null;
+  const cardSums = useMemo(() => {
+    if (!quality || !topTeam) return summaries;
+    const m = new Map(summaries);
+    m.delete(Number(topTeam.ref));
+    return m;
+  }, [quality, topTeam, summaries]);
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
@@ -129,7 +137,7 @@ export default function SearchPage() {
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
               <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
                 <div className="min-w-0">
-                  <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" ask={!quality}>
+                  <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4" ask={!isQualityQuestion(query)}>
                     {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
                   </BrunoAnswer>
                   {/* A question's records: as cards the timeline jumps to (championships), else the answer card as before. */}
@@ -145,7 +153,7 @@ export default function SearchPage() {
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!h2h} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={cardSums} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!h2h} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>

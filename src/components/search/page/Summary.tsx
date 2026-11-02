@@ -127,7 +127,7 @@ export function AppearanceCard({ a }: { a: Appearance }) {
       {a.href && <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent-text group-hover:underline max-sm:hidden" data-cta>View event<ArrowRight className="size-3.5" aria-hidden /></span>}
     </>
   );
-  const cls = "lift group block scroll-mt-24 rounded-xl border border-border bg-card p-4 outline-none transition-shadow data-[highlight=on]:border-accent data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]";
+  const cls = "lift group block scroll-mt-24 rounded-xl border border-border bg-card p-4 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-accent data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]";
   return a.href
     ? <Link id={a.id} to={a.href} className={cls} data-appearance={a.season}>{body}</Link>
     : <div id={a.id} tabIndex={-1} className={cls} data-appearance={a.season}>{body}</div>;

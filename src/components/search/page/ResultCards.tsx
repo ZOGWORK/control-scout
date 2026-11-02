@@ -65,9 +65,9 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
     <div data-result="event" className="lift group relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card p-4 pl-5 max-sm:py-3">
       <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", tone?.bar ?? "bg-text-base/25")} />
       {seasons && seasons.length > 1 && (
-        <div role="tablist" aria-label={`${title}: season`} className="relative z-10 mb-2 flex flex-wrap gap-1" data-season-tabs>
+        <div role="group" aria-label={`${title}: season`} className="relative z-10 mb-2 flex flex-wrap gap-1" data-season-tabs>
           {seasons.map((x) => (
-            <button key={x.ref} type="button" role="tab" aria-selected={x.ref === cur.ref} onClick={() => setPick(x.ref)}
+            <button key={x.ref} type="button" aria-pressed={x.ref === cur.ref} onClick={() => setPick(x.ref)}
               className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums", x.ref === cur.ref ? "bg-accent text-accent-ink" : "bg-muted text-muted-foreground hover:text-foreground")}>
               {x.season != null ? seasonLabel(x.season) : "—"}
             </button>
@@ -91,7 +91,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
       </div>
       <nav aria-label={`${title}: pages`} className="relative z-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-quick-links>
         {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-sm:py-1">{l.label}</Link>)}
-        <span className="ml-auto max-sm:hidden" aria-hidden><Cta>View event</Cta></span>
+        <Link to={hitHref(cur)} onClick={() => onOpen(cur)} tabIndex={-1} aria-hidden className="ml-auto max-sm:hidden"><Cta>View event</Cta></Link>
       </nav>
     </div>
   );
