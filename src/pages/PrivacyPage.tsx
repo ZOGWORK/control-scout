@@ -18,6 +18,7 @@ const DEVICE: { name: string; what: string }[] = [
   { name: "Preferences", what: "Theme, background, density, sidebar, phone tab bar and alert settings." },
   { name: "Your teams and lists", what: "My team, the teams and events you track, your shortlist and its notes." },
   { name: "Scouting", what: "Your scouting entries and notes, plus match-video links you add." },
+  { name: "Recent searches", what: "The last few things you searched for, so you can run one again. Only on this device; Clear in the search list removes them." },
   { name: "Offline data", what: "Offline packs and saved seasons, so predictions and past data work with no signal." },
   { name: "Recordings", what: "Videos you record in the app (control-scout-media). They never leave your device." },
 ];

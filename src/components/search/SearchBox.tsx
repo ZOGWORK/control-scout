@@ -14,6 +14,7 @@ import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
+import { ExampleChips, RecentSearches, SEARCH_EXAMPLES, addRecentSearch, useRecentSearches } from "./discover";
 import { seasonLabel } from "../../lib/format";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
 
@@ -138,10 +139,13 @@ export function useSections(hits: SearchHit[], answer: SearchAnswer | undefined,
   return useMemo(() => (answer ? answerSections({ ...answer, hits }, ai) : { sections: plainSections(hits), notes: { understood: [] } }), [hits, answer, ai]);
 }
 
-/** What the query was read as, above the rows: a correction, Bruno AI's reading, or what was understood. */
-export function AnswerNotesView({ notes, refining, className }: { notes: AnswerNotes; refining?: boolean; className?: string }) {
+/** What the query was read as, above the rows: a correction, Bruno AI's reading, or what was understood.
+ *  A correction is always labelled as one, never a silent swap: "Did you mean …?", and (given `query`) what was typed. */
+export function AnswerNotesView({ notes, refining, className, query }: { notes: AnswerNotes; refining?: boolean; className?: string; query?: string }) {
   const lines: ReactNode[] = [];
-  if (notes.didYouMean) lines.push(<>Showing results for <b className="font-medium text-foreground">“{notes.didYouMean}”</b></>);
+  if (notes.didYouMean) {
+    lines.push(<span data-did-you-mean>Did you mean <b className="font-medium text-foreground">“{notes.didYouMean}”</b>? Showing results for that{query ? <>, not “{query}”</> : ""}.</span>);
+  }
   for (const u of notes.understood) lines.push(u);
   if (notes.gap) lines.push(<span className="inline-flex items-start gap-1 rounded-md border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-foreground"><Info className="mt-px size-3 shrink-0 text-warning" />{notes.gap}</span>);
   if (notes.ai) {
@@ -210,6 +214,10 @@ export interface SearchBoxProps {
   /** The last row, "See all results for …", and plain Enter open the full results page (/search?q=…). Off for a box
    *  that picks something instead of going somewhere (Predict's team picker). */
   seeAll?: boolean;
+  /** FTC One Search's teaching parts in the empty field's list: this device's recent searches, one tap to run again
+   *  (with Clear), and, with `examples`, chips of real example queries. */
+  discover?: boolean;
+  examples?: boolean;
 }
 
 /** A phone's keyboard (and its accessory bar) covers the bottom of the page without making it shorter: while it's
@@ -280,7 +288,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true, discover, examples }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
@@ -339,7 +347,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
   const go = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
-  const pick = (h: SearchHit) => { logPick(h); go(h); };
+  // A search of everything (not a picker, not a box limited to some kinds): what was searched is remembered on
+  // this device, for the recent searches list.
+  const remember = seeAll && !kinds;
+  const pick = (h: SearchHit) => { logPick(h); if (remember && q.trim()) addRecentSearch(q); go(h); };
   // Enter pressed before a picker's results were in: the query it was pressed on, until they arrive.
   const enterFor = useRef<string | null>(null);
   useEffect(() => {
@@ -354,7 +365,9 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // The last row: the full results page. Its index is right after the results', so the arrow keys reach it too.
   const full = seeAll && !!query;
   const count = ordered.length + (full ? 1 : 0);
-  const openFull = () => go(searchPagePick(query));
+  /** The full results page for a query: the one typed, or a recent search or example tapped. */
+  const runQuery = (text: string) => { if (remember) addRecentSearch(text); go(searchPagePick(text.trim())); };
+  const openFull = () => runQuery(query);
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
   // page (a picker box: its top result, once it's current).
   const submit = (highlighted: boolean) => {
@@ -365,7 +378,14 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     // (Open again first: a list closed meanwhile would drop the pending pick.)
     else { setOpen(true); enterFor.current = query; searchNow(); }
   };
-  const showList = open && (query ? true : !!emptyHint);
+  const recent = useRecentSearches();
+  const hintContent = emptyHint ?? ((discover && recent.length) || examples ? (
+    <>
+      {discover && <RecentSearches onRun={runQuery} />}
+      {examples && <ExampleChips examples={SEARCH_EXAMPLES} onRun={runQuery} className="px-3 pb-1.5 pt-2" />}
+    </>
+  ) : undefined);
+  const showList = open && (query ? true : !!hintContent);
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
@@ -409,13 +429,13 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
           style={room != null ? { maxHeight: `min(26rem, ${room}px)` } : undefined}
           className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
-          {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
+          {!query ? hintContent : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length && !answer?.card ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search."
                 : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
               <>
-                <AnswerNotesView notes={notes} refining={refining} className="px-3 pb-1 pt-1.5" />
+                <AnswerNotesView notes={notes} refining={refining} query={query} className="px-3 pb-1 pt-1.5" />
                 {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => go({ ...searchPagePick(query), href })} />}
                 {sections.map((s) => (
                   <div key={s.id} role="group" aria-label={s.title}>
