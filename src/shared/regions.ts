@@ -71,3 +71,6 @@ export const REGION_PHRASES: readonly string[] = [
   ...Object.values(STATES).flatMap((m) => Object.values(m).flatMap((v) => v.split("|"))),
   ...Object.keys(COUNTRY), "United States of America",
 ].map(fold).filter((n) => n.includes(" "));
+
+/** A US or Canadian state code, as typed alone ("IN" Indiana, "ON" Ontario): the codes findRegions reads. */
+export const isRegionCode = (w: string): boolean => /^[A-Z]{2}$/.test(w) && (Object.hasOwn(US, w) || Object.hasOwn(CA, w));
