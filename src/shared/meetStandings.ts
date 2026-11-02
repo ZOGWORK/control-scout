@@ -3,6 +3,7 @@
 // meet's own page: a 4-1 team at the meet can show 1.6. This ranks the meet the way a one-day event is ranked,
 // with the engine's season rules (rankingPoints, tiebreakKeys): the official league rank stays as FIRST gives it.
 import { rankingPoints, tiebreakKeys } from "@control-scout/predict-engine";
+import type { FieldRow, MatchView } from "./api";
 
 export interface MeetSide {
   /** Teams listed on the alliance. `counts` false: a surrogate (the match isn't on its record). `noShow`: 0 ranking
@@ -51,4 +52,19 @@ export function meetStandings(season: number, matches: MeetMatch[]): MeetStandin
   const r2 = (x: number) => Math.round(x * 100) / 100;
   rows.sort((a, b) => r2(b.rs) - r2(a.rs) || a.tb.map((x, i) => r2(b.tb[i]) - r2(x)).find((d) => d !== 0) || a.team - b.team);
   return rows.map((r, i) => ({ rank: i + 1, ...r }));
+}
+
+/** A league meet's standing by team from its match views (server/api/events.ts, and a saved season offline,
+ *  src/lib/offline/readers.ts). bonusOf: a played qualification match's stored bonus RPs (JSON) for one side. */
+export function meetStandingByTeam(season: number, matches: MatchView[], bonusOf: (series: number, number: number, side: "red" | "blue") => string | null | undefined): Map<number, NonNullable<FieldRow["meet"]>> {
+  const quals = matches.filter((m) => m.level === "qual" && m.played && m.red.score && m.blue.score);
+  const side = (m: MatchView, s: "red" | "blue"): MeetSide => {
+    const a = m[s], sc = a.score!, b = bonusOf(m.series, m.number, s);
+    return {
+      teams: a.teams.map((t) => ({ team: t.number, counts: !t.surrogate, noShow: !t.onField, dq: t.dq })),
+      total: sc.total, np: sc.np, auto: sc.auto, endgame: sc.endgame, tips: sc.tips ?? null, bonus: b ? JSON.parse(b) : null,
+    };
+  };
+  const rows = meetStandings(season, quals.map((m) => ({ red: side(m, "red"), blue: side(m, "blue") })));
+  return new Map(rows.map(({ team, ...x }) => [team, x]));
 }

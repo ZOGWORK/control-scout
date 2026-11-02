@@ -13,7 +13,7 @@ vi.mock("./personal", () => ({ usePersonal: () => ({ user: h.user, providers: {}
 // The shell's top bar and backdrop aren't what's under test.
 vi.mock("../components/layout/Search", () => ({ GlobalSearch: () => null }));
 vi.mock("../components/layout/AccountMenu", () => ({ AccountProvider: ({ children }: { children: React.ReactNode }) => children, AccountFooter: () => null, useAccountPanel: () => ({ open: false, setOpen() {} }) }));
-vi.mock("../components/layout/TopBarExtras", () => ({ ClockWeather: () => null, ThemeToggle: () => null }));
+vi.mock("../components/layout/TopBarExtras", () => ({ ClockWeather: () => null }));
 vi.mock("../components/layout/Ambient", () => ({ Ambient: () => null }));
 vi.mock("../components/layout/SiteFooter", () => ({ SiteFooter: () => null }));
 vi.mock("./meta", async (orig) => ({ ...(await orig<typeof import("./meta")>()), useMeta: () => null }));
