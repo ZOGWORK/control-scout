@@ -13,7 +13,7 @@ import { createApp, createServer } from "./app";
 import { env } from "./env";
 import { migrate, openDb, setDb } from "./db";
 import {
-  CSS_SWITCH_HANDLER, HSTS, PERMISSIONS_POLICY, buildCsp, cspReportCounts, inlineScriptHashes, resetCspReports, summarizeCspReports,
+  CSS_SWITCH_HANDLER, HSTS, PERMISSIONS_POLICY, buildCsp, cspHeaderName, cspReportCounts, inlineScriptHashes, resetCspReports, summarizeCspReports,
 } from "./securityHeaders";
 
 const INDEX = `<!doctype html>
@@ -142,6 +142,12 @@ describe("Content-Security-Policy", () => {
     const r = await get("/teams/4215");
     expect(r.headers.get("content-security-policy")).toContain("default-src 'self'");
     expect(r.headers.get("content-security-policy-report-only")).toBeNull();
+  });
+  it("is enforced in production by default, and CSP_ENFORCE=0 turns it back to report-only", async () => {
+    process.env.NODE_ENV = "production";
+    expect(cspHeaderName()).toBe("Content-Security-Policy");
+    process.env.CSP_ENFORCE = "0";
+    expect(cspHeaderName()).toBe("Content-Security-Policy-Report-Only");
   });
   it("only on HTML (API answers and static files have nothing to run)", async () => {
     for (const p of ["/api/health", "/assets/index-abc.js", "/sw.js"]) {
