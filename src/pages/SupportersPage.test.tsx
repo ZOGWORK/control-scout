@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // /supporters: public sponsors by name with their start month, private ones as one count, never an amount;
-// "Not set up yet" with no GitHub token on the server, "No supporters yet" when nobody has sponsored.
+// a route-scoped noindex; "Not set up yet" with no GitHub token on the server, "No supporters yet" when nobody has sponsored.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -35,5 +35,16 @@ describe("Supporters page", () => {
     data = { configured: true, supporters: [], anonymous: 0, updatedAt: "2026-12-10T00:00:00Z" };
     mount();
     expect(screen.getByText("No supporters yet")).toBeTruthy();
+  });
+
+  it("keeps a noindex in the head only while on /supporters, however the visitor arrived", async () => {
+    const { SearchRobotsSync } = await import("../lib/meta");
+    const tag = () => document.querySelector('meta[name="robots"][data-search]');
+    const at = (path: string) => render(<MemoryRouter initialEntries={[path]}><SearchRobotsSync /></MemoryRouter>);
+    at("/supporters");
+    expect(tag()?.getAttribute("content")).toBe("noindex, follow");
+    cleanup();
+    at("/donate");
+    expect(tag()).toBeNull();
   });
 });

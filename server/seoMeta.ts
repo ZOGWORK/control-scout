@@ -134,7 +134,6 @@ const STATIC: Record<string, { title: string; description: string; noindex?: boo
   "/rules": { title: "BIOBUZZ rules quick reference", description: "Searchable summaries of the most-cited FTC BIOBUZZ game rules and Q&A rulings, stamped with the manual revision they follow. Works offline at the venue." },
   "/contact": { title: "Contact", description: "Contact the Control Scout team: report a bug, ask for a data correction, suggest a feature or ask a question about your data or the site." },
   "/donate": { title: "Support Control Scout", description: "Control Scout is free and stays free. Donations through GitHub Sponsors help pay for the domain, hosting and email. Not tax-deductible, and they unlock nothing." },
-  "/supporters": { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", noindex: true },
   "/my-team": { title: "My team", description: "Your team's dashboard on Control Scout.", noindex: true },
   "/my-teams": { title: "My teams", description: "The FTC teams you're on or manage, with their stats.", noindex: true },
   "/shortlist": { title: "Shortlist", description: "Your shortlisted FTC teams on Control Scout.", noindex: true },
@@ -564,6 +563,9 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   }
   // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).
   if (p === "/faq") return { title: STATIC["/faq"].title, description: fitDescription(STATIC["/faq"].description), type: "website", jsonLd: [faqJsonLd(canonicalOrigin())], bodyHtml: faqHtml() };
+  // The supporters list names people: never indexed, at any spelling of the address. Marked like /search's, so the
+  // app drops it once the visitor moves on (src/lib/meta.tsx SearchRobotsSync).
+  if (/^\/supporters$/i.test(p)) return { title: "Supporters", description: "The people who sponsor Control Scout on GitHub.", type: "website", searchPage: true };
   const s = STATIC[p];
   if (s) return { title: s.title, description: s.noindex ? s.description : fitDescription(s.description), type: "website", ...(s.noindex ? { noindex: true } : {}) };
   // The app's routes (src/shared/routes.ts, as React Router matches them): anything else is its not-found page.

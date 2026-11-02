@@ -73,6 +73,20 @@ describe("supporters()", () => {
   });
 });
 
+describe("supporters() before any good list", () => {
+  it("a failure with nothing cached throws, and GitHub isn't asked again for 5 minutes", async () => {
+    process.env.GITHUB_SPONSORS_TOKEN = "bad-token";
+    let asked = 0;
+    setSponsorsFetch((async () => { asked++; return new Response("", { status: 401 }); }) as unknown as typeof fetch);
+    const t0 = Date.UTC(2026, 11, 10);
+    await expect(supporters(t0)).rejects.toThrow();
+    await expect(supporters(t0 + 60_000)).rejects.toThrow();
+    expect(asked).toBe(1);
+    await expect(supporters(t0 + 5 * 60_000 + 1)).rejects.toThrow();
+    expect(asked).toBe(2);
+  });
+});
+
 describe("GET /api/supporters", () => {
   let server: Server;
   let base = "";

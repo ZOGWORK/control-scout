@@ -67,24 +67,32 @@ async function fetchAll(token: string): Promise<Node[]> {
 }
 
 let cached: { at: number; value: SupportersResponse } | null = null;
+/** After a failure, GitHub isn't asked again before this (even with no list yet): a bad token or a rate limit isn't hit per visit. */
+let retryAt = 0;
 let inflight: Promise<SupportersResponse> | null = null;
-registerCache("supporters", () => { cached = null; });
+registerCache("supporters", () => { cached = null; retryAt = 0; });
 
-/** The list, at most an hour old. No token: configured false. GitHub down: the last good list, or throws. */
+/** The list, at most an hour old. No token: configured false. GitHub down: the last good list, or throws (and
+ *  GitHub is left alone for RETRY_MS either way). */
 export async function supporters(now = Date.now()): Promise<SupportersResponse> {
   const token = env.githubSponsorsToken;
   if (!token) return { configured: false, supporters: [], anonymous: 0, updatedAt: null };
   if (cached && now - cached.at < SUPPORTERS_TTL_MS) return cached.value;
+  if (now < retryAt) {
+    if (cached) return cached.value;
+    throw new Error("GitHub Sponsors is unavailable; trying again shortly");
+  }
   inflight ??= fetchAll(token)
     .then((nodes) => {
       const value: SupportersResponse = { configured: true, ...toSupporters(nodes), updatedAt: new Date(now).toISOString() };
       cached = { at: now, value };
+      retryAt = 0;
       return value;
     })
     .catch((e) => {
       console.warn(`[supporters] couldn't read GitHub Sponsors: ${(e as Error)?.message ?? e}`);
-      // Keep showing the last good list, and ask GitHub again in 5 minutes rather than on every visit.
-      if (cached) { cached = { at: now - SUPPORTERS_TTL_MS + RETRY_MS, value: cached.value }; return cached.value; }
+      retryAt = now + RETRY_MS;
+      if (cached) return cached.value;
       throw e;
     })
     .finally(() => { inflight = null; });
