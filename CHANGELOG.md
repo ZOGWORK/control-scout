@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.1.8 — 2026-11-01
+
+You can stop scouting an event.
+
+### Highlights
+- [scout] Stop scouting, beside Change event, leaves the event you're scouting
+- [scout] Your entries stay, and Undo picks the event back up
+- [scout] An open pit entry or typed-in match asks before you leave
+
+### Scout
+- **Stop scouting.** The event bar on Scout had only Change event, so there was no way to leave an event without picking another. Stop scouting, next to it, ends this device's session at the event and opens Entries; everything scouted there stays (saved or waiting to sync). The toast's Undo goes back to the same event, watching what you were. A pit entry or typed-in match still open asks first, as Change event does. (#PR)
+
 ## 2.1.7 — 2026-11-01
 
 Long lists scroll smoothly on phones.
