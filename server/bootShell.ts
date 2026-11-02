@@ -4,7 +4,7 @@
 // loaded and run. React's first render (createRoot, no hydration) replaces all
 // of it in one step. Self-contained: inline styles, no icons, plain links that
 // work without JS. The theme comes from the class the inline <head> script sets
-// on <html> (index.html): dark by default, html.light for light.
+// on <html> (index.html): dark by default, html.light, html.dim or html.midnight otherwise.
 //
 // Offline, the service worker answers every page with the cached "/" HTML, so
 // the page block carries the path it was made for and hides itself on another.
@@ -27,12 +27,14 @@ const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-
   + `${on}.csb-nav a span,${on}.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}`
   + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`;
 export const BOOT_STYLE = `<style>
-      html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}body{margin:0}
-      html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}
+      html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}html.dim{background:#232428}html.midnight{background:#000}body{margin:0}
+      html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}html.midnight::-webkit-scrollbar-thumb{background:#222227}
       .csb,.csb *{box-sizing:border-box}
       .csb{line-height:1.5}
       .csb{--b-bg:#0a0a0b;--b-side:#0c0c0e;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-tab:#0e0e10f2;display:flex;min-height:100vh;min-height:100dvh;overflow-x:clip;background:var(--b-bg);color:var(--b-fg);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csb{--b-bg:#fff;--b-side:#fcfcfc;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#eab308;--b-tab:#fafafaf2}
+      html.dim .csb{--b-bg:#232428;--b-side:#1e1f23;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a;--b-tab:#1e1f23f2}
+      html.midnight .csb{--b-bg:#000;--b-side:#000;--b-line:#ffffff12;--b-tab:#000000f2}
       .csb a:not(.csb-app a){color:inherit;text-decoration:none}
       .csb-side{display:none;position:sticky;top:0;align-self:flex-start;height:100vh;height:100dvh;flex-direction:column;flex-shrink:0;width:232px;border-right:1px solid var(--b-line);background:var(--b-side)}
       .csb-brand{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;font:700 16px/1 "Space Grotesk",sans-serif;letter-spacing:-.025em}
@@ -92,6 +94,8 @@ export const BOOT_STYLE = `<style>
       @media (min-width:1700px){.csb-page{max-width:1600px}}
       .csbc{--b-pop:#141416;--b-fg:#f4f4f5;--b-mut:#a1a1aa;--b-line:#ffffff14;--b-acc:#ffc700;--b-soft:#ffc7001f;position:fixed;left:12px;right:12px;bottom:calc(53px + env(safe-area-inset-bottom) + .75rem);z-index:60;box-sizing:border-box;padding:16px;border:1px solid var(--b-line);border-radius:12px;background:var(--b-pop);color:var(--b-fg);box-shadow:0 18px 40px -16px rgba(0,0,0,.55);font-family:Inter,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
       html.light .csbc{--b-pop:#fff;--b-fg:#09090b;--b-mut:#52525b;--b-line:#e4e4e7;--b-acc:#a16207;--b-soft:#eab3081f}
+      html.dim .csbc{--b-pop:#303137;--b-fg:#e4e4e7;--b-mut:#b4b4bd;--b-line:#ffffff1a}
+      html.midnight .csbc{--b-pop:#0e0e11;--b-line:#ffffff12}
       .csbc *{box-sizing:border-box}
       .csbc-row{display:flex;align-items:flex-start;gap:12px}
       .csbc-ico{display:grid;place-items:center;flex-shrink:0;width:28px;height:28px;margin-top:2px;border-radius:8px;background:var(--b-soft);color:var(--b-acc)}

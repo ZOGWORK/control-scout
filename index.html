@@ -28,6 +28,12 @@
         var s = JSON.parse(localStorage.getItem('cs-personal:settings') || 'null');
         var t = s && s.value && s.value.theme;
         if (t === 'light' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.classList.add('light');
+        // Dim and Midnight (src/hooks/useTheme.ts) and their bar colour.
+        if (t === 'dim' || t === 'midnight') {
+          document.documentElement.classList.add(t);
+          var tc = document.querySelector('meta[name="theme-color"]');
+          if (tc) tc.setAttribute('content', t === 'dim' ? '#232428' : '#000000');
+        }
         if (s && s.value && s.value.density === 'compact') document.documentElement.classList.add('compact');
         // This device's text size (src/lib/textSize.ts), before anything paints.
         var ts = localStorage.getItem('cs-text-size');

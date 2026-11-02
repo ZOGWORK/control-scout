@@ -1,13 +1,9 @@
 // Top bar, right side: the clock and the weather in your team's town (only
-// once you've set My team; nothing otherwise), and the light/dark switch.
+// once you've set My team; nothing otherwise). The theme is chosen in Settings only.
 // Same as Control Point's top bar: "3:42 PM · 72° · Sunny".
 import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { AnimatePresence } from "motion/react";
-import { m } from "../motion";
 import { apiFetch, qs } from "../../lib/api";
 import { usePersonal } from "../../lib/personal";
-import { useTheme } from "../../hooks/useTheme";
 
 interface Weather { available: boolean; tempF?: number; tempC?: number; unit?: "F" | "C"; summary?: string; place?: string }
 
@@ -59,27 +55,5 @@ export function ClockWeather() {
       <time dateTime={now.toISOString()}>{time}</time>
       {wx && <><span aria-hidden="true">·</span><span>{wx}</span></>}
     </span>
-  );
-}
-
-/** One click flips light/dark (an explicit choice; "match the system" stays in Settings). */
-export function ThemeToggle() {
-  const { resolved } = useTheme();
-  const { update } = usePersonal();
-  const next = resolved === "dark" ? "light" : "dark";
-  return (
-    <button
-      type="button"
-      onClick={() => update("settings", (s) => ({ ...s, theme: next }))}
-      aria-label={`Switch to ${next} mode`}
-      title={`Switch to ${next} mode`}
-      className="tap-44 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-muted outline-none transition-colors hover:bg-text-base/[0.06] hover:text-text-base focus-visible:ring-2 focus-visible:ring-ring/60"
-    >
-      <AnimatePresence mode="wait" initial={false}>
-        <m.span key={resolved} className="flex" initial={{ opacity: 0, rotate: -90, scale: 0.6 }} animate={{ opacity: 1, rotate: 0, scale: 1 }} exit={{ opacity: 0, rotate: 90, scale: 0.6 }} transition={{ duration: 0.18 }}>
-          {resolved === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-        </m.span>
-      </AnimatePresence>
-    </button>
   );
 }
