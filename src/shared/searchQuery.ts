@@ -12,7 +12,7 @@
 //   3. Names are matched without the stopwords (STOPWORDS: "in", "at", "the", …), the time words (TIME_WORDS:
 //      "upcoming", "this weekend", …) and a question's own words (QUESTION_WORDS: "can", "will", …) when the query
 //      is a question. Those words say what kind of answer is wanted, never which team or event.
-import type { SearchTopic } from "./search.js";
+import { SEARCH_TOPICS, type SearchTopic } from "./search.js";
 
 /** The plurals read as their singular (lower case). Every pair has its own test (server/api/search.test.ts). */
 export const PLURALS: Record<string, string> = {
@@ -70,6 +70,16 @@ export function stripConversation(q: string): { rest: string; opening: string; t
   return null;
 }
 
+/** The query search answers for a conversational one ("how good is simply complex" → "simply complex stats": what
+ *  follows the opening, with what the opening asks about as its topic words), or the query itself. One rewrite for
+ *  the answer, the click it teaches (learnQuery) and offline search. */
+export function conversationQuery(q: string): string {
+  const conv = stripConversation(q);
+  if (!conv) return q;
+  const topicWords = conv.topic ? SEARCH_TOPICS.find(([, t]) => t === conv.topic)?.[0] : undefined;
+  return topicWords ? `${conv.rest} ${topicWords}` : conv.rest;
+}
+
 /** Whether the query reads as a question: it ended in "?" or starts with a question word and has three words or more. */
 export function isQuestionForm(q: string): boolean {
   const t = q.trim();
@@ -102,15 +112,16 @@ function restOf(q: string, p: string): string {
 /**
  * The words of `q` that can name a team or event, as one string: plurals singular, stopwords, time words and (in a
  * question) question words out. When taking them out would leave nothing ("the", "upcoming"), the query as typed
- * (plurals singular) is kept, so a name made only of such words still searches.
+ * (plurals singular) is kept, so a name made only of such words still searches. A conversational opening goes first
+ * ("show me 4215" → "4215"). `asked`: the query as typed ended in "?" (which search's cleaning takes off).
  */
-export function nameWords(q: string): string {
-  const one = singularize(q.trim().replace(/\s+/g, " "));
+export function nameWords(q: string, asked = false): string {
+  const one = singularize((stripConversation(q)?.rest ?? q).trim().replace(/\s+/g, " "));
   if (!one) return one;
   let rest = one;
   const time = timePhrase(rest);
   if (time) rest = time.rest;
-  const question = isQuestionForm(q);
+  const question = asked || isQuestionForm(q);
   const ws = rest.split(" ").filter((w) => {
     if (!w) return false;
     const l = w.toLowerCase();

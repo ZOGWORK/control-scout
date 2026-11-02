@@ -16,7 +16,7 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, onlyPageWords, pagesFor } from "../../src/shared/search.js";
-import { nameWords, singularize, stripConversation } from "../../src/shared/searchQuery.js";
+import { conversationQuery, nameWords, singularize } from "../../src/shared/searchQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
@@ -37,6 +37,10 @@ export interface AnswerOptions {
   intents?: boolean;
   /** A season the query named in words ("last season", read by ./searchIntents.ts): as if typed as "2024-25". */
   season?: number | null;
+  /** Set by searchAnswer for its own query: the query as typed (cleaned, its plurals kept: page words read it), and
+   *  whether it ended in "?". */
+  typed?: string;
+  asked?: boolean;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
@@ -120,7 +124,8 @@ async function versus(q: string, prefer: ReadonlySet<string>, season: number | n
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   const typed = cleanQuery(raw);
   const read = singularize(typed);
-  const a = await answerFor(read, opts);
+  // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").
+  const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")) });
   return read === typed ? a : { ...a, q: typed, pages: pagesFor(typed) };
 }
 
@@ -149,10 +154,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0c. A conversational opening ("how good is simply complex", "where is 4215"): the question's frame, never part of
   // a name. What follows it is searched, with what the opening asks about ("how good is": the season's OPR, rank and
   // record) read as that topic.
-  const conv = opts.intents === false ? null : stripConversation(q);
-  if (conv) {
-    const topicWords = conv.topic ? SEARCH_TOPICS.find(([, t]) => t === conv.topic)?.[0] : undefined;
-    const a = await searchAnswer(topicWords ? `${conv.rest} ${topicWords}` : conv.rest, opts);
+  const conv = opts.intents === false ? q : conversationQuery(q);
+  if (conv !== q) {
+    const a = await searchAnswer(opts.asked ? `${conv}?` : conv, opts);
     return { ...a, q, pages: pagesFor(q) };
   }
 
@@ -188,17 +192,17 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // A season named makes a team's numbers and link that season's.
   const typed = seasonOf(expandShortForms(q));
   const rest = typed.rest, season = typed.season ?? opts.season ?? null;
-  let hits = await search(rest, limit, prefer, undefined, season);
+  let hits = await search(rest, limit, prefer, undefined, season, opts.asked);
   const intent = searchIntent(rest);
   if (hits.length && intent && !intent.topic) {
-    const alt = await search(intent.rest, limit, prefer, undefined, season);
+    const alt = await search(intent.rest, limit, prefer, undefined, season, opts.asked);
     if (topScore(rest, alt) > topScore(rest, hits)) hits = alt;
   }
 
   // 4. Word by word: a result matching more words first; words matching nothing are ignored.
   let byWords = false;
   if (!hits.length) {
-    const ws = words(nameWords(rest)).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !SEARCH_FILLER.has(w) && !isTopicWord(w));
+    const ws = words(nameWords(rest, opts.asked)).filter((w) => (w.length >= 3 || /^\d+$/.test(w)) && !SEARCH_FILLER.has(w) && !isTopicWord(w));
     const count = new Map<string, { h: SearchHit; n: number; first: number }>();
     for (const [i, w] of ws.entries()) for (const h of await search(w, limit, prefer, undefined, season)) {
       const c = count.get(key(h)) ?? { h, n: 0, first: i };
@@ -214,7 +218,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
       .map((h) => (h.kind === "team" ? { ...h, linkSeason: season, subtitle: [seasonLabel(season), h.subtitle].filter(Boolean).join(" · ") } : h));
   }
 
-  if (!hits.length && onlyPageWords(q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
+  if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
   if (!hits.length) {
     const understood = intent?.topic ? [`A question about ${TOPIC_LABEL[intent.topic].toLowerCase()}`, `No team or event matched "${intent.rest}"`] : [`No team, event or match matched "${q}"`];
     return recovery(q, understood);
@@ -224,7 +228,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const exact = score >= 0.999;
   // Only a site page's word ("rankings", "rules") that near-matches names ("Iron Hawkings"): the page is the answer,
   // not a guess at a team. A name beside it ("hipnotic rankings") keeps its corrected results.
-  if (score < WEAK_SCORE && onlyPageWords(q)) return answer(q, { hits: [], step: "deterministic" });
+  if (score < WEAK_SCORE && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" });
   // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result.
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
@@ -239,7 +243,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 /** The query a pick of `raw`'s results is learned under: what the ranking read (an intent's core, short forms spelled
  *  out, the season taken off), so "champs" and "championship" teach the same order. */
 export function learnQuery(raw: string): string {
-  const q = singularize(cleanQuery(raw));
+  const q = conversationQuery(singularize(cleanQuery(raw)));
   const it = parseIntent(q);
   return nameWords(seasonOf(expandShortForms(it && it.core !== q && it.core ? it.core : q)).rest);
 }

@@ -175,6 +175,9 @@ describe("offline search (same hits as /api/search)", () => {
     expect(readSearch(dbs(), "new jersey qualifiers")).toEqual(readSearch(dbs(), "new jersey qualifier"));
     expect(readSearch(dbs(), "upcoming qualifiers in new jersey")).toEqual(readSearch(dbs(), "qualifier new jersey"));
     expect(readSearch(dbs(), "qualifier new jersey")[0]).toMatchObject({ ref: "2025:USNJQ1" });
+    // A conversational opening is the question, offline too.
+    expect(readSearch(dbs(), "show me 100")[0]).toMatchObject({ kind: "team", ref: "100" });
+    expect(readSearch(dbs(), "how good is gearheads")[0]).toMatchObject({ kind: "team", ref: "100" });
   });
 
   it("finds events by name or code", () => {

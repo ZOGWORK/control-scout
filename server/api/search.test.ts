@@ -225,7 +225,8 @@ describe("plurals and stopwords", () => {
   for (const [one, many, name] of PAIRS) {
     it(`"${many}" finds what "${one}" finds`, async () => {
       for (const q of [`garden ${one}`, `${one} in new jersey`, `${one} at new jersey`]) {
-        const plural = q.replace(new RegExp(`\b${one}\b`), many);
+        const plural = q.replace(new RegExp(`\\b${one}\\b`), many);
+        expect(plural, q).not.toBe(q);
         const a = await search(q, 25), b = await search(plural, 25);
         expect(b, plural).toEqual(a);
         if (q.startsWith("garden")) expect(a.map((h) => h.title), q).toContain(name);

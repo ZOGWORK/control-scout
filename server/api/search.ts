@@ -71,10 +71,11 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
  *  asked about (SearchHit.facts). A team or event whose own name has the words ("Match Point") still comes first.
  *  Words like "team", and misspelled topic words ("hypnotic awrds"), count only when the whole query finds nothing. */
 /** `season`: the season a query named ("last season", "2024-25"): a team's numbers and links are that season's. */
-export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>, season?: number | null): Promise<SearchHit[]> {
+/** `asked`: the query as typed ended in "?" (a question: its own words name nothing, src/shared/searchQuery.ts). */
+export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>, season?: number | null, asked = false): Promise<SearchHit[]> {
   const at = await teamAtEventAnswer(q, limit, prefer, kinds, season);
   if (at) return at;
-  const full = await searchWords(q, limit, prefer, kinds);
+  const full = await searchWords(q, limit, prefer, kinds, asked);
   // A match query ("USNJQ1 match 3") means that match, not the event's matches.
   if (MATCH_RE.test(q.trim())) return full;
   // The readings to try, in order: the words as typed, then (when the query found nothing) with a topic word's typo
@@ -85,7 +86,7 @@ export async function search(q: string, limit = 12, prefer: ReadonlySet<string> 
     const { phrase } = intent;
     // Schedule difficulty switched off: its section shows nothing, so the query is read without that topic.
     const topic = intent.topic === "difficulty" && !(await isEnabled("scheduleDifficulty").catch(() => false)) ? null : intent.topic;
-    const hits = await searchWords(intent.rest, limit, prefer, kinds);
+    const hits = await searchWords(intent.rest, limit, prefer, kinds, asked);
     if (!hits.length) continue;
     // The top team answers with its numbers ("Ranking score 3.40 at …"); the rest name the topic.
     const top = topic ? hits.find((h) => h.kind === "team") : undefined;
@@ -134,10 +135,10 @@ async function teamAtEventAnswer(q: string, limit: number, prefer: ReadonlySet<s
   return [{ ...team, section: "history", ...(season != null ? { linkSeason: season } : {}), facts: [{ label: "Which event?", value: note }], ...(events.length ? { events } : {}) }, ...others];
 }
 
-async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>): Promise<SearchHit[]> {
+async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>, kinds?: ReadonlySet<SearchHit["kind"]>, asked = false): Promise<SearchHit[]> {
   // The words that can name something (src/shared/searchQuery.ts): plurals singular, no stopwords, time words or a
   // question's own words, so "meets in New Jersey" matches what "meet New Jersey" does and "upcoming" never names a team.
-  const query = nameWords(q);
+  const query = nameWords(q, asked);
   if (!query) return [];
   const allow = (k: SearchHit["kind"]) => !kinds?.size || kinds.has(k);
   // The same choice inside the index queries, so their row caps hold only wanted kinds.

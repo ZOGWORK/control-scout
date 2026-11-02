@@ -8,7 +8,7 @@ import { all, get, migrate, openDb, run, setDb } from "../db";
 import { invalidateFlags, setFlag } from "../flags";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
-import { cleanQuery, searchAnswer } from "./searchAnswer";
+import { cleanQuery, learnQuery, searchAnswer } from "./searchAnswer";
 import { LAST_SEASON_WEIGHT, MIN_CLICKS, recordClick, rerank } from "./searchLearn";
 import { recordIntent, topIntents } from "./searchIntents";
 import { BRUNO_TIMEOUT_MS, refine, resetBrunoCache } from "./searchBruno";
@@ -267,9 +267,18 @@ describe("conversational openings and words that never name a team", () => {
     const rule = await searchAnswer("Can robots descore sample elements in autonomous?");
     for (const h of [...rule.hits, ...(rule.recovery?.closest ?? [])]) expect(["28917", "29548"]).not.toContain(h.ref);
     expect((await searchAnswer("can control")).hits[0]).toMatchObject({ ref: "29548" }); // a name, not a question
+    // A "?" that cleaning takes off still makes it a question: "can" names nothing.
+    const asked = await searchAnswer("robots can descore?");
+    for (const h of [...asked.hits, ...(asked.recovery?.closest ?? [])]) expect(["28917", "29548"]).not.toContain(h.ref);
     const upcoming = await searchAnswer("upcoming meets in New Jersey");
     for (const h of [...upcoming.hits, ...(upcoming.recovery?.closest ?? [])]) expect(h.ref).not.toBe("37525");
     expect(upcoming.hits.map((h) => h.ref)).toContain(`${S}:USNJNEM1`);
+  });
+  it("keeps page words as typed, and learns a question's clicks under the query it searched", async () => {
+    // "matches" is a page word (Match records); read as the singular "match" it isn't, so the check reads the typed query.
+    expect((await searchAnswer("matches")).pages.map((p) => p.href)).toEqual(["/matches"]);
+    expect((await searchAnswer("teams")).pages.map((p) => p.href)).toEqual(["/teams"]);
+    expect(learnQuery("how good is simply complex")).toBe(learnQuery("simply complex stats"));
   });
   it("answers a plural exactly as its singular, keeping the query as typed", async () => {
     const many = await searchAnswer("Meets in New Jersey"), one = await searchAnswer("Meet in New Jersey");
