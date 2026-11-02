@@ -13,6 +13,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { env } from "./env.js";
 import { BOOT_STYLE, bootConsent, bootShell } from "./bootShell.js";
+import { criticalCss } from "./criticalCss.js";
 import { liveHeroLines } from "./heroLines.js";
 import { isBareRoute, pageModule } from "../src/shared/routes.js";
 import { APP_CSS_ID } from "../src/shared/boot.js";
@@ -118,35 +119,46 @@ const fileSize = (f: string) => {
   return n;
 };
 
-/** <link>s that start loading this page's code chunk with the HTML, rather than after the main
- *  bundle has run and asked for it. Files the entry already loads are left out, and so is a large
- *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint, except on a page
- *  the server drew whole (`drawn`): its markup is already there, so the page's own styles apply before it paints. */
-export function routePreloads(indexFile: string, path: string, drawn = false): string {
+/** The page chunk's manifest entry and what the entry already loads (its files and CSS), or null (dev, tests, no chunk). */
+function routeChunks(indexFile: string, path: string) {
   const chunks = viteManifest(indexFile);
   const mod = pageModule(path);
   const page = mod && chunks?.[`src/pages/${mod}.tsx`];
-  if (!chunks || !page) return "";
+  if (!chunks || !page) return null;
   const entry = Object.values(chunks).find((c) => c.isEntry);
-  const have = new Set<string>();
   const walk = (c: ManifestChunk, into: Set<string>, css: Set<string>) => {
     if (into.has(c.file)) return;
     into.add(c.file);
     for (const f of c.css ?? []) css.add(f);
     for (const k of c.imports ?? []) if (chunks[k]) walk(chunks[k], into, css);
   };
+  const have = new Set<string>();
   const entryCss = new Set<string>();
   if (entry) walk(entry, have, entryCss);
   const js = new Set<string>();
   const css = new Set<string>();
   walk(page, js, css);
+  return { page, have, js, css: [...css].filter((f) => !entryCss.has(f)) };
+}
+
+/** <link>s that start loading this page's code chunk with the HTML, rather than after the main
+ *  bundle has run and asked for it. Files the entry already loads are left out, and so is a large
+ *  shared dependency (PRELOAD_MAX_DEP). Page CSS is fetched early but never blocks the first paint. */
+export function routePreloads(indexFile: string, path: string): string {
+  const r = routeChunks(indexFile, path);
+  if (!r) return "";
   const dist = dirname(indexFile);
   const tags = [
-    ...[...css].filter((f) => !entryCss.has(f)).map((f) => drawn ? `<link rel="stylesheet" crossorigin href="/${f}" />` : `<link rel="preload" as="style" crossorigin href="/${f}" />`),
-    ...[...js].filter((f) => !have.has(f) && (f === page.file || fileSize(join(dist, f)) <= PRELOAD_MAX_DEP))
+    ...r.css.map((f) => `<link rel="preload" as="style" crossorigin href="/${f}" />`),
+    ...[...r.js].filter((f) => !r.have.has(f) && (f === r.page.file || fileSize(join(dist, f)) <= PRELOAD_MAX_DEP))
       .map((f) => `<link rel="modulepreload" crossorigin href="/${f}" />`),
   ];
   return tags.join("\n    ");
+}
+
+/** The page chunk's own stylesheets, as files: with the app's, what a drawn page's first paint draws on (inlineCriticalCss). */
+function pageStylesheets(indexFile: string, path: string): string[] {
+  return (routeChunks(indexFile, path)?.css ?? []).map((f) => join(dirname(indexFile), f));
 }
 
 /**
@@ -161,29 +173,54 @@ export async function renderPage(file: string, path: string, query: Record<strin
   // And on /events, whether today has coin flips (coinFlipsHint).
   // And whether the light version is on (the first paint offers it on a slow load: server/bootShell.ts).
   const [meta, hero, flips, lite] = await Promise.all([pageMeta(path, query), liveHeroLines(), coinFlipsHint(path), isEnabled("venueLightMode").catch(() => false)]);
-  // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint waits for the app's
-  // stylesheet and text fonts (FIRST_PAINT_FONTS), so it paints once, styled, never as unstyled text that then changes.
+  // A page the server drew whole (meta.firstPaint) is the app's own markup: its first paint carries the part of the app's
+  // stylesheet that markup uses, inline (server/criticalCss.ts), and waits for its text fonts (FIRST_PAINT_FONTS), so it
+  // paints once, styled, never as unstyled text that then changes. Nothing else downloads until those fonts are here
+  // (afterFirstPaint): on venue Wi-Fi the whole stylesheet and the app's code shared the line with them and held the
+  // page back for seconds (2026-11-02: 400 kbps, team page first paint 8.5 s live).
   const drawn = !!meta.firstPaint && !meta.notFound;
-  const head = [headTags(path, meta), flips, routePreloads(file, path, drawn), BOOT_STYLE, drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
+  const head = [headTags(path, meta), flips, routePreloads(file, path), BOOT_STYLE, drawn ? FIRST_PAINT_FONTS : ""].filter(Boolean).join("\n    ");
   const shell = indexHtml(file).replace("</head>", () => `    ${head}\n  </head>`);
+  const deferred = drawn ? deferCss(shell) : null;
   // Callbacks, so $', $`, $& in a team or event name are inserted literally (a replacement string would expand them).
-  const html = afterFirstPaint(drawn ? shell : nonBlockingCss(shell), drawn)
+  let html = (deferred ? afterFirstPaint(deferred.html, { css: deferred.href, fonts: FIRST_PAINT_FONT_LOADS }) : afterFirstPaint(nonBlockingCss(shell)))
     // The privacy banner goes after #root, not in it: React's first render replaces #root, and the app's banner takes over from this one.
     // Not on a bare page (the pit display): nobody answers it on a pit TV, and the app shows no banner there to take it over.
     .replace(/<div id="root">(?:<!--cs-boot-->)?<\/div>/, () => `<div id="root">${bootShell(path, meta, hero, meta.notFound || !lite ? null : liteHref(path, queryString(query)))}</div>${isBareRoute(path) ? "" : bootConsent()}`);
+  if (deferred) html = inlineCriticalCss(html, [join(dirname(file), deferred.href), ...pageStylesheets(file, path)]);
   return { status: meta.notFound ? 404 : 200, html };
 }
+
+/** The id of a drawn page's inline critical CSS (inlineCriticalCss). */
+export const CRITICAL_CSS_ID = "cs-critical";
+
+/** The faces FIRST_PAINT_FONTS declares, as document.fonts.load() asks for them: a drawn page waits on these. */
+export const FIRST_PAINT_FONT_LOADS = ["400 1em Inter", '700 1em "Space Grotesk"', '400 1em "JetBrains Mono"'];
+
+/** How long a drawn page waits on its fonts at most: the font-display: block window, after which text shows anyway. */
+export const FONT_WAIT_MS = 3000;
+
+/** The class on <html> while a drawn page waits on its fonts (FIRST_PAINT_FONTS). */
+export const FONT_WAIT_CLASS = "cs-fw";
 
 /**
  * The app's fonts for a page the server drew whole, with font-display: block: its text paints once the fonts are here
  * (preloaded with the HTML: the two text fonts in index.html, the mono one, for team numbers, here), never in a
  * stand-in font that then reflows. The same faces as the stylesheet's (src/index.css), declared after it, so these
  * win; a font still on its way after 3 s gives way to the stand-in, as usual.
+ *
+ * The page itself (<body>) stays hidden until then too (FONT_WAIT_CLASS, set and cleared by the script here; a CSS
+ * animation shows it after FONT_WAIT_MS even if that script stalls). Laid out in the stand-in font's metrics while
+ * its text was invisible, the page's button rows rewrapped once the fonts arrived (a layout shift); now it paints once,
+ * in its own fonts. Without JavaScript nothing is hidden.
  */
 export const FIRST_PAINT_FONTS = `<link rel="preload" href="/fonts/JetBrainsMono-400.woff2" as="font" type="font/woff2" crossorigin />`
   + `<style>@font-face{font-family:"Inter";font-weight:400 800;font-style:normal;font-display:block;src:url("/fonts/Inter.woff2") format("woff2")}`
   + `@font-face{font-family:"Space Grotesk";font-weight:500 700;font-style:normal;font-display:block;src:url("/fonts/SpaceGrotesk.woff2") format("woff2")}`
-  + `@font-face{font-family:"JetBrains Mono";font-weight:400;font-style:normal;font-display:block;src:url("/fonts/JetBrainsMono-400.woff2") format("woff2")}</style>`;
+  + `@font-face{font-family:"JetBrains Mono";font-weight:400;font-style:normal;font-display:block;src:url("/fonts/JetBrainsMono-400.woff2") format("woff2")}</style>`
+  + `<style>html.${FONT_WAIT_CLASS} body{visibility:hidden;animation:${FONT_WAIT_CLASS} 0s ${FONT_WAIT_MS}ms forwards}@keyframes ${FONT_WAIT_CLASS}{to{visibility:visible}}</style>`
+  + `<script>(function(){var d=document,F=d.fonts,r=d.documentElement;if(!F||!F.load||!window.Promise)return;r.classList.add('${FONT_WAIT_CLASS}');`
+  + `function show(){r.classList.remove('${FONT_WAIT_CLASS}')}Promise.all(${JSON.stringify(FIRST_PAINT_FONT_LOADS)}.map(function(f){return F.load(f)})).then(show,show);setTimeout(show,${FONT_WAIT_MS})})()</script>`;
 
 /** How long the first HTML waits on today's coin flips before going without the hint. */
 export const FLIPS_HINT_MS = 150;
@@ -215,21 +252,32 @@ export async function coinFlipsHint(path: string): Promise<string> {
  * HTML would have asked, on any connection). A tab opened in the background, where frames don't run,
  * still loads it within a moment (the timer fallback). The page's own preloads (routePreloads) go
  * through the loader too, in the same order.
+ *
+ * A page the server drew whole (`drawn`) waits longer: until its text fonts (`fonts`, FIRST_PAINT_FONT_LOADS) have
+ * loaded, or FONT_WAIT_MS. Its text paints only once they're here, so on a thin connection everything else waits for
+ * them rather than sharing the line. Its app stylesheet (`css`, deferCss) is added then too, as a non-blocking
+ * stylesheet with the id main.tsx waits on, just after the page's inline critical CSS (inlineCriticalCss).
  */
-export function afterFirstPaint(html: string, fetchEarly = false): string {
+export function afterFirstPaint(html: string, drawn?: { css: string; fonts: string[] }): string {
   const entry = /\s*<script type="module"(?:\s+crossorigin)?\s+src="([^"]+)"><\/script>/.exec(html);
   if (!entry) return html;
   const preloads: string[] = [];
   const rest = html.replace(entry[0], "").replace(/\s*<link rel="modulepreload"(?:\s+crossorigin)?\s+href="([^"]+)"\s*\/?>/g, (_m, href: string) => { preloads.push(href); return ""; });
-  const list = JSON.stringify(preloads).replace(/</g, "\\u003c");
-  const src = JSON.stringify(entry[1]).replace(/</g, "\\u003c");
-  const loader = `<script>(function(){var d=document,s=0;function go(){if(s)return;s=1;var h=d.head;${list}.forEach(function(u){var l=d.createElement('link');l.rel='modulepreload';l.crossOrigin='anonymous';l.href=u;h.appendChild(l)});`
+  const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
+  const list = json(preloads);
+  const src = json(entry[1]);
+  const css = drawn
+    ? `var c=d.createElement('link');c.rel='stylesheet';c.crossOrigin='anonymous';c.href=${json(drawn.css)};c.media='print';c.id='${APP_CSS_ID}';`
+      + `c.onload=c.onerror=function(){c.media='all'};var k=d.getElementById('${CRITICAL_CSS_ID}');h.insertBefore(c,k?k.nextSibling:null);`
+    : "";
+  const after = "function after(){if(window.requestAnimationFrame)requestAnimationFrame(function(){setTimeout(go,0)});setTimeout(go,100)}";
+  const start = drawn
+    ? `var F=d.fonts;if(F&&F.load&&window.Promise)Promise.all(${json(drawn.fonts)}.map(function(f){return F.load(f)})).then(after,after);else after();setTimeout(go,${FONT_WAIT_MS})`
+    : "after()";
+  const loader = `<script>(function(){var d=document,s=0;function go(){if(s)return;s=1;var h=d.head;${css}${list}.forEach(function(u){var l=d.createElement('link');l.rel='modulepreload';l.crossOrigin='anonymous';l.href=u;h.appendChild(l)});`
     + `var e=d.createElement('script');e.type='module';e.crossOrigin='anonymous';e.src=${src};h.appendChild(e)}`
-    + `if(window.requestAnimationFrame)requestAnimationFrame(function(){setTimeout(go,0)});setTimeout(go,100)})()</script>`;
-  // A page drawn whole by the server waits for the stylesheet before it paints: its code downloads meanwhile (it still
-  // runs only after the first paint) rather than starting once that paint is done.
-  const early = fetchEarly ? [entry[1], ...preloads].map((u) => `<link rel="modulepreload" crossorigin fetchpriority="low" href="${u}" />`).join("") : "";
-  return (early ? rest.replace("</head>", () => `${early}\n  </head>`) : rest).replace("</body>", () => `${loader}\n  </body>`);
+    + `${after}${start}})()</script>`;
+  return rest.replace("</body>", () => `${loader}\n  </body>`);
 }
 
 /**
@@ -245,6 +293,33 @@ export function nonBlockingCss(html: string): string {
   return html.replace(/<link rel="stylesheet"((?:\s+crossorigin)?)\s+href="(\/assets\/[^"]+\.css)"\s*\/?>/, (_m, co: string, href: string) =>
     `<link rel="stylesheet"${co} href="${href}" media="print" onload="this.media='all'" onerror="this.media='all'" id="${APP_CSS_ID}" />`
     + `<noscript><link rel="stylesheet"${co} href="${href}" /></noscript>`);
+}
+
+/** Where a drawn page's critical CSS goes (deferCss leaves it, inlineCriticalCss fills it). */
+const CRITICAL_MARK = "<!--cs-critical-->";
+
+/**
+ * A drawn page's app stylesheet, taken out of its HTML: the page's loader adds it once the first paint's fonts are here
+ * (afterFirstPaint), and its critical CSS stands in until then (inlineCriticalCss, at the stylesheet's place). Without
+ * JavaScript, a <noscript> copy is a normal stylesheet. Null when there's no stylesheet link (dev, tests).
+ */
+export function deferCss(html: string): { html: string; href: string } | null {
+  let href = "";
+  const out = html.replace(/<link rel="stylesheet"((?:\s+crossorigin)?)\s+href="(\/assets\/[^"]+\.css)"\s*\/?>/, (_m, co: string, h: string) => {
+    href = h;
+    return `${CRITICAL_MARK}<noscript><link rel="stylesheet"${co} href="${h}" /></noscript>`;
+  });
+  return href ? { html: out, href } : null;
+}
+
+/**
+ * A drawn page's critical CSS (server/criticalCss.ts: the rules of these stylesheets its markup uses) inline, where
+ * deferCss took the app's stylesheet out. Inline styles are allowed by the CSP (server/securityHeaders.ts), and the
+ * page's own <style> blocks (BOOT_STYLE, FIRST_PAINT_FONTS) still come after it.
+ */
+export function inlineCriticalCss(html: string, sheets: string[]): string {
+  const css = criticalCss(sheets, html).replace(/<\/(style)/gi, "<\\/$1");
+  return html.replace(CRITICAL_MARK, () => (css ? `<style id="${CRITICAL_CSS_ID}">${css}</style>` : ""));
 }
 
 /** index.html for this path (renderPage without the status). */
