@@ -7,9 +7,9 @@ import { cn } from "../cn";
 import { THEMES, type ThemeChoice } from "../../shared/personal";
 
 /** Each palette's page, card, text, muted text and line colours, copied from src/index.css (:root is Dark). */
-const SWATCH = {
+export const SWATCH = {
   light: { bg: "#ffffff", card: "#f4f4f5", fg: "#09090b", mut: "#a1a1aa", line: "#e4e4e7", acc: "#eab308" },
-  dim: { bg: "#232428", card: "#2a2b30", fg: "#e4e4e7", mut: "#6b6c75", line: "#ffffff1a", acc: "#ffc700" },
+  dim: { bg: "#1e1f23", card: "#232428", fg: "#e4e4e7", mut: "#6b6c75", line: "#ffffff1a", acc: "#ffc700" },
   dark: { bg: "#0a0a0b", card: "#111113", fg: "#f4f4f5", mut: "#52525b", line: "#ffffff14", acc: "#ffc700" },
   midnight: { bg: "#000000", card: "#08080a", fg: "#f4f4f5", mut: "#3f3f46", line: "#ffffff12", acc: "#ffc700" },
 } as const;

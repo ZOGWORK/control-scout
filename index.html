@@ -32,7 +32,7 @@
         if (t === 'dim' || t === 'midnight') {
           document.documentElement.classList.add(t);
           var tc = document.querySelector('meta[name="theme-color"]');
-          if (tc) tc.setAttribute('content', t === 'dim' ? '#232428' : '#000000');
+          if (tc) tc.setAttribute('content', t === 'dim' ? '#1e1f23' : '#000000');
         }
         if (s && s.value && s.value.density === 'compact') document.documentElement.classList.add('compact');
         // This device's text size (src/lib/textSize.ts), before anything paints.
