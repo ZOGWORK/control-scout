@@ -53,6 +53,7 @@ import { scrollToElement, smoothBehavior } from "../lib/pageScroll";
 import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
 import { hasTeamPage } from "../shared/teamPages";
+import { eventRoster, eventStanding } from "../shared/eventStanding";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 
 export default function EventPage() {
@@ -239,7 +240,7 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
           <TabsTrigger value="matches">Matches</TabsTrigger>
           <TabsTrigger value="rankings">Rankings</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
-          <TabsTrigger value="teams">Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{d.field.length || registeredCount}</span></TabsTrigger>
+          <TabsTrigger value="teams">Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>
           <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
           <TabsTrigger value="awards">Awards</TabsTrigger>
           {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
@@ -614,8 +615,10 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
   );
 }
 
-/** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. */
-function TeamsGrid({ field, season, team, predictable, registered }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"] }) {
+/** Teams (N): everyone registered, as cards — rank, OPR and rating at a glance, searchable. At a league meet:
+ *  the teams at this meet, with the meet's own rank and record (src/shared/eventStanding.ts). */
+function TeamsGrid({ field: all, season, team, predictable, registered }: { field: FieldRow[]; season: number; team: number | null; predictable: boolean; registered: EventDetail["registered"] }) {
+  const field = eventRoster(all).map((t) => ({ ...t, ...eventStanding(t) }));
   const [q, setQ] = useState("");
   const f = q.trim().toLowerCase();
   const list = [...field]

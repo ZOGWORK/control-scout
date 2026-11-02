@@ -22,6 +22,7 @@ import { projectionsPath } from "../lib/projections";
 import { projectionHeadline } from "./Projections";
 import { ADVANCE_LABEL, advanceStatus, type ProjectionRun, type ProjectionsView } from "../shared/projections";
 import { oddsTabBasis } from "../lib/eventRankingNotes";
+import { eventStanding } from "../shared/eventStanding";
 
 const ease = [0.2, 0.8, 0.2, 1] as const;
 const pct = (p: number | null | undefined, decided = false) => oddsPct(p, decided);
@@ -416,7 +417,9 @@ function FieldDetails({ id, t, row, fc, season, isTeam, onPick, onPrefetch, onPe
     ["Win event", pct(t.pWin, over)],
     ["Rating", `${t.strength.np.toFixed(0)} ± ${t.strength.sd.toFixed(0)}`],
   ];
-  if (row?.rank != null) facts.push(["Rank now", `#${row.rank}${row.wins != null ? ` · ${row.wins}-${row.losses ?? 0}-${row.ties ?? 0}` : ""}`]);
+  // At a league meet, the meet's own rank and record (FIRST's are the league's running standing).
+  const now = row ? eventStanding(row) : null;
+  if (now?.rank != null) facts.push(["Rank now", `#${now.rank}${now.wins != null ? ` · ${now.wins}-${now.losses ?? 0}-${now.ties ?? 0}` : ""}`]);
   if (row?.opr.np != null) facts.push(["OPR here", row.opr.np.toFixed(1)]);
   else if (row?.seasonOpr != null) facts.push(["Season OPR", row.seasonOpr.toFixed(1)]);
   return (
