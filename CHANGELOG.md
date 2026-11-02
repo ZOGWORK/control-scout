@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.2.6 — 2026-11-02
+
+FTC One Search: recent searches, example searches, and a clearly labelled "did you mean".
+
+### Highlights
+- [home] Your recent searches show when you click into an empty search box
+- [home] Example searches in the box show what else you can ask
+- [fixes] A spelling correction now says "Did you mean …?" with what you typed
+
+### Search
+- **Recent searches.** The top-bar search and the not-found page's search remember what you searched for, on this device only: click into the empty box and your last few searches are there, one tap to run one again, with Clear to remove them all. They're never sent anywhere (Settings › Clear all local data removes them too). Pickers, like Predict's team box, don't record anything.
+- **Example searches.** The same empty box offers example searches that run straight away: "4215 vs 6980", "when did 4215 go to worlds", "will 4215 win their next match" and "4215 record".
+- **"Did you mean" is labelled.** When search corrects a query, the line above the results reads "Did you mean “…”? Showing results for that, not “what you typed”.", so a correction is never mistaken for what you asked. (#428)
+
 ## 2.2.5 — 2026-11-02
 
 FTC One Search: the magnifier searches, and the list stays clear of a phone's keyboard.

@@ -4,7 +4,7 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { ArrowRight, CalendarDays, ChevronDown, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { offlineSource } from "../../lib/offline/saved";
@@ -14,6 +14,7 @@ import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
+import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearches } from "./discover";
 import { seasonLabel } from "../../lib/format";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
 
@@ -138,10 +139,13 @@ export function useSections(hits: SearchHit[], answer: SearchAnswer | undefined,
   return useMemo(() => (answer ? answerSections({ ...answer, hits }, ai) : { sections: plainSections(hits), notes: { understood: [] } }), [hits, answer, ai]);
 }
 
-/** What the query was read as, above the rows: a correction, Bruno AI's reading, or what was understood. */
-export function AnswerNotesView({ notes, refining, className }: { notes: AnswerNotes; refining?: boolean; className?: string }) {
+/** What the query was read as, above the rows: a correction, Bruno AI's reading, or what was understood.
+ *  A correction is always labelled as one, never a silent swap: "Did you mean …?", and (given `query`) what was typed. */
+export function AnswerNotesView({ notes, refining, className, query }: { notes: AnswerNotes; refining?: boolean; className?: string; query?: string }) {
   const lines: ReactNode[] = [];
-  if (notes.didYouMean) lines.push(<>Showing results for <b className="font-medium text-foreground">“{notes.didYouMean}”</b></>);
+  if (notes.didYouMean) {
+    lines.push(<span data-did-you-mean>Did you mean <b className="font-medium text-foreground">“{notes.didYouMean}”</b>? Showing results for that{query ? <>, not “{query}”</> : ""}.</span>);
+  }
   for (const u of notes.understood) lines.push(u);
   if (notes.gap) lines.push(<span className="inline-flex items-start gap-1 rounded-md border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-foreground"><Info className="mt-px size-3 shrink-0 text-warning" />{notes.gap}</span>);
   if (notes.ai) {
@@ -210,6 +214,10 @@ export interface SearchBoxProps {
   /** The last row, "See all results for …", and plain Enter open the full results page (/search?q=…). Off for a box
    *  that picks something instead of going somewhere (Predict's team picker). */
   seeAll?: boolean;
+  /** FTC One Search's teaching parts in the empty field's list: this device's recent searches, one tap to run again
+   *  (with Clear), and, with `examples`, chips of real example queries. */
+  discover?: boolean;
+  examples?: boolean;
 }
 
 /** A phone's keyboard (and its accessory bar) covers the bottom of the page without making it shorter: while it's
@@ -280,7 +288,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true }: SearchBoxProps) {
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true, discover, examples }: SearchBoxProps) {
   const [q, setQ] = useState(initialQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
@@ -339,7 +347,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
   const go = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
-  const pick = (h: SearchHit) => { logPick(h); go(h); };
+  // A search of everything (not a picker, not a box limited to some kinds): what was searched is remembered on
+  // this device, for the recent searches list.
+  const remember = seeAll && !kinds;
+  const pick = (h: SearchHit) => { logPick(h); if (remember && q.trim()) addRecentSearch(q); go(h); };
   // Enter pressed before a picker's results were in: the query it was pressed on, until they arrive.
   const enterFor = useRef<string | null>(null);
   useEffect(() => {
@@ -353,8 +364,17 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const query = q.trim();
   // The last row: the full results page. Its index is right after the results', so the arrow keys reach it too.
   const full = seeAll && !!query;
-  const count = ordered.length + (full ? 1 : 0);
-  const openFull = () => go(searchPagePick(query));
+  const recent = useRecentSearches();
+  // The empty field's suggestions (this device's recent searches, then examples): options like results, so the
+  // arrow keys walk them and Enter runs the highlighted one. A page's own emptyHint replaces them.
+  const suggestions = useMemo(() => (emptyHint ? [] : [
+    ...(discover ? recent.map((text) => ({ text, recent: true })) : []),
+    ...(examples ? SEARCH_EXAMPLES.map((text) => ({ text, recent: false })) : []),
+  ]), [emptyHint, discover, examples, recent]);
+  const count = query ? ordered.length + (full ? 1 : 0) : suggestions.length;
+  /** The full results page for a query: the one typed, or a recent search or example tapped. */
+  const runQuery = (text: string) => { if (remember) addRecentSearch(text); go(searchPagePick(text.trim())); };
+  const openFull = () => runQuery(query);
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
   // page (a picker box: its top result, once it's current).
   const submit = (highlighted: boolean) => {
@@ -365,7 +385,48 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     // (Open again first: a list closed meanwhile would drop the pending pick.)
     else { setOpen(true); enterFor.current = query; searchNow(); }
   };
-  const showList = open && (query ? true : !!emptyHint);
+  const keep = (e: React.SyntheticEvent) => e.preventDefault(); // a press that mustn't take focus from the field
+  const suggestion = (i: number) => ({
+    id: `${listId}-${i}`, role: "option", "aria-selected": i === active,
+    onPointerDown: keep, onMouseDown: keep, onClick: () => runQuery(suggestions[i].text), onPointerMove: () => setActive(i),
+  });
+  const recentCount = suggestions.filter((x) => x.recent).length;
+  const hintContent = emptyHint ?? (suggestions.length ? (
+    <>
+      {recentCount > 0 && (
+        <div role="group" aria-label="Recent searches">
+          <p className="flex items-center justify-between px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Recent searches
+            <button type="button" onPointerDown={keep} onMouseDown={keep} onClick={clearRecentSearches}
+              className="rounded px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-accent-text hover:underline pointer-coarse:min-h-8">Clear</button>
+          </p>
+          {suggestions.slice(0, recentCount).map((x, i) => (
+            <div key={x.text} {...suggestion(i)} data-recent
+              className={cn("flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm pointer-coarse:min-h-11", i === active ? "bg-accent/[0.12] text-foreground" : "text-foreground/90")}>
+              <Clock className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{x.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {suggestions.length > recentCount && (
+        <div role="group" aria-label="Example searches" className="flex flex-wrap items-center gap-1.5 px-3 pb-1.5 pt-2 text-sm text-muted-foreground">
+          <span aria-hidden>Try:</span>
+          {suggestions.slice(recentCount).map((x, j) => {
+            const i = recentCount + j;
+            return (
+              <span key={x.text} {...suggestion(i)} data-example
+                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-sm:min-h-9", i === active ? "border-accent bg-accent/[0.12]" : "border-border hover:border-accent/60")}>
+                {x.text}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </>
+  ) : undefined);
+  const showList = open && (query ? true : !!hintContent);
+  // A closed list highlights nothing: Enter after Escape never opens a row or suggestion that was dismissed.
+  useEffect(() => { if (!showList) { setActive(-1); activeKey.current = null; } }, [showList]);
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
@@ -391,6 +452,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             if (e.key === "Escape") { if (showList) setOpen(false); else if (q) setQ(""); else { (e.target as HTMLInputElement).blur(); onClose?.(); onEscape?.(); } return; }
             // Enter: the highlighted row; with none, the full results page (a picker box: its top result, once it's current).
             if (e.key === "Enter" && query) { e.preventDefault(); submit(true); return; }
+            // Enter on the empty field: the highlighted suggestion; nothing highlighted, nothing to search.
+            if (e.key === "Enter") { if (active >= 0 && suggestions[active]) { e.preventDefault(); runQuery(suggestions[active].text); } return; }
             if (!count) return;
             if (e.key === "ArrowDown") { e.preventDefault(); if (!showList) { setOpen(true); return; } setActive((i) => (i + 1) % count); }
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (i <= 0 ? count - 1 : i - 1)); }
@@ -409,14 +472,14 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
         <div ref={list} id={listId} role="listbox" aria-label={`${label} results`} aria-busy={stale || undefined} onScroll={measure}
           style={room != null ? { maxHeight: `min(26rem, ${room}px)` } : undefined}
           className={cn("relative max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain p-1.5 transition-opacity", stale && "opacity-60")}>
-          {!query ? emptyHint : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
+          {!query ? hintContent : error ? <p className="px-3 py-2.5 text-sm text-destructive">{error}</p>
             : !ordered.length && !answer?.card ? (
               <p className="px-3 py-2.5 text-sm text-muted-foreground">{busy ? "Searching…" : meta && !meta.dataLoaded ? "No FTC data has been loaded on this server yet, so there's nothing to search."
                 : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
               <>
-                <AnswerNotesView notes={notes} refining={refining} className="px-3 pb-1 pt-1.5" />
-                {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => go({ ...searchPagePick(query), href })} />}
+                <AnswerNotesView notes={notes} refining={refining} query={stale ? undefined : query} className="px-3 pb-1 pt-1.5" />
+                {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => { if (remember) addRecentSearch(query); go({ ...searchPagePick(query), href }); }} />}
                 {sections.map((s) => (
                   <div key={s.id} role="group" aria-label={s.title}>
                     <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
