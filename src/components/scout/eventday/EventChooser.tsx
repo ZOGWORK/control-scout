@@ -92,7 +92,12 @@ export function EventChooser({ season, currentSeason, onSeason, entries, ourTeam
   // The entries by event, sorted once: each card counts only its own event's, not the whole list.
   const byEvent = useMemo(() => {
     const m = new Map<string, Entry[]>();
-    for (const x of entries) { const k = (x.eventCode ?? "").trim().toUpperCase(); if (k) m.set(k, [...(m.get(k) ?? []), x]); }
+    for (const x of entries) {
+      const k = (x.eventCode ?? "").trim().toUpperCase();
+      if (!k) continue;
+      const list = m.get(k);
+      if (list) list.push(x); else m.set(k, [x]);
+    }
     return m;
   }, [entries]);
 

@@ -267,12 +267,15 @@ export default function ScoutPage() {
     // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
     setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
-  // Another season in the picker: Scout's session is per season, so an open pit entry would close with it. Ask
-  // first. A team still waiting for its event (Scout this team, no event yet) stays chosen.
+  // Another season in the picker: Scout's session and entry forms are per season, so an entry being filled in (a
+  // pit entry, a typed-in match or an opened entry) would lose its answers. Ask first, then close it. A team still
+  // waiting for its event (Scout this team, no event yet) stays chosen.
   const pickSeason = (y: number) => {
     if (y === season) return;
-    if (pitOpen && !window.confirm(`Leave the pit entry for ${pitTeam}? What you've typed in it isn't saved.`)) return;
-    setSp((x) => { x.set("season", String(y)); if (pitOpen) x.delete("pit"); return x; });
+    const draft = pitOpen ? `the pit entry for ${pitTeam}` : manual ? "the match you're typing in" : editing ? "the entry you have open" : null;
+    if (draft && !window.confirm(`Leave ${draft}? What you've typed in it isn't saved.`)) return;
+    if (manual) setManual(null);
+    setSp((x) => { x.set("season", String(y)); if (pitOpen) x.delete("pit"); x.delete("entry"); return x; });
   };
   const setWatching = (w: Watching) => { if (session) scoutSession.set(session.eventCode, w); };
   // The match being scouted has its own key (`at`): `match` is the entry list's filter, which this never touches.

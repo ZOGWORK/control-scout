@@ -46,7 +46,8 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/api/events/2025/USNJQ1")) return new Response(JSON.stringify(detail), { status: 200 });
-    if (url.includes("/api/events")) return new Response(JSON.stringify({ events: [] }), { status: 200 });
+    // The season's list; any other event (another season's, after a season switch) isn't found.
+    if (/\/api\/events(\?|$)/.test(url)) return new Response(JSON.stringify({ events: [] }), { status: 200 });
     return new Response("{}", { status: 404 });
   }));
 });
@@ -85,6 +86,24 @@ describe("Event day", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to USNJQ1" }));
     await waitFor(() => expect(param("pick")).toBeNull());
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
+  });
+
+  it("another season in the picker with a typed-in match open asks first, and closes it only on yes", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Fast intake" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Next season" }));
+    expect(ask).toHaveBeenCalledOnce();
+    expect(ask.mock.calls[0][0]).toContain("the match you're typing in");
+    expect(param("season")).toBe("2025");
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next season" }));
+    await waitFor(() => expect(param("season")).toBe("2026"));
+    expect(screen.queryByLabelText("Notes")).toBeNull();
+    ask.mockRestore();
   });
 
   it("a pit entry and an opened entry keep their answers when another section is opened and closed", async () => {
