@@ -21,7 +21,7 @@ FTC One Search: the magnifier searches, and the list stays clear of a phone's ke
 
 ### Highlights
 - [fixes] Tapping the magnifier in a search box runs the search, just like Enter
-- [fixes] On a phone the results list ends above the keyboard, so no result hides under it
+- [fixes] On a phone the results list now ends above the keyboard
 - [fixes] Typing fast never leaves an older search's results looking current
 
 ### Search
