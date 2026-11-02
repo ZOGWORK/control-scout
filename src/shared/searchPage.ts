@@ -1,6 +1,7 @@
 // The /search page's heading and what makes a hit a Compare: shared by the app (src/pages/SearchPage.tsx) and the
 // server's first paint of the same page (server/seoMeta.ts searchMeta), so both title it the same way.
 import type { SearchAnswer, SearchHit } from "./api.js";
+import { showingLine } from "./search.js";
 
 /** Fields a newer server adds to an answer (the search-engine work); read defensively. */
 export type AnswerExtra = SearchAnswer & { interpreted?: string; fuzzyWord?: string; fallback?: { label: string; hits: SearchHit[] } };
@@ -26,4 +27,14 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[]): string
   if (a?.interpreted) return a.interpreted;
   if (top?.kind === "team" && (a?.step === "deterministic" || !a)) { const p = teamParts(top.title); if (p) return p.name ? `${p.name} (${p.number})` : `Team ${p.number}`; }
   return "Search results";
+}
+
+/** The one badge under the title: how the query was read. The server's reading when it sends one; else a team or a
+ *  Compare and what it opens on ("ENFORCERS (7149) · Worlds appearances"); else what was understood. Never one
+ *  event's or place's name (a list of events isn't "showing" its first). */
+export function contextBadge(a: AnswerExtra, understood: string[] = []): string | null {
+  if (a.interpreted) return a.interpreted;
+  const top = a.hits[0];
+  if (top && (top.kind === "team" || isCompare(top))) { const s = showingLine(a); if (s) return s.replace(" — ", " · "); }
+  return understood[0]?.replace(/^Understood:\s*/, "") || null;
 }

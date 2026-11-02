@@ -19,8 +19,8 @@ import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../comp
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
-import { SEARCH_PAGE_LIMIT, showingLine } from "../shared/search";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
@@ -75,7 +75,7 @@ export default function SearchPage() {
   }, [now.data, before.data, base, asked, hits]);
 
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
-  const badge = !found ? null : ax?.interpreted ?? (answer ? showingLine({ ...answer, hits })?.replace(" — ", " · ") ?? notes.understood[0]?.replace(/^Understood:\s*/, "") ?? null : null);
+  const badge = !found || !ax ? null : contextBadge({ ...ax, hits }, notes.understood);
   const open = (h: SearchHit) => logPick(h);
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">

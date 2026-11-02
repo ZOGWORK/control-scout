@@ -4,7 +4,7 @@
 // Presentation only: nothing here adds, drops or reorders a result except the filters the visitor picks.
 import type { SearchHit } from "../../../shared/api";
 import { isCompare } from "../../../shared/searchPage";
-export { isCompare, pageTitle, teamParts, type AnswerExtra } from "../../../shared/searchPage";
+export { contextBadge, isCompare, pageTitle, teamParts, type AnswerExtra } from "../../../shared/searchPage";
 import { eventTypeLabel } from "../../../shared/labels";
 
 /** "started": begun, and without its last day we can't say whether it's still on (the server sent only its first). */

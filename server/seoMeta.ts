@@ -33,8 +33,8 @@ import { searchAnswer } from "./api/searchAnswer.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
-import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref, showingLine } from "../src/shared/search.js";
-import { pageTitle, type AnswerExtra } from "../src/shared/searchPage.js";
+import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref } from "../src/shared/search.js";
+import { contextBadge, pageTitle } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -479,8 +479,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
-  const showing = showingLine(answer);
-  const badge = (answer as AnswerExtra).interpreted ?? showing?.replace(" — ", " · ");
+  const badge = contextBadge(answer, notes.understood);
   // The badge says what was understood; with none (nothing found), the reading's own lines do.
   const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...(badge ? [] : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
