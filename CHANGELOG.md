@@ -30,7 +30,7 @@ FTC One Search: the search dropdown groups what it found, Comparisons first, and
 - **What it understood.** Above the results, the dropdown names what search read your query as ("Understood: Upcoming league meets in New Jersey"), the same words the results page uses. A spelling correction still says "Did you mean …?" instead.
 - **Teams, events, pages.** Team rows have the team badge icon, and show the team's season OPR when the server sends it. Event rows show the season, the dates ("Nov 7, 2026") and the place in place of the event code and a raw date, with Live while an event is on. A set of events counts the whole set ("Events 14 of 26"), so the dropdown and the results page agree. Site pages stay in their own Pages group below.
 - **Exact matches apart.** When some teams only share a word with your search, they're listed under "Other teams matching “…”", below the exact match, as on the results page.
-- **Example searches.** "meets in New Jersey" joins the example searches in the empty box. (#PR)
+- **Example searches.** "meets in New Jersey" joins the example searches in the empty box. (#438)
 
 ## 2.3.4 — 2026-11-02
 
