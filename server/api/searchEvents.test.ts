@@ -176,3 +176,18 @@ describe("the first HTML of /search (Greptile on #434)", () => {
     expect(html).toContain("No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead");
   });
 });
+
+describe("Greptile on #434, round 3", () => {
+  it("a team at an event is the team's answer, never a set of events", async () => {
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, 'USNJCMP', 4215, 6)", [S]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'USNJCMP', 4215, 80, 5)", [S]);
+    const a = await ask("hypnotic at New Jersey Championship");
+    expect(a.understood?.kind).not.toBe("events");
+    expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
+  });
+  it("a name typed without its spaces is that name, with no correction", async () => {
+    const a = await ask("badwolf");
+    expect(a.hits[0]).toMatchObject({ ref: "6980", match: "exact" });
+    expect(a.didYouMean).toBeUndefined();
+  });
+});

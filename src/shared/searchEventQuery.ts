@@ -12,7 +12,7 @@
 //   - Time (src/shared/searchQuery.ts TIME_WORDS) is a date window (timeWindow).
 //   - Year: "2024" means events held in calendar 2024 (a 2024 Houston championship belongs to the 2023–24 season);
 //     "2023-24" means that season. No year: the current season.
-import { findRegions, isRegionCode, type Region } from "./regions.js";
+import { findRegions, isRegionCode, regionLabel, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, singularize, timePhrase } from "./searchQuery.js";
 import { SEARCH_TOPICS } from "./search.js";
 
@@ -67,7 +67,16 @@ export function regionOf(ws: string[]): Region | null {
   if (!text) return null;
   if (/^[a-z]{2}$/i.test(text) && !/^[A-Z]{2}$/.test(text) && WORD_CODES.has(text.toLowerCase())) return null;
   const f = text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? null;
+  return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? australianCode(text);
+}
+
+/** An Australian state's own three-letter code ("NSW", "QLD"): the ones no US or Canadian code shares. "VIC", "TAS"
+ *  and "ACT" are words too, so only in capitals. (SA, WA and NT are US or Canadian codes as well: their names only.) */
+function australianCode(text: string): Region | null {
+  const code = /^(?:nsw|qld)$/i.test(text) ? text.toUpperCase() : /^(?:VIC|TAS|ACT)$/.test(text) ? text : null;
+  if (!code) return null;
+  const r = findRegions(regionLabel(`Australia:${code}`)).find((x) => x.key === `Australia:${code}`);
+  return r ?? null;
 }
 
 /** The event set a query asks for, or null when it isn't one (the rules are at the top of this file). */

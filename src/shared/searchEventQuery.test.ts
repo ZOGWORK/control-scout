@@ -81,6 +81,9 @@ describe("Greptile on #434", () => {
     expect(readEventQuery("meets in District of Columbia")).toMatchObject({ region: { key: "USA:DC" }, where: null });
     expect(readEventQuery("meets in the Northern Territory")).toMatchObject({ region: { key: "Australia:NT" }, where: null });
     expect(readEventQuery("meets in ON")).toMatchObject({ region: { key: "Canada:ON" } });
+    expect(readEventQuery("meets in NSW")).toMatchObject({ region: { key: "Australia:NSW" }, where: null });
+    expect(readEventQuery("meets in qld")).toMatchObject({ region: { key: "Australia:QLD" } });
+    expect(readEventQuery("meets in VIC")).toMatchObject({ region: { key: "Australia:VIC" } });
     expect(readEventQuery("meets in IN")).toMatchObject({ region: { key: "USA:IN" } });
     expect(readEventQuery("meets in the New Jersey")).toMatchObject({ region: { key: "USA:NJ" }, where: null });
   });
