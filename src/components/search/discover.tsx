@@ -1,8 +1,7 @@
 // FTC One Search, teaching what the box can do (docs/search.md, "Discoverability"): example chips that run their
-// query, and this device's recent searches, in an empty field's list. Every example is a real query search answers
+// query (for empty states; SearchBox lists the same examples as options), and this device's recent searches. Every example is a real query search answers
 // today. Home's hero block has its own rotating examples and chips (src/components/home/HeroSearch.tsx).
 import { useSyncExternalStore } from "react";
-import { Clock } from "lucide-react";
 import { cn } from "../cn";
 
 /** Real, runnable examples across different kinds of question. Only queries search answers now (checked against the
@@ -69,26 +68,3 @@ const none: string[] = [];
 export function useRecentSearches(): string[] {
   return useSyncExternalStore(subscribe, readRecent, () => none);
 }
-
-/** This device's recent searches, one tap to run again, with Clear. Nothing when there are none. */
-export function RecentSearches({ onRun, className }: { onRun: (q: string) => void; className?: string }) {
-  const recent = useRecentSearches();
-  if (!recent.length) return null;
-  const keep = (e: React.SyntheticEvent) => e.preventDefault();
-  return (
-    <div role="group" aria-label="Recent searches" className={className}>
-      <p className="flex items-center justify-between px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Recent searches
-        <button type="button" onPointerDown={keep} onMouseDown={keep} onClick={clearRecentSearches}
-          className="rounded px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-accent-text hover:underline pointer-coarse:min-h-8">Clear</button>
-      </p>
-      {recent.map((q) => (
-        <button key={q} type="button" data-recent onPointerDown={keep} onMouseDown={keep} onClick={() => onRun(q)}
-          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left text-sm text-foreground/90 hover:bg-accent/[0.08] pointer-coarse:min-h-11">
-          <Clock className="size-4 shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{q}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
