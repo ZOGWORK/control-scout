@@ -342,7 +342,7 @@ export default function ScoutPage() {
         {/* No event yet (or Change event): the picker is the page, with no sections above it. What's under it stays
             mounted (hidden), so an entry being filled in keeps its answers through Change event and back. */}
         {picking && <>
-          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
+          <EventChooser key={`${space ?? "personal"}:${season}`} season={season} currentSeason={current} onSeason={(y) => setSp((x) => { x.set("season", String(y)); return x; })} entries={entries} ourTeams={ourTeams} current={session?.eventCode ?? scoutSession.suggested} onPick={pickEvent}
             onCancel={session ? () => setSp((x) => { x.delete("pick"); return x; }) : undefined} />
           {!session && (
             <p className="mt-6 text-sm text-muted-foreground">

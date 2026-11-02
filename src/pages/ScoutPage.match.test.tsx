@@ -8,11 +8,12 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { localScoutEntries, saveScoutEntry } from "../lib/scouting";
 import { writeScoutSession } from "../lib/scoutSession";
 import { resetFlags } from "../lib/flags";
+import { invalidate } from "../lib/api";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
 import type { MatchView } from "../shared/api";
 
-const h = vi.hoisted(() => ({ personal: { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, bookmarks: [], myTeam: null } } }));
+const h = vi.hoisted(() => ({ personal: { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, bookmarks: [], myTeam: null, tracked: { teams: [], events: [] } } } }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
 vi.mock("../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
 vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
@@ -99,11 +100,12 @@ describe("Event day", () => {
       ? new Response(JSON.stringify({ events: [{ season: 2025, code: "USOTH1", name: "Other Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Edison", state: "NJ", country: "USA" }] }), { status: 200 })
       : String(input).includes("/api/events/2025/USOTH1") ? new Response(JSON.stringify({ ...detail, event: { ...detail.event, name: "Other Qualifier", code: "USOTH1" } }), { status: 200 })
       : real(input)));
+    invalidate("/api/events?"); // earlier tests cached an empty season list
     red();
     show("/scout?season=2025&tab=event&pit=102");
     fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
     fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
-    fireEvent.change(await screen.findByPlaceholderText("Search by event name, city or code"), { target: { value: "Other" } });
+    fireEvent.change(await screen.findByPlaceholderText("Name, code, city or state"), { target: { value: "Other" } });
     const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(await screen.findByRole("button", { name: "Scout Other Qualifier" }));
     expect(ask).toHaveBeenCalledOnce();

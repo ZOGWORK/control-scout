@@ -15,7 +15,7 @@ import { TooltipProvider } from "../components/ui/overlay";
 import { asEntries, fillTeam, formEvent } from "./scoutTestUrl";
 
 const h = vi.hoisted(() => ({
-  personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {} } },
+  personal: { user: null as AccountUser | null, providers: { email: true, google: false } as object | null, syncReady: false, state: { videoLinks: {}, tracked: { teams: [], events: [] } } },
 }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
 vi.mock("../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
@@ -49,7 +49,7 @@ beforeEach(() => {
   calls.length = 0;
   list = [asg(1, 1234, ME), asg(2, 5678, ME), asg(3, 2222, SAM)];
   matchList = [];
-  h.personal = { user: userAs("member"), providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {} } };
+  h.personal = { user: userAs("member"), providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, tracked: { teams: [], events: [] } } };
   resetFlags({ ...DEFAULT_FLAGS });
   localStorage.setItem(`cs-scout-tpl:${WS}:2025`, JSON.stringify({ workspaceId: WS, season: 2025, version: 0, settingsVersion: 0, match: null, pit: null, updatedAt: null, updatedBy: null }));
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
@@ -80,9 +80,9 @@ afterEach(() => { cleanup(); resetFlags({ ...DEFAULT_FLAGS }); vi.unstubAllGloba
 
 const show = (url: string) => render(<TooltipProvider><MemoryRouter initialEntries={[asEntries(url)]}><ScoutPage /></MemoryRouter></TooltipProvider>);
 const myCards = () => within(screen.getByRole("list", { name: "My assignments" })).getAllByRole("listitem");
-/** The event picker: the test event is past, so it's found by search, then picked. */
+/** The event picker: the test event is past, so it's found by its filter box, then picked. */
 async function pickTestEvent() {
-  fireEvent.change(await screen.findByPlaceholderText("Search by event name, city or code"), { target: { value: "Test" } });
+  fireEvent.change(await screen.findByPlaceholderText("Name, code, city or state"), { target: { value: "Test" } });
   fireEvent.click(await screen.findByRole("button", { name: "Scout Test Qualifier" }));
 }
 
