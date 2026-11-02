@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.2.2 — 2026-11-02
+
+Team and event pages show up seconds sooner on slow venue Wi-Fi.
+
+### Highlights
+- [speed] On slow venue Wi-Fi, team and event pages show seconds sooner
+- [speed] The page still paints once, in its own fonts, with nothing moving afterwards
+- [speed] The rest of the app downloads after the page is up, not alongside it
+
+### Speed
+- **Team and event pages no longer wait on the whole stylesheet.** The page the server draws now carries just the styles its own markup uses, inline, and waits only for its text fonts. The app's full stylesheet and its code start downloading once those fonts are here, instead of sharing a slow connection with them. On a 400 kbps line (phone CPU, cold cache) a team page went from 5.4 s to 3.7 s before anything showed in a local production build; the page still paints once, with no layout shift.
+
 ## 2.2.1 — 2026-11-02
 
 Scout's event picker is the Events list, with a Scout button on every card.
