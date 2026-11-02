@@ -43,7 +43,7 @@ export function NotFoundView({ title = "This page is off the field", description
       <SearchBox
         inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} size="lg"
         label="Search teams, events and matches"
-        placeholder="Team number or name, or an event…"
+        placeholder="Team number or name, or an event…" discover examples
         onPick={(h) => nav(hitHref(h))}
         className="mt-7 w-full text-left [&>div:first-child]:rounded-2xl [&>div:first-child]:shadow-[0_8px_40px_-12px_color-mix(in_srgb,var(--color-accent)_25%,transparent)]"
       />

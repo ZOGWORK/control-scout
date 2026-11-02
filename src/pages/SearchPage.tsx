@@ -113,7 +113,7 @@ export default function SearchPage() {
               )
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
-              <AnswerNotesView notes={notes} className="mb-4 text-sm" />
+              <AnswerNotesView notes={notes} query={query} className="mb-4 text-sm" />
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
               <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
                 <div className="min-w-0">

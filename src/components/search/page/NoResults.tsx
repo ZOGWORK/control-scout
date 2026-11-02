@@ -1,13 +1,11 @@
 // /search when nothing answers the query: never a bare "nothing matches". It says what search covers and what the
 // query was read as, shows the closest real results under a label that says they're a fallback (never as the
 // answer), and offers places to browse and example searches that work.
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CalendarDays, Info, Shield } from "lucide-react";
 import type { SearchHit } from "../../../shared/api";
+import { ExampleChips } from "../discover";
 import { EventCard, ResultRow } from "./ResultCards";
-
-/** Searches that answer today, one per kind of question. */
-export const EXAMPLE_QUERIES = ["4215", "4215 vs 6980", "when did 4215 go to worlds", "meets in New Jersey"];
 
 export function NoResults({ query, understood, fallback, closest, onOpen }: {
   query: string;
@@ -18,6 +16,7 @@ export function NoResults({ query, understood, fallback, closest, onOpen }: {
   closest: SearchHit[];
   onOpen: (h: SearchHit) => void;
 }) {
+  const nav = useNavigate();
   const fbEvents = fallback?.hits.filter((h) => h.kind === "event") ?? [];
   const fbOther = fallback?.hits.filter((h) => h.kind !== "event") ?? [];
   return (
@@ -56,14 +55,7 @@ export function NoResults({ query, understood, fallback, closest, onOpen }: {
           <Link to="/events" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60"><CalendarDays className="size-4 text-accent" aria-hidden />Browse all events</Link>
           <Link to="/teams" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60"><Shield className="size-4 text-accent" aria-hidden />Browse all teams</Link>
         </div>
-        <div>
-          <p className="mb-1.5 text-xs text-muted-foreground">Or try:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {EXAMPLE_QUERIES.map((ex) => (
-              <Link key={ex} to={`/search?q=${encodeURIComponent(ex)}`} className="rounded-full border border-accent/40 bg-accent/[0.06] px-3 py-1 text-xs font-medium text-accent-text hover:border-accent" data-example>{ex}</Link>
-            ))}
-          </div>
-        </div>
+        <ExampleChips label="Or try" onRun={(q) => nav(`/search?q=${encodeURIComponent(q)}`)} />
       </section>
     </div>
   );

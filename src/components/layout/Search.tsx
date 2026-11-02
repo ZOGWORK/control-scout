@@ -107,7 +107,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
         label="Search teams, events and matches"
         placeholder="Search teams, events, matches…"
         hint={SEARCH_HINT}
-        tour="search"
+        tour="search" discover examples
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
         onEscape={restoreFocus}
