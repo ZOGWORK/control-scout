@@ -11,10 +11,11 @@ import { registerCache } from "../caches.js";
 import { FULL_EVERY_MS, isEventDay, liveIo, liveSyncOn, liveSyncSeconds } from "../data/live.js";
 import { eventStatus } from "../../src/shared/eventDay.js";
 import { toEventInput } from "../../src/shared/eventInput.js";
-import { meetStandings, type MeetSide } from "../../src/shared/meetStandings.js";
+import { meetStandingByTeam } from "../../src/shared/meetStandings.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventOver, eventScheduleDifficulty, postedQuals } from "../../src/shared/scheduleDifficulty.js";
 import { eventBracket } from "./bracket.js";
+import { LEAGUE_TYPES, recordAddsUp } from "../../src/shared/eventStanding.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -107,12 +108,15 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
   const oprBy = new Map(oprs.map((o) => [Number(o.team), o]));
   const f = isLegacy(season) ? null : await liveForecaster(season).catch(() => null);
   const book = f?.book(season) ?? null;
+  const league = LEAGUE_TYPES.has(r.type);
   const field: FieldRow[] = entries.map((e) => {
     const o = oprBy.get(Number(e.team));
     const rt = book?.ratings.has(Number(e.team)) ? book.get(Number(e.team)) : null;
+    // A league record that doesn't add up to the matches played (src/shared/eventStanding.ts) is left out, not shown.
+    const rec = !league || recordAddsUp(e.wins, e.losses, e.ties, e.qual_played) ? e : { wins: null, losses: null, ties: null };
     return {
       team: Number(e.team), name: e.name ?? null, city: e.city ?? null, state: e.state ?? null, rank: e.rank, rp: e.rp, tbp: e.tbp,
-      wins: e.wins, losses: e.losses, ties: e.ties, qualPlayed: e.qual_played,
+      wins: rec.wins, losses: rec.losses, ties: rec.ties, qualPlayed: e.qual_played,
       opr: { np: o?.opr_np ?? null, auto: o?.opr_auto ?? null, teleop: o?.opr_teleop ?? null, endgame: o?.opr_endgame ?? null, pen: o?.opr_pen ?? null },
       avgNp: o?.avg_np ?? null,
       rating: rt ? { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n } : null,
@@ -190,16 +194,8 @@ export { toEventInput };
 /** A league meet's own standing by team (src/shared/meetStandings.ts): its played qualification matches, with
  *  their bonus ranking points (stored with the match, not in the match view). */
 async function meetOf(season: number, code: string, matches: MatchView[]): Promise<Map<number, NonNullable<FieldRow["meet"]>>> {
-  const quals = matches.filter((m) => m.level === "qual" && m.played && m.red.score && m.blue.score);
-  const bonusRows = quals.length ? await all<any>("SELECT series, number, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND played = 1", [season, code]) : [];
+  const played = matches.some((m) => m.level === "qual" && m.played);
+  const bonusRows = played ? await all<any>("SELECT series, number, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND played = 1", [season, code]) : [];
   const bonusBy = new Map(bonusRows.map((b) => [`${b.series}:${b.number}`, b]));
-  const side = (m: MatchView, s: "red" | "blue"): MeetSide => {
-    const a = m[s], sc = a.score!, b = bonusBy.get(`${m.series}:${m.number}`)?.[`${s}_bonus`];
-    return {
-      teams: a.teams.map((t) => ({ team: t.number, counts: !t.surrogate, noShow: !t.onField, dq: t.dq })),
-      total: sc.total, np: sc.np, auto: sc.auto, endgame: sc.endgame, tips: sc.tips ?? null, bonus: b ? JSON.parse(b) : null,
-    };
-  };
-  const rows = meetStandings(season, quals.map((m) => ({ red: side(m, "red"), blue: side(m, "blue") })));
-  return new Map(rows.map(({ team, ...x }) => [team, x]));
+  return meetStandingByTeam(season, matches, (series, number, s) => bonusBy.get(`${series}:${number}`)?.[`${s}_bonus`]);
 }

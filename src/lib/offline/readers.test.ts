@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { OFFLINE_FORECAST, readEventDetail, readMatchViews, readProjections, readSearch, readTeamProfile, readTeamSchedule, wrap, type SeasonDb } from "./readers";
-import { packDb, season2024, season2025 } from "./testFixture";
+import { mt, packDb, played, season2024, season2025, team } from "./testFixture";
 import { eventTypeLabel } from "../../shared/labels";
 import { SCHEDULE_COLUMNS, scheduleDifficulty, scheduleRows, withoutRemaining } from "../../shared/scheduleDifficulty";
 
@@ -292,5 +292,55 @@ describe("offline schedule difficulty (a team stat in the pack)", () => {
     const db = await packDb(2025, { events: [{ season: 2025, code: "USNJQ1", name: "Q1", type: "Qualifier", start: "2025-11-01" }] });
     db.run("DROP TABLE team_schedule_difficulty");
     expect(readEventDetail({ season: 2025, db: wrap(db) }, "USNJQ1")!.scheduleDifficulty).toBeNull();
+  });
+});
+
+describe("offline league meet (as the server's: the meet's own standing, no league W-L that doesn't add up)", () => {
+  let pack: SeasonDb;
+  beforeAll(async () => {
+    // FIRST's league standing: 100 shows 10-0-0 over 16 played; at this meet it won both.
+    const et = (t: number, rank: number, wins: number, played: number) => ({ season: 2025, code: "MEET", team: t, rank, rp: 2, tbp: 9, wins, losses: 0, ties: 0, qual_played: played, dq: 0 });
+    pack = { season: 2025, db: wrap(await packDb(2025, {
+      teams: [team(100, "Gearheads", "Newark"), team(200, "Bolt", "Trenton"), team(300, "Cogs", "Camden"), team(400, "Sprockets", "Hoboken"), team(500, "Spare", "Edison")],
+      events: [{ season: 2025, code: "MEET", name: "League Meet", type: "LeagueMeet", start: "2025-11-01", end: "2025-11-01", timezone: "America/New_York", remote: 0, source: "first" }],
+      event_teams: [et(100, 4, 10, 16), et(200, 1, 2, 2), et(300, 2, 1, 2), et(400, 3, 1, 2), et(500, 5, 10, 16)],
+      matches: [played("MEET", "qual", 1, "Q1", "2025-11-01T09:00:00", 120, 80), played("MEET", "qual", 2, "Q2", "2025-11-01T09:10:00", 90, 110)],
+      match_teams: [
+        mt("MEET", "qual", 1, 100, "red", 1), mt("MEET", "qual", 1, 200, "red", 2), mt("MEET", "qual", 1, 300, "blue", 1), mt("MEET", "qual", 1, 400, "blue", 2),
+        mt("MEET", "qual", 2, 100, "blue", 1), mt("MEET", "qual", 2, 400, "blue", 2), mt("MEET", "qual", 2, 200, "red", 1), mt("MEET", "qual", 2, 300, "red", 2),
+      ],
+    })) };
+  });
+
+  it("carries the meet's standing, leaves 500 (not at the meet) without one, and drops the record that doesn't add up", () => {
+    const f = readEventDetail(pack, "MEET")!.field;
+    const one = f.find((r) => r.team === 100)!;
+    expect(one).toMatchObject({ rank: 4, wins: null, losses: null, ties: null });
+    expect(one.meet).toMatchObject({ rank: 1, wins: 2, losses: 0, played: 2 });
+    expect(f.find((r) => r.team === 500)!.meet).toBeNull();
+    expect(f.find((r) => r.team === 200)).toMatchObject({ wins: 2, losses: 0 });
+  });
+});
+
+describe("offline TIPS (2026's tiebreaker after non-foul points)", () => {
+  const ev = { season: 2026, code: "M26", name: "Meet", type: "LeagueMeet", start: "2026-11-01", end: "2026-11-01", timezone: "America/New_York", remote: 0, source: "first" };
+  const m = (n: number, redTips: number | undefined) => ({ season: 2026, code: "M26", level: "qual", series: 0, number: n, label: `Q${n}`, time: `2026-11-01T09:0${n}:00`, played: 1,
+    red_total: 50, red_np: 50, red_auto: 10, red_teleop: 30, red_endgame: 10, red_pen: 0, blue_total: 50, blue_np: 50, blue_auto: 10, blue_teleop: 30, blue_endgame: 10, blue_pen: 0, source: "first",
+    ...(redTips != null ? { red_tips: redTips, blue_tips: 0 } : {}) });
+  const lineup = (code: string) => [1, 2].flatMap((n) => [
+    { season: 2026, code, level: "qual", series: 0, number: n, team: n === 1 ? 100 : 300, alliance: "red", station: 1, surrogate: 0, dq: 0, on_field: 1 },
+    { season: 2026, code, level: "qual", series: 0, number: n, team: n === 1 ? 200 : 400, alliance: "blue", station: 1, surrogate: 0, dq: 0, on_field: 1 },
+  ]);
+
+  it("reads a match's TIPS from the pack, so tied teams at a meet split on it; an older pack without the column still reads", async () => {
+    const et = [100, 200, 300, 400].map((team) => ({ season: 2026, code: "M26", team, rank: null, rp: null, tbp: null, wins: 0, losses: 0, ties: 1, qual_played: 1, dq: 0 }));
+    const pack = { season: 2026, db: wrap(await packDb(2026, { events: [ev], event_teams: et, matches: [m(1, 0), m(2, 7)], match_teams: lineup("M26") })) };
+    const d = readEventDetail(pack, "M26")!;
+    expect(d.matches.find((x) => x.number === 2)!.red.score!.tips).toBe(7);
+    // Two ties: all four level on ranking score and non-foul points, so 300's 7 TIPS put it first (by number it'd be 3rd).
+    const rank = (t: number) => d.field.find((r) => r.team === t)!.meet!.rank;
+    expect([rank(300), rank(100), rank(200), rank(400)]).toEqual([1, 2, 3, 4]);
+    const old = { season: 2026, db: wrap(await packDb(2026, { events: [ev], matches: [m(1, undefined)], match_teams: lineup("M26").slice(0, 2) })) };
+    expect(readEventDetail(old, "M26")!.matches[0].red.score).not.toHaveProperty("tips");
   });
 });

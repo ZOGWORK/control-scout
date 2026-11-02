@@ -8,12 +8,19 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { localScoutEntries, saveScoutEntry } from "../lib/scouting";
 import { writeScoutSession } from "../lib/scoutSession";
 import { resetFlags } from "../lib/flags";
+import { invalidate } from "../lib/api";
 import { DEFAULT_FLAGS } from "../shared/flags";
 import { TooltipProvider } from "../components/ui/overlay";
 import type { MatchView } from "../shared/api";
+import { toast } from "../components/ui/sonner";
 
-const h = vi.hoisted(() => ({ personal: { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, bookmarks: [], myTeam: null } } }));
+const h = vi.hoisted(() => ({ personal: { user: null, providers: { email: true, google: false }, syncReady: false, state: { videoLinks: {}, bookmarks: [], myTeam: null, tracked: { teams: [], events: [] } } } }));
 vi.mock("../lib/personal", () => ({ usePersonal: () => h.personal }));
+// The picker's season menu, as one button (the real one is a Radix select): picks the next season.
+vi.mock("../components/records/Controls", async (orig) => ({
+  ...(await orig<typeof import("../components/records/Controls")>()),
+  SeasonSelect: ({ value, onChange }: { value: number; onChange: (s: number) => void }) => <button type="button" onClick={() => onChange(value + 1)}>Next season</button>,
+}));
 vi.mock("../lib/scoutLive", () => ({ useScoutLive: () => "off" }));
 vi.mock("../components/MatchVideo", () => ({ Recordings: () => null }));
 
@@ -40,7 +47,8 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes("/api/events/2025/USNJQ1")) return new Response(JSON.stringify(detail), { status: 200 });
-    if (url.includes("/api/events")) return new Response(JSON.stringify({ events: [] }), { status: 200 });
+    // The season's list; any other event (another season's, after a season switch) isn't found.
+    if (/\/api\/events(\?|$)/.test(url)) return new Response(JSON.stringify({ events: [] }), { status: 200 });
     return new Response("{}", { status: 404 });
   }));
 });
@@ -81,6 +89,24 @@ describe("Event day", () => {
     expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Fast intake");
   });
 
+  it("another season in the picker with a typed-in match open asks first, and closes it only on yes", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Fast intake" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Next season" }));
+    expect(ask).toHaveBeenCalledOnce();
+    expect(ask.mock.calls[0][0]).toContain("the match you're typing in");
+    expect(param("season")).toBe("2025");
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next season" }));
+    await waitFor(() => expect(param("season")).toBe("2026"));
+    expect(screen.queryByLabelText("Notes")).toBeNull();
+    ask.mockRestore();
+  });
+
   it("a pit entry and an opened entry keep their answers when another section is opened and closed", async () => {
     red();
     saveScoutEntry({ uuid: "keepopen0001", season: 2025, team: 4242, eventCode: "USNJQ1", matchLabel: "Q9", kind: "match", data: {}, notes: "" });
@@ -99,11 +125,12 @@ describe("Event day", () => {
       ? new Response(JSON.stringify({ events: [{ season: 2025, code: "USOTH1", name: "Other Qualifier", start: "2025-11-01", end: "2025-11-01", city: "Edison", state: "NJ", country: "USA" }] }), { status: 200 })
       : String(input).includes("/api/events/2025/USOTH1") ? new Response(JSON.stringify({ ...detail, event: { ...detail.event, name: "Other Qualifier", code: "USOTH1" } }), { status: 200 })
       : real(input)));
+    invalidate("/api/events?"); // earlier tests cached an empty season list
     red();
     show("/scout?season=2025&tab=event&pit=102");
     fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
     fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
-    fireEvent.change(await screen.findByPlaceholderText("Search by event name, city or code"), { target: { value: "Other" } });
+    fireEvent.change(await screen.findByPlaceholderText("Name, code, city or state"), { target: { value: "Other" } });
     const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(await screen.findByRole("button", { name: "Scout Other Qualifier" }));
     expect(ask).toHaveBeenCalledOnce();
@@ -113,6 +140,23 @@ describe("Event day", () => {
     fireEvent.click(screen.getByRole("button", { name: "Scout Other Qualifier" }));
     await waitFor(() => expect(param("pit")).toBeNull());
     expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!).eventCode).toBe("USOTH1");
+    ask.mockRestore();
+  });
+
+  it("another season in the picker with a pit entry open asks first, and switches only on yes", async () => {
+    red();
+    show("/scout?season=2025&tab=event&pit=102");
+    fireEvent.change(await screen.findByLabelText("Notes"), { target: { value: "Pit draft" } });
+    fireEvent.click(screen.getByRole("button", { name: /Change event/ }));
+    const ask = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(await screen.findByRole("button", { name: "Next season" }));
+    expect(ask).toHaveBeenCalledOnce();
+    expect(param("season")).toBe("2025");
+    expect(param("pit")).toBe("102");
+    ask.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Next season" }));
+    await waitFor(() => expect(param("season")).toBe("2026"));
+    expect(param("pit")).toBeNull();
     ask.mockRestore();
   });
 
@@ -137,6 +181,17 @@ describe("Event day", () => {
     expect(screen.getByRole("group", { name: /^Team: 102/ })).toBeTruthy();
   });
 
+  it("another season while a team waits for its event keeps the team, without asking", async () => {
+    show("/scout?season=2025&team=102&new=1");
+    await waitFor(() => expect(param("pit")).toBe("102"));
+    const ask = vi.spyOn(window, "confirm");
+    fireEvent.click(await screen.findByRole("button", { name: "Next season" }));
+    await waitFor(() => expect(param("season")).toBe("2026"));
+    expect(param("pit")).toBe("102");
+    expect(ask).not.toHaveBeenCalled();
+    ask.mockRestore();
+  });
+
   it("Change event opens the picker over the event, with a way back", async () => {
     red();
     show("/scout?season=2025");
@@ -146,6 +201,54 @@ describe("Event day", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to USNJQ1" }));
     await waitFor(() => expect(param("pick")).toBeNull());
     expect(await screen.findByRole("region", { name: "Match queue" })).toBeTruthy();
+  });
+
+  it("Stop scouting leaves the event for Entries, and Undo picks it back up", async () => {
+    red();
+    const told = vi.spyOn(toast, "success");
+    show("/scout?season=2025");
+    fireEvent.click(await screen.findByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect(localStorage.getItem("cs-scout-session:personal")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Event you're scouting" })).toBeNull();
+    const undo = (told.mock.calls[0][1] as { action: { label: string; onClick: () => void } }).action;
+    expect(undo.label).toBe("Undo");
+    act(() => undo.onClick());
+    await waitFor(() => expect(param("tab")).toBe("event"));
+    expect(JSON.parse(localStorage.getItem("cs-scout-session:personal")!)).toMatchObject({ eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
+    expect(await screen.findByRole("region", { name: "Match queue" })).toBeTruthy();
+  });
+
+  it("Stop scouting from a view (Recordings) still opens Entries", async () => {
+    red();
+    show("/scout?season=2025&tab=entries&view=recordings");
+    fireEvent.click(await screen.findByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(param("tab")).toBe("entries"));
+    expect(param("view")).toBeNull();
+  });
+
+  it("a match typed in from Entries stays at the event it was typed at after Stop scouting", async () => {
+    red();
+    show("/scout?season=2025&tab=entries");
+    fireEvent.click(await screen.findByRole("button", { name: /Type a match in/ }));
+    expect(await screen.findByRole("heading", { name: "Type a match in" })).toBeTruthy();
+    expect(screen.getAllByText(/USNJQ1/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Stop scouting/ }));
+    await waitFor(() => expect(localStorage.getItem("cs-scout-session:personal")).toBeNull());
+    expect(screen.getByRole("heading", { name: "Type a match in" })).toBeTruthy();
+    expect(screen.getAllByText(/USNJQ1/).length).toBeGreaterThan(0);
+  });
+
+  it("Stop scouting with a pit entry open asks first, and staying keeps the event", async () => {
+    red();
+    const ask = vi.fn(() => false);
+    vi.stubGlobal("confirm", ask);
+    show("/scout?season=2025&tab=event&pit=102");
+    expect(await screen.findByRole("form", { name: "Pit entry" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Stop scouting/ }));
+    expect(ask).toHaveBeenCalledWith(expect.stringMatching(/pit entry for 102/));
+    expect(localStorage.getItem("cs-scout-session:personal")).not.toBeNull();
+    expect(param("pit")).toBe("102");
   });
 
   it("what you watch changes from the strip, at once", async () => {

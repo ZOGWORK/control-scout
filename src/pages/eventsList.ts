@@ -9,6 +9,17 @@ export type Status = "all" | "live" | "upcoming" | "finished";
 export type VideoFilter = "all" | "recording" | "clips";
 export interface Filters { region: string | null; type: string; status: Status; from: string | null; to: string | null; q: string; video?: VideoFilter }
 
+/** The filters as written in a query string (the Events page's URL, or Scout's picker's own state): anything unknown reads as "all". */
+export function readFilters(get: (k: string) => string | null): Filters & { video: VideoFilter } {
+  const status = get("status");
+  const video = get("video");
+  return {
+    region: get("region"), type: get("type") ?? "all", from: get("from"), to: get("to"), q: get("q") ?? "",
+    status: status === "live" || status === "upcoming" || status === "finished" ? status : "all",
+    video: video === "clips" || video === "recording" ? video : "all",
+  };
+}
+
 /** Cards in the first render, and how many each "more" adds. */
 export const FIRST_EVENTS = 24;
 export const MORE_EVENTS = 36;

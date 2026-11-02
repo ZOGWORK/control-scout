@@ -6,7 +6,7 @@ changelog in `packages/predict-engine/CHANGELOG.md`.
 Each release opens with a `### Highlights` block: 3 to 5 short lines a visitor
 would notice, each starting with a `[tag]` that picks its icon (home, predict,
 teams, scout, offline, speed, live, report, alerts, rankings, share, workspace,
-picklist, history, fixes). What's new shows them first; the groups below are
+picklist, history, fixes, appearance). What's new shows them first; the groups below are
 the full release notes, one click away.
 
 Releases count 1.1, 1.2, 1.3 …, the last number being the step inside one:
@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.1.8 — 2026-11-01
+## 2.2.2 — 2026-11-02
 
 A quiet way to chip in, for anyone who wants to.
 
@@ -25,7 +25,56 @@ A quiet way to chip in, for anyone who wants to.
 - [home] Paying happens on GitHub Sponsors; Control Scout never sees card details
 
 ### Site
-- **Donate page.** /donate says plainly that Control Scout is free and stays free, that donations only help pay for the domain, hosting and email, that they are not tax-deductible (it is run by an individual developer), and that they unlock no features, perks or priority help. Its one button opens GitHub Sponsors in a new tab, where GitHub and Stripe take the payment; nothing about a donation reaches Control Scout. Linked from the site footer and the foot of Home, nowhere else; /support goes to the same page.
+- **Donate page.** /donate says plainly that Control Scout is free and stays free, that donations only help pay for the domain, hosting and email, that they are not tax-deductible (it is run by an individual developer), and that they unlock no features, perks or priority help. Its one button opens GitHub Sponsors in a new tab, where GitHub and Stripe take the payment; nothing about a donation reaches Control Scout. Linked from the site footer and the foot of Home, nowhere else; /support goes to the same page. (#422)
+## 2.2.1 — 2026-11-02
+
+Scout's event picker is the Events list, with a Scout button on every card.
+
+### Highlights
+- [scout] Pick the event from the Events page's list, with all its filters
+- [scout] Every card has its own Scout button; the card still opens the event
+- [scout] Your teams' events and the ones you track sit on top as quick picks
+
+### Scout
+- **The event picker matches the Events page.** Until an event is picked (and after Change event), Scout shows the Events page's filter bar and its cards by week, any event of the season, past ones too. Each card keeps its link to the event and gets a Scout button under it, which picks the event; the event picked now has a gold ring and Keep scouting. A card says when your team competes there and, once this space has entries there, how many pits and matches are scouted. Above the filters: your teams' upcoming events and the events you track, each one tap from scouting it. The filters stay on the picker (Scout's own address keeps the entry list's), and the season picker switches Scout's season. (#421)
+
+## 2.2.0 — 2026-11-02
+
+You can stop scouting an event.
+
+### Highlights
+- [scout] Stop scouting, beside Change event, leaves the event you're scouting
+- [scout] Your entries stay, and Undo picks the event back up
+- [scout] An open pit entry or typed-in match asks before you leave
+
+### Scout
+- **Stop scouting.** The event bar on Scout had only Change event, so there was no way to leave an event without picking another. Stop scouting, next to it, ends this device's session at the event and opens Entries; everything scouted there stays (saved or waiting to sync). The toast's Undo goes back to the same event, watching what you were. A pit entry or a match being typed in on Event day asks first, as Change event does; a match typed in from Entries stays open and still saves at the event it was typed at. On a phone the two buttons sit side by side. Also fixed: with no event picked, Entries showed the sync chip twice. (#420)
+
+## 2.1.9 — 2026-11-02
+
+Five built-in themes, picked in Settings.
+
+### Highlights
+- [appearance] New themes: Dim (soft dark grey) and Midnight (true black)
+- [appearance] Light, Dark and System are still there, and Dark stays the default
+- [appearance] Choose one in Settings → Appearance; nothing else asks you
+- [appearance] Every page, chart and the home globe is drawn for each theme
+
+### Appearance
+- **Themes.** Settings → Appearance → Theme now lists Light, Dim, Dark, Midnight and System as cards, each with a small preview in its own colours. Choosing one applies at once with no reload, is saved on the device and to your account when you're signed in, and is in place before the page first paints (no flash of another theme). System follows your device's light or dark setting, live. Only colours change: surfaces, text, lines and component colours. The yellow accent, the logo and the layout are the same in every theme.
+- **The theme is chosen in Settings only.** The sun and moon button in the top bar is gone, so the app never offers or asks for a theme anywhere else. (#417)
+
+## 2.1.8 — 2026-11-01
+
+A league meet's Teams tab shows what happened at the meet.
+
+### Highlights
+- [fixes] A league meet's Teams tab lists that meet's teams and records
+- [fixes] The odds tab's "Rank now" at a meet is the meet's rank and record
+- [fixes] A league record that doesn't add up is no longer shown
+
+### Events
+- **League meets show the meet's own record.** At a league meet FIRST publishes the league's running standing, whose W-L-T counts only each team's best matches: 2025 USNJNOM3 showed Hypnotic Robotics and Bad Wolf both 10-0-0 after 16 matches, when they went 5-1-0 and 2-4-0 at the meet. The Teams tab now lists the teams that played at the meet, with the meet's own rank and record (the Rankings tab already used them), and the odds tab's "Rank now" does the same. Anywhere a league event's W-L-T doesn't add up to the matches played, it is left out rather than shown. Other events are unchanged. (#418)
 
 ## 2.1.7 — 2026-11-01
 

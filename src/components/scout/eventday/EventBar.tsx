@@ -1,8 +1,8 @@
 // The picked event, as the Scout page's header: once an event is picked it stays picked (useScoutSession, kept on
 // this device) and every section works inside it. Its name, dates, place, match and team counts, the page's sync
-// state, and the one way to pick another event.
+// state, the one way to pick another event, and Stop scouting to leave it.
 import type { ReactNode } from "react";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, LogOut } from "lucide-react";
 import { dateRange, place } from "../../../lib/format";
 import type { ScoutEvent } from "../../../lib/scoutEvent";
 import { Button } from "../../ui/button";
@@ -23,10 +23,12 @@ export function eventFacts(ev: Pick<ScoutEvent, "info" | "teams" | "schedule">):
   ].filter(Boolean).join(" · ");
 }
 
-export function EventBar({ event, onChange, status }: {
+export function EventBar({ event, onChange, onStop, status }: {
   event: ScoutEvent;
   /** Opens the event picker (null: this space can't scout, so there's nothing to change to). */
   onChange: (() => void) | null;
+  /** Ends the session: this device stops scouting the event (its entries stay). */
+  onStop?: (() => void) | null;
   /** The page's sync state, beside Change event. */
   status?: ReactNode;
 }) {
@@ -41,7 +43,11 @@ export function EventBar({ event, onChange, status }: {
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {status}
-        {onChange && <Button variant="outline" onClick={onChange} className="max-sm:h-11"><ArrowLeftRight /> Change event</Button>}
+        {/* Side by side, the full width on a phone. */}
+        {(onChange || onStop) && <div className="flex gap-2 max-sm:w-full">
+          {onChange && <Button variant="outline" onClick={onChange} className="max-sm:h-11 max-sm:flex-1"><ArrowLeftRight /> Change event</Button>}
+          {onStop && <Button variant="outline" onClick={onStop} className="max-sm:h-11 max-sm:flex-1"><LogOut /> Stop scouting</Button>}
+        </div>}
       </div>
     </section>
   );

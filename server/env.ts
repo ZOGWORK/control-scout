@@ -32,8 +32,10 @@ const warnOnce = (msg: string) => { if (!warned.has(msg)) { warned.add(msg); con
 export const env = {
   get port() { return Number(str("PORT") ?? 3000); },
   get production() { return process.env.NODE_ENV === "production"; },
-  /** CSP_ENFORCE=1: the HTML's Content-Security-Policy is enforced; otherwise it is report-only (server/securityHeaders.ts). */
-  get cspEnforce() { return str("CSP_ENFORCE") === "1"; },
+  /** The HTML's Content-Security-Policy is enforced in production, report-only elsewhere (server/securityHeaders.ts).
+   *  CSP_ENFORCE=0 turns production back to report-only (the off switch, should the policy block something);
+   *  CSP_ENFORCE=1 enforces it anywhere. */
+  get cspEnforce() { const v = str("CSP_ENFORCE"); return v === "1" || (v !== "0" && this.production); },
   get appUrl() { return str("APP_URL") ?? "http://localhost:5173"; },
   /** The one public origin search engines should index (canonical, OG, sitemap URLs). In production it's
    *  controlscout.org even on a backup host whose APP_URL is its own address (Render). */
