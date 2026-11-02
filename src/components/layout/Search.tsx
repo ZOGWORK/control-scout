@@ -7,7 +7,7 @@
 // on phones the header's search button expands the top-bar field.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { SearchBox, hitHref } from "../search/SearchBox";
 import { cn } from "../cn";
@@ -94,6 +94,9 @@ export const SEARCH_HINT = isMac ? "⌘K" : "Ctrl K";
 export function GlobalSearch({ part }: { part?: "button" | "field" }) {
   const { open, inputRef, expanded, setExpanded, pageClaimed, restoreFocus } = useSearch();
   const nav = useNavigate();
+  // On the full results page the top bar holds its query: that's where it's refined (the page has no box of its own).
+  const loc = useLocation();
+  const syncQuery = loc.pathname === "/search" ? new URLSearchParams(loc.search).get("q") ?? "" : undefined;
   if (pageClaimed) return null;
   return (
     <>
@@ -107,7 +110,7 @@ export function GlobalSearch({ part }: { part?: "button" | "field" }) {
         label="Search teams, events and matches"
         placeholder="Search teams, events, matches…"
         hint={SEARCH_HINT}
-        tour="search" discover examples
+        tour="search" discover examples syncQuery={syncQuery}
         onPick={(h) => nav(hitHref(h))}
         onClose={() => setExpanded(false)}
         onEscape={restoreFocus}

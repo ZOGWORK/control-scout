@@ -218,6 +218,10 @@ export interface SearchBoxProps {
    *  (with Clear), and, with `examples`, chips of real example queries. */
   discover?: boolean;
   examples?: boolean;
+  /** The query the page is showing (the /search page's, in the top bar): the field holds it, re-set whenever it
+   *  changes, without opening the list. Until it's edited it isn't searched again (the page already shows its
+   *  results); Enter or the magnifier run it again. Undefined on other pages. */
+  syncQuery?: string;
 }
 
 /** A phone's keyboard (and its accessory bar) covers the bottom of the page without making it shorter: while it's
@@ -288,12 +292,21 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   );
 }
 
-export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true, discover, examples }: SearchBoxProps) {
-  const [q, setQ] = useState(initialQuery ?? "");
+export function SearchBox({ onPick, kinds, placeholder, label, size = "md", className, inputRef, emptyHint, autoFocus, onClose, onEscape, hint, tour, initialQuery, seeAll = true, discover, examples, syncQuery }: SearchBoxProps) {
+  const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
+  const synced = useRef(syncQuery);
+  useEffect(() => {
+    if (synced.current === syncQuery) return;
+    synced.current = syncQuery;
+    setQ(syncQuery ?? "");
+    setOpen(false);
+  }, [syncQuery]);
+  // The page's own query, unedited: its results are on the page, so the box doesn't ask for them again.
+  const idle = syncQuery !== undefined && q === syncQuery;
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   const [active, setActive] = useState(-1);
-  const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(q, kinds);
+  const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(idle ? "" : q, kinds);
   const { sections, notes } = useSections(hits, answer, ai);
   const meta = useMeta();
   const box = useRef<HTMLDivElement>(null);
@@ -346,7 +359,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     document.addEventListener("pointerdown", away);
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
-  const go = (h: SearchHit) => { onPick(h); setQ(""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  // A box holding the page's query keeps it (a pick that lands back on that page shows it again).
+  const go = (h: SearchHit) => { onPick(h); setQ(syncQuery ?? ""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
   // A search of everything (not a picker, not a box limited to some kinds): what was searched is remembered on
   // this device, for the recent searches list.
   const remember = seeAll && !kinds;
@@ -385,7 +399,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
       {examples && <ExampleChips examples={SEARCH_EXAMPLES} onRun={runQuery} className="px-3 pb-1.5 pt-2" />}
     </>
   ) : undefined);
-  const showList = open && (query ? true : !!hintContent);
+  const showList = open && (query ? !idle : !!hintContent);
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
