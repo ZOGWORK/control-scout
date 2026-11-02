@@ -1,0 +1,24 @@
+// The /search title names what was found: a team as "Name (number)" (each part once, whatever form the server's
+// title takes), a Compare by both sides, a question by its team and what it asked, else the server's reading.
+import { describe, expect, it } from "vitest";
+import type { SearchAnswer, SearchHit } from "./api";
+import { pageTitle, teamParts } from "./searchPage";
+
+const a = (hits: SearchHit[], extra: Partial<SearchAnswer> & { interpreted?: string } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
+const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
+
+describe("teamParts", () => {
+  it.each(["18061 Simply Complex", "18061 | Simply Complex", "18061 Simply Complex 18061"])("%s", (t) => expect(teamParts(t)).toEqual({ number: "18061", name: "Simply Complex" }));
+});
+
+describe("pageTitle", () => {
+  it("a team", () => expect(pageTitle(a([team("18061 | Simply Complex")]), [team("18061 | Simply Complex")])).toBe("Simply Complex (18061)"));
+  it("the server's reading", () => {
+    const ev: SearchHit = { kind: "event", ref: "2026:X", title: "P1-1 Southern League Meet", subtitle: "", season: 2026 };
+    expect(pageTitle(a([ev], { interpreted: "Events in New Jersey" }), [ev])).toBe("Events in New Jersey");
+  });
+  it("never a single event's name", () => {
+    const ev: SearchHit = { kind: "event", ref: "2026:X", title: "SLU Meet", subtitle: "", season: 2026 };
+    expect(pageTitle(a([ev]), [ev])).toBe("Search results");
+  });
+});

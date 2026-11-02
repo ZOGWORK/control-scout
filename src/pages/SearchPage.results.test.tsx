@@ -163,12 +163,26 @@ describe("search results page", () => {
 
   it("names the interpreted query, not a result, when the server reads it", () => {
     state.answer = { ...answer([ev("A", "P1-1 Southern League Meet", "2099-11-17")]), interpreted: "Events in New Jersey" } as SearchAnswer;
-    show("/search?q=meets%20in%20new%20jersey");
-    expect(screen.getByText("Events in New Jersey")).toBeTruthy();
+    const { container } = show("/search?q=meets%20in%20new%20jersey");
+    expect(container.querySelector("[data-context-badge]")!.textContent).toBe("Events in New Jersey");
+    expect(container.textContent).not.toContain("Southern League Meet”");
   });
 
-  it("the magnifier is a submit button", () => {
-    show("/search?q=4215");
-    expect((screen.getByRole("button", { name: "Search" }) as HTMLButtonElement).type).toBe("submit");
+  it("titles the page by what was found, with one context badge and no second search box", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 6980 Bad Wolf", subtitle: "", season: 2025, href: "/compare?teams=4215,6980" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215%20vs%206980%20history");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Hypnotic Robotics (4215) vs Bad Wolf (6980)");
+    expect(container.querySelector("[data-eyebrow]")!.textContent).toBe("FTC One Search");
+    expect(container.querySelectorAll("[data-context-badge]")).toHaveLength(1);
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.textContent).not.toContain("4215 vs 6980 history");
+  });
+
+  it("titles a question's answer by its team and what was asked", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, lines: [], count: 5 } });
+    show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Team 7149 — Worlds Appearances");
+    expect(screen.getByText("ENFORCERS (7149) · Worlds appearances")).toBeTruthy();
   });
 });

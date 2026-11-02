@@ -3,7 +3,8 @@
 // matches and places), as a page of cards. The server already lists them in the first paint (server/seoMeta.ts
 // searchMeta) and hands them over (src/lib/searchBoot.ts), and the query lives in the address, so a direct
 // visit never waits on the header's state. Plain Enter in any search box and its "See all results" row land here.
-// "Here's what we found": what the query was read as, the question's direct answer when it asked one (from stored
+// Titled by what was found ("Team 7149 — Worlds Appearances", src/shared/searchPage.ts), never the query as typed (that
+// stays in the top bar, where it's refined), with one badge for what the query was read as; then the question's direct answer when it asked one (from stored
 // data: server/api/searchQuestions.ts), a Compare as its own card above the teams, then teams (with their season
 // numbers), events (as blocks with date and status), matches and pages. Filters for time, season and event type
 // narrow the results here, in the address (./search/page/results.ts). A question also gets Bruno AI's short
@@ -11,14 +12,14 @@
 // (./search/page/NoResults.tsx).
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT, showingLine } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -34,15 +35,13 @@ export default function SearchPage() {
   const q = params.get("q") ?? "";
   const query = q.trim();
   const filters = readFilters(params);
-  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
-  // Typing replaces the address (no history entry per letter), so Back leaves the page. A new query starts unfiltered.
-  const setQ = (v: string) => setParams(v ? { q: v } : {}, { replace: true });
   // Each filter change is a step Back can undo.
   const setFilters = (f: PageFilters) => setParams(withFilters(params, f));
 
@@ -75,30 +74,24 @@ export default function SearchPage() {
     return m;
   }, [now.data, before.data, base, asked, hits]);
 
-  const showing = !found ? null : ax?.interpreted ?? (answer ? showingLine({ ...answer, hits }) : null);
+  // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
+  const badge = !found ? null : ax?.interpreted ?? (answer ? showingLine({ ...answer, hits })?.replace(" — ", " · ") ?? notes.understood[0]?.replace(/^Understood:\s*/, "") ?? null : null);
   const open = (h: SearchHit) => logPick(h);
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
-      <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-        {!query ? "Search" : found || busy || error ? <>Here's what we found for “{query}”</> : <>No matches for “{query}”</>}
+      {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
+          The query itself lives in the top bar (refine there): the page never repeats it. */}
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text" data-eyebrow>FTC One Search</p>
+      <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+        {!query ? "Search" : found ? pageTitle(ax, hits) : busy || error ? "Search results" : <>No matches for “{query}”</>}
       </h1>
-      {showing && <p className="mt-1.5 text-sm text-muted-foreground">Showing: <span className="font-medium text-foreground">{showing}</span></p>}
-      {/* A plain GET form to this page (the browser's own idea of the site's search), kept in the app. */}
-      {/* Enter (a phone's Search key) or the magnifier: results now, not after the typing pause, and the keyboard closes so they show. */}
-      <form role="search" action="/search" method="get" className="mt-4 max-w-4xl" onSubmit={(e) => { e.preventDefault(); searchNow(); e.currentTarget.querySelector("input")?.blur(); }}>
-        <div className="flex h-11 items-center gap-1.5 rounded-xl border border-border bg-card pl-1.5 pr-3 text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]">
-          <button type="submit" aria-label="Search" className="grid size-8 shrink-0 place-items-center rounded-lg text-accent hover:bg-accent/[0.1]">
-            {busy ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <Search className="size-4" />}
-          </button>
-          <input
-            type="search" name="q" enterKeyHint="search" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search teams, events and matches"
-            placeholder="Team number, team or event name, or a match like USNJCMP Q12"
-            className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
-          />
-        </div>
-      </form>
+      {badge && (
+        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
+          <ScanSearch className="size-3.5 shrink-0 text-accent" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
+        </p>
+      )}
       <div className="mt-5" aria-live="polite">
-        {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match.</p>
+        {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match with the search bar at the top.</p>
           // A failed search says so and offers the same search again (it never fixes itself while you wait).
           : error ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -119,7 +112,8 @@ export default function SearchPage() {
               )
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
-              <AnswerNotesView notes={notes} query={query} className="mb-4 text-sm" />
+              {/* The badge carries what was understood; a correction ("Did you mean …") and a gap still say so here. */}
+              <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" />
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
               <div className={cn(h2h && "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6")}>
                 <div className="min-w-0">
