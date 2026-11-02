@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.2 — 2026-11-02
+
+FTC One Search on a wide screen: results on the left, one panel on the right, and no clock or weather on the search page.
+
+### Highlights
+- [teams] On a wide screen, results fill the left and one panel sits on the right
+- [teams] The right panel is a team-vs-team record, or a question's summary
+- [teams] The search page hides the clock and weather; other pages keep them
+
+### Search
+- **Results left, one panel right.** On a desktop the results take about two thirds of the width. The right third holds at most one panel, picked by the search: a versus search shows the two teams' record against each other; a question shows its summary (timeline, stats or standing) with links to the team's pages. When both apply, the versus record keeps the column and the summary goes below the results. On a phone it's one column with the summary first. Results and their order are unchanged.
+- **No clock or weather on search.** The top bar's clock and weather are hidden on the search page only, to leave room for the search; every other page still shows them.
+
 ## 2.3.1 — 2026-11-02
 
 FTC One Search reads what you type the way you meant it: plurals, little words and questions no longer throw it off.
