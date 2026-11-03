@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.1 — 2026-11-03
+## 2.8.2 — 2026-11-03
 
 FTC One Search understands "and", "or" and "not" between teams, and quotes around an exact name: "4215 and 6980" lists the matches both teams played in.
 
@@ -28,6 +28,18 @@ FTC One Search understands "and", "or" and "not" between teams, and quotes aroun
 ### Search
 - **Boolean operators.** `and` (or `&`), `or` (or `|`) and `not` (or `-` before a term) between teams, read like a web search: NOT first, then AND, then OR, no parentheses. What's asked still decides the answer: on its own or with "matches" it's the match list (both teams on the field, on either alliance, newest first, how many as partners and as opponents); with a stat it's the stat side by side (`4215 and 6980 opr`). Two teams with no match in common are told so, with each team's own match count and a link to the "or" list. A team name with "and" or "not" in it ("Nuts and Bolts", "Batteries Not Included") stays a name, and `vs`, "compare" and "have … played each other" keep their own answers. Details in docs/search-boolean.md. (#497)
 - **Exact phrases.** A name in double quotes finds the teams named exactly that first, then names holding the words together, never names with the words apart.
+
+## 2.8.1 — 2026-11-03
+
+Failed searches are filed the way search itself read them: search's own verdict decides whether a query failed and how, and one failing question lands on one issue however it was phrased.
+
+### Highlights
+- [report] A failed search is filed as search itself judged it
+- [report] One failing question, one issue, however it was typed
+- [fixes] An issue's Reproduce link opens the search exactly as typed
+
+### Search
+- **Failed-search reports follow search's own reading.** Search's layered reader now decides whether a query failed: an answer is never filed, a question two ways at once is filed as ambiguous with both readings named, and a team page shown for a question nobody asked of it ("4215 zzz") is an answer, not a failure. Issues aggregate under search's own key of the redacted query, so "4215 OPR rn?" and "4215 opr right now" are one issue. The Reproduce link in an issue now opens the latest query as typed rather than its shortened key, which could answer. Details in docs/failed-search-reporting.md. (#495)
 
 ## 2.8.0 — 2026-11-03
 
