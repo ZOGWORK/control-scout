@@ -445,7 +445,7 @@ export interface FieldRow {
   rating: { np: number; sd: number; matches: number } | null;
   /** The team's season OPR (np) so far, across all its events: what the field looks like before this event starts. */
   seasonOpr?: number | null;
-  /** Swing at this event: the consistency stat (src/shared/reliability.ts), null when not computed. */
+  /** Swing at this event: the consistency stat (src/shared/reliability.ts). Absent when not computed. */
   swing?: SwingCell | null;
   /** A league meet's own standing, from this meet's matches only (src/shared/meetStandings.ts). FIRST's rank and
    *  rp above are the league's running standing there. Absent: not a league meet; null: no counted match yet. */

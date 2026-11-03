@@ -93,8 +93,9 @@ export interface Reliability {
   /** In the latest RECENT matches listed: no-shows and near-zero matches. */
   recent: { matches: number; noShows: number; nearZero: number };
   parts: ReliabilityParts;
-  /** Swing shown on its own (consistency): parts.swing once it rests on enough matches. */
-  consistency: SwingCell;
+  /** Swing shown on its own (consistency): parts.swing once it rests on enough matches. Only where teams are
+   *  compared (season stats, GET /api/reliability): reliabilityFromRow(…, { consistency: true }). */
+  consistency?: SwingCell;
   /** The season's field average index, for comparison. */
   fieldIndex: number | null;
 }
@@ -129,13 +130,13 @@ export const shrinkTo = (x: number | null, n: number, f: number, k = RELIABILITY
 /** The team_reliability columns reliabilityFromRow reads, and the team (0: the field). */
 export const RELIABILITY_COLUMNS = "team, idx, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio";
 
-export function reliabilityFromRow(r: Record<string, unknown>, fieldIndex: number | null): Reliability {
+export function reliabilityFromRow(r: Record<string, unknown>, fieldIndex: number | null, opts: { consistency?: boolean } = {}): Reliability {
   const n = (k: string) => Number(r[k] ?? 0);
   return {
     index: n("idx"), matches: n("matches"), noShows: n("no_shows"), dqs: n("dqs"), nearZero: n("near_zero"),
     recent: { matches: n("recent_matches"), noShows: n("recent_no_shows"), nearZero: n("recent_near_zero") },
     parts: { noShowRate: n("no_show_rate"), dqRate: n("dq_rate"), nearZeroRate: n("near_zero_rate"), swing: n("swing"), penaltyRatio: n("penalty_ratio"), predictabilityRatio: n("predictability_ratio") },
-    consistency: swingCell(r.swing == null ? null : n("swing"), n("contrib_n")),
+    ...(opts.consistency ? { consistency: swingCell(r.swing == null ? null : n("swing"), n("contrib_n")) } : {}),
     fieldIndex,
   };
 }

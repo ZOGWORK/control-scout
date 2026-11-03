@@ -91,7 +91,7 @@ function packReliability(db: Db, season: number, team: number): Reliability | nu
     const own = one(db, "SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team = ?", [season, team]);
     if (!own || team === 0) return null;
     const field = one(db, "SELECT idx FROM team_reliability WHERE season = ? AND code = '' AND team = 0", [season]);
-    return reliabilityFromRow(own, field ? Number(field.idx) : null);
+    return reliabilityFromRow(own, field ? Number(field.idx) : null, { consistency: true });
   } catch { return null; }
 }
 

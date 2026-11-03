@@ -93,7 +93,7 @@ export interface RankingRow extends Movement {
   state: string | null;
   country: string | null;
   rating: number;
-  /** Season swing, the consistency stat (src/shared/reliability.ts SwingCell). Live ranking only: absent on a snapshot week. */
+  /** Season swing, the consistency stat (src/shared/reliability.ts SwingCell). Live ranking only, and only when computed: absent otherwise. */
   swing?: SwingCell | null;
 }
 

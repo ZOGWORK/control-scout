@@ -22,7 +22,7 @@ export async function reliabilityMany(season: number, teams: number[]): Promise<
   ]);
   const field = rows.find((r) => Number(r.team) === 0);
   const fieldIndex = field ? Number(field.idx) : null;
-  const by = new Map(rows.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, fieldIndex)]));
+  const by = new Map(rows.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, fieldIndex, { consistency: true })]));
   const consistencyField = cf && Number.isFinite(cf.variance) ? { variance: cf.variance, matches: cf.matches } : null;
   return { season, fieldIndex, consistencyField, teams: teams.map((team) => ({ team, reliability: by.get(team) ?? null })) };
 }
@@ -33,7 +33,7 @@ export async function teamReliability(season: number, team: number): Promise<Rel
   const own = rows.find((r) => Number(r.team) === team && team !== 0);
   if (!own) return null;
   const field = rows.find((r) => Number(r.team) === 0);
-  return reliabilityFromRow(own, field ? Number(field.idx) : null);
+  return reliabilityFromRow(own, field ? Number(field.idx) : null, { consistency: true });
 }
 
 export async function teamInfo(number: number): Promise<TeamInfo | null> {

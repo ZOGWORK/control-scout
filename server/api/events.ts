@@ -125,7 +125,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
       avgNp: o?.avg_np ?? null,
       rating: rt ? { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n } : null,
       seasonOpr: seasonOprBy.get(Number(e.team)) ?? null,
-      swing: swingBy.get(Number(e.team)) ?? null,
+      ...(swingBy.has(Number(e.team)) ? { swing: swingBy.get(Number(e.team))! } : {}),
       ...(meet ? { meet: meet.get(Number(e.team)) ?? null } : {}),
     };
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);

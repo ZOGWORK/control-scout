@@ -271,7 +271,7 @@ const td = "px-2 py-2.5 sm:px-4";
 
 function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | null }) {
   const moves = data.baseline != null;
-  // Swing (the consistency stat) comes with the live ranking only: it's today's number, not a past week's.
+  // Swing (the consistency stat) comes with the live ranking only (today's number, not a past week's), on rows that have one.
   const swing = data.rows.some((r) => r.swing !== undefined);
   return (
     <div className="rounded-xl border border-text-base/15 bg-card">

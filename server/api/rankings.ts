@@ -118,7 +118,7 @@ export async function rankings(q: RankingsQuery, now = Date.now()): Promise<Rank
   const rows: RankingRow[] = slice.map((t) => ({
     rank: t.rank, team: Number(t.team), name: t.name ?? null, state: t.state ?? null, country: t.country ?? null,
     rating: t.rating, ...movementOf(t, prev, Number(t.team)),
-    ...(swing ? { swing: swing.get(Number(t.team)) ?? null } : {}),
+    ...(swing?.has(Number(t.team)) ? { swing: swing.get(Number(t.team))! } : {}),
   }));
   return {
     season: q.season, week: q.week, asOf: q.week ? new Date(weekStartMs(q.week)).toISOString() : await dataVersion().then((v) => (v === "0" ? null : v)),

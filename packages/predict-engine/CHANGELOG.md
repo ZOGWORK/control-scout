@@ -4,12 +4,15 @@
 
 Research brief item 6. Predictions are identical to 3.3.0: nothing the engine predicts reads the new
 module. The brief's item 12 gate (Brier must improve, no regressions) is met as **no prediction change**:
-- **Slice replay** (`scripts/engine-slices.ts --explain-against <3.3.0 dist>`, snapshot of 2026-10-29): every
-  field `explainMatch` serves is bit-identical to the vendored 3.3.0 build on all 109,182 predicted matches
-  of 2023–24 to 2026–27. Champion Brier unchanged: 0.1741 / 0.1570 / 0.1672 (2023–24 / 2024–25 / 2025–26).
+- **Slice replay** on the pinned snapshot (`docs/engine/slices/engine-3.4.0-snapshot-2026-10-14`,
+  `--explain-against` the vendored 3.3.0 build): every field `explainMatch` serves is bit-identical on all
+  109,002 predicted matches of 2023–24 to 2025–26, and the replayed rows' SHA-256 (champion, v2.0, legacy)
+  equal the 3.3.0 report's. Champion Brier unchanged: 0.1741 / 0.1570 / 0.1672 (2023–24 / 2024–25 / 2025–26).
+  The same check on the 2026-10-29 data (109,182 matches, 2026–27 included) also found no difference.
 - **Build:** every file of `dist/` other than `index.*` (the new export and `ENGINE_VERSION`) and the new
   `consistency.*` is byte-identical to 3.3.0's.
-- `npm run equivalence` against Control Point's 3.4.0 vendor: bytes and replayed numbers identical.
+- `npm run equivalence` against Control Point's 3.4.0 vendor: byte-identical tarball (38 files) and
+  bit-identical outputs on 71,204 replayed matches (2024–25, 2025–26), 30,516 pre-match predictions.
 
 - **`consistency.ts`** (new, pure): Control Scout's one consistency stat, now the engine's so Control Scout
   and Control Point compute it with the same function.
