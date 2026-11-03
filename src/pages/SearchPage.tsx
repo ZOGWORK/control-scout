@@ -158,11 +158,12 @@ export default function SearchPage() {
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
-                  {/* A question's records: as cards the timeline jumps to (championships, oldest first), else the answer card as before. */}
+                  {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
+                      from the latest), else the answer card as before. */}
                   {apps.length ? (
                     <section aria-label={answer!.card!.title} className="mb-5" data-section="records">
                       <h2 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{answer!.card!.title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{apps.length}</span></h2>
-                      <div className="grid gap-3 sm:grid-cols-2">{apps.map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
+                      <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
                     </section>
                   ) : answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
                   {!!compares.length && (
