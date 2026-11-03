@@ -115,13 +115,13 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const ph = [["np", "OPR"], ["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"]] as const;
     const key = f.id === "opr" ? "np" : PHASE[f.id as keyof typeof PHASE][0];
     const v = s[`opr_${key}`], rank = s[`rank_${key}`];
-    const kpis: StatBlock = { kind: "kpis", items: ph.map(([k, label]) => ({ label, value: dp(s[`opr_${k}`]), ...(s[`rank_${k}`] && of ? { sub: `#${s[`rank_${k}`]} of ${n(of)}` } : {}), ...(k === key ? { tone: "accent" as const } : {}) })) };
+    const kpis: StatBlock = { kind: "kpis", items: ph.map(([k, label]) => ({ label, value: dp(s[`opr_${k}`]), ...(s[`rank_${k}`] && of ? { sub: `#${n(Number(s[`rank_${k}`]))} of ${n(of)}` } : {}), ...(k === key ? { tone: "accent" as const } : {}) })) };
     const blocks: StatBlock[] = [kpis];
     if (f.id === "opr") {
       const evs = await all<any>(`SELECT e.code, e.name, e.type, e.start, s.opr_np FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND s.season = ? AND s.opr_np IS NOT NULL AND s.matches > 0 ORDER BY e.start, e.code`, [team.number, season]);
-      if (evs.length) blocks.push({ kind: "series", title: `OPR by event, ${S}`, points: evs.map((e) => ({ x: shortEvent(e.name, e.type), y: Number(e.opr_np), href: eventHref(season, e.code, team.number), note: dateRange(e.start) ?? undefined })) });
+      if (evs.length) blocks.push({ kind: "series", title: `OPR by event, ${S}`, points: evs.map((e) => ({ x: shortEvent(e.name, e.type), y: Math.round(Number(e.opr_np) * 10) / 10, href: eventHref(season, e.code, team.number), note: dateRange(e.start) ?? undefined })) });
     }
-    return { ...b, headline: { value: dp(v), label: rank && of ? `#${rank} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet", sub: S, href: teamHref(team.number, season) }, blocks };
+    return { ...b, headline: { value: dp(v), label: rank && of ? `#${n(Number(rank))} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet", sub: S, href: teamHref(team.number, season) }, blocks };
   }
 
   if (f.id === "rating") {
