@@ -35,9 +35,11 @@ export default function RecordsPage({ matches }: { matches?: boolean }) {
     const q = new URLSearchParams();
     if (season !== current) q.set("season", String(season));
     if (v === "season" || v === "listed") q.set("view", v);
-    // A country (from the home page's atlas) stays on across the team views.
+    // A country (from the home page's atlas) stays on across the team views, and its state across the records tables.
     const country = sp.get("country");
     if (country && v !== "matches") q.set("country", country);
+    const state = sp.get("state");
+    if (country && state && (v === "events" || v === "season")) q.set("state", state);
     return { pathname: v === "matches" ? "/matches" : "/teams", search: q.toString() ? `?${q}` : "" };
   };
   // On a phone the strip scrolls sideways: the current view is brought into it on arrival and on every change.
