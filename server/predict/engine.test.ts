@@ -84,6 +84,36 @@ describe("ratings after a sync", () => {
   });
 });
 
+describe("pre-event ratings are replayed once per build and instant", () => {
+  const ev = (code: string, start: string, team1 = 1) => ({
+    season: S, code, type: "Qualifier", start, end: start,
+    field: [1, 2, 3, 4].map((t) => ({ teamNumber: t, rank: null })), alliances: [],
+    matches: [{ key: "qual:0:1", label: "Q1", level: "qual" as const, series: 0, number: 1, time: `${start}T10:00:00Z`, played: false, red: { teams: [{ number: team1 }, { number: 2 }], score: null }, blue: { teams: [{ number: 3 }, { number: 4 }], score: null } }],
+  });
+
+  it("each team's before-the-event odds, and events on the same day, share one replay with the same numbers", async () => {
+    await playedMatch(S, "NEWQ1", 2, [3, 4], [1, 2], [150, 40]);
+    const f = await forecasterFor(S);
+    const a = f.preEventForecast(ev("DAYA", `${S}-12-01`) as never, 1, 50)!;
+    expect(f.beforeReplays).toBe(1);
+    const a2 = f.preEventForecast(ev("DAYA", `${S}-12-01`) as never, 3, 50)!; // another team: no second replay
+    const b = f.preEventView(ev("DAYB", `${S}-12-01`) as never)!; // another event, same start
+    expect(f.beforeReplays).toBe(1);
+    f.preEventView(ev("DAYC", `${S}-12-08`) as never); // another day: its own replay
+    expect(f.beforeReplays).toBe(2);
+    // The kept book is never handed out: changing a view's book leaves the next one as replayed.
+    b.book.update({ season: S, eventCode: "DAYB", level: "qual", series: 0, number: 9, time: Date.parse(`${S}-12-01T12:00:00Z`), red: { teams: [1, 2], auto: 90, teleop: 90, endgame: 9, np: 189, penCommitted: 0, total: 189 }, blue: { teams: [3, 4], auto: 0, teleop: 0, endgame: 0, np: 0, penCommitted: 0, total: 0 } });
+    const again = f.preEventForecast(ev("DAYA", `${S}-12-01`) as never, 1, 50)!;
+    expect(again.matches).toEqual(a.matches);
+    expect(a2.matches).toEqual(a.matches);
+    // Same numbers as a fresh build's first replay (nothing cached).
+    resetForecasters();
+    await kvSet("data:version", "v-fresh");
+    const g = await forecasterFor(S);
+    expect(g.preEventForecast(ev("DAYA", `${S}-12-01`) as never, 1, 50)!.matches).toEqual(a.matches);
+  });
+});
+
 describe("bonus odds before an event (no hindsight)", () => {
   const flags = (i: number) => JSON.stringify({ movement: i % 2 === 0, goal: i % 5 === 0, pattern: i % 3 === 0 });
   /** `n` played qualification matches at a new event on `day` (YYYY-MM-DD), every alliance with recorded bonus RPs. */
