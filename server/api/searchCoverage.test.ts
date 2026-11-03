@@ -174,6 +174,10 @@ describe("answers on their own", () => {
     const gh = await ask("gear heads michigan");
     expect(gh.hits.map((h) => h.ref)).toEqual(["32099"]);
     expect((await ask("lone gear nj")).understood?.label).toBe("The team named Lone Gear in New Jersey");
+    // A name read as search reads it, accents folded: "cafe" finds "Café".
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (32101, 'Cafe Robotics', 'Austin', 'TX', 'USA'), (32102, 'Café Robotics', 'Newark', 'NJ', 'USA')");
+    await rebuildSearch();
+    expect((await ask("cafe robotics nj")).hits.map((h) => h.ref)).toEqual(["32102"]);
   });
   it("when a team last played: its most recent match (failed-search #487)", async () => {
     expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
