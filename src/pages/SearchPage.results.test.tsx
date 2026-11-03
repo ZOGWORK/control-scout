@@ -330,4 +330,11 @@ describe("search results page, phone (Part B 3b)", () => {
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2021–22: #20", "2022–23: #3", "2023–24: #10"]);
     expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
   });
+
+  it("one trip is still a chip, and VS Compare keeps the season the result is about", () => {
+    state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
+    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
+  });
 });

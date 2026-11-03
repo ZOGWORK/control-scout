@@ -23,6 +23,10 @@ export function badgeUnder(title: string, badge: string | null): string | null {
   return !b || b === t || b.startsWith(`${t} `) ? null : plain(badge);
 }
 
+/** "how good is simply complex", "how strong are the enforcers": a question about one team's quality (the page and
+ *  the server's first paint title it by that team). */
+export const isQualityQuestion = (q: string) => /^\s*how\s+(?:good|strong)\s+(?:is|are)\b/i.test(q);
+
 /** A Compare: its own kind from the server, or (an older server) a team hit that opens /compare. */
 export const isCompare = (h: SearchHit) => (h.kind as string) === "compare" || !!h.href?.startsWith("/compare");
 

@@ -132,7 +132,7 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
         {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
       <span className="shrink-0 self-center max-sm:hidden"><Cta>View scouting profile</Cta></span>
-      <Link to={`/compare?teams=${h.ref}`} data-vs-compare
+      <Link to={`/compare?teams=${h.ref}${h.linkSeason != null ? `&season=${h.linkSeason}` : ""}`} data-vs-compare
         className="relative z-10 inline-flex min-h-11 shrink-0 items-center self-center rounded-lg border border-accent/50 bg-accent/[0.1] px-3 text-xs font-bold uppercase tracking-wide text-accent-text outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden">
         VS Compare
       </Link>

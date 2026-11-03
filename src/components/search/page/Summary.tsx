@@ -28,7 +28,7 @@ export function jumpTo(id: string) {
 export function Timeline({ apps }: { apps: Appearance[] }) {
   const [on, setOn] = useState<string | null>(null);
   const pts = apps.filter((a) => a.opr != null);
-  if (apps.length < 2) return null;
+  if (!apps.length) return null;
   const W = 100, lo = Math.min(...pts.map((a) => a.opr!)), hi = Math.max(...pts.map((a) => a.opr!));
   const x = (i: number) => (apps.length === 1 ? W / 2 : 6 + (i / (apps.length - 1)) * (W - 12));
   const y = (v: number) => (hi === lo ? 50 : 82 - ((v - lo) / (hi - lo)) * 64);
@@ -51,7 +51,8 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
         ))}
       </ol>
     </nav>
-    <figure className="mt-3 max-md:hidden" data-timeline>
+    {/* The line needs two seasons to draw. */}
+    {apps.length > 1 && <figure className="mt-3 max-md:hidden" data-timeline>
       <figcaption className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">OPR by season</figcaption>
       <div className="relative mt-2 h-28">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
@@ -71,7 +72,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
       <p className="mt-1.5 min-h-5 text-xs text-foreground" aria-live="polite">
         {shown ? <>{shown.seasonLabel}: {[shown.division && `${shown.division}`, shown.rank != null && `#${shown.rank}`, shown.record, shown.opr != null && `OPR ${shown.opr.toFixed(1)}`].filter(Boolean).join(" · ")}</> : <span className="text-muted-foreground">Point at a season for its numbers; select it to jump to its card.</span>}
       </p>
-    </figure>
+    </figure>}
     </>
   );
 }
