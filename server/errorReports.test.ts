@@ -30,7 +30,7 @@ let slowGithub: Promise<void> | null = null;
 const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
   const u = new URL(String(url));
   expect(u.origin).toBe("https://api.github.com");
-  const path = u.pathname.replace("/repos/Control-Point-FTC/control-scout", "");
+  const path = u.pathname.replace("/repos/ZOGWORK/control-scout", "");
   const method = init?.method ?? "GET";
   const body = init?.body ? JSON.parse(String(init.body)) : null;
   calls.push({ method, path, body, auth: new Headers(init?.headers).get("authorization") });
@@ -358,7 +358,7 @@ describe("GET /api/reports/errors (owner portal)", () => {
     expect(res.status).toBe(200);
     const { reports } = await res.json();
     expect(reports).toHaveLength(1);
-    expect(reports[0]).toMatchObject({ count: 1, issueNumber: 100, issueUrl: "https://github.com/Control-Point-FTC/control-scout/issues/100", issueState: "open" });
+    expect(reports[0]).toMatchObject({ count: 1, issueNumber: 100, issueUrl: "https://github.com/ZOGWORK/control-scout/issues/100", issueState: "open" });
     expect(reports[0].sample.route).toBe("/teams/18360");
     delete process.env.OWNER_EMAILS;
     expect((await fetch(`${base}/api/reports/errors`, { headers: { Cookie: owner } })).status).toBe(404);

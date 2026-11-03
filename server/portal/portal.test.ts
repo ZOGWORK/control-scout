@@ -148,7 +148,7 @@ describe("feature flags", () => {
     // photos and push: on, yet false for the app here: they also need R2 and VAPID keys, which this server doesn't have.
     expect(r.json.flags).toEqual({
       livePredictions: true, advancementOdds: true, bracketOdds: true, powerRankings: true, coinFlips: true, factorSheet: true, offlinePacks: true, eventBundle: true, discordBot: true, workspaceScouting: true, scoutingAlliances: true, scoutingCommons: true, rulesReference: true, venueLightMode: true, scheduleDifficulty: true,
-      realtime: true, errorReporting: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true, seasonRoadMap: true,
+      realtime: true, errorReporting: true, failedSearchReports: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true, seasonRoadMap: true,
       // Bruno AI in search starts off (OFF_BY_DEFAULT): the owner turns it on.
       brunoSearch: false, brunoAnswers: true, searchLearning: true,
     });

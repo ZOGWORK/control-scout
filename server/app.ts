@@ -70,6 +70,7 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
+import { noteSearch, reportingOn, searchFailuresRouter } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
@@ -347,7 +348,13 @@ export function createApp(opts: { dist?: string } = {}) {
     // ?answer=1 (the header's search and /search): the whole answer, with its step, pages and recovery
     // (server/api/searchAnswer.ts). Pickers ask for plain hits.
     // Team rows carry their season numbers (server/api/searchTeamStats.ts), added once, on the answer that's sent.
-    if (req.query.answer === "1" && !kinds.size) { const ans = await searchAnswer(String(req.query.q ?? ""), { limit, prefer }); return { ...ans, hits: await withTeamStats(ans.hits) }; }
+    if (req.query.answer === "1" && !kinds.size) {
+      const q = String(req.query.q ?? "");
+      const ans = await searchAnswer(q, { limit, prefer });
+      // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
+      void reportingOn().then((on) => { if (on) noteSearch(q, ans, req.ip ?? "?"); }).catch(() => {});
+      return { ...ans, hits: await withTeamStats(ans.hits) };
+    }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };
   }));
 
@@ -857,6 +864,7 @@ export function createApp(opts: { dist?: string } = {}) {
   api.use("/stats", statsRouter());
   api.use("/contact", contactRouter());
   api.use("/reports", reportsRouter());
+  api.use("/reports/search-failures", searchFailuresRouter((q) => searchAnswer(q, { limit: 12, learn: false })));
   api.use("/owner", ownerRouter());
 
   api.use((_req, res) => { res.status(404).json({ error: "Not found" }); });

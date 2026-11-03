@@ -11,6 +11,7 @@ import { packsDir } from "./packs/routes.js";
 import { backfillDue } from "./data/cycle.js";
 import { childCycle, cycleRunning, runDataCycle } from "./data/jobs.js";
 import { flushMetrics } from "./metrics.js";
+import { flushSearchFailures, startSearchFailureJobs } from "./searchFailures.js";
 import { flushAbuse } from "./moderation.js";
 import { startLiveSync } from "./data/live.js";
 import { REFRESH_EVERY_MS, refreshCoinFlips } from "./api/coinFlips.js";
@@ -53,7 +54,8 @@ let http: Server | null = null;
 // Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
 process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closeProjectionStreams(); });
 // Queued inbox fan-outs (activity already written) finish before the process exits.
-drainOnSigterm(() => http, log, 10_000, inboxSettled);
+// On the way out, failed searches still in memory (settling or buffered) are written to the table too.
+drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0)]));
 let ready = false;
 const app = createApp();
 const server = createServer(app, () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }), () => ready);
@@ -101,6 +103,7 @@ function indexNow() {
 setInterval(() => {
   flushMetrics().catch((e) => log(`metrics: ${(e as Error).message}`));
   flushAbuse().catch((e) => log(`moderation: ${(e as Error).message}`));
+  flushSearchFailures().catch((e) => log(`search-failures: ${(e as Error).message}`));
 }, 60_000).unref();
 
 /** Is any event running today ±1 day? (event days sync often; other days daily) */
@@ -130,6 +133,8 @@ setInterval(async () => {
 // 08:00 UTC, one server only) expire photos of events that ended over 2 days ago, total the bucket and
 // check the free-tier guardrails. Nothing without R2 configured; off with the rest of the schedule.
 if (!process.env.CS_NO_SCHEDULER) {
+  // Failed searches → GitHub issues, every 10 minutes (server/searchFailures.ts).
+  startSearchFailureJobs(log);
   setInterval(() => { photoSchedulerTick(log).catch((e) => log(`photos: ${(e as Error).message}`)); }, 15 * 60_000).unref();
   // Workspace activity feeds keep 90 days (server/scout/activityLog.ts): a small indexed delete, every 6 hours, and once soon after boot.
   const prune = () => { pruneActivity().then((n) => { if (n) log(`activity: pruned ${n} items older than 90 days`); }).catch((e) => log(`activity: ${(e as Error).message}`)); };
