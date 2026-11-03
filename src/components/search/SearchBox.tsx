@@ -519,7 +519,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const room = useRoomAboveKeyboard(list, showList);
   const lg = size === "lg";
   return (
-    <div ref={box} data-search-box data-tour={tour} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
+    <div ref={box} data-search-box data-opens-search={seeAll && !kinds ? "" : undefined} data-tour={tour} className={cn("relative", className)} onBlur={(e) => { if (!box.current?.contains(e.relatedTarget as Node | null)) { setOpen(false); onClose?.(); } }}>
       <div className={cn("flex items-center gap-2.5 rounded-xl border border-border bg-card text-foreground transition-[border-color,box-shadow] focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]", lg ? "h-14 px-4" : "h-9 px-3")}>
         {/* The magnifier searches, like Enter: it never just focuses the field (only an empty one, with nothing to
             search). The press keeps focus in the field so the list stays open until the search goes; going closes
