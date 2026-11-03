@@ -4,6 +4,7 @@
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { ATTENDED } from "../teams.js";
+import { shortEvent } from "./matchSet.js";
 
 export interface TeamEvent {
   season: number; code: string; name: string; type: string | null; start: string | null; end: string | null;
@@ -58,7 +59,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
   ]);
   return {
     events: evs.map((r) => ({
-      season: Number(r.season), code: r.code, name: r.name, type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
+      season: Number(r.season), code: r.code, name: shortEvent(r.name, r.type ?? null), type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
       city: r.city ?? null, state: r.state ?? null, country: r.country ?? null, division: r.division_code ?? null,
       rank: num(r.rank), of: Number(r.ranked) || null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
       matches: Number(r.matches) || 0,

@@ -9,7 +9,7 @@ import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/share
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { seasonLabel } from "../../../src/shared/format.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
-import { scopePhrase, type Scope } from "./clauses.js";
+import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet } from "./eventSet.js";
 import { matchAnswer, whoOf } from "./families/matches.js";
 import { eventAnswer } from "./families/events.js";
@@ -33,12 +33,14 @@ const TITLES: Record<IntentId, string> = {
 const EVENT_INTENTS = new Set<IntentId>(["best-finish", "worst-finish", "first-event", "last-event", "best-opr-event", "best-season", "most-improved-season", "first-season", "total-events", "average-rank", "seasons-played", "seasons-count"]);
 
 /** The scope an answer covers: the season named, else "this season" or an intent that defaults to one as the team's
- *  latest season with matches (said so), else every season. */
+ *  latest season with matches at official events (said so), else every season. */
 async function scopeFor(it: StatQuestion, team: number): Promise<Scope> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
-    const ms = await teamMatches(team);
+    // A season of only scrimmages isn't one: its matches never count.
+    const official = officialClause();
+    const ms = (await teamMatches(team)).filter(official);
     const latest = ms.length ? Math.max(...ms.map((m) => m.season)) : null;
     scope.season = latest;
     if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;

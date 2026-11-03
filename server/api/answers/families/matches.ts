@@ -77,8 +77,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const r = row(top);
       const blocks: StatBlock[] = [
         { kind: "kpis", items: [
-          { label: high ? "Score (no penalties)" : "Score (no penalties)", value: String(np(top)), tone: "accent", href: r.href },
-          { label: "With penalties", value: String(top.own) },
+          { label: "With penalties", value: String(top.own), href: r.href },
           { label: "Result", value: `${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, tone: top.result === "W" ? "good" : top.result === "L" ? "bad" : undefined },
         ] },
         matchesBlock(high ? "Best scores" : "Lowest scores", sorted.slice(0, 5)),

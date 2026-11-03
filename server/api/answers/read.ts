@@ -137,6 +137,10 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // An "at <event>" scope belongs to the event family (not built yet): left to search's team-at-event answer.
     if (scope.at) return null;
     const leadEvent = r.id === "highest-score" && /\b(?:which|what)\s+(?:event|competition|tournament|meet)\b/.test(q);
+    // A team's best scores in one season ("4215 high score", "hypnotic best score in decode") are the season records'
+    // own answer (searchHighScores.ts, the same rule): taken here only with what that answer doesn't cover (Worlds,
+    // states, every season, which event, playoffs or quals, a colour).
+    if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance)) return null;
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : null;
     // A phrase with the team inside it ("how many matches has 4215 won") names it in its own group.
     const named = m.groups?.team ? `${m.groups.team} ${rest}` : rest;

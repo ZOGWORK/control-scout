@@ -5,7 +5,8 @@ import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { onRecord } from "../../../src/shared/eventRecord.js";
 import type { StatLink, StatMatchRow } from "../../../src/shared/searchStat.js";
-import { seasonLabel } from "../../../src/shared/format.js";
+import { dateRange, seasonLabel } from "../../../src/shared/format.js";
+import { CHAMPIONSHIP_TYPE } from "./clauses.js";
 
 export interface TeamMatch {
   season: number; code: string; level: string; series: number; number: number; label: string;
@@ -65,7 +66,7 @@ async function load(team: number): Promise<TeamMatch[]> {
     const around = sides.get(key(r)) ?? [];
     return {
       season: Number(r.season), code: r.code, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, date: r.date ?? null,
-      event: r.event, type: r.type ?? null, country: r.country ?? null, state: r.state ?? null, division: r.division_code ?? null,
+      event: shortEvent(r.event, r.type), type: r.type ?? null, country: r.country ?? null, state: r.state ?? null, division: r.division_code ?? null,
       alliance: red ? "red" : "blue", own, opp,
       ownNp: (red ? r.red_np : r.blue_np) == null ? null : Number(red ? r.red_np : r.blue_np),
       oppNp: (red ? r.blue_np : r.red_np) == null ? null : Number(red ? r.blue_np : r.red_np),
@@ -76,6 +77,14 @@ async function load(team: number): Promise<TeamMatch[]> {
       opponents: around.filter((o) => o.alliance !== r.alliance).map((o) => o.team),
     };
   });
+}
+
+/** An event's name as answers show it: a FIRST Championship's long name ("2024 FIRST Championship presented by BAE
+ *  Systems - FIRST Tech Challenge - Edison Division") as "Worlds · Edison Division" (its finals as "Worlds finals"). */
+export function shortEvent(name: string, type: string | null): string {
+  if (type !== CHAMPIONSHIP_TYPE) return name;
+  const last = name.split(/\s+-\s+/).pop() ?? name;
+  return /\bdivision\b/i.test(last) ? `Worlds · ${last.trim()}` : "Worlds finals";
 }
 
 export const matchHref = (m: { season: number; code: string; level: string; series: number; number: number }) =>
@@ -99,7 +108,7 @@ export function matchRow(m: TeamMatch, links: Map<number, StatLink>, team?: numb
   const link = (n: number) => links.get(n) ?? { label: String(n), href: teamHref(n) };
   return {
     label: m.label, href: matchHref(m), event: { label: m.event, href: eventHref(m.season, m.code, team) }, season: seasonLabel(m.season),
-    date: m.date ? m.date.slice(0, 10) : null, alliance: m.alliance, own: m.own, opp: m.opp, ownNp: m.ownNp, result: m.result,
+    date: m.date ? dateRange(m.date.slice(0, 10)) : null, alliance: m.alliance, own: m.own, opp: m.opp, ownNp: m.ownNp, result: m.result,
     partners: m.partners.map(link), opponents: m.opponents.map(link),
   };
 }

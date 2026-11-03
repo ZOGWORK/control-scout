@@ -52,7 +52,7 @@ function Block({ b }: { b: StatBlock }) {
   switch (b.kind) {
     case "kpis":
       return (
-        <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-block="kpis">
+        <dl className={cn("grid gap-2", b.items.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3")} data-block="kpis">
           {b.items.map((k) => {
             const inner = (
               <>
@@ -199,7 +199,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <p className="mt-1 flex justify-between gap-2 text-[11px] tabular-nums text-muted-foreground" aria-hidden>
         <span className="truncate">{b.points[0].x}</span>{b.points.length > 1 && <span className="truncate text-right">{b.points[b.points.length - 1].x}</span>}
       </p>
-      <p className="text-[11px] text-muted-foreground">Low {lo}{b.unit ? ` ${b.unit}` : ""} · high {hi}{b.unit ? ` ${b.unit}` : ""} · {pts.length} point{pts.length === 1 ? "" : "s"}</p>
+      <p className="text-[11px] text-muted-foreground">Low {lo}{b.unit ? ` ${b.unit}` : ""} · high {hi}{b.unit ? ` ${b.unit}` : ""} · {pts.length} on the chart</p>
     </figure>
   );
 }
