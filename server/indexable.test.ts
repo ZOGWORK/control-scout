@@ -13,6 +13,7 @@ import { renderPage } from "./seo";
 import { STATIC_PAGES, sitemapEntries } from "./sitemap";
 import { changedEvents } from "./indexNow";
 import { isReachableEventCode } from "./indexable";
+import { teamProfile } from "./api/teams";
 
 const S = CURRENT_SEASON, P = CURRENT_SEASON - 1;
 const ORIGIN = "https://controlscout.org";
@@ -26,7 +27,8 @@ beforeAll(async () => {
   // 4215 played last season; 6980 won an award only; 5555 is entered in an upcoming event only; 7777 has never been
   // anywhere; 8888 is only on the roster of a finished league meet it never played (a league lists every team).
   await run(`INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA'),
-    (6980, 'Bad Wolf', NULL, NULL, 'USA'), (5555, 'Rookies', NULL, NULL, 'USA'), (7777, 'Nothing Yet', NULL, NULL, 'USA'), (8888, 'Skipped', NULL, NULL, 'USA')`);
+    (6980, 'Bad Wolf', NULL, NULL, 'USA'), (5555, 'Rookies', NULL, NULL, 'USA'), (7777, 'Nothing Yet', NULL, NULL, 'USA'), (8888, 'Skipped', NULL, NULL, 'USA'),
+    (3640, 'Veterans', NULL, NULL, 'USA')`);
   await run(`INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source, detail_synced_at) VALUES
     (?, 'PLAYED', 'Played qualifier', 'Qualifier', '2026-02-01', '2026-02-01', 0, 0, 't', '2026-02-01T20:00:00Z'),
     (?, 'AWARDS', 'Award event', 'Qualifier', '2026-02-08', '2026-02-08', 0, 0, 't', NULL),
@@ -34,10 +36,10 @@ beforeAll(async () => {
     (?, 'EMPTY', 'Kickoff', 'Kickoff', '2026-09-10', '2026-09-10', 0, 0, 't', '2026-09-11T00:00:00Z'),
     (?, 'LGM1', 'League meet', 'LeagueMeet', '2026-10-01', '2026-10-01', 0, 0, 't', NULL),
     (2019, '2019INMeet10', 'Mixed-case code', 'LeagueMeet', '2019-12-01', '2019-12-01', 0, 0, 't', NULL)`, [P, P, S, S, S]);
-  await run("INSERT INTO event_teams (season, code, team, rank, qual_played) VALUES (?, 'PLAYED', 4215, 1, 5), (?, 'SOON', 5555, NULL, NULL), (?, 'LGM1', 8888, NULL, NULL), (?, 'LGM1', 4215, 1, 4), (2019, '2019INMeet10', 4215, 1, 5)", [P, S, S, S]);
+  await run("INSERT INTO event_teams (season, code, team, rank, qual_played) VALUES (?, 'PLAYED', 4215, 1, 5), (?, 'SOON', 5555, NULL, NULL), (?, 'LGM1', 8888, NULL, NULL), (?, 'LGM1', 3640, NULL, NULL), (?, 'PLAYED', 3640, 2, 5), (?, 'LGM1', 4215, 1, 4), (2019, '2019INMeet10', 4215, 1, 5)", [P, S, S, S, P, S]);
   await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'PLAYED', 'qual', 0, 1, 'Q1', 1, 't'), (?, 'LGM1', 'qual', 0, 1, 'Q1', 1, 't')", [P, S]);
   await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'PLAYED', 'qual', 0, 1, 4215, 'red', 1), (?, 'LGM1', 'qual', 0, 1, 4215, 'red', 1)", [P, S]);
-  await run("INSERT INTO team_season_stats (season, team, opr_np, wins, losses, ties, matches) VALUES (?, 4215, 101.6, 5, 0, 0, 5)", [P]);
+  await run("INSERT INTO team_season_stats (season, team, opr_np, wins, losses, ties, matches) VALUES (?, 4215, 101.6, 5, 0, 0, 5), (?, 3640, 40.2, 3, 2, 0, 5)", [P, P]);
   await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'AWARDS', 'Inspire', 1, 6980, 'Inspire Award')", [P]);
   const dir = mkdtempSync(join(tmpdir(), "cs-index-"));
   file = join(dir, "index.html");
@@ -57,6 +59,16 @@ describe("class A: a page with data", () => {
       expect(await robotsOf(p), p).toBeNull();
       expect(await canonicalOf(p)).toBe(`${ORIGIN}${p}`);
     }
+  });
+});
+
+describe("a team with past results on a current league roster it never played", () => {
+  it("opens on its last season with results, not an empty current season, and is indexed", async () => {
+    // The finished league meet lists every league team, so the page shows no event of this season for it.
+    expect((await teamProfile(3640))!.season).toBe(P);
+    expect((await teamProfile(3640))!.stats).not.toBeNull();
+    expect((await teamProfile(4215))!.season).toBe(S); // it played the meet: the current season
+    expect(await robotsOf("/teams/3640")).toBeNull();
   });
 });
 
