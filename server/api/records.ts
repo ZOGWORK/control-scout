@@ -162,6 +162,8 @@ export interface RecordsQuery {
   code: string | null;
   /** Team records only: teams whose directory entry reports this country (ISO alpha-2, upper case). */
   country: string | null;
+  /** With `country`: teams whose directory entry gives this state or province code ("NJ"). */
+  homeState: string | null;
 }
 
 const one = (q: Record<string, unknown>, name: string): string | null => {
@@ -217,11 +219,15 @@ export function recordsQuery(scope: RecordScope, q: Record<string, unknown>, max
   const countryRaw = one(q, "country");
   if (countryRaw != null && scope === "match") throw bad("country applies to team records");
   if (countryRaw != null && !countryByCode(countryRaw)) throw bad("country must be a country code like US or GB");
+  const stateRaw = one(q, "state");
+  if (stateRaw != null && countryRaw == null) throw bad("state needs a country (country=US&state=NJ)");
+  if (stateRaw != null && !/^[A-Za-z0-9]{1,6}$/.test(stateRaw)) throw bad("state must be a state or province code like NJ or ON");
   const level = one(q, "level");
   if (level != null && (scope !== "match" || (level !== "qual" && level !== "playoff"))) throw bad(scope === "match" ? "level must be qual or playoff" : "level applies to match records");
   return {
     scope, filter, sort, dir, fields, regions, from, to, team, code: codeRaw == null ? null : codeRaw.toUpperCase(),
     country: countryRaw == null ? null : countryRaw.toUpperCase(),
+    homeState: stateRaw == null ? null : stateRaw.toUpperCase(),
     eventType: eventType === "All" ? null : eventType,
     level: level as RecordsQuery["level"],
     page: intParam(q, "page", 1, 1, 100000),
@@ -296,7 +302,10 @@ function whereOf(src: Source, season: number, q: RecordsQuery, labels: string[] 
   // A team's home country, from the directory (the whole season's rows are filtered, so counts and pages agree).
   if (q.country) {
     if (!labels?.length) parts.push("0");
-    else { parts.push(`r.team IN (SELECT number FROM teams WHERE country IN (${labels.map(() => "?").join(", ")}))`); args.push(...labels); }
+    else {
+      parts.push(`r.team IN (SELECT number FROM teams WHERE country IN (${labels.map(() => "?").join(", ")})${q.homeState ? " AND upper(state) = ?" : ""})`);
+      args.push(...labels, ...(q.homeState ? [q.homeState] : []));
+    }
   }
   if (q.filter) parts.push(compileFilter(q.filter, src.columns, args, src.folded));
   if (q.regions.length) { parts.push(`${src.region} IN (${q.regions.map(() => "?").join(", ")})`); args.push(...q.regions); }

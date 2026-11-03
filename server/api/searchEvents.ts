@@ -2,7 +2,8 @@
 // meets in New Jersey", "meets at River Dell High School", "meets this weekend", "2024 Houston Championship Edison
 // Division", "New Jersey". Fixed rules, every part a filter on stored columns (events.state/country, city, venue,
 // start/end, season, type, name):
-//   - no year or season named: the current season; "2024": events held in 2024; "2023-24": that season
+//   - no year or season named: the current season (championships, one a season: every season, newest season first);
+//     "2024": events held in 2024; "2023-24": that season
 //   - ordered by date, never by relevance: upcoming (any date today or later) soonest first, then past most recent first
 //   - nothing matched: the closest honest set, labelled as a fallback ("No league meets at Nonexistent High School in
 //     New Jersey — showing all league meets in New Jersey instead"): the venue or city dropped first, then the time.
@@ -10,12 +11,12 @@
 import type { SearchAnswer, SearchEventInfo, SearchHit, SearchUnderstood } from "../../src/shared/api.js";
 import { eventSetLabel, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { STOPWORDS } from "../../src/shared/searchQuery.js";
-import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, pagesFor } from "../../src/shared/search.js";
 import { eventStatus } from "../../src/shared/eventDay.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
 import { all, get } from "../db.js";
-import { CURRENT_SEASON } from "../data/seasons.js";
+import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import type { Region } from "../../src/shared/regions.js";
 
 interface Row { season: number; code: string; name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
@@ -66,7 +67,7 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   const args: (string | number)[] = [];
   if (e.season != null && !drop.year) { where.push("season = ?"); args.push(e.season); }
   else if (e.year != null && !drop.year) { where.push("start BETWEEN ? AND ?"); args.push(`${e.year}-01-01`, `${e.year}-12-31`); }
-  else if (e.year == null && e.season == null) { where.push("season = ?"); args.push(CURRENT_SEASON); }
+  else if (e.year == null && e.season == null && !e.allSeasons) { where.push("season = ?"); args.push(CURRENT_SEASON); }
   if (e.region) { where.push("country = ? AND state = ?"); args.push(e.region.country, e.region.state); }
   // Bounded windows ("this weekend"): an event is in when any of its days is. "upcoming" and "past" are read on the
   // event's own calendar, below.
@@ -93,7 +94,18 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     const qs = e.words.flatMap((w) => words(w));
     rows = rows.filter((r) => allIn(qs, `${r.name} ${r.city ?? ""} ${r.venue ?? ""} ${r.code}`));
   }
+  // Every season: newest season first, each season's events (divisions too) in date order.
+  if (e.allSeasons) return rows.sort((a, b) => Number(b.season) - Number(a.season) || (a.start ?? "").localeCompare(b.start ?? "") || a.code.localeCompare(b.code));
   return chronological(rows, now, dayAt);
+}
+
+/** Seasons between the newest and oldest found with none of them: ", none on record for 2020–21". */
+function gaps(e: EventQuery, rows: Row[]): string {
+  if (!e.allSeasons || !rows.length) return "";
+  const have = new Set(rows.map((r) => Number(r.season)));
+  const lo = Math.min(...have), hi = Math.max(CURRENT_SEASON, ...have);
+  const none = SEASON_NUMBERS.filter((s) => s >= lo && s <= hi && !have.has(s)).sort((a, b) => b - a);
+  return none.length ? `, none on record for ${none.map(seasonLabel).join(", ")}` : "";
 }
 
 /** Event words whose own name says the kind ("… League Meet"), for an event stored with no type. */
@@ -126,17 +138,22 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   const window = e.time ? timeWindow(e.time, today) : null;
   const base: Omit<SearchUnderstood, "label"> = {
     kind: "events", ...(e.time ? { time: e.time } : {}), ...(e.region ? { place: { key: e.region.key, name: e.region.name } } : {}),
-    ...(e.where ? { where: e.where } : {}), ...(e.year != null ? { year: e.year } : {}), season: e.season ?? (e.year == null ? CURRENT_SEASON : undefined),
+    ...(e.where ? { where: e.where } : {}), ...(e.year != null ? { year: e.year } : {}), season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined),
     ...(window ? { window } : {}), ...(eventTypesOf(e.kinds) ? { eventTypes: eventTypesOf(e.kinds)! } : {}),
   };
   const place = e.region ? await placeHit(e.region) : null;
+  // Every season but more than a page holds: the newest first, how many in all, and the full list one click away.
+  const room = SEARCH_PAGE_LIMIT - (place ? 1 : 0);
+  const more = (rows: Row[]) => (e.allSeasons && rows.length > room ? rows.length : 0);
   const done = (rows: Row[], understood: SearchUnderstood): SearchAnswer => ({
-    q, hits: [...(place ? [place] : []), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])], pages: pagesFor(q), step: "deterministic", weak: false,
-    understood: { ...understood, total: rows.length },
+    q, hits: [...(place ? [place] : []), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])],
+    pages: more(rows) && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
+    step: "deterministic", weak: false,
+    understood: { ...understood, ...(more(rows) ? { label: `${understood.label}, ${rows.length} in all (the full list is on Events)` } : {}), total: rows.length },
   });
 
   const rows = await rowsFor(e, now);
-  if (rows.length) return done(rows, { ...base, label: label({ where: whereAsStored(e, rows) }) });
+  if (rows.length) return done(rows, { ...base, label: label({ where: whereAsStored(e, rows) }) + gaps(e, rows) });
   // Nothing matched: the closest honest set, labelled as such. The venue or city goes first, then the time.
   const asked = label();
   const tries: ("where" | "time")[][] = [];

@@ -105,3 +105,53 @@ describe("questions about events are not event sets", () => {
     expect(readEventQuery("when is the next meet in NJ")).toMatchObject({ time: "upcoming", region: { key: "USA:NJ" } });
   });
 });
+
+describe("place typos and 'states' (owner report)", () => {
+  it("reads a near miss of a place's name, said as read", () => {
+    expect(readEventQuery("new jesey states")).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, regionTyped: "new jesey", allSeasons: true, words: [] });
+    expect(readEventQuery("meets in new jersy")).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, regionTyped: "new jersy" });
+    expect(readEventQuery("pensylvania champs")).toMatchObject({ kinds: ["championship"], region: { key: "USA:PA" } });
+  });
+  it("'states', 'state champs' and 'champs' with a place are its championship", () => {
+    for (const q of ["nj states", "NJ state champs", "new jersey champs"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [], allSeasons: true });
+  });
+  it("never guesses: no event word, a code, or two places as close", () => {
+    expect(readEventQuery("new jesey")).toBeNull();
+    expect(readEventQuery("nj state")).toBeNull();
+    expect(readEventQuery("meets in nk")).toMatchObject({ region: null, where: "nk" }); // a city, as before
+    expect(readEventQuery("meets in Jersey City")?.regionTyped).toBeUndefined();
+  });
+  it("championships with a year, season or time keep that scope", () => {
+    expect(readEventQuery("2024-25 nj states")?.allSeasons).toBeUndefined();
+    expect(readEventQuery("upcoming championships in NJ")?.allSeasons).toBeUndefined();
+    expect(readEventQuery("meets in NJ")?.allSeasons).toBeUndefined();
+  });
+});
+
+describe("Greptile on #450", () => {
+  it("'states' before a misspelled place still reads the place", () => {
+    for (const q of ["states in new jesey", "states in NJ", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [], where: null, allSeasons: true });
+  });
+  it("a generic event word keeps every season", () => {
+    for (const q of ["championship events in NJ", "NJ championship events", "championships in NJ"]) expect(readEventQuery(q)?.allSeasons, q).toBe(true);
+  });
+  it("time words work with states and champs, and keep their scope", () => {
+    for (const q of ["past NJ states", "upcoming NJ champs", "recent NJ states"]) {
+      const e = readEventQuery(q);
+      expect(e, q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [] });
+      expect(e?.time, q).not.toBeNull();
+      expect(e?.allSeasons, q).toBeUndefined();
+    }
+  });
+  it("'states' without a place names nothing; 'united states' is never a championship", () => {
+    expect(readEventQuery("states")).toBeNull();
+    expect(readEventQuery("united states meets")?.kinds ?? []).not.toContain("championship");
+  });
+});
+
+describe("Greptile on #450, round 2", () => {
+  it("'states' beside a generic event word is still the championship, every season", () => {
+    for (const q of ["NJ states events", "NJ states competitions", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ region: { key: "USA:NJ" }, words: [], allSeasons: true });
+    expect(readEventQuery("NJ states events")?.kinds).toContain("championship");
+  });
+});
