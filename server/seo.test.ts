@@ -12,7 +12,7 @@ import { canonicalRedirects, canonicalUrl, coinFlipsHint, renderIndex, renderPag
 import { KV_KEY as RADAR_KEY } from "./api/coinFlips";
 import { localDate } from "../src/shared/eventDay";
 import { fitDescription } from "./seoMeta";
-import { kvSet, migrate, openDb, run, setDb } from "./db";
+import { kvGet, kvSet, migrate, openDb, run, setDb } from "./db";
 import { BOOT_CONSENT_ID } from "../src/shared/boot";
 import { clearAllCaches } from "./caches";
 
@@ -533,6 +533,26 @@ describe("IndexNow", () => {
     expect(await pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: f.fetchImpl })).toMatch(/^sent 1 URLs/);
     expect(f.calls[1].body.urlList).toEqual(["https://controlscout.org/power-rankings/2026-w42"]);
     expect(await pingIndexNow({ now: T0 + 3 * HOUR, fetchImpl: f.fetchImpl })).toBe("nothing changed");
+  });
+
+  it("events whose pages are left out (no data) are read past, not re-read: the pages changed after them still go", async () => {
+    const { pingIndexNow } = await import("./indexNow");
+    const f = fake();
+    const at = (ms: number) => new Date(ms).toISOString();
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent /); // the main pages, accepted
+    // Re-fetched since: two events with no teams and no matches (noindex, server/indexable.ts).
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'EMPTY1', 'Kickoff', '2025-09-06', 'test', ?), (2025, 'EMPTY2', 'Kickoff', '2025-09-06', 'test', ?)", [at(T0 + 60_000), at(T0 + 120_000)]);
+    expect(await pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: f.fetchImpl })).toBe("nothing changed");
+    expect(f.calls).toHaveLength(1);
+    // Read past, and the hour not used up.
+    const saved = await kvGet<{ cursor: { code: string }; tried: string }>("indexnow");
+    expect(saved!.cursor.code).toBe("EMPTY2");
+    expect(saved!.tried).toBe(new Date(T0).toISOString());
+    // An event with a roster, re-fetched after them: the next ping sends it.
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'REAL1', 'Qualifier', '2025-11-08', 'test', ?)", [at(T0 + 180_000)]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'REAL1', 4215)");
+    expect(await pingIndexNow({ now: T0 + HOUR + 2, fetchImpl: f.fetchImpl })).toMatch(/^sent 1 URLs/);
+    expect(f.calls[1].body.urlList).toEqual(["https://controlscout.org/events/2025/REAL1"]);
   });
 
   it("a batch over the limit goes out across pings, from where the last one stopped: no page is skipped", async () => {

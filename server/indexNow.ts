@@ -26,6 +26,8 @@ export const MAIN_PAGES = ["/", "/faq", "/power-rankings", "/rankings", "/teams"
 export const MIN_GAP_MS = 3600_000;
 export const MAX_URLS = 10_000;
 const STATE_KEY = "indexnow";
+/** How many more batches one ping reads past while every one holds only pages left out. */
+const SKIP_BATCHES = 20;
 
 /** The protocol's key: 8–128 of a-z, A-Z, 0-9 and "-". */
 const KEY_RE = /^[A-Za-z0-9-]{8,128}$/;
@@ -71,6 +73,8 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
   return { paths, cursor: at, more: i < batch.length || events.length > BATCH };
 }
 
+const sameCursor = (a: Cursor, b: Cursor) => a.t === b.t && a.season === b.season && a.code === b.code;
+
 type Fetch = (url: string, init: RequestInit) => Promise<Pick<globalThis.Response, "status" | "ok">>;
 
 /**
@@ -103,10 +107,17 @@ export async function pingIndexNow(opts: { now?: number; fetchImpl?: Fetch } = {
     // Weeks by their id, not their date: a week published later on the day of a ping is still new.
     const weeks = (await publishedWeeks().catch(() => [])).filter((w) => !w.sample && !state.weeks.includes(w.week)).map((w) => w.week);
     const fixed = [...main, ...weeks.map((w) => `/power-rankings/${w}`)].slice(0, MAX_URLS);
-    const ev = await changedEvents(state.cursor, MAX_URLS - fixed.length);
+    // A batch can hold only pages left out (server/indexable.ts: empty events, teams with no data): read on past it
+    // in this same ping, so it never stands in front of changed pages behind it.
+    let ev = await changedEvents(state.cursor, MAX_URLS - fixed.length);
+    for (let i = 0; !ev.paths.length && ev.more && i < SKIP_BATCHES; i++) ev = await changedEvents(ev.cursor, MAX_URLS - fixed.length);
     const urls = [...new Set([...fixed, ...ev.paths].map((p) => canonicalUrl(p)))];
-    // Nothing to send: no state written, so the hour isn't used up (a sync finishing soon after still pings).
-    if (!urls.length) return "nothing changed";
+    // Nothing to send: the hour isn't used up (a sync finishing soon after still pings), but the events read past
+    // are: the cursor is kept, so the next ping starts after them.
+    if (!urls.length) {
+      if (!sameCursor(ev.cursor, state.cursor)) await kvSet(STATE_KEY, { ...state, cursor: ev.cursor } satisfies State);
+      return "nothing changed";
+    }
     const key = indexNowKey();
     // Recorded first: a crash or a hang mid-request still waits an hour before the next try.
     await kvSet(STATE_KEY, { ...state, tried: nowIso });
