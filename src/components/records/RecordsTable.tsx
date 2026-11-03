@@ -249,7 +249,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const saved = useSavedFilters(scope);
   // A state narrows the country ("New Jersey, United States"); removing the place clears both.
   const countryName = state.country ? `${state.homeState ? `${stateName(state.country, state.homeState)}, ` : ""}${countryByCode(state.country)?.name ?? state.country}` : null;
-  const noPlace = { country: null, homeState: null, page: 1 };
+  const noPlace = { country: null, homeState: null, stateUnknown: null, page: 1 };
   const chips: FilterChip[] = [];
   if (compact) {
     if (c?.region && state.regions.length) {
