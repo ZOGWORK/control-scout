@@ -32,6 +32,7 @@ import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
+import { statAnswer } from "./answers/index.js";
 import { countAnswer, eventPageAnswer, explainAnswer, monthAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
@@ -52,6 +53,9 @@ export interface AnswerOptions {
   now?: number;
   /** How many rewrites (./searchCoverage.ts) led here: a rewrite is read once more at most, never in a loop. */
   rewrites?: number;
+  /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
+   *  Set by searchAnswer from the caller's limit (the page asks for SEARCH_PAGE_LIMIT) unless given. */
+  full?: boolean;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
@@ -113,7 +117,7 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // One reading for every surface (brief Requirement 2): the answer is worked out on the page's full list, whatever
   // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
   const shown = opts.limit ?? 12;
-  const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
+  const a = await answerFor(read, { ...opts, full: opts.full ?? shown >= SEARCH_PAGE_LIMIT, typed, asked: /\?\s*$/.test(String(raw ?? "")), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
   // The page words as typed ("records" stays a page word); links the answer added itself (a region's rankings) stay.
   const own = (p: { href: string }) => !pagesFor(read).some((x) => x.href === p.href);
   const out = read === typed ? a : { ...a, q: typed, pages: [...a.pages.filter(own), ...pagesFor(typed).filter((p) => !a.pages.some((x) => x.href === p.href && own(x)))] };
@@ -158,6 +162,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
+
+  // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
+  const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false }), { full: !!opts.full, pages: pagesFor(q) });
+  if (stat) return stat;
 
   // 0. A phrasing the readers below miss, said the way they read it ("compare 4215 and 6980" → "4215 vs 6980"), or a
   // question answered on its own: what a word means, a count, the FIRST Championship, an event's tab (./searchCoverage.ts).

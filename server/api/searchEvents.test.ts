@@ -53,8 +53,8 @@ describe("event sets (brief Section 3)", () => {
     const a = await ask("Meets in New Jersey");
     expect(a.step).toBe("deterministic");
     expect(a.didYouMean).toBeUndefined();
-    expect(a.understood).toMatchObject({ kind: "events", label: "League meets in New Jersey", place: { key: "USA:NJ" }, season: S });
-    expect(showingLine(a)).toBe("League meets in New Jersey");
+    expect(a.understood).toMatchObject({ kind: "events", label: "Meets in New Jersey", place: { key: "USA:NJ" }, season: S });
+    expect(showingLine(a)).toBe("Meets in New Jersey");
     expect(refs(a.hits)).not.toContain("USMOSLM"); // never St Louis
     expect(refs(a.hits)).not.toContain("USNJHPN"); // a scrimmage isn't a meet
     for (const q of ["Meet in New Jersey", "Meet at new Jersey", "Meets at New Jersey"]) expect((await ask(q)).hits, q).toEqual(a.hits);
@@ -67,20 +67,21 @@ describe("event sets (brief Section 3)", () => {
   it("3 and 7: upcoming and past", async () => {
     const up = await ask("upcoming meets in New Jersey");
     expect(refs(up.hits)).toEqual(["USNJNEM2", "USNJNEM4", "USNJNEM6"]);
-    expect(up.understood).toMatchObject({ label: "Upcoming league meets in New Jersey", time: "upcoming", window: { from: "2026-11-02", to: null } });
+    expect(up.understood).toMatchObject({ label: "Upcoming meets in New Jersey", time: "upcoming", window: { from: "2026-11-02", to: null } });
     expect(up.hits.some((h) => h.ref === "37525")).toBe(false); // never Oncoming Storm
     const past = await ask("past meets in New Jersey");
     expect(refs(past.hits)).toEqual(["USNJNOM1", "USNJSOM1"]);
-    expect(past.understood?.label).toBe("Past league meets in New Jersey");
+    expect(past.understood?.label).toBe("Past meets in New Jersey");
   });
   it("4: a venue composes with the place; a venue with no events falls back, labelled", async () => {
+    // A venue with no year is every season: this season's meet there, then last season's.
     const a = await ask("meets in New Jersey at River dell high school");
-    expect(refs(a.hits)).toEqual(["USNJNEM6"]);
-    expect(a.understood).toMatchObject({ label: "League meets in New Jersey at River Dell High School" });
+    expect(refs(a.hits)).toEqual(["USNJNEM6", "USNJNEM9"]);
+    expect(a.understood).toMatchObject({ label: "Meets in New Jersey at River Dell High School" });
     expect(a.understood?.fallback).toBeUndefined();
     const none = await ask("meets at Nonexistent High School in New Jersey");
     expect(none.step).toBe("deterministic");
-    expect(none.understood?.fallback).toBe("No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead");
+    expect(none.understood?.fallback).toBe("No meets in New Jersey at Nonexistent High School in the data — showing meets in New Jersey instead");
     expect(refs(none.hits)).toEqual(refs((await ask("meets in New Jersey")).hits));
     expect(answerSections(none).notes.understood).toContain(none.understood!.fallback);
   });
@@ -95,7 +96,7 @@ describe("event sets (brief Section 3)", () => {
   });
   it("6: this weekend is the coming Saturday and Sunday", async () => {
     const a = await ask("meets this weekend");
-    expect(a.understood).toMatchObject({ label: "This weekend's league meets", window: { from: "2026-11-07", to: "2026-11-08" } });
+    expect(a.understood).toMatchObject({ label: "This weekend's meets", window: { from: "2026-11-07", to: "2026-11-08" } });
     expect(refs(a.hits)).toEqual(["USNJNEM2", "USMOSLM"]);
   });
   it("21: a year scopes to events held that year, never another year's", async () => {
@@ -152,7 +153,7 @@ describe("Greptile on #434", () => {
     expect(refs(up.hits)).toContain("USCALAM");
     const past = await searchAnswer("past meets in California", { now: late, limit: 25, learn: false });
     // No past meet there: the meet under way is only a labelled fallback, never a past answer.
-    expect(past.understood?.fallback).toBe("No past league meets in California — showing league meets in California instead");
+    expect(past.understood?.fallback).toBe("No past meets in California in the data — showing meets in California instead");
     expect(refs((await ask("past meets in Texas")).hits)).toEqual(["USTXOLD"]);
     expect(refs((await ask("upcoming meets in Texas")).hits)).toContain("USTXTWO");
   });
@@ -173,7 +174,7 @@ describe("the first HTML of /search (Greptile on #434)", () => {
   it("says a fallback is a fallback, beside the badge", async () => {
     const { pageMeta } = await import("../seoMeta");
     const html = (await pageMeta("/search", { q: "meets at Nonexistent High School in New Jersey" })).bodyHtml!;
-    expect(html).toContain("No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead");
+    expect(html).toContain("No meets in New Jersey at Nonexistent High School in the data — showing meets in New Jersey instead");
   });
 });
 
@@ -241,5 +242,59 @@ describe("Greptile on #456", () => {
     await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USORCMP', 'Oregon Championship', NULL, 'V', 'Portland', 'OR', 'USA', '2026-02-01', '2026-02-01', 'test')", [S - 1]);
     await rebuildSearch();
     expect(refs((await ask("OR states")).hits)).toEqual(["USORCMP"]);
+  });
+});
+
+describe("a venue, every season, spelled loosely (owner bug: River Dell)", () => {
+  beforeAll(async () => {
+    // The data's own spellings: a letter dropped, "Regional H.S.", a city misspelt.
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USNJRD1', 'Northern League Meet', 'LeagueMeet', 'River DeHigh School', 'Oradell', 'NJ', 'USA', '2025-01-12', '2025-01-12', 'test'), (?, 'USNJRD2', 'Northern League Meet 2', 'LeagueMeet', 'River Dell Regional H.S.', 'Oradelll', 'NJ', 'USA', '2024-01-14', '2024-01-14', 'test'), (?, 'USNJDB1', 'Ramsey Meet', 'LeagueMeet', 'Don Bosco Prep High School', 'Ramsey', 'NJ', 'USA', '2025-01-19', '2025-01-19', 'test')", [S - 2, S - 3, S - 2]);
+    await rebuildSearch();
+  });
+  it("finds every season's meets there, past ones too, in date order", async () => {
+    for (const q of ["meets in river dell high school", "meets at River Dell HS", "meets at river dell regional high school"]) {
+      expect(refs((await ask(q)).hits), q).toEqual(["USNJNEM6", "USNJNEM9", "USNJRD1", "USNJRD2"]);
+    }
+    const a = await ask("meets at river dell high school");
+    expect(a.understood?.label).toBe("Meets at River Dell High School");
+    expect(a.understood?.season).toBeUndefined();
+  });
+  it("past ones by the Past filter's own word", async () => {
+    const past = await ask("past meets in river dell high school");
+    expect(refs(past.hits)).toEqual(["USNJNEM9", "USNJRD1", "USNJRD2"]);
+    expect(past.understood?.label).toBe("Past meets at River Dell High School");
+  });
+  it("no past meets at a venue says so, and keeps the venue", async () => {
+    // Dumont High School has only an upcoming meet: never past meets elsewhere in its place.
+    const a = await ask("past meets at dumont high school");
+    expect(a.understood?.fallback).toBe("No past meets at Dumont High School in the data — showing meets at Dumont High School instead");
+    expect(refs(a.hits)).toEqual(["USNJNEM4"]);
+    const up = await ask("upcoming meets at river dell regional h.s.");
+    expect(refs(up.hits)).toEqual(["USNJNEM6"]);
+    const none = await ask("past meets at Brand New High School in New Jersey");
+    expect(none.understood?.fallback).toBe("No past meets in New Jersey at Brand New High School in the data — showing past meets in New Jersey instead");
+  });
+  it("a city counts only when it is the place typed", async () => {
+    expect(refs((await ask("meets in oradell")).hits)).toEqual(expect.arrayContaining(["USNJNEM6", "USNJRD1", "USNJRD2"]));
+    // Greptile on #461: the city's name and another school's words never make a venue.
+    const hs = await ask("meets at ramsey high school");
+    expect(refs(hs.hits)).not.toContain("USNJDB1");
+    expect(hs.understood?.fallback).toMatch(/^No meets at Ramsey High School in the data/);
+  });
+  it("two schools a couple of letters apart are never the same venue (Greptile on #461)", async () => {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USAKDIM', 'Anchorage Meet', 'LeagueMeet', 'Dimond High School', 'Anchorage', 'AK', 'USA', '2025-01-11', '2025-01-11', 'test')", [S - 2]);
+    await rebuildSearch();
+    expect(refs((await ask("meets at dumont high school")).hits)).not.toContain("USAKDIM");
+    expect(refs((await ask("meets at dimond high school")).hits)).toEqual(["USAKDIM"]);
+  });
+});
+
+describe("Greptile on #461, round 2", () => {
+  it("a city's meets at two venues read as the city, never one venue's name", async () => {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USNJOHS1', 'Oradell Meet', 'LeagueMeet', 'Oradell High School', 'Oradell', 'NJ', 'USA', '2025-02-09', '2025-02-09', 'test')", [S - 2]);
+    await rebuildSearch();
+    const a = await ask("meets in oradell");
+    expect(refs(a.hits)).toEqual(expect.arrayContaining(["USNJOHS1", "USNJNEM6"]));
+    expect(a.understood?.label).toBe("Meets in Oradell");
   });
 });

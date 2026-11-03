@@ -15,9 +15,12 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
+import { useSubmittedSearch } from "../components/search/direct";
+import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
+import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
@@ -40,10 +43,12 @@ export default function SearchPage() {
   const q = params.get("q") ?? "";
   const query = q.trim();
   const filters = readFilters(params);
-  const { hits, answer, busy, error, retry, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
+  // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
+  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
   const meta = useMeta();
   const season = useCurrentSeason();
@@ -56,7 +61,7 @@ export default function SearchPage() {
   const view = useMemo(() => shape(sections, filters), [sections, filters.when, filters.season, filters.type]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
-  const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card;
+  const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card || !!answer?.stat;
   const events = hits.filter((h) => h.kind === "event").length;
   const filtersOn = anyFilter(filters);
 
@@ -123,6 +128,9 @@ export default function SearchPage() {
       {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
+  // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
+  // while going on to the one page a submitted query names.
+  if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
@@ -181,6 +189,8 @@ export default function SearchPage() {
                 )}
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
+                  {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
+                  {answer?.stat && <StatAnswerCard stat={answer.stat} />}
                   {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
                       from the latest), else the answer card as before. */}
                   {apps.length ? (

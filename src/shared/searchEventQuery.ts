@@ -35,9 +35,9 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
   worlds: ["FIRSTChampionship"],
 };
 
-/** How an event word reads in a label ("League meets in New Jersey"). */
+/** How an event word reads in a label, the word typed and no more ("Meets in New Jersey": never "League meets"). */
 const EVENT_LABEL: Record<string, string> = {
-  meet: "League meets", league: "League events", tournament: "League tournaments", championship: "Championships", champ: "Championships", champs: "Championships", states: "State championships",
+  meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", states: "State championships",
   qualifier: "Qualifiers", scrimmage: "Scrimmages", kickoff: "Kickoffs", premier: "Premier events",
   event: "Events", competition: "Events", comp: "Events", worlds: "FIRST Championship (Worlds) events",
 };
@@ -184,8 +184,17 @@ const TIME_LABEL: Record<SearchTime, string> = {
  *  `drop`: parts left out (a fallback's label). */
 export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; city: boolean } | null; seasonLabel?: (s: number) => string; drop?: ("where" | "time")[] } = {}): string {
   const drop = new Set(opts.drop ?? []);
+  // The event words as typed: a specific one beats a generic one ("NJ states events"), and "league" before another
+  // stays ("league meets": "League meets"). Kinds that share no type are each named ("Meets and tournaments"). Never
+  // a narrower word than the one typed.
   const specific = e.kinds.filter((k) => EVENT_TYPES[k] !== null);
-  const kind = specific.length === 1 ? EVENT_LABEL[specific[0]] : e.kinds.length === 1 ? EVENT_LABEL[e.kinds[0]] : "Events";
+  const ks = specific.includes("states") ? ["states"] : specific;
+  const shared = ks.length > 1 && ks.map((k) => EVENT_TYPES[k]!).reduce((a, b) => a.filter((t) => b.includes(t))).length > 0;
+  const kind = ks.length === 1 ? EVENT_LABEL[ks[0]]
+    : ks.length > 1 && ks.slice(0, -1).every((k) => k === "league") && ks.at(-1) !== "league" ? `League ${EVENT_LABEL[ks.at(-1)!].toLowerCase()}`
+    : ks.length > 1 && shared ? EVENT_LABEL[ks.at(-1)!]
+    : ks.length > 1 ? [...new Set(ks.map((k) => EVENT_LABEL[k]))].map((l, i) => (i ? l.toLowerCase() : l)).join(" and ")
+    : e.kinds.length === 1 ? EVENT_LABEL[e.kinds[0]] : "Events";
   const time = e.time && !drop.has("time") ? TIME_LABEL[e.time] : null;
   const what = time ? `${time} ${kind.toLowerCase()}` : kind;
   const words = e.words.length ? ` matching "${e.words.join(" ")}"` : "";

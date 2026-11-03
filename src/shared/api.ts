@@ -5,6 +5,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
+import type { StatAnswer } from "./searchStat";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
@@ -142,6 +143,8 @@ export interface SearchAnswer {
   weak: boolean;
   /** A direct answer to a question the query asked ("when did hypnotic go to worlds"), from stored data only. */
   card?: SearchCard;
+  /** A stat question's answer ("4215 highest score in worlds"), as blocks /search draws: src/shared/searchStat.ts. */
+  stat?: StatAnswer;
   /** What the query was understood as (always set by the server's answer). */
   understood?: SearchUnderstood;
 }
