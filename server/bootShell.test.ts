@@ -107,6 +107,8 @@ describe("static first paint", () => {
     // The rail hides row names visually only: every link keeps its name for screen readers.
     const narrow = BOOT_STYLE.match(/@media \(max-width:1279px\)\{[^\n]*\}/)![0];
     expect(narrow).toContain(".csb-nav a span,.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)");
+    // How it works' two pages sit level with the other rows in the rail, as the app's do.
+    expect(narrow).toContain(".csb-sub>div{margin-left:0;padding-left:0;border-left:0}");
     expect(narrow).not.toMatch(/\.csb-nav a span[^{]*\{display:none/);
   });
 });

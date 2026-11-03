@@ -25,7 +25,9 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 // A row's name stays for screen readers (visually hidden, like the app's sr-only); the brand link has its aria-label.
 const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-content:center;padding:0}${on}.csb-brand span{display:none}`
   + `${on}.csb-nav a span,${on}.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}`
-  + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`;
+  + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`
+  // A fold's pages sit level with every other row in the rail, as the app draws them there (no indent, no rule).
+  + `${on}.csb-sub>div{margin-left:0;padding-left:0;border-left:0}`;
 export const BOOT_STYLE = `<style>
       html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}html.dim{background:#1e1f23}html.midnight{background:#000}body{margin:0}
       html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}html.midnight::-webkit-scrollbar-thumb{background:#222227}
