@@ -38,7 +38,7 @@ const TITLES: Record<IntentId, string> = {
   "highest-score": "Highest score", "lowest-score": "Lowest score", "biggest-win": "Biggest win", "biggest-loss": "Biggest loss", "closest-match": "Closest match",
   "first-match": "First match", "recent-match": "Most recent match", "best-finish": "Best event finish", "worst-finish": "Worst event finish", "first-event": "First event",
   "last-event": "Most recent event", "best-opr-event": "Best OPR event", "best-season": "Best season", "most-improved-season": "Most improved season", "first-season": "First season",
-  "wins-count": "Match wins", record: "Record", "average-score": "Average score", "total-matches": "Matches played", "total-events": "Events played", "seasons-played": "Seasons played",
+  "wins-count": "Match wins", record: "Record", "average-score": "Average score", "average-margin": "Average margin", "total-points": "Total points", "total-matches": "Matches played", "total-events": "Events played", "seasons-played": "Seasons played",
   "seasons-count": "How many seasons", "current-streak": "Current streak", "longest-streak": "Longest win streak", "last-matches": "Last matches", "average-rank": "Average event rank",
   "playoff-appearances": "Playoff appearances", "blowout-wins": "Blowout wins", losses: "Losses", "playoff-matches": "Playoff matches", "qual-matches": "Qualification matches",
   "red-blue-record": "Record by alliance colour", results: "Results", "event-rank": "Rank", "event-opr": "OPR", "match-lookup": "Match",
@@ -149,7 +149,10 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
   const title = `${it.leadEvent ? "Event with the highest score" : TITLES[it.id]}${scopePhrase(scope)}`;
-  const label = `${whoOf(team)} · ${title}`;
+  // "This season" with none of the season in progress played yet reads the team's latest: said in the line itself, so
+  // "record this season" and "record last season" landing on one season never looks like a mistake.
+  const fellBack = it.scope.latest && it.scope.season == null && scope.season != null && scope.season !== CURRENT_SEASON;
+  const label = `${whoOf(team)} · ${title}${fellBack ? ` · no ${seasonLabel(CURRENT_SEASON)} matches yet, so their latest season` : ""}`;
   const section = AWARD_INTENTS.has(it.id) ? "awards" : EVENT_INTENTS.has(it.id) || TREND_INTENTS.has(it.id) ? "history" : "matches";
   const linkSeason = scope.season ?? scope.event?.season;
   const hit: SearchHit = { ...top, section, ...(linkSeason != null ? { linkSeason } : {}), facts: undefined, events: undefined };

@@ -80,6 +80,8 @@ export function readTeamFact(raw: string): FactQuestion | null {
     // ("when is 4215's next event", "what events did 4215 win in 2024") is the asks' own.
     if (r.id === "events-season" && scope.season == null) return null;
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
+    // "past events in michigan", "recent events in nj": a time, not a team ("past" isn't PastaBots), the event sets' own.
+    if ((r.id === "events-season" || r.id === "events-place") && /^\s*(?:past|recent|previous|latest|future|coming|all|every|the|list|show)\s*$/.test(rest)) return null;
     const core = rest.replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event };

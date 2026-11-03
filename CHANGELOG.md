@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.7.3 — 2026-11-03
+## 2.7.6 — 2026-11-03
 
 Searches that find no answer are now logged, so they can be fixed. Each one becomes a GitHub issue on the public repository: the query (with emails, phone numbers and keys taken out) and how search read it, nothing about who searched. Search itself works exactly as before.
 
@@ -30,6 +30,45 @@ Searches that find no answer are now logged, so they can be fixed. Each one beco
 - **Privacy.** The repository is public, so an issue holds the query text and the outcome only. No IP address, account or device is kept, and emails, phone numbers and keys in a query are replaced before anything is stored.
 - **No slower.** Search answers first. The logging is in-memory bookkeeping (about 24 µs a search), written out in batches every minute and sent to GitHub every 10 minutes at most. If GitHub is down, search carries on and the counts catch up later.
 - **Error reports.** In-app error reports point at the repository's new home (ZOGWORK/control-scout), which GitHub's issue search needs to find a report's existing issue.
+
+## 2.7.5 — 2026-11-03
+
+Bruno's card on a search shows up only once he has answered, so it never appears and then vanishes.
+
+### Highlights
+- [teams] Bruno's card shows only once his answer is ready
+- [teams] No card at all when he has nothing to add
+- [teams] A question with a summary keeps it while he writes
+
+### Search
+- **Bruno's answer.** The card no longer opens while Bruno is still writing and then disappears when he has nothing to add or his answer is withdrawn: it appears once, with his finished answer, and never otherwise. A question with a summary shows the plain summary while he writes, then his card around it. (#476)
+
+## 2.7.4 — 2026-11-03
+
+FTC One Search answers more of the questions people actually ask about one team, and reads a few it used to get wrong.
+
+### Highlights
+- [teams] Average margin and total points per team, each season apart
+- [teams] "Have 4215 and 6980 played?" opens their head to head
+- [teams] Penalties, partners, best match and world rank all answer
+- [teams] "This season" says so when the season has no matches yet
+
+### Search
+- **New answers.** Average margin (or winning or losing margin, over wins or losses only) and total points, with the latest season up front and every season listed apart, never pooled. (#475)
+- **Read right.** Head-to-head questions ("has 4215 played 6980", "did 4215 ever face 6980") open the Compare, not another team; "at nj states", penalties, no-shows, best and worst match, best event, partners, opponents, events this season, world rank, region rank, next-match odds and awards at an event each get the answer they ask for, with a note when it is read a certain way.
+- **Smaller fixes.** Motivate and Dean's List count as awards; "past events in michigan" lists events, not a team named for pasta; "nj states matches" opens the Matches tab; a "this season" answer with no matches yet in the season in progress says it fell back to the latest season.
+
+## 2.7.3 — 2026-11-03
+
+Home's search box speaks for itself: the label and heading above it are gone, so the field and its examples lead.
+
+### Highlights
+- [home] Home's search box stands on its own, no heading above it
+- [home] The field keeps its label and its rotating examples
+- [home] The first paint matches, so nothing jumps as the page loads
+
+### Home
+- **Search box.** The "FTC One Search" tag, the "Type whatever you want" heading and the line under it are gone from Home's search block; the field's own label and placeholder say what it does, and the example chips stay. The page's first paint draws it the same way. (#474)
 
 ## 2.7.2 — 2026-11-03
 
