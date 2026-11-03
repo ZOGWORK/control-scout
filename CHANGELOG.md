@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.7 — 2026-11-03
+## 2.5.8 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
 
@@ -30,6 +30,23 @@ FTC One Search answers questions about a team's matches: its best score at World
 - **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
 - **Never one number across seasons.** Each season is a different game that scores on its own scale, so seasons are compared by OPR standing (rank among that season's teams) and record, never by raw OPR or scores: the best and most improved seasons use standing, an average over several seasons is listed season by season, and with no season named a best or lowest score, a biggest win or loss and a best OPR event are the latest season's, with every season's own listed below.
 - **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
+## 2.5.7 — 2026-11-03
+
+FTC One Search finds every meet held at a venue, past seasons too, and its lines say what you typed.
+
+### Highlights
+- [history] "Meets at River Dell High School" lists every season's meets there
+- [fixes] Venues match loosely: "HS", "Regional" and small misspellings
+- [fixes] Search lines repeat your words: "Meets in New Jersey"
+- [rankings] "Best teleop in the world" and "best auto in NJ" show the leaders
+
+### Search
+- **A venue spans every season.** "Meets in River Dell High School" with no year lists its meets from every season in date order (upcoming first, then past, most recent first), so the Past filter has the past ones to show. "Past meets at …" lists only those.
+- **Venues match loosely.** Punctuation, "HS" or "H.S." for "High School", "Regional", and a letter or two off ("River DeHigh School", "River Dale High School") are the same venue. A city counts when the place typed is that city ("meets in Oradel").
+- **Honest fallbacks.** With nothing to show, a time word goes before the venue: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead".
+- **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". Kinds that share no type are each named ("Meets and tournaments").
+- **Stat leaders, any scope.** "Best teleop in the world", "highest OPR this season", "most wins of all time" and "best driver controlled worldwide" show that stat's leaderboard, the same as "best teleop"; "best auto in NJ" or "best auto in New Jersey" shows New Jersey's. "Top", "strongest", "greatest" and "number one" read as "best"; "autonomous" as auto; "driver" or "driver controlled" as teleop. (#461)
 
 ## 2.5.6 — 2026-11-03
 

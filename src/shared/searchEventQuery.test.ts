@@ -42,11 +42,11 @@ describe("reading an event set", () => {
 
 describe("labels", () => {
   it("names the query as understood, never an event", () => {
-    expect(eventSetLabel(readEventQuery("Meets in New Jersey")!)).toBe("League meets in New Jersey");
-    expect(eventSetLabel(readEventQuery("upcoming meets in New Jersey")!)).toBe("Upcoming league meets in New Jersey");
-    expect(eventSetLabel(readEventQuery("meets in New Jersey at River dell high school")!)).toBe("League meets in New Jersey at River Dell High School");
-    expect(eventSetLabel(readEventQuery("meets in Oradell")!, { where: { text: "Oradell", city: true } })).toBe("League meets in Oradell");
-    expect(eventSetLabel(readEventQuery("meets this weekend")!)).toBe("This weekend's league meets");
+    expect(eventSetLabel(readEventQuery("Meets in New Jersey")!)).toBe("Meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("upcoming meets in New Jersey")!)).toBe("Upcoming meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("meets in New Jersey at River dell high school")!)).toBe("Meets in New Jersey at River Dell High School");
+    expect(eventSetLabel(readEventQuery("meets in Oradell")!, { where: { text: "Oradell", city: true } })).toBe("Meets in Oradell");
+    expect(eventSetLabel(readEventQuery("meets this weekend")!)).toBe("This weekend's meets");
     expect(eventSetLabel(readEventQuery("2024 Houston Championship Edison Division")!)).toBe('Championships matching "Houston Edison Division" held in 2024');
   });
 });
@@ -162,5 +162,21 @@ describe("Greptile on #450, round 2", () => {
     expect(eventSetLabel(readEventQuery("NJ states events")!)).toBe("State championships in New Jersey, every season");
     expect(eventSetLabel(readEventQuery("NJ championship events")!)).toBe("Championships in New Jersey, every season");
     expect(eventTypesOf(readEventQuery("tx states")!.kinds)).toEqual(["Championship"]); // never the FIRST Championship held there
+  });
+});
+
+describe("labels echo the words typed (owner bug)", () => {
+  it("never narrows to a type the words didn't say", () => {
+    expect(eventSetLabel(readEventQuery("meets at river dell high school")!)).toBe("Meets at River Dell High School");
+    expect(eventSetLabel(readEventQuery("meets in New Jersey")!)).toBe("Meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("league meets in NJ")!)).toBe("League meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("nj states")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("states in new jersey")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("NJ states events")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("tournaments in NJ")!)).toBe("Tournaments in New Jersey");
+    expect(eventSetLabel(readEventQuery("league tournaments in NJ")!)).toBe("League tournaments in New Jersey");
+    expect(eventSetLabel(readEventQuery("events in NJ")!)).toBe("Events in New Jersey");
+    // Greptile on #461: kinds that share no type are each named, never the last one alone.
+    expect(eventSetLabel(readEventQuery("meets tournaments in NJ")!)).toBe("Meets and tournaments in New Jersey");
   });
 });
