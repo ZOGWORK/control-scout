@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.4.4 — 2026-11-03
+
+FTC One Search reads a misspelled place, and "states" as a state's championship, across every season.
+
+### Highlights
+- [fixes] "new jesey states" finds New Jersey's championships, not a guess
+- [history] A state's championships list every season, newest first
+- [fixes] "NJ states" means the state championship, never "stats"
+
+### Search
+- **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name ("new jesey", "pensylvania", "meets in new jersy") is read as that place. The line above the results says so: "Championships in New Jersey (from "new jesey")". It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
+- **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
+- **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). A year or a season ("2024-25 NJ states") still scopes it to that one.
+
 ## 2.4.2 — 2026-11-03
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
