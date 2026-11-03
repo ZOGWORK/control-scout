@@ -47,6 +47,7 @@ describe("rewrites: said the way a reader answers", () => {
   it("a team's history, worlds and states, asked with no verb", () => {
     expect(rewriteQuery("4215 worlds")?.q).toBe("when did 4215 go to worlds");
     expect(rewriteQuery("bad wolf states")?.q).toBe("when did bad wolf go to states");
+    expect(rewriteQuery("the bad wolf worlds")?.q).toBe("when did the bad wolf go to worlds");
     // A place's championship, a match at one, and a question with its own verb are left to their readers.
     for (const q of ["nj states", "OR states", "new jesey states", "qual 5 nj states", "will 4215 advance to states", "all state championships"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/^when did/);
   });

@@ -70,7 +70,9 @@ export function rewriteQuery(q: string): { q: string; note?: string } | null {
   }
   // A team's Worlds or states history, asked with no verb: "4215 worlds", "bad wolf states history".
   if ((m = /^(.+?)\s+(worlds|states|state championships?|first championship)(?:\s+(?:history|appearances|record|results))?$/.exec(t)) && !regionOf(m[1].split(" ")) && !readEventQuery(squash(q))?.region
-    && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for|all|the|every|list|show)\b|\bq\d/.test(m[1])) {
+    && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for)\b|\bq\d/.test(m[1])
+    // "all state championships" lists them; "the bad wolf worlds" is still Bad Wolf's.
+    && !/^(?:all|every|list|show)(?:\s|$)/.test(m[1])) {
     return { q: `when did ${m[1]} go to ${/^worlds|first/.test(m[2]) ? "worlds" : "states"}` };
   }
   // A team's wins and awards: "has 4215 won an event" (its event wins and awards), "did 4215 win inspire", "4215 inspire".
