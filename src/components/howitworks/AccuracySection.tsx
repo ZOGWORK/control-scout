@@ -12,7 +12,7 @@ import { FlaskConical, History, Hourglass, Radio } from "lucide-react";
 import { BONUS_CONFIDENCE_RULE, BONUS_MIN_SAMPLES, BONUS_WINDOW, CONFIDENCE_RULE } from "@control-scout/predict-engine";
 import { useApi } from "../../lib/api";
 import { useCurrentSeason } from "../../lib/meta";
-import type { AccuracyBlock, BonusAccuracy, ReplayCoverage, TrackRecord } from "../../shared/api";
+import type { AccuracyBlock, BonusAccuracy, MarginError, ReplayCoverage, TrackRecord } from "../../shared/api";
 import { brierSkill, headlineRule, LEDGER_MODE, ledgerDefault, type LedgerKind } from "../../shared/ledger";
 import { ago, pct } from "../../lib/format";
 import { cn } from "../cn";
@@ -142,14 +142,16 @@ export function AccuracySection() {
             </p>
           )}
           {apiState((b) => (
-            <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border lg:grid-cols-4" role="list">
+            <div className={cn("grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border", b.margin ? "lg:grid-cols-5" : "lg:grid-cols-4")} role="list">
               <StatCell tone="gold" value={b.decided > 0 ? <CountUp value={b.accuracy * 100} decimals={1} suffix="%" /> : "—"}
                 label={b.decided > 0 ? `of ${b.decided.toLocaleString("en-US")} decided matches called right (${LEDGER_MODE[sel?.kind ?? "backtest"].detail})` : "no decided match yet: every scored call was a tie or a 50:50 call"} />
               <StatCell tone="blue" value={<CountUp value={b.brier} decimals={3} />} label={`Brier score (lower is better; a coin flip scores ${b.baselineBrier.toFixed(3)})`} />
               <SkillCell block={b} />
-              <StatCell value={<CountUp value={b.n} />} label={`${sel?.kind === "live" ? "live calls scored" : "matches replayed"} · ${(b.decided - b.upsets).toLocaleString("en-US")} right, ${b.upsets.toLocaleString("en-US")} missed`} />
+              {b.margin && <MarginCell m={b.margin} kind={sel?.kind ?? "backtest"} />}
+              <StatCell className={b.margin ? "max-lg:col-span-2" : undefined} value={<CountUp value={b.n} />} label={`${sel?.kind === "live" ? "live calls scored" : "matches replayed"} · ${(b.decided - b.upsets).toLocaleString("en-US")} right, ${b.upsets.toLocaleString("en-US")} missed`} />
               <p role="listitem" className="col-span-full bg-card px-4 py-2.5 font-mono text-xs text-muted-foreground">
                 Log loss {b.logLoss.toFixed(3)} (lower is better; a coin flip scores 0.693) · qualifiers {b.byLevel.qual.n ? `${pct(b.byLevel.qual.accuracy, 1)} right (${b.byLevel.qual.n.toLocaleString("en-US")})` : "none scored"} · playoffs {b.byLevel.playoff.n ? `${pct(b.byLevel.playoff.accuracy, 1)} right (${b.byLevel.playoff.n.toLocaleString("en-US")})` : "none scored"}
+                {b.margin && <> · margin error qualifiers {levelMae(b.margin.byLevel.qual)} · playoffs {levelMae(b.margin.byLevel.playoff)}</>}
               </p>
               {sel?.kind === "backtest" && season?.replay && <CoverageLine c={season.replay} />}
               {sel?.kind === "live" && (season?.liveByEngine?.length ?? 0) > 1 && (
@@ -178,6 +180,7 @@ export function AccuracySection() {
 
       <Prose>
         <p>Accuracy isn't the whole story. The <strong>Brier score</strong> measures how close the probabilities were: 0 is perfect, and a coin flip gets 0.25. It rewards saying 90% when you're sure and 55% when you're not.</p>
+        <p><strong>Margin error</strong> checks the predicted scores the same way: red's predicted score minus blue's, against the real gap, in points, averaged over every call that had a predicted score. Lower is better. Always guessing a tie (a 0-point margin) is the no-skill line it's shown against.</p>
       </Prose>
 
       <Figure narrow label="Figure 8 · engine test" title="Match predictions vs. simple baselines (2025–26, Brier, lower is better)"
@@ -306,9 +309,18 @@ type Tone = "gold" | "good" | "bad" | "blue";
 // Gold as text uses the text shade (deep amber in light, where the bright fill fails contrast).
 const TONE: Record<Tone, string> = { gold: "text-accent-text", good: "text-success", bad: "text-destructive", blue: "text-blue-alliance" };
 
-function StatCell({ value, label, tone }: { value: ReactNode; label: string; tone?: Tone }) {
+/** Margin error (src/shared/api.ts MarginError): average points between the predicted margin and the real one,
+ *  named as live calls or the replay like every other figure in the block. */
+function MarginCell({ m, kind }: { m: MarginError; kind: Kind }) {
+  return <StatCell tone="blue" value={<CountUp value={m.mae} decimals={1} />}
+    label={`points off on the margin, on average (${kind === "live" ? "live calls" : "season replay"}; always saying 0 is off by ${m.baselineMae.toFixed(1)})`} />;
+}
+
+const levelMae = (x: { n: number; mae: number }) => (x.n ? `${x.mae.toFixed(1)} pts (${x.n.toLocaleString("en-US")})` : "none scored");
+
+function StatCell({ value, label, tone, className }: { value: ReactNode; label: string; tone?: Tone; className?: string }) {
   return (
-    <div role="listitem" className="grid min-w-0 content-start gap-1 bg-card p-4">
+    <div role="listitem" className={cn("grid min-w-0 content-start gap-1 bg-card p-4", className)}>
       <b className={cn("font-display text-3xl font-bold leading-none tabular-nums sm:text-4xl", tone ? TONE[tone] : "text-foreground")}>{value}</b>
       <span className="text-[0.8125rem] leading-snug text-muted-foreground">{label}</span>
     </div>
