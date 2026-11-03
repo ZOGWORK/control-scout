@@ -42,6 +42,27 @@ describe("rewrites: said the way a reader answers", () => {
     for (const q of ["compare 4215 and 6980", "is 4215 better than 6980", "which is better 4215 or 6980", "4215, 6980", "4215 & 6980"]) expect(rewriteQuery(q)?.q, q).toBe("4215 vs 6980");
     expect(rewriteQuery("who would win between 4215 and 6980")?.q).toBe("4215 vs 6980 who wins");
     expect(rewriteQuery("4215 2024")).toBeNull(); // a team and a year, never two teams
+    // Review gaps (11-03): each said the way people ask it, read before the stat answers where those would misread it.
+    for (const q of ["have 4215 and 6980 played each other", "have 4215 and 6980 ever played", "has 4215 played 6980", "did 4215 ever face 6980"]) expect(rewriteQuery(q), q).toMatchObject({ q: "4215 vs 6980 head to head", pre: true });
+    expect(rewriteQuery("4215 record at nj states")).toMatchObject({ q: "4215 record at New Jersey championship", pre: true });
+    expect(rewriteQuery("4215 match 12 at nj states")?.q).toBe("4215 match 12 at New Jersey championship");
+    expect(rewriteQuery("4215 at nj states")?.q).toBe("4215 at New Jersey championship");
+    expect(rewriteQuery("4215 penalties")?.q).toBe("4215 penalty points given");
+    expect(rewriteQuery("4215 no shows")).toMatchObject({ q: "4215 reliability", note: expect.stringMatching(/no-shows/) });
+    expect(rewriteQuery("4215 best match")).toMatchObject({ q: "4215 highest score", note: expect.stringMatching(/highest-scoring/) });
+    expect(rewriteQuery("4215 worst match")?.q).toBe("4215 lowest score");
+    expect(rewriteQuery("4215 best event")?.q).toBe("4215 best finish");
+    expect(rewriteQuery("4215 partners")?.q).toBe("4215 most frequent partner");
+    expect(rewriteQuery("4215 opponents")?.q).toBe("4215 most played opponent");
+    expect(rewriteQuery("4215 events this season")?.q).toMatch(/^4215 events in 20\d\d-\d\d$/);
+    expect(rewriteQuery("4215 world rank")).toMatchObject({ q: "4215 opr", note: expect.stringMatching(/world rank by OPR/) });
+    expect(rewriteQuery("4215 nj rank")?.q).toBe("4215 rank in New Jersey");
+    expect(rewriteQuery("4215 win probability next match")?.q).toBe("will 4215 win their next match");
+    for (const q of ["connect award nj states", "design award winners nj states", "motivate award at nj states"]) expect(rewriteQuery(q)?.q, q).toMatch(/^who won (?:connect|design|motivate) at nj states$/);
+    expect(rewriteQuery("who won motivate at nj states")).toBeNull(); // already the asks' own form
+    expect(rewriteQuery("6980 texas")).toMatchObject({ q: "6980", note: expect.stringMatching(/"Texas" is left out/) });
+    // Never a team's own name: "4215 new jersey" names a place, "4215 robots" doesn't.
+    expect(rewriteQuery("4215 robots")).toBeNull();
     expect(rewriteQuery("2024 4215")).toBeNull();
     expect(rewriteQuery("42155")).toBeNull();
   });

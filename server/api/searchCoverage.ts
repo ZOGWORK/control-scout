@@ -31,10 +31,46 @@ import { countryOf } from "../../src/shared/countries.js";
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 const TEAM = String.raw`(\d{1,6}|[a-z0-9][\w'’&.-]*(?:\s+[\w'’&.-]+){0,4})`;
 
-/** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. */
-export function rewriteQuery(q: string): { q: string; note?: string } | null {
+/** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
+ *  before the stat answers, whose readers would take the original the wrong way ("have 4215 and 6980 played each other"
+ *  read "6980 played each other" as a team's name). */
+export function rewriteQuery(q: string): { q: string; note?: string; pre?: true } | null {
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
+  // Whether two teams have met: their head-to-head (every match they played on opposite alliances).
+  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?$`).exec(t))
+    || (m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head`, pre: true };
+  // A team at a state championship by its short name ("4215 record at nj states", "4215 match 12 at nj states"):
+  // that state's championship among the team's events.
+  if ((m = /^(\d{1,6}(?:\s+vs\.?\s+\d{1,6})?)\s+(.*?)\s*\b(?:at|in)\s+(?:the\s+)?(.+?)\s+(?:states|state championships?|state champs|championship)$/.exec(t)) && regionOf(m[3].split(" "))) {
+    const r = regionOf(m[3].split(" "))!;
+    return { q: squash(`${m[1]} ${m[2]} at ${r.name} championship`), pre: true };
+  }
+  // No-shows and disqualifications are counted in the team's reliability.
+  if ((m = /^(\d{1,6})\s+(?:no[\s-]?shows?|dqs?|disqualifications?|disqualified)$/.exec(t))) return { q: `${m[1]} reliability`, note: "no-shows and disqualifications are counted in reliability", pre: true };
+  // A team's penalties, said the short way: the points it gave away, event by event.
+  if ((m = /^(\d{1,6})\s+(?:penalties|penalty|penalty points|fouls|fouls given|penalties given)$/.exec(t))) return { q: `${m[1]} penalty points given`, pre: true };
+  // "Best match" and "worst match" by their score; "best event" by where it finished.
+  if ((m = /^(\d{1,6})\s+(best|top|greatest)\s+(?:match|game)(?:es)?$/.exec(t))) return { q: `${m[1]} highest score`, note: "the best match is read as the highest-scoring one", pre: true };
+  if ((m = /^(\d{1,6})\s+(?:worst)\s+(?:match|game)(?:es)?$/.exec(t))) return { q: `${m[1]} lowest score`, note: "the worst match is read as the lowest-scoring one", pre: true };
+  if ((m = /^(\d{1,6})\s+(?:best|top|greatest)\s+(?:event|competition|tournament)s?$/.exec(t))) return { q: `${m[1]} best finish`, note: "the best event is read as the best finish", pre: true };
+  // A team's partners and opponents: who it played with (or against) most often, every one counted.
+  if ((m = /^(\d{1,6})\s+(?:alliance\s+)?(?:partners?|teammates?)$/.exec(t))) return { q: `${m[1]} most frequent partner`, pre: true };
+  if ((m = /^(\d{1,6})\s+(?:opponents?|rivals?)$/.exec(t))) return { q: `${m[1]} most played opponent`, pre: true };
+  // "This season" for a team's events is the season in progress.
+  if ((m = /^(\d{1,6})\s+(?:events?|competitions?|tournaments?)\s+(?:this|current)\s+(?:season|year)$/.exec(t))) return { q: `${m[1]} events in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
+  // A team's world rank: by OPR, as on Rankings.
+  if ((m = /^(\d{1,6})\s+(?:world|global|worldwide|overall)\s+(?:rank|ranking|standing)$/.exec(t))) return { q: `${m[1]} opr`, note: "the world rank by OPR; the prediction rating has its own (\"" + m[1] + " prediction rating\")", pre: true };
+  // A team's rank in a place, said with the place first ("4215 nj rank").
+  if ((m = /^(\d{1,6})\s+(.+?)\s+(?:rank|ranking|standing)$/.exec(t)) && regionOf(m[2].split(" "))) return { q: `${m[1]} rank in ${regionOf(m[2].split(" "))!.name}` };
+  // A team's next match, asked as a win chance.
+  if ((m = /^(\d{1,6})\s+(?:win\s+(?:probability|chance|odds)|chance of winning|odds)\s+(?:in\s+|for\s+)?(?:the\s+|their\s+)?next\s+(?:match|game)$/.exec(t))) return { q: `will ${m[1]} win their next match` };
+  // An award at an event, asked without "who won": "connect award nj states", "design award winners at nj states".
+  if ((m = /^(?:who won\s+)?(?:the\s+)?(inspire|think|innovate|design|motivate|connect|control|reach|sustain|compass|promote|judges)(?:\s+award)?(?:\s+winners?)?\s+(?:at\s+|in\s+)?(.+)$/.exec(t)) && !/^who won (?:the )?\w+ at /.test(t)) {
+    if (readEventQuery(squash(m[2])) || /\b(?:states|championship|qualifier|meet|league|premier|division)\b/.test(m[2])) return { q: `who won ${m[1]} at ${m[2]}` };
+  }
+  // A team number with its home state after it ("6980 texas"): one team, the place adds nothing.
+  if ((m = /^(\d{1,6})\s+(.+)$/.exec(t)) && regionOf(m[2].split(" ")) && regionOf(m[2].split(" "))!.name.toLowerCase() === m[2]) return { q: m[1], note: `a team number names one team, so "${titleCase(m[2])}" is left out` };
   // Two teams side by side, however it's asked.
   if ((m = new RegExp(`^(?:compare|comparing|comparison of|compare teams?)\\s+${TEAM}\\s+(?:and|with|to|&|vs\\.?|versus)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
   if ((m = new RegExp(`^(?:is|are)\\s+${TEAM}\\s+(?:better|stronger|worse|weaker)\\s+than\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
@@ -283,7 +319,7 @@ export async function worldsAnswer(q: string, now?: number): Promise<SearchAnswe
 
 const SECTION_WORDS: [RegExp, SearchSection | "match"][] = [
   [/\b(?:rankings?|standings|ranks?)\b/, "rankings"], [/\b(?:playoffs?|brackets?|elims|eliminations|finals?|alliances?|alliance selection)\b/, "playoffs"],
-  [/\b(?:matches|match list|schedule|results)\b/, "matches"], [/\bawards?\b/, "awards"], [/\b(?:odds|predictions?)\b/, "odds"],
+  [/\b(?:match(?:es)?|match list|schedule|results?)\b/, "matches"], [/\bawards?\b/, "awards"], [/\b(?:odds|predictions?)\b/, "odds"],
   [/\b(?:teams?|roster|field|who is going|who's going)\b/, "teams"],
 ];
 
