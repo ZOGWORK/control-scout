@@ -179,6 +179,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
     if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
     if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
+    // An event's rank and OPR are whole-event numbers: a match type or a colour can't apply to them.
+    if ((r.id === "event-rank" || r.id === "event-opr") && (scope.level || scope.alliance)) return null;
     if (SEASON_ROWS.has(r.id) && scope.at) return null;
     if (AWARD_IDS.has(r.id) && (scope.level || scope.alliance)) return null;
     if (r.needsEvent && !scope.at) return null;

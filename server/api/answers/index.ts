@@ -88,14 +88,20 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null) {
-  const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event" && (season == null || h.season === season));
-  const top = hits[0];
+  const found = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
+  const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
+  // A season named: the first event found that was held that season (search lists an event once, by its newest season,
+  // so an older one is looked up by its code).
+  if (season != null) {
+    for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e) return e; }
+    return null;
+  }
+  const top = found[0];
   if (!top) return null;
   const [s, code] = top.ref.split(":");
   // No season named: the newest season of that event with a played playoff (an event not held yet has no winners).
-  const played = season != null ? null : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
-  const at = played?.s != null ? Number(played.s) : Number(s);
-  return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [at, code])) ?? null;
+  const played = await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
+  return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */

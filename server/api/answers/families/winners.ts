@@ -114,7 +114,14 @@ export async function winnersAnswer(core: string, season: number | null, champio
     rows.push({ cells: { division: shortEvent(d.name, d.type), alliance: w ? w.teams.map((t) => dl.get(t)?.label ?? String(t)).join(", ") : "Not decided in the data yet", final: w?.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(", ") || "–" }, href: eventHref(d.season, d.code) });
   }
   if (rows.length) blocks.push({ kind: "table", title: worlds ? "Each division's winning alliance" : "Each division's winning alliance", columns: [{ key: "division", label: "Division" }, { key: "alliance", label: "Winning alliance" }, { key: "final", label: "Finals" }], rows });
-  if (worlds) blocks.push(...(await worldsFollowUps(parent.season, null)).filter((b) => b.kind !== "related"));
+  if (worlds) {
+    // The Worlds follow-ups, the question just answered left out: the champions' captain at Worlds, and the season
+    // before's winners.
+    const captain = top?.teams[0];
+    const queries = [...(captain != null ? [`${captain} worlds record`, `${captain} highest score in worlds`] : []), ...(SEASONS.some((x) => x.season === parent!.season - 1) ? [`${gameOf(parent.season - 1)} winning alliance`] : [])];
+    blocks.push(...(await worldsFollowUps(parent.season, null)).filter((b) => b.kind !== "related"));
+    if (queries.length) blocks.push({ kind: "related", title: "You may also want to know", queries });
+  }
   const base = { family: "event" as const, intent: "winning-alliance", title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: RULE, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
   if (!decided) return { ...base, blocks, none: worlds ? `No championship results yet for ${gameOf(parent.season)}: no winning alliance is published.` : `No winning alliance is published for ${shortEvent(parent.name, parent.type)} yet.` };
   return {
