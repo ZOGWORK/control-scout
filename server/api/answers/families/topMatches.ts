@@ -126,7 +126,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   };
   const best = top.alliances[0];
   const blocks: StatBlock[] = [
-    { kind: "bars", title: `Top ${top.alliances.length} alliance scores`, groups: [{ label: "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label}`, value: r.score, tone: r.side === "red" ? "d" : "a" })) }] },
+    { kind: "bars", title: `Top ${top.alliances.length} alliance scores`, groups: [{ label: "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label}`, value: r.score })) }] },
     { kind: "matches", title: "Highest alliance scores", rows: top.alliances.map(row) },
     { kind: "table", title: "Highest combined scores (both alliances)", columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
       rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })) },
