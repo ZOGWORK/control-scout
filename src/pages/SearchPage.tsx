@@ -77,9 +77,12 @@ export default function SearchPage() {
   // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
   // the Compare result whose head-to-head is open over the results.
   const [picks, setPicks] = useState<number[]>([]);
-  const pick = (t: number) => setPicks((p) => togglePick(p, t));
-  // The open head-to-head, and the card it was opened from (focus goes back to it on close).
-  const [sheet, setSheet] = useState<{ hit: SearchHit; from: HTMLElement } | null>(null);
+  // While a new search loads, the last one's results stay on screen dimmed: picking or previewing them does nothing.
+  const pick = (t: number) => { if (!stale) setPicks((p) => togglePick(p, t)); };
+  // The open head-to-head, the card it was opened from (focus goes back to it on close) and the answer it belongs to:
+  // only that answer's numbers ever fill it.
+  const [sheet, setSheet] = useState<{ hit: SearchHit; from: HTMLElement; of: typeof answer } | null>(null);
+  const preview = sheet?.of === answer ? sheet : null;
   // A new search (Back included) starts with no picks and no open preview: both belonged to the last one.
   const [pickedFor, setPickedFor] = useState(query);
   if (pickedFor !== query) { setPickedFor(query); setPicks([]); setSheet(null); }
@@ -189,7 +192,7 @@ export default function SearchPage() {
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compare</h2>
-                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => setSheet({ hit: c, from }) : undefined} />)}</div>
+                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
                     </section>
                   )}
                   {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
@@ -208,8 +211,8 @@ export default function SearchPage() {
       {phone && (
         <>
           <CompareBar picks={picks} names={pickNames} season={asked} onDrop={pick} />
-          <CompareSheet open={!!sheet} onClose={() => setSheet(null)} returnTo={sheet?.from} title={sheet ? compareTeams(sheet.hit).slice(0, 2).map((n) => pickNames.get(n) ? `${pickNames.get(n)} (${n})` : `Team ${n}`).join(" vs ") : ""}>
-            {sheet && <HeadToHead h={sheet.hit} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} />}
+          <CompareSheet open={!!preview} onClose={() => setSheet(null)} returnTo={preview?.from} title={preview ? compareTeams(preview.hit).slice(0, 2).map((n) => pickNames.get(n) ? `${pickNames.get(n)} (${n})` : `Team ${n}`).join(" vs ") : ""}>
+            {preview && <HeadToHead h={preview.hit} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} />}
           </CompareSheet>
         </>
       )}

@@ -7,10 +7,10 @@ import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
 
-const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
+const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, stale: false }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
+  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: state.stale, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025 }));
 const summaries: TeamSummary[] = [
@@ -49,7 +49,7 @@ const answer = (hits: SearchHit[], extra: Partial<SearchAnswer> = {}): SearchAns
 let loc = "";
 function Where() { const l = useLocation(); loc = `${l.pathname}${l.search}`; return null; }
 const show = (url: string) => render(<MemoryRouter initialEntries={[url]}><SearchPage /><Where /></MemoryRouter>);
-afterEach(() => { cleanup(); state.answer = undefined; });
+afterEach(() => { cleanup(); state.answer = undefined; state.stale = false; });
 
 describe("search results page", () => {
   it("puts a Compare in its own section above the teams, not counted as a team", () => {
@@ -456,6 +456,25 @@ describe("search results page, phone (Part B 3b)", () => {
     fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
     expect(document.querySelector("[data-compare-sheet]")).toBeTruthy();
     act(() => go("/search?q=b"));
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+  });
+
+  it("while a new search loads, the last results can't be picked or previewed, and a preview never outlives its answer", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    state.stale = true;
+    const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+    fireEvent.click(ui.container.querySelector("[data-vs-compare]")!);
+    expect(ui.container.querySelector("[data-vs-compare]")!.getAttribute("aria-pressed")).not.toBe("true");
+    // Loaded: the preview opens; a new answer for the same words (a refresh) closes it rather than refill it.
+    state.stale = false;
+    ui.rerender(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
+    expect(document.querySelector("[data-compare-sheet]")).toBeTruthy();
+    state.answer = answer([compare, team(23268, "Ultraviolet", "Hackettstown, NJ")]);
+    ui.rerender(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
     expect(document.querySelector("[data-compare-sheet]")).toBeNull();
   });
 
