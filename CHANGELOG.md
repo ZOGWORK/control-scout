@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.7 — 2026-11-03
+
+FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
+
+### Highlights
+- [teams] "4215 from where" and "4215 where from" show where they're from
+- [teams] "4215 opr rn" gets the OPR card; filler words never change it
+- [teams] Long questions get the short form's answer, read back to you
+- [rankings] "best opr nj" and "nj best opr" show New Jersey's leaders
+
+### Search
+- **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"). Details in docs/search-layers.md. (#479)
+
 ## 2.7.6 — 2026-11-03
 
 A search about one team's fact names the team once in its heading, and a word after an apostrophe stays lower case.
