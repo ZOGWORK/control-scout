@@ -42,6 +42,8 @@ export interface SearchOutcome {
 }
 
 const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
+/** A forbidden word an answer names in its own words, so it was read, not dropped. */
+const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/ };
 
 const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
 /** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,
@@ -461,8 +463,9 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const done = (a: SearchAnswer, won: LayerId | null, x: Extracted, result?: OutcomeResult, filler: string[] = []): SearchAnswer => {
     // A forbidden word an answer read past ("4215 today opr", with or without filler) is named, never silently
     // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it.
-    const own = (a.understood?.label ?? "").split(" · read as ")[0].toLowerCase();
-    const unread = won ? x0.forbidden.filter((w) => !own.includes(w)) : [];
+    const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""}`.toLowerCase();
+    // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match".
+    const unread = won ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own)) : [];
     if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
     const out = { ...a, q: typed };
     outcomes.set(out, {

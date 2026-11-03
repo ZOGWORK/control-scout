@@ -148,10 +148,14 @@ describe("answers on their own", () => {
     }
     expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
   });
-  it("when a team last played: its most recent match (failed-search #487)", () => {
+  it("when a team last played: its most recent match (failed-search #487)", async () => {
     expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
     expect(rewriteQuery("when did 4215 play last")).toMatchObject({ q: "4215 last match" });
     expect(rewriteQuery("when did hypnotic robotics last compete")).toMatchObject({ q: "hypnotic robotics last match" });
+    // Its answer is the most recent match, and "last" isn't called a word left out.
+    const a = await ask("when did 4215 last play");
+    expect(a.stat?.intent).toBe("recent-match");
+    expect(a.understood?.label ?? "").not.toMatch(/isn't part of this answer/);
   });
   it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");
