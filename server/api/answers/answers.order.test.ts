@@ -25,10 +25,18 @@ beforeAll(async () => {
   // Q1 timed and won; Q2, played later, has no time and was lost.
   await match(1, "2026-01-10T10:00:00Z", 100, 50);
   await match(2, null, 40, 90);
+  // 2026–27: 207 is on a league roster in a played match but never took the field.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJLM9', 'Southern League Meet 1', 'LeagueMeet', 'Hillsborough', 'NJ', 'USA', '2026-10-20', '2026-10-20', 't')");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2026, 'USNJLM9', 'qual', 0, 1, 'Q1', '2026-10-20T10:00:00Z', 1, 80, 80, 70, 70, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2026, 'USNJLM9', 'qual', 0, 1, 207, 'red', 0)");
   await rebuildSearch();
 });
 
 describe("order", () => {
+  it("this season is the latest one the team took the field in, not one it is only on a roster for", async () => {
+    const a = await searchAnswer("207 average score this season", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "70.0", sub: "2025–26" });
+  });
   it("a played match without a time keeps its place in the event", async () => {
     expect((await searchAnswer("4215 most recent match", { limit: 25 })).stat!.headline).toMatchObject({ label: "Q2 at Northern League Meet 1" });
     expect((await searchAnswer("4215 current streak", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 loss" });

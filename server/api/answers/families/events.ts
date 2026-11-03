@@ -144,12 +144,15 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
         };
       }
       if (id === "best-season") {
-        const ranked = ss.filter((s) => top(s) != null).sort((a, b) => top(a)! - top(b)!);
+        // Record and standing, equally: the season's win rate and its OPR standing (1 − its top-percent share), averaged.
+        const winRate = (x: TeamSeason) => { const g = x.wins + x.losses + x.ties; return g ? x.wins / g : 0; };
+        const score = (x: TeamSeason) => (winRate(x) + (1 - top(x)!)) / 2;
+        const ranked = ss.filter((s) => top(s) != null).sort((a, b) => score(b) - score(a) || top(a)! - top(b)!);
         const s = ranked[0];
         if (!s) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: SEASON_RULE, source: ssSource, none: `No season with an OPR rank found for ${who}.` };
         return {
-          ...base, family: "superlative", intent: id, title, source: ssSource, definition: SEASON_RULE,
-          headline: { value: seasonLabel(s.season), label: `OPR ${topText(s)}`, sub: `${rec(s)} · OPR ${opr(s.opr)}`, href: teamHref(team.number, s.season) },
+          ...base, family: "superlative", intent: id, title, source: ssSource, definition: `Best season: the season with the best record and OPR standing together (its win rate and its OPR standing, 1 minus its top-percent share, averaged). ${SEASON_RULE}`,
+          headline: { value: seasonLabel(s.season), label: `${rec(s)} (${Math.round(100 * winRate(s))}% wins) · OPR ${topText(s)}`, sub: `OPR ${opr(s.opr)} in ${seasonLabel(s.season)}'s game`, href: teamHref(team.number, s.season) },
           blocks: [seasonRows(ss, "Each season", s), { kind: "series", title: "Top-percent OPR rank each season (lower is better)", unit: "%", points: ss.map((x) => ({ x: seasonLabel(x.season), y: top(x) == null ? null : Math.max(1, Math.round(100 * top(x)!)) })) }],
         };
       }
@@ -165,7 +168,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       if (!bestGain || bestGain.gain <= 0) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: def, source: ssSource, none: ranked.length < 2 ? `${who} needs two ranked seasons in a row to compare.` : `${who}'s OPR rank didn't rise from one season to the next.` };
       return {
         ...base, family: "superlative", intent: id, title, source: ssSource, definition: def,
-        headline: { value: seasonLabel(bestGain.to.season), label: `from top ${Math.round(100 * top(bestGain.from)!)}% to top ${Math.max(1, Math.round(100 * top(bestGain.to)!))}% by OPR rank`, sub: `OPR ${opr(bestGain.from.opr)} in ${seasonLabel(bestGain.from.season)} → ${opr(bestGain.to.opr)} in ${seasonLabel(bestGain.to.season)}`, href: teamHref(team.number, bestGain.to.season) },
+        headline: { value: seasonLabel(bestGain.to.season), label: `from top ${Math.round(100 * top(bestGain.from)!)}% to top ${Math.max(1, Math.round(100 * top(bestGain.to)!))}% by OPR rank`, sub: `OPR rank #${bestGain.from.rank} of ${bestGain.from.of} in ${seasonLabel(bestGain.from.season)} → #${bestGain.to.rank} of ${bestGain.to.of} in ${seasonLabel(bestGain.to.season)}`, href: teamHref(team.number, bestGain.to.season) },
         blocks: [seasonRows(ss, "Each season", bestGain.to)],
       };
     }

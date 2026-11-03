@@ -52,8 +52,11 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
 /** Which matches an intent reads: scored ones for scores (the team on the field), counted ones for results. */
 function pool(id: IntentId, all: TeamMatch[], scope: Scope): TeamMatch[] {
   const keep = inScope(scope);
-  const scores = id === "highest-score" || id === "lowest-score" || id === "average-score";
-  return all.filter((m) => keep(m) && (scores ? m.onField : m.counted));
+  return all.filter((m) => keep(m) && counts(id, m));
+}
+/** Whether an intent reads match `m`: a score only with the team on the field, a result when it's on the record. */
+export function counts(id: IntentId, m: TeamMatch): boolean {
+  return id === "highest-score" || id === "lowest-score" || id === "average-score" ? m.onField : m.counted;
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
@@ -160,6 +163,18 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const def = "Average score: the mean of the alliance's points without penalties in every match the team was on the field for, at official events (the mean with penalties beside it).";
       if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
       const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+      // Each season is a different game: over several, each season's average, never one number pooled across them.
+      const seasons = bySeason(ms);
+      if (seasons.length > 1) {
+        const [latest, xs] = seasons[0];
+        return {
+          ...base, family: "aggregate", intent: id, title,
+          headline: { value: mean(xs.map(np)).toFixed(1), label: `points a match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
+          blocks: [{ kind: "table", title: "Average each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "No penalties", num: true }, { key: "with", label: "With penalties", num: true }, { key: "n", label: "Matches", num: true }],
+            rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: mean(ys.map(np)).toFixed(1), with: mean(ys.map((m) => m.own)).toFixed(1), n: ys.length }, strong: s === latest })) }],
+          definition: `${def} Each season is a different game, so each season's average is its own and none is pooled across seasons.`,
+        };
+      }
       const events = new Map<string, TeamMatch[]>();
       for (const m of ms) events.set(`${m.season}|${m.code}`, [...(events.get(`${m.season}|${m.code}`) ?? []), m]);
       return {
