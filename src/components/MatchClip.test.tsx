@@ -6,7 +6,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { EventDetail, MatchClip } from "../shared/api";
-import { ClipLink, MatchVideoLink } from "./MatchClip";
+import { ClipLink, linkStart, MatchVideoLink } from "./MatchClip";
 import { VideoDialog } from "./VideoDialog";
 import { onStreamSeek, onVideoDialog, playMatchVideo } from "../lib/streamSeek";
 import { WatchLive } from "./WatchLive";
@@ -160,6 +160,22 @@ describe("match video links", () => {
     render(<MatchVideoLink url="https://vimeo.com/12345" label="Q1" />);
     fireEvent.click(screen.getByRole("link", { name: "Official video of Q1" }));
     expect(play).not.toHaveBeenCalled();
+    off();
+  });
+});
+
+describe("a video link's own start", () => {
+  it("reads t= and start= in seconds or h/m/s, else 0", () => {
+    expect(["https://www.youtube.com/watch?v=Ve9_fshsUec&t=90s", "https://youtu.be/Ve9_fshsUec?t=1m30s", "https://www.youtube.com/watch?v=Ve9_fshsUec&start=90",
+      "https://www.youtube.com/watch?v=Ve9_fshsUec#t=90", "https://www.youtube.com/watch?v=Ve9_fshsUec&t=1h", "https://www.youtube.com/watch?v=Ve9_fshsUec", "https://www.youtube.com/watch?v=Ve9_fshsUec&t=abc", "not a link"].map(linkStart))
+      .toEqual([90, 90, 90, 90, 3600, 0, 0, 0]);
+  });
+  it("a timestamped official video plays from there", () => {
+    const play = vi.fn();
+    const off = onStreamSeek(play);
+    render(<MatchVideoLink url="https://youtu.be/Ve9_fshsUec?t=45" label="Q1" />);
+    fireEvent.click(screen.getByRole("link", { name: "Official video of Q1" }));
+    expect(play).toHaveBeenCalledWith({ videoId: "Ve9_fshsUec", t: 45, label: "Q1", matchKey: undefined });
     off();
   });
 });

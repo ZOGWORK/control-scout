@@ -81,7 +81,8 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
         <>
           <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : stream.streamUrl, { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={own ? `${own.label}: official match video` : title}
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
-          <VideoPredictions call={call} live={!recording} pos={pos} />
+          {/* A match's own video is a recording too, even while the event is live. */}
+          <VideoPredictions call={call} live={!recording && !own} pos={pos} />
         </>
       ) : (
         <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>

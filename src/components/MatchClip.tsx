@@ -25,11 +25,20 @@ export function ClipLink({ clip, label = "this match", matchKey, className, chil
   );
 }
 
-/** FIRST's own video of a match. A link that isn't a YouTube video stays a plain link out. */
+/** The second a YouTube link starts at (t=90, t=90s, t=1m30s, start=90; #t= too), 0 without one. */
+export function linkStart(url: string): number {
+  let u: URL;
+  try { u = new URL(url); } catch { return 0; }
+  const raw = u.searchParams.get("t") ?? u.searchParams.get("start") ?? new URLSearchParams(u.hash.slice(1)).get("t");
+  const m = raw ? /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(raw) : null;
+  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : 0;
+}
+
+/** FIRST's own video of a match, from the second its link names. A link that isn't a YouTube video stays a plain link out. */
 export function MatchVideoLink({ url, label, matchKey, className, children }: { url: string; label: string; matchKey?: string; className?: string; children?: ReactNode }) {
   const videoId = youtubeId(url);
   return (
-    <a href={url} target="_blank" rel="noreferrer noopener" onClick={videoId ? inApp({ videoId, t: 0, label, matchKey }) : (e) => e.stopPropagation()}
+    <a href={url} target="_blank" rel="noreferrer noopener" onClick={videoId ? inApp({ videoId, t: linkStart(url), label, matchKey }) : (e) => e.stopPropagation()}
       className={cn("inline-flex items-center gap-1", className)} aria-label={`Official video of ${label}`} title="Official match video" data-match-video={videoId ?? undefined}>
       <PlayCircle className="size-3.5 shrink-0" aria-hidden />{children}
     </a>
