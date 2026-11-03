@@ -117,14 +117,16 @@ function Headline() {
   const { line, changed } = useHomeHeadline(lines.length);
   const [first, second] = lines[line];
   return (
-    <div className="grid font-display text-[2.5rem] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-5xl @4xl/home:text-[3.5rem] @6xl/home:text-[4rem]">
+    // Never wider than the column: 8.5% of its width keeps the longest line (about 11.4em) whole, so every line
+    // is two rows and no row of space sits under a short one.
+    <div className="@container"><div className="grid font-display text-[min(2.25rem,8.5cqi)] font-semibold leading-[1.05] tracking-[-0.02em] @lg/home:text-[min(2.5rem,8.5cqi)] @4xl/home:text-[min(2.75rem,8.5cqi)] @6xl/home:text-[min(3rem,8.5cqi)]">
       {lines.map(([a, b], i) => (
         <span key={i} aria-hidden className="invisible [grid-area:1/1]">{a} <span className="block">{b}</span></span>
       ))}
       <h1 key={line} className={cn("[grid-area:1/1] font-semibold tracking-[-0.02em]", changed && "cs-headline-in")}>
         {first} <span className="block text-accent-display">{second}</span>
       </h1>
-    </div>
+    </div></div>
   );
 }
 
