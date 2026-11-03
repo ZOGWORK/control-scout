@@ -138,6 +138,21 @@ describe("answers on their own", () => {
     expect(a.card?.team?.number).toBe(4215);
     expect(a.understood?.label).toMatch(/\(4215\) · /);
   });
+  it("several facts at once: each on its own line (failed-search #489)", async () => {
+    // In the order asked.
+    for (const q of ["4215 sponsors school", "4215 sponsors, school", "4215 sponsors and school"]) {
+      const a = await ask(q);
+      expect(a.card?.title).toBe("Sponsors and School or organization");
+      expect(a.card?.lines.map((l) => l.text.split(":")[0])).toEqual(["Sponsors", "School or organization"]);
+      expect(a.card?.lines[1]?.text).toMatch(/Oradell High School/);
+    }
+    expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
+  });
+  it("when a team last played: its most recent match (failed-search #487)", () => {
+    expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
+    expect(rewriteQuery("when did 4215 play last")).toMatchObject({ q: "4215 last match" });
+    expect(rewriteQuery("when did hypnotic robotics last compete")).toMatchObject({ q: "hypnotic robotics last match" });
+  });
   it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");
     expect((await ask("teams in great britain")).understood?.label).toMatch(/^Teams in United Kingdom/);
