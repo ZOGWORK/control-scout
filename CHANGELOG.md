@@ -15,6 +15,58 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.8.2 — 2026-11-03
+
+Two searches the failed-search log caught now answer: when a team last played, and several of a team's listing facts at once.
+
+### Highlights
+- [teams] "When did hypnotic last play" opens their most recent match
+- [teams] "4215 sponsors school" answers both, each on its own line
+- [fixes] Headings keep "and" and "or" lower case
+
+### Search
+- **Fixes from the failed-search log.** "when did X last play" (or "play last", "last compete") reads as the team's most recent match. Several listing facts at once ("4215 sponsors school", "4215 rookie year, website") are each answered on their own line, in the order asked, with a team's whole name tried before any fact word is read off it. "last" is no longer called a word left out of a most-recent-match answer, and headings keep joining words small ("Sponsors and School or Organization"). (#496)
+
+## 2.8.1 — 2026-11-03
+
+Failed searches are filed the way search itself read them: search's own verdict decides whether a query failed and how, and one failing question lands on one issue however it was phrased.
+
+### Highlights
+- [report] A failed search is filed as search itself judged it
+- [report] One failing question, one issue, however it was typed
+- [fixes] An issue's Reproduce link opens the search exactly as typed
+
+### Search
+- **Failed-search reports follow search's own reading.** Search's layered reader now decides whether a query failed: an answer is never filed, a question two ways at once is filed as ambiguous with both readings named, and a team page shown for a question nobody asked of it ("4215 zzz") is an answer, not a failure. Issues aggregate under search's own key of the redacted query, so "4215 OPR rn?" and "4215 opr right now" are one issue. The Reproduce link in an issue now opens the latest query as typed rather than its shortened key, which could answer. Details in docs/failed-search-reporting.md. (#495)
+
+## 2.8.0 — 2026-11-03
+
+How a team's rating is read from alliance scores is now stated where the rating is shown, and "Before the event" odds load faster.
+
+### Highlights
+- [predict] Ratings say what they assume: random qualification partners
+- [predict] Playoff matches count half, because playoff partners are fixed
+- [speed] "Before the event" odds for a second team at an event load faster
+
+### Predictions
+- **What a rating assumes.** FTC only records alliance scores. The engine splits each alliance's miss equally between its robots, which separates a team from its partners only because qualification partners are drawn at random. Playoff alliances are fixed, so a playoff match moves a rating half as much. The How it works page (new "What this assumes" part), team pages and the world rankings now say so in one line. The numbers don't change. (#486)
+- **Faster "Before the event" views.** The ratings as they stood the day before an event are now worked out once per day for the current data, and shared by every team's odds and partner scenarios at that event and by every event starting that day. Before, each team's view replayed the season again. Same numbers.
+
+### Engine research notes
+- New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
+## 2.7.9 — 2026-11-03
+
+FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
+
+### Highlights
+- [teams] "4215 from where" and "4215 where from" show where they're from
+- [teams] "4215 opr rn" gets the OPR card; filler words never change it
+- [teams] Long questions get the short form's answer, read back to you
+- [rankings] "highest opr california" works without "in", as with it
+
+### Search
+- **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"), and a leaderboard asked with a place but no "in" ("highest opr california", "opr leaders texas") is the leaderboard, not a guess at a team. Details in docs/search-layers.md. (#479)
+
 ## 2.7.8 — 2026-11-03
 
 Search engines now get only the team and event pages that have something on them, and every address in the sitemap opens a real page.

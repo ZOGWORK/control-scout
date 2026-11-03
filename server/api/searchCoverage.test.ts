@@ -139,6 +139,33 @@ describe("answers on their own", () => {
     expect(a.card?.team?.number).toBe(4215);
     expect(a.understood?.label).toMatch(/\(4215\) · /);
   });
+  it("several facts at once: each on its own line (failed-search #489)", async () => {
+    // In the order asked.
+    for (const q of ["4215 sponsors school", "4215 sponsors, school", "4215 sponsors and school"]) {
+      const a = await ask(q);
+      expect(a.card?.title).toBe("Sponsors and School or organization");
+      expect(a.card?.lines.map((l) => l.text.split(":")[0])).toEqual(["Sponsors", "School or organization"]);
+      expect(a.card?.lines[1]?.text).toMatch(/Oradell High School/);
+    }
+    expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
+    // A two-word fact can come first.
+    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and Website");
+    // A team whose name ends in a fact word is read whole first: "Code Site"'s website, not "Code"'s site and website.
+    await run("INSERT INTO teams (number, name, website) VALUES (31010, 'Code', 'https://code.example'), (31011, 'Code Site', 'https://codesite.example')");
+    await rebuildSearch();
+    const s = await ask("code site website");
+    expect(s.card?.team?.number).toBe(31011);
+    expect(s.card?.title).toBe("Website");
+  });
+  it("when a team last played: its most recent match (failed-search #487)", async () => {
+    expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
+    expect(rewriteQuery("when did 4215 play last")).toMatchObject({ q: "4215 last match" });
+    expect(rewriteQuery("when did hypnotic robotics last compete")).toMatchObject({ q: "hypnotic robotics last match" });
+    // Its answer is the most recent match, and "last" isn't called a word left out.
+    const a = await ask("when did 4215 last play");
+    expect(a.stat?.intent).toBe("recent-match");
+    expect(a.understood?.label ?? "").not.toMatch(/isn't part of this answer/);
+  });
   it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");
     expect((await ask("teams in great britain")).understood?.label).toMatch(/^Teams in United Kingdom/);

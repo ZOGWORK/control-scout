@@ -22,6 +22,7 @@ import { env } from "./env.js";
 import { isEnabled } from "./flags.js";
 import { ownerOf } from "./owner.js";
 import { GITHUB_REPO, GithubError, fenced, gh, refused, takeReportSlot } from "./errorReports.js";
+import { searchKey, searchOutcome, traceOf, type OutcomeResult } from "./api/searchLayers.js";
 import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
@@ -45,6 +46,8 @@ export interface SearchTrace {
   filler: string[];
   /** Two or more intents matched equally well (brief §10): their names. */
   ambiguous?: string[];
+  /** What the layered reader called the answer (SearchOutcome.result), when it reported one: it decides. */
+  result?: OutcomeResult;
 }
 
 export interface Failure { type: FailureType; intent: string | null; trace: SearchTrace }
@@ -86,11 +89,32 @@ export function readTrace(q: string, a: SearchAnswer): SearchTrace {
   return { layers: [], won: null, team: teamHit ?? number, intents: intentWordsIn(n), scope, filler: fillerIn(n) };
 }
 
+/** The trace of a top-level searchAnswer() answer, from the layered reader's own outcome (with its result), or null
+ *  when it reported none. Read from the answer object searchAnswer returned, before it's copied. */
+export function outcomeTrace(a: SearchAnswer): SearchTrace | null {
+  const o = searchOutcome(a);
+  const t = traceOf(o);
+  return o && t ? { ...t, result: o.result } : null;
+}
+
+/** The layered reader's results as failure types (one rename: "name-search-only" is filed as "name-only"). */
+export const RESULT_TYPE: Record<Exclude<OutcomeResult, "answered">, FailureType> = {
+  "no-match": "no-match", "team-fallback": "team-fallback", weak: "weak", "name-search-only": "name-only", empty: "empty", ambiguous: "ambiguous",
+};
+
 /** A failed search, or null when the answer answered (brief §12.1). Only the outcome counts, never the phrasing. */
 export function failureOf(q: string, a: SearchAnswer, given?: SearchTrace | null): Failure | null {
   const trace = given ?? readTrace(q, a);
   const n = normalizeQuery(q);
   if (!n) return null;
+  if (trace.result) {
+    // The layered reader said what the answer is: that decides, not a reading of the answer here.
+    if (trace.result === "answered") return null;
+    const type = trace.result === "weak" && a.hits.length === 0 ? "no-match" : RESULT_TYPE[trace.result];
+    // A fallback or a weak answer is a failure only when a team and an intent were both asked for (§12.1).
+    if ((type === "team-fallback" || type === "weak") && !(trace.team && trace.intents.length)) return null;
+    return { type, intent: trace.ambiguous?.length ? trace.ambiguous.join(" / ") : trace.intents[0] ?? null, trace };
+  }
   const intents = intentsIn(n);
   const intent = trace.ambiguous?.length ? trace.ambiguous.join(" / ") : intents[0] ?? null;
   const teamAndIntent = !!trace.team && trace.intents.length > 0;
@@ -138,6 +162,21 @@ export function reportKey(q: string): string {
   return k.replace(/\s+/g, " ").trim() || n;
 }
 
+/** The query as logged: as typed, trimmed and cut to 200 characters, personal data out (before it's normalized:
+ *  lowercasing or splitting "+" could break a pattern). */
+export const safeQuery = (q: string) => redact(String(q).trim().slice(0, 200));
+
+/** The aggregation key for a query as /api/search files it: search's own key (searchKey: Layer 0, filler out, never
+ *  inside a team's name) of the redacted query, punctuation and case folded first. reportKey when that fails. */
+export async function keyFor(q: string): Promise<string> {
+  const safe = safeQuery(q);
+  try {
+    return (await searchKey(normalizeQuery(safe))) || reportKey(safe);
+  } catch {
+    return reportKey(safe);
+  }
+}
+
 /** Personal data and secrets out of anything logged (brief §12.2: the repository is public). */
 export function redact(text: string): string {
   // Compatibility forms first ("＠" is "@", "５" is "5"): normalizing later must never turn a kept string into an
@@ -180,8 +219,9 @@ export const BUFFER_MAX = 500;
 export const PER_IP_HOUR = 30;
 const SETTLE_MAX = 5_000;
 
-interface Pending { q: string; key: string; failure: Failure | null; label: string; at: number }
-interface Buffered { key: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string }
+/** `legacy`: the key as it was made before 2.8.1 (reportKey), so a query already on record under it stays on its row. */
+interface Pending { q: string; key: string; legacy: string; failure: Failure | null; label: string; at: number }
+interface Buffered { key: string; legacy: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string }
 
 const pending = new Map<string, Pending>();
 const buffer = new Map<string, Buffered>();
@@ -190,12 +230,12 @@ export const counters = { dropped: 0, skipped: 0, limited: 0, unfiled: 0 };
 
 const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
 
-/** Called by /api/search after it answered (every answer=1 search, failed or not). Synchronous, never throws. */
-export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now()): void {
+/** Called by /api/search after it answered (every answer=1 search, failed or not). Synchronous, never throws.
+ *  `key`: the aggregation key (keyFor), worked out by the caller; reportKey of the query when not given. */
+export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string): void {
   try {
     settle(now);
-    // Personal data out of the query as typed, before it's normalized (lowercasing or splitting "+" could break a pattern).
-    const safe = redact(String(q).trim().slice(0, 200));
+    const safe = safeQuery(q);
     const n = normalizeQuery(safe);
     if (!n) return;
     const was = pending.get(client);
@@ -205,7 +245,8 @@ export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: S
     // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
     pending.delete(client);
     const failure = failureOf(q, a, trace);
-    pending.set(client, { q: safe, key: reportKey(safe), failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
+    const legacy = reportKey(safe);
+    pending.set(client, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
   } catch {
     // Reporting never breaks search.
   }
@@ -228,11 +269,12 @@ function commit(client: string, p: Pending) {
   const b = buffer.get(key);
   if (b) {
     b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;
-    if (!b.examples.includes(q)) b.examples = [q, ...b.examples].slice(0, EXAMPLES_MAX);
+    // The latest first, a repeat too: the Reproduce link opens examples[0], and the reading is this one's.
+    b.examples = [q, ...b.examples.filter((e) => e !== q)].slice(0, EXAMPLES_MAX);
     return;
   }
   if (buffer.size >= BUFFER_MAX) { counters.dropped++; return; }
-  buffer.set(key, { key, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label });
+  buffer.set(key, { key, legacy: p.legacy, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label });
 }
 
 /** Tests: forget what's waiting and buffered. */
@@ -279,9 +321,29 @@ export async function flushSearchFailures(now = Date.now(), everything = false):
   return items.length;
 }
 
-async function writeBatch(items: Buffered[]) {
-  const rows = await all<{ key: string; examples: string }>(`SELECT key, examples FROM search_failures WHERE key IN (${items.map(() => "?").join(",")})`, items.map((b) => b.key));
+/** The batch with each query on the row it belongs to: its own key, or the key it was filed under before 2.8.1
+ *  (reportKey) when only that row exists, so its issue, count and dismissal carry over and no second issue is
+ *  opened. Items that land on one row are merged, newest examples first. */
+export function onRows(batch: Buffered[], onRecord: Set<string>): Buffered[] {
+  const out = new Map<string, Buffered>();
+  for (const it of batch) {
+    const key = !onRecord.has(it.key) && it.legacy !== it.key && onRecord.has(it.legacy) ? it.legacy : it.key;
+    const b = out.get(key);
+    if (!b) { out.set(key, { ...it, key }); continue; }
+    const newer = it.last >= b.last ? it : b, older = newer === it ? b : it;
+    out.set(key, {
+      ...newer, key, count: b.count + it.count, first: Math.min(b.first, it.first), last: newer.last,
+      examples: [...newer.examples, ...older.examples.filter((e) => !newer.examples.includes(e))].slice(0, EXAMPLES_MAX),
+    });
+  }
+  return [...out.values()];
+}
+
+async function writeBatch(batch: Buffered[]) {
+  const asked = [...new Set(batch.flatMap((b) => [b.key, b.legacy]))];
+  const rows = await all<{ key: string; examples: string }>(`SELECT key, examples FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, asked);
   const had = new Map(rows.map((r) => [r.key, JSON.parse(r.examples) as string[]]));
+  const items = onRows(batch, new Set(had.keys()));
   await db().batch(items.map((b) => {
     const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
     const reading = JSON.stringify(b.failure.trace);
@@ -325,6 +387,8 @@ export function failureTitle(key: string): string {
 }
 
 export const reproduceUrl = (q: string) => `${SITE}/search?q=${encodeURIComponent(q)}`;
+/** The query to try again: the latest one as typed (redacted), never the key, which drops filler and may answer. */
+const latestTyped = (r: Pick<Row, "examples" | "key">) => (JSON.parse(r.examples) as string[])[0] ?? r.key;
 
 export function failureBody(r: Row): string {
   const t = JSON.parse(r.reading) as SearchTrace;
@@ -337,7 +401,7 @@ export function failureBody(r: Row): string {
     `**Count:** ${r.count}`,
     `**First seen:** ${r.first_seen}`,
     `**Last seen:** ${r.last_seen}`,
-    `**Reproduce:** ${reproduceUrl(r.key)}`,
+    `**Reproduce:** ${reproduceUrl(examples[0] ?? r.key)}`,
     `**Re-check (owner):** ${SITE}/api/reports/search-failures/${r.issue_number ?? "ISSUE"}/recheck`,
     `**Key:** \`${r.hash}\``,
     "",
@@ -511,7 +575,7 @@ export async function recheck(issueNumber: number, answer: (q: string) => Promis
   if (!row) return null;
   const q = (JSON.parse(row.examples) as string[])[0] ?? row.key;
   const a = await answer(q);
-  const f = failureOf(q, a);
+  const f = failureOf(q, a, outcomeTrace(a));
   const label = redact(a.understood?.label ?? "");
   const at = now.toISOString();
   if (f) await run("UPDATE search_failures SET count = count + 1, last_seen = ?, result_type = ? WHERE key = ?", [at, f.type, row.key]);
@@ -519,7 +583,7 @@ export async function recheck(issueNumber: number, answer: (q: string) => Promis
   if (token) {
     const body = f
       ? `Re-check ${at}: still fails (result type ${f.type}). Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open. Count and last seen updated.`
-      : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(row.key)}.`;
+      : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(latestTyped(row))}.`;
     try { await gh(token, "POST", `/issues/${issueNumber}/comments`, { body }); } catch (e) { pauseFor(e); throw e; }
   }
   return { answered: !f, label };
