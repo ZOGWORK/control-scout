@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.5.5 — 2026-11-03
+
+Home's headline is smaller, so the FTC One Search block and all its example chips sit above the fold.
+
+### Highlights
+- [home] The headline fits in two lines, with no gap under it
+- [home] The whole search block, chips included, shows without scrolling
+
+### Home
+- **A smaller headline.** It never grows past its column, so even the longest hourly line keeps to two lines, and the space that used to sit under shorter lines is gone. Its words and colours are unchanged. The search block ends about 160 px higher on a laptop screen, and it is fully visible without scrolling on phones, tablets and desktop windows from 390×844 to 1440×900. The globe beside it doesn't move.
+
 ## 2.5.4 — 2026-11-03
 
 FTC One Search answers "who won NJ states": the winning alliance and the Inspire Award, from the event's results.
