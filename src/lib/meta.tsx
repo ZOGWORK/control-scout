@@ -1,6 +1,6 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
 import { siteTitle } from "../shared/teamTitle";
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
 import type { Meta } from "../shared/api";
@@ -116,6 +116,17 @@ export function SearchRobotsSync() {
       m.name = "robots"; m.content = "noindex, follow"; m.setAttribute("data-search", "");
       document.head.appendChild(m);
     }
+  }, [pathname]);
+  return null;
+}
+
+/** A team or event page with nothing on it yet is served "noindex" (marked data-no-data: server/seoMeta.ts noData). It
+ *  holds for that page only: it goes once the visitor moves on to another page, which the server never judged. */
+export function NoDataRobotsSync() {
+  const { pathname } = useLocation();
+  const served = useRef(pathname);
+  useEffect(() => {
+    if (pathname !== served.current) document.querySelector('meta[name="robots"][data-no-data]')?.remove();
   }, [pathname]);
   return null;
 }

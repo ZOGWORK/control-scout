@@ -33,6 +33,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
+import { layeredAnswer } from "./searchLayers.js";
 import { countAnswer, eventPageAnswer, explainAnswer, monthAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
@@ -53,6 +54,8 @@ export interface AnswerOptions {
   now?: number;
   /** How many rewrites (./searchCoverage.ts) led here: a rewrite is read once more at most, never in a loop. */
   rewrites?: number;
+  /** Set for every search searchAnswer makes inside a top-level one: the layers (./searchLayers.ts) run once, outside. */
+  inner?: boolean;
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
    *  Set by searchAnswer from the caller's limit (the page asks for SEARCH_PAGE_LIMIT) unless given. */
   full?: boolean;
@@ -108,9 +111,17 @@ const pageUnderstood = (q: string): SearchUnderstood => ({ kind: "names", label:
 const recovery = (q: string, understood: string[], closest: SearchHit[] = []): SearchAnswer =>
   answer(q, { hits: [], step: "recovery", recovery: { understood, closest, browse: SEARCH_BROWSE } satisfies SearchRecovery });
 
-/** Search's answer for `raw` (docs/search.md). Plurals are read as their singular first (src/shared/searchQuery.ts),
- *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
+/** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
+ *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
+  const asked = /\?\s*$/.test(String(raw ?? ""));
+  return layeredAnswer(cleanQuery(raw), (q) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true }));
+}
+
+/** Layer 1, the readers' answer for `raw`. Plurals are read as their singular first (src/shared/searchQuery.ts),
+ *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
+export async function readerAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const typed = cleanQuery(raw);
   const read = singularize(typed);
   // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").

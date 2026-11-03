@@ -1,17 +1,22 @@
-// sitemap.xml, built from the database (never a fixed list): the public
-// pages, every team that has played and every event page, at their canonical apex URLs.
-// Personal pages (noindex) and /api are left out. Past the sitemaps.org
+// sitemap.xml, built from the database (never a fixed list): the content pages whose first HTML carries their
+// content, and every team and event page with something on it (server/indexable.ts), at their canonical apex URLs.
+// Each URL is checked against the record it names as it is built: one the page would answer 404 or noindex for
+// is never listed. Personal pages (noindex) and /api are left out. Past the sitemaps.org
 // limits (50,000 URLs / 50 MB) it becomes an index of numbered chunks.
 import type { Request, Response } from "express";
 import { all } from "./db.js";
 import { canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
-import { teamPageSql } from "../src/shared/teamPages.js";
+import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./indexable.js";
 
-// /teams is the team directory and stats tables, /matches the match records (both RecordsPage). /records only
-// redirects to /teams, so it's left out. Compare is left out too: it's empty until teams are picked, and a picked
-// pair (/compare?teams=…) is a view of two team pages, not a page of its own. /search is noindex.
-const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/how-it-works/search", "/methodology", "/download", "/privacy", "/terms", "/contact", "/donate", "/faq", "/rules"];
+// The pages whose first HTML is their content (server/seoMeta.ts bodyHtml): the home page, the event list, the world
+// rankings, both How it works pages and the FAQ; power rankings below. Left out, though crawlable and indexable from
+// their links: pages whose first HTML is only a heading and a line until the app draws them (/teams and /matches,
+// the record tables; /predict; /download; /rules; /privacy, /terms, /contact, /donate), which a sitemap would offer as
+// near-empty pages. Never listed: /records (a redirect to /teams), /supporters (a redirect source too, and noindex),
+// Compare (empty until teams are picked; a pair is a view of two team pages), /search (noindex) and any filter,
+// sort or search variant (a ?query address).
+export const STATIC_PAGES = ["/", "/events", "/rankings", "/how-it-works/search", "/methodology", "/faq"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }
@@ -23,14 +28,15 @@ const xmlEsc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").rep
 /** Every URL for the sitemap, in a stable order. */
 export async function sitemapEntries(): Promise<Entry[]> {
   const today = new Date().toISOString().slice(0, 10);
-  const [teams, events] = await Promise.all([
+  const [lastmods, teamRows, events] = await Promise.all([
     // A team page changes when the team plays: its lastmod is the last day of its latest event that has started (today
     // while one is on), or a later change the source marked on one. Not teams.updated_at: every sync stamps that on
     // every team, so it said nothing about the page. Only events it took part in (a league roster lists teams that never
     // played): the rule of api/teams.ts ATTENDED (on the field in a played match of any level, or the event has no played
     // matches yet, as a remote one), read set-wise: the per-row EXISTS took seconds over every team, this about one.
-    // The thin-page rule: a team that has never taken part in an event that has started (no lastmod) is left out. Its
-    // page is only a name and a number until it plays, and it joins the sitemap the day its first event starts.
+    // Only a team with a page worth indexing (server/indexable.ts: results, an award, or an event on its page). One
+    // with none is only a name and a number (noindex), and joins the sitemap with its first data. No lastmod until it
+    // has an event that has started.
     all<{ number: number; lastmod: string | null }>(
       `WITH took AS (
          SELECT x.season, x.code, x.team FROM matches m JOIN match_teams x
@@ -39,11 +45,14 @@ export async function sitemapEntries(): Promise<Entry[]> {
          UNION SELECT et.season, et.code, et.team FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
            WHERE e.start <= ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.season = et.season AND m.code = et.code AND m.played = 1))
        SELECT t.number, MAX(CASE WHEN e.start <= ? THEN MAX(MIN(COALESCE(e.end, e.start), ?), COALESCE(substr(e.upstream_updated, 1, 10), '')) END) lastmod
-       FROM teams t LEFT JOIN took k ON k.team = t.number LEFT JOIN events e ON e.season = k.season AND e.code = k.code
-       WHERE ${teamPageSql("t.number", "t.name")}
-       GROUP BY t.number HAVING lastmod IS NOT NULL ORDER BY t.number`, [today, today, today]),
-    all<{ season: number; code: string; upstream_updated: string | null }>("SELECT season, code, upstream_updated FROM events ORDER BY season DESC, code"),
+       FROM teams t JOIN took k ON k.team = t.number JOIN events e ON e.season = k.season AND e.code = k.code
+       GROUP BY t.number`, [today, today, today]),
+    // The rule on its own (inside the join above it ran once per event row: seconds, not a fraction of one).
+    all<{ number: number }>(`SELECT t.number FROM teams t WHERE ${teamIndexableSql("t.number", "t.name")} ORDER BY t.number`),
+    // Only an event with teams or a played match (server/indexable.ts); one with neither is noindex until it has.
+    all<{ season: number; code: string; upstream_updated: string | null }>(`SELECT e.season, e.code, e.upstream_updated FROM events e WHERE ${eventHasDataSql("e")} ORDER BY e.season DESC, e.code`),
   ]);
+  const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
   return [
@@ -51,8 +60,9 @@ export async function sitemapEntries(): Promise<Entry[]> {
     ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: lastmodOf(weeks[0]) }] : []),
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
-    ...events.map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
-    ...teams.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(t.lastmod) })),
+    // Only a code the page can look up (the rest answer 404).
+    ...events.filter((e) => isReachableEventCode(e.code)).map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
+    ...teamRows.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(lastmod.get(t.number)) })),
   ];
 }
 
