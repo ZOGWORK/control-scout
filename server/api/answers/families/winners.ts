@@ -166,12 +166,17 @@ async function notYet(s: number, findEvent: (words: string, season: number | nul
 /** The same question for the event's (or Worlds') other finished seasons, newest first: the season switcher. */
 async function otherSeasons(e: Ev, worlds: boolean): Promise<StatBlock[]> {
   const today = new Date().toISOString().slice(0, 10);
-  const seasons = worlds
-    ? await finishedChampionships()
-    : (await all<{ season: number }>("SELECT DISTINCT season FROM events WHERE code = ? AND COALESCE(end, start) < ? ORDER BY season DESC", [e.code, today])).map((r) => Number(r.season));
+  // A Worlds division's answer switches to the same division in the seasons that had one by that name (division names
+  // change from year to year); the whole championship's, to each finished championship.
+  const division = worlds && e.division ? (e.name.split(/\s+-\s+/).pop() ?? "").replace(/\s+division$/i, "").trim() : "";
+  const seasons = division
+    ? (await all<{ season: number }>("SELECT DISTINCT season FROM events WHERE type = ? AND division_code IS NOT NULL AND lower(name) LIKE ? AND COALESCE(end, start) < ? ORDER BY season DESC", [CHAMPIONSHIP_TYPE, `% - ${division.toLowerCase()}%`, today])).map((r) => Number(r.season))
+    : worlds
+      ? await finishedChampionships()
+      : (await all<{ season: number }>("SELECT DISTINCT season FROM events WHERE code = ? AND COALESCE(end, start) < ? ORDER BY season DESC", [e.code, today])).map((r) => Number(r.season));
   const items = seasons.filter((s) => s !== Number(e.season)).map((s) => ({
     label: worlds ? `${gameOf(s)} ${seasonLabel(s)}` : seasonLabel(s),
-    href: `/search?q=${encodeURIComponent(worlds ? `${gameOf(s).toLowerCase()} winners` : `who won ${e.name} ${seasonLabel(s)}`)}`,
+    href: `/search?q=${encodeURIComponent(worlds ? `${gameOf(s).toLowerCase()}${division ? ` ${division.toLowerCase()} division` : ""} winners` : `who won ${e.name} ${seasonLabel(s)}`)}`,
   }));
   return items.length ? [{ kind: "links", title: "Other seasons", items }] : [];
 }
