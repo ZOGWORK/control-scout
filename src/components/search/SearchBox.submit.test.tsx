@@ -48,7 +48,8 @@ describe("the magnifier searches (Req 5, test 10)", () => {
     expect(fireEvent.mouseDown(magnifier)).toBe(false);
     expect(document.activeElement).toBe(input);
     fireEvent.click(magnifier);
-    // …and the click searches, before the typing pause is even over.
+    // …and the click searches at once, without waiting out the typing pause, and goes when the answer is in.
+    await reply(/q=meets/, answer("meets in New Jersey", { hits: [] }));
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(onPick.mock.calls[0][0].href).toBe("/search?q=meets%20in%20New%20Jersey");
     expect(document.activeElement).not.toBe(input);
@@ -56,12 +57,12 @@ describe("the magnifier searches (Req 5, test 10)", () => {
   });
   it("it's the same search Enter runs: the full results page, even with a row highlighted by the pointer", async () => {
     const { input, onPick, magnifier } = mount();
-    change(input, "4215");
+    change(input, "hypnotic");
     await pause();
-    await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
+    await reply(/q=hypnotic&/, answer("hypnotic", { hits: [t("4215", "Hypnotic Robotics")] }));
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.click(magnifier);
-    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215" }));
+    expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=hypnotic" }));
   });
   it("on an empty field there's nothing to search: it focuses the field and opens nothing", () => {
     const { input, onPick, magnifier } = mount();

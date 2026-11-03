@@ -47,6 +47,7 @@ describe("recent searches (on this device only)", () => {
     expect(screen.queryByRole("listbox")).toBeNull(); // nothing yet: no empty list
     fireEvent.change(input, { target: { value: "4215 vs 6980" } });
     fireEvent.keyDown(input, { key: "Enter" });
+    await reply(/q=4215%20vs/, answer("4215 vs 6980", { hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
     focus();
     const recent = screen.getByRole("group", { name: "Recent searches" });
