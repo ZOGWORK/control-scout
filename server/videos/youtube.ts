@@ -4,7 +4,9 @@
 // call). Without one, from the public watch page's player response (playabilityStatus, lengthSeconds,
 // liveBroadcastDetails), which YouTube may refuse a data-centre address with a "not a bot" sign-in wall:
 // that's an error to try again later, never a removed video. Read once per video and kept
-// (server/videos/recordings.ts), so an event's matches can link to their second in it.
+// (server/videos/recordings.ts), so an event's matches can link to their second in it. The watch page also
+// gives the video's chapters (parseChapters), which can confirm the timing of a video cut short (chaptersConfirm).
+import type { Chapter } from "../../src/shared/recording.js";
 
 export interface WatchPageFacts {
   status: "ok" | "unavailable" | "error";
@@ -13,12 +15,29 @@ export interface WatchPageFacts {
   end: string | null;
   length: number | null;
   live: boolean;
+  /** Its chapters, from the watch page only (the Data API doesn't give them); undefined: not read. */
+  chapters?: Chapter[];
 }
 
 const ERROR: WatchPageFacts = { status: "error", start: null, end: null, length: null, live: false };
 const UNAVAILABLE: WatchPageFacts = { ...ERROR, status: "unavailable" };
 
 const iso = (s: string | undefined) => { if (!s) return null; const t = Date.parse(s); return Number.isFinite(t) ? new Date(t).toISOString() : null; };
+
+/** A watch page's chapters (the creator's, or YouTube's generated ones), in order; [] when it has none. */
+export function parseChapters(html: string): Chapter[] {
+  const out: Chapter[] = [];
+  const re = /"chapterRenderer":\{"title":\{"simpleText":"((?:[^"\\]|\\.)*)"\},"timeRangeStartMillis":(\d+)/g;
+  const seen = new Set<number>();
+  for (let m; (m = re.exec(html));) {
+    const t = Math.round(Number(m[2]) / 1000);
+    let title = m[1];
+    try { title = JSON.parse(`"${m[1]}"`); } catch { /* kept as it came */ }
+    // The page lists each chapter more than once (the player bar, the description): one per start.
+    if (!seen.has(t)) { seen.add(t); out.push([t, title]); }
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
 
 /** The facts from a watch page's HTML. A page without a player response (a consent wall, a changed page) is "error", never a guess. */
 export function parseWatchPage(html: string): WatchPageFacts {
@@ -44,6 +63,7 @@ export function parseWatchPage(html: string): WatchPageFacts {
     length: Number.isFinite(length) && length > 0 ? length : null,
     // A scheduled broadcast not started yet (LIVE_STREAM_OFFLINE) counts as live with no start, so it's read again until it runs.
     live: details.isLiveNow === true || offline,
+    chapters: parseChapters(html),
   };
 }
 

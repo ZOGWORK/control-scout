@@ -322,6 +322,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
     if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
     if (r.id === "never-played" && (scope.championship || scope.states || scope.level || scope.alliance || scope.ever || scope.at)) return null;
+    // An event's rank and OPR are whole-event numbers: a match type or a colour can't apply to them.
+    if ((r.id === "event-rank" || r.id === "event-opr") && (scope.level || scope.alliance)) return null;
     if (SEASON_ROWS.has(r.id) && scope.at) return null;
     // A trend is the team's events or seasons: an event, Worlds, a match type or a colour can't apply.
     if (r.family === "trend" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance)) return null;

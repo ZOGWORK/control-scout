@@ -7,11 +7,11 @@
 // brunoAnswers switch), unconfigured, failing or slow: no answer, and the page keeps what it has.
 // Streamed to a page that asks for it (?stream=1): the answer shows as he writes it, each part checked the same way
 // before it's sent (previewOf), and ends at the same answer; the model call, prompt and cache are the same.
-import type { SearchAnswer, SearchCardLine } from "../../src/shared/api.js";
+import type { SearchAnswer, SearchCardLine, SearchHit } from "../../src/shared/api.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { isBrunoQuestion } from "../../src/shared/search.js";
 import { brunoAvailable, brunoSearchAnswer, brunoSearchAnswerStream } from "../auth/controlPoint.js";
-import { get } from "../db.js";
+import { all, get } from "../db.js";
 import { CURRENT_SEASON } from "../data/seasons.js";
 import { isEnabled } from "../flags.js";
 import { normalize } from "./fuzzy.js";
@@ -44,6 +44,22 @@ const lineText = (l: SearchCardLine) => {
   return more ? `${l.text}: ${more}` : l.text;
 };
 
+/** "Won New Jersey Championship (2024–25): winning alliance 4215 Hypnotic Robotics, 23268 Ultraviolet; Inspire Award
+ *  23268 Ultraviolet", or null when no winner is recorded (an event not held yet). */
+async function eventWinners(h: SearchHit): Promise<string | null> {
+  const [season, code] = h.ref.split(":");
+  if (!code) return null;
+  const rows = await all<{ type: string; team: number; name: string | null }>(
+    "SELECT a.type, a.team, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND (a.type = 'Winner' OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', a.placement, a.team",
+    [Number(season), code]);
+  if (!rows.length) return null;
+  const who = (r: { team: number; name: string | null }) => `${r.team}${r.name ? ` ${r.name}` : ""}`;
+  const alliance = rows.filter((r) => r.type === "Winner").map(who);
+  const inspire = rows.filter((r) => r.type === "Inspire").map(who);
+  const parts = [alliance.length ? `winning alliance ${alliance.join(", ")}` : "", inspire.length ? `Inspire Award ${inspire.join(", ")}` : ""].filter(Boolean);
+  return `Won ${h.title} (${seasonLabel(Number(season))}): ${parts.join("; ")}.`;
+}
+
 /** The facts search found for `a` (its answer to the question), as plain lines for Bruno. */
 export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   const facts: string[] = [];
@@ -61,6 +77,8 @@ export async function answerFacts(a: SearchAnswer): Promise<string[]> {
   for (const h of a.hits.slice(0, 5)) {
     const extra = (h.facts ?? []).map((f) => `${f.label} ${f.value}`).join("; ");
     facts.push(`Result: ${h.title}${h.subtitle ? ` (${h.subtitle})` : ""}${extra ? `: ${extra}` : ""}`);
+    // An event: who won it (its winning alliance and Inspire Award), so "who won nj states" has an answer to go on.
+    if (h.kind === "event") { const w = await eventWinners(h); if (w) facts.push(w); }
   }
   // The main team's latest season, so "how good are they" has numbers to go on.
   const team = a.card?.team?.number ?? (a.hits[0]?.kind === "team" ? Number(a.hits[0].ref) : null);

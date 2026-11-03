@@ -12,14 +12,15 @@ import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
+import { readAsk } from "../searchAsks.js";
 import { namedTeam } from "../searchCompare.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer } from "./families/awards.js";
 import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
-import { matchAnswer, whoOf } from "./families/matches.js";
-import { BOARD_STATS, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { counts, matchAnswer, whoOf } from "./families/matches.js";
+import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -69,8 +70,11 @@ export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | 
 }
 
 /** The team's latest season with matches at official events (a season of only scrimmages isn't one). */
-async function latestSeason(team: number): Promise<number | null> {
-  const ms = (await teamMatches(team)).filter(officialClause());
+async function latestSeason(team: number, id?: IntentId): Promise<number | null> {
+  // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
+  // never took the field): the latest season with a match the answer counts.
+  const official = officialClause();
+  const ms = (await teamMatches(team)).filter((m) => official(m) && (!id || counts(id, m)));
   return ms.length ? Math.max(...ms.map((m) => m.season)) : null;
 }
 
@@ -82,14 +86,14 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
     // alike): left to search's team-at-event answer, which lets the visitor pick.
-    const season = s.season ?? (s.latest ? await latestSeason(team) : null);
+    const season = s.season ?? (s.latest ? await latestSeason(team, it.id) : null);
     if (s.latest && season == null) return null;
     const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;
     return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
-    const latest = await latestSeason(team);
+    const latest = await latestSeason(team, it.id);
     scope.season = latest;
     if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
   }
@@ -98,19 +102,26 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null) {
-  const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event" && (season == null || h.season === season));
-  const top = hits[0];
+  const found = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
+  const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
+  // A season named: the first event found that was held that season (search lists an event once, by its newest season,
+  // so an older one is looked up by its code).
+  if (season != null) {
+    for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e) return e; }
+    return null;
+  }
+  const top = found[0];
   if (!top) return null;
   const [s, code] = top.ref.split(":");
   // No season named: the newest season of that event with a played playoff (an event not held yet has no winners).
-  const played = season != null ? null : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
-  const at = played?.s != null ? Number(played.s) : Number(s);
-  return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [at, code])) ?? null;
+  const played = await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
+  return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const board = readLeaderboard(q);
+  // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
+  const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
@@ -222,6 +233,17 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   return { ...answer, stat };
 }
 
+/** The asks' own leaderboards ("top teams in the world", "best auto team", "highest opr in texas": ../searchAsks.ts
+ *  readAsk) drawn as this leaderboard: the world's or a place's rankings by prediction rating, as Rankings orders
+ *  them, or a stat's leaders; the top 10 unless a number is asked. */
+function boardOfAsk(q: string): LeaderboardQuestion | null {
+  const ask = readAsk(q.replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim());
+  if (!ask || (ask.kind !== "leaderboard" && ask.kind !== "stat")) return null;
+  const n = Math.min(LEADERBOARD_MAX, Math.max(1, Number(/\btop\s+(\d{1,2})\b/i.exec(q)?.[1] ?? 10)));
+  const stat = ask.kind === "leaderboard" ? BOARD_STATS.rating : BOARD_STATS[ask.stat];
+  return { kind: "top", stat: stat.id, n, region: ask.region, city: null, season: null };
+}
+
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's
  *  teams), worked out for the page only. A city no team lists is left to search. */
 async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
@@ -236,5 +258,8 @@ async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: bool
     intent: { kind: `stat-leaderboard-${b.kind}`, pattern: b.kind === "city" ? "teams in [city]" : `${b.kind} [stat]${b.region ? " [place]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return answer;
-  return { ...answer, stat: await leaderboardAnswer({ ...b, stat: st }) };
+  const stat = await leaderboardAnswer({ ...b, stat: st });
+  // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
+  const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
+  return { ...answer, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
 }

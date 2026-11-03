@@ -3,7 +3,7 @@
 // counted and from which records. Drawn here from the JSON the server sends; nothing is computed or filled in.
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, Info, Search } from "lucide-react";
-import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/searchStat";
+import type { LeaderboardRow, StatAnswer, StatBlock, StatMatchRow } from "../../../shared/searchStat";
 import { cn } from "../../cn";
 
 const H3 = "mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
@@ -118,6 +118,8 @@ function Block({ b }: { b: StatBlock }) {
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
       );
+    case "leaderboard":
+      return <Leaderboard b={b} />;
     case "series":
       return <Series b={b} />;
     case "bars":
@@ -238,6 +240,86 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
           </div>
         ))}
       </div>
+    </figure>
+  );
+}
+
+// Rounded as the server rounds the headline (half up), so a row and the headline never differ by 0.1.
+const oneDp = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
+const PHASES = [{ key: "auto", label: "Auto", tone: "bg-chart-1" }, { key: "teleop", label: "TeleOp", tone: "bg-chart-2" }, { key: "endgame", label: "Endgame", tone: "bg-chart-3" }] as const;
+
+/** A leaderboard: on a computer a wide table with a bar column (the asked stat scaled to #1, an OPR's auto, TeleOp and
+ *  endgame stacked in it); on a phone compact rows, the bar under the team's name. */
+function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) {
+  const max = Math.max(1e-9, ...b.rows.map((r) => Math.abs(r.value ?? 0)));
+  const split = b.stat.id === "opr" && b.rows.some((r) => r.parts);
+  const isOpr = b.stat.id === "opr";
+  const phase = PHASES.find((p) => p.key === b.stat.id);
+  const bar = (r: LeaderboardRow) => {
+    const w = (v: number | null) => `${(Math.max(0, v ?? 0) / max) * 100}%`;
+    return (
+      <span className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+        {split && r.parts ? PHASES.map((p) => <span key={p.key} className={cn("h-full", p.tone)} style={{ width: w(r.parts![p.key]) }} />)
+          : <span className={cn("h-full rounded-full", phase?.tone ?? "bg-accent")} style={{ width: w(r.value) }} />}
+      </span>
+    );
+  };
+  const asked = "font-semibold text-accent-text";
+  return (
+    <figure data-block="leaderboard">
+      <figcaption className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className={H3}>{b.title}</span>
+        <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
+      </figcaption>
+      {split && (
+        <p className="mb-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground" data-legend>
+          {PHASES.map((p) => <span key={p.key} className="inline-flex items-center gap-1"><span className={cn("size-2.5 rounded-sm", p.tone)} aria-hidden />{p.label}</span>)}
+        </p>
+      )}
+      {/* Computer: the table, the bar its last column. */}
+      <div className="overflow-x-auto rounded-lg border border-border max-md:hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-2.5 py-1.5 text-right font-medium">#</th>
+              <th scope="col" className="px-2.5 py-1.5 font-medium">Team</th>
+              <th scope="col" className="px-2.5 py-1.5 font-medium">Location</th>
+              <th scope="col" className="px-2.5 py-1.5 font-medium">W-L-T</th>
+              <th scope="col" className={cn("px-2.5 py-1.5 text-right font-medium", isOpr && asked)}>OPR</th>
+              {!isOpr && <th scope="col" className={cn("px-2.5 py-1.5 text-right font-medium", asked)}>{b.stat.label}</th>}
+              <th scope="col" className="w-[30%] px-2.5 py-1.5 font-medium"><span className="sr-only">{b.stat.label}, scaled to #1</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {b.rows.map((r) => (
+              <tr key={r.team.href} className={cn("border-t border-border", r.rank === 1 && "bg-accent/[0.07]")}>
+                <td className="px-2.5 py-1.5 text-right tabular-nums text-muted-foreground">{r.rank}</td>
+                <td className="px-2.5 py-1.5"><Link to={r.team.href} className="font-medium text-foreground hover:text-accent-text hover:underline">{r.team.label}</Link></td>
+                <td className="px-2.5 py-1.5 text-muted-foreground">{r.location ?? "–"}</td>
+                <td className="px-2.5 py-1.5 tabular-nums">{r.record}</td>
+                <td className={cn("px-2.5 py-1.5 text-right tabular-nums", isOpr && asked)}>{r.opr == null ? "–" : oneDp(r.opr)}</td>
+                {!isOpr && <td className={cn("px-2.5 py-1.5 text-right tabular-nums", asked)}>{r.display}</td>}
+                <td className="px-2.5 py-1.5">{bar(r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* Phone: one compact row a team, the bar under its name. */}
+      <ol className="divide-y divide-border rounded-lg border border-border md:hidden">
+        {b.rows.map((r) => (
+          <li key={r.team.href} className={cn("px-3 py-2", r.rank === 1 && "bg-accent/[0.07]")}>
+            <div className="flex items-baseline gap-2">
+              <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{r.rank}</span>
+              <Link to={r.team.href} className="min-w-0 flex-1 truncate text-sm font-medium text-foreground hover:text-accent-text">{r.team.label}</Link>
+              <span className={cn("shrink-0 text-sm tabular-nums", asked)}>{r.display}</span>
+            </div>
+            <div className="ml-7 mt-1">{bar(r)}</div>
+            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${oneDp(r.opr)}` : ""].filter(Boolean).join(" · ")}</p>
+          </li>
+        ))}
+      </ol>
+      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
     </figure>
   );
 }
