@@ -21,7 +21,7 @@ No engine number changed. Engine 3.3.0 throughout.
 | # | Number | Where it shows | Formula / inputs shown | Verdict |
 |---|---|---|---|---|
 | 1 | Win probability | Match drawer, Lab, Know your match, match rows, live panel, pit display | Factor sheet: every factor's share of the call (game phases split the margin exactly; win-model inputs grouped). Methodology #matches: two score curves → probability, Engine 2.0 correction (22 inputs), Platt-style recalibration slope. Calibration line: how often calls at that level came true. | **open**: the shares explain the call, but turning them into the exact % needs the 22 fitted coefficients (model.json). Reproducible with the engine, not by hand. |
-| 2 | Predicted score (alliance) | Lab | **New:** "Predicted score = robots' Adds − overlap + the other side's Pen", written out per alliance with its numbers (`(72.4 + 51.0) − 6.1 + (2.0 + 1.5) = 119`), and a Pen column in the ratings table. The overlap loss now comes with the answer (`overlapRed/overlapBlue`). | **fixed** |
+| 2 | Predicted score (alliance) | Lab | **New:** "Predicted score = robots' Adds − overlap + the other side's Pen", written out per alliance with its numbers (`(72.4 + 51.0) − 6.1 + (2.0 + 1.5) = 120.8 · shown 121`; each part to 0.1, so the shown whole-point score can differ from the written sum by a point, and the line says so), and a Pen column in the ratings table. The overlap loss now comes with the answer (`overlapRed/overlapBlue`). | **fixed** |
 | 3 | Predicted score (alliance) | Match drawer, Know your match (a stored call) | The score only. The robots' ratings at the time of the call aren't stored with it; today's ratings (team pages) have moved on. | **open**: needs the call's per-robot strengths stored in the ledger. |
 | 4 | Predicted margin | Match drawer, Lab | **New:** "Red by 12 (118 − 106)" next to the scores. The factor sheet's game phases split the same margin exactly. | **fixed** (was implicit: two scores, no margin) |
 | 5 | Score range (±, 80%) | Every predicted score | Tooltip: the range's bounds and what 80% means. Methodology #ranges and #matches: σ = a + b·expected, widened by rating uncertainty, small sample, per-team consistency, playoff factor. Lab shows each robot's rating ± and match count. | **open**: the per-team consistency factor and the band scale aren't shown next to the range. Reproducible with the engine. |
@@ -64,7 +64,7 @@ Every fact below was checked in code before it was written (src/shared/predictio
 | Surface | Line |
 |---|---|
 | Match drawer (event, team, predict lists), Know your match, Lab, factor sheet | Quals: "Learned from every played match, quals and playoffs; a playoff result counts half." Playoffs: "Playoff call: the same ratings (a playoff result counts half), but partners add up in full, the score range is tighter and there are no bonus RPs." |
-| Projections, Advancement, Simulated rankings | "Simulated from current ratings, learned from quals and playoffs (a playoff result counts half). Simulated playoffs add partners up in full and draw tighter scores." |
+| Projections, Advancement, Simulated rankings | "Simulated from team ratings, learned from quals and playoffs (a playoff result counts half). Simulated playoffs add partners up in full and draw tighter scores." |
 | Bracket odds | "Each series uses the playoff call: the same ratings (a playoff result counts half), partners added up in full." |
 
 Each ends with a "How" link to the new methodology section, /methodology#quals-playoffs. Phone tables

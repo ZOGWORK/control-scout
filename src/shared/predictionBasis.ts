@@ -18,7 +18,7 @@ export const BASIS_HREF = "/methodology#quals-playoffs";
 export const BASIS: Record<BasisKind, string> = {
   qual: "Learned from every played match, quals and playoffs; a playoff result counts half.",
   playoff: "Playoff call: the same ratings (a playoff result counts half), but partners add up in full, the score range is tighter and there are no bonus RPs.",
-  event: "Simulated from current ratings, learned from quals and playoffs (a playoff result counts half). Simulated playoffs add partners up in full and draw tighter scores.",
+  event: "Simulated from team ratings, learned from quals and playoffs (a playoff result counts half). Simulated playoffs add partners up in full and draw tighter scores.",
   bracket: "Each series uses the playoff call: the same ratings (a playoff result counts half), partners added up in full.",
 };
 
@@ -31,14 +31,19 @@ export const marginText = (red: number, blue: number): string => {
 /** An alliance's overlap loss over its three phases (engine explain overlapA/overlapB). */
 export const overlapTotal = (o: { auto: number; teleop: number; endgame: number } | null | undefined): number => (o ? o.auto + o.teleop + o.endgame : 0);
 
-const d1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
+const r1 = (x: number) => Math.round(x * 10) / 10;
+const d1 = (x: number) => r1(x).toFixed(1);
 
-/** One alliance's predicted score written out from its parts (matchModel.ts: Σ robots' np − overlap + Σ the
- *  opponents' penalties): "(72.4 + 51.0) − 6.1 + (2.0 + 1.5)". The caller adds "= 121" from the shown score. */
+/**
+ * One alliance's predicted score written out from its parts (matchModel.ts: Σ robots' np − overlap + Σ the
+ * opponents' penalties), every part rounded to 0.1 and the sum taken of the parts as written, so the line's own
+ * arithmetic is exact: "(72.4 + 51.0) − 6.1 + (2.0 + 1.5) = 120.8". The shown score is rounded from the unrounded
+ * parts, so it can differ from this sum by a rounding step; the caller says so.
+ */
 export function scoreSum(own: { np: number }[], overlap: number, opp: { pen: number }[]): string {
-  const robots = `(${own.map((t) => d1(t.np)).join(" + ")})`;
-  const pen = `(${opp.map((t) => d1(t.pen)).join(" + ")})`;
-  return `${robots} − ${d1(overlap)} + ${pen}`;
+  const robots = own.map((t) => r1(t.np)), pens = opp.map((t) => r1(t.pen)), ov = r1(overlap);
+  const total = robots.reduce((s, x) => s + x, 0) - ov + pens.reduce((s, x) => s + x, 0);
+  return `(${robots.map(d1).join(" + ")}) − ${d1(ov)} + (${pens.map(d1).join(" + ")}) = ${d1(total)}`;
 }
 
 /** The line for a match at this level (a what-if with no level is a qualification match). */

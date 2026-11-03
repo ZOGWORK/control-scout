@@ -38,7 +38,9 @@ describe("by-hand helpers", () => {
   });
 
   it("writes a score out from its parts", () => {
-    expect(scoreSum([{ np: 72.44 }, { np: 51 }], 6.08, [{ pen: 2 }, { pen: 1.46 }])).toBe("(72.4 + 51.0) − 6.1 + (2.0 + 1.5)");
+    expect(scoreSum([{ np: 72.44 }, { np: 51 }], 6.08, [{ pen: 2 }, { pen: 1.46 }])).toBe("(72.4 + 51.0) − 6.1 + (2.0 + 1.5) = 120.8");
+    // The sum is of the parts as written, so it always checks out by hand (Greptile on #488: 50.24 + 50.24 + 2.04 + 1.04).
+    expect(scoreSum([{ np: 50.24 }, { np: 50.24 }], 0, [{ pen: 2.04 }, { pen: 1.04 }])).toBe("(50.2 + 50.2) − 0.0 + (2.0 + 1.0) = 103.4");
     expect(overlapTotal({ auto: 1, teleop: 2, endgame: 0 })).toBe(3);
     expect(overlapTotal(undefined)).toBe(0);
   });

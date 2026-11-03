@@ -537,9 +537,9 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           </table>
           {x.overlapRed != null && x.overlapBlue != null && (
             <div className="mt-3 space-y-0.5 text-xs text-muted-foreground" data-testid="score-sum">
-              <p>Predicted score = robots' Adds − overlap + the other side's Pen:</p>
-              <p className="tabular-nums"><span className="text-red-alliance">Red</span> {scoreSum(x.teamsRed, x.overlapRed, x.teamsBlue)} = {x.predictedRed}</p>
-              <p className="tabular-nums"><span className="text-blue-alliance">Blue</span> {scoreSum(x.teamsBlue, x.overlapBlue, x.teamsRed)} = {x.predictedBlue}</p>
+              <p>Predicted score = robots' Adds − overlap + the other side's Pen, each to 0.1 (the score above is rounded from the unrounded parts, so it can differ by a point):</p>
+              <p className="tabular-nums"><span className="text-red-alliance">Red</span> {scoreSum(x.teamsRed, x.overlapRed, x.teamsBlue)} · shown {x.predictedRed}</p>
+              <p className="tabular-nums"><span className="text-blue-alliance">Blue</span> {scoreSum(x.teamsBlue, x.overlapBlue, x.teamsRed)} · shown {x.predictedBlue}</p>
             </div>
           )}
         </details>
