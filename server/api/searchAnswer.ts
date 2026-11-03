@@ -24,8 +24,10 @@ import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
-import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
-import { get } from "../db.js";
+import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
+import { CURRENT_SEASON } from "../data/seasons.js";
+import { all, get } from "../db.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
 import { search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
@@ -117,15 +119,24 @@ async function namedInPlace(q: string, limit: number, prefer: ReadonlySet<string
     const region = regionOf(ws.slice(-k));
     if (!region) continue;
     const name = ws.slice(0, -k).join(" ");
-    const same = (await search(name, Math.max(limit, 25), prefer, new Set(["team"])))
-      .filter((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(name));
-    if (!same.length) return null;
-    const inPlace = (h: SearchHit) => new RegExp(`,\\s*${region.state},\\s*${region.country}$`, "i").test(h.subtitle) || (!region.state && h.subtitle.endsWith(region.country));
-    const there = same.filter(inPlace);
+    const want = normalize(name);
+    if (!want) return null;
+    // Every team by that whole name, from the teams themselves (never a capped search list), with their stored state
+    // and country, so a team with no city on record still counts as in its state.
+    const rows = (await all<any>(
+      `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last FROM teams t
+       LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
+       WHERE t.name LIKE ? AND ${teamPageSql("t.number", "t.name")} ORDER BY cs.season IS NOT NULL DESC, t.number`,
+      [CURRENT_SEASON, `%${name.replace(/[%_\\]/g, "").split(/\s+/).join("%")}%`],
+    )).filter((t) => normalize(cleanTeamName(t.number, t.name) ?? "") === want);
+    if (!rows.length) return null;
+    const hit = (t: any): SearchHit => ({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
+    const there = rows.filter((t) => String(t.country ?? "").toLowerCase() === region.country.toLowerCase() && (!region.state || String(t.state ?? "").toLowerCase() === region.state.toLowerCase()));
+    const shown = cleanTeamName(rows[0].number, rows[0].name);
     const label = there.length
-      ? `${there.length === 1 ? "The team" : `${there.length} teams`} named ${teamNameOf(same[0].title)} in ${region.name}`
-      : `No team named ${teamNameOf(same[0].title)} in ${region.name}: ${same.length === 1 ? "the one" : `all ${same.length}`} by that name`;
-    return answer(q, { hits: (there.length ? there : same).slice(0, limit), step: "deterministic", understood: { kind: "names", label } });
+      ? `${there.length === 1 ? "The team" : `${there.length} teams`} named ${shown} in ${region.name}`
+      : `No team named ${shown} in ${region.name}: ${rows.length === 1 ? "the one" : `all ${rows.length}`} by that name`;
+    return answer(q, { hits: (there.length ? there : rows).slice(0, limit).map(hit), step: "deterministic", understood: { kind: "names", label } });
   }
   return null;
 }

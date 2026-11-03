@@ -165,6 +165,15 @@ describe("answers on their own", () => {
     const mi = await ask("robo rebels michigan");
     expect(mi.hits.map((h) => h.ref)).toEqual(["31020"]);
     expect(mi.understood?.label).toBe("The team named Robo Rebels in Michigan");
+    // Every team by the name counts, however many share it: the one in the place is never cut off by a result cap.
+    const many = Array.from({ length: 30 }, (_, i) => `(${32000 + i}, 'Gear Heads', 'Austin', 'TX', 'USA')`).join(", ");
+    await run(`INSERT INTO teams (number, name, city, state, country) VALUES ${many}, (32099, 'Gear Heads', 'Flint', 'MI', 'USA')`);
+    // A team with no city on record is still in its state.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (32100, 'Lone Gear', NULL, 'NJ', 'USA')");
+    await rebuildSearch();
+    const gh = await ask("gear heads michigan");
+    expect(gh.hits.map((h) => h.ref)).toEqual(["32099"]);
+    expect((await ask("lone gear nj")).understood?.label).toBe("The team named Lone Gear in New Jersey");
   });
   it("when a team last played: its most recent match (failed-search #487)", async () => {
     expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
