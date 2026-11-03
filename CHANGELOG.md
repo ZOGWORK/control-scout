@@ -32,7 +32,7 @@ FTC One Search answers more questions: who's on top in a state, who leads a stat
 - **Predictions and advancement.** "Will 4215 win their next match" shows its next match and opens Predict on its matches. "4215 vs 6980 who wins" shows the Compare and opens Predict with both teams filled in. "Who will win New Jersey Championship" opens the event's odds. "Will 4215 advance to states" and "what does 4215 need to advance" open the advancement simulator for the team.
 - **Event awards.** "Who won Inspire at New Jersey Championship" (and Think, Innovate, Design, Reach, Sustain, Connect, Control, Compass, Judges' Choice) lists the winners from the event's results. For an event that hasn't happened yet, it shows the latest season that gave the award, with that season named.
 - **Team questions.** "When does 4215 play next" shows its next match, or says plainly that none is scheduled yet. "How are predictions calculated" puts the methodology page first in Pages.
-- **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#PRNUM)
+- **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#440)
 
 ## 2.3.6 — 2026-11-02
 
