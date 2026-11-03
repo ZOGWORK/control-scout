@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.4.5 — 2026-11-03
+
+FTC One Search answers "when" questions latest first, with the year at the front of each card.
+
+### Highlights
+- [teams] A team's Worlds or state trips list the latest season first
+- [teams] Each trip's card starts with its season in bold, then the division
+- [fixes] The empty search page no longer shows example searches
+- [teams] A game-rule answer shows a book icon instead of the trophy
+
+### Search
+- **Latest first.** "When did 23268 go to Worlds" lists 2025–26 before 2024–25, and so on back. The OPR chart above still reads left to right, oldest to newest, and selecting a season still jumps to its card. On a phone the season chips run latest first too.
+- **The year leads.** Each trip's card starts with its season in bold ("2025–26 · Lovelace Division"); the season chip that repeated it is gone.
+- **No example row on an empty page.** When nothing matches, the page explains what search covers, what it understood and links to browse events and teams; the example searches stay in the search box's dropdown.
+- **A book for rules.** An answer from the game manual ("can robots descore…") has a book icon; answers from records keep the trophy. Results and their order are unchanged. (#448)
+
 ## 2.4.4 — 2026-11-03
 
 Home's search box says what it can do: type whatever you want.
