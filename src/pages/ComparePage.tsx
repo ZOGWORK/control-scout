@@ -125,7 +125,7 @@ export default function ComparePage() {
   return (
     <div>
       <PageHeader title="Compare" description="Up to four teams side by side: season stats, OPR by phase, event-by-event form and every match they've met in."
-        actions={<SeasonToggle value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} />}>
+>
         {/* The search stays first, at the same place, however many teams are chosen. */}
         <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
           <TeamPicker className="w-full sm:w-[28rem]" onPick={add} exclude={teams.map(Number)} busy={checking} error={error} onEdit={() => setError(null)}
@@ -134,6 +134,8 @@ export default function ComparePage() {
           <p className="flex items-center text-sm text-muted-foreground sm:h-12" aria-live="polite">{teams.length} of {MAX} teams</p>
         </div>
         {teams.length > 0 && !full && suggestions.length > 0 && <QuickPicks list={suggestions} onPick={add} />}
+        {/* The season sits under the team controls, so switching teams and seasons happens in one place. */}
+        <div className="mt-3"><SeasonToggle value={season} onChange={(s) => setSp((x) => { x.set("season", String(s)); return x; }, { replace: true })} /></div>
       </PageHeader>
       {!teams.length ? <Start suggestions={suggestions} onPick={add} onPickAll={addAll} /> : (
         <>
