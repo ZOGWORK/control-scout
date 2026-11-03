@@ -237,7 +237,8 @@ function CompareRow({ id, h, active, onPick, onHover }: { id: string; h: SearchH
       <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent text-accent-ink"><ArrowLeftRight className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block break-words font-medium text-foreground">{who.map((w, i) => <span key={i}>{i > 0 && <span className="px-1 text-accent-text">vs</span>}{w}</span>)}</span>
-        <span className="block truncate text-xs text-muted-foreground">Compare side by side: records, OPR and event history</span>
+        {/* The server's own line: it says when some of the teams named were left out of the comparison. */}
+        <span className="block break-words text-xs text-muted-foreground">{h.subtitle || "Compare side by side: records, OPR and event history"}</span>
         <span className="mt-0.5 block truncate font-mono text-[11px] text-accent-text/80" data-path>{shownPath(h)}</span>
       </span>
       <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink max-[380px]:hidden">Compare<ArrowRight className="size-3.5" aria-hidden /></span>

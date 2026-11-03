@@ -48,6 +48,11 @@ describe("a Compare", () => {
     expect(row.textContent).toContain("Hypnotic Robotics (4215)vsBad Wolf (6980)");
     expect(within(screen.getByRole("group", { name: "Teams" })).queryByText(/vs/)).toBeNull();
   });
+  it("keeps the server's own line (it says when teams were left out)", async () => {
+    const many = { ...compareAsTeam, subtitle: "Compare side by side (the first 4 of the 6 teams named)" };
+    await search("a vs b vs c vs d vs e vs f", answer("a vs b vs c vs d vs e vs f", { hits: [many] }));
+    expect(within(screen.getByRole("group", { name: "Comparisons" })).getByRole("option").textContent).toContain("the first 4 of the 6 teams named");
+  });
   it("comes first for the keyboard too, and opens /compare", async () => {
     const { input, onPick } = await search("4215 vs 6980", vs);
     fireEvent.keyDown(input, { key: "ArrowDown" });
