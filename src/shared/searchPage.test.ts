@@ -2,7 +2,7 @@
 // title takes), a Compare by both sides, a question by its team and what it asked, else the server's reading.
 import { describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchHit } from "./api";
-import { badgeUnder, contextBadge, pageTitle, teamParts } from "./searchPage";
+import { badgeUnder, capWords, contextBadge, pageTitle, teamParts } from "./searchPage";
 
 const a = (hits: SearchHit[], extra: Partial<Omit<SearchAnswer, "understood">> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
 const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
@@ -35,12 +35,23 @@ describe("contextBadge", () => {
   });
 });
 
+describe("capWords", () => {
+  it("capitalises each word, never a letter after an apostrophe", () => {
+    expect(capWords("where they're from")).toBe("Where They're From");
+    expect(capWords("dean’s list finalists")).toBe("Dean’s List Finalists");
+    expect(capWords("worlds appearances")).toBe("Worlds Appearances");
+  });
+});
+
 describe("badgeUnder", () => {
   it("drops a badge that only repeats the title, keeps one that adds to it", () => {
     expect(badgeUnder("League meets in New Jersey", "League meets in New Jersey")).toBeNull();
     expect(badgeUnder("Hypnotic Robotics (4215) vs Ultraviolet (20245)", "Hypnotic Robotics (4215) vs Ultraviolet (20245) — Compare")).toBeNull();
     expect(badgeUnder("Closest names to \"hypnotc\"", 'Closest names to "hypnotc" (did you mean "Hypnotic Robotics"?)')).toBeNull();
     expect(badgeUnder("Team 7149 — Worlds Appearances", "Team 7149 ENFORCERS · Their worlds appearances")).toBe("Team 7149 ENFORCERS · Their worlds appearances");
+    // The same team and the same fact as the title: said once.
+    expect(badgeUnder("Team 6980 — Where They're From", "Bad Wolf (6980) · Where they're from")).toBeNull();
+    expect(badgeUnder("Team 6980 — Where They're From", "Hypnotic Robotics (4215) · Where they're from")).toBe("Hypnotic Robotics (4215) · Where they're from");
     expect(badgeUnder("Simply Complex (18061)", null)).toBeNull();
     // A suggested name with its own brackets is still the whole tail.
     expect(badgeUnder('Closest names to "robotcs"', 'Closest names to "robotcs" (did you mean "Robotics (FTC)"?)')).toBeNull();

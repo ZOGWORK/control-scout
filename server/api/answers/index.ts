@@ -148,7 +148,9 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
-  const title = `${it.leadEvent ? "Event with the highest score" : TITLES[it.id]}${scopePhrase(scope)}`;
+  // "average winning margin" is titled as asked, not as the plain average margin.
+  const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : TITLES[it.id];
+  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: said in the line itself, so
   // "record this season" and "record last season" landing on one season never looks like a mistake.
   const fellBack = it.scope.latest && it.scope.season == null && scope.season != null && scope.season !== CURRENT_SEASON;

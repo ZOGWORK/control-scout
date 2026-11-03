@@ -33,7 +33,12 @@ function foundTitle(hits: SearchHit[]): string {
 export function badgeUnder(title: string, badge: string | null): string | null {
   if (!badge) return null;
   const t = norm(title), b = norm(badge);
-  return !b || b === t || b.startsWith(`${t} `) ? null : plain(badge);
+  if (!b || b === t || b.startsWith(`${t} `)) return null;
+  // "Team 6980 — Where They're From" over "Bad Wolf (6980) · Where they're from": the same team and the same fact.
+  const m = /^Team (\d+) — (.+)$/.exec(title);
+  const fact = badge.split(" · ").pop()!;
+  if (m && fact !== badge && (badge.includes(`(${m[1]})`) || new RegExp(`\\bTeam ${m[1]}\\b`).test(badge)) && norm(fact) === norm(m[2])) return null;
+  return plain(badge);
 }
 
 /** "how good is simply complex", "how strong are the enforcers": a question about one team's quality (the page and
@@ -49,7 +54,8 @@ export function teamParts(title: string): { number: string; name: string } | nul
   return m ? { number: m[1], name: m[2] } : null;
 }
 
-const capWords = (s: string) => s.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+/** Each word's first letter in capitals; never one after an apostrophe ("They're", not "They'Re"). */
+export const capWords = (s: string) => s.replace(/(?<![\p{L}\p{N}'’])\p{Ll}/gu, (c) => c.toUpperCase());
 
 /** The page's heading: what the results are about and what was asked (never the query as typed). "Team 7149 —
  *  Worlds Appearances", "Hypnotic Robotics (4215) vs Bad Wolf (6980)", "Simply Complex (18061)", "Events in New Jersey". */
