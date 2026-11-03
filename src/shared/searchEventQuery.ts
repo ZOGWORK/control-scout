@@ -115,7 +115,8 @@ export function readEventQuery(raw: string): EventQuery | null {
   for (const w of tokens) (Object.hasOwn(EVENT_TYPES, w.toLowerCase()) ? kinds : rest).push(w);
   // "states" with a place is its championship ("nj states", "states in new jesey"), read before the place so a near
   // miss of it is tried too; never corrected to "stats". Without a place it names nothing (dropped below).
-  const statesOnly = !kinds.length && /(?:^|\s)states(?=\s|$)/i.test(raw) && !/united\s+states/i.test(raw);
+  // Beside a generic event word too ("NJ states events").
+  const statesOnly = kinds.every((k) => EVENT_TYPES[k.toLowerCase()] === null) && /(?:^|\s)states(?=\s|$)/i.test(raw) && !/united\s+states/i.test(raw);
   if (statesOnly) kinds.push("championship");
   let region: Region | null = null, regionTyped: string | undefined;
   const where: string[] = [], words: string[] = [];
@@ -151,7 +152,7 @@ export function readEventQuery(raw: string): EventQuery | null {
   // "state" beside a region says nothing more: "NJ state championship" is New Jersey's championship.
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
   if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
-  if (statesOnly && !region) kinds.length = 0;
+  if (statesOnly && !region) kinds.pop();
   const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champs?)$/i.test(w)); });
   // A question about the events ("who will win the NJ championship", "who won Inspire at …") or an action word
   // ("winner", "advance") asks something of them, read elsewhere: not the set of events itself.

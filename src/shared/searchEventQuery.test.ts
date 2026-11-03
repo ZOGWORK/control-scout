@@ -148,3 +148,10 @@ describe("Greptile on #450", () => {
     expect(readEventQuery("united states meets")?.kinds ?? []).not.toContain("championship");
   });
 });
+
+describe("Greptile on #450, round 2", () => {
+  it("'states' beside a generic event word is still the championship, every season", () => {
+    for (const q of ["NJ states events", "NJ states competitions", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ region: { key: "USA:NJ" }, words: [], allSeasons: true });
+    expect(readEventQuery("NJ states events")?.kinds).toContain("championship");
+  });
+});
