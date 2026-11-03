@@ -2,8 +2,8 @@
 // The /search page's results: a Compare is its own card above the teams (never counted as one), team cards carry
 // their season numbers, events are blocks with date and status, no card shows a web address, the filters narrow
 // the results in the address and clear back to all of them, and nothing found is never a bare dead end.
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
 
@@ -26,6 +26,9 @@ const teamMatches = { matches: [
 ] };
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p?.includes("/matches") ? teamMatches : p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
+// The privacy choice: made (the Compare bar waits for it), unless a test says otherwise.
+const consent = vi.hoisted(() => ({ decided: true }));
+vi.mock("../lib/consent", async (orig) => ({ ...(await orig<typeof import("../lib/consent")>()), useConsent: () => ({ analytics: false, decided: consent.decided, signal: false, setAnalytics: () => {} }) }));
 // The Shortlist a phone's team card adds to (the team page's own list): a set here, and a change re-renders the card.
 const shortlisted = vi.hoisted(() => new Set<number>());
 vi.mock("../lib/personal", async (orig) => {
@@ -429,10 +432,38 @@ describe("search results page, phone (Part B 3b)", () => {
     expect(document.querySelector("[data-compare-bar]")!.textContent).toContain("Pick one more");
   });
 
+  it("a new search starts with no picks, and going back to the first doesn't bring them back", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ"), team(23268, "Ultraviolet", "Hackettstown, NJ")]);
+    // One page, searched again in place (the top bar's search navigates within it).
+    let go: (to: string) => void = () => {};
+    function Go() { go = useNavigate(); return null; }
+    const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /><Go /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector("[data-vs-compare]")!);
+    expect(document.querySelector("[data-compare-bar]")).toBeTruthy();
+    const at = (q: string) => act(() => go(`/search?q=${q}`));
+    at("b");
+    expect(document.querySelector("[data-compare-bar]")).toBeNull();
+    at("a");
+    expect(document.querySelector("[data-compare-bar]")).toBeNull();
+  });
+
+  it("the Compare bar waits for the privacy choice (the banner uses the same strip)", () => {
+    consent.decided = false;
+    try {
+      state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+      const { container } = show("/search?q=x");
+      fireEvent.click(container.querySelector("[data-vs-compare]")!);
+      expect(document.querySelector("[data-compare-bar]")).toBeNull();
+    } finally { consent.decided = true; }
+  });
+
   it("a Compare result opens its head-to-head over the results, and closing it leaves them as they were", () => {
     const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
     state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
     const { container } = show("/search?q=4215%20vs%2023268");
+    // A modified click (new tab) is left to the link: no preview.
+    fireEvent.click(container.querySelector('[data-result="compare"]')!, { ctrlKey: true });
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
     fireEvent.click(container.querySelector('[data-result="compare"]')!);
     expect(loc).toBe("/search?q=4215%20vs%2023268");
     const sheet = document.querySelector("[data-compare-sheet]")!;

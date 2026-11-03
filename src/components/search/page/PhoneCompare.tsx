@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { ArrowRight, X } from "lucide-react";
 import { useStickyActionsMarker } from "../../StickyActions";
+import { useConsent } from "../../../lib/consent";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../../ui/overlay";
 import { cn } from "../../cn";
 
@@ -21,10 +22,13 @@ export const pickHref = (picks: readonly number[], season?: number | null) => `/
 
 /** The picks, above the tab bar: each team (tap × to drop it), then Compare (2) → once there are two. */
 export function CompareBar({ picks, names, season, onDrop }: { picks: number[]; names: Map<number, string>; season?: number | null; onDrop: (team: number) => void }) {
-  useStickyActionsMarker(picks.length > 0);
+  // The first-visit privacy banner (ConsentBanner) sits in this same strip: the bar waits until that's answered.
+  const { decided } = useConsent();
+  const shown = decided && picks.length > 0;
+  useStickyActionsMarker(shown);
   const [body, setBody] = useState<HTMLElement | null>(null);
   useEffect(() => { setBody(document.body); }, []);
-  if (!body || !picks.length) return null;
+  if (!body || !shown) return null;
   return createPortal(
     <div role="region" aria-label="Teams to compare" data-compare-bar
       className="fixed inset-x-0 bottom-[calc(var(--tabbar-h)+env(safe-area-inset-bottom))] z-30 flex items-center gap-2 border-t border-line bg-secondary px-3 py-2 md:hidden">
@@ -45,10 +49,10 @@ export function CompareBar({ picks, names, season, onDrop }: { picks: number[]; 
 }
 
 /** A Compare result's head-to-head, from the bottom of the screen; closing it leaves the results as they were. */
-export function CompareSheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function CompareSheet({ open, onClose, returnTo, title, children }: { open: boolean; onClose: () => void; returnTo?: HTMLElement; title: string; children: ReactNode }) {
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <SheetContent side="bottom" className={cn("gap-3 p-4")} data-compare-sheet>
+      <SheetContent side="bottom" className={cn("gap-3 p-4")} returnFocus={() => returnTo} data-compare-sheet>
         <SheetHeader className="pr-8">
           <SheetTitle>{title}</SheetTitle>
           <SheetDescription>A preview: the full comparison is a tap away.</SheetDescription>

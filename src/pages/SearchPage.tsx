@@ -76,10 +76,13 @@ export default function SearchPage() {
   const before = useApi<{ teams: TeamSummary[] }>(asked == null ? sumPath(season - 1) : null);
   // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
   // the Compare result whose head-to-head is open over the results.
-  const [picked, setPicked] = useState<{ q: string; teams: number[] }>({ q: "", teams: [] });
-  const picks = picked.q === query ? picked.teams : [];
-  const pick = (t: number) => setPicked({ q: query, teams: togglePick(picks, t) });
-  const [sheet, setSheet] = useState<SearchHit | null>(null);
+  const [picks, setPicks] = useState<number[]>([]);
+  // A new search starts with none (and going back to an earlier one doesn't bring its picks back).
+  const [pickedFor, setPickedFor] = useState(query);
+  if (pickedFor !== query) { setPickedFor(query); setPicks([]); }
+  const pick = (t: number) => setPicks((p) => togglePick(p, t));
+  // The open head-to-head, and the card it was opened from (focus goes back to it on close).
+  const [sheet, setSheet] = useState<{ hit: SearchHit; from: HTMLElement } | null>(null);
   const pickNames = useMemo(() => {
     const m = new Map<number, string>();
     for (const h of hits) if (h.kind === "team" && !isCompare(h)) { const p = teamParts(h.title); if (p?.name) m.set(Number(p.number), p.name); }
@@ -186,7 +189,7 @@ export default function SearchPage() {
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compare</h2>
-                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? () => setSheet(c) : undefined} />)}</div>
+                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => setSheet({ hit: c, from }) : undefined} />)}</div>
                     </section>
                   )}
                   {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
@@ -205,8 +208,8 @@ export default function SearchPage() {
       {phone && (
         <>
           <CompareBar picks={picks} names={pickNames} season={asked} onDrop={pick} />
-          <CompareSheet open={!!sheet} onClose={() => setSheet(null)} title={sheet ? compareTeams(sheet).slice(0, 2).map((n) => pickNames.get(n) ? `${pickNames.get(n)} (${n})` : `Team ${n}`).join(" vs ") : ""}>
-            {sheet && <HeadToHead h={sheet} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} />}
+          <CompareSheet open={!!sheet} onClose={() => setSheet(null)} returnTo={sheet?.from} title={sheet ? compareTeams(sheet.hit).slice(0, 2).map((n) => pickNames.get(n) ? `${pickNames.get(n)} (${n})` : `Team ${n}`).join(" vs ") : ""}>
+            {sheet && <HeadToHead h={sheet.hit} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} />}
           </CompareSheet>
         </>
       )}
