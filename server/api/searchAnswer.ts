@@ -32,6 +32,7 @@ import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
+import { countAnswer, eventPageAnswer, explainAnswer, monthAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -49,6 +50,8 @@ export interface AnswerOptions {
   asked?: boolean;
   /** The time "upcoming", "past" and "this weekend" are read from (tests). */
   now?: number;
+  /** How many rewrites (./searchCoverage.ts) led here: a rewrite is read once more at most, never in a loop. */
+  rewrites?: number;
 }
 
 /** The query as search reads it: punctuation that never means anything dropped, spaces folded, at most MAX_QUERY. */
@@ -94,6 +97,9 @@ function seasonOf(q: string): { season: number | null; rest: string } {
 
 const answer = (q: string, a: Partial<SearchAnswer> & Pick<SearchAnswer, "hits" | "step">): SearchAnswer =>
   ({ q, pages: pagesFor(q), weak: a.step === "did-you-mean" || a.step === "recovery", ...a });
+
+/** Only a site page's word ("contact", "rankings"): the page, named, never "matching contact". */
+const pageUnderstood = (q: string): SearchUnderstood => ({ kind: "names", label: `Pages: ${pagesFor(q).map((p) => p.title).join(", ")}` });
 
 const recovery = (q: string, understood: string[], closest: SearchHit[] = []): SearchAnswer =>
   answer(q, { hits: [], step: "recovery", recovery: { understood, closest, browse: SEARCH_BROWSE } satisfies SearchRecovery });
@@ -152,6 +158,20 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
+
+  // 0. A phrasing the readers below miss, said the way they read it ("compare 4215 and 6980" → "4215 vs 6980"), or a
+  // question answered on its own: what a word means, a count, the FIRST Championship, an event's tab (./searchCoverage.ts).
+  if (opts.intents !== false) {
+    const rw = (opts.rewrites ?? 0) < 2 ? rewriteQuery(q) : null;
+    if (rw && rw.q !== q) {
+      const a = await searchAnswer(opts.asked ? `${rw.q}?` : rw.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
+      const u = a.understood ?? understoodOf(a);
+      return { ...a, q, understood: rw.note ? { ...u, label: `${u.label} · ${rw.note}` } : u };
+    }
+    const direct = explainAnswer(q) ?? (await countAnswer(q)) ?? (await teamFactAnswer(q, prefer)) ?? (await teamListAnswer(q)) ?? (await placeTeamsAnswer(q, prefer))
+      ?? (await monthAnswer(q, opts.now)) ?? (await worldsAnswer(q, opts.now)) ?? (await eventPageAnswer(q, prefer, opts.now));
+    if (direct) return direct;
+  }
 
   // 0. A question a view answers ("top teams in New Jersey", "highest OPR", "will 4215 win their next match", "who won
   // Inspire at …", "how are predictions calculated"): that view's numbers and link (./searchAsks.ts).
@@ -268,6 +288,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // Word by word is never the answer: it's the closest matches, each naming the word it matched (brief Requirement 6).
   if (byWords) {
+    // A team the query names after all (a number in it, or a name with trailing words): the team, never "no results".
+    const kept = opts.intents === false ? null : await teamFallback(rest, prefer);
+    if (kept) return { ...kept, q };
     // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
     // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
     if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
@@ -276,8 +299,10 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);
   }
 
-  if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" }); // "records": the pages
+  if (!hits.length && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic", understood: pageUnderstood(opts.typed ?? q) }); // "records": the pages
   if (!hits.length) {
+    const kept = opts.intents === false ? null : await teamFallback(rest, prefer);
+    if (kept) return { ...kept, q };
     const understood = intent?.topic ? [`A question about ${TOPIC_LABEL[intent.topic].toLowerCase()}`, `No team or event matched "${intent.rest}"`] : [`No team, event or match matched "${q}"`];
     return recovery(q, understood);
   }
@@ -286,7 +311,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const exact = score >= 0.999;
   // Only a site page's word ("rankings", "rules") that near-matches names ("Iron Hawkings"): the page is the answer,
   // not a guess at a team. A name beside it ("hipnotic rankings") keeps its corrected results.
-  if (score < WEAK_SCORE && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic" });
+  if (score < WEAK_SCORE && onlyPageWords(opts.typed ?? q)) return answer(q, { hits: [], step: "deterministic", understood: pageUnderstood(opts.typed ?? q) });
   // A near match to a team that never played (a test registration, a typo'd sign-up) is a closest match, not a result.
   if (!exact && hits[0].kind === "team" && !hits[0].href && !(await played(hits[0].ref))) {
     return recovery(q, [`No exact match for "${q}"`], uniq(hits).slice(0, 5));
