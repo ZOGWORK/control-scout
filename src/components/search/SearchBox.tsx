@@ -353,14 +353,17 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const synced = useRef(syncQuery);
+  // Enter or the magnifier on the page's own query: it's asked for after all (it may name one team: its page).
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
     if (synced.current === syncQuery) return;
     synced.current = syncQuery;
     setQ(syncQuery ?? "");
     setOpen(false);
+    setAsked(false);
   }, [syncQuery]);
   // The page's own query, unedited: its results are on the page, so the box doesn't ask for them again.
-  const idle = syncQuery !== undefined && q === syncQuery;
+  const idle = syncQuery !== undefined && q === syncQuery && !asked;
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   const [active, setActive] = useState(-1);
   const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(idle ? "" : q, kinds);
@@ -420,7 +423,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
   // A box holding the page's query keeps it (a pick that lands back on that page shows it again).
-  const go = (h: SearchHit) => { onPick(h); setQ(syncQuery ?? ""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  const go = (h: SearchHit) => { onPick(h); setQ(syncQuery ?? ""); setAsked(false); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
   // A search of everything (not a picker, not a box limited to some kinds): what was searched is remembered on
   // this device, for the recent searches list.
   const remember = seeAll && !kinds;
@@ -433,7 +436,8 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     if (!e) return;
     // Closed (Escape, a click away, leaving the field) or retyped: the Enter is dropped, never acted on later.
     if (!open || e.q !== q.trim()) { enterFor.current = null; return; }
-    if (busy || stale) return;
+    // Still on its way: past the typing pause at once (a page's own query is only asked once pressed).
+    if (busy || stale) { searchNow(); return; }
     enterFor.current = null;
     if (e.full) openDirectOrFull();
     else if (ordered[0]) pick(ordered[0].hit);
@@ -459,6 +463,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   // page (a picker box: its top result, once it's current).
   const submit = (highlighted: boolean) => {
     if (highlighted && !stale && active >= 0 && ordered[active]) pick(ordered[active].hit);
+    // "See all results" highlighted: the results page, as clicking it does (never the one result it names).
+    else if (highlighted && full && active === ordered.length) openFull();
+    // The page's own query, unedited: its answer wasn't asked for; ask now and go when it's in.
+    else if (full && idle) { setAsked(true); setOpen(true); enterFor.current = { q: query, full }; }
     else if (full && !busy && !stale) openDirectOrFull();
     else if (!full && !stale && !busy && ordered[0]) pick(ordered[0].hit);
     // Results not in yet: ask now, and go when they arrive (one press): the page or the one result it names, or a

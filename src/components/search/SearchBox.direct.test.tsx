@@ -112,6 +112,26 @@ describe("Enter and the magnifier on a search box", () => {
     await answerWith({ q: "usnjnem2", hits: [{ kind: "event", ref: "2026:USNJNEM2", title: "P1-5 AM Northeast League Meet", subtitle: "", season: 2026, match: "exact" }], pages: [], step: "deterministic", weak: false });
     expect(at()).toBe("/events/2026/USNJNEM2");
   });
+  it("\"See all results\" highlighted: Enter opens the results page, as clicking it does, even for \"6980\"", async () => {
+    const input = mount();
+    fireEvent.change(input, { target: { value: "6980" } });
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await answerWith(one("6980", BAD_WOLF));
+    fireEvent.keyDown(input, { key: "ArrowUp" }); // from nothing: the last row, "See all results"
+    expect(screen.getByRole("option", { name: /See all results/ }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(at()).toBe("/search?q=6980");
+  });
+  it("on /search?q=6980, Enter on the top bar's unedited query asks for it and opens the team's page", async () => {
+    const onPick = vi.fn();
+    render(<SearchBox onPick={onPick} placeholder="Search" label="Search" syncQuery="6980" />);
+    const input = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
+    act(() => input.focus());
+    expect(pending).toHaveLength(0);
+    fireEvent.keyDown(input, { key: "Enter" });
+    await answerWith(one("6980", BAD_WOLF));
+    expect(onPick).toHaveBeenCalledWith(BAD_WOLF);
+  });
   it("the request failing: the results page (never stuck)", async () => {
     const input = mount();
     fireEvent.change(input, { target: { value: "6980" } });
