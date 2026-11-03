@@ -96,7 +96,10 @@ describe("static first paint", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
     const side = (path: string) => bootShell(path, meta).match(/<aside class="csb-side">.*?<\/aside>/)![0];
-    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works"]);
+    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works", "Predictions", "FTC One Search"]);
+    // How it works folds open to its two pages, as in the app: open on either of them.
+    expect(side("/how-it-works/search")).toContain('<details class="csb-more csb-sub" open><summary><i class="csb-ico"></i><span>How it works</span>');
+    expect(side("/")).toContain('<details class="csb-more csb-sub"><summary>');
     // A native <details>: it opens without the app, and is already open on one of its own pages.
     expect(side("/")).toContain('<details class="csb-more"><summary>');
     expect(side("/compare")).toContain('<details class="csb-more" open><summary>');
@@ -104,6 +107,8 @@ describe("static first paint", () => {
     // The rail hides row names visually only: every link keeps its name for screen readers.
     const narrow = BOOT_STYLE.match(/@media \(max-width:1279px\)\{[^\n]*\}/)![0];
     expect(narrow).toContain(".csb-nav a span,.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)");
+    // How it works' two pages sit level with the other rows in the rail, as the app's do.
+    expect(narrow).toContain(".csb-sub>div{margin-left:0;padding-left:0;border-left:0}");
     expect(narrow).not.toMatch(/\.csb-nav a span[^{]*\{display:none/);
   });
 });

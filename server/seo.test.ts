@@ -497,12 +497,13 @@ describe("IndexNow", () => {
   it("first ping: the main pages; then at most one an hour, with the events re-fetched since and their teams", async () => {
     const { pingIndexNow, ENDPOINT, DEFAULT_KEY } = await import("./indexNow");
     const f = fake();
-    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 8 URLs/);
     expect(f.calls[0].url).toBe(ENDPOINT);
     expect(f.calls[0].body).toMatchObject({ host: "controlscout.org", key: DEFAULT_KEY, keyLocation: `https://controlscout.org/${DEFAULT_KEY}.txt` });
     expect(f.calls[0].body.urlList).toEqual(expect.arrayContaining([
       "https://controlscout.org/", "https://controlscout.org/faq", "https://controlscout.org/power-rankings", "https://controlscout.org/rankings",
       "https://controlscout.org/teams", "https://controlscout.org/methodology",
+      "https://controlscout.org/how-it-works/search",
     ]));
     // An event re-fetched after the ping (and one before it, which isn't sent again), with their teams.
     const at = (ms: number) => new Date(ms).toISOString();
@@ -520,7 +521,7 @@ describe("IndexNow", () => {
   it("sends each power rankings week once, by its id: one dated the day of an earlier ping still goes", async () => {
     const { pingIndexNow } = await import("./indexNow");
     const f = fake();
-    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 8 URLs/);
     // Published "2026-10-19", a date that sorts before the ping's own time on that same day.
     await run("INSERT INTO power_rankings_generated (season, week, published, status, packet, generated_at) VALUES (2026, '2026-w42', '2026-10-19', 'published', ?, ?)",
       [JSON.stringify({ season: 2026, week: "2026-w42", teams: [], comparedWith: null }), new Date(T0 + 60_000).toISOString()]);
@@ -550,12 +551,12 @@ describe("IndexNow", () => {
 
   it("fails quietly: a refused or broken request resolves, waits an hour, and loses no change", async () => {
     const { pingIndexNow } = await import("./indexNow");
-    expect(await pingIndexNow({ now: T0, fetchImpl: fake(500).fetchImpl })).toBe("HTTP 500, 7 URLs not sent");
+    expect(await pingIndexNow({ now: T0, fetchImpl: fake(500).fetchImpl })).toBe("HTTP 500, 8 URLs not sent");
     expect(await pingIndexNow({ now: T0 + 60_000, fetchImpl: fake().fetchImpl })).toMatch(/^skipped/);
     const boom = async () => { throw new Error("network down"); };
     await expect(pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: boom })).resolves.toBe("failed: network down");
     // The main pages were never accepted: the next ping still sends them.
-    expect(await pingIndexNow({ now: T0 + 2 * HOUR + 2, fetchImpl: fake().fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(await pingIndexNow({ now: T0 + 2 * HOUR + 2, fetchImpl: fake().fetchImpl })).toMatch(/^sent 8 URLs/);
   });
 });
 
@@ -577,6 +578,28 @@ describe("/methodology (How it works)", () => {
       expect(page.html).toContain('<section id="ratings"><h2>Ratings</h2><p>expected contribution</p></section>');
       expect(page.html.match(/<h1[\s>]/g)).toHaveLength(1); // the page's own H1, not a second one from the shell
       expect(page.html).not.toMatch(/noindex/i);
+    } finally {
+      if (prev === undefined) delete process.env.CS_PRERENDER_DIR; else process.env.CS_PRERENDER_DIR = prev;
+      resetMethodologyHtml();
+    }
+  });
+
+  it("How FTC One Search works is prerendered into its first paint the same way", async () => {
+    const { resetMethodologyHtml } = await import("./seoMeta");
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-search-docs-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
+    writeFileSync(join(dir, "search-docs.html"), '<header><h1>How FTC One Search works</h1></header><section id="steps"><h2>Six steps</h2></section>');
+    const prev = process.env.CS_PRERENDER_DIR;
+    process.env.CS_PRERENDER_DIR = dir;
+    resetMethodologyHtml();
+    try {
+      const page = await renderPage(file, "/how-it-works/search");
+      expect(page.status).toBe(200);
+      expect(page.html).toContain("<title>How FTC One Search works · Control Scout</title>");
+      expect(page.html).toContain('<link rel="canonical" href="https://controlscout.org/how-it-works/search"');
+      expect(page.html).toContain('<section id="steps"><h2>Six steps</h2></section>');
+      expect(page.html.match(/<h1[\s>]/g)).toHaveLength(1);
     } finally {
       if (prev === undefined) delete process.env.CS_PRERENDER_DIR; else process.env.CS_PRERENDER_DIR = prev;
       resetMethodologyHtml();
