@@ -102,3 +102,19 @@ describe("Greptile on #437", () => {
     expect(a.card?.lines[0]?.href).toMatch(/^https:\/\/ftc-resources\.firstinspires\.org\//);
   });
 });
+
+describe("Greptile on #437, round 2", () => {
+  it("a season named outright picks that game", async () => {
+    await setFlag("rulesReference", true, "test"); invalidateFlags();
+    expect(readRuleQuery("G402 in 2024-25")).toMatchObject({ id: "G402", season: 2024 });
+    expect(readRuleQuery("G402 in INTO THE DEEP")).toMatchObject({ id: "G402", season: 2024 });
+    const a = await searchAnswer("G402 in 2024-25");
+    expect(a.card?.title).toBe("INTO THE DEEP 2024–25 rules");
+    expect(a.card?.lines[0].text).toBe("A INTO THE DEEP (2024–25) rule: G402");
+    expect((await searchAnswer("G402 in 2026-27")).card?.lines[0].text).toBe("G402 · No AUTO interference");
+  });
+  it("a conversational opening keeps a real rules question", async () => {
+    expect(readRuleQuery("where is the rule on pinning")).toMatchObject({ id: null });
+    expect(readRuleQuery("how good is Can Control")).toBeNull();
+  });
+});

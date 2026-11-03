@@ -57,12 +57,32 @@ export interface RuleQuery {
   id: string | null;
   /** Past-game words in the question, with their season ({ sample: 2024 }); absent when none. */
   past?: Record<string, number>;
+  /** A season named outright ("2024-25", "INTO THE DEEP"): that season's rules, or its manual. */
+  season?: number;
+}
+
+/** Game names, for a season named by its game ("G402 in INTO THE DEEP"). */
+const GAME_SEASONS: [RegExp, number][] = [
+  [/\binto the deep\b/i, 2024], [/\bdecode\b/i, 2025], [/\bbio ?buzz\b/i, 2026], [/\bcenter ?stage\b/i, 2023], [/\bpower ?play\b/i, 2022],
+  [/\bfreight frenzy\b/i, 2021], [/\bultimate goal\b/i, 2020], [/\bsky ?stone\b/i, 2019],
+];
+/** The season a query names outright, and the query without it. */
+function seasonNamed(q: string): { season: number; rest: string } | null {
+  const y = /(?:^|\s)(?:in |for |during )?(20\d\d)\s*[-–/]\s*(\d\d(?:\d\d)?)(?=\s|$)/i.exec(q);
+  if (y && (y[2].length === 2 ? (Number(y[1]) + 1) % 100 : Number(y[1]) + 1) === Number(y[2])) return { season: Number(y[1]), rest: (q.slice(0, y.index) + " " + q.slice(y.index + y[0].length)).trim() };
+  for (const [re, season] of GAME_SEASONS) if (re.test(q)) return { season, rest: q.replace(re, " ").replace(/\s+(?:in|for|during)\s*$/i, "").trim() };
+  return null;
 }
 
 /** The rule question `q` asks, or null when it isn't one. `asked`: the query as typed ended in "?". */
-export function readRuleQuery(q: string, asked = false): RuleQuery | null {
-  // A question about a team ("how good is Can Control", "where is Can Control") is the team's, whatever its name holds.
-  if (stripConversation(q)) return null;
+export function readRuleQuery(raw: string, asked = false): RuleQuery | null {
+  // A question about a team ("how good is Can Control", "where is Can Control") is the team's, whatever its name holds;
+  // one that names a rule, a penalty or a foul ("where is the rule on pinning") stays a rules question.
+  const conv = stripConversation(raw);
+  if (conv && !/\b(?:rules?|penalt(?:y|ies)|fouls?)\b|\b[grite]\d{3}\b/i.test(conv.rest)) return null;
+  if (conv) asked = true;
+  const named = seasonNamed(conv ? conv.rest : raw);
+  const q = named ? named.rest : conv ? conv.rest : raw;
   const ws = fold(singularize(q)).split(/\s+/).map((w) => w.replace(/^[.-]+|[.-]+$/g, "")).filter(Boolean);
   if (!ws.length) return null;
   const id = ws.find((w) => RULE_ID.test(w) && (/^[a-z]/.test(w) || ws.includes("rule"))) ?? null;
@@ -71,9 +91,9 @@ export function readRuleQuery(q: string, asked = false): RuleQuery | null {
   const opens = /^(?:penalty|penalties|foul|fouls|rule|rules)$/.test(ws[0]) && ws.length > 1;
   const pastWords = [...new Set(ws.map(one).filter((w) => Object.hasOwn(PAST_GAME_WORDS, w)))];
   const pastAsked = pastWords.length > 0 && (strong.length > 0 || period || ws.some((w) => PAST_CONTEXT.has(one(w))));
-  const question = asked || isQuestionForm(q);
+  const question = asked || isQuestionForm(raw);
   if (!id && !opens && !(question && (strong.length || period || pastAsked))) return null;
-  const past = pastWords.length ? { past: Object.fromEntries(pastWords.map((w) => [w, PAST_GAME_WORDS[w]])) } : {};
+  const past = { ...(pastWords.length ? { past: Object.fromEntries(pastWords.map((w) => [w, PAST_GAME_WORDS[w]])) } : {}), ...(named ? { season: named.season } : {}) };
   // A number asked about an older game's piece ("does G402 apply to samples?") is that game's rule.
   if (id) return { keywords: [], id: id.toUpperCase(), ...past };
   const keywords = [...new Set(ws.filter((w) => !STOPWORDS.has(w) && !QUESTION_WORDS.has(w) && !RULE_FRAME.has(w) && !/^\d+$/.test(w) && w.length > 1).map((w) => (Object.hasOwn(SYNONYM, w) ? SYNONYM[w] : w)))];

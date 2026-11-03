@@ -17,7 +17,8 @@ const MAX_RULES = 5;
 
 export async function ruleAnswer(q: string, rq: RuleQuery): Promise<SearchAnswer> {
   // A past game's piece ("sample": INTO THE DEEP): that season's reference, or which game it is and a link to it.
-  const past = pastSeasonOf(ruleReference(CURRENT_SEASON), rq);
+  // A season named outright ("G402 in 2024-25") decides first; then an older game's piece.
+  const past = rq.season != null && rq.season !== CURRENT_SEASON ? { season: rq.season, words: [] } : pastSeasonOf(ruleReference(CURRENT_SEASON), rq);
   if (past && !hasRuleReference(past.season)) return pastGameAnswer(q, rq, past);
   const ref = ruleReference(past?.season ?? CURRENT_SEASON);
   const pages = [...pagesFor(q).filter((p) => p.href !== "/rules"), { title: "Rules", href: "/rules" }];
@@ -47,15 +48,16 @@ function pastGameAnswer(q: string, rq: RuleQuery, past: { season: number; words:
   const now = seasonInfo(CURRENT_SEASON);
   const manual = pastManual(past.season);
   const quoted = past.words.map((w) => `"${w}"`).join(" and ");
+  const asked = past.words.length ? `${quoted} ${past.words.length > 1 ? "are" : "is"} from ${game.game} (${game.label})` : `A ${game.game} (${game.label}) rule${rq.id ? `: ${rq.id}` : ""}`;
   return {
     q, hits: [], step: "deterministic", weak: false,
     pages: pagesFor(q),
-    understood: { kind: "question", label: `A rules question about ${game.game} (${game.label}): ${quoted}`, season: past.season },
+    understood: { kind: "question", label: `A rules question about ${game.game} (${game.label})${quoted ? `: ${quoted}` : rq.id ? `: rule ${rq.id}` : ""}`, season: past.season },
     card: {
       kind: "rule",
       title: `${game.game} ${game.label} rules`,
       lines: [
-        { text: `${quoted} ${past.words.length > 1 ? "are" : "is"} from ${game.game} (${game.label})`, detail: `Not this season's ${now.game}. There's no ${game.game} quick reference here; its rules are in that season's game manual.` },
+        { text: asked, detail: `Not this season's ${now.game}. There's no ${game.game} quick reference here; its rules are in that season's game manual.` },
         { text: `${game.game} game manual`, detail: manual.what, href: manual.url },
         { text: `${game.game} ${game.label} season`, detail: "Its events and results", href: `/events?season=${past.season}` },
       ],
