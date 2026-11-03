@@ -69,6 +69,12 @@ function exactPlace(typed: string, r: Row): boolean {
   return !!q && ((!!v && (v.includes(q) || (v.length >= 10 && q.includes(v)))) || c === q);
 }
 
+/** The states (country:state) where some event's venue or city is the place as typed (exactPlace). */
+async function exactStates(typed: string): Promise<Set<string>> {
+  const all_ = await all<Row>("SELECT venue, city, state, country FROM events WHERE venue IS NOT NULL OR city IS NOT NULL");
+  return new Set(all_.filter((r) => exactPlace(typed, r)).map((r) => `${r.country}:${r.state}`));
+}
+
 /** The event is at the place typed: its venue or city (samePlace), or every word typed is a word of its venue, in
  *  any order ("Dell River High School"). Never city words and venue words mixed: "Ramsey High School" is not Don
  *  Bosco Prep High School in Ramsey. */
@@ -126,9 +132,10 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   }
   if (e.where && !drop.where) {
     rows = rows.filter((r) => atPlace(e.where!, r));
-    // A spelling a letter or two off counts only in a state where the place is found as typed: New Jersey's "River
-    // Dale High School" is River Dell's typo; Riverdale High School in Illinois is another school.
-    const states = new Set(rows.filter((r) => exactPlace(e.where!, r)).map((r) => `${r.country}:${r.state}`));
+    // A spelling a letter or two off counts only in a state where the place is found as typed, any season, date or
+    // kind (a window that leaves out the place's own events never lets another state's school in): New Jersey's
+    // "River Dale High School" is River Dell's typo; Riverdale High School in Illinois is another school.
+    const states = await exactStates(e.where);
     if (states.size) rows = rows.filter((r) => exactPlace(e.where!, r) || states.has(`${r.country}:${r.state}`));
   }
   if (e.words.length) {

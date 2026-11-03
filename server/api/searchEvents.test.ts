@@ -309,4 +309,10 @@ describe("a loose venue spelling stays in the venue's own state (River Dell vs R
     // Typed as Illinois spells it, it's found (with nothing found as typed elsewhere, every loose match counts).
     expect(refs((await ask("meets at riverdale high school")).hits)).toContain("USILRD1");
   });
+  it("a date window that leaves out the venue's own events never lets the other state's school in (Greptile on #466)", async () => {
+    // Season S-2 holds only USNJRD1 (River DeHigh, NJ) and Illinois's Riverdale meet; River Dell is found as typed in NJ in other seasons.
+    const a = await ask(`${S - 2}-${String(S - 1).slice(2)} meets at river dell high school`);
+    expect(refs(a.hits)).not.toContain("USILRD1");
+    expect(refs(a.hits)).toContain("USNJRD1");
+  });
 });
