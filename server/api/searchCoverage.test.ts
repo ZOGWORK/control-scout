@@ -69,6 +69,10 @@ describe("answers on their own", () => {
     expect(explainAnswer("what is opr")?.card).toMatchObject({ kind: "info" });
     expect(explainAnswer("what is decode")?.understood?.label).toMatch(/^DECODE: the 2025–26 FTC game/);
     expect(explainAnswer("4215")).toBeNull();
+    // "help": what the box answers, each with a query to try; a team named "helpers" is still a name.
+    for (const q of ["help", "how do i search", "what can i search for"]) expect(explainAnswer(q)?.understood?.label, q).toBe("What you can search");
+    expect(explainAnswer("help")?.card?.lines.every((l) => l.href?.startsWith("/search?q="))).toBe(true);
+    expect(explainAnswer("helpers")).toBeNull();
   });
   it("a rewrite never loops, and a nonsense query still ends in a recovery", async () => {
     expect((await ask("qual 5 nj states")).step).toBeDefined();

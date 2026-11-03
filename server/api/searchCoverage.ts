@@ -186,6 +186,20 @@ const EXPLAINS: { words: RegExp; label: string; lines: SearchCardLine[]; pages: 
     ],
     pages: [{ title: "Events", href: "/events" }],
   },
+  {
+    // "help", "how do I search": what the box answers, each kind with a query to try.
+    words: /^(?:help|search help|how (?:do i|to|can i) (?:search|use (?:this|search|the search))|what can i (?:search|ask|type)(?: for)?|what can (?:you|this|search) (?:do|answer)|examples?)$/,
+    label: "What you can search",
+    lines: [
+      { text: "A team, by number or name", detail: "\"4215\", \"bad wolf\", \"4215 awards\", \"4215 record\"", href: "/search?q=4215%20awards" },
+      { text: "Two teams side by side", detail: "\"4215 vs 6980\", \"compare hypnotic and bad wolf\"", href: "/search?q=4215%20vs%206980" },
+      { text: "Events by place and time", detail: "\"nj states\", \"meets this weekend\", \"events in january\"", href: "/search?q=meets%20this%20weekend" },
+      { text: "Leaders and records", detail: "\"top teams in texas\", \"highest score\", \"most improved teams\"", href: "/search?q=top%20teams%20in%20texas" },
+      { text: "Who won", detail: "\"who won nj states\", \"who won worlds last year\"", href: "/search?q=who%20won%20nj%20states" },
+      { text: "What a word means", detail: "\"what is opr\", \"what is decode\", \"ftc rules\"", href: "/search?q=what%20is%20opr" },
+    ],
+    pages: [{ title: "FAQ", href: "/faq" }],
+  },
 ];
 
 /** The season a game's name means ("DECODE" → 2025–26), from the season list. */
