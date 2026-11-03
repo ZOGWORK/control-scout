@@ -6,7 +6,7 @@
 - **The margin is the real finding.** The 538 margin multiplier makes Elo itself much better than plain win/loss Elo (−0.005 Brier, +1 point accuracy). But next to the engine, plain Elo adds as much as MOV-Elo does: the margin information is already in the engine.
 
 Files:
-- Script: `scripts/research/r5-mov-elo.ts`, which uses `scripts/research/component-rows.ts` and `lib.ts`.
+- Script: `scripts/research/r5-mov-elo.ts`, which uses `scripts/research/component-rows.ts` and `r35-lib.ts`.
 - Output: `r5-mov-elo.json`.
 
 ## Method note

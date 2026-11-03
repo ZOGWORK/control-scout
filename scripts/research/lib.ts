@@ -1,151 +1,218 @@
-// Shared helpers for the Nov 2026 research topics (R3 component importance, R5 MOV-Elo): the joined row set,
-// the rolling-origin calendar and the scoring every challenger and the champion get identically.
+// Research program (R2 shrinkage, R4 recency) shared harness: a walk-forward replay of the backtest corpus with
+// several rating books side by side on identical matches, plus the metrics, the paired event-bootstrap and the
+// rolling-origin selection the notes report.
 //
-// Protocol (Part 9 / 12.5): monthly origins from October 2024 to July 2026; anything fitted is fitted on the 365 days
-// before the origin only and scored on that month. Rated events, pre-match state only, decisive matches (ties left
-// out of fits and scores). 2024–25 is the tuning season; 2025–26 (DECODE) is judged and labelled reused.
-import { readFileSync } from "node:fs";
-import { gunzipSync } from "node:zlib";
-import { pairedReport, rng, sliceReport, type PairedMetrics, type PairedRow } from "../slices/report.js";
+// The replay is the slice report's (scripts/engine-slices.ts): the same corpus loader (scripts/slices/corpus.ts),
+// order and exclusions; every match at a rated event is predicted from earlier results only with the served call
+// (predictMatch + the fitted contextual model), then folded into every book. Rows keep only rated-event,
+// 2-robot-alliance matches (the scope of the published numbers).
+//
+// Variants that the engine already exposes as a setting are plain RatingBooks with overridden RatingParams. A
+// variant that needs rating logic the engine doesn't have is a PATCHED BOOK: a live RatingBook whose update gain
+// is steered through the gain experience it already reads (`TeamRating.gainN`; the gain is
+// max(kMin, k0 / (1 + gainN / n0))). Nothing in packages/predict-engine is edited; the patch lives here.
+import "../../server/env.js";
+import { FITTED_MODEL, RatingBook, predictMatch, type MatchRecord, type RatingParams, type TeamRating } from "@control-scout/predict-engine";
+import { migrate } from "../../server/db.js";
+import { matchKey, outcome, predictable, seasonCorpus } from "../slices/corpus.js";
+import { matchesBand, qualBand } from "../slices/tags.js";
+import { rng } from "../slices/report.js";
 
-export { rng };
-import { FITTED_MODEL } from "@control-scout/predict-engine";
-import { fit, logit, sig } from "../part9/lib.js";
-import { probBand } from "../slices/tags.js";
+export const M = FITTED_MODEL;
+export const LIVE: Partial<RatingParams> = M.rating as Partial<RatingParams>;
+/** Engine 1.x's settings, frozen (as in engine-slices.ts): the historical 72.7% / 0.179 baseline, for context only. */
+export const LEGACY_RATING: Partial<RatingParams> = {
+  k0: 0.65, n0: 10, kMin: 0.33, playoffWeight: 0.5, rho1: 0.6, rho2: 0.2, rookieZ: -0.7, uncKnown: 150, uncRookie: 350, uncDecay: 0.45, uncMin: 10,
+  baseAlpha: 0.002, growthPerWeek: 0.05, growthMaxWeeks: 8, populationUpdate: "sequential",
+};
+export const WEEK = 7 * 864e5;
 
-export { logit, sig };
-export const DAY = 864e5;
-export const WINDOW = 365 * DAY;
-/** The engine's own logit (contextual.ts): clamped at 1e-9, not the research learner's 1e-6. */
-export const logit9 = (p: number) => { const q = Math.min(1 - 1e-9, Math.max(1e-9, p)); return Math.log(q / (1 - q)); };
-
-export interface Phases { auto: number; teleop: number; endgame: number; pen: number }
-/** One component row (scripts/research/component-rows.ts). */
-export interface CompRow {
-  key: string; season: number; event: string; level: "qual" | "playoff"; time: number; y: number; rated: boolean;
-  red: number[]; blue: number[]; exp: { red: Phases; blue: Phases }; S: number; muR: number; muB: number; pRaw: number; p: number;
-  act: { red: Phases & { total: number }; blue: Phases & { total: number } };
-  /** The contextual model's inputs as the served call read them (null: lineup unsupported); the model id that served it. */
-  x: number[] | null; model: string;
-}
-/** One slices-harness row (`engine-slices.ts --rows`), the fields used here (its data tags). */
-export interface SliceRow { key: string; season: number; event: string; level: string; time: number; y: number; rated: boolean; x?: number[]; pRaw?: number; data: Record<string, unknown>; vol?: string; pred: { champion: { p: number; muR: number; muB: number } } }
-/** The joined row: champion call, its 22 contextual inputs, its phase expectations and the result. */
-export interface Row extends CompRow { x: number[]; L: number; pc: number; tags: Record<string, string>; margin: number; muGap: number; gap: Phases }
-
-export const readGz = <T>(f: string): T => JSON.parse(gunzipSync(readFileSync(f)).toString()) as T;
-
-/** Rated, decisive, predicted matches in time order that the contextual model served, with the slices harness's data tags. */
-export function loadRows(componentsFile: string, slicesFile?: string): Row[] {
-  const comp = readGz<CompRow[]>(componentsFile);
-  const sl = slicesFile ? new Map(readGz<SliceRow[]>(slicesFile).map((r) => [r.key, r])) : null;
-  const out: Row[] = [];
-  for (const c of comp) {
-    if (!c.rated || c.y === 0.5) continue;
-    const s = sl?.get(c.key);
-    if (sl && !s) throw new Error(`no slices row for ${c.key}`);
-    if (!c.x || !c.x.every(Number.isFinite) || c.model !== FITTED_MODEL.contextual!.id) continue;
-    if (s && Math.abs(s.pred.champion.p - c.p) > 1e-12) throw new Error(`champion call differs between the two replays at ${c.key}`);
-    const gap: Phases = {
-      auto: c.exp.red.auto - c.exp.blue.auto, teleop: c.exp.red.teleop - c.exp.blue.teleop, endgame: c.exp.red.endgame - c.exp.blue.endgame,
-      pen: c.exp.blue.pen - c.exp.red.pen, // fouls blue is expected to commit are points for red
-    };
-    const d = s?.data ?? {};
-    // The slices harness's data tags, its volatility tag and the champion's probability band (gate dimensions).
-    const tags: Record<string, string> = { ...Object.fromEntries(["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "eventSize", "eventType"].map((k) => [k, String(d[k] ?? "")])), volatility: String(s?.vol ?? ""), probBand: probBand(c.p) };
-    out.push({ ...c, x: c.x, L: logit9(c.pRaw), pc: c.p, tags, margin: c.act.red.total - c.act.blue.total, muGap: c.muR - c.muB, gap });
-  }
-  return out.sort((a, b) => a.time - b.time);
+export interface Variant {
+  name: string;
+  book: RatingBook;
+  /** Engine 1.x: predicted without the contextual model or the event context, as the slice report does. */
+  legacy?: boolean;
 }
 
-/** Month starts: origins October 2024 … July 2026, plus the end of July 2026. */
-export function origins(): number[] {
-  const m: number[] = [];
-  for (let d = new Date(Date.UTC(2024, 9, 1)); d <= new Date(Date.UTC(2026, 7, 1)); d.setUTCMonth(d.getUTCMonth() + 1)) m.push(d.getTime());
-  return m;
+/** Steers a live book's update gain. `gainN` returns the gain experience to use for team t's next update (called
+ *  once the match being folded is known; `m` is that match), or undefined to leave the engine's own. `after` sees
+ *  every folded match; `season` every season start. */
+export interface GainPatch {
+  gainN(t: number, r: TeamRating, m: MatchRecord, book: RatingBook): number | undefined;
+  after?(m: MatchRecord, book: RatingBook): void;
+  season?(s: number): void;
+  /** Runs before the match is predicted; it may rewrite stored ratings (e.g. to forget earlier events). */
+  before?(m: MatchRecord, book: RatingBook): void;
 }
 
-/** For each origin with at least `minTest` matches: the training rows (prior 365 days) and the test rows (that month). */
-export function* rolling<T extends { time: number }>(rows: T[], minTest = 50, minTrain = 2000): Generator<{ origin: number; train: number[]; test: number[] }> {
-  const o = origins();
-  for (let i = 0; i < o.length - 1; i++) {
-    const t0 = o[i], t1 = o[i + 1];
-    const train: number[] = [], test: number[] = [];
-    rows.forEach((r, j) => { if (r.time >= t0 - WINDOW && r.time < t0) train.push(j); else if (r.time >= t0 && r.time < t1) test.push(j); });
-    if (test.length >= minTest && train.length >= minTrain) yield { origin: t0, train, test };
-  }
-}
+/** Pre-prediction hooks of patched books: replay() calls them before predicting each match. */
+const BEFORE = new WeakMap<RatingBook, (m: MatchRecord) => void>();
 
-/** Slope-only recalibration σ(a·logit p) on a training set (no intercept: never a colour term). */
-export function slopeFit(z: number[], y: number[]): number {
-  return fit(z.map((v) => [v]), y, [1e-4], [1])[0];
-}
-
-const clip = (p: number) => Math.min(1 - 1e-9, Math.max(1e-9, p));
-export interface Score { n: number; brier: number; accuracy: number; logLoss: number; marginMAE: number | null }
-/** Brier, accuracy (a 50% call counts half), log loss and margin MAE over decisive rows. */
-export function score(ps: number[], ys: number[], margins?: { pred: number[]; actual: number[] }): Score {
-  let b = 0, a = 0, l = 0;
-  for (let i = 0; i < ps.length; i++) {
-    const p = clip(ps[i]), y = ys[i];
-    b += (p - y) ** 2; l += -(y * Math.log(p) + (1 - y) * Math.log(1 - p)); a += p === 0.5 ? 0.5 : (p > 0.5) === (y === 1) ? 1 : 0;
-  }
-  const n = ps.length;
-  const mae = margins ? margins.pred.reduce((s, m, i) => s + Math.abs(m - margins.actual[i]), 0) / n : null;
-  return { n, brier: b / n, accuracy: a / n, logLoss: l / n, marginMAE: mae };
-}
-
-/** Paired margin-MAE change (b − a) with a 95% event-bootstrap interval. */
-export function pairedMAE(rows: { event: string; actual: number; a: number; b: number }[], draws = 2000, seed = 20261103): { mae: number; mae95: [number, number] } {
-  const ev = new Map<string, { n: number; d: number }>();
-  for (const r of rows) { const x = ev.get(r.event) ?? { n: 0, d: 0 }; x.n++; x.d += Math.abs(r.b - r.actual) - Math.abs(r.a - r.actual); ev.set(r.event, x); }
-  const E = [...ev.values()];
-  const rand = rng(seed), bs: number[] = [];
-  for (let i = 0; i < draws; i++) { let d = 0, n = 0; for (let j = 0; j < E.length; j++) { const x = E[Math.floor(rand() * E.length)]; d += x.d; n += x.n; } bs.push(d / n); }
-  bs.sort((x, y) => x - y);
-  const tot = E.reduce((t, x) => ({ n: t.n + x.n, d: t.d + x.d }), { n: 0, d: 0 });
-  return { mae: tot.d / tot.n, mae95: [bs[Math.floor(0.025 * draws)], bs[Math.floor(0.975 * draws)]] };
-}
-
-/** The slice dimensions every gate checks: the same as engine-slices.ts --challenger (data tags, volatility, the champion's probability band). */
-export const DIMS = ["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "volatility", "eventSize", "eventType", "probBand"];
-
-/** Calibration error in the 50–80% bands, match-weighted (the gates' decision bands). */
-export function cal5080(ps: number[], ys: number[]): number {
-  const c = sliceReport(ps.map((p, i) => ({ p, y: ys[i], tags: {} })), []).calibration.filter((b) => ["50-60", "60-70", "70-80"].includes(b.band));
-  return c.reduce((s, b) => s + b.n * b.error, 0) / c.reduce((s, b) => s + b.n, 0);
-}
-
-export interface Gate { season: number; n: number; champion: Score; challenger: Score; paired: PairedMetrics; marginMAE: { mae: number; mae95: [number, number] } | null; cal5080: { champion: number; challenger: number }; regressions: string[]; pass: boolean }
-/** The gate on one season: challenger (b) minus champion (a) on identical decisive matches, every slice checked. */
-export function gate(season: number, rows: { event: string; y: number; tags: Record<string, string>; a: number; b: number; ma?: number; mb?: number; margin?: number }[]): Gate {
-  const pr: PairedRow[] = rows.map((r) => ({ event: r.event, y: r.y, a: r.a, b: r.b, tags: r.tags }));
-  const rep = pairedReport(pr, DIMS);
-  const regressions = Object.entries(rep.dims).flatMap(([dim, d]) => Object.entries(d).filter(([, m]) => m.regression).map(([v, m]) => `${dim}: ${v}${m.lowConfidence ? " (low n)" : ""}`));
-  const ys = rows.map((r) => r.y);
-  const hasM = rows.every((r) => r.ma != null && r.mb != null && r.margin != null);
-  const mm = hasM ? pairedMAE(rows.map((r) => ({ event: r.event, actual: r.margin!, a: r.ma!, b: r.mb! }))) : null;
-  const sc = (k: "a" | "b", mk: "ma" | "mb") => score(rows.map((r) => r[k]), ys, hasM ? { pred: rows.map((r) => r[mk]!), actual: rows.map((r) => r.margin!) } : undefined);
-  const paired = rep.all;
-  const champion = sc("a", "ma"), challenger = sc("b", "mb");
-  const cal = { champion: cal5080(rows.map((r) => r.a), ys), challenger: cal5080(rows.map((r) => r.b), ys) };
-  return {
-    season, n: rows.length, champion, challenger, paired, marginMAE: mm, cal5080: cal, regressions,
-    // Brier better with the interval excluding zero; accuracy and margin MAE not worse beyond noise; no slice
-    // regression; 50–80% calibration error no worse (the documented gate, docs/engine/README.md).
-    pass: paired.brier95[1] < 0 && !(paired.accuracy95[1] < 0) && !(mm && mm.mae95[0] > 0) && regressions.length === 0 && cal.challenger <= cal.champion + 1e-12,
+/** A live RatingBook (settings `params` over the live ones) whose update gain follows `patch`. The engine reads
+ *  `gainN ?? n` when it computes the gain, so the patch sets `gainN` on the stored rating right before each update
+ *  (RatingBook.stored() is the only place fold() fetches it from). */
+export function patchedBook(params: Partial<RatingParams>, patch: GainPatch): RatingBook {
+  const b = new RatingBook({ ...LIVE, ...params });
+  const raw = b as unknown as { stored(t: number): TeamRating };
+  const stored = raw.stored.bind(b);
+  let current: MatchRecord | null = null;
+  raw.stored = (t: number) => {
+    const r = stored(t);
+    if (current) { const g = patch.gainN(t, r, current, b); if (g !== undefined) r.gainN = g; }
+    return r;
   };
+  const update = b.update.bind(b);
+  b.update = (m: MatchRecord) => { current = m; try { update(m); } finally { current = null; } patch.after?.(m, b); };
+  const start = b.startSeason.bind(b);
+  b.startSeason = (s: number) => { start(s); patch.season?.(s); };
+  if (patch.before) BEFORE.set(b, (m) => patch.before!(m, b));
+  return b;
 }
 
-export const fmt4 = (x: number) => (1e4 * x).toFixed(2);
-export const ci4 = (c: [number, number]) => `[${fmt4(c[0])}, ${fmt4(c[1])}]`;
-export function gateLine(g: Gate): string {
-  const m = g.marginMAE ? `  dMAE ${g.marginMAE.mae.toFixed(3)} [${g.marginMAE.mae95.map((v) => v.toFixed(3)).join(", ")}]` : "";
-  return `${g.season}: n ${g.n}  Brier ${g.champion.brier.toFixed(5)} -> ${g.challenger.brier.toFixed(5)}  dBrier ${fmt4(g.paired.brier)}e-4 ${ci4(g.paired.brier95)}  dAcc ${g.paired.accuracyPp.toFixed(2)}pp [${g.paired.accuracy95.map((v) => v.toFixed(2)).join(", ")}]${m}  cal50-80 ${(100 * g.cal5080.champion).toFixed(2)} -> ${(100 * g.cal5080.challenger).toFixed(2)}  regressions ${g.regressions.length ? g.regressions.join("; ") : "none"}  ${g.pass ? "PASS" : "fail"}`;
+export interface Row {
+  key: string; season: number; event: string; time: number; level: string;
+  /** Qualification match band (q1-10 / q11-25 / q26+ / playoff) and the fewest rated matches on the field (champion's count). */
+  eventMatch: string; teamMatches: string;
+  /** Red's result: 1 win, 0 loss, 0.5 tie; actual margin red − blue (final scores). */
+  y: number; margin: number;
+  /** Per variant (in the order given): red's win probability and expected margin. */
+  p: number[]; mg: number[];
 }
 
-export function shuffled(n: number, rand: () => number): number[] {
-  const a = [...Array(n).keys()];
-  for (let i = n - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  return a;
+/** Replays `seasons` (cold start at the first) with every variant on identical matches. variants[0] is the
+ *  champion: its rated-match counts tag the rows. */
+export async function replay(variants: Variant[], seasons = [2023, 2024, 2025], hooks: { season?(s: number): void } = {}): Promise<Row[]> {
+  await migrate();
+  const rows: Row[] = [];
+  for (const s of seasons) {
+    const { unrated, matches } = await seasonCorpus(s);
+    for (const v of variants) v.book.startSeason(s);
+    hooks.season?.(s);
+    for (const m of matches) {
+      if (unrated.has(m.eventCode)) continue;
+      for (const v of variants) { v.book.setTime(m.time); BEFORE.get(v.book)?.(m); }
+      if (predictable(m)) {
+        const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
+        const champ = variants[0].book;
+        const fewest = Math.min(...[...m.red.teams, ...m.blue.teams].map((t) => champ.get(t).n));
+        const p: number[] = [], mg: number[] = [];
+        for (const v of variants) {
+          const x = v.legacy
+            ? predictMatch(v.book, m.red.teams, m.blue.teams, M.noise, M.calibration, {})
+            : predictMatch(v.book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx });
+          p.push(x.pRedWin); mg.push(x.red.mean - x.blue.mean);
+        }
+        rows.push({
+          key: matchKey(s, m.eventCode, m.level, m.series, m.number), season: s, event: `${s}|${m.eventCode}`, time: m.time, level: m.level,
+          eventMatch: qualBand(m.level, m.number), teamMatches: matchesBand(fewest), y: outcome(m), margin: m.red.total - m.blue.total, p, mg,
+        });
+      }
+      for (const v of variants) v.book.update(m);
+    }
+    console.error(`${s}: ${rows.filter((r) => r.season === s).length} rated predicted matches`);
+  }
+  return rows;
 }
+
+// ---- Metrics (decisive matches: ties left out of every metric) ----
+
+export interface Summary { n: number; brier: number; accuracy: number; marginMae: number }
+const clip = (p: number) => Math.min(1 - 1e-9, Math.max(1e-9, p));
+export function summary(rows: Row[], i: number): Summary {
+  let n = 0, b = 0, a = 0, e = 0;
+  for (const r of rows) {
+    if (r.y === 0.5) continue;
+    const p = clip(r.p[i]);
+    n++; b += (p - r.y) ** 2; a += p === 0.5 ? 0.5 : (p > 0.5) === (r.y === 1) ? 1 : 0; e += Math.abs(r.mg[i] - r.margin);
+  }
+  return { n, brier: b / n, accuracy: a / n, marginMae: e / n };
+}
+
+/** All-match Brier with ties as 0.5 (the slice report's convention), for the reproduction check only. */
+export const brierWithTies = (rows: Row[], i: number) => rows.reduce((s, r) => s + (clip(r.p[i]) - r.y) ** 2, 0) / rows.length;
+
+export interface Delta {
+  n: number;
+  /** Challenger minus champion. Brier ×1 (negative = better), accuracy in points (positive = better), margin MAE in points (negative = better). */
+  brier: number; brier95: [number, number];
+  accuracyPp: number; accuracy95: [number, number];
+  marginMae: number; marginMae95: [number, number];
+}
+
+/** Paired challenger (column b) minus champion (column a) on decisive matches, 95% intervals from resampling whole events. */
+export function paired(rows: Row[], a: number, b: number, pa?: (r: Row) => [number, number], draws = 2000, seed = 20261103): Delta {
+  const ev = new Map<string, { n: number; d: number; acc: number; mae: number }>();
+  const corr = (p: number, y: number) => (p === 0.5 ? 0.5 : (p > 0.5) === (y === 1) ? 1 : 0);
+  for (const r of rows) {
+    if (r.y === 0.5) continue;
+    const [pb, mb] = pa ? pa(r) : [r.p[b], r.mg[b]];
+    const x = ev.get(r.event) ?? { n: 0, d: 0, acc: 0, mae: 0 };
+    x.n++;
+    x.d += (clip(pb) - r.y) ** 2 - (clip(r.p[a]) - r.y) ** 2;
+    x.acc += corr(pb, r.y) - corr(r.p[a], r.y);
+    x.mae += Math.abs(mb - r.margin) - Math.abs(r.mg[a] - r.margin);
+    ev.set(r.event, x);
+  }
+  const E = [...ev.values()];
+  const tot = E.reduce((s, x) => ({ n: s.n + x.n, d: s.d + x.d, acc: s.acc + x.acc, mae: s.mae + x.mae }), { n: 0, d: 0, acc: 0, mae: 0 });
+  const rand = rng(seed), bs: number[] = [], as: number[] = [], ms: number[] = [];
+  for (let i = 0; i < draws && E.length; i++) {
+    let n = 0, d = 0, acc = 0, mae = 0;
+    for (let j = 0; j < E.length; j++) { const x = E[Math.floor(rand() * E.length)]; n += x.n; d += x.d; acc += x.acc; mae += x.mae; }
+    bs.push(d / n); as.push((100 * acc) / n); ms.push(mae / n);
+  }
+  const q = (xs: number[]) => { xs.sort((x, y) => x - y); return [xs[Math.floor(0.025 * xs.length)], xs[Math.min(xs.length - 1, Math.floor(0.975 * xs.length))]] as [number, number]; };
+  return { n: tot.n, brier: tot.d / tot.n, brier95: q(bs), accuracyPp: (100 * tot.acc) / tot.n, accuracy95: q(as), marginMae: tot.mae / tot.n, marginMae95: q(ms) };
+}
+
+/** The program's gate on one season: Brier better beyond noise, and neither accuracy nor margin MAE worse beyond noise. */
+export const gatePasses = (d: Delta) => d.brier95[1] < 0 && d.accuracy95[1] > 0 && d.marginMae95[0] < 0;
+
+// ---- Rolling origins (Part 9 / 12.5): monthly Oct 2024 – Jul 2026, each month's choice made on the 365 days before it ----
+
+export const ROLL_WINDOW = 365 * 864e5;
+export function rollingMonths(): number[] {
+  const out: number[] = [];
+  for (let d = new Date(Date.UTC(2024, 9, 1)); d <= new Date(Date.UTC(2026, 7, 1)); d.setUTCMonth(d.getUTCMonth() + 1)) out.push(d.getTime());
+  return out;
+}
+
+/** For each month, the family member (variant index) with the lowest decisive-match Brier over the 365 days before
+ *  it; that member's calls are used for the month. Returns the pick per row key and the monthly picks. Rows outside
+ *  the rolled months get no pick. */
+export function rollingPick(rows: Row[], family: number[]): { pick: Map<string, number>; months: { month: string; train: number; test: number; pick: number }[] } {
+  const ms = rollingMonths(), pick = new Map<string, number>(), months: { month: string; train: number; test: number; pick: number }[] = [];
+  for (let i = 0; i + 1 < ms.length; i++) {
+    const t0 = ms[i], t1 = ms[i + 1];
+    const test = rows.filter((r) => r.time >= t0 && r.time < t1);
+    if (!test.length) continue;
+    const train = rows.filter((r) => r.y !== 0.5 && r.time < t0 && r.time >= t0 - ROLL_WINDOW);
+    let best = family[0], bestB = Infinity;
+    for (const j of family) {
+      const b = train.reduce((s, r) => s + (clip(r.p[j]) - r.y) ** 2, 0);
+      if (b < bestB - 1e-12) { bestB = b; best = j; }
+    }
+    for (const r of test) pick.set(r.key, best);
+    months.push({ month: new Date(t0).toISOString().slice(0, 7), train: train.length, test: test.length, pick: best });
+  }
+  return { pick, months };
+}
+
+export const fmt = {
+  e4: (x: number, d = 2) => `${x >= 0 ? "+" : "−"}${Math.abs(1e4 * x).toFixed(d)}`,
+  ci4: (c: [number, number], d = 2) => `[${fmt.e4(c[0], d)}, ${fmt.e4(c[1], d)}]`,
+  pp: (x: number, d = 2) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(d)}`,
+  cipp: (c: [number, number], d = 2) => `[${fmt.pp(c[0], d)}, ${fmt.pp(c[1], d)}]`,
+};
+
+/** The slices the notes report besides "all": the Part 1 report's weakest (quals 1–10, robots with 0–5 matches) and their complements. */
+export const SLICES: [string, (r: Row) => boolean][] = [
+  ["all", () => true],
+  ["quals 1–10", (r) => r.eventMatch === "q1-10"],
+  ["quals 11–25", (r) => r.eventMatch === "q11-25"],
+  ["quals 26+", (r) => r.eventMatch === "q26+"],
+  ["playoffs", (r) => r.eventMatch === "playoff"],
+  ["0–5 rated matches", (r) => r.teamMatches === "0-5"],
+  ["6–15 rated matches", (r) => r.teamMatches === "6-15"],
+  ["16+ rated matches", (r) => r.teamMatches === "16+"],
+];

@@ -21,7 +21,7 @@
 //   margin hybrid  margin = b1·(champion margin) + b2·d
 import { writeFileSync } from "node:fs";
 import { contextualRaw, fit, fitContextual } from "../part9/lib.js";
-import { gate, gateLine, loadRows, logit, readGz, rolling, score, sig, slopeFit, type CompRow, type Gate, type Row } from "./lib.js";
+import { gate, gateLine, loadRows, logit, readGz, rolling, score, sig, slopeFit, type CompRow, type Gate, type Row } from "./r35-lib.js";
 
 const args = process.argv.slice(2);
 const flag = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };

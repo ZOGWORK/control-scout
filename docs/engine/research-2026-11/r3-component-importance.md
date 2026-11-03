@@ -9,7 +9,7 @@
   - 2025–26: the Brier interval crosses zero, and accuracy drops 0.08 points, an interval entirely below zero.
 
 Files:
-- Scripts: `scripts/research/component-rows.ts`, `scripts/research/r3-component-importance.ts`, `scripts/research/lib.ts`.
+- Scripts: `scripts/research/component-rows.ts`, `scripts/research/r3-component-importance.ts`, `scripts/research/r35-lib.ts`.
 - Output: `r3-component-importance.json` (every number below, with the per-origin fits).
 
 ## Method note: feature importance in team-sport prediction

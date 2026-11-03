@@ -23,7 +23,7 @@
 import { writeFileSync } from "node:fs";
 import { FITTED_MODEL, contextualProbability, phi } from "@control-scout/predict-engine";
 import { contextualRaw, fitContextual } from "../part9/lib.js";
-import { DAY, gate, gateLine, loadRows, logit9, logit, rolling, rng, score, shuffled, sig, slopeFit, type Gate, type Phases, type Row } from "./lib.js";
+import { DAY, gate, gateLine, loadRows, logit9, logit, rolling, rng, score, shuffled, sig, slopeFit, type Gate, type Phases, type Row } from "./r35-lib.js";
 
 const args = process.argv.slice(2);
 const flag = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
