@@ -60,6 +60,9 @@ describe("what's read as a stat question", () => {
     expect(readStatQuestion("4215 worlds record 2024")).toMatchObject({ id: "record", core: "4215", scope: { championship: true, season: 2024 } });
     expect(readStatQuestion("4215 average score 2024")).toMatchObject({ id: "average-score", core: "4215", scope: { season: 2024 } });
     expect(readStatQuestion("2024 worlds record")).toMatchObject({ id: "record", core: "2024", scope: { championship: true, season: null } });
+    // "in <year>" is the season; a number after "team" stays the team.
+    expect(readStatQuestion("team 2024 worlds record in 2025")).toMatchObject({ id: "record", core: "2024", scope: { championship: true, season: 2025 } });
+    expect(readStatQuestion("2025 worlds record in 2024")).toMatchObject({ id: "record", core: "2025", scope: { season: 2024 } });
   });
   it("never drops a scope its answer can't apply: those are left to search", () => {
     for (const q of ["4215 seasons played at worlds", "4215 best season in playoffs", "4215 total events on red", "4215 best event finish in playoffs"]) expect(readStatQuestion(q), q).toBeNull();
