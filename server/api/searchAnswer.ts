@@ -108,6 +108,28 @@ const answer = (q: string, a: Partial<SearchAnswer> & Pick<SearchAnswer, "hits" 
 /** Only a site page's word ("contact", "rankings"): the page, named, never "matching contact". */
 const pageUnderstood = (q: string): SearchUnderstood => ({ kind: "names", label: `Pages: ${pagesFor(q).map((p) => p.title).join(", ")}` });
 
+/** "robo rebels nj", "bad wolf new jersey": a team name, then a place (its last one to three words). Null unless the
+ *  name alone is a team's whole name. The teams by that name in the place, or, when none is there, every team by
+ *  that name, saying the place has none. */
+async function namedInPlace(q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
+  const ws = q.trim().split(/\s+/);
+  for (let k = Math.min(3, ws.length - 1); k >= 1; k--) {
+    const region = regionOf(ws.slice(-k));
+    if (!region) continue;
+    const name = ws.slice(0, -k).join(" ");
+    const same = (await search(name, Math.max(limit, 25), prefer, new Set(["team"])))
+      .filter((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(name));
+    if (!same.length) return null;
+    const inPlace = (h: SearchHit) => new RegExp(`,\\s*${region.state},\\s*${region.country}$`, "i").test(h.subtitle) || (!region.state && h.subtitle.endsWith(region.country));
+    const there = same.filter(inPlace);
+    const label = there.length
+      ? `${there.length === 1 ? "The team" : `${there.length} teams`} named ${teamNameOf(same[0].title)} in ${region.name}`
+      : `No team named ${teamNameOf(same[0].title)} in ${region.name}: ${same.length === 1 ? "the one" : `all ${same.length}`} by that name`;
+    return answer(q, { hits: (there.length ? there : same).slice(0, limit), step: "deterministic", understood: { kind: "names", label } });
+  }
+  return null;
+}
+
 const recovery = (q: string, understood: string[], closest: SearchHit[] = []): SearchAnswer =>
   answer(q, { hits: [], step: "recovery", recovery: { understood, closest, browse: SEARCH_BROWSE } satisfies SearchRecovery });
 
@@ -252,6 +274,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const teams = (await search(q, limit, prefer)).filter((h) => h.kind === "team");
     return eventSetAnswer(q, { kinds: [], time: null, year: null, season: null, region, where: null, words: [] }, { now: opts.now, others: teams });
   }
+
+  // A team's whole name and then a place ("robo rebels nj", "bad wolf new jersey"): the teams by that name in that
+  // place, or plainly that none is there, with every team by the name.
+  const placed = opts.intents === false ? null : await namedInPlace(q, limit, prefer);
+  if (placed) return placed;
 
   // 1. A team number, alone or as "team 4215" / "team-4215" / "#4215".
   const num = /^(?:team)?[\s#-]*(\d{1,6})[.\s]*$/i.exec(q);
