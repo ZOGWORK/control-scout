@@ -54,7 +54,8 @@ let http: Server | null = null;
 // Live scout streams end first, so their connections don't hold the drain (clients reconnect to the next server).
 process.once("SIGTERM", () => { closeAllStreams(); closeInboxStreams(); closeProjectionStreams(); });
 // Queued inbox fan-outs (activity already written) finish before the process exits.
-drainOnSigterm(() => http, log, 10_000, inboxSettled);
+// On the way out, failed searches still in memory (settling or buffered) are written to the table too.
+drainOnSigterm(() => http, log, 10_000, () => Promise.all([inboxSettled(), flushSearchFailures(Date.now(), true).catch(() => 0)]));
 let ready = false;
 const app = createApp();
 const server = createServer(app, () => ({ ok: true, engine: ENGINE_VERSION, release: RELEASE, ready }), () => ready);

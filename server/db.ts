@@ -1850,7 +1850,8 @@ ALTER TABLE video_meta ADD COLUMN chapters TEXT;
 -- issue mapping. Query text only (redacted of emails, phone numbers and tokens) and how search read it: no IP,
 -- account, device or other link to a person. Rebuilt from GitHub's issue search (by hash) if lost.
 -- issue_state: open | dismissed (closed as not planned, or labelled dismissed). reported_count: the count the
--- issue body last showed. filing_at: a claim held while one server writes to GitHub.
+-- issue body last showed. filing_at: a claim held while one server writes to GitHub. regression_seen: reopened as a
+-- regression, its comment still to post (set until it's posted).
 CREATE TABLE search_failures (
   key TEXT PRIMARY KEY,
   hash TEXT NOT NULL,
@@ -1865,7 +1866,8 @@ CREATE TABLE search_failures (
   issue_number INTEGER,
   issue_state TEXT,
   reported_count INTEGER NOT NULL DEFAULT 0,
-  filing_at TEXT
+  filing_at TEXT,
+  regression_seen TEXT
 );
 CREATE INDEX search_failures_issue ON search_failures (issue_number);
 `,

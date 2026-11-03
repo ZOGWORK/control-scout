@@ -94,7 +94,9 @@ export function failureOf(q: string, a: SearchAnswer, given?: SearchTrace | null
   const intents = intentsIn(n);
   const intent = trace.ambiguous?.length ? trace.ambiguous.join(" / ") : intents[0] ?? null;
   const teamAndIntent = !!trace.team && trace.intents.length > 0;
-  const answered = !!a.card || !!a.stat;
+  // A page named outright ("privacy", "records") is an answer: its links, no hits, and no recovery.
+  const pageAnswer = a.hits.length === 0 && a.pages.length > 0 && a.step !== "recovery" && a.understood?.kind === "names";
+  const answered = !!a.card || !!a.stat || pageAnswer;
   const label = a.understood?.label ?? "";
   const type: FailureType | null =
     trace.ambiguous && trace.ambiguous.length > 1 ? "ambiguous"
@@ -109,10 +111,11 @@ export function failureOf(q: string, a: SearchAnswer, given?: SearchTrace | null
 
 // --- Normalization and redaction (brief §12.2, §12.3) -----------------------------------------------------------
 
-/** Layer 0: lowercase, punctuation that carries no meaning out, spaces collapsed, "#4215" → "4215". */
+/** Layer 0: lowercase, punctuation that carries no meaning out, spaces collapsed, "#4215" → "4215". Square brackets
+ *  stay: redaction's placeholders ("[email]") are in them. */
 export function normalizeQuery(q: string): string {
   return String(q ?? "").normalize("NFKC").toLowerCase()
-    .replace(/[!?,;"<>(){}[\]|\\^*`~=+]/g, " ")
+    .replace(/[!?,;"<>(){}|\\^*`~=+]/g, " ")
     .replace(/(^| )#(\d{1,5})(?= |$)/g, "$1$2")
     .replace(/\.+( |$)/g, "$1")
     .replace(/\s+/g, " ").trim().slice(0, 200);
@@ -143,10 +146,23 @@ export function redact(text: string): string {
     .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_\w{16,}|sk-[\w-]{16,}|xox[abpr]-[\w-]{10,}|AKIA[0-9A-Z]{16}|eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,})/g, "[token]")
     .replace(/\b(?=[\w-]*\d)(?=[\w-]*[a-z])[\w-]{24,}\b/gi, "[token]")
     .replace(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g, "[email]")
-    // A phone number: 10+ digits in a row, or 3-3-4 with separators ("201 555 0123", "(201) 555-0123", "+1 201...").
-    .replace(/(?:\+\d{1,3}[ .-]?)?(?:\(\d{3}\)|\b\d{3})[ .-]?\d{3}[ .-]\d{4}\b/g, "[phone]")
+    // A phone number: "+" and 8 or more digits in groups ("+44 20 7946 0958"), 3-3-4 with separators ("201 555 0123",
+    // "(201) 555-0123"), a trunk 0 and groups ("020 7946 0958"), or 10+ digits in a row. Team numbers (5 digits at
+    // most, never a leading 0 or "+") are kept: "4215 9999 12345" stays.
+    .replace(/\+\d[\d ().-]{6,}\d/g, (m) => (m.replace(/\D/g, "").length >= 8 ? "[phone]" : m))
+    .replace(/(?:\(\d{3}\)|\b\d{3})[ .-]?\d{3}[ .-]\d{4}\b/g, "[phone]")
+    .replace(/\b0\d{1,4}[ .-]\d{3,4}[ .-]\d{3,4}\b/g, "[phone]")
     .replace(/\b\d{10,}\b/g, "[phone]");
 }
+
+/** Every string in a trace, redacted (a scope token can be words the visitor typed). */
+const redactTrace = (t: SearchTrace): SearchTrace => ({
+  ...t,
+  team: t.team == null ? null : redact(t.team),
+  intents: t.intents.map(redact), scope: t.scope.map(redact), filler: t.filler.map(redact), layers: t.layers.map(redact),
+  won: t.won == null ? null : redact(t.won),
+  ...(t.ambiguous ? { ambiguous: t.ambiguous.map(redact) } : {}),
+});
 
 /** Nothing left to log once personal data is out (only placeholders): the query is skipped and counted. */
 const onlyRedacted = (t: string) => !t.replace(/\[(?:token|email|phone)\]/g, "").replace(/[^a-z0-9]/gi, "");
@@ -176,7 +192,9 @@ const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
 export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now()): void {
   try {
     settle(now);
-    const n = normalizeQuery(q);
+    // Personal data out of the query as typed, before it's normalized (lowercasing or splitting "+" could break a pattern).
+    const safe = redact(String(q).trim().slice(0, 200));
+    const n = normalizeQuery(safe);
     if (!n) return;
     const was = pending.get(client);
     // The same visitor's next query supersedes one it extends or trims (typing, a retry): only the last one counts.
@@ -184,16 +202,17 @@ export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: S
     if (pending.size >= SETTLE_MAX && !pending.has(client)) { counters.dropped++; return; }
     // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
     pending.delete(client);
-    pending.set(client, { q, key: reportKey(q), failure: failureOf(q, a, trace), label: a.understood?.label ?? "", at: now });
+    const failure = failureOf(q, a, trace);
+    pending.set(client, { q: safe, key: reportKey(safe), failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
   } catch {
     // Reporting never breaks search.
   }
 }
 
 /** Moves every query that waited SETTLE_MS into the buffer (failures only). */
-export function settle(now = Date.now()): void {
+export function settle(now = Date.now(), everything = false): void {
   for (const [client, p] of pending) {
-    if (now - p.at < SETTLE_MS) break;
+    if (!everything && now - p.at < SETTLE_MS) break;
     commit(client, p);
   }
 }
@@ -201,18 +220,17 @@ export function settle(now = Date.now()): void {
 function commit(client: string, p: Pending) {
   pending.delete(client);
   if (!p.failure) return;
-  const q = redact(p.q.trim().slice(0, 200));
-  const key = redact(p.key);
+  const { q, key } = p;
   if (onlyRedacted(key)) { counters.skipped++; return; }
   if (!takeReportSlot(`fs:${client}`, PER_IP_HOUR, p.at).ok) { counters.limited++; return; }
   const b = buffer.get(key);
   if (b) {
-    b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = redact(p.label);
+    b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;
     if (!b.examples.includes(q)) b.examples = [q, ...b.examples].slice(0, EXAMPLES_MAX);
     return;
   }
   if (buffer.size >= BUFFER_MAX) { counters.dropped++; return; }
-  buffer.set(key, { key, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: redact(p.label) });
+  buffer.set(key, { key, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label });
 }
 
 /** Tests: forget what's waiting and buffered. */
@@ -226,15 +244,40 @@ interface Row {
   key: string; hash: string; result_type: FailureType; intent: string | null; reading: string; label: string; examples: string;
   count: number; first_seen: string; last_seen: string;
   issue_number: number | null; issue_state: string | null; reported_count: number; filing_at: string | null;
+  /** Reopened as a regression (the failure's last seen): its comment is still to be posted. */
+  regression_seen: string | null;
 }
-const COLUMNS = "key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, issue_number, issue_state, reported_count, filing_at";
+const COLUMNS = "key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, issue_number, issue_state, reported_count, filing_at, regression_seen";
 
-/** Writes the buffer to search_failures in one batch (every FLUSH_MS). Settles first. */
-export async function flushSearchFailures(now = Date.now()): Promise<number> {
-  settle(now);
+/** Puts a batch that couldn't be written back in the buffer, merged with what arrived meanwhile (still bounded). */
+function restore(items: Buffered[]) {
+  for (const it of items) {
+    const b = buffer.get(it.key);
+    if (b) {
+      b.count += it.count; b.first = Math.min(b.first, it.first);
+      b.examples = [...b.examples, ...it.examples.filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
+    } else if (buffer.size < BUFFER_MAX) buffer.set(it.key, it);
+    else counters.dropped += it.count;
+  }
+}
+
+/** Writes the buffer to search_failures in one batch (every minute; and on shutdown, `everything` still settling too).
+ *  A failed write keeps the batch for the next flush. */
+export async function flushSearchFailures(now = Date.now(), everything = false): Promise<number> {
+  settle(now, everything);
   const items = [...buffer.values()];
   buffer.clear();
   if (!items.length) return 0;
+  try {
+    await writeBatch(items);
+  } catch (e) {
+    restore(items);
+    throw e;
+  }
+  return items.length;
+}
+
+async function writeBatch(items: Buffered[]) {
   const rows = await all<{ key: string; examples: string }>(`SELECT key, examples FROM search_failures WHERE key IN (${items.map(() => "?").join(",")})`, items.map((b) => b.key));
   const had = new Map(rows.map((r) => [r.key, JSON.parse(r.examples) as string[]]));
   await db().batch(items.map((b) => {
@@ -248,7 +291,6 @@ export async function flushSearchFailures(now = Date.now()): Promise<number> {
       args: [b.key, keyHash(b.key), b.failure.type, b.failure.intent, reading, b.label, JSON.stringify(examples), b.count, new Date(b.first).toISOString(), new Date(b.last).toISOString()],
     };
   }), "write");
-  return items.length;
 }
 
 // --- GitHub issues --------------------------------------------------------------------------------------------
@@ -321,7 +363,7 @@ export function failureBody(r: Row): string {
   ].join("\n");
 }
 
-type Issue = { number: number; state: string; state_reason?: string | null; labels?: (string | { name?: string })[] };
+type Issue = { number: number; state: string; state_reason?: string | null; closed_at?: string | null; labels?: (string | { name?: string })[] };
 
 let pausedUntil = 0;
 const pauseFor = (e: unknown) => { if (e instanceof GithubError && e.retryAt) pausedUntil = Math.max(pausedUntil, e.retryAt); };
@@ -337,23 +379,30 @@ async function findIssue(token: string, hash: string): Promise<Issue | null> {
   return (found.items ?? []).find((i) => (i.body ?? "").includes(hash)) ?? null;
 }
 
-export type SyncOutcome = "no-token" | "paused" | "claimed-elsewhere" | "opened" | "capped" | "adopted" | "updated" | "reopened" | "dismissed" | "up-to-date";
+export type SyncOutcome = "no-token" | "paused" | "off" | "claimed-elsewhere" | "opened" | "capped" | "adopted" | "updated" | "reopened" | "closed" | "dismissed" | "up-to-date";
 
-/** Brings one key's issue up to date: opens it, or updates its body (reopening it if it was closed as fixed). */
-export async function syncOne(key: string, now = new Date()): Promise<{ outcome: SyncOutcome; writes: number }> {
+/** GitHub writes one sync may still send. Each write is charged before it's sent, so one that fails (or whose answer
+ *  is lost) counts too. */
+export interface Budget { left: number }
+
+/** Brings one key's issue up to date: opens it, or updates its body (reopening it if it was closed as fixed and has
+ *  failed since). `budget`: the sync's writes (one at most, by default). */
+export async function syncOne(key: string, now = new Date(), budget: Budget = { left: 3 }): Promise<SyncOutcome> {
   const token = env.githubReportToken;
-  if (!token) return { outcome: "no-token", writes: 0 };
-  if (Date.now() < pausedUntil) return { outcome: "paused", writes: 0 };
+  if (!token) return "no-token";
+  if (Date.now() < pausedUntil) return "paused";
   const at = now.toISOString();
   const stale = new Date(now.getTime() - CLAIM_STALE_MS).toISOString();
-  if (!(await run("UPDATE search_failures SET filing_at = ? WHERE key = ? AND (filing_at IS NULL OR filing_at < ?)", [at, key, stale]))) return { outcome: "claimed-elsewhere", writes: 0 };
+  if (!(await run("UPDATE search_failures SET filing_at = ? WHERE key = ? AND (filing_at IS NULL OR filing_at < ?)", [at, key, stale]))) return "claimed-elsewhere";
   const release = () => run("UPDATE search_failures SET filing_at = NULL WHERE key = ? AND filing_at = ?", [key, at]);
-  let writes = 0;
+  let sent = 0;
+  /** One GitHub write: charged to the budget, and counted as sent, before it goes. */
+  const write = <T>(method: "POST" | "PATCH", path: string, body: unknown) => { budget.left--; sent++; return gh<T>(token, method, path, body); };
   try {
     const row = (await get<Row>(`SELECT ${COLUMNS} FROM search_failures WHERE key = ?`, [key]))!;
     const count = Number(row.count);
     // Over the day's cap: not even a search on GitHub until tomorrow.
-    if (row.issue_number == null && capped(at)) { await release(); return { outcome: "capped", writes }; }
+    if (row.issue_number == null && capped(at)) { await release(); return "capped"; }
     let issue: Issue | null = null;
     if (row.issue_number != null) {
       try { issue = await gh<Issue>(token, "GET", `/issues/${row.issue_number}`); } catch (e) { if (!(e instanceof GithubError && (e.status === 404 || e.status === 410))) throw e; }
@@ -362,55 +411,65 @@ export async function syncOne(key: string, now = new Date()): Promise<{ outcome:
     const adopted = !issue ? await findIssue(token, row.hash) : null;
     issue ??= adopted;
     if (!issue) {
-      if (capped(at)) { await release(); return { outcome: "capped", writes }; }
+      if (capped(at)) { await release(); return "capped"; }
       opened.n++;
-      const made = await gh<Issue>(token, "POST", "/issues", { title: failureTitle(row.key), body: failureBody({ ...row, issue_number: null }), labels: labelsFor(row) });
-      writes++;
+      const made = await write<Issue>("POST", "/issues", { title: failureTitle(row.key), body: failureBody({ ...row, issue_number: null }), labels: labelsFor(row) });
       // The body's re-check link needs the number: one more write, only at creation.
-      await gh(token, "PATCH", `/issues/${made.number}`, { body: failureBody({ ...row, issue_number: made.number }) });
-      writes++;
+      await write("PATCH", `/issues/${made.number}`, { body: failureBody({ ...row, issue_number: made.number }) });
       await run("UPDATE search_failures SET issue_number = ?, issue_state = 'open', reported_count = ?, filing_at = NULL WHERE key = ?", [made.number, count, key]);
-      return { outcome: "opened", writes };
+      return "opened";
     }
     if (dismissed(issue)) {
-      await run("UPDATE search_failures SET issue_number = ?, issue_state = 'dismissed', reported_count = ?, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
-      return { outcome: "dismissed", writes };
+      await run("UPDATE search_failures SET issue_number = ?, issue_state = 'dismissed', reported_count = ?, regression_seen = NULL, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
+      return "dismissed";
     }
-    const reopen = issue.state === "closed";
-    if (!reopen && count <= Number(row.reported_count) && !adopted) { await release(); return { outcome: "up-to-date", writes }; }
-    await gh(token, "PATCH", `/issues/${issue.number}`, { body: failureBody({ ...row, issue_number: issue.number }), ...(reopen ? { state: "open" } : {}) });
-    writes++;
-    if (reopen) {
-      await gh(token, "POST", `/issues/${issue.number}/comments`, { body: `Regression: this query failed again after the issue was closed (last seen ${row.last_seen}, result type ${row.result_type}, ${count} times in total). Reopened; nothing else changed.` });
-      writes++;
+    if (issue.state === "closed") {
+      // Closed as fixed: a regression only if the query failed after the owner closed it. Failures from before (still
+      // waiting to be sent when it was closed) are counted, and the issue is left as the owner left it.
+      if (!(issue.closed_at && row.last_seen > issue.closed_at)) {
+        await run("UPDATE search_failures SET issue_number = ?, issue_state = 'closed', reported_count = ?, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
+        return "closed";
+      }
+      await write("PATCH", `/issues/${issue.number}`, { body: failureBody({ ...row, issue_number: issue.number }), state: "open" });
+      // Reopened: the comment saying why is owed until it's posted (a refused one is tried again next sync).
+      await run("UPDATE search_failures SET issue_number = ?, issue_state = 'open', reported_count = ?, regression_seen = ? WHERE key = ?", [issue.number, count, row.last_seen, key]);
+      row.regression_seen = row.last_seen;
+    } else if (count > Number(row.reported_count) || adopted) {
+      await write("PATCH", `/issues/${issue.number}`, { body: failureBody({ ...row, issue_number: issue.number }) });
     }
-    await run("UPDATE search_failures SET issue_number = ?, issue_state = 'open', reported_count = ?, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
-    return { outcome: reopen ? "reopened" : adopted ? "adopted" : "updated", writes };
+    if (row.regression_seen) {
+      await write("POST", `/issues/${issue.number}/comments`, { body: `Regression: this query failed again after the issue was closed (last seen ${row.regression_seen}, result type ${row.result_type}, ${count} times in total). Reopened; nothing else changed.` });
+    }
+    if (!sent) { await release(); return "up-to-date"; }
+    await run("UPDATE search_failures SET issue_number = ?, issue_state = 'open', reported_count = ?, regression_seen = NULL, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
+    return row.regression_seen ? "reopened" : adopted ? "adopted" : "updated";
   } catch (e) {
     pauseFor(e);
-    // Refused (or nothing written yet): free the claim. Unknown outcome: keep it until it goes stale, by when
-    // GitHub's search has the issue that may have been made, and the next try adopts it.
-    if (refused(e) || writes === 0) await release();
+    // Refused, or nothing sent yet: free the claim. Sent with no answer (a timeout, a 5xx): keep it until it goes
+    // stale, by when GitHub's search has any issue that was made, and the next try adopts it.
+    if (refused(e) || sent === 0) await release();
     throw e;
   }
 }
 
-/** One background sync: every key whose issue is missing or behind, oldest change first, SYNC_WRITES writes at most. */
+/** One background sync: every key whose issue is missing or behind, issues already filed first, then the
+ *  most-repeated failures; SYNC_WRITES writes at most, failed ones included. Stops when the switch goes off. */
 export async function syncSearchFailures(now = new Date()): Promise<{ synced: number; writes: number }> {
-  if (!env.githubReportToken || Date.now() < pausedUntil) return { synced: 0, writes: 0 };
+  if (!env.githubReportToken || Date.now() < pausedUntil || !(await reportingOn())) return { synced: 0, writes: 0 };
   const due = await all<{ key: string }>(
-    // Issues already filed first (their bodies), then the most-repeated failures.
-    "SELECT key FROM search_failures WHERE (issue_number IS NULL OR count > reported_count) AND COALESCE(issue_state, '') <> 'dismissed' ORDER BY issue_number IS NULL, count DESC, last_seen LIMIT ?",
+    `SELECT key FROM search_failures WHERE (issue_number IS NULL OR count > reported_count OR regression_seen IS NOT NULL)
+      AND COALESCE(issue_state, '') <> 'dismissed' ORDER BY issue_number IS NULL, count DESC, last_seen LIMIT ?`,
     [SYNC_WRITES],
   );
-  let writes = 0, synced = 0;
+  const budget: Budget = { left: SYNC_WRITES };
+  let synced = 0;
   for (const { key } of due) {
-    if (writes + 3 > SYNC_WRITES) break;
+    // A row can take 3 writes (reopen, comment; or create, number): never start one that could pass the cap.
+    if (budget.left < 3 || !(await reportingOn())) break;
     try {
-      const r = await syncOne(key, now);
-      writes += r.writes;
-      if (r.outcome === "paused") break;
-      if (r.outcome === "capped") continue;
+      const r = await syncOne(key, now, budget);
+      if (r === "paused") break;
+      if (r === "capped") continue;
       synced++;
     } catch (e) {
       counters.unfiled++;
@@ -418,7 +477,7 @@ export async function syncSearchFailures(now = new Date()): Promise<{ synced: nu
       if (Date.now() < pausedUntil) break;
     }
   }
-  return { synced, writes };
+  return { synced, writes: SYNC_WRITES - budget.left };
 }
 
 /** The background job: buffer to table every minute (with the metrics flush), table to GitHub every SYNC_MS. */
@@ -475,6 +534,7 @@ export function searchFailuresRouter(answer: (q: string) => Promise<SearchAnswer
     (async () => {
       const n = number(req);
       if (n == null || !(await ownerOf(req))) { res.status(404).json({ error: "Not found" }); return; }
+      if (!(await reportingOn())) { res.status(409).type("html").send(page("Re-check failed search", "<p>Failed-search reports are switched off (owner console, kill switches).</p>")); return; }
       // Same-site form posts only: the Origin a browser sends must be this site's.
       const origin = req.get("origin");
       if (!origin || new URL(origin).host !== req.get("host")) { res.status(403).json({ error: "Cross-site request" }); return; }

@@ -25,7 +25,8 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
      `intent:phase`, `intent:count`, `intent:meaning`, `intent:versus`, `intent:school`
    - `dismissed` and `in-progress`. These two are for you to set by hand. Automation never sets them.
 3. **Kill switch.** Turn off **Failed-search reports** in the owner console's Features tab (kill switches) to
-   stop logging. Issues already filed stay.
+   stop it all: no counting, no GitHub writes (a sync running stops before its next issue), no re-checks. Issues
+   already filed stay as they are.
 
 ## What counts as failed
 
@@ -38,8 +39,8 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
 | `weak` | Search flagged its result as a guess, for a query with a team and an intent word |
 | `ambiguous` | Two intents matched equally (reported by the layered reader) |
 
-Any answer counts as a success: a card, a stat answer, a leaderboard, or a team page asked for by name. Only the
-outcome counts, never the phrasing.
+Any answer counts as a success: a card, a stat answer, a leaderboard, a team page asked for by name, or a page named
+outright ("privacy", "records"). Only the outcome counts, never the phrasing.
 
 The intent words are the minimum sets of the redundancy brief's section 6 (`INTENT_WORDS`). Until the layered reader
 reports how it reached an answer (`SearchTrace`), the reading is taken from the answer itself (`readTrace`).
@@ -66,7 +67,9 @@ reports how it reached an answer (`SearchTrace`), the reading is taken from the 
 - **Settle (8 s).** A query waits 8 s for the same visitor's next one. A query that the next one extends or trims is
   dropped, so the dropdown's half-typed queries ("4215 o") and a retry of the same query count once.
 - **Buffer.** At most 500 distinct queries between flushes. More are dropped and counted (`counters.dropped`).
-- **Flush, every minute.** The buffer is written to `search_failures` in one batch.
+- **Flush, every minute.** The buffer is written to `search_failures` in one batch. A batch that can't be written
+  goes back in the buffer for the next flush. On shutdown (a deploy), everything still in memory, settling
+  or buffered, is written before the server exits.
 - **Sync, every 10 minutes.** At most 20 GitHub writes per sync (create plus number, body update, reopen plus
   comment). The worst case is 120 writes an hour. Write volume grows with distinct failing queries, never with
   searches.
@@ -80,12 +83,13 @@ reports how it reached an answer (`SearchTrace`), the reading is taken from the 
 ## Privacy (the repository is public)
 
 An issue holds query text and the outcome only: no IP address, account, device or anything else that links it to a
-person. Before anything is stored:
+person. Before anything is stored, on the query as typed (before it's lowercased) and on every part of the reading:
 
 - Tokens become `[token]`: GitHub, `sk-`, Slack, AWS, JWT, or any run of 24+ letters and digits.
 - Emails become `[email]`.
-- Phone numbers become `[phone]` (10+ digits, or 3-3-4 digits with separators). Team numbers (5 digits at most)
-  are kept.
+- Phone numbers become `[phone]`: "+" and 8+ digits in groups (`+44 20 7946 0958`), 3-3-4 digits with
+  separators, a trunk 0 and groups (`020 7946 0958`), or 10+ digits in a row. Team numbers (5 digits at most,
+  never a leading 0 or "+") are kept.
 - A query left with nothing but placeholders is skipped and counted (`counters.skipped`).
 
 ## Owner workflow
@@ -98,8 +102,10 @@ person. Before anything is stored:
    direct answer" or "still fails". It **never closes** the issue. A failed re-check also adds one to the count.
 4. **Close by hand** after checking live: as completed when fixed, as not planned (or label `dismissed`) when it's
    gibberish or not worth fixing.
-5. **Regression.** A query closed as completed that fails again reopens the same issue, with a comment. One closed
-   as not planned, or labelled `dismissed`, stays closed (its count still goes up in the table).
+5. **Regression.** A query closed as completed that fails again **after it was closed** reopens the same issue, with
+   a comment (a comment GitHub refuses is posted on the next sync). Failures from before the close, still waiting to
+   be sent, don't reopen it. One closed as not planned, or labelled `dismissed`, stays closed (its count still goes
+   up in the table).
 
 ## Every automated GitHub action
 

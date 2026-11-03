@@ -9,6 +9,7 @@ import { createApp } from "./app";
 import { sha256 } from "./auth/session";
 import { rebuildSearch } from "./stats/job";
 import { resetReportLimits, setGithubFetch } from "./errorReports";
+import { setFlag } from "./flags";
 import {
   counters, failureBody, failureOf, failureTitle, flushSearchFailures, githubPausedUntil, keyHash, noteSearch, recheck, redact, reportKey,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace,
@@ -23,11 +24,14 @@ const TOKEN = "github_pat_TEST_ONLY_not_a_real_token_abc123";
 type Call = { method: string; path: string; body: any };
 let calls: Call[] = [];
 let nextIssue = 500;
-type FakeIssue = { state: string; state_reason?: string | null; body?: string; title?: string; labels?: string[] };
+type FakeIssue = { state: string; state_reason?: string | null; closed_at?: string | null; body?: string; title?: string; labels?: string[] };
 let issues: Record<number, FakeIssue> = {};
 let failGithub: number | null = null;
 let throwGithub = false;
 let headers: Record<string, string> = {};
+/** Per write kind: how many more to answer with this status (the write is still done when it's 502: a lost reply). */
+let failNext: { create?: [number, number]; patch?: [number, number]; comment?: [number, number] } = {};
+const failing = (k: keyof typeof failNext) => { const x = failNext[k]; if (!x || x[1] <= 0) return null; x[1]--; return x[0]; };
 
 const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
   const u = new URL(String(url));
@@ -43,14 +47,18 @@ const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
     return Response.json({ items: Object.entries(issues).filter(([, s]) => s.body?.includes(h)).map(([n, s]) => ({ number: +n, ...s })) });
   }
   if (method === "POST" && path === "/issues") {
+    const st = failing("create");
+    if (st && st !== 502) return new Response("{}", { status: st });
     const n = nextIssue++;
     issues[n] = { state: "open", body: body.body, title: body.title, labels: body.labels };
-    return Response.json({ number: n }, { status: 201 });
+    return st ? new Response("{}", { status: st }) : Response.json({ number: n }, { status: 201 });
   }
   const m = /^\/issues\/(\d+)(\/comments)?$/.exec(path);
   const i = m ? issues[+m[1]] : undefined;
   if (m && !i) return new Response("{}", { status: 404 });
   if (m && !m[2] && method === "GET") return Response.json({ number: +m[1], ...i });
+  if (m && !m[2] && method === "PATCH" && failing("patch")) return new Response("{}", { status: 500 });
+  if (m && m[2] && method === "POST" && failing("comment")) return new Response("{}", { status: 422 });
   if (m && !m[2] && method === "PATCH") { Object.assign(i!, body, body.state === "open" ? { state_reason: null } : {}); return Response.json({ number: +m[1], ...i }); }
   if (m && m[2] && method === "POST") return Response.json({ id: 1 }, { status: 201 });
   return new Response("{}", { status: 404 });
@@ -77,7 +85,8 @@ afterAll(() => {
 beforeEach(async () => {
   process.env.GITHUB_REPORT_TOKEN = TOKEN;
   delete process.env.OWNER_EMAILS;
-  calls = []; nextIssue = 500; issues = {}; failGithub = null; throwGithub = false; headers = {};
+  calls = []; nextIssue = 500; issues = {}; failGithub = null; throwGithub = false; headers = {}; failNext = {};
+  await setFlag("failedSearchReports", true, "test");
   resetSearchFailures();
   resetReportLimits();
   await run("DELETE FROM search_failures");
@@ -126,6 +135,10 @@ describe("what counts as a failed search (§12.1)", () => {
     expect(failureOf("where is 4215 from", answered("where is 4215 from"))).toBeNull();
     expect(failureOf("4215", { ...base0, hits: [team], understood: { kind: "team", label: "Hypnotic Robotics (4215)" } })).toBeNull();
     expect(failureOf("4215 zzz", fallback("4215 zzz", "zzz"))).toBeNull();
+    // A page named outright is an answer (Greptile on #478): "privacy", "records".
+    expect(failureOf("privacy", { ...base0, pages: [{ title: "Privacy", href: "/privacy" }], understood: { kind: "names", label: "Pages" } })).toBeNull();
+    // A no-match's own browse links are not.
+    expect(failureOf("xyzzyq", { ...noMatch("xyzzyq"), pages: [{ title: "Teams", href: "/teams" }] })?.type).toBe("no-match");
   });
 });
 
@@ -149,6 +162,29 @@ describe("normalizing, aggregating and redacting (§12.2, §12.3)", () => {
     expect(redact("ghp_abcdefghijklmnopqrstuvwxyz0123")).toBe("[token]");
     expect(redact("4215 vs 23268 vs 9999")).toBe("4215 vs 23268 vs 9999");
     expect(redact("4215 9999 12345")).toBe("4215 9999 12345");
+    // International and trunk-0 numbers (Greptile on #478).
+    expect(redact("call +44 20 7946 0958")).toBe("call [phone]");
+    expect(redact("+1 (201) 555-0123")).toBe("[phone]");
+    expect(redact("020 7946 0958")).toBe("[phone]");
+    expect(redact("4215 +5 points")).toBe("4215 +5 points");
+  });
+  it("redacts the query as typed, before it's normalized (Greptile on #478)", async () => {
+    searched("4215 school jane+doe@example.com", fallback("x", "school"));
+    searched("4215 opr AKIAABCDEFGHIJKLMNOP", fallback("x", "opr"));
+    await flushSearchFailures(clock);
+    const all_ = JSON.stringify(await rows());
+    expect(all_).not.toMatch(/jane|doe@|AKIA|akia/);
+    expect((await rows()).map((r) => r.key).sort()).toEqual(["4215 opr [token]", "4215 school [email]"]);
+  });
+  it("redacts every string in the reading, not only the query (Greptile on #478)", async () => {
+    const trace: SearchTrace = { layers: ["0"], won: null, team: null, intents: ["meets"], scope: ["jane@example.com", "+44 20 7946 0958"], filler: [] };
+    searched("meets at jane@example.com", { ...base0, understood: { kind: "events", label: "Meets at jane@example.com", where: "jane@example.com" } }, undefined, trace);
+    searched("scrimmages at bob@example.com", { ...base0, understood: { kind: "events", label: "Scrimmages at bob@example.com", where: "bob@example.com" } });
+    await flushSearchFailures(clock);
+    await syncSearchFailures();
+    const sent = JSON.stringify([await rows(), writes().map((c) => c.body)]);
+    expect(sent).not.toMatch(/jane@|bob@|7946/);
+    expect(sent).toContain("[email]");
   });
 });
 
@@ -286,8 +322,8 @@ describe("GitHub issues (cases 23–30)", () => {
     expect(Object.keys(issues)).toHaveLength(3);
     // The owner closes one as fixed and dismisses another.
     const n = (k: string) => Number(Object.entries(issues).find(([, i]) => i.title === `Failed search: ${k}`)![0]);
-    Object.assign(issues[n("4215 opr")], { state: "closed", state_reason: "completed" });
-    Object.assign(issues[n("qqqq zzzz")], { state: "closed", state_reason: "not_planned" });
+    Object.assign(issues[n("4215 opr")], { state: "closed", state_reason: "completed", closed_at: new Date(clock).toISOString() });
+    Object.assign(issues[n("qqqq zzzz")], { state: "closed", state_reason: "not_planned", closed_at: new Date(clock).toISOString() });
     for (const q of ["xyzzyq", "qqqq zzzz", "4215 opr rn"]) searched(q, q.startsWith("4215") ? fallback(q, "opr rn") : noMatch(q));
     await flushSearchFailures(clock);
     calls = [];
@@ -304,6 +340,77 @@ describe("GitHub issues (cases 23–30)", () => {
 });
 
 describe("never a duplicate, never hammering GitHub (§12.3, §12.6)", () => {
+  it("a create whose reply is lost keeps its claim, and the next try adopts the issue (Greptile on #478)", async () => {
+    searched("xyzzyq", noMatch("xyzzyq"));
+    await flushSearchFailures(clock);
+    failNext.create = [502, 1];
+    await expect(syncOne("xyzzyq")).rejects.toThrow();
+    // Another server (or the next sync) can't take it while the claim holds: no second issue.
+    expect(await syncOne("xyzzyq")).toBe("claimed-elsewhere");
+    expect(Object.keys(issues)).toHaveLength(1);
+    // Once the claim is stale, GitHub's search finds the issue and it's adopted.
+    await run("UPDATE search_failures SET filing_at = '2000-01-01T00:00:00.000Z'");
+    expect(await syncOne("xyzzyq")).toBe("adopted");
+    expect(calls.filter((c) => c.method === "POST" && c.path === "/issues")).toHaveLength(1);
+    expect((await rows())[0].issue_number).toBe(500);
+  });
+  it("writes that fail still count against the sync's cap (Greptile on #478)", async () => {
+    for (let i = 0; i < 30; i++) searched(`nothing here ${i}`, noMatch("x"), `203.0.113.${i}`);
+    await flushSearchFailures(clock);
+    failNext.patch = [500, 100];
+    await syncSearchFailures();
+    expect(writes().length).toBeLessThanOrEqual(20);
+  });
+  it("a reopen whose comment was refused posts it on the next sync (Greptile on #478)", async () => {
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    await flushSearchFailures(clock);
+    await syncSearchFailures();
+    Object.assign(issues[500], { state: "closed", state_reason: "completed", closed_at: new Date(clock).toISOString() });
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    await flushSearchFailures(clock);
+    failNext.comment = [422, 1];
+    calls = [];
+    await syncSearchFailures();
+    expect(issues[500].state).toBe("open");
+    calls = [];
+    await syncSearchFailures();
+    expect(writes()).toEqual([expect.objectContaining({ method: "POST", path: "/issues/500/comments" })]);
+    expect(writes()[0].body.body).toContain("Regression");
+    calls = [];
+    await syncSearchFailures();
+    expect(writes()).toHaveLength(0);
+  });
+  it("failures from before the owner closed an issue don't reopen it (Greptile on #478)", async () => {
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    await flushSearchFailures(clock);
+    await syncSearchFailures();
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    await flushSearchFailures(clock);
+    // Closed after that failure, before the sync sent it.
+    Object.assign(issues[500], { state: "closed", state_reason: "completed", closed_at: new Date(clock + 60_000).toISOString() });
+    calls = [];
+    await syncSearchFailures();
+    expect(writes()).toHaveLength(0);
+    expect(issues[500].state).toBe("closed");
+    expect((await rows())[0]).toMatchObject({ count: 2, reported_count: 2 });
+  });
+  it("the kill switch stops the background sync too (Greptile on #478)", async () => {
+    searched("xyzzyq", noMatch("xyzzyq"));
+    await flushSearchFailures(clock);
+    await setFlag("failedSearchReports", false, "test");
+    expect(await syncSearchFailures()).toEqual({ synced: 0, writes: 0 });
+    expect(calls).toHaveLength(0);
+  });
+  it("a failed flush keeps its counts for the next one, and shutdown writes what's still settling (Greptile on #478)", async () => {
+    searched("xyzzyq", noMatch("xyzzyq"));
+    await run("ALTER TABLE search_failures RENAME TO search_failures_away");
+    await expect(flushSearchFailures(clock)).rejects.toThrow();
+    await run("ALTER TABLE search_failures_away RENAME TO search_failures");
+    searched("xyzzyq", noMatch("xyzzyq"));
+    clock += 1000; noteSearch("qqqq zzzz", noMatch("qqqq zzzz"), "203.0.113.250", null, clock); // still settling
+    await flushSearchFailures(clock, true);
+    expect((await rows()).map((r) => [r.key, r.count])).toEqual([["qqqq zzzz", 1], ["xyzzyq", 2]]);
+  });
   it("a lost table finds the issue on GitHub by its key instead of opening another", async () => {
     searched("xyzzyq", noMatch("xyzzyq"));
     await flushSearchFailures(clock);
@@ -312,7 +419,7 @@ describe("never a duplicate, never hammering GitHub (§12.3, §12.6)", () => {
     searched("xyzzyq", noMatch("xyzzyq"));
     await flushSearchFailures(clock);
     calls = [];
-    expect((await syncOne("xyzzyq")).outcome).toBe("adopted");
+    expect(await syncOne("xyzzyq")).toBe("adopted");
     expect(calls.filter((c) => c.method === "POST" && c.path === "/issues")).toHaveLength(0);
     expect((await rows())[0].issue_number).toBe(500);
   });
@@ -351,7 +458,7 @@ describe("never a duplicate, never hammering GitHub (§12.3, §12.6)", () => {
     expect(failureTitle(long)).toHaveLength("Failed search: ".length + 80);
     expect(failureTitle(long).endsWith("…")).toBe(true);
     expect(failureTitle("@octocat #12")).not.toMatch(/@octocat|#12/);
-    const body = failureBody({ key: long, hash: "h", result_type: "no-match", intent: null, reading: JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), label: "", examples: JSON.stringify([long]), count: 1, first_seen: "a", last_seen: "b", issue_number: 1, issue_state: "open", reported_count: 0, filing_at: null });
+    const body = failureBody({ key: long, hash: "h", result_type: "no-match", intent: null, reading: JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), label: "", examples: JSON.stringify([long]), count: 1, first_seen: "a", last_seen: "b", issue_number: 1, issue_state: "open", reported_count: 0, filing_at: null, regression_seen: null });
     expect(body).toContain(long);
   });
 });
