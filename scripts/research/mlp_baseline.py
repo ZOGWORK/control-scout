@@ -16,7 +16,7 @@ Run (Python 3.14, scripts/research/requirements.txt in a venv):
   About four hours on 16 cores: the paper's 4 x 50 tanh net takes about 11 minutes per fit.
 
 Steps: (1) the grid's small nets on the tuning season (2024-25) only, seed 0; (2) the paper's exact
-config, every seed on the paper features and seed 0 on the other variants (seed 0 also enters the grid);
+config, 3 seeds on the paper features and seed 0 on engine-ratings (seed 0 also enters the grid);
 (3) each variant's grid pick (lowest 2024-25 Brier) on every seed, both seasons. Each run fits a
 classifier (win) and a regressor (margin) per origin. Seeds fix sklearn's initialisation and batch order.
 
@@ -301,7 +301,9 @@ def main():
     ap.add_argument("--engine-rows", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 2) - 1))
-    ap.add_argument("--seeds", type=int, default=5)
+    ap.add_argument("--seeds", type=int, default=5, help="seeds for each grid pick")
+    ap.add_argument("--paper-seeds", type=int, default=3, help="seeds for the paper's config on the paper features")
+    ap.add_argument("--paper-config-variants", default="paper,engine-ratings", help="variants the (slow) paper config runs on")
     ap.add_argument("--variants", default=",".join(VARIANTS))
     args = ap.parse_args()
     t0 = time.time()
@@ -361,9 +363,10 @@ def main():
             print(f"grid {v} {cfg_name(cfg)}: Brier 2024-25 {b:.5f} ({time.time() - t0:.0f}s)", flush=True)
     save()
 
-    # 2) The paper's config (5 seeds on the paper features; seed 0 on the other variants: about 11 minutes a fit).
-    for v in variants:
-        rs = full(v, {}, seeds if v == "paper" else [0], f"{v}/paper-config")
+    # 2) The paper's exact config: --paper-seeds seeds on the paper features, seed 0 on the other listed
+    #    variants (about 11 minutes a fit, two fits per origin; the compute budget, not a choice by result).
+    for v in [x for x in variants if x in args.paper_config_variants.split(",")]:
+        rs = full(v, {}, list(range(args.paper_seeds)) if v == "paper" else [0], f"{v}/paper-config")
         result["grid"][v][cfg_name({})] = {"brier2024": rs["0"]["seasons"]["2024-25 (tuning)"]["mlp"]["brier"], "n": rs["0"]["seasons"]["2024-25 (tuning)"]["mlp"]["n"]}
         save()
 
@@ -372,9 +375,8 @@ def main():
         name, _ = min(result["grid"][v].items(), key=lambda kv: kv[1]["brier2024"])
         result["chosen"][v] = name
         if name == cfg_name({}):
-            if v == "paper":
-                continue  # already run on every seed
-            cfg = {}
+            result["runs"][f"{v}/grid-pick"] = {"sameAs": f"{v}/paper-config"}
+            continue
         else:
             cfg = next(c for c in GRID if cfg_name(c) == name)
         full(v, cfg, seeds, f"{v}/grid-pick")
