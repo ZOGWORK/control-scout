@@ -36,7 +36,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   const onSort = (key: TeamSortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: firstDir(key) }));
   const toggle = (team: number) => setOpen((o) => { const n = new Set(o); if (n.has(team)) n.delete(team); else n.add(team); return n; });
 
-  const th = "px-2 py-1.5 font-medium whitespace-nowrap";
+  const th = "px-2 py-1.5 font-medium whitespace-nowrap max-md:px-1.5";
   // A plain call, not a component: a component made here would be new each render, and its button would lose focus.
   const sortTh = (k: TeamSortKey, children: ReactNode, className?: string, title?: string) => {
     const on = sort.key === k;
@@ -68,8 +68,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                 <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground", sort.key === "rank" && "text-foreground")}>#</button>
               </th>
               <th scope="col" className={th}>Team</th>
-              {table.asked && sortTh("asked", table.asked.label, undefined, table.asked.label)}
-              {sortTh("opr", "OPR", "w-24")}
+              {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
+              {sortTh("opr", "OPR", "md:w-28")}
               {phases && <>
                 {sortTh("auto", "Auto", "max-md:hidden")}
                 {sortTh("dc", "DC", "max-md:hidden")}
@@ -94,13 +94,13 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                         ? <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent-text" data-rank-badge>{r.rank}</span>
                         : <span className="text-xs text-muted-foreground">{r.rank}</span>}
                     </td>
-                    <td className="max-w-0 px-2 py-1.5 md:max-w-none">
-                      <Link to={r.href} className="block truncate font-medium text-foreground hover:text-accent-text hover:underline"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
+                    <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
+                      <Link to={r.href} className="line-clamp-2 break-words font-medium md:block md:truncate text-foreground hover:text-accent-text hover:underline"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
                       {r.location && <span className="block truncate text-[11px] text-muted-foreground">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>
-                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute inset-y-1 left-1 rounded-sm bg-accent/20" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
+                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute bottom-1 left-1 h-1 rounded-full bg-accent/70" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
