@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // Enter (and the magnifier) on a query that names one thing exactly goes straight to its page (brief Req 10, "digits
 // → team page"): a team number, "team"/"ftc" + number, one team's whole name, an event code. Anything else opens
-// /search. Decided from the server's answer for the query, the same one the dropdown shows. The answers below are
+// /search. Decided from the server's answer for the query, the same one the dropdown shows: when it isn't in yet, Enter
+// opens /search at once (never a wait where it was typed), and /search goes on to that one page with replace. The answers below are
 // shaped like the live API's (controlscout.org, 2026-11-02).
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../../shared/api";
 
@@ -18,8 +19,8 @@ vi.mock("../../lib/personal", () => ({ usePersonal: () => ({ state: { myTeam: nu
 vi.mock("../../lib/meta", async (orig) => ({ ...(await orig<typeof import("../../lib/meta")>()), useMeta: () => null }));
 vi.mock("../../lib/flags", async (orig) => ({ ...(await orig<typeof import("../../lib/flags")>()), useServerFlag: () => false }));
 
-const { SearchBox, SEARCH_DEBOUNCE_MS, hitHref } = await import("./SearchBox");
-const { directHit } = await import("./direct");
+const { SearchBox, SEARCH_DEBOUNCE_MS, hitHref, useSearchHits } = await import("./SearchBox");
+const { directHit, useSubmittedSearch } = await import("./direct");
 const { RECENT_KEY } = await import("./discover");
 
 beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }); Element.prototype.scrollIntoView = () => {}; localStorage.clear(); });
@@ -60,8 +61,16 @@ describe("Enter and the magnifier on a search box", () => {
   function Where() { return <p data-testid="at">{useLocation().pathname}{useLocation().search}</p>; }
   function Box() { const nav = useNavigate(); return <SearchBox onPick={(h) => nav(hitHref(h))} placeholder="Search" label="Search" />; }
   function Back() { const nav = useNavigate(); return <button type="button" onClick={() => nav(-1)}>back</button>; }
+  // /search's side, as src/pages/SearchPage.tsx wires it.
+  function Results() {
+    const q = (useSearchParams()[0].get("q") ?? "").trim();
+    const s = useSearchHits(q, undefined, 15, null, false);
+    useSubmittedSearch(q, s);
+    return <p data-testid="results">{s.busy ? "loading" : s.answer ? "answer" : "none"}</p>;
+  }
+  const routes = <Routes><Route path="/search" element={<><Results /><Where /><Back /></>} /><Route path="*" element={<><Where /><Back /></>} /></Routes>;
   const mount = () => {
-    render(<MemoryRouter initialEntries={["/events"]}><Box /><Routes><Route path="*" element={<><Where /><Back /></>} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/events"]}><Box />{routes}</MemoryRouter>);
     const input = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
     act(() => input.focus());
     return input;
@@ -73,9 +82,10 @@ describe("Enter and the magnifier on a search box", () => {
     const input = mount();
     fireEvent.change(input, { target: { value: "6980" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(at()).toBe("/events"); // waits for the answer (asked at once)
+    expect(at()).toBe("/search?q=6980"); // never waits where it was typed
+    expect(pending).toHaveLength(1); // /search asks at once (no typing pause)
     await answerWith(one("6980", BAD_WOLF));
-    expect(at()).toBe("/teams/6980");
+    expect(at()).toBe("/teams/6980"); // replacing /search
     expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual(["6980"]); // still a recent search
     fireEvent.click(screen.getByRole("button", { name: "back" }));
     expect(at()).toBe("/events");
@@ -95,8 +105,10 @@ describe("Enter and the magnifier on a search box", () => {
     const input = mount();
     fireEvent.change(input, { target: { value: "ultraviolet" } });
     fireEvent.keyDown(input, { key: "Enter" });
+    expect(at()).toBe("/search?q=ultraviolet");
     await answerWith({ q: "ultraviolet", hits: [team("20245", "Ultraviolet"), team("23268", "Ultraviolet")], pages: [], step: "deterministic", weak: false, understood: { kind: "names", label: "Teams, events and matches matching \"ultraviolet\"" } });
     expect(at()).toBe("/search?q=ultraviolet");
+    expect(screen.getByTestId("results").textContent).toBe("answer");
   });
   it("\"6980 record\" (a topic of the team): the results page, which answers it", async () => {
     const input = mount();
@@ -122,15 +134,29 @@ describe("Enter and the magnifier on a search box", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(at()).toBe("/search?q=6980");
   });
-  it("on /search?q=6980, Enter on the top bar's unedited query asks for it and opens the team's page", async () => {
-    const onPick = vi.fn();
-    render(<SearchBox onPick={onPick} placeholder="Search" label="Search" syncQuery="6980" />);
+  it("on /search?q=6980, Enter on the top bar's unedited query opens the team's page (from the page's own answer)", async () => {
+    function Synced() { const nav = useNavigate(); return <SearchBox onPick={(h) => nav(hitHref(h))} placeholder="Search" label="Search" syncQuery="6980" />; }
+    render(<MemoryRouter initialEntries={["/events", "/search?q=6980"]}><Synced />{routes}</MemoryRouter>);
+    await answerWith(one("6980", BAD_WOLF)); // the page's request; the top bar asks nothing for its unedited query
+    expect(pending).toHaveLength(0);
+    expect(at()).toBe("/search?q=6980"); // a visit to the link shows its results
     const input = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
     act(() => input.focus());
-    expect(pending).toHaveLength(0);
     fireEvent.keyDown(input, { key: "Enter" });
-    await answerWith(one("6980", BAD_WOLF));
-    expect(onPick).toHaveBeenCalledWith(BAD_WOLF);
+    expect(at()).toBe("/teams/6980");
+  });
+  it("a slow answer for an earlier query never decides a newer one", async () => {
+    const input = mount();
+    fireEvent.change(input, { target: { value: "6980" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "ultraviolet" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(at()).toBe("/search?q=ultraviolet");
+    await answerWith(one("6980", BAD_WOLF)); // the first press's request, answered late
+    expect(at()).toBe("/search?q=ultraviolet");
+    await answerWith({ q: "ultraviolet", hits: [team("20245", "Ultraviolet"), team("23268", "Ultraviolet")], pages: [], step: "deterministic", weak: false });
+    expect(at()).toBe("/search?q=ultraviolet");
   });
   it("the request failing: the results page (never stuck)", async () => {
     const input = mount();

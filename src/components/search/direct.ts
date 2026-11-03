@@ -3,7 +3,10 @@
 // results page with one card on it. Read off the server's own answer for the query (the one the dropdown shows), so
 // the box guesses nothing: one deterministic team hit that is the team typed, or an event whose code was typed.
 // Anything else (a question, a place, a versus, a topic like "6980 record", two teams named alike) opens /search.
+import { useEffect, useSyncExternalStore } from "react";
+import { useNavigate } from "react-router-dom";
 import type { SearchAnswer, SearchHit } from "../../shared/api";
+import { hitHref } from "../../shared/search";
 import { teamNameOf } from "../../shared/teamTitle";
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -19,4 +22,35 @@ export function directHit(a: SearchAnswer | undefined, query: string): SearchHit
   const num = /^(?:(?:team|ftc)\s*)?#?(\d{1,6})$/.exec(q);
   if (num) return num[1] === top.ref ? top : null;
   return top.match !== "fuzzy" && norm(teamNameOf(top.title)) === q ? top : null;
+}
+
+// Enter never waits on Home (or any page) for the answer: a box whose answer isn't in yet opens /search at once and
+// marks the query here; /search, once its own answer for that query is in, swaps itself for the one page the query
+// names (replace: Back returns to where it was typed, never to a results page that only redirected). Marked for a
+// short while only, so a later visit to the same /search link is never redirected by an old press.
+const MARK_MS = 30_000;
+let marked: { q: string; at: number } | null = null;
+const listeners = new Set<() => void>();
+const notify = () => { for (const f of listeners) f(); };
+const subscribe = (f: () => void) => { listeners.add(f); return () => { listeners.delete(f); }; };
+const markedNow = () => marked;
+
+/** A box sent this query to /search before its answer was in: /search may open the one page it names. */
+export function markDirect(query: string) { marked = { q: norm(query), at: Date.now() }; notify(); }
+
+/** /search's side (src/pages/SearchPage.tsx): a new query is asked at once (it was submitted, not typed: no typing
+ *  pause), and a query marked by a box goes on to the one page it names once the page's answer for it is in. */
+export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; busy: boolean; stale: boolean; searchNow: () => void }) {
+  const { answer, busy, stale, searchNow } = s;
+  const nav = useNavigate();
+  const mark = useSyncExternalStore(subscribe, markedNow, () => null);
+  useEffect(() => { searchNow(); }, [searchNow]);
+  useEffect(() => {
+    if (!mark || mark.q !== norm(query)) return;
+    if (Date.now() - mark.at > MARK_MS) { marked = null; return; }
+    if (busy || stale) return;
+    marked = null;
+    const d = directHit(answer, query);
+    if (d) nav(hitHref(d), { replace: true });
+  }, [mark, query, answer, busy, stale, nav]);
 }

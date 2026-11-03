@@ -15,6 +15,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
+import { useSubmittedSearch } from "../components/search/direct";
+import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
@@ -40,10 +42,12 @@ export default function SearchPage() {
   const q = params.get("q") ?? "";
   const query = q.trim();
   const filters = readFilters(params);
-  const { hits, answer, busy, error, retry, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
+  // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
+  useSubmittedSearch(query, { answer, busy, stale, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
   const meta = useMeta();
   const season = useCurrentSeason();
@@ -123,6 +127,8 @@ export default function SearchPage() {
       {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
+  // A search on its way (just submitted, or a new one run from here): its loading screen, never older results.
+  if (query && !error && busy && (stale || !found)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
