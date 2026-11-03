@@ -73,11 +73,12 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
     all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; wins: number; losses: number; ties: number; matches: number }>(
       `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.wins, s.losses, s.ties, s.matches
        FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}
-       ORDER BY v DESC, s.wins DESC, s.team LIMIT ?`, [...args, b.n]),
+       ORDER BY v DESC, ${st.id === "rating" ? "" : "s.wins DESC, "}s.team LIMIT ?`, [...args, b.n]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}`, args),
   ]);
   const title = rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
-  const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" ? rankingsHref(season, b.region) : null;
+  // Rankings has no rookie filter: a rookie rating list gets no link rather than one to every team.
+  const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" && !rookie ? rankingsHref(season, b.region) : null;
   const definition = `${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${why}`;
   const total = Number(count?.n ?? 0);
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers of ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where}` };
@@ -94,7 +95,8 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
       record: record(r), opr: num(r.opr), value: num(r.v), display: fmt(r.v, st),
       parts: r.auto != null || r.teleop != null || r.endgame != null ? { auto: num(r.auto), teleop: num(r.teleop), endgame: num(r.endgame) } : null,
     })),
-    ...(href ? { more: { label: `View more detail on ${st.teamsSort ? "the Teams page" : "Rankings"}`, href } } : {}),
+    // The Teams table counts qualification matches only, so its list can differ by a team or two: said on the link.
+    ...(href ? { more: { label: st.teamsSort ? "View more detail on the Teams page (qualification matches)" : "View more detail on Rankings", href } } : {}),
   };
   return {
     ...base,

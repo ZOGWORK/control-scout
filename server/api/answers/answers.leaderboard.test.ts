@@ -56,7 +56,7 @@ describe("the lists", () => {
     expect(t.rows.map((r) => r.team.label)).toEqual(["23268 Ultraviolet", "31814 Quantum Core", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
     expect(t.rows[0]).toMatchObject({ rank: 1, location: expect.stringContaining("NJ"), record: expect.stringMatching(/^\d+-\d+-\d+$/), parts: expect.any(Object) });
     expect(t.note).toBe("2025–26 · 4 ranked teams in New Jersey · by OPR");
-    expect(t.more).toEqual({ label: "View more detail on the Teams page", href: "/teams?view=season&season=2025&country=US&state=NJ&sort=totalPointsNpOpr&filter=and-qualMatchesPlayed.gte.3-" });
+    expect(t.more).toEqual({ label: "View more detail on the Teams page (qualification matches)", href: "/teams?view=season&season=2025&country=US&state=NJ&sort=totalPointsNpOpr&filter=and-qualMatchesPlayed.gte.3-" });
     expect(a.pages[0]).toMatchObject({ href: t.more!.href });
   });
   it("win rate, rookies, the most improved by standing", async () => {
@@ -72,6 +72,17 @@ describe("the lists", () => {
     expect(i.stat!.headline).toMatchObject({ value: "23268 Ultraviolet", sub: "OPR rank #6000 of 7600 → #30 of 8375" });
     // No Teams page list asks the same question (a climb from last season): no link.
     expect(i.stat!.more).toBeUndefined();
+  });
+  it("a rookie rating list has no Rankings link (Rankings can't keep the rookie filter)", async () => {
+    const r = await searchAnswer("best rookie team by rating in New Jersey", { limit: 25 });
+    const rb = r.stat?.blocks[0];
+    expect(rb?.kind).toBe("leaderboard");
+    expect(rb).not.toHaveProperty("more");
+  });
+  it("the search box gets a link to the answer page, never an empty answer", async () => {
+    const a = await searchAnswer("Best rookie team in New Jersey", { limit: 8 });
+    expect(a.stat).toBeUndefined();
+    expect(a.pages[0]).toMatchObject({ href: "/search?q=Best%20rookie%20team%20in%20New%20Jersey" });
   });
   it("a city's teams; a city no team lists is left to search", async () => {
     const c = await searchAnswer("Teams in Oradell", { limit: 25 });
