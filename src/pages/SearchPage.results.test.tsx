@@ -157,14 +157,17 @@ describe("search results page", () => {
     state.answer = { ...answer([ev("USNJNEM6", "P2-8 Northeast League Meet", "2099-12-13")]), understood: { label: "League meets in New Jersey at River Dell High School", fallback: "No league meets at River Dell High School in New Jersey — showing all league meets in New Jersey instead" } } as SearchAnswer;
     const { container } = show("/search?q=x");
     expect(container.querySelector("[data-fallback-label]")!.textContent).toContain("showing all league meets in New Jersey instead");
-    expect(container.querySelector("[data-context-badge]")!.textContent).toContain("River Dell High School");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toContain("River Dell High School");
+    expect(container.querySelector("[data-context-badge]")).toBeNull();
     expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
   });
 
   it("names the interpreted query, not a result, when the server reads it", () => {
     state.answer = { ...answer([ev("A", "P1-1 Southern League Meet", "2099-11-17")]), understood: { label: "Events in New Jersey" } } as SearchAnswer;
     const { container } = show("/search?q=meets%20in%20new%20jersey");
-    expect(container.querySelector("[data-context-badge]")!.textContent).toBe("Events in New Jersey");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Events in New Jersey");
+    // The reading is the title; a badge saying the same again is left out.
+    expect(container.querySelector("[data-context-badge]")).toBeNull();
     expect(container.textContent).not.toContain("Southern League Meet”");
   });
 
@@ -177,13 +180,13 @@ describe("search results page", () => {
     expect(card.textContent).toContain("23268: Hackettstown, NJ");
   });
 
-  it("titles the page by what was found, with one context badge and no second search box", () => {
+  it("titles the page by what was found, with no badge that repeats it and no second search box", () => {
     const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 6980 Bad Wolf", subtitle: "", season: 2025, href: "/compare?teams=4215,6980" };
     state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
     const { container } = show("/search?q=4215%20vs%206980%20history");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Hypnotic Robotics (4215) vs Bad Wolf (6980)");
     expect(container.querySelector("[data-eyebrow]")!.textContent).toBe("FTC One Search");
-    expect(container.querySelectorAll("[data-context-badge]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-context-badge]")).toHaveLength(0);
     expect(container.querySelector("input")).toBeNull();
     expect(container.textContent).not.toContain("4215 vs 6980 history");
   });

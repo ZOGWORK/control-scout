@@ -11,6 +11,18 @@ export type AnswerExtra = Omit<SearchAnswer, "understood"> & { understood?: Unde
 /** The server's reading of the query, in words ("League meets in New Jersey"), when it sends one. */
 export const readingOf = (a: AnswerExtra | undefined): string | null => a?.understood?.label?.trim() || null;
 
+/** A reading without its "(did you mean …)" tail: the page says that on its own line. */
+const plain = (s: string) => s.replace(/\s*\(did you mean\s.*\)\s*$/i, "").trim();
+const norm = (s: string) => plain(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/** The badge as shown under a title: none when it only repeats the title ("League meets in New Jersey" under
+ *  "League meets in New Jersey", "… vs … — Compare" under "… vs …"), so the page never says one thing twice. */
+export function badgeUnder(title: string, badge: string | null): string | null {
+  if (!badge) return null;
+  const t = norm(title), b = norm(badge);
+  return !b || b === t || b.startsWith(`${t} `) ? null : plain(badge);
+}
+
 /** A Compare: its own kind from the server, or (an older server) a team hit that opens /compare. */
 export const isCompare = (h: SearchHit) => (h.kind as string) === "compare" || !!h.href?.startsWith("/compare");
 
@@ -32,7 +44,7 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTe
   const top = hits[0];
   if (top && isCompare(top)) return top.title.split(/\s+vs\.?\s+/i).map((t) => { const p = teamParts(t); return p ? `${p.name} (${p.number})` : t; }).join(" vs ");
   const read = readingOf(a);
-  if (read) return read;
+  if (read) return plain(read);
   if (top?.kind === "team" && (a?.step === "deterministic" || !a || (aboutTeam && a.step !== "recovery"))) { const p = teamParts(top.title); if (p) return p.name ? `${p.name} (${p.number})` : `Team ${p.number}`; }
   return "Search results";
 }
