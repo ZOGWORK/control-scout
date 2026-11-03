@@ -3,7 +3,8 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, Loader2, Luggage, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { pickHelperQuery } from "../shared/scoutSections";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
 import { useProjections } from "../lib/projections";
@@ -687,9 +688,19 @@ function slotLabel(s: Slot): string {
   return `Loser M${s.loserOf}`;
 }
 
+/** To Scout's pick helper at this event: partners that fill an alliance's gaps (seasons with ratings only). */
+function PickHelperLink({ d }: { d: EventDetail }) {
+  if (!usePredictable(d.event.season)) return null;
+  return (
+    <Button variant="outline" size="sm" asChild className="max-sm:h-10">
+      <Link to={`/scout?${pickHelperQuery(d.event.season, d.event.code)}`}><Radar /> Pick helper</Link>
+    </Button>
+  );
+}
+
 function Playoffs({ d }: { d: EventDetail }) {
   const al = d.alliances;
-  if (!al.length) return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches." />;
+  if (!al.length) return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches. The pick helper shows which partners fill your gaps." action={<PickHelperLink d={d} />} />;
   const playoff = d.matches.filter((m) => m.level === "playoff");
   const bySeries = new Map<number, MatchView[]>();
   for (const m of playoff) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
@@ -706,7 +717,10 @@ function Playoffs({ d }: { d: EventDetail }) {
         <p className="rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-sm">Alliances are set; the playoff schedule isn't posted yet. The odds below come from the alliances alone and update after every series.</p>
       )}
       <div className="space-y-3">
-        {bracket && bracket.alliances.length > 0 && <OddsHeading bracket={bracket} />}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">{bracket && bracket.alliances.length > 0 && <OddsHeading bracket={bracket} />}</div>
+          <PickHelperLink d={d} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {al.map((a) => (
             <AllianceOddsCard key={a.number} odds={oddsBy.get(a.number)}>
