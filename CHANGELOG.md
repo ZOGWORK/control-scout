@@ -26,7 +26,7 @@ Swing, Control Scout's consistency stat, has its own column wherever teams are c
 - [fixes] Fewer than 5 counted matches shows "—" and says why
 
 ### Teams
-- **Swing (consistency).** sd of (alliance non-penalty score − the partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the season's field as if 10 more matches. It's the same number as the reliability index's swing part, now computed by the prediction engine (3.4.0) so both apps use one function. Event rankings show the team's swing at that event, the world ranking and Compare its season swing. Below 5 counted matches the cell reads "—", and its tooltip gives the reason.
+- **Swing (consistency).** sd of (alliance non-penalty score − the partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the season's field as if 10 more matches. It's the same number as the reliability index's swing part, now computed by the prediction engine (3.4.0) so both apps use one function (#499). Event rankings show the team's swing at that event, the world ranking and Compare its season swing. Below 5 counted matches the cell reads "—", and its tooltip gives the reason.
 - **How it works.** A new "Swing" section works the formula step by step, so it can be checked by hand.
 - **Engine 3.4.0.** Predictions are unchanged: the replay of every predicted match since 2023–24 serves exactly what 3.3.0 did.
 
