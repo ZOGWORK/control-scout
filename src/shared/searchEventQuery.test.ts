@@ -127,3 +127,24 @@ describe("place typos and 'states' (owner report)", () => {
     expect(readEventQuery("meets in NJ")?.allSeasons).toBeUndefined();
   });
 });
+
+describe("Greptile on #450", () => {
+  it("'states' before a misspelled place still reads the place", () => {
+    for (const q of ["states in new jesey", "states in NJ", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [], where: null, allSeasons: true });
+  });
+  it("a generic event word keeps every season", () => {
+    for (const q of ["championship events in NJ", "NJ championship events", "championships in NJ"]) expect(readEventQuery(q)?.allSeasons, q).toBe(true);
+  });
+  it("time words work with states and champs, and keep their scope", () => {
+    for (const q of ["past NJ states", "upcoming NJ champs", "recent NJ states"]) {
+      const e = readEventQuery(q);
+      expect(e, q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [] });
+      expect(e?.time, q).not.toBeNull();
+      expect(e?.allSeasons, q).toBeUndefined();
+    }
+  });
+  it("'states' without a place names nothing; 'united states' is never a championship", () => {
+    expect(readEventQuery("states")).toBeNull();
+    expect(readEventQuery("united states meets")?.kinds ?? []).not.toContain("championship");
+  });
+});
