@@ -6,7 +6,7 @@
 - No decay variant passes the gate, whether fixed or chosen by rolling origins.
 - Both endpoints are clearly worse:
   - "whole season" costs +10.7 / +6.3 ×10⁻⁴ Brier;
-  - "last event only" (season prior plus the previous event's learning) costs +93.8 / +91.0 ×10⁻⁴.
+  - "last event only" (season prior plus the previous event's learning) costs +94.0 / +91.7 ×10⁻⁴.
 - Script: `scripts/research/r4-recency.ts` (shared harness: `scripts/research/lib.ts`).
 - Output: `r4-recency-2026-11-03.json`, with every variant, season, slice and rolled month.
 
@@ -117,15 +117,15 @@ xychart-beta
 | Per-week half-life 8 weeks, live floor | −0.52 [−1.64, +0.54] (acc +0.02, MAE −0.070) | −0.14 [−0.86, +0.62] (acc −0.03, MAE −0.020) |
 | Per-week half-life 16 weeks, live floor | −0.19 [−0.66, +0.27] | +0.12 [−0.23, +0.46] |
 | Per-week half-life 4 / 8 / 16 weeks, kMin 0 | +0.54 / +1.36 / +4.26 | +1.06 / +0.39 / +1.87 |
-| **Last event only** (season prior + previous event's learning), live floor | +93.83 [+81.93, +106.53]; acc −1.48 pp, MAE +2.56; quals 1–10 +159.9, robots with 16+ matches +142.0 | +90.96 [+79.90, +101.68]; acc −1.61 pp, MAE +2.07; quals 1–10 +157.5, 16+ matches +143.9 |
+| **Last event only** (season prior + previous event's learning), live floor | +94.02 [+82.08, +106.75]; acc −1.47 pp, MAE +2.55; quals 1–10 +160.2, robots with 16+ matches +142.5 | +91.74 [+80.62, +102.58]; acc −1.60 pp, MAE +2.05; quals 1–10 +159.1, 16+ matches +145.9 |
 | Gain reset at each new event (earlier events kept), live floor | +13.75 [+9.02, +18.86] | +12.38 [+8.06, +16.42] |
 | Gain reset at each new event (earlier events kept), kMin 0 | +13.76 [+9.02, +18.87] | +12.41 [+8.07, +16.44] |
 | Live **without event form** (context) | +2.17 [+1.20, +3.18]; quals 1–10 +2.54, 0–5 matches +3.09 | +2.49 [+1.65, +3.43]; quals 1–10 +3.76, 0–5 matches +3.64 |
 
 - **Per-week decay on top of the live floor is neutral at 8–16 weeks and harmful below 4.** It is a smooth version of the rebuild bump. Like that bump (`part12/rebuild-gain.md`), it finds nothing beyond noise.
-- **"Last event only" is by far the worst variant tested** (+91 to +94 ×10⁻⁴). Rebuilding a robot from its season prior and its previous event alone throws away the class its earlier events established.
-  - The loss is largest at the start of each event (quals 1–10 +158 to +160), where the forgotten history is all there is.
-  - It is also large for experienced robots (16+ matches: +142 to +144).
+- **"Last event only" is by far the worst variant tested** (+92 to +94 ×10⁻⁴). Rebuilding a robot from its season prior and its previous event alone throws away the class its earlier events established.
+  - The loss is largest at the start of each event (quals 1–10 +159 to +160), where the forgotten history is all there is.
+  - It is also large for experienced robots (16+ matches: +142 to +146).
 - **Resetting only the gain at each new event**, with earlier events kept, costs +12 to +14. Faster learning at every new meet is the rebuild idea `part12/rebuild-gain.md` already rejected, and this confirms it.
 - **Event form, the engine's "form" layer, is worth 2.2–2.5 ×10⁻⁴** overall and 2.5–3.8 on the weakest slices. Form adds to class as a fading correction; replacing class with recent form loses.
 
@@ -155,7 +155,7 @@ The one consistent signal is a slightly lower margin MAE with an 8-week per-week
 - **How fast should old matches stop counting?** A robot's own past result should keep half its weight after about 4 more matches (3.9–4.4). That is what the live gain floor already does (3.84).
 - **Last event against whole season:** neither.
   - A whole-season (equal-weight) rating is +6 to +11 ×10⁻⁴ worse.
-  - A last-event-only rating is +91 to +94 worse.
+  - A last-event-only rating is +92 to +94 worse.
   - Restarting the gain at each event, with earlier events kept, is +12 to +14 worse.
 - **Does any decay beat the current gain schedule plus event form?** No. The best variants are ties within ±0.5 ×10⁻⁴, and all fail the gate.
 
@@ -163,5 +163,5 @@ The one consistent signal is a slightly lower margin MAE with an 8-week per-week
 
 - 2025–26 is reused data. 2023–24 is a cold start in this snapshot, so the first rolled months' windows are mostly a season with no carry-over.
 - Rolling selection switches between fixed-setting replays. A live engine that changed its half-life mid-season would carry a slightly different rating state. The picks switch 2–5 times in 22 months, almost always between neighbouring settings (h 6.4 and 8, or 8 weeks and live), so the difference is small.
-- The last-event-only endpoint rebuilds the rating from the season prior grown by the growth factors applied so far. Its regional lift and event form are left as live. It is an endpoint, so the size of its loss matters more than its exact construction.
+- The last-event-only endpoint rebuilds the rating from the season prior, its scoring phases grown by the growth factors applied so far (penalties never grow, as in the engine). Its regional lift and event form are left as live. It is an endpoint, so the size of its loss matters more than its exact construction.
 - Per-match decay counts playoff matches like quals. Playoff updates already carry `playoffWeight` 0.5 in the gain itself.

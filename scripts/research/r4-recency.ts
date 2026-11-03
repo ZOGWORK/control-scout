@@ -60,7 +60,8 @@ function lastEventOnly(): GainPatch {
       for (const t of [...m.red.teams, ...m.blue.teams]) {
         const s = st.get(t), r = book.ratings.get(t);
         if (!s || !r || s.ev === m.eventCode || s.reset) continue;
-        for (const c of PHASES) r[c] = Math.max(0, s.prior[c] * s.G + (r[c] - s.start[c]));
+        // Season growth applies to scoring only (as in the engine); penalties committed never grow.
+        for (const c of PHASES) r[c] = Math.max(0, s.prior[c] * (c === "pen" ? 1 : s.G) + (r[c] - s.start[c]));
         s.reset = true;
       }
     },
