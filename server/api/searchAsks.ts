@@ -313,7 +313,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       // Inspire Award winner. Nothing is inferred from match scores.
       const rows = await all<any>(
         `SELECT a.type, a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team
-         WHERE a.season = ? AND a.code = ? AND (a.type = 'Winner' OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', substr(a.name, 1, instr(a.name, 'Winning')), a.placement, a.team`,
+         WHERE a.season = ? AND a.code = ? AND ((a.type = 'Winner' AND COALESCE(a.name, '') NOT LIKE '%Leadership%') OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', substr(a.name, 1, instr(a.name, 'Winning')), a.placement, a.team`,
         [won.season, won.code]);
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [String(r.award ?? (r.type === "Inspire" ? "Inspire Award" : "Winning Alliance")).replace(/<[^>]+>/g, "")]));
       // The event row as event sets show it (its dates, place and status).
