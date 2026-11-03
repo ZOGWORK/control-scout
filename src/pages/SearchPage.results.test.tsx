@@ -128,6 +128,13 @@ describe("search results page", () => {
     expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(2);
   });
 
+  it("an empty season names what it narrowed: matches for a match search", () => {
+    const m = (season: number): SearchHit => ({ kind: "match", ref: `${season}:X:qual:0:1`, title: "Q1", subtitle: "", season });
+    state.answer = answer([m(2024), m(2025)]);
+    const { container } = show("/search?q=x&season=2023");
+    expect(container.querySelector("[data-filtered-empty]")!.textContent).toContain("No matches in 2023–24 in these results.");
+  });
+
   it("an empty season offers every season, with its count", () => {
     state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("B", "Old Meet", "2020-01-11", 2019)]);
     const { container } = show("/search?q=x&when=upcoming&season=2019");

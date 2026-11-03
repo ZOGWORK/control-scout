@@ -211,7 +211,7 @@ export default function SearchPage() {
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
-                      <p className="text-foreground">{emptyLine(filters)}</p>
+                      <p className="text-foreground">{emptyLine(filters, hits)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {filterAlternatives(hits, filters).map((a) => (
                           <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>
@@ -347,8 +347,11 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
   );
 }
 
-/** What a filtered page with nothing left is missing, in words: "No past events in 2024–25 here." */
-function emptyLine(f: PageFilters): string {
+/** What a filtered page with nothing left is missing, in words ("No past events in 2024–25 in these results."), named
+ *  by what the filters narrow: events, matches (a season), or results when it's both. */
+function emptyLine(f: PageFilters, hits: SearchHit[]): string {
+  const kinds = new Set(hits.filter((h) => h.kind === "event" || h.kind === "match").map((h) => h.kind));
+  const noun = kinds.size === 1 ? (kinds.has("match") ? "matches" : "events") : "results";
   const when = f.when === "all" ? "" : `${f.when} `;
-  return `No ${when}events${f.season != null ? ` in ${seasonLabel(f.season)}` : ""}${f.type ? " of this type" : ""} in these results.`;
+  return `No ${when}${noun}${f.season != null ? ` in ${seasonLabel(f.season)}` : ""}${f.type ? " of this type" : ""} in these results.`;
 }
