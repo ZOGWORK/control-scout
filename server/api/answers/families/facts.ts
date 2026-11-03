@@ -1,8 +1,8 @@
 // One team's stored facts, answered from what its team page already holds (never recomputed in a request): its season
 // OPR and each phase's with the world rank, its prediction rating, the engine's report card on it, its next match's
 // prediction, its events in a season or a place, its OPR against a place's, the world's or an event's average, its
-// reliability, its schedule difficulty, its league standing, and its registration (sponsors, rookie year, home,
-// school). Each season is a different game: a number is only ever set against its own season's.
+// reliability, its schedule difficulty and its league standing. (Its registration, school to sponsors, is
+// searchCoverage.ts's own answer.) Each season is a different game: a number is only ever set against its own season's.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
@@ -11,12 +11,12 @@ import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { scheduleRankText, scheduleWord } from "../../../../src/shared/scheduleDifficulty.js";
 import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
-import { ATTENDED, teamEvents, teamInfo, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
+import { ATTENDED, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 
 export type FactId = "opr" | "auto-opr" | "teleop-opr" | "endgame-opr" | "rating" | "report-card" | "next-match" | "events-season" | "events-place"
-  | "opr-vs-average" | "reliability" | "schedule" | "league-rank" | "sponsors" | "rookie-year" | "location" | "school";
+  | "opr-vs-average" | "reliability" | "schedule" | "league-rank";
 
 export interface FactQuestion {
   id: FactId;
@@ -40,7 +40,8 @@ const RULES: { id: FactId; re: RegExp }[] = [
   { id: "teleop-opr", re: /\b(?:tele-?op|driver[\s-]controlled)\s+opr\b/ },
   { id: "endgame-opr", re: /\bend\s?game\s+opr\b/ },
   { id: "report-card", re: /\b(?:prediction\s+)?report\s+card\b|\bprediction\s+(?:accuracy|record)\b/ },
-  { id: "next-match", re: /\bpredicted\s+score(?:\s+(?:for\s+)?(?:the\s+|its\s+)?next\s+match)?\b|\bnext\s+match(?:\s+(?:prediction|forecast|score))?\b/ },
+  // Only the predicted score: "will 4215 win its next match" and "when is 4215's next match" are the asks' own.
+  { id: "next-match", re: /\bpredicted\s+score(?:\s+(?:for\s+)?(?:the\s+|its\s+)?next\s+match)?\b|\bnext\s+match\s+(?:prediction|forecast|predicted\s+score)\b/ },
   { id: "rating", re: /\b(?:prediction\s+|engine\s+|predicted\s+)?rating\b/ },
   // Search reads plurals as singular ("4215 event in 2025-26"), so both.
   { id: "events-place", re: /\bevents?\s+in\s+(?<what>.+)$/ },
@@ -48,10 +49,6 @@ const RULES: { id: FactId; re: RegExp }[] = [
   { id: "reliability", re: /\breliab(?:ility|le)\b|\bdependab(?:ility|le)\b/ },
   { id: "schedule", re: /\b(?:schedule|draw)\s+(?:difficulty|strength|toughness)\b|\bstrength\s+of\s+schedule\b/ },
   { id: "league-rank", re: /\bleague\s+(?:rank(?:ing)?|standing|place|position)\b/ },
-  { id: "sponsors", re: /\bsponsors?(?:hips?)?\b/ },
-  { id: "rookie-year", re: /\brookie\s+year\b|\byear\s+founded\b/ },
-  { id: "location", re: /\b(?:location|hometown|home\s+town|based)\b/ },
-  { id: "school", re: /\b(?:school|organi[sz]ation)\b/ },
   { id: "opr", re: /\bopr\b/ },
 ];
 
@@ -76,8 +73,10 @@ export function readTeamFact(raw: string): FactQuestion | null {
       if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null } : null; }
       if (!(region = regionOf(what.split(" ")))) return null;
     }
-    // "4215 events" alone is the team's count (another answer's): the season list needs a season.
+    // "4215 events" alone is the count, another answer's: the season list needs a season. A question about them
+    // ("when is 4215's next event", "what events did 4215 win in 2024") is the asks' own.
     if (r.id === "events-season" && scope.season == null) return null;
+    if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
     const core = rest.replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     if (!core) return null;
     return { id: r.id, core, season: scope.season, region, world, event };
@@ -90,7 +89,7 @@ const who = (t: Team) => `${t.number}${t.name ? ` ${t.name}` : ""}`;
 const dp = (x: number | null | undefined) => (x == null ? "–" : (Math.round(Number(x) * 10) / 10).toFixed(1));
 const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * rank) / of))}%`;
 const n = (x: number) => x.toLocaleString("en-US");
-const OPR_RULE = "OPR: the points a team adds to its alliance's score without penalties, its best event that season (as its team page shows). Each phase's OPR is its own best that season, so the phases don't add up to the OPR. Ranks count the season's teams with 3+ matches; each season is a different game, so a number is only set against its own season's.";
+const OPR_RULE = "OPR: the points a team adds to its alliance's score without penalties, its best event that season (as its team page shows). Each phase's OPR is its own best that season, so the phases don't add up to the OPR. Ranks count every team with an OPR that season; each season is a different game, so a number is only set against its own season's.";
 
 /** The season asked, else the team's newest with matches. */
 async function seasonOf(team: number, asked: number | null): Promise<number | null> {
@@ -102,31 +101,6 @@ async function seasonOf(team: number, asked: number | null): Promise<number | nu
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
 export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
   const base = (intent: string, title: string, scope: string[], definition: string, source: string) => ({ family: "stat" as const, intent, title, team, scope, definition, source, blocks: [] as StatBlock[] });
-  if (f.id === "sponsors" || f.id === "rookie-year" || f.id === "location" || f.id === "school") {
-    const info = await teamInfo(team.number);
-    if (!info) return null;
-    const src = "From the team's FIRST registration, as its team page shows it";
-    if (f.id === "sponsors") {
-      const b = base("sponsors", "Sponsors", [], "The sponsors the team lists in its FIRST registration.", src);
-      if (!info.sponsors.length) return { ...b, none: `${who(team)} lists no sponsors in its registration.` };
-      return { ...b, headline: { value: `${info.sponsors.length} sponsor${info.sponsors.length === 1 ? "" : "s"}`, label: info.sponsors.slice(0, 3).join(", ") + (info.sponsors.length > 3 ? ", …" : "") },
-        blocks: [{ kind: "table", title: "Sponsors", columns: [{ key: "name", label: "Sponsor" }], rows: info.sponsors.map((s) => ({ cells: { name: s } })) }] };
-    }
-    if (f.id === "rookie-year") {
-      const b = base("rookie-year", "Rookie year", [], "The rookie year: the first season the team registered with FIRST.", src);
-      if (info.rookieYear == null) return { ...b, none: `${who(team)}'s rookie year isn't in its registration.` };
-      return { ...b, headline: { value: String(info.rookieYear), label: `${seasonLabel(info.rookieYear)} season` } };
-    }
-    if (f.id === "location") {
-      const place = [info.city, info.state, info.country].filter(Boolean).join(", ");
-      const b = base("location", "Location", [], "The home city the team lists in its FIRST registration.", src);
-      return place ? { ...b, headline: { value: place, label: info.homeRegion ? `Region: ${info.homeRegion}` : "Home city" } } : { ...b, none: `${who(team)}'s home isn't in its registration.` };
-    }
-    const b = base("school", "School or organization", [], "The school or organization the team lists in its FIRST registration.", src);
-    const org = info.school ?? info.fullName;
-    return org ? { ...b, headline: { value: org, label: [info.city, info.state].filter(Boolean).join(", ") || "Organization" } } : { ...b, none: `${who(team)} lists no school or organization.` };
-  }
-
   const season = await seasonOf(team.number, f.season);
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const S = seasonLabel(season);
@@ -147,7 +121,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       const evs = await all<any>(`SELECT e.code, e.name, e.type, e.start, s.opr_np FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND s.season = ? AND s.opr_np IS NOT NULL AND s.matches > 0 ORDER BY e.start, e.code`, [team.number, season]);
       if (evs.length) blocks.push({ kind: "series", title: `OPR by event, ${S}`, points: evs.map((e) => ({ x: shortEvent(e.name, e.type), y: Number(e.opr_np), href: eventHref(season, e.code, team.number), note: dateRange(e.start) ?? undefined })) });
     }
-    return { ...b, headline: { value: dp(v), label: rank && of ? `#${rank} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet (under 3 matches)", sub: S, href: teamHref(team.number, season) }, blocks };
+    return { ...b, headline: { value: dp(v), label: rank && of ? `#${rank} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet", sub: S, href: teamHref(team.number, season) }, blocks };
   }
 
   if (f.id === "rating") {

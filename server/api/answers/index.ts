@@ -238,7 +238,7 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
 const FACT_TITLES: Record<FactQuestion["id"], string> = {
   opr: "OPR", "auto-opr": "Auto OPR", "teleop-opr": "TeleOp OPR", "endgame-opr": "Endgame OPR", rating: "Prediction rating", "report-card": "Prediction report card",
   "next-match": "Predicted score, next match", "events-season": "Events in a season", "events-place": "Events in a place", "opr-vs-average": "OPR vs the average",
-  reliability: "Reliability", schedule: "Schedule difficulty", "league-rank": "League standing", sponsors: "Sponsors", "rookie-year": "Rookie year", location: "Location", school: "School or organization",
+  reliability: "Reliability", schedule: "Schedule difficulty", "league-rank": "League standing",
 };
 
 /** "ftc decode winning alliance", "New Jersey Championship winning alliance": no team, an event's (or the season's

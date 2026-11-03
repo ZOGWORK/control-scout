@@ -1,6 +1,6 @@
 // One team's stored facts (server/api/answers/families/facts.ts) on a small fixture database: season OPR and each
 // phase's with its world rank, the prediction rating, events in a season or a place, OPR against a place's, the
-// world's or an event's (its division's) average, reliability, league standing, the next match, and registration.
+// world's or an event's (its division's) average, reliability, league standing and the next match.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
@@ -66,13 +66,10 @@ describe("team facts", () => {
     const e = (await searchAnswer("4215 OPR vs New Jersey Championship average", { limit: 25 })).stat!;
     expect(e.headline).toMatchObject({ value: "+30.0", label: "above the average: 110.0 vs 80.0" });
   });
-  it("reliability, league standing, the next match, registration", async () => {
+  it("reliability, league standing, the next match; a question about the next match is the asks' own", async () => {
     expect((await searchAnswer("4215 reliability", { limit: 25 })).stat!.headline).toMatchObject({ value: "88", label: "out of 100 · field average 71" });
     expect((await searchAnswer("4215 league rank", { limit: 25 })).stat!.headline).toMatchObject({ value: "#2 of 2", label: "League after NJ Bergen League Meet 3" });
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
-    expect((await searchAnswer("4215 sponsors", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 sponsors", label: "Acme, Globex" });
-    expect((await searchAnswer("4215 rookie year", { limit: 25 })).stat!.headline).toMatchObject({ value: "2010" });
-    expect((await searchAnswer("4215 location", { limit: 25 })).stat!.headline).toMatchObject({ value: "Oradell, NJ, USA" });
-    expect((await searchAnswer("4215 school", { limit: 25 })).stat!.headline).toMatchObject({ value: "River Dell Regional High School" });
+    for (const q of ["will 4215 win its next match", "when is 4215 next match", "when is 4215 next event", "what events did 4215 win in 2025"]) expect(readTeamFact(q), q).toBeNull();
   });
 });
