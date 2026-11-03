@@ -330,7 +330,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       // An award's winner ("who won inspire at nj states", "4215 inspire winner") is the awards' own question; "winner"
       // and "champion" alone name a season's winners only with Worlds or a season ("4215 champion" is a team).
       if (AWARD_WORDS.test(q)) continue;
-      if (!/^(?:who|winning)/.test(m[0]) && !(scope.championship || scope.season != null || scope.lastYear || scope.latest)) continue;
+      if (!/^(?:who|winning)/.test(m[0]) && !(scope.championship || scope.states || scope.season != null || scope.lastYear || scope.latest)) continue;
       // A team's number left over ("4215 worlds winner") is a question about that team.
       if (/(?:^|\s)\d{1,5}(?:\s|$)/.test(rest)) continue;
     }

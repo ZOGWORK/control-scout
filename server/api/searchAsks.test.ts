@@ -247,23 +247,22 @@ describe("who won an event (owner: \"who won nj states\")", () => {
     expect(readAsk("who won inspire at new jersey championship")).toMatchObject({ kind: "award" });
     expect(readAsk("who won inspire")).toBeNull();
   });
+  // Search's stat answers take "who won <event>" first (server/api/answers/families/winners.ts): each division's winners
+  // apart, then the Inspire Award and the event's other seasons, on the same event eventWon picks.
   it("answers the newest finished championship: its winning alliance, then the Inspire Award", async () => {
-    for (const q of ["who won nj states", "who won new jesey states", "who won the New Jersey Championship"]) {
+    for (const q of ["who won nj states", "winners of nj states", "who won new jesey states", "who won the New Jersey Championship"]) {
       const a = await ask(q);
       expect(a.step, q).toBe("deterministic");
       expect(a.hits[0], q).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "playoffs" });
-      expect(a.card?.title, q).toBe("Who won · New Jersey Championship · 2025–26");
-      expect(a.card?.lines.map((l) => `${l.text} [${(l.results ?? []).join()}]`), q).toEqual([
-        "23268 Ultraviolet [Winning Alliance - Captain]", "6980 Bad Wolf [Winning Alliance - 1st Team Selected]", "23268 Ultraviolet [Inspire Award]",
-      ]);
-      expect(a.understood?.label, q).toBe("Who won New Jersey Championship (2025–26): the winning alliance and the Inspire Award");
+      expect(a.stat?.title, q).toBe("New Jersey Championship 2025–26 winning alliance");
+      expect(a.stat?.headline?.value, q).toBe("23268 Ultraviolet, 6980 Bad Wolf");
+      expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award"), q).toMatchObject({ items: [{ label: "23268 Ultraviolet" }] });
     }
   });
   it("an event with no results recorded says so plainly", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNYCMP', 'New York Championship', 'Championship', 'Albany', 'NY', 'USA', '2026-03-01', '2026-03-01', 't')", [S]);
     const a = await ask("who won ny states");
-    expect(a.card?.lines).toEqual([]);
-    expect(a.card?.none).toBe("No results are recorded for New York Championship (2025–26) yet.");
+    expect(a.stat?.none).toBe("No winning alliance is published for New York Championship yet.");
   });
 });
 
