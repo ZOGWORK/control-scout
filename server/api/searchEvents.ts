@@ -83,7 +83,8 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   // decides (eventTypesOf).
   const allowed = eventTypesOf(e.kinds);
   if (allowed) {
-    const named = e.kinds.filter((k) => Object.hasOwn(EVENT_TYPES_NAMES, k));
+    // "states" with no type stored: a championship by its name ("Texas Championship").
+    const named = e.kinds.map((k) => (k === "states" ? "championship" : k)).filter((k) => Object.hasOwn(EVENT_TYPES_NAMES, k));
     rows = rows.filter((r) => (r.type ? allowed.includes(r.type) : named.some((k) => allIn([k], r.name))));
   }
   if (e.where && !drop.where) {
