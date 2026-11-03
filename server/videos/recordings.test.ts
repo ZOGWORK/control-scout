@@ -26,8 +26,8 @@ const pages: Record<string, string> = {
   // Left running overnight, the archive kept its first 5 h: an hour after the last match, too long to tell a cut from
   // the clock alone. Its chapters ("Match one" …, a minute and a half before each match) show it's a cut.
   [CHAPTERED_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"18000","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T23:00:00+00:00"}`
-    + ["Opening", ...["one", "two", "three", "four", "five", "six", "seven", "eight"].map((w) => `Match ${w}`)]
-      .map((title, i) => `"chapterRenderer":{"title":{"simpleText":"${title}"},"timeRangeStartMillis":${i ? (1800 * i - 90) * 1000 : 0}}`).join(","),
+    + ["Opening", ...["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"].map((w) => `Match ${w}`)]
+      .map((title, i) => `"chapterRenderer":{"title":{"simpleText":"${title}"},"timeRangeStartMillis":${i ? (1200 * i - 90) * 1000 : 0}}`).join(","),
   [OWNER_ID]: `"playabilityStatus":{"status":"OK"},"lengthSeconds":"30807","liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"${DAY}T12:00:00+00:00","endTimestamp":"${DAY}T20:33:00+00:00"}`,
 };
 const read: string[] = [];
@@ -68,7 +68,7 @@ beforeAll(async () => {
   await match("TRIMMED", 1, `${DAY}T12:30:00.5`);
   await match("TRIMMED", 2, `${DAY}T16:00:00.5`);       // the last match: 4 h in, 10 min before the video ends
   await event("CHAPTERED", `https://www.youtube.com/watch?v=${CHAPTERED_ID}`);
-  for (let n = 1; n <= 8; n++) await match("CHAPTERED", n, new Date(Date.parse(`${DAY}T12:00:00.5Z`) + n * 1800_000).toISOString().slice(0, 23));
+  for (let n = 1; n <= 12; n++) await match("CHAPTERED", n, new Date(Date.parse(`${DAY}T12:00:00.5Z`) + n * 1200_000).toISOString().slice(0, 23));
   await event("CHANNEL", "https://www.youtube.com/@XPR-v4m/streams");
   await event("TWITCH", "https://twitch.tv/tbtaonline");
   await event("OWNER", `https://www.youtube.com/watch?v=${FIRST_ID}`); // the owner's stream wins over FIRST's
@@ -125,11 +125,12 @@ describe("event recordings", () => {
     expect((await getJson(`/api/events/${S}/TRIMMED/matches/qual:0:1`)).match.clip.t).toBe(1800 - 20);
   });
 
-  it("a video cut short whose chapters sit by their matches all day: each match on its second", async () => {
+  it("a video cut short whose chapters sit by their matches all day: each match on its second, but the last few", async () => {
     const d = await getJson(`/api/events/${S}/CHAPTERED`);
-    expect(d.matches.map((m: any) => m.clip?.t ?? null)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map((n) => 1800 * n - 20));
-    expect((await getJson(`/api/events/${S}/CHAPTERED/matches/qual:0:3`)).match.clip.t).toBe(5400 - 20);
-    expect(JSON.parse((await get<{ chapters: string }>("SELECT chapters FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]))!.chapters)[1]).toEqual([1710, "Match one"]);
+    // The last three have too few chapters after them to rule out a late gap.
+    expect(d.matches.map((m: any) => m.clip?.t ?? null)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (n <= 9 ? 1200 * n - 20 : null)));
+    expect((await getJson(`/api/events/${S}/CHAPTERED/matches/qual:0:3`)).match.clip.t).toBe(3600 - 20);
+    expect(JSON.parse((await get<{ chapters: string }>("SELECT chapters FROM video_meta WHERE video_id = ?", [CHAPTERED_ID]))!.chapters)[1]).toEqual([1110, "Match one"]);
   });
 
   it("an upload, or a broadcast with a gap, plays but has no clips; a removed video, a channel page and Twitch give no player", async () => {
@@ -233,7 +234,7 @@ describe("with a YouTube API key", () => {
     expect(asked).toEqual([CHAPTERED_ID]);
     expect(await get("SELECT duration, chapters IS NOT NULL AS read FROM video_meta WHERE video_id = ?", [CHAPTERED_ID])).toEqual({ duration: 18000, read: 1 });
     clearAllCaches();
-    expect((await getJson(`/api/events/${S}/CHAPTERED`)).matches[0].clip.t).toBe(1800 - 20);
+    expect((await getJson(`/api/events/${S}/CHAPTERED`)).matches[0].clip.t).toBe(1200 - 20);
   });
 
   it("reads due videos 50 to a request through the API, every batch saved, never the watch page", async () => {

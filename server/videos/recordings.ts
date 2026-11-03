@@ -154,11 +154,11 @@ export interface EventSpan extends MatchSpan { starts: MatchStart[] }
 
 const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.map((s) => s.startsAt)), starts });
 
-/** A video's timing for an event: its span, and whether the video's chapters confirm it. */
+/** A video's timing for an event: its span, and, when that alone can't be trusted, how far the video's chapters vouch for it. */
 function withConfirmed(meta: VideoMeta, span: EventSpan) {
   const { starts, ...rest } = span;
   const timing = { ...meta, ...rest };
-  return { ...timing, confirmed: chaptersConfirm(timing, meta.chapters, starts) };
+  return timingTrusted(timing) ? timing : { ...timing, confirmedTo: chaptersConfirm(timing, meta.chapters, starts) };
 }
 
 /** The earliest and latest of some UTC ISO match starts. */

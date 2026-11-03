@@ -24,7 +24,7 @@ Match timestamps for recordings that YouTube cut short: a match's Watch button n
 - [live] A recording that YouTube cut short is checked against its own chapters
 
 ### Event page
-- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters all day, the clock still holds and every match gets its Watch. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to all 50. A real gap moves every later match away from its chapter, so those recordings still get none.
+- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters, the clock still holds and they get their Watch. A real gap moves every later match away from its chapter for good, so Watch stops at the match before it. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to 47 of 50.
 
 ## 2.3.9 — 2026-11-03
 
