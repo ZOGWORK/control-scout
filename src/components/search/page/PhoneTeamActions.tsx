@@ -1,5 +1,5 @@
-// A team card's own actions on a phone (FTC One Search, Part B 3b): VS Compare, Shortlist and a quick look at its
-// matches, each a button you can see and tap. The same two quick actions also come by swiping the card: right adds
+// A team card's own actions on a phone (FTC One Search, Part B 3b): VS Compare (picks it for the Compare (2) bar),
+// Shortlist and a quick look at its matches, each a button you can see and tap. The same two quick actions also come by swiping the card: right adds
 // it to the Shortlist (the same list as the team page's Shortlist button, src/lib/personal.tsx bookmarks), left opens
 // its matches. Swiping is a shortcut, never the only way.
 import { useRef, useState, type ReactNode } from "react";
@@ -25,8 +25,8 @@ export function swipeOf(dx: number, dy: number): "right" | "left" | null {
 const btn = "inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
 /** The card with its actions underneath, and the swipe on the whole card. */
-/** `linkSeason`: the season the result is about, kept by VS Compare (none: Compare's own latest). */
-export function PhoneTeamCard({ team, name, season, linkSeason, children }: { team: number; name: string; season: number; linkSeason?: number; children: ReactNode }) {
+/** `picked` / `onPick`: VS Compare picks this team for the page's Compare (2) bar (PhoneCompare.tsx). */
+export function PhoneTeamCard({ team, name, season, picked, onPick, children }: { team: number; name: string; season: number; picked: boolean; onPick: () => void; children: ReactNode }) {
   const flags = useTeamFlags(team);
   const nav = useNavigate();
   const [matches, setMatches] = useState(false);
@@ -72,7 +72,7 @@ export function PhoneTeamCard({ team, name, season, linkSeason, children }: { te
         {children}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5" data-team-actions>
-        <Link to={`/compare?teams=${team}${linkSeason != null ? `&season=${linkSeason}` : ""}`} data-vs-compare className={cn(btn, "border-accent/50 bg-accent/[0.1] uppercase tracking-wide text-accent-text")}>VS Compare</Link>
+        <button type="button" onClick={onPick} aria-pressed={picked} data-vs-compare className={cn(btn, "uppercase tracking-wide", picked ? "border-accent bg-accent text-accent-ink" : "border-accent/50 bg-accent/[0.1] text-accent-text")}>{picked ? "Picked ✓" : "VS Compare"}</button>
         <button type="button" onClick={shortlist} aria-pressed={flags.bookmarked} data-shortlist className={cn(btn, flags.bookmarked ? "border-accent/50 bg-accent/[0.1] text-accent-text" : "border-border bg-card text-foreground")}>
           {flags.bookmarked ? <BookmarkCheck className="size-4" aria-hidden /> : <Bookmark className="size-4" aria-hidden />}{flags.bookmarked ? "Shortlisted" : "Shortlist"}
         </button>

@@ -364,11 +364,12 @@ describe("search results page, phone (Part B 3b)", () => {
     expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
   });
 
-  it("one trip is still a chip, and VS Compare keeps the season the result is about", () => {
+  it("one trip is still a chip, and the Compare picks keep the season the result is about", () => {
     state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
-    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
+    fireEvent.click(container.querySelector("[data-vs-compare]")!);
+    expect(document.querySelector("[data-compare-bar]")!.textContent).toContain("Pick one more");
   });
 
   it("Shortlist and Matches are buttons on the card, and a swipe does the same", () => {
@@ -410,5 +411,35 @@ describe("search results page, phone (Part B 3b)", () => {
     fireEvent.touchMove(card, { touches: [{ clientX: 80, clientY: 102 }] });
     fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80, clientY: 102 }] });
     expect(rows()).toHaveLength(2);
+  });
+
+  it("two picks dock in a Compare (2) bar that goes straight to /compare; a third replaces the first", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ"), team(23268, "Ultraviolet", "Hackettstown, NJ"), team(6980, "Bad Wolf", "X")]);
+    const { container } = show("/search?q=x");
+    const vs = () => [...container.querySelectorAll("[data-vs-compare]")] as HTMLElement[];
+    fireEvent.click(vs()[0]);
+    fireEvent.click(vs()[1]);
+    expect(vs()[0].getAttribute("aria-pressed")).toBe("true");
+    const go = document.querySelector("[data-compare-go]")!;
+    expect(go.textContent).toContain("Compare (2)");
+    expect(go.getAttribute("href")).toBe("/compare?teams=4215,23268");
+    fireEvent.click(vs()[2]);
+    expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=23268,6980");
+    fireEvent.click(screen.getByRole("button", { name: "Remove 6980 from the comparison" }));
+    expect(document.querySelector("[data-compare-bar]")!.textContent).toContain("Pick one more");
+  });
+
+  it("a Compare result opens its head-to-head over the results, and closing it leaves them as they were", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215%20vs%2023268");
+    fireEvent.click(container.querySelector('[data-result="compare"]')!);
+    expect(loc).toBe("/search?q=4215%20vs%2023268");
+    const sheet = document.querySelector("[data-compare-sheet]")!;
+    expect(sheet.textContent).toContain("Hypnotic Robotics (4215) vs Ultraviolet (23268)");
+    expect(within(sheet as HTMLElement).getByRole("link", { name: /View full comparison/ }).getAttribute("href")).toContain("/compare?teams=4215,23268");
+    fireEvent.click(within(sheet as HTMLElement).getByRole("button", { name: "Close" }));
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+    expect(container.querySelector('[data-result="compare"]')).toBeTruthy();
   });
 });

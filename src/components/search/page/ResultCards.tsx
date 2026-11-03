@@ -137,12 +137,14 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
 }
 
 /** "X vs Y": both sides by number, name and place, as an action (volt), never as a team row. */
-export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void }) {
+/** `preview` (phones): a tap opens the head-to-head over the results instead of leaving them; the card keeps its link
+ *  (open it in a new tab, copy it). */
+export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void; preview?: () => void }) {
   const nums = compareTeams(h);
   const sides = compareSides(h);
   const names = h.title.split(/\s+vs\.?\s+/i);
   return (
-    <Link to={hitHref(h)} onClick={onOpen} data-result="compare"
+    <Link to={hitHref(h)} onClick={(e) => { onOpen(); if (preview) { e.preventDefault(); preview(); } }} data-result="compare"
       className="lift group flex items-start gap-3 rounded-xl border border-accent/50 bg-accent/[0.08] px-4 py-3.5">
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-ink"><ArrowLeftRight className="size-4.5" aria-hidden /></span>
       <span className="min-w-0 flex-1">
