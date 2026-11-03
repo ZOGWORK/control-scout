@@ -13,6 +13,8 @@
 //   an event's page  "nj states rankings", "match 12 at nj states"             → that event's tab or match
 //   a team, kept     "4215 alliance partners", "bad wolf robotics"             → the team, never "no results"
 import type { SearchAnswer, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
+import type { TeamTable } from "../../src/shared/teamTable.js";
+import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
 import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
 import { readEventQuery, regionOf, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
@@ -439,8 +441,8 @@ const lineOf = (r: any, results: string[], season?: number | null): SearchCardLi
 export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, "").replace(/^(?:what|who|which)(?: is| are|s)?\s+(?:the\s+)?/, "").replace(/^(?:show|list|find)\s+(?:me\s+)?(?:the\s+|all\s+)?/, "").replace(/\s+in\s+(?:ftc|the world)$/, ""));
   let m: RegExpExecArray | null;
-  const card = (title: string, lines: SearchCardLine[], none: string, pages: { title: string; href: string }[], label = title): SearchAnswer =>
-    answer(q, { hits: [], pages, card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none }) }, understood: { kind: "question", label } });
+  const card = (title: string, lines: SearchCardLine[], none: string, pages: { title: string; href: string }[], label = title, table?: TeamTable): SearchAnswer =>
+    answer(q, { hits: [], pages, card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none }), ...(table?.rows.length ? { table } : {}) }, understood: { kind: "question", label } });
   const ranked = `s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")}`;
 
   // Counties aren't stored: said plainly, with the way to a town's or state's teams.
@@ -457,10 +459,10 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     if (p && !p.state) {
       // "top 3 teams in canada": that many (1 to 50); else 10.
       const n = m[1] ? Math.min(50, Math.max(1, Number(m[1]))) : 10;
-      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [season, ...placeArgs(p)]);
+      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [season, ...placeArgs(p)]);
       const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
       const title = `Top teams in ${p.name} · ${seasonLabel(season)}`;
-      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }], `${title}, by OPR without penalties`);
+      return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }], `${title}, by OPR without penalties`, tableOf(rows, season));
     }
   }
   // A place's best match scores: "top scores in NJ", "highest score in texas". As the season records are kept
@@ -488,21 +490,22 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   if ((m = /^(?:most\s+)?(?:undefeated|unbeaten|perfect[\s-]record)\s+teams?(?:\s+(?:in|from)\s+(.+?))?(?:\s+this season)?$/.exec(t)) || (m = /^teams?\s+(?:with\s+)?(?:no losses|a perfect record|without a loss)(?:\s+(?:in|from)\s+(.+?))?$/.exec(t))) {
     const p = m[1] ? await placeOf(cased(q, m[1])) : null;
     if (m[1] && !p) return null;
-    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.losses = 0${placeSql(p)} ORDER BY s.wins DESC, s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.losses = 0${placeSql(p)} ORDER BY s.wins DESC, s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
     const n = await get<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.losses = 0${placeSql(p)}`, [season, ...placeArgs(p)]);
     const title = `Undefeated teams${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const lines = rows.map((r) => lineOf(r, [`${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`], season));
-    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: ${Number(n?.n ?? 0)} with no losses (${RANKED_MIN_MATCHES}+ matches), most wins first`);
+    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: ${Number(n?.n ?? 0)} with no losses (${RANKED_MIN_MATCHES}+ matches), most wins first`, tableOf(rows, season, "rank"));
   }
   // The best win rate: wins over matches played, ranked teams only, ties counting half.
   if ((m = /^(?:teams?\s+with\s+(?:the\s+)?)?(?:highest|best|top)\s+(?:win(?:ning)?\s+(?:rate|percentage|%)|winrate)(?:\s+teams?)?(?:\s+(?:in|from)\s+(.+?))?$/.exec(t))) {
     const p = m[1] ? await placeOf(cased(q, m[1])) : null;
     if (m[1] && !p) return null;
     const rate = "(s.wins + 0.5 * s.ties) * 1.0 / (s.wins + s.losses + s.ties)";
-    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties, ${rate} rate FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.wins + s.losses + s.ties > 0${placeSql(p)} ORDER BY rate DESC, s.wins DESC, s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties, ${rate} rate FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.wins + s.losses + s.ties > 0${placeSql(p)} ORDER BY rate DESC, s.wins DESC, s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
     const title = `Highest win rate${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `${Math.round(Number(r.rate) * 100)}% wins`, `${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`], season));
-    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: wins over matches played (a tie counts half), ${RANKED_MIN_MATCHES}+ matches`);
+    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: wins over matches played (a tie counts half), ${RANKED_MIN_MATCHES}+ matches`,
+      { by: "rank", asked: { label: "Win rate" }, rows: rows.map((r, i) => tableRow(r, i + 1, season, { value: Number(r.rate), display: `${Math.round(Number(r.rate) * 100)}%` })) });
   }
   // Most improved: the biggest rise in OPR standing (rank among the season's ranked teams, as a share) from the season
   // before, never raw OPR across seasons (each game scores on its own scale).
@@ -510,7 +513,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const p = m[1] ? await placeOf(cased(q, m[1])) : null;
     if (m[1] && !p) return null;
     const standing = async (s: number) => {
-      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} ORDER BY s.opr_np DESC, s.team`, [s]);
+      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} ORDER BY s.opr_np DESC, s.team`, [s]);
       return new Map(rows.map((r, i) => [Number(r.team), { ...r, rank: i + 1, share: (i + 1) / rows.length }]));
     };
     const [now, before] = [await standing(season), await standing(season - 1)];
@@ -521,16 +524,17 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
       .filter((r) => r.gain > 0).sort((a, b) => b.gain - a.gain || a.rank - b.rank).slice(0, 10);
     const title = `Most improved${p ? ` in ${p.name}` : ""} · ${seasonLabel(season - 1)} → ${seasonLabel(season)}`;
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `${pct(r.was.share)} → ${pct(r.share)}`, `OPR rank ${r.was.rank} → ${r.rank}`, `${r.wins}-${r.losses}-${r.ties}`], season));
-    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} ranked in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: the biggest rise in OPR standing (rank among each season's ranked teams), never raw OPR across seasons`);
+    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} ranked in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: the biggest rise in OPR standing (rank among each season's ranked teams), never raw OPR across seasons`,
+      { by: "rank", asked: { label: "OPR standing" }, rows: rows.map((r, i) => tableRow(r, i + 1, season, { value: r.gain, display: `${pct(r.was.share)} → ${pct(r.share)}` })) });
   }
   // The best rookies: this season's rookie teams by OPR.
   if ((m = /^(?:the\s+)?(?:best|top|strongest)(?:\s+\d+)?\s+rookies?(?:\s+teams?)?(?:\s+(?:in|from)\s+(.+?))?$/.exec(t))) {
     const p = m[1] ? await placeOf(cased(q, m[1])) : null;
     if (m[1] && !p) return null;
-    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND t.rookie_year = s.season${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND t.rookie_year = s.season${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
     const title = `Best rookie teams${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
-    return card(title, lines, `No rookie team${p ? ` in ${p.name}` : ""} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: teams in their rookie season, by OPR without penalties`);
+    return card(title, lines, `No rookie team${p ? ` in ${p.name}` : ""} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: teams in their rookie season, by OPR without penalties`, tableOf(rows, season));
   }
   // Rookies, the oldest and the newest teams, by FIRST's rookie year (a season's start year).
   if ((m = /^(rookie|oldest|newest|youngest|first[\s-]year|veteran)\s+teams?(?:\s+(?:in|from)\s+(.+?))?(?:\s+this season)?$/.exec(t))) {
@@ -651,13 +655,13 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
   const p = await placeOf(cased(q, m[1]));
   const season = await defaultRankingsSeason();
   if (p) {
-    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season, ...placeArgs(p)]);
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season, ...placeArgs(p)]);
     const n = await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons ts JOIN teams t ON t.number = ts.team WHERE ts.season = ?${placeSql(p)}`, [CURRENT_SEASON, ...placeArgs(p)]);
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
     const title = `Teams in ${p.name}`;
     return answer(q, {
       hits: [], pages: [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }],
-      card: { kind: "leaderboard", title: `${title} · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? {} : { none: `No team in ${p.name} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
+      card: { kind: "leaderboard", title: `${title} · best by OPR, ${seasonLabel(season)}`, lines, ...(lines.length ? { table: tableOf(rows, season) } : { none: `No team in ${p.name} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
       understood: { kind: "question", label: `${title}: ${Number(n?.n ?? 0).toLocaleString("en-US")} registered for ${seasonLabel(CURRENT_SEASON)}, best by OPR first` },
     });
   }

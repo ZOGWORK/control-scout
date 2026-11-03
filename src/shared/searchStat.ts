@@ -40,7 +40,8 @@ export interface LeaderboardRow {
   opr: number | null;
   value: number | null;
   display: string;
-  parts?: { auto: number | null; teleop: number | null; endgame: number | null } | null;
+  /** `pen`: penalty points given away a match (the season's lowest), beside the phases. */
+  parts?: { auto: number | null; teleop: number | null; endgame: number | null; pen?: number | null } | null;
 }
 
 export type StatBlock =
