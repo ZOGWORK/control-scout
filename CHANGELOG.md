@@ -27,8 +27,8 @@ Predictions show more of their working. The track record adds margin error, ever
 
 ### Predictions
 - **Margin error.** The track record's ledger now shows how many points the predicted margin (red's predicted score minus blue's) missed by on average, against always guessing a tie, with qualifiers and playoffs apart. Live calls and the season replay stay separate, as always. (#488)
-- **Quals and playoffs, stated.** The match drawer, Know your match, the Lab, the factor sheet, projections, advancement odds, simulated rankings and the bracket each carry one short line: ratings learn from every played match, a playoff result counts half, and in playoffs partners add up in full, ranges are tighter and there are no bonus RPs. A new "Quals and playoffs" section on How it works has the details. (#488)
-- **Numbers you can check.** The match drawer and the Lab show the predicted margin ("Red by 12 (118 − 106)"). The Lab's ratings table adds each robot's penalties and writes each predicted score out: robots' ratings, minus the overlap cut, plus the other side's penalties. A best-of-3 series shows the one-game chance it comes from. (#488)
+- **Quals and playoffs, stated.** The match drawer, Know your match, the Lab, the factor sheet, projections, advancement odds, simulated rankings and the bracket each carry one short line: ratings learn from every played match, a playoff result counts half, and in playoffs partners add up in full, ranges are tighter and there are no bonus RPs. A new "Quals and playoffs" section on How it works has the details.
+- **Numbers you can check.** The match drawer and the Lab show the predicted margin ("Red by 12 (118 − 106)"). The Lab's ratings table adds each robot's penalties and writes each predicted score out: robots' ratings, minus the overlap cut, plus the other side's penalties. A best-of-3 series shows the one-game chance it comes from.
 
 ## 2.8.0 — 2026-11-03
 
