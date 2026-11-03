@@ -70,12 +70,12 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const rows = await all<{ team: number; name: string | null; city: string | null; v: number | null; wins: number; losses: number; ties: number; matches: number }>(
     `SELECT s.team, t.name, t.city, ${st.sql} v, s.wins, s.losses, s.ties, s.matches
      FROM team_season_stats s JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.matches >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}
+     WHERE s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}
      ORDER BY v DESC, s.wins DESC, s.team LIMIT ?`,
     [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : []), b.n]);
   const title = rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" ? rankingsHref(season, b.region) : null;
-  const definition = `${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength." : ""}${why}`;
+  const definition = `${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${why}`;
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers`, ...(href ? { more: { label: st.teamsSort ? "View more on the Teams page" : "View more on Rankings", href } } : {}) };
   if (!rows.length) return { ...base, blocks: [], none: `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };
   const top = rows[0];
@@ -106,7 +106,6 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
     family: "leaderboard" as const, intent: "most-improved", title: `${title} · ${seasonLabel(season)}`, scope: chips,
     definition: `Most improved: the biggest climb in worldwide OPR standing (OPR rank as a share of all ranked teams) from ${seasonLabel(season - 1)} to ${seasonLabel(season)}. OPR in points isn't compared, since every season is a different game. ${RANKED}${why}`,
     source: `From the ${seasonLabel(season - 1)} and ${seasonLabel(season)} season numbers`,
-    more: { label: "View more on the Teams page", href: teamsHref(season, BOARD_STATS.opr, b.region)! },
   };
   if (!rows.length) return { ...base, blocks: [], none: `No team${where} has ${RANKED_MIN_MATCHES}+ matches in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.` };
   const top = rows[0];
@@ -127,7 +126,7 @@ async function cityAnswer(city: string): Promise<StatAnswer> {
             (SELECT MAX(season) FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0) last,
             (SELECT opr_np FROM team_season_stats x WHERE x.team = t.number AND x.matches > 0 ORDER BY season DESC LIMIT 1) opr
      FROM teams t WHERE lower(t.city) = lower(?) AND ${teamPageSql("t.number", "t.name")}
-     ORDER BY last IS NULL, last DESC, t.number LIMIT 200`, [city]);
+     ORDER BY last IS NULL, last DESC, t.number LIMIT 1000`, [city]);
   const name = rows[0]?.city ?? city;
   const states = [...new Set(rows.map((r) => r.state).filter(Boolean))];
   const title = `Teams in ${name}${states.length === 1 ? `, ${states[0]}` : ""}`;
@@ -140,8 +139,7 @@ async function cityAnswer(city: string): Promise<StatAnswer> {
     blocks: [{
       kind: "table", title: "Teams, newest season first",
       columns: [{ key: "team", label: "Team" }, { key: "rookie", label: "Rookie year", num: true }, { key: "last", label: "Last season" }, { key: "opr", label: "OPR then", num: true }],
-      rows: rows.slice(0, LEADERBOARD_MAX).map((r) => ({ cells: { team: `${r.number} ${r.name ?? ""}`.trim(), rookie: r.rookie_year ?? "–", last: r.last != null ? seasonLabel(r.last) : "Not yet", opr: r.opr == null ? "–" : (Math.round(r.opr * 10) / 10).toFixed(1) }, href: teamHref(Number(r.number)) })),
-      ...(rows.length > LEADERBOARD_MAX ? { more: `Showing ${LEADERBOARD_MAX} of ${rows.length}` } : {}),
+      rows: rows.map((r) => ({ cells: { team: `${r.number} ${r.name ?? ""}`.trim(), rookie: r.rookie_year ?? "–", last: r.last != null ? seasonLabel(r.last) : "Not yet", opr: r.opr == null ? "–" : (Math.round(r.opr * 10) / 10).toFixed(1) }, href: teamHref(Number(r.number)) })),
     }],
   };
 }

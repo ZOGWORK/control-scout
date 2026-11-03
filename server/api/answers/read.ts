@@ -228,7 +228,8 @@ const TEAMS = "(?:teams?|robots?|ftc teams?)";
 const PLACE = "(?: (?:in|from) (.+))?";
 
 export function readLeaderboard(raw: string): LeaderboardQuestion | null {
-  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ");
+  // "overall OPR" is the stat's name, not an every-season scope.
+  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ").replace(/\b(?:overall|total) opr\b/g, "opr");
   const { scope, rest } = readScope(q);
   if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
   const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));

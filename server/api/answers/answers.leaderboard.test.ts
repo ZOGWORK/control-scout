@@ -37,6 +37,7 @@ describe("what's read", () => {
     expect(readLeaderboard("Best rookie team in New Jersey")).toMatchObject({ kind: "rookie", stat: "opr" });
     expect(readLeaderboard("Most improved team in New Jersey")).toMatchObject({ kind: "improved" });
     expect(readLeaderboard("Teams in Oradell")).toMatchObject({ kind: "city", city: "oradell" });
+    expect(readLeaderboard("top teams by overall OPR in NJ")).toMatchObject({ kind: "top", stat: "opr", region: { key: "USA:NJ" } });
     expect(readLeaderboard("top 10 teams in NJ")).toMatchObject({ kind: "top", stat: "rating", n: 10, region: { key: "USA:NJ" } });
     expect(readLeaderboard("top teams in NJ")).toBeNull();
     expect(readLeaderboard("teams in new jersey")).toBeNull();
@@ -63,6 +64,8 @@ describe("the lists", () => {
     expect(r.stat!.more!.href).toContain("filter=and-qualMatchesPlayed.gte.3+rookieYear.eq.2025-");
     const i = await searchAnswer("Most improved team in New Jersey", { limit: 25 });
     expect(i.stat!.headline).toMatchObject({ value: "23268 Ultraviolet", sub: "OPR rank #6000 of 7600 → #30 of 8375" });
+    // No Teams page list asks the same question (a climb from last season): no link.
+    expect(i.stat!.more).toBeUndefined();
   });
   it("a city's teams; a city no team lists is left to search", async () => {
     const c = await searchAnswer("Teams in Oradell", { limit: 25 });
