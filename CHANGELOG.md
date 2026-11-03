@@ -25,9 +25,12 @@ Search engines now get only the team and event pages that have something on them
 - [speed] Event list and world rankings arrive with their lists
 
 ### Search engines
-- **Empty pages wait.** A team that has never played, won an award or entered an event of this season, and an event with no teams and no matches, still opens as usual but asks search engines not to index it, and leaves the sitemap. The day its first data arrives, it's indexed and listed again on its own. (#478)
-- **Every sitemap address opens.** Older events whose codes the site can't open (mixed case or punctuation, mostly 2019–20) are no longer listed. Pages the app draws from a heading alone (the team and match tables, Predict, Download, Rules, Privacy, Terms, Contact, Donate) stay findable from their links but aren't offered in the sitemap. (#478)
-- **Lists in the first HTML.** The event list shows this season's latest events, and the world rankings their teams, before the app has loaded. (#478)
+- **Empty pages wait.** A team that has never played, won an award or entered an event of this season, and an event with no teams and no matches, still opens as usual but asks search engines not to index it, and leaves the sitemap. The day its first data arrives, it's indexed and listed again on its own. (#480)
+- **Every sitemap address opens.** Older events whose codes the site can't open (mixed case or punctuation, mostly 2019–20) are no longer listed. Pages the app draws from a heading alone (the team and match tables, Predict, Download, Rules, Privacy, Terms, Contact, Donate) stay findable from their links but aren't offered in the sitemap.
+- **Lists in the first HTML.** The event list shows this season's latest events, and the world rankings their teams, before the app has loaded.
+
+### Teams
+- **Opens on a season with results.** A team listed on this season's league roster for a meet it never played opened on an empty 2026–27, even with years of results. It now opens on its latest season with results, as other teams do; the season switcher still has 2026–27.
 
 ## 2.7.6 — 2026-11-03
 
