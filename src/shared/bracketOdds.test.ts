@@ -119,6 +119,10 @@ describe("bracketOdds", () => {
     expect(o.series[0].wins).toEqual([0, 1]);
     const p = price([101, 102], [201, 202]).p;
     expect(o.series[0].call!.p).toBeCloseTo(Math.max(p * p, 1 - p * p), 6);
+    // The one-game chance it comes from, for the favourite: the series chance follows from it by hand.
+    const c = o.series[0].call!, g = c.game!;
+    expect(g).toBeCloseTo(c.alliance === 1 ? p : 1 - p, 6);
+    expect(seriesWinProb(g, 3, c.alliance === 1 ? 0 : 1, c.alliance === 1 ? 1 : 0)).toBeCloseTo(c.p, 6);
   });
 
   it("runs the 2023–24 semifinals and final", () => {
