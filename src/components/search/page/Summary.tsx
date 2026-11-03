@@ -1,5 +1,6 @@
 // The /search summary for a question's records (FTC One Search, Part B Phase 2): a timeline of the team's
-// championship trips (OPR across the seasons, each season a node that jumps to its card below), a banner of stats
+// championship trips (division rank across the seasons, each season a node that jumps to its card below; never OPR,
+// whose scale changes with each season's game), a banner of stats
 // computed from the same records, and the record cards themselves (a short title, badges, stat pills). For
 // "how good is X": the team's season standing as blocks and a win-rate gauge. All of it reads the records search
 // already returned; nothing is typed in or guessed.
@@ -23,16 +24,18 @@ export function jumpTo(id: string) {
   window.setTimeout(() => { if (el.dataset.highlight === "on") delete el.dataset.highlight; }, 2400);
 }
 
-/** OPR across the seasons: a line through a node per season. A node is a button: hover or focus shows its season's
- *  division, rank, record and OPR; activating it jumps to that season's card. */
+/** Division rank across the seasons: a line through a node per season, #1 at the top (a rank compares across
+ *  seasons; an OPR doesn't, each season's game scoring differently). A node is a button: hover or focus shows its
+ *  season's division, rank, record and OPR as text; activating it jumps to that season's card. */
 export function Timeline({ apps }: { apps: Appearance[] }) {
   const [on, setOn] = useState<string | null>(null);
-  const pts = apps.filter((a) => a.opr != null);
+  const pts = apps.filter((a) => a.rank != null);
   if (!apps.length) return null;
-  const W = 100, lo = Math.min(...pts.map((a) => a.opr!)), hi = Math.max(...pts.map((a) => a.opr!));
+  const W = 100, worst = Math.max(1, ...pts.map((a) => a.rank!));
   const x = (i: number) => (apps.length === 1 ? W / 2 : 6 + (i / (apps.length - 1)) * (W - 12));
-  const y = (v: number) => (hi === lo ? 50 : 82 - ((v - lo) / (hi - lo)) * 64);
-  const path = apps.map((a, i) => (a.opr == null ? null : `${x(i)},${y(a.opr)}`)).filter(Boolean).join(" ");
+  // #1 at the top, the worst rank shown at the bottom of the line's band; a season with no rank sits on the axis.
+  const y = (r: number) => (worst === 1 ? 18 : 18 + ((r - 1) / (worst - 1)) * 64);
+  const path = apps.map((a, i) => (a.rank == null ? null : `${x(i)},${y(a.rank)}`)).filter(Boolean).join(" ");
   const shown = apps.find((a) => a.id === on);
   return (
     <>
@@ -45,7 +48,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
             {i > 0 && <span aria-hidden className="text-muted-foreground">←</span>}
             <button type="button" onClick={() => jumpTo(a.id)} data-chip={a.season}
               className="min-h-11 rounded-full border border-accent/40 bg-accent/[0.08] px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
-              {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.opr != null ? `OPR ${a.opr.toFixed(1)}` : a.division ?? "—"}
+              {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.division ?? "—"}
             </button>
           </li>
         ))}
@@ -53,8 +56,10 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
     </nav>
     {/* The line needs two seasons to draw. */}
     {apps.length > 1 && <figure className="mt-3 max-md:hidden" data-timeline>
-      <figcaption className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">OPR by season</figcaption>
+      <figcaption className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Division rank by season</figcaption>
       <div className="relative mt-2 h-28">
+        <span className="absolute left-0 top-[18%] -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" aria-hidden>#1</span>
+        {worst > 1 && <span className="absolute left-0 top-[82%] -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" aria-hidden>#{worst}</span>}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
           <line x1="0" x2="100" y1="96" y2="96" className="stroke-border" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
           {pts.length > 1 && <polyline points={path} fill="none" className="stroke-accent" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
@@ -62,7 +67,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
         {apps.map((a, i) => (
           <button key={a.id} type="button" onClick={() => jumpTo(a.id)} onMouseEnter={() => setOn(a.id)} onMouseLeave={() => setOn(null)} onFocus={() => setOn(a.id)} onBlur={() => setOn(null)}
             aria-label={`${a.seasonLabel}: ${[a.division && `${a.division} Division`, a.rank != null && `ranked #${a.rank}`, a.record, a.opr != null && `OPR ${a.opr.toFixed(1)}`].filter(Boolean).join(", ")}. Go to its card.`}
-            style={{ left: `${x(i)}%`, top: `${a.opr == null ? 96 : y(a.opr)}%` }}
+            style={{ left: `${x(i)}%`, top: `${a.rank == null ? 96 : y(a.rank)}%` }}
             className={cn("absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-accent bg-card hover:bg-accent focus-visible:bg-accent", on === a.id && "bg-accent")} data-node={a.season} />
         ))}
       </div>

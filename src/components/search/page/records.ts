@@ -72,8 +72,10 @@ export interface Stat { label: string; value: string; note?: string }
 
 /** The banner's stats, each computed from the records and left out when it can't be (never a zero standing in):
  *  total = how many; streak = the longest run of back-to-back seasons; best rank = the lowest division rank;
- *  peak OPR = the highest; most frequent division = the mode (only when one repeats; ties all named). */
-export function appearanceStats(apps: Appearance[]): Stat[] {
+ *  win rate = every recorded game's wins (a tie half) over games played, across the trips; most frequent division =
+ *  the mode (only when one repeats; ties all named). Never a peak OPR: each season's game scores on its own scale.
+ *  `where`: what the trips were to ("Worlds"), naming the win rate. */
+export function appearanceStats(apps: Appearance[], where?: string): Stat[] {
   if (!apps.length) return [];
   const out: Stat[] = [{ label: "Total appearances", value: String(apps.length) }];
   let best = { len: 1, from: 0 }, run = { len: 1, from: 0 };
@@ -84,8 +86,12 @@ export function appearanceStats(apps: Appearance[]): Stat[] {
   out.push({ label: "Consecutive", value: String(best.len), note: best.len > 1 ? `${apps[best.from].seasonLabel} to ${apps[best.from + best.len - 1].seasonLabel}` : apps[best.from].seasonLabel });
   const ranked = apps.filter((a) => a.rank != null);
   if (ranked.length) { const b = ranked.reduce((x, y) => (y.rank! < x.rank! ? y : x)); out.push({ label: "Best division rank", value: `#${b.rank}`, note: b.seasonLabel }); }
-  const withOpr = apps.filter((a) => a.opr != null);
-  if (withOpr.length) { const p = withOpr.reduce((x, y) => (y.opr! > x.opr! ? y : x)); out.push({ label: "Peak OPR", value: p.opr!.toFixed(1), note: p.seasonLabel }); }
+  const games = apps.map((a) => /^(\d+)-(\d+)-(\d+)$/.exec(a.record ?? "")).filter((m): m is RegExpExecArray => !!m).map((m) => m.slice(1, 4).map(Number));
+  if (games.length) {
+    const [w, l, t] = games.reduce((s, g) => s.map((v, i) => v + g[i]), [0, 0, 0]);
+    const rate = winRate(`${w}-${l}-${t}`);
+    if (rate != null) out.push({ label: where ? `Win rate at ${where}` : "Win rate", value: `${rate.toFixed(1)}%`, note: `${w}–${l}–${t} in quals` });
+  }
   const counts = new Map<string, number>();
   for (const a of apps) if (a.division) counts.set(a.division, (counts.get(a.division) ?? 0) + 1);
   const top = Math.max(0, ...counts.values());

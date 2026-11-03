@@ -22,11 +22,12 @@ describe("appearances", () => {
     expect(a[0]).toMatchObject({ season: 2021, title: "Franklin Division", badges: ["FIRST Championship"], division: "Franklin", rank: 20, record: "4-4-0", place: "Houston, TX" });
   });
   it("computes the banner for the acceptance case", () => {
-    expect(appearanceStats(appearances(enforcers))).toEqual([
+    expect(appearanceStats(appearances(enforcers), "Worlds")).toEqual([
       { label: "Total appearances", value: "5" },
       { label: "Consecutive", value: "5", note: "2021–22 to 2025–26" },
       { label: "Best division rank", value: "#3", note: "2022–23" },
-      { label: "Peak OPR", value: "148.2", note: "2024–25" },
+      // Every game at Worlds, across the trips (never a peak OPR: each season's game scores on its own scale).
+      { label: "Win rate at Worlds", value: "67.3%", note: "33–16–0 in quals" },
       { label: "Most frequent division", value: "Franklin / Ochoa", note: "2× each" },
     ]);
   });
@@ -36,6 +37,8 @@ describe("appearances", () => {
     expect(stats.find((s) => s.label === "Consecutive")).toEqual({ label: "Consecutive", value: "2", note: "2021–22 to 2022–23" });
     expect(stats.find((s) => s.label === "Best division rank")?.value).toBe("#7");
     expect(stats.some((s) => s.label === "Most frequent division")).toBe(false);
+    expect(stats.find((s) => s.label === "Win rate")).toEqual({ label: "Win rate", value: "48.3%", note: "14–15–0 in quals" });
+    expect(stats.some((s) => /OPR/.test(s.label))).toBe(false);
   });
   it("reads nothing from a card it can't read whole (the plain card stays)", () => {
     expect(appearances({ ...enforcers, lines: [{ text: "x", detail: "no season" }] })).toEqual([]);
