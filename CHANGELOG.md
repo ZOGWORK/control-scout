@@ -25,7 +25,7 @@ A search about one team's fact names the team once in its heading, and a word af
 - [teams] The line under it no longer repeats the heading
 
 ### Search
-- **Headings.** A team fact ("where is 6980 from", "4215 school") is titled "Team 6980 — Where They're From": the team once, no capital after an apostrophe, and the line under it left out when it only repeats the heading, in the first paint as in the app. (#477)
+- **Headings.** A team fact ("where is 6980 from", "4215 school") is titled "Team 6980 — Where They're From": the team once, no capital after an apostrophe, and the line under it left out when it only repeats the heading, in the first paint as in the app. "Average winning margin" is titled as asked, not as the plain average margin. (#477)
 
 ## 2.7.5 — 2026-11-03
 
