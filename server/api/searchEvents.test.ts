@@ -191,3 +191,47 @@ describe("Greptile on #434, round 3", () => {
     expect(a.didYouMean).toBeUndefined();
   });
 });
+
+describe("a state's championships, every season (owner report: \"new jesey states\")", () => {
+  beforeAll(async () => {
+    // Last season's championship with its two divisions, and one four seasons ago: none on record for the two between.
+    for (const [season, code, name, start] of [
+      [S - 1, "USNJCMP", "New Jersey Championship", "2026-03-15"], [S - 1, "USNJCMPPKWY", "New Jersey Championship - Parkway Division", "2026-03-15"],
+      [S - 1, "USNJCMPTRPK", "New Jersey Championship - Turnpike Division", "2026-03-15"], [S - 4, "USNJCMP", "New Jersey 3/17/23 State Championship Tournament", "2023-03-17"],
+    ] as const) await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', 'Hillsborough HS', 'Hillsborough', 'NJ', 'USA', ?, ?, 'test')", [season, code, name, start, start]);
+    await rebuildSearch();
+  });
+  const order = ["USNJCMP", "USNJCMP", "USNJCMPPKWY", "USNJCMPTRPK", "USNJCMP"];
+  const seasons = [S, S - 1, S - 1, S - 1, S - 4];
+  it("brief test 21: the same set in the same order, newest season first, the current season's on top", async () => {
+    for (const q of ["new jesey states", "nj states", "new jersey state championship", "NJ State Championship", "NJ state champs"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.didYouMean, q).toBeUndefined();
+      const ev = a.hits.filter((h) => h.kind === "event");
+      expect(refs(ev), q).toEqual(order);
+      expect(ev.map((h) => h.season), q).toEqual(seasons);
+      expect(a.understood?.label, q).toMatch(/^Championships in New Jersey(?: \(from "new jesey"\))?, every season, none on record for /);
+    }
+  });
+  it("a near miss of the place is said as read, never a did-you-mean to an event", async () => {
+    const a = await ask("new jesey states");
+    expect(a.understood).toMatchObject({ kind: "events", place: { key: "USA:NJ" } });
+    expect(a.understood?.label).toBe(`Championships in New Jersey (from "new jesey"), every season, none on record for 2024–25, 2023–24`.replace("2024–25", `${S - 2}–${String(S - 1).slice(2)}`).replace("2023–24", `${S - 3}–${String(S - 2).slice(2)}`));
+  });
+  it("a year or a season still scopes it; 'states' is never 'stats'", async () => {
+    expect(refs((await ask(`${S - 1}-${String(S).slice(2)} NJ states`)).hits)).toEqual(["USNJCMP", "USNJCMPPKWY", "USNJCMPTRPK"]);
+    expect((await ask("nj states")).understood?.label).not.toMatch(/stats/i);
+  });
+});
+
+describe("Greptile on #450, round 3", () => {
+  it("more championships than a page holds: the newest first, how many in all, and the full list linked", async () => {
+    for (let i = 0; i < 30; i++) await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', 'V', 'Austin', 'TX', 'USA', ?, ?, 'test')", [S - (i % 4), `USTXR${i}`, `Texas Region ${i} Championship`, `2026-0${1 + (i % 9)}-01`, `2026-0${1 + (i % 9)}-01`]);
+    const a = await ask("tx states");
+    expect(a.understood?.total).toBe(32); // and the two Houston FIRST Championship divisions above
+    expect(a.understood?.label).toMatch(/, 32 in all \(the full list is on Events\)$/);
+    expect((await searchAnswer("tx states", { now, limit: 15, learn: false })).understood?.label).toBe(a.understood?.label); // the same line for any limit
+    expect(a.pages[0]).toEqual({ title: "Championships in Texas, each season: Events", href: "/events?region=USA%3ATX&type=Championship" });
+  });
+});
