@@ -47,6 +47,13 @@ beforeAll(async () => {
     await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties, qual_played) VALUES (2025, 'USNJCMP', ?, 1, 4, 1, 0, 5)", [t]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USNJCMP', ?, 100, 5)", [t]);
   }
+  // 8888 last played in 2024–25, as 6980 also did: their latest shared season is 2024–25.
+  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (8888, 'Old Gears', 'Oradell', 'NJ', 'USA', 2010)");
+  for (const t of [8888, 6980]) {
+    await run("INSERT INTO team_seasons (season, team) VALUES (2024, ?)", [t]);
+    await run(`INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_sd, rating_matches, rating_rank, matches, wins, losses, ties)
+      VALUES (2024, ?, 50, 12, 25, 6, null, 11, 50, 3, 10, null, 8, 5, 3, 0)`, [t]);
+  }
   await rebuildSearch();
 });
 
@@ -191,6 +198,12 @@ describe("precedence and parsing", () => {
     expect(a.hits[0].section).toBe(own.hits[0].section);
     const awards = await ask("4215 and 6980 awards");
     expect(awards.hits[0].section).toBe((await ask("4215 awards")).hits[0].section);
+  });
+  it("every team is read for one season, the latest they all played", async () => {
+    const a = await ask("6980 and 8888 record");
+    expect(a.stat?.title).toContain("2024–25");
+    const t = a.stat?.blocks.find((b) => b.kind === "leaderboard") as Extract<StatBlock, { kind: "leaderboard" }>;
+    expect(t.note).toBe("2024–25 season numbers");
   });
   it("an untimed final stays at the top of its event, above the timed qualifications", async () => {
     const rows = rowsOf(await ask("23268 or 14270"));

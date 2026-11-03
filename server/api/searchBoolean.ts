@@ -279,8 +279,15 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
       if (a.intent?.kind === `stat-${two.id}` && (!full || a.stat)) return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label} · read as "${vs}"${note}` } };
     }
   }
-  // Any other stat: each team's own answer, its headline in one table.
-  const own = await Promise.all(teams.map((t) => ownStat(read, t, b.rest, full)));
+  // Any other stat: each team's own answer, its headline in one table. Every team is read for one season, so the
+  // values compare: the one named, else the latest season every team played ("this season" included).
+  const named = readScope(` ${b.rest} `).scope;
+  const shared = named.season != null || named.ever ? named.season : await sharedSeason(teams);
+  if (shared == null && !named.ever) return null;
+  const asked = shared != null && named.season == null
+    ? `${b.rest.replace(/\b(?:this|current|the current)\s+(?:season|year)\b/g, " ").replace(/\s+/g, " ").trim()} ${shared}-${String((shared + 1) % 100).padStart(2, "0")}`
+    : b.rest;
+  const own = await Promise.all(teams.map((t) => ownStat(read, t, asked, full)));
   if (own.some((a) => !a) || new Set(own.map((a) => a!.intent!.kind)).size !== 1) return null;
   const hits = own.map((a) => a!.hits.find((h) => h.kind === "team")!).filter(Boolean);
   if (hits.length !== teams.length) return null;
@@ -289,7 +296,14 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   const a = base(hits, label, `boolean-compare`);
   if (!full) return a;
   const stats = own.map((x) => x!.stat!);
-  return { ...a, stat: await sideBySide(what, teams, stats, readScope(` ${b.rest} `).scope.season) };
+  return { ...a, stat: await sideBySide(what, teams, stats, shared) };
+}
+
+/** The latest season every team has matches in, or null. */
+async function sharedSeason(teams: number[]): Promise<number | null> {
+  const rows = await all<{ team: number; season: number }>(`SELECT team, season FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(",")}) AND matches > 0`, teams);
+  const seasons = [...new Set(rows.map((r) => Number(r.season)))].sort((x, y) => y - x);
+  return seasons.find((x) => teams.every((t) => rows.some((r) => Number(r.team) === t && Number(r.season) === x))) ?? null;
 }
 
 const RECORD_TEXT = /^(\d+)-(\d+)-(\d+)$/;
@@ -298,7 +312,8 @@ function numberOf(v: string | undefined): number | null {
   if (!v) return null;
   const r = RECORD_TEXT.exec(v);
   if (r) { const n = Number(r[1]) + Number(r[2]) + Number(r[3]); return n ? (Number(r[1]) + 0.5 * Number(r[3])) / n : null; }
-  const x = Number.parseFloat(v.replace(/[^\d.-]/g, ""));
+  // A margin's minus is the typographic one ("−10.0").
+  const x = Number.parseFloat(v.replace(/[−–]/g, "-").replace(/[^\d.-]/g, ""));
   return Number.isFinite(x) ? x : null;
 }
 
