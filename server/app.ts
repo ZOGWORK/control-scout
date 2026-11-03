@@ -12,6 +12,7 @@ import { siteMeta } from "./api/meta.js";
 import { CURRENT_SEASON, SEASONS, SEASON_NUMBERS, isLegacy, seasonInfo } from "./data/seasons.js";
 import { ensureSearchIndex, search } from "./api/search.js";
 import { cleanQuery, learnQuery, searchAnswer } from "./api/searchAnswer.js";
+import { withTeamStats } from "./api/searchTeamStats.js";
 import { refine } from "./api/searchBruno.js";
 import { brunoAnswer } from "./api/searchBrunoAnswer.js";
 import { SEARCH_PAGE_LIMIT } from "../src/shared/search.js";
@@ -345,7 +346,8 @@ export function createApp(opts: { dist?: string } = {}) {
     const limit = boundedCount(req.query.limit, "limit", 12, 1, 25);
     // ?answer=1 (the header's search and /search): the whole answer, with its step, pages and recovery
     // (server/api/searchAnswer.ts). Pickers ask for plain hits.
-    if (req.query.answer === "1" && !kinds.size) return searchAnswer(String(req.query.q ?? ""), { limit, prefer });
+    // Team rows carry their season numbers (server/api/searchTeamStats.ts), added once, on the answer that's sent.
+    if (req.query.answer === "1" && !kinds.size) { const ans = await searchAnswer(String(req.query.q ?? ""), { limit, prefer }); return { ...ans, hits: await withTeamStats(ans.hits) }; }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };
   }));
 

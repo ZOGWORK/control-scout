@@ -30,6 +30,27 @@ FTC One Search reads a misspelled place, and "states" as a state's championship,
 - **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
 - **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
 
+## 2.4.3 — 2026-11-03
+
+FTC One Search answers more questions: who's on top in a state, who leads a stat, who won an award, and what Predict says.
+
+### Highlights
+- [rankings] "What is the best FTC team right now" shows the world's top five
+- [rankings] "Top teams in New Jersey" shows its top five; team rows show OPR
+- [rankings] "Highest OPR", "best auto team" and "most wins" list the leaders
+- [predict] "Will 4215 win their next match?" opens Predict on its matches
+- [history] "Who won Inspire at …" names the winners from the event's results
+
+### Search
+- **The best team, worldwide.** "What is the best FTC team right now", "best team", "who is the best FTC team" and "top FTC teams" show the season's top five from the world rankings, titled "Top teams · 2025–26", and link the full ranking. "FTC", "right now", "currently" and "in the world" are read as filler, never as names.
+- **Questions don't list stray matches.** A question that matches nothing says what it read and offers the browse links. It no longer lists teams or towns that only share one of its words ("Best", "The Best Friends").
+- **Leaderboards by place.** "Top teams in New Jersey", "NJ rankings" and "best team in NJ" show the region's top five from the live rankings, each with its place in the region and in the world. They also link the region's full ranking.
+- **Stat leaders.** "Highest OPR", "best auto team", "best teleop", "best endgame" and "who has the most wins" list the season's top five by that number (OPR without penalties, or its auto, teleop or endgame part; wins with losses as the tie-break), optionally for a region ("highest OPR in NJ"). Only teams with 3 or more matches count. No other stat is ever inferred.
+- **Predictions and advancement.** "Will 4215 win their next match" shows its next match and opens Predict on its matches. "4215 vs 6980 who wins" shows the Compare and opens Predict with both teams filled in. "Who will win New Jersey Championship" opens the event's odds. "Will 4215 advance to states" and "what does 4215 need to advance" open the advancement simulator for the team.
+- **Event awards.** "Who won Inspire at New Jersey Championship" (and Think, Innovate, Design, Reach, Sustain, Connect, Control, Compass, Judges' Choice) lists the winners from the event's results. For an event that hasn't happened yet, it shows the latest season that gave the award, with that season named.
+- **Team questions.** "When does 4215 play next" shows its next match, or says plainly that none is scheduled yet. "How are predictions calculated" puts the methodology page first in Pages.
+- **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#440)
+
 ## 2.4.2 — 2026-11-03
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
