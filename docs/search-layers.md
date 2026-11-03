@@ -48,8 +48,8 @@ Layer 1 only (`opts.inner`). A phrasing that two layers reach is read once (a pe
 | website | team facts | website, web site, site, url | required | none | `4215 website` | none needed |
 | opr | team stats | opr, oprs | required | season | `4215 opr` | beats rank |
 | rating | team stats | rating, prediction rating, predicted rating, prediction, predicted | required | season | `4215 prediction rating` | loses to next-match, loses to report-card, beats rank |
-| record | record | record, wins, losses, win loss, w l, win-loss | required | season, event | `4215 record at new jersey championship` | beats matches, loses to worlds, loses to win-rate |
-| win-rate | record | win rate, win percentage, win % | required | none | `4215 win rate` | beats record |
+| record | record | record, wins, losses, win loss, w l, wins and losses | required | season, event | `4215 record at new jersey championship` | beats matches, loses to worlds, loses to win-rate |
+| win-rate | record | win rate, win percentage | required | none | `4215 win rate` | beats record |
 | rank | record | rank, ranking, ranked, standing | required | place | `4215 rank` | loses to league-rank, loses to opr, loses to rating |
 | matches | matches | matches, match, games, schedule, fixtures | required | event | `4215 matches at new jersey championship` | loses to next-match, loses to last-match, loses to high-score, loses to record |
 | high-score | matches | highest score, high score, best score, top score, highest scores | required | none | `4215 highest score` | beats matches |
