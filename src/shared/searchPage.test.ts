@@ -40,6 +40,8 @@ describe("capWords", () => {
     expect(capWords("where they're from")).toBe("Where They're From");
     expect(capWords("dean’s list finalists")).toBe("Dean’s List Finalists");
     expect(capWords("worlds appearances")).toBe("Worlds Appearances");
+    expect(capWords("sponsors and school or organization")).toBe("Sponsors and School or Organization");
+    expect(capWords("the record at states")).toBe("The Record at States");
   });
 });
 

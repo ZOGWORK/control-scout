@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.2 — 2026-11-03
+## 2.8.3 — 2026-11-03
 
 Every event opens now, whatever its code looks like, and the policy, help and record pages arrive with their words in place.
 
@@ -30,6 +30,18 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 
 ### Pages
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again.
+
+## 2.8.2 — 2026-11-03
+
+Two searches the failed-search log caught now answer: when a team last played, and several of a team's listing facts at once.
+
+### Highlights
+- [teams] "When did hypnotic last play" opens their most recent match
+- [teams] "4215 sponsors school" answers both, each on its own line
+- [fixes] Headings keep "and" and "or" lower case
+
+### Search
+- **Fixes from the failed-search log.** "when did X last play" (or "play last", "last compete") reads as the team's most recent match. Several listing facts at once ("4215 sponsors school", "4215 rookie year, website") are each answered on their own line, in the order asked, with a team's whole name tried before any fact word is read off it. "last" is no longer called a word left out of a most-recent-match answer, and headings keep joining words small ("Sponsors and School or Organization"). (#496)
 
 ## 2.8.1 — 2026-11-03
 
