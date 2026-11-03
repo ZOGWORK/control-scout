@@ -87,6 +87,8 @@ describe("answers on their own", () => {
   it("a country's best teams, by OPR", async () => {
     const a = await ask("best teams in romania");
     expect(a.card?.lines.map((l) => l.text)).toEqual(["14270 Quantum Robotics"]);
+    // The number asked for: the USA has three ranked teams here.
+    expect((await teamListAnswer("top 2 teams in usa"))?.card?.lines.map((l) => l.text)).toEqual(["23268 Ultraviolet", "6980 Bad Wolf"]);
   });
   it("undefeated teams and the highest win rate", async () => {
     expect((await ask("undefeated teams")).card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf"]);
@@ -125,6 +127,7 @@ describe("Greptile on #465", () => {
     const a = await ask("how many teams in OR");
     expect(a.understood?.label).toMatch(/Oregon/);
     expect(a.card?.count).toBeUndefined(); // a count of teams, never "N times"
+    expect(a.pages[0]?.href).toMatch(/&country=US&state=OR$/); // the teams counted, as Teams filters them
   });
   it("a month's events: its own count, August in the season's second year, and a month with none said so", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ1', 'March Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', '2026-03-07', '2026-03-07', 't')", [S]);

@@ -26,6 +26,7 @@ import { RECORD_TYPES } from "./searchHighScores.js";
 import { normalize } from "./fuzzy.js";
 import { search } from "./search.js";
 import { eventSetAnswer } from "./searchEvents.js";
+import { countryOf } from "../../src/shared/countries.js";
 
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 const TEAM = String.raw`(\d{1,6}|[a-z0-9][\w'’&.-]*(?:\s+[\w'’&.-]+){0,4})`;
@@ -236,7 +237,10 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   const what = teams ? "teams registered" : meets ? "league meets" : "events";
   const inPlace = place ? ` in ${place.name}` : "";
   const label = `How many ${teams ? "teams" : meets ? "league meets" : "events"}${inPlace} · ${seasonLabel(season)}`;
-  const href = teams ? `/teams?season=${season}&view=listed` : `/events?season=${season}${place?.state ? `&region=${encodeURIComponent(place.key)}` : ""}`;
+  // The teams counted, as Teams filters them: its country (an alpha-2 code) and home state.
+  const cc = place ? countryOf(place.country)?.code : null;
+  const teamsWhere = cc ? `&country=${cc}${place?.state ? `&state=${encodeURIComponent(place.state)}` : ""}` : "";
+  const href = teams ? `/teams?season=${season}&view=listed${teamsWhere}` : `/events?season=${season}${place?.state ? `&region=${encodeURIComponent(place.key)}` : ""}`;
   return answer(q, {
     hits: [], pages: [{ title: teams ? "Browse the teams" : "Browse the events", href }],
     card: { kind: "info", title: label, lines: [{ text: `${n.toLocaleString("en-US")} ${what}${inPlace} in ${seasonLabel(season)}`, detail: teams ? "Registrations for the season, played or not" : "Every event on FIRST's schedule for the season", href }] },
@@ -401,10 +405,12 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   if (!/\b(?:best|top|strongest|highest|biggest|max(?:imum)?|undefeated|unbeaten|perfect|no losses|without a loss|win(?:ning|rate)?|improved|rookies?|oldest|newest|youngest|first[\s-]year|veteran|average|mean|avg|worlds|first championship|world championship)\b/.test(t)) return null;
   const season = await defaultRankingsSeason();
   // A country's best: "best teams in canada", "top teams in romania" (a state's are the leaderboards').
-  if ((m = /^(?:the\s+)?(?:best|top|strongest|highest[\s-]ranked)(?:\s+\d+)?\s+(?:teams?|robots?)\s+(?:in|from|of)\s+(.+)$/.exec(t))) {
-    const p = await placeOf(cased(q, m[1]));
+  if ((m = /^(?:the\s+)?(?:best|top|strongest|highest[\s-]ranked)(?:\s+(\d+))?\s+(?:teams?|robots?)\s+(?:in|from|of)\s+(.+)$/.exec(t))) {
+    const p = await placeOf(cased(q, m[2]));
     if (p && !p.state) {
-      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
+      // "top 3 teams in canada": that many (1 to 50); else 10.
+      const n = m[1] ? Math.min(50, Math.max(1, Number(m[1]))) : 10;
+      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT ${n}`, [season, ...placeArgs(p)]);
       const lines = rows.map((r, i) => lineOf(r, [`#${i + 1} in ${p.name}`, `OPR ${fmt1(r.opr_np)}`, `${r.wins}-${r.losses}-${r.ties}`], season));
       const title = `Top teams in ${p.name} · ${seasonLabel(season)}`;
       return card(title, lines, `No ranked teams in ${p.name} for ${seasonLabel(season)} yet.`, [{ title: `${p.name} rankings`, href: `/rankings?season=${season}&region=${encodeURIComponent(p.key)}` }], `${title}, by OPR without penalties`);
