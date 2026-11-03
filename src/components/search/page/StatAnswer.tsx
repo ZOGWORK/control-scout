@@ -249,18 +249,19 @@ const oneDp = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
 const PHASES = [{ key: "auto", label: "Auto", tone: "bg-chart-1" }, { key: "teleop", label: "TeleOp", tone: "bg-chart-2" }, { key: "endgame", label: "Endgame", tone: "bg-chart-3" }] as const;
 
 /** A leaderboard: on a computer a wide table with a bar column (the asked stat scaled to #1, an OPR's auto, TeleOp and
- *  endgame stacked in it); on a phone compact rows, the bar under the team's name. */
+ *  endgame named under it); on a phone compact rows, the bar under the team's name. Each phase is the team's own best
+ *  that season, maybe from different events, so the phases are listed, never stacked as parts of the OPR. */
 function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) {
   const max = Math.max(1e-9, ...b.rows.map((r) => Math.abs(r.value ?? 0)));
   const split = b.stat.id === "opr" && b.rows.some((r) => r.parts);
+  const phases = (r: LeaderboardRow) => (split && r.parts ? PHASES.map((p) => `${p.label} ${r.parts![p.key] == null ? "–" : oneDp(r.parts![p.key]!)}`).join(" · ") : "");
   const isOpr = b.stat.id === "opr";
   const phase = PHASES.find((p) => p.key === b.stat.id);
   const bar = (r: LeaderboardRow) => {
     const w = (v: number | null) => `${(Math.max(0, v ?? 0) / max) * 100}%`;
     return (
       <span className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
-        {split && r.parts ? PHASES.map((p) => <span key={p.key} className={cn("h-full", p.tone)} style={{ width: w(r.parts![p.key]) }} />)
-          : <span className={cn("h-full rounded-full", phase?.tone ?? "bg-accent")} style={{ width: w(r.value) }} />}
+        <span className={cn("h-full rounded-full", phase?.tone ?? "bg-accent")} style={{ width: w(r.value) }} />
       </span>
     );
   };
@@ -271,11 +272,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
         <span className={H3}>{b.title}</span>
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
-      {split && (
-        <p className="mb-2 flex flex-wrap gap-3 text-[11px] text-muted-foreground" data-legend>
-          {PHASES.map((p) => <span key={p.key} className="inline-flex items-center gap-1"><span className={cn("size-2.5 rounded-sm", p.tone)} aria-hidden />{p.label}</span>)}
-        </p>
-      )}
+      {split && <p className="mb-2 text-[11px] text-muted-foreground" data-legend>Auto, TeleOp and Endgame: each the team's own best that season, so they don't add up to the OPR.</p>}
       {/* Computer: the table, the bar its last column. */}
       <div className="overflow-x-auto rounded-lg border border-border max-md:hidden">
         <table className="w-full text-sm">
@@ -299,7 +296,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
                 <td className="px-2.5 py-1.5 tabular-nums">{r.record}</td>
                 <td className={cn("px-2.5 py-1.5 text-right tabular-nums", isOpr && asked)}>{r.opr == null ? "–" : oneDp(r.opr)}</td>
                 {!isOpr && <td className={cn("px-2.5 py-1.5 text-right tabular-nums", asked)}>{r.display}</td>}
-                <td className="px-2.5 py-1.5">{bar(r)}</td>
+                <td className="px-2.5 py-1.5">{bar(r)}{split && r.parts && <span className="mt-0.5 block text-[11px] tabular-nums text-muted-foreground">{phases(r)}</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -315,7 +312,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
               <span className={cn("shrink-0 text-sm tabular-nums", asked)}>{r.display}</span>
             </div>
             <div className="ml-7 mt-1">{bar(r)}</div>
-            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${oneDp(r.opr)}` : ""].filter(Boolean).join(" · ")}</p>
+            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${oneDp(r.opr)}` : "", phases(r)].filter(Boolean).join(" · ")}</p>
           </li>
         ))}
       </ol>
