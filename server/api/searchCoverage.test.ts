@@ -81,7 +81,8 @@ describe("answers on their own", () => {
   it("who won Worlds: a year is the one held that year, said as its season", () => {
     expect(rewriteQuery("who won worlds 2025")?.q).toBe("who won worlds 2024-25");
     expect(rewriteQuery("worlds winners 2026")?.q).toBe("who won worlds 2025-26");
-    expect(rewriteQuery("who won worlds last year")?.q).toMatch(/^who won worlds 20\d\d-\d\d$/);
+    // "Last year" is the stat answer's (the latest finished championship), never rewritten to a calendar year.
+    expect(rewriteQuery("who won worlds last year")).toBeNull();
   });
   it("an award at Worlds: the main event's, never a division's", async () => {
     const a = await ask("who won inspire at worlds");

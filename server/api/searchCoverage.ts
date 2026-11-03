@@ -55,11 +55,8 @@ export function rewriteQuery(q: string): { q: string; note?: string } | null {
   // "Near" a town is in it: there's no distance on record.
   if ((m = /^(.*\bteams?)\s+(?:near|around|close to|by)\s+(.+)$/.exec(t))) return { q: `${m[1]} in ${m[2]}`, note: `Teams in ${titleCase(m[2])} (no distances are on record, so "near" reads as "in")` };
   // Who won Worlds, asked by a year said in words, by the season's game, or as "worlds winners".
-  if ((m = /^who won (?:the )?(?:worlds|first championship|world championships?) (this|last) year$/.exec(t))) {
-    // Worlds is held in the spring: the one held that calendar year is that year's season's, said as a season.
-    const held = new Date().getUTCFullYear() - (m[1] === "last" ? 1 : 0);
-    return { q: `who won worlds ${held - 1}-${String(held % 100).padStart(2, "0")}` };
-  }
+  // "This year" and "last year" are the stat answer's own (answers/families/winners.ts, the owner's rule): the current
+  // season, and the latest championship that has finished.
   // A bare year is the Worlds held that year ("who won worlds 2025": April 2025, the 2024–25 season's).
   if ((m = /^(?:who won (?:the )?(?:worlds|first championship|world championships?)|(?:worlds|world) (?:winners?|champions?)) (20\d\d)$/.exec(t))) {
     const held = Number(m[1]);
