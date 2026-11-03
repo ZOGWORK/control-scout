@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.9 — 2026-11-03
+## 2.5.2 — 2026-11-03
 
 FTC One Search answers "who won NJ states": the winning alliance and the Inspire Award, from the event's results.
 
@@ -27,6 +27,45 @@ FTC One Search answers "who won NJ states": the winning alliance and the Inspire
 ### Search
 - **Who won an event.** "Who won NJ states", "who won the New Jersey Championship", "winners of 2024-25 NJ states" and misspellings like "who won new jesey states" answer the newest finished championship of that place (or the event named, its newest finished season). The answer shows the winning alliance as FIRST records it (each division's, at a championship with divisions) and the Inspire Award winner, and opens the event on its playoffs. "Won" is never read as a name word. An event with no results recorded says so plainly. "Who won Inspire at …" still lists that award's winners.
 - **"States" is a state's own championship.** "TX states" lists Texas's state and regional championships, never the FIRST Championship held in Houston, and its line reads "State championships in Texas". "NJ states events" now reads as state championships too, not as all events. (#456)
+
+## 2.5.1 — 2026-11-03
+
+FTC One Search keeps Bruno AI's overview on every question, and titles a plain name search by what it found.
+
+### Highlights
+- [teams] Bruno AI answers "how good is" a team again, above its standing
+- [fixes] A plain name search is titled by what it found, never your words
+- [teams] Bruno AI knows who won each event listed, for "who won nj states"
+
+### Search
+- **Bruno AI on every question.** Before FTC One Search, Bruno AI wrote a short overview for every question; "how good is simply complex" had lost it when the standing summary arrived. He's back: his overview sits above the standing (on a phone, the numbers first and his writing under "Show AI Analysis"). The record cards and summaries sit beside him and never replace him, and a test now lists every kind of question the page answers (championship trips, states, a team's standing, awards, next match, comparisons, rules, high scores, leaderboards, event awards, and a plain question answered by name matches) so none can lose him again.
+- **Who won.** Bruno AI is now told who won each event in the results (its winning alliance and Inspire Award), so "who won nj states" gets an answer from the records instead of nothing.
+- **No echo in the title.** When search reads no meaning into the words and lists names that match them ("who won nj states"), the title says what it found ("Matching events", "Matching teams and events") instead of repeating the words, and no badge repeats them either. With nothing found the title is just "No matches found" (the words are in the search bar above). A title for a question it understood is unchanged. (#454)
+
+## 2.5.0 — 2026-11-03
+
+FTC One Search on a phone: pick two teams to compare from the results, and preview a head-to-head without leaving them.
+
+### Highlights
+- [teams] VS Compare on a team result picks it for a Compare bar
+- [teams] The Compare bar sits above the tab bar and opens the comparison
+- [teams] A comparison result opens its head-to-head in a panel over the results
+
+### Search
+- **Pick two, compare.** On a phone, VS Compare on a team result picks it for comparing. Picked teams dock in a bar right above the tab bar; "Compare (2) →" opens them side by side (in the season the results are about, when they name one), and with only one picked, "Compare (1) →" opens Compare to add the other. A third pick replaces the first, and × drops a team. The picks belong to that search: a new search starts with none.
+- **Head-to-head without leaving.** Tapping a comparison result ("Hypnotic Robotics vs Ultraviolet") opens a panel from the bottom with both teams' record, OPR and OPR rank, and View full comparison → at the end. Close it and the results are just as you left them. Results and their order are unchanged. (#446)
+
+## 2.4.9 — 2026-11-03
+
+FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
+
+### Highlights
+- [home] New example search: "Top teams in NJ" opens New Jersey's leaderboard
+- [home] New example search: "Highest OPR" lists this season's top OPRs
+- [home] Examples cover places, comparisons, questions, records and leaderboards
+
+### Search
+- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. On Home, "Top teams in NJ" carries a Rankings tag. (#452)
 
 ## 2.4.8 — 2026-11-03
 
