@@ -346,7 +346,9 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (r.family === "trend" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance)) return null;
     // Season by season covers every season (a season named isn't one of its rows); event by event stays in one season
     // (every season is a different game), so "all time" can't apply.
-    if ((r.id === "opr-by-season" || r.id === "record-by-season") && scope.season != null) return null;
+    // A bare year with nothing else naming a team is the team's number ("2024 OPR by season"), not a season.
+    const yearIsTeam = scope.year && !squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
+    if ((r.id === "opr-by-season" || r.id === "record-by-season") && scope.season != null && !yearIsTeam) return null;
     if (r.family === "trend" && r.id !== "opr-by-season" && r.id !== "record-by-season" && scope.ever) return null;
     // A season's penalty total is every event's quals: an event, Worlds, a match type, a colour or all time can't apply.
     if (r.id === "total-penalties" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.ever)) return null;
