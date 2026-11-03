@@ -121,7 +121,8 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // Boolean operators and quoted phrases are read from the query as typed, before cleaning drops '"' and '|'
   // (./searchBoolean.ts); a query without them goes through the layers exactly as before.
   const bool = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? "")) ? await booleanAnswer(String(raw ?? ""), reader, opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) : null;
-  if (bool) return bool;
+  // Cut to the caller's limit like every other answer (a quoted name adds the teams named exactly that).
+  if (bool) return { ...bool, hits: bool.hits.slice(0, opts.limit ?? 12) };
   return layeredAnswer(cleanQuery(raw), reader);
 }
 

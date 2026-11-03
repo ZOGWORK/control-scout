@@ -104,6 +104,11 @@ describe("the brief's ten cases", () => {
       expect((await searchAnswer("\"4215\"", { limit, learn: false })).hits[0]?.ref).toBe("4215");
     }
   });
+  it("7d. a quoted name keeps to the caller's limit", async () => {
+    const a = await searchAnswer("\"Raider Robotics\"", { limit: 1, learn: false });
+    expect(a.hits.map((h) => h.ref)).toHaveLength(1);
+    expect(["16762", "16774"]).toContain(a.hits[0].ref);
+  });
   it("7b. a phrase no name holds says so, never the words apart", async () => {
     const a = await ask("\"Robotics Raider\"");
     expect(a.step).toBe("recovery");
