@@ -12,6 +12,7 @@ import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js
 import { seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
+import { isLegacy } from "../../../data/seasons.js";
 import { all, get } from "../../../db.js";
 import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
@@ -73,7 +74,7 @@ interface SeasonRow { team: number; season: number; opr_np: number | null; opr_a
 
 /** Both teams' rows for the season named, else the latest season both played (said so). */
 async function bothSeasons(a: number, b: number, season: number | null): Promise<{ season: number | null; why?: string; ra?: SeasonRow; rb?: SeasonRow }> {
-  const rows = await all<SeasonRow>("SELECT * FROM team_season_stats WHERE team IN (?, ?) AND matches > 0" + (season != null ? " AND season = ?" : "") + " ORDER BY season DESC", season != null ? [a, b, season] : [a, b]);
+  const rows = await all<SeasonRow>("SELECT team, season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties FROM team_season_stats WHERE team IN (?, ?) AND matches > 0" + (season != null ? " AND season = ?" : "") + " ORDER BY season DESC", season != null ? [a, b, season] : [a, b]);
   const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
   if (season != null) return { season, ra: of(a, season), rb: of(b, season) };
   const s = rows.map((r) => Number(r.season)).find((x) => of(a, x) && of(b, x));
@@ -94,7 +95,8 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
     const missing = [!ra ? whoOf(a) : "", !rb ? whoOf(b) : ""].filter(Boolean).join(" and ");
     return { ...base, blocks: [], none: s.season == null ? `${whoOf(a)} and ${whoOf(b)} have no season they both played.` : `No ${seasonLabel(s.season)} matches on record for ${missing}.` };
   }
-  const predict: StatBlock = { kind: "links", title: "Try it", items: [{ label: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: s.season!, red: [a.number], blue: [b.number] }) }, { label: "Compare side by side", href: `/compare?teams=${[a.number, b.number].sort((x, y) => x - y).join(",")}&season=${s.season}` }] };
+  // Predict covers 2023–24 on; an older season is Compare only.
+  const predict: StatBlock = { kind: "links", title: "Try it", items: [...(isLegacy(s.season!) ? [] : [{ label: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: s.season!, red: [a.number], blue: [b.number] }) }]), { label: "Compare side by side", href: `/compare?teams=${[a.number, b.number].sort((x, y) => x - y).join(",")}&season=${s.season}` }] };
 
   if (id === "better-record") {
     const rA: Rec = { wins: ra.wins, losses: ra.losses, ties: ra.ties }, rB: Rec = { wins: rb.wins, losses: rb.losses, ties: rb.ties };
@@ -201,7 +203,8 @@ export async function neverPlayedAnswer(team: AnswerTeam, msAll: TeamMatch[], sc
   const where = home?.state ? `${home.state}${home.country ? `, ${home.country}` : ""}` : null;
   const base = { family: "two-team" as const, intent: "never-played", title, team, scope: scopeChips(sc), definition: `Teams never played: teams from ${where ?? "the team's state"} with matches at official events that season, never met as an opponent in any recorded match (every season, official or not). Ordered by the season's OPR rank.`, source: "" };
   if (!home?.state || season == null) return { ...base, blocks: [], source: "No state or season on record", none: `No ${!home?.state ? "state" : "season with matches"} on record for ${whoOf(team)}.` };
-  const met = new Set(msAll.flatMap((m) => m.opponents));
+  // Only matches the team took the field in: a playoff it sat out never met anyone.
+  const met = new Set(msAll.filter((m) => m.onField).flatMap((m) => m.opponents));
   const peers = await all<{ number: number; name: string | null; opr_np: number | null; rank_np: number | null }>(
     `SELECT t.number, t.name, s.opr_np, s.rank_np FROM team_season_stats s JOIN teams t ON t.number = s.team
      WHERE s.season = ? AND s.matches > 0 AND t.state = ?

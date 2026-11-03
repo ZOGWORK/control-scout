@@ -50,18 +50,24 @@ describe("the lists", () => {
   it("top N by OPR in a state: ranked rows, 3 matches or more, the Teams page link", async () => {
     const a = await searchAnswer("Top 10 teams by OPR in NJ", { limit: 25 });
     expect(a.stat).toMatchObject({ family: "leaderboard", title: "Top 10 teams by OPR in New Jersey · 2025–26", headline: { value: "23268 Ultraviolet" } });
+    // The card: rank, team, location, W-L-T, OPR, the bar scaled to #1 with the OPR's phase split, and the note.
     const t = a.stat!.blocks[0];
-    expect(t.kind === "table" && t.rows.map((r) => r.cells.team)).toEqual(["23268 Ultraviolet", "31814 Quantum Core", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
-    expect(a.stat!.more).toEqual({ label: "View more on the Teams page", href: "/teams?view=season&season=2025&country=US&state=NJ&sort=totalPointsNpOpr&filter=and-qualMatchesPlayed.gte.3-" });
+    if (t.kind !== "leaderboard") throw new Error(t.kind);
+    expect(t.rows.map((r) => r.team.label)).toEqual(["23268 Ultraviolet", "31814 Quantum Core", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect(t.rows[0]).toMatchObject({ rank: 1, location: expect.stringContaining("NJ"), record: expect.stringMatching(/^\d+-\d+-\d+$/), parts: expect.any(Object) });
+    expect(t.note).toBe("2025–26 · 4 ranked teams in New Jersey · by OPR");
+    expect(t.more).toEqual({ label: "View more detail on the Teams page", href: "/teams?view=season&season=2025&country=US&state=NJ&sort=totalPointsNpOpr&filter=and-qualMatchesPlayed.gte.3-" });
+    expect(a.pages[0]).toMatchObject({ href: t.more!.href });
   });
   it("win rate, rookies, the most improved by standing", async () => {
     const w = await searchAnswer("Top teams by win rate in New Jersey", { limit: 25 });
     expect(w.stat!.headline).toMatchObject({ value: "31814 Quantum Core", label: "Win rate 83%, 20-4-0 · Hillsborough" });
     // The Teams table counts qualification matches only: no link to a list that would differ.
-    expect(w.stat!.more).toBeUndefined();
+    expect(w.stat!.blocks[0]).not.toHaveProperty("more");
     const r = await searchAnswer("Best rookie team in New Jersey", { limit: 25 });
     expect(r.stat!.headline).toMatchObject({ value: "31814 Quantum Core" });
-    expect(r.stat!.more!.href).toContain("filter=and-qualMatchesPlayed.gte.3+rookieYear.eq.2025-");
+    const rb = r.stat!.blocks[0];
+    expect(rb.kind === "leaderboard" && rb.more!.href).toContain("filter=and-qualMatchesPlayed.gte.3+rookieYear.eq.2025-");
     const i = await searchAnswer("Most improved team in New Jersey", { limit: 25 });
     expect(i.stat!.headline).toMatchObject({ value: "23268 Ultraviolet", sub: "OPR rank #6000 of 7600 → #30 of 8375" });
     // No Teams page list asks the same question (a climb from last season): no link.

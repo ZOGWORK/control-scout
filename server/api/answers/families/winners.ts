@@ -44,7 +44,8 @@ export interface WhichSeason { latest?: boolean; lastYear?: boolean }
  *  series (its finals), its whole roster from alliance selection; with no final match stored, the Winning Alliance
  *  award. Null when neither is in the data (not played yet), or its final isn't decided yet. */
 async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[]; from: "finals" | "award" } | null> {
-  const last = await get<{ s: number | null }>("SELECT MAX(series) s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
+  // The final is series 0 when the bracket stores one (classic brackets, and some others), else the last series.
+  const last = await get<{ s: number | null }>("SELECT CASE WHEN MIN(series) = 0 THEN 0 ELSE MAX(series) END s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
   const ms = last?.s == null ? [] : await all<any>(
     `SELECT m.level, m.series, m.number, m.label, m.time, m.red_total, m.blue_total,
             (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'red') red,
@@ -136,7 +137,14 @@ export async function winnersAnswer(core: string, season: number | null, champio
     blocks.push({ kind: "links", title: "Inspire Award", items: inspire.map((r) => ({ ...il.get(Number(r.team))!, sub: "1st place" })) });
   }
   blocks.push(...(await otherSeasons(parent, worlds)));
-  if (worlds) blocks.push(...(await worldsFollowUps(parent.season, null)).filter((b) => b.kind !== "related"));
+  if (worlds) {
+    // The Worlds follow-ups, the question just answered left out: the champions' captain at Worlds, and the season
+    // before's winners.
+    const captain = top?.teams[0];
+    const queries = [...(captain != null ? [`${captain} worlds record`, `${captain} highest score in worlds`] : []), ...(SEASONS.some((x) => x.season === parent!.season - 1) ? [`${gameOf(parent.season - 1)} winning alliance`] : [])];
+    blocks.push(...(await worldsFollowUps(parent.season, null)).filter((b) => b.kind !== "related"));
+    if (queries.length) blocks.push({ kind: "related", title: "You may also want to know", queries });
+  }
   const base = { family: "event" as const, intent: "winning-alliance", title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: `${RULE} The Inspire Award shown is the event's 1st place Inspire Award.${why}`, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
   if (!decided && worlds && !core) return notYet(parent.season, findEvent, why);
   if (!decided) return { ...base, blocks, none: worlds ? `No championship results yet for ${gameOf(parent.season)}: no winning alliance is published.` : `No winning alliance is published for ${shortEvent(parent.name, parent.type)} yet.` };

@@ -2,11 +2,15 @@
 // meets in New Jersey", "meets at River Dell High School", "meets this weekend", "2024 Houston Championship Edison
 // Division", "New Jersey". Fixed rules, every part a filter on stored columns (events.state/country, city, venue,
 // start/end, season, type, name):
-//   - no year or season named: the current season (championships, one a season: every season, newest season first);
-//     "2024": events held in 2024; "2023-24": that season
+//   - no year or season named: the current season (championships, one a season: every season, newest season first;
+//     a venue or city: every season, in date order); "2024": events held in 2024; "2023-24": that season
+//   - a venue or city matches loosely: punctuation, "HS" for "High School", "Regional" and a letter or two off
+//     ("River DeHigh School") are the same venue; its city counts too
 //   - ordered by date, never by relevance: upcoming (any date today or later) soonest first, then past most recent first
-//   - nothing matched: the closest honest set, labelled as a fallback ("No league meets at Nonexistent High School in
-//     New Jersey — showing all league meets in New Jersey instead"): the venue or city dropped first, then the time.
+//   - nothing matched: the closest honest set, labelled as a fallback ("No meets in New Jersey at Nonexistent High
+//     School in the data — showing meets in New Jersey instead"): the time dropped first (the venue asked for stays:
+//     "No past meets at River Dell High School in the data — showing meets at River Dell High School instead"), then
+//     the venue or city.
 //     A year is never dropped: no event in 2019 is said plainly, with the other years' events as closest matches.
 import type { SearchAnswer, SearchEventInfo, SearchHit, SearchUnderstood } from "../../src/shared/api.js";
 import { eventSetLabel, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
@@ -17,7 +21,7 @@ import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
 import { all, get } from "../db.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
-import type { Region } from "../../src/shared/regions.js";
+import { edits, type Region } from "../../src/shared/regions.js";
 
 interface Row { season: number; code: string; name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; timezone: string | null }
 
@@ -43,6 +47,31 @@ export function localToday(now: number, timezone: string | null): string {
 const allIn = (qs: string[], text: string) => { const ws = words(text); return qs.every((q) => ws.some((w) => wordScore(q, w) >= 0.8)); };
 
 /** The event's place in a subtitle, as the search index writes it. */
+/** A venue or city as one run of letters: punctuation, little words and "Regional" out, "HS" as "high school"
+ *  ("River Dell Regional H.S." is "riverdellhighschool"). */
+function compact(s: string): string {
+  const ws = s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\bh\.?\s*s\b\.?/g, " high school ").replace(/[^\p{L}\p{N}]+/gu, " ").split(" ");
+  return ws.filter((w) => w && !STOPWORDS.has(w) && w !== "regional").join("");
+}
+/** Whether `text` (a stored venue, or a city: `whole`) is the place typed: a venue holds the words typed (or they
+ *  hold it); either is a letter or two off (one per eight letters), its first five letters the same ("Dumont High
+ *  School" is never "Dimond High School"). */
+function samePlace(typed: string, text: string | null, whole = false): boolean {
+  const q = compact(typed), t = compact(text ?? "");
+  if (!q || !t) return false;
+  if (!whole && (t.includes(q) || (t.length >= 10 && q.includes(t)))) return true;
+  return q.slice(0, 5) === t.slice(0, 5) && Math.abs(q.length - t.length) <= 2 && edits(q, t) <= Math.max(1, Math.floor(q.length / 8));
+}
+/** The event is at the place typed: its venue or city (samePlace), or every word typed is a word of its venue, in
+ *  any order ("Dell River High School"). Never city words and venue words mixed: "Ramsey High School" is not Don
+ *  Bosco Prep High School in Ramsey. */
+function atPlace(typed: string, r: Row): boolean {
+  if (samePlace(typed, r.venue) || samePlace(typed, r.city, true)) return true;
+  const have = new Set(words(r.venue ?? ""));
+  const qs = words(typed).filter((w) => !STOPWORDS.has(w));
+  return qs.length > 0 && qs.every((w) => have.has(w));
+}
+
 const placeOf = (r: Row) => [r.city, r.state, r.country].filter(Boolean).join(", ");
 
 export function eventHit(r: Row, now = Date.now()): SearchHit {
@@ -67,7 +96,8 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
   const args: (string | number)[] = [];
   if (e.season != null && !drop.year) { where.push("season = ?"); args.push(e.season); }
   else if (e.year != null && !drop.year) { where.push("start BETWEEN ? AND ?"); args.push(`${e.year}-01-01`, `${e.year}-12-31`); }
-  else if (e.year == null && e.season == null && !e.allSeasons) { where.push("season = ?"); args.push(CURRENT_SEASON); }
+  // A venue or city asked for with no year: every season ("meets at River Dell High School", past ones too).
+  else if (e.year == null && e.season == null && !e.allSeasons && !(e.where && !drop.where)) { where.push("season = ?"); args.push(CURRENT_SEASON); }
   if (e.region) { where.push("country = ? AND state = ?"); args.push(e.region.country, e.region.state); }
   // Bounded windows ("this weekend"): an event is in when any of its days is. "upcoming" and "past" are read on the
   // event's own calendar, below.
@@ -87,10 +117,7 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     const named = e.kinds.map((k) => (k === "states" ? "championship" : k)).filter((k) => Object.hasOwn(EVENT_TYPES_NAMES, k));
     rows = rows.filter((r) => (r.type ? allowed.includes(r.type) : named.some((k) => allIn([k], r.name))));
   }
-  if (e.where && !drop.where) {
-    const qs = words(e.where).filter((w) => !STOPWORDS.has(w));
-    rows = rows.filter((r) => allIn(qs, `${r.venue ?? ""} ${r.city ?? ""}`));
-  }
+  if (e.where && !drop.where) rows = rows.filter((r) => atPlace(e.where!, r));
   if (e.words.length) {
     const qs = e.words.flatMap((w) => words(w));
     rows = rows.filter((r) => allIn(qs, `${r.name} ${r.city ?? ""} ${r.venue ?? ""} ${r.code}`));
@@ -112,15 +139,17 @@ function gaps(e: EventQuery, rows: Row[]): string {
 /** Event words whose own name says the kind ("… League Meet"), for an event stored with no type. */
 const EVENT_TYPES_NAMES: Record<string, true> = { meet: true, league: true, tournament: true, championship: true, qualifier: true, scrimmage: true, kickoff: true, premier: true };
 
-/** How the data spells the venue or city the query named, when every matched event shares it: "at River Dell High
- *  School" (a venue), "in Oradell" (a city). */
+/** How the data spells the venue or city the query named, its most common spelling among the events matched: "at
+ *  River Dell High School" (a venue, though one event has it "River DeHigh School"), "in Oradell" (a city). Only a
+ *  name every event matched answers to: a city's meets at two schools are "in Oradell", never one school's name. */
 function whereAsStored(e: EventQuery, rows: Row[]): { text: string; city: boolean } | null {
   if (!e.where || !rows.length) return null;
-  const qs = words(e.where).filter((w) => !STOPWORDS.has(w));
   for (const field of ["venue", "city"] as const) {
-    const vals = new Set(rows.map((r) => r[field]?.replace(/[,\s]+$/, "") ?? ""));
-    const [only] = [...vals];
-    if (vals.size === 1 && only && allIn(qs, only)) return { text: only, city: field === "city" };
+    const n = new Map<string, number>();
+    let all = true;
+    for (const r of rows) { const v = r[field]?.replace(/[,\s]+$/, ""); if (v && samePlace(e.where, v, field === "city")) n.set(v, (n.get(v) ?? 0) + 1); else all = false; }
+    const best = [...n].sort((a, b) => b[1] - a[1])[0];
+    if (best && all) return { text: best[0], city: field === "city" };
   }
   return null;
 }
@@ -139,7 +168,7 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   const window = e.time ? timeWindow(e.time, today) : null;
   const base: Omit<SearchUnderstood, "label"> = {
     kind: "events", ...(e.time ? { time: e.time } : {}), ...(e.region ? { place: { key: e.region.key, name: e.region.name } } : {}),
-    ...(e.where ? { where: e.where } : {}), ...(e.year != null ? { year: e.year } : {}), season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined),
+    ...(e.where ? { where: e.where } : {}), ...(e.year != null ? { year: e.year } : {}), season: e.season ?? (e.year == null && !e.allSeasons && !e.where ? CURRENT_SEASON : undefined),
     ...(window ? { window } : {}), ...(eventTypesOf(e.kinds) ? { eventTypes: eventTypesOf(e.kinds)! } : {}),
   };
   const place = e.region ? await placeHit(e.region) : null;
@@ -155,14 +184,16 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
 
   const rows = await rowsFor(e, now);
   if (rows.length) return done(rows, { ...base, label: label({ where: whereAsStored(e, rows) }) + gaps(e, rows) });
-  // Nothing matched: the closest honest set, labelled as such. The venue or city goes first, then the time.
+  // Nothing matched: the closest honest set, labelled as such. The time goes first (the venue asked for stays), then
+  // the venue or city.
   const asked = label();
   const tries: ("where" | "time")[][] = [];
+  if (e.time) tries.push(["time"]);
   if (e.where) tries.push(["where"]);
-  if (e.time) tries.push(e.where ? ["where", "time"] : ["time"]);
+  if (e.time && e.where) tries.push(["where", "time"]);
   for (const d of tries) {
     const fb = await rowsFor(e, now, { where: d.includes("where"), time: d.includes("time") });
-    if (fb.length) return done(fb, { ...base, label: asked, fallback: `No ${lower(asked)} — showing ${lower(label({ drop: d }))} instead` });
+    if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label({ drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) }))} instead` });
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];
