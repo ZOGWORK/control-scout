@@ -16,6 +16,7 @@ import { isReachableEventCode } from "./indexable";
 import { teamProfile } from "./api/teams";
 import { storedEventCode } from "./eventCodes";
 import { createApp } from "./app";
+import { setFlag } from "./flags";
 import type { AddressInfo } from "node:net";
 
 const S = CURRENT_SEASON, P = CURRENT_SEASON - 1;
@@ -219,5 +220,21 @@ describe("robots.txt", () => {
     expect(robots.match(/^Disallow: .*$/gm)).toEqual(["Disallow: /api/"]);
     expect(robots.match(/^Allow: .*$/gm)).toEqual(["Allow: /", "Allow: /api/teams/", "Allow: /api/events/", "Allow: /api/rankings", "Allow: /api/teams-summary", "Allow: /api/power-rankings"]);
     expect(robots).toContain("Sitemap: https://controlscout.org/sitemap.xml");
+  });
+});
+
+describe("the rules reference switched off", () => {
+  it("/rules carries none of its text and is noindex, and leaves the sitemap until it's back on", async () => {
+    await setFlag("rulesReference", false, "test");
+    try {
+      const m = await pageMeta("/rules");
+      expect(m.noindex).toBe(true);
+      expect(m.bodyHtml).toBeUndefined();
+      expect((await sitemapEntries()).map((e) => e.loc)).not.toContain("https://controlscout.org/rules");
+    } finally {
+      await setFlag("rulesReference", true, "test");
+    }
+    expect((await pageMeta("/rules")).noindex).toBeUndefined();
+    expect((await sitemapEntries()).map((e) => e.loc)).toContain("https://controlscout.org/rules");
   });
 });

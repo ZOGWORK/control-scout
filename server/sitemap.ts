@@ -10,6 +10,7 @@ import { publishedWeeks } from "./powerRankings/store.js";
 import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./indexable.js";
 import { eventPath } from "../src/shared/eventCode.js";
 import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
+import { isEnabled } from "./flags.js";
 
 // The pages whose first HTML is their content (server/seoMeta.ts bodyHtml): the home page, the event list, the world
 // rankings, the record tables (their top rows), both How it works pages, the FAQ and the plain content pages
@@ -56,8 +57,10 @@ export async function sitemapEntries(): Promise<Entry[]> {
   const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
+  // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
+  const rulesOn = await isEnabled("rulesReference").catch(() => false);
   return [
-    ...STATIC_PAGES.map((p) => ({ loc: canonicalUrl(p) })),
+    ...STATIC_PAGES.filter((p) => p !== "/rules" || rulesOn).map((p) => ({ loc: canonicalUrl(p) })),
     ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: lastmodOf(weeks[0]) }] : []),
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.

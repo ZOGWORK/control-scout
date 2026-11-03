@@ -706,6 +706,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // The plain content pages (privacy, terms, contact, donate, rules): the whole page in the first paint too,
   // prerendered from the real page component at build time (src/prerender/staticPages.tsx).
   if (PRERENDERED_PAGES[p]) {
+    // The rules reference switched off by the owner (flag rulesReference): the page says so, so none of its text, and noindex.
+    if (p === "/rules" && !(await isEnabled("rulesReference").catch(() => false))) return { title: STATIC[p].title, description: fitDescription(STATIC[p].description), type: "website", noindex: true };
     const s = STATIC[p], body = prerenderedHtml(PRERENDERED_PAGES[p]);
     return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
   }

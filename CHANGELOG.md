@@ -29,7 +29,7 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 - **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals. (#491)
 
 ### Pages
-- **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again.
+- **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
 
 ## 2.8.3 — 2026-11-03
 
