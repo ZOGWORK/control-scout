@@ -145,7 +145,7 @@ function PickBoard({ d, myTeam, sp, setSp, onRefresh }: {
             )}
           </Card>
           {view.suggestions.map((s, i) => (
-            <SuggestionCard key={s.team.team} s={s} place={i + 1} current={view.current.share} currentAxes={view.current.axes} me={me}
+            <SuggestionCard key={s.team.team} s={s} season={d.season} place={i + 1} current={view.current.share} currentAxes={view.current.axes} me={me}
               canAdd={!posted && members.length + 1 < size}
               onAdd={() => set("pwith", [...added, s.team.team].join(","))}
               onTaken={() => set("ptaken", [...taken, s.team.team].join(","))} />
@@ -176,8 +176,8 @@ function PickBoard({ d, myTeam, sp, setSp, onRefresh }: {
 
 const axesWords = (a: Record<string, number>) => PICK_AXES.map((k) => `${PICK_AXIS_LABEL[k]} ${pts(a[k])}`).join(", ");
 
-function SuggestionCard({ s, place, current, currentAxes, me, canAdd, onAdd, onTaken }: {
-  s: PickSuggestion; place: number; current: number; currentAxes: Axes; me: number; canAdd: boolean; onAdd: () => void; onTaken: () => void;
+function SuggestionCard({ s, season, place, current, currentAxes, me, canAdd, onAdd, onTaken }: {
+  s: PickSuggestion; /** The season the ratings are from: the team link opens it. */ season: number; place: number; current: number; currentAxes: Axes; me: number; canAdd: boolean; onAdd: () => void; onTaken: () => void;
 }) {
   const t = s.team;
   return (
@@ -185,7 +185,7 @@ function SuggestionCard({ s, place, current, currentAxes, me, canAdd, onAdd, onT
       <div className="flex items-start gap-2">
         <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-accent-ink tabular-nums">{place}</span>
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm"><Link to={`/teams/${t.team}`} className="font-mono font-bold hover:underline">{t.team}</Link>{t.name && <span className="ml-1.5 text-muted-foreground">{t.name}</span>}</h3>
+          <h3 className="truncate text-sm"><Link to={`/teams/${t.team}?season=${season}`} className="font-mono font-bold hover:underline">{t.team}</Link>{t.name && <span className="ml-1.5 text-muted-foreground">{t.name}</span>}</h3>
           <p className="text-xs text-muted-foreground">{s.ratingPlace === 1 ? "Highest rated left" : `#${s.ratingPlace} by rating`}{t.rank != null ? ` · ranked ${t.rank}` : ""}{t.matches < 6 ? ` · ${t.matches} matches rated` : ""}</p>
         </div>
       </div>

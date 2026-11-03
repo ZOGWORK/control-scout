@@ -37,6 +37,8 @@ describe("PickHelper", () => {
     expect(cards[0]).toBe("Mark 30 taken");
     expect(screen.getByText("Your alliance")).toBeTruthy();
     expect(screen.getByText("#2 by rating")).toBeTruthy();
+    // The team link opens the season the ratings are from.
+    expect(screen.getByRole("link", { name: "30" }).getAttribute("href")).toBe("/teams/30?season=2025");
     expect(screen.getAllByLabelText("What it adds")[0].textContent).toContain("Endgame +");
     expect(screen.getByText(/1 with no rating yet/)).toBeTruthy();
     expect(screen.getByRole("img", { name: /^Your alliance: Auto/ })).toBeTruthy();
