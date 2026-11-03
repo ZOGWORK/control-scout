@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.6.6 — 2026-11-03
+## 2.6.7 — 2026-11-03
 
 FTC One Search answers how a team changed: OPR, win rate, alliance score, penalties and ranking points event by event, and its standing and record season by season.
 
@@ -29,6 +29,18 @@ FTC One Search answers how a team changed: OPR, win rate, alliance score, penalt
 - **Event by event.** "4215 OPR history", "4215 win rate", "4215 average penalties", "4215 average alliance score by event", "4215 ranking points": a line over the team's events in one season (the one named, else its latest), with the values and whether it is rising, falling or steady against the event before. Lower penalties count as better. Links switch to other seasons, since every season is a different game.
 - **Season by season.** "4215 OPR by season" shows the team's OPR rank each season and the share of ranked teams it was ahead of, never the OPR in points across seasons. "4215 record by season" shows wins, losses and ties each season with the win rate as a line.
 - **Penalty totals.** "4215 total penalties in 2025-26": the penalty points the team's alliances gave away that season, in all and per match, by event. (#462)
+
+## 2.6.6 — 2026-11-03
+
+Typing "help" into FTC One Search shows what it can answer, with a query to try for each.
+
+### Highlights
+- [fixes] "Help" shows what FTC One Search answers, never "no exact match"
+- [fixes] Each kind of question has a query to try, one tap away
+- [fixes] A team named "Helpers" is still found by its name
+
+### Search
+- **Help.** "Help", "how do I search", "what can I search for" and "examples" answer with what the box reads: a team, two teams, events by place and time, leaders and records, who won, and what a word means. Each comes with an example query that opens its answer. Before, "help" said there was no exact match and listed teams with "Hel" in their names. (#469)
 
 ## 2.6.5 — 2026-11-03
 
