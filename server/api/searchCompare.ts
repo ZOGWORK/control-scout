@@ -16,6 +16,7 @@
 import type { SearchAnswer, SearchCompareSide, SearchHit } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, VERSUS, pagesFor } from "../../src/shared/search.js";
 import { cleanTeamName, searchTeamTitle, teamWords } from "../../src/shared/teamTitle.js";
+import { hasTeamPage, teamPageSql } from "../../src/shared/teamPages.js";
 import { all } from "../db.js";
 import { normalize } from "./fuzzy.js";
 import { search, searchIntent } from "./search.js";
@@ -44,17 +45,18 @@ async function exactNamed(name: string): Promise<number[]> {
   const viaName = (await all<{ number: number }>("SELECT number FROM teams WHERE name LIKE ?", [`%${name.replace(/[%_]/g, "")}%`])).map((r) => Number(r.number));
   const nums = [...new Set([...viaIndex, ...viaName])];
   if (!nums.length) return [];
-  const rows = await all<{ number: number; name: string }>(`SELECT number, name FROM teams WHERE number IN (${nums.map(() => "?").join(",")})`, nums);
+  const rows = await all<{ number: number; name: string }>(`SELECT number, name FROM teams WHERE number IN (${nums.map(() => "?").join(",")}) AND ${teamPageSql("number", "name")}`, nums);
   return rows.filter((r) => normalize(cleanTeamName(Number(r.number), r.name) ?? "") === normalize(name)).map((r) => Number(r.number)).sort((x, y) => x - y);
 }
 
 /** The team (or teams, tied) one side names, from its words as typed. */
 async function sideTeams(name: string, prefer: ReadonlySet<string>, best: boolean): Promise<{ exact: number[] } | { best: number } | null> {
-  if (/^\d+$/.test(name)) return (await teamFacts([Number(name)])).has(Number(name)) ? { exact: [Number(name)] } : null;
+  // Only teams with a page: never a stand-in number (202300005) or a placeholder registration, which /compare refuses.
+  if (/^\d+$/.test(name)) { const t = (await teamFacts([Number(name)])).get(Number(name)); return t && hasTeamPage(t.number, t.name) ? { exact: [t.number] } : null; }
   const exact = await exactNamed(name);
   if (exact.length) return { exact };
   if (!best) return null;
-  const top = (await search(name, 5, prefer)).find((h) => h.kind === "team");
+  const top = (await search(name, 5, prefer)).find((h) => h.kind === "team" && hasTeamPage(Number(h.ref)));
   return top ? { best: Number(top.ref) } : null;
 }
 
