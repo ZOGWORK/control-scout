@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.6.4 — 2026-11-03
+
+FTC One Search compares a team's championship trips by division rank, and its filters never leave you at a dead end.
+
+### Highlights
+- [teams] A team's Worlds or state trips chart division rank, best on top
+- [teams] The trip stats show the win rate there instead of a peak OPR
+- [teams] On a phone, each season's chip shows its rank, never an OPR
+- [fixes] Search filters show counts, and an empty one offers the other tab
+
+### Search
+- **Rank, not OPR, across seasons.** Each season is a different game with its own scoring, so an OPR from 2021–22 can't be set against one from 2025–26. The chart over a team's Worlds or state trips now plots its division rank each season, #1 at the top; each point still names its division, rank, record and OPR, and selecting it still jumps to that season's card. The stats above it drop "Peak OPR" for the win rate across those trips ("Win rate at Worlds 67.3%, 33–16–0 in quals"), counted from the same records, beside the best division rank. On a phone each season's chip leads with its rank (its division when it has none).
+- **Filters that say what they hold.** The time tabs show how many events each holds ("All 5 · Upcoming 2 · Past 3"), so an empty one is plain before you pick it. A filter that leaves nothing says what's empty ("No past events in these results.") and offers each choice that isn't, one tap away ("Show 2 upcoming", "Show 3 in every season"), beside Clear filters. The season menu still shows whenever the results span seasons. Results and their order are unchanged. (#459)
+
 ## 2.6.3 — 2026-11-03
 
 FTC One Search answers far more ways of asking: comparisons, winners, team facts, counts, months, glossary words and new leaderboards, where many used to end on "no results".
