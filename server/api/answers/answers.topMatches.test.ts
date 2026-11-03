@@ -50,6 +50,8 @@ describe("season top matches", () => {
     expect(readTopMatches("highest scoring match ever")).toMatchObject({ ever: true });
     expect(readTopMatches("top scores this season")).not.toBeNull();
     expect(readTopMatches("highest scoring matches in MA")).toMatchObject({ region: { state: "MA" } });
+    expect(readTopMatches("highest scoring matches in District of Columbia")).toMatchObject({ region: { state: "DC" } });
+    expect(readTopMatches("highest scoring matches at 2024 texas qualifier")).toMatchObject({ season: 2024, event: "texas qualifier" });
     expect(readTopMatches("highest combined scores in decode")).toMatchObject({ season: 2025 });
     expect(readTopMatches("top alliance scores in decode")).toMatchObject({ season: 2025 });
     for (const q of ["4215 highest score", "hypnotic robotics highest score", "world record score decode", "best auto team"]) expect(readTopMatches(q), q).toBeNull();
@@ -86,6 +88,9 @@ describe("season top matches", () => {
   });
   it("at an event: this season's division matches count, not only the parent's", async () => {
     expect((await searchAnswer("highest scoring matches at california championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "260 points" });
+  });
+  it("a year in the event's words is its season, never the newest", async () => {
+    expect((await searchAnswer("highest scoring matches at 2024 texas qualifier", { limit: 25 })).stat!.headline).toMatchObject({ value: "400 points" });
   });
   it("the search box keeps the asks' own high-score card", async () => {
     expect((await searchAnswer("highest scoring games in decode", { limit: 8 })).intent?.kind).not.toBe("stat-season-top-matches");

@@ -41,16 +41,22 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const ever = /\b(?:ever|all[\s-]+time|of\s+all\s+time|in\s+history)\b/.test(q);
   let rest = ` ${hs.core} `;
   const at = /\bat\s+(.+)$/.exec(rest);
-  const event = at ? at[1].trim() : null;
+  let event = at ? at[1].trim() : null;
   if (at) rest = rest.slice(0, at.index);
+  // A year inside the event's words is its season, as search reads a bare year ("at 2022 texas qualifier": 2022–23).
+  let season = hs.season;
+  const y = event ? /\b(20\d\d)\b/.exec(event) : null;
+  if (y && season == null && SEASONS.some((x) => x.season === Number(y[1]))) { season = Number(y[1]); event = event!.replace(y[0], " ").replace(/\s+/g, " ").trim(); }
   const words = rest.replace(FILLER, " ").replace(/\s+/g, " ").trim();
   // Words left over name a place ("in nj") or nothing; anything else (a team) is another answer's.
   // A state code is read as typed ("MA", "OR": in lower case they're words), so each word's own case is kept.
   const asTyped = raw.replace(/[?!.,]/g, " ").split(/\s+/);
   const typed = words ? words.split(" ").map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w) : [];
-  const region = words ? regionOf(typed) : null;
+  // A place's whole name, its own small words kept ("in District of Columbia"), else what the filler left.
+  const named = /\bin\s+((?:the\s+)?[a-z][a-z\s.]*?)\s*$/.exec(q.replace(/\b(?:ever|all[\s-]+time|of\s+all\s+time|in\s+history|this\s+(?:season|year))\b/g, " ").replace(/\s+/g, " "));
+  const region = words ? (named ? regionOf(named[1].split(" ").map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null) ?? regionOf(typed) : null;
   if (words && !region) return null;
-  return { season: hs.season, game: hs.game, ever: ever && hs.season == null, region, event: event || null };
+  return { season, game: hs.game, ever: ever && season == null, region, event: event || null };
 }
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null }
