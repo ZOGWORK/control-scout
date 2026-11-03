@@ -34,6 +34,7 @@ import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
+import { pickRatings } from "./api/pickRatings.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
@@ -542,6 +543,15 @@ export function createApp(opts: { dist?: string } = {}) {
   api.get("/events/:season/:code/simulated-rankings", h(async (req) => {
     const r = await simulatedRankings(season(req.params.season), code(req.params.code), perTeamOf(req.query.perTeam));
     if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    return r;
+  }));
+
+  // Scout's pick helper: each team's stored engine rating components and the posted alliances (api/pickRatings.ts).
+  // Read only, kept per data version; revalidated every time (alliance selection posts mid-event).
+  api.get("/events/:season/:code/pick-ratings", h(async (req, res) => {
+    const r = await pickRatings(season(req.params.season), code(req.params.code));
+    if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    res.setHeader("Cache-Control", "no-cache");
     return r;
   }));
 

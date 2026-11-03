@@ -3,7 +3,7 @@
 // shows only the first two. The selected section's content is the panel.
 import type { ReactNode } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../ui/tabs";
-import { SCOUT_SECTIONS, SECTION_LABEL, type ScoutSection } from "../../../shared/scoutSections";
+import { SCOUT_SECTIONS, SECTION_LABEL, SECTION_SHORT, type ScoutSection } from "../../../shared/scoutSections";
 
 export function ScoutSections({ section, onSection, sections = SCOUT_SECTIONS, children }: {
   section: ScoutSection;
@@ -15,7 +15,12 @@ export function ScoutSections({ section, onSection, sections = SCOUT_SECTIONS, c
   return (
     <Tabs value={section} onValueChange={(v) => { if (sections.includes(v as ScoutSection)) onSection(v as ScoutSection); }}>
       <TabsList aria-label="Scout sections">
-        {sections.map((s) => <TabsTrigger key={s} value={s} className="max-sm:min-h-11">{SECTION_LABEL[s]}</TabsTrigger>)}
+        {/* On a phone a long name goes short ("Picks"), so the row fits at 320 px; its name stays the full one. */}
+        {sections.map((s) => (
+          <TabsTrigger key={s} value={s} className="max-sm:min-h-11" aria-label={SECTION_SHORT[s] ? SECTION_LABEL[s] : undefined}>
+            {SECTION_SHORT[s] ? <><span className="sm:hidden">{SECTION_SHORT[s]}</span><span className="max-sm:hidden">{SECTION_LABEL[s]}</span></> : SECTION_LABEL[s]}
+          </TabsTrigger>
+        ))}
       </TabsList>
       <TabsContent value={section} className="mt-5 max-sm:mt-4">{children}</TabsContent>
     </Tabs>

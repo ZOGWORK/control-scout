@@ -55,7 +55,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); resetFlags({ ...DEFAULT_FLAGS }); });
 
 const red = () => writeScoutSession(null, { season: 2025, eventCode: "USNJQ1", watching: { kind: "alliance", side: "red" } });
-const sectionNames = () => within(screen.getByRole("tablist", { name: "Scout sections" })).getAllByRole("tab").map((t) => t.textContent);
+const sectionNames = () => within(screen.getByRole("tablist", { name: "Scout sections" })).getAllByRole("tab").map((t) => t.getAttribute("aria-label") ?? t.textContent);
 
 describe("Event day", () => {
   it("with no event picked, the picker is the page: no sections above it", async () => {
@@ -70,7 +70,7 @@ describe("Event day", () => {
     const bar = await screen.findByRole("region", { name: "Event you're scouting" });
     expect(await within(bar).findByText("NJ Qualifier 1")).toBeTruthy();
     expect(within(bar).getByText(/2 matches · 3 teams/)).toBeTruthy();
-    expect(sectionNames()).toEqual(["Event day", "Entries"]);
+    expect(sectionNames()).toEqual(["Event day", "Entries", "Pick helper"]);
     expect(await screen.findByRole("region", { name: "Match queue" })).toBeTruthy();
     const pit = screen.getByRole("region", { name: "Pit queue" });
     expect(within(pit).getByText("0 / 3")).toBeTruthy();
