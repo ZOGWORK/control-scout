@@ -106,6 +106,8 @@ function compareHit(teams: TeamFacts[], q: string, season: number | null, resolv
   };
 }
 
+const uniqTeams = (ts: TeamFacts[]) => [...new Map(ts.map((t) => [t.number, t])).values()];
+
 const teamHit = (t: TeamFacts, hits: Map<string, SearchHit>): SearchHit =>
   hits.get(String(t.number)) ?? { kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.lastPlayed };
 
@@ -143,9 +145,11 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
     // sides named. Several sides tied: the question for each, and the candidates to open; no Compare is guessed.
     const which = (side: Side) => `Which "${side.typed}"? ${side.tied.length} teams have that name: ${side.tied.map((t) => `${t.number} (${placeOf(t)})`).join(", ")}`;
     const others = known.slice(0, 3);
-    const hits = ambiguous.length === 1 && others.length ? ambiguous[0].tied.map((c) => compareHit([...others, c], q, season, resolved, "")) : [];
+    // A candidate another side already named is no choice: it would be that team against itself.
+    const choices = ambiguous.length === 1 ? ambiguous[0].tied.filter((c) => !others.some((o) => o.number === c.number)) : [];
+    const hits = others.length ? choices.map((c) => compareHit([...others, c], q, season, resolved, "")) : [];
     return {
-      q, hits: [...hits, ...others.map((t) => teamHit(t, teamRows)), ...ambiguous.flatMap((s) => s.tied.map((t) => teamHit(t, teamRows)))], pages: pagesFor(q), step: "deterministic", weak: false,
+      q, hits: [...hits, ...uniqTeams([...others, ...ambiguous.flatMap((s) => s.tied)]).map((t) => teamHit(t, teamRows))], pages: pagesFor(q), step: "deterministic", weak: false,
       understood: { kind: "compare", label: ambiguous.map(which).join(" · ") },
     };
   }

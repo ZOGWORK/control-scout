@@ -118,3 +118,11 @@ describe("Greptile on #437, round 2", () => {
     expect(readRuleQuery("how good is Can Control")).toBeNull();
   });
 });
+
+describe("Greptile on #437, round 3", () => {
+  it("a season named outright wins over an older game's words, the current season too", async () => {
+    await setFlag("rulesReference", true, "test"); invalidateFlags();
+    expect(readRuleQuery("G402 in 2026-27 for samples")).toMatchObject({ id: "G402", season: 2026, past: { sample: 2024 } });
+    expect((await searchAnswer("G402 in 2026-27 for samples")).card?.lines[0].text).toBe("G402 · No AUTO interference");
+  });
+});

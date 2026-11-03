@@ -18,7 +18,7 @@ const MAX_RULES = 5;
 export async function ruleAnswer(q: string, rq: RuleQuery): Promise<SearchAnswer> {
   // A past game's piece ("sample": INTO THE DEEP): that season's reference, or which game it is and a link to it.
   // A season named outright ("G402 in 2024-25") decides first; then an older game's piece.
-  const past = rq.season != null && rq.season !== CURRENT_SEASON ? { season: rq.season, words: [] } : pastSeasonOf(ruleReference(CURRENT_SEASON), rq);
+  const past = rq.season != null ? (rq.season === CURRENT_SEASON ? null : { season: rq.season, words: [] }) : pastSeasonOf(ruleReference(CURRENT_SEASON), rq);
   if (past && !hasRuleReference(past.season)) return pastGameAnswer(q, rq, past);
   const ref = ruleReference(past?.season ?? CURRENT_SEASON);
   const pages = [...pagesFor(q).filter((p) => p.href !== "/rules"), { title: "Rules", href: "/rules" }];
