@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Bruno's written answer on /search (./BrunoAnswer.tsx): asked once a question settles and the results are in,
-// shown labelled as his while he writes and after; nothing for a name or a number, with the switch off, or when he
-// has no answer; an older question's answer never shows for a newer one.
+// shown labelled as his only once he has answered (never a placeholder that could vanish); nothing for a name or a
+// number, with the switch off, or when he has no answer; an older question's answer never shows for a newer one.
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,7 +36,8 @@ describe("Bruno's answer on /search", () => {
     rerender(<BrunoAnswer q={Q} ready />);
     await settle();
     expect(pending.map((p) => p.url)).toEqual([`/api/search/bruno?q=${encodeURIComponent(Q)}`]);
-    expect(screen.getByRole("note", { name: "Bruno AI's answer" }).getAttribute("aria-busy")).toBe("true");
+    // Asked, not answered yet: no card at all (no placeholder that could vanish).
+    expect(screen.queryByRole("note")).toBeNull();
     await answer("Hypnotic Robotics (4215) went to states 3 times since 2023–24.");
     const note = screen.getByRole("note", { name: "Bruno AI's answer" });
     expect(note.textContent).toContain("Bruno AI");
@@ -67,8 +68,30 @@ describe("Bruno's answer on /search", () => {
   it("shows nothing when he has no answer", async () => {
     render(<BrunoAnswer q={Q} ready />);
     await settle();
+    expect(screen.queryByRole("note")).toBeNull();
     await answer(null);
     expect(screen.queryByRole("note")).toBeNull();
+  });
+  it("shows nothing for an empty answer or when asking fails", async () => {
+    const { rerender } = render(<BrunoAnswer q={Q} ready />);
+    await settle();
+    await act(async () => { pending.shift()!.resolve({ text: "   ", points: ["2023–24: ranked #3"] }); });
+    expect(screen.queryByRole("note")).toBeNull();
+    rerender(<BrunoAnswer q="when did 23268 go to worlds" ready />);
+    await settle();
+    await act(async () => { pending.shift()!.resolve(Promise.reject(new Error("502"))); });
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+  it("with a summary: the summary alone while he writes, then his card around it once he answers", async () => {
+    render(<BrunoAnswer q={Q} ready><span>3 states trips</span></BrunoAnswer>);
+    await settle();
+    expect(screen.getByRole("note", { name: "Summary" }).textContent).toContain("3 states trips");
+    expect(screen.queryByRole("note", { name: "Bruno AI's answer" })).toBeNull();
+    await answer("Hypnotic Robotics (4215) went to states 3 times.");
+    const note = screen.getByRole("note", { name: "Bruno AI's answer" });
+    expect(note.textContent).toContain("3 states trips");
+    expect(note.textContent).toContain("went to states 3 times.");
+    expect(screen.queryByRole("note", { name: "Summary" })).toBeNull();
   });
   it("never asks for a name or a number, or with the switch off", async () => {
     const { rerender } = render(<BrunoAnswer q="4215" ready />);
@@ -94,44 +117,41 @@ describe("Bruno's answer on /search", () => {
   });
 });
 
-describe("streamed as he writes", () => {
+describe("read as a stream, shown only once he's done", () => {
   const note = () => screen.getByRole("note", { name: "Bruno AI's answer" });
   const part = (p: Part) => act(async () => { streams[0].part(p); });
-  it("shows each part as it comes, busy, and ends at his answer with its label", async () => {
+  it("shows no card while he writes, then his finished answer with its label", async () => {
     streamMode = "hold";
     render(<BrunoAnswer q={Q} ready />);
     await settle();
     expect(streams[0].url).toBe(`/api/search/bruno?q=${encodeURIComponent(Q)}&stream=1`);
     await part({ text: "Hypnotic Robotics (4215) went to", points: [] });
-    expect(note().textContent).toContain("Hypnotic Robotics (4215) went to");
-    expect(note().getAttribute("aria-busy")).toBe("true");
-    expect(note().textContent).not.toContain("Written by Bruno AI");
+    expect(screen.queryByRole("note")).toBeNull();
     await part({ text: "Hypnotic Robotics (4215) went to states 2 times.", points: ["2023–24: ranked #3"] });
-    expect(note().querySelectorAll("ul > li")).toHaveLength(1);
+    expect(screen.queryByRole("note")).toBeNull();
     await act(async () => { streams[0].resolve({ text: "Hypnotic Robotics (4215) went to states 2 times.", points: ["2023–24: ranked #3", "2024–25: ranked #7"] }); });
-    expect(note().getAttribute("aria-busy")).toBeNull();
     expect(note().querySelectorAll("ul > li")).toHaveLength(2);
     expect(note().textContent).toContain("Written by Bruno AI");
     expect(pending).toHaveLength(0);
   });
-  it("a part withdrawn (it failed the check) goes back to waiting", async () => {
+  it("parts that end in a dropped answer (a number not in the facts) never show anything", async () => {
     streamMode = "hold";
     render(<BrunoAnswer q={Q} ready />);
     await settle();
     await part({ text: "Hypnotic Robotics went to states", points: [] });
+    expect(screen.queryByRole("note")).toBeNull();
     await part(null);
-    expect(note().textContent).not.toContain("Hypnotic Robotics");
     await act(async () => { streams[0].resolve(null); });
     expect(screen.queryByRole("note")).toBeNull();
   });
-  it("a stream that breaks part-way keeps what's shown, asks the plain way, and shows his answer once", async () => {
+  it("a stream that breaks part-way asks the plain way and shows his answer once", async () => {
     streamMode = "hold";
     render(<BrunoAnswer q={Q} ready />);
     await settle();
     await part({ text: "Hypnotic Robotics (4215) went", points: [] });
     await act(async () => { streams[0].reject(new Error("stream ended early")); });
     expect(pending.map((p) => p.url)).toEqual([`/api/search/bruno?q=${encodeURIComponent(Q)}`]);
-    expect(note().textContent).toContain("Hypnotic Robotics (4215) went");
+    expect(screen.queryByRole("note")).toBeNull();
     await answer("Hypnotic Robotics (4215) went to states 2 times.");
     expect(note().querySelectorAll("p.font-medium")).toHaveLength(1);
     expect(note().textContent!.match(/Hypnotic Robotics/g)).toHaveLength(1);
