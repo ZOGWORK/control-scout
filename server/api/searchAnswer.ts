@@ -172,7 +172,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const u = a.understood ?? understoodOf(a);
     return { ...a, q, understood: r.note ? { ...u, label: `${u.label} · ${r.note}` } : u };
   };
-  if (rw && rw.q !== q && /^who won worlds /.test(rw.q)) return rewritten(rw);
+  if (rw && rw.q !== q && (rw.pre || /^who won worlds /.test(rw.q))) return rewritten(rw);
 
   // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
   const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false }), { full: !!opts.full, pages: pagesFor(q) });

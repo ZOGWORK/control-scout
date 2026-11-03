@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.4 — 2026-11-03
+
+FTC One Search answers more of the questions people actually ask about one team, and reads a few it used to get wrong.
+
+### Highlights
+- [teams] Average margin and total points per team, each season apart
+- [teams] "Have 4215 and 6980 played?" opens their head to head
+- [teams] Penalties, partners, best match and world rank all answer
+- [teams] "This season" says so when the season has no matches yet
+
+### Search
+- **New answers.** Average margin (or winning or losing margin, over wins or losses only) and total points, with the latest season up front and every season listed apart, never pooled. (#475)
+- **Read right.** Head-to-head questions ("has 4215 played 6980", "did 4215 ever face 6980") open the Compare, not another team; "at nj states", penalties, no-shows, best and worst match, best event, partners, opponents, events this season, world rank, region rank, next-match odds and awards at an event each get the answer they ask for, with a note when it is read a certain way.
+- **Smaller fixes.** Motivate and Dean's List count as awards; "past events in michigan" lists events, not a team named for pasta; "nj states matches" opens the Matches tab; a "this season" answer with no matches yet in the season in progress says it fell back to the latest season.
+
 ## 2.7.3 — 2026-11-03
 
 Home's search box speaks for itself: the label and heading above it are gone, so the field and its examples lead.
