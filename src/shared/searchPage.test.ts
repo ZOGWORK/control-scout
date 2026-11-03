@@ -49,5 +49,8 @@ describe("badgeUnder", () => {
   it("titles a names reading without its did-you-mean tail (the page says that on its own line)", () => {
     const a = { q: "hypnotc", hits: [], pages: [], step: "deterministic", weak: true, understood: { label: 'Closest names to "hypnotc" (did you mean "Hypnotic Robotics"?)' } } as unknown as Parameters<typeof pageTitle>[0];
     expect(pageTitle(a, [])).toBe('Closest names to "hypnotc"');
+    // "How good is X": X names the page even when the reading says more.
+    const q = { ...a, q: "how good is simply complex", understood: { label: "Simply Complex (18061) — OPR" } } as typeof a;
+    expect(pageTitle(q, [{ kind: "team", ref: "18061", title: "18061 | Simply Complex", subtitle: "", season: 2025 }], true)).toBe("Simply Complex (18061)");
   });
 });

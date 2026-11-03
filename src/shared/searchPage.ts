@@ -43,9 +43,12 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTe
   if (card) return card.team ? `Team ${card.team.number} — ${capWords(card.title)}` : card.title;
   const top = hits[0];
   if (top && isCompare(top)) return top.title.split(/\s+vs\.?\s+/i).map((t) => { const p = teamParts(t); return p ? `${p.name} (${p.number})` : t; }).join(" vs ");
+  const teamName = () => { const p = teamParts(top.title); return p ? (p.name ? `${p.name} (${p.number})` : `Team ${p.number}`) : null; };
+  // "How good is X": the page is about X, whatever else the reading says ("· OPR").
+  if (aboutTeam && top?.kind === "team" && a?.step !== "recovery") { const t = teamName(); if (t) return t; }
   const read = readingOf(a);
   if (read) return plain(read);
-  if (top?.kind === "team" && (a?.step === "deterministic" || !a || (aboutTeam && a.step !== "recovery"))) { const p = teamParts(top.title); if (p) return p.name ? `${p.name} (${p.number})` : `Team ${p.number}`; }
+  if (top?.kind === "team" && (a?.step === "deterministic" || !a)) { const t = teamName(); if (t) return t; }
   return "Search results";
 }
 

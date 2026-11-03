@@ -35,7 +35,23 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
   const path = apps.map((a, i) => (a.opr == null ? null : `${x(i)},${y(a.opr)}`)).filter(Boolean).join(" ");
   const shown = apps.find((a) => a.id === on);
   return (
-    <figure className="mt-3" data-timeline>
+    <>
+    {/* Phones: every season as a chip in one sideways line, each jumping to its card. */}
+    <nav aria-label="Seasons" className="mt-3 md:hidden" data-timeline-chips>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">By season</p>
+      <ol className="-mx-1 mt-1.5 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+        {apps.map((a, i) => (
+          <li key={a.id} className="flex shrink-0 items-center gap-1">
+            {i > 0 && <span aria-hidden className="text-muted-foreground">→</span>}
+            <button type="button" onClick={() => jumpTo(a.id)} data-chip={a.season}
+              className="min-h-11 rounded-full border border-accent/40 bg-accent/[0.08] px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+              {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.opr != null ? `OPR ${a.opr.toFixed(1)}` : a.division ?? "—"}
+            </button>
+          </li>
+        ))}
+      </ol>
+    </nav>
+    <figure className="mt-3 max-md:hidden" data-timeline>
       <figcaption className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">OPR by season</figcaption>
       <div className="relative mt-2 h-28">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
@@ -56,15 +72,17 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
         {shown ? <>{shown.seasonLabel}: {[shown.division && `${shown.division}`, shown.rank != null && `#${shown.rank}`, shown.record, shown.opr != null && `OPR ${shown.opr.toFixed(1)}`].filter(Boolean).join(" · ")}</> : <span className="text-muted-foreground">Point at a season for its numbers; select it to jump to its card.</span>}
       </p>
     </figure>
+    </>
   );
 }
 
 export function StatBanner({ stats }: { stats: Stat[] }) {
   if (!stats.length) return null;
   return (
-    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-stat-banner>
+    // Phones: one row that scrolls sideways, three blocks to a screen; from md up a grid.
+    <dl className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0" data-stat-banner>
       {stats.map((s) => (
-        <div key={s.label} className="min-w-0 rounded-lg border border-border bg-card px-3 py-2">
+        <div key={s.label} className="w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-lg border border-border bg-card px-3 py-2 max-md:px-2.5 md:w-auto">
           <dt className="text-[11px] text-muted-foreground">{s.label}</dt>
           <dd className="mt-0.5 break-words font-display text-lg font-semibold tabular-nums leading-tight text-foreground">{s.value}</dd>
           {s.note && <dd className="text-[11px] text-muted-foreground">{s.note}</dd>}
