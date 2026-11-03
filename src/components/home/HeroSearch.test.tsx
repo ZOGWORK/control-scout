@@ -31,11 +31,15 @@ beforeEach(() => { reduced = false; localStorage.clear(); vi.useFakeTimers(); })
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("HeroSearch", () => {
-  it("frames the box as one search for everything", () => {
+  it("lets the field speak for itself: no heading, tag or line of copy around it", () => {
     show();
-    expect(screen.getByRole("heading", { name: "Type whatever you want" })).toBeTruthy();
-    expect(screen.getByText("Search teams, events, matches, predictions, and records.")).toBeTruthy();
-    expect(screen.getByText("FTC One Search")).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Search" })).toBeTruthy();
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.queryByText("Type whatever you want")).toBeNull();
+    expect(screen.queryByText("FTC One Search")).toBeNull();
+    // The field names itself, and the line that used to sit above it is gone too.
+    expect(screen.getByLabelText("Search teams, events and matches")).toBe(field());
+    expect(screen.queryByText("Search teams, events, matches, predictions, and records.")).toBeNull();
   });
 
   it("cycles the placeholder through every example, and holds while the field has focus", () => {
