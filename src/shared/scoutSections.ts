@@ -1,14 +1,21 @@
 // The Scout page's sections, named for the job on event day: Event day (the picked event's match and pit
-// queues), Entries (everything scouted, filtered) and Pick list & planning (the pick list, assignments,
-// alliance, activity and the template). The page keeps the section in the URL (?tab=) and a view inside it
-// (?view=). Links from before the rebuild (?tab=match, ?tab=matches, ?tab=data) map onto the new sections.
+// queues), Entries (everything scouted, filtered), Pick list & planning (the pick list, assignments,
+// alliance, activity and the template) and Pick helper (partners that fill your alliance's gaps). The page
+// keeps the section in the URL (?tab=) and a view inside it (?view=). Links from before the rebuild
+// (?tab=match, ?tab=matches, ?tab=data) map onto the new sections.
 // Pure, so links built elsewhere (lite, inbox) and the page agree.
 
-export const SCOUT_SECTIONS = ["event", "entries", "planning"] as const;
+export const SCOUT_SECTIONS = ["event", "entries", "planning", "picks"] as const;
 export type ScoutSection = (typeof SCOUT_SECTIONS)[number];
-/** Personal's sections: nothing shared to plan (the pick list, assignments and alliance are a workspace's). */
-export const PERSONAL_SECTIONS: readonly ScoutSection[] = ["event", "entries"];
-export const SECTION_LABEL: Record<ScoutSection, string> = { event: "Event day", entries: "Entries", planning: "Pick list & planning" };
+/** Personal's sections: nothing shared to plan (the pick list, assignments and alliance are a workspace's).
+ *  The pick helper reads only public ratings, so everyone has it. */
+export const PERSONAL_SECTIONS: readonly ScoutSection[] = ["event", "entries", "picks"];
+export const SECTION_LABEL: Record<ScoutSection, string> = { event: "Event day", entries: "Entries", planning: "Pick list & planning", picks: "Pick helper" };
+
+/** A link to the pick helper at one event (the event page's Playoffs tab). */
+export function pickHelperQuery(season: number, eventCode: string): URLSearchParams {
+  return new URLSearchParams({ tab: "picks", pevent: eventCode.toUpperCase(), season: String(season) });
+}
 
 /** The views under Pick list & planning (Pick list first, the one it opens on). */
 export const PLANNING_VIEWS = ["picklist", "assignments", "alliance", "activity", "template"] as const;

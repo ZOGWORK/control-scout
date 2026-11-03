@@ -49,6 +49,7 @@ import type { SaveSync } from "../components/scout/forms/SaveState";
 import { PitScout } from "../components/scout/eventday/PitScout";
 import { EntryRow } from "../components/scout/entries/EntryRow";
 import { PlanningRail } from "../components/scout/planning/PlanningRail";
+import { PickHelper } from "../components/scout/picks/PickHelper";
 import { ScoutSections } from "../components/scout/eventday/ScoutSections";
 import { EventBar } from "../components/scout/eventday/EventBar";
 import { EventChooser } from "../components/scout/eventday/EventChooser";
@@ -265,7 +266,8 @@ export default function ScoutPage() {
     if (leavingPit && !window.confirm(`Leave the pit entry for ${pitTeam}? What you've typed in it isn't saved.`)) return;
     scoutSession.set(code, (changed ? mineAt(code.toUpperCase()) : null) ?? session?.watching ?? DEFAULT_WATCHING);
     // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
-    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? "event"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
+    // Chosen from the pick helper: back to it, at this event.
+    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? (section === "picks" ? "picks" : "event")); if (section === "picks") x.delete("pevent"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
   // Another season in the picker: Scout's session and entry forms are per season, so an entry being filled in (a
   // pit entry, a typed-in match or an opened entry) would lose its answers. Ask first, then close it. A team still
@@ -468,6 +470,10 @@ export default function ScoutPage() {
                 </Section>
               )}
             </div>
+          ) : section === "picks" ? (
+            // The pick helper: the event a link names (?pevent=, the event page's Playoffs tab), else the one being scouted.
+            <PickHelper season={season} eventCode={sp.get("pevent")?.toUpperCase() || session?.eventCode || null} myTeam={personal.myTeam ?? null}
+              onPickEvent={readOnly ? null : () => setSp((x) => { x.set("pick", "1"); return x; })} />
           ) : workspace && space != null ? (
             <div className="grid gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
