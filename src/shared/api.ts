@@ -5,6 +5,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
+import type { StatAnswer } from "./searchStat";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
@@ -99,7 +100,7 @@ export interface SearchUnderstood {
    *  it); compare: teams side by side; question: a question's answer card; names: names matched to the words typed. */
   kind: "events" | "team" | "compare" | "question" | "names";
   /** Events: the time asked for, and its date window (YYYY-MM-DD, open ends null). */
-  time?: "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+  time?: "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
   window?: { from: string | null; to: string | null };
   /** Events: the region ("USA:NJ", "New Jersey"), the city or venue words, the calendar year, the season. */
   place?: { key: string; name: string };
@@ -142,13 +143,15 @@ export interface SearchAnswer {
   weak: boolean;
   /** A direct answer to a question the query asked ("when did hypnotic go to worlds"), from stored data only. */
   card?: SearchCard;
+  /** A stat question's answer ("4215 highest score in worlds"), as blocks /search draws: src/shared/searchStat.ts. */
+  stat?: StatAnswer;
   /** What the query was understood as (always set by the server's answer). */
   understood?: SearchUnderstood;
 }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
-  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule" | "leaderboard" | "event-awards";
+  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule" | "leaderboard" | "event-awards" | "info";
   /** "Worlds appearances" */
   title: string;
   /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */
@@ -191,7 +194,7 @@ export interface SearchEventPick { season: number; code: string; name: string; o
 /** A team page's part (#id) or an event's tab (?tab=). */
 /** Team page anchors (src/pages/TeamPage.tsx; docs/search.md lists them): opr, ranking and history (the season road
  *  map, also #events), schedule-difficulty, awards, matches. Event tabs: rankings, awards, matches, odds, playoffs. */
-export type SearchSection = "awards" | "matches" | "events" | "opr" | "ranking" | "history" | "schedule-difficulty" | "rankings" | "odds" | "playoffs";
+export type SearchSection = "awards" | "matches" | "events" | "opr" | "ranking" | "history" | "schedule-difficulty" | "rankings" | "odds" | "playoffs" | "teams";
 
 /** One number in a search answer: "Ranking score" "2.45 at NJ Championship". */
 export interface SearchFact { label: string; value: string }

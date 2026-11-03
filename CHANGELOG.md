@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.8 — 2026-11-03
+## 2.6.4 — 2026-11-03
 
 FTC One Search keeps a venue's meets to that venue, and "who won" leaves the Leadership Award out.
 
@@ -27,6 +27,102 @@ FTC One Search keeps a venue's meets to that venue, and "who won" leaves the Lea
 ### Search
 - **A venue stays in its own state.** A spelling a letter or two off now counts only in a state where the venue is found as typed. New Jersey's "River Dale High School" is still River Dell's meet, and Riverdale High School in Port Byron, Illinois, is no longer listed.
 - **Who won.** FIRST stores the Leadership Award at the 2025–26 Championship as a "Winner" row. "Who won" now leaves it out, so the card lists only the winning alliance and the Inspire Award. (#466)
+
+## 2.6.3 — 2026-11-03
+
+FTC One Search answers far more ways of asking: comparisons, winners, team facts, counts, months, glossary words and new leaderboards, where many used to end on "no results".
+
+### Highlights
+- [history] "Who won worlds last year" and "decode champions" name the winners
+- [rankings] New lists: highest win rate, most improved, undefeated, rookies
+- [teams] "4215 school" and "4215 rookie year" answer from the team's record
+- [fixes] "Compare 4215 and 6980", "is 4215 good" and more phrasings work
+
+### Search
+- **Said another way.** Phrasings the readers missed are said the way they read them: "compare A and B", "is A better than B", "which is better A or B", "who would win A or B" and "4215, 6980" compare the two teams; "is 4215 good" is "how good is 4215"; "predict 4215 next games" is its next match; "4215 worlds" and "bad wolf states" are its Worlds and states history; "4215 inspire" and "has 4215 won an event" are its awards; "4215 losses" is its record; "4215 decode" is its DECODE season. Scope words that add nothing ("in the world", "in FTC", "right now") are dropped. "Teams near Oradell" reads as "in Oradell", and the line says so, since no distances are on record.
+- **Who won.** "Who won worlds", "worlds winners", "who won worlds last year", "decode champions" (that season's FIRST Championship), "franklin division winners", "nj states winners" and "inspire award winners nj" name the winning alliance and the Inspire Award from the event's results. Worlds answers its finals, never a division's.
+- **New leaderboards.** The highest win rate (a tie counts half), the most improved (the biggest rise in OPR standing from one season to the next, never raw OPR across seasons), undefeated teams, the best rookies, rookie, oldest and newest teams, a country's best teams, a place's average OPR, a place's top scores, and a place's teams at Worlds. Each takes a place: "most improved in Texas".
+- **Team facts.** A team's school, home town, rookie year, website and sponsors, from its own record.
+- **Counts, months and Worlds.** "How many teams in Canada", "how many league meets this season", "events in January", "events today" and "tomorrow", "worlds this year", "worlds 2026" and "state championships" each get their own answer.
+- **An event's tab or match.** "NJ states rankings", "worlds playoffs" and "match 12 at nj states" open that tab or match; at an event with divisions, a match number shows each division's.
+- **What a word means.** OPR, the rating, reliability, ranking points, advancement, prediction accuracy, alliances, league meets, qualifiers, the Inspire Award, FTC itself and each season's game (DECODE, INTO THE DEEP …) are explained, with the page that explains more. "FTC rules" and "game manual" open Rules.
+- **Never a dead end.** A query with a team number in it that nothing else reads opens that team, saying what wasn't answered. A team named with "robotics", "team" or a state after it finds the team. Out of 332 test queries, only unknown team numbers and gibberish still end on "no results". (#465)
+
+## 2.6.2 — 2026-11-03
+
+FTC One Search answers ranked lists as a chart: the top teams in the world or any state by rating, OPR, auto, TeleOp, endgame or win rate, the best rookie teams, the most improved teams, and every team in a city.
+
+### Highlights
+- [rankings] "Top teams in the world": the top 10, each with a bar against the leader
+- [rankings] OPR lists name each team's best auto, TeleOp and endgame under its bar
+- [rankings] "Top 10 teams by OPR in NJ" links to the same list on the Teams page
+- [rankings] Best rookie teams and most improved teams in any state
+- [teams] "Teams in Oradell" lists every team from that city
+
+### Search
+- **Ranked lists as a chart.** "Top teams in the world", "best auto team", "top 10 teams by OPR in NJ", "top 5 win rate teams in Texas": the top 10 by default (up to 25 when asked), ranked by one season number (prediction rating as on Rankings, OPR, auto, TeleOp or endgame OPR, win rate, wins or average score), in one state or province or worldwide. On a computer each team is a row (rank, team, location, W-L-T, OPR and the number asked for, highlighted) with a bar scaled to the #1 team. On an OPR list each team's best auto, TeleOp and endgame that season are named under its bar. On a phone each team is a compact row with its bar under the name. A note says the season, how many teams are ranked and by what (for example "2025–26 · 193 ranked teams in New Jersey · by OPR"). "View more detail" opens the list on the Teams page (OPR lists, which count qualification matches only) or Rankings (rating lists). A team is ranked once it has played 3 matches that season, as on Rankings. The search box links to the full answer.
+- **Rookies and the most improved.** "Best rookie team in New Jersey" ranks teams whose rookie year is that season. "Most improved team in New Jersey" ranks the biggest climbs in worldwide OPR standing from the season before. OPR in points isn't compared across seasons, since every game is different.
+- **A city's teams.** "Teams in Oradell" lists every team from that city, the newest season played first, with that season's OPR. A city no team lists is left to the usual search. (#458)
+
+## 2.6.1 — 2026-11-03
+
+FTC One Search answers questions about two teams: every match they played against each other, their OPR and ratings side by side, who has the better record, and a team's toughest opponents and best partners.
+
+### Highlights
+- [teams] "4215 vs 6980 head to head": every meeting and the record
+- [teams] "4215 OPR vs 6980": both teams' OPR by phase, side by side
+- [teams] "Who has a better record, 4215 or 6980" gives a verdict
+- [teams] Toughest opponent, best partner, teams never played
+
+### Search
+- **Head to head.** "4215 vs 6980 head to head" or "has 4215 ever played 6980" lists the matches the two teams played on opposite alliances, newest first, with the record between them and how often they were partners. Two teams that never met say so. It takes the same scopes as other answers: Worlds, a season, playoffs or quals.
+- **Side by side.** "4215 OPR vs 6980" and "4215 rating vs 6980" show both teams' stored season numbers by game phase (the season named, else the latest season both played). "Who has a better record, 4215 or 6980" compares their season win rates. "4215 win chance vs 6980" says which team is stronger and links to Predict, since every match is two alliances.
+- **Opponents and partners.** A team's most played and toughest opponent (best record against it, met 3 times or more), its most frequent and best partner (best record together, 3 matches or more), and the teams from its state it never played that season. (#457)
+
+## 2.6.0 — 2026-11-03
+
+FTC One Search answers questions about one event, a team's awards and who won: a team's results at an event, its event wins, and the winning alliance of an event or of Worlds.
+
+### Highlights
+- [teams] "Has 4215 ever won an event": 1st places and Inspire Awards
+- [teams] "ftc decode winning alliance": Worlds champions and each division
+- [teams] A team's results, rank and OPR at one event, or one match there
+- [teams] Worlds answers end with that season's Worlds events
+
+### Search
+- **One team at one event.** "4215 results at New Jersey Championship", "rank at", "OPR at" and "score in match 12 at" answer from the event the team played (its division, when the event has divisions): the record and matches, its rank of the teams there, its OPR by phase, or that one match. An event the team never attended is left to the usual search.
+- **Awards.** Event wins count 1st-place finishes (the winning alliance) and Inspire Awards, each labelled, so "won an event" says which; a 2nd or 3rd place Inspire is listed apart, never as a win. Also Inspire Award counts, finalist finishes, all awards and the judged/performance split, for any season, Worlds or one event.
+- **Winning alliances.** An event's winning alliance is the alliance that won its final match (the final series, which a classic bracket stores as series 0, never a semifinal), with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
+- **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
+
+## 2.5.9 — 2026-11-03
+
+A slow search no longer looks like being offline, and searches that match nothing answer five times faster.
+
+### Highlights
+- [fixes] A slow search says "Search is slow", never "Offline"
+- [speed] Searches that match nothing answer in about a second, not five
+- [fixes] A slow or failed search is tried once more by itself
+
+### Search
+- **Slow is not offline.** While your browser is online and the server answers everything else, a search that takes more than 4 seconds keeps waiting for the server instead of switching to saved data and the Offline badge. It gets up to 10 seconds, one more try, and then says "Search is slow right now. Try again." with a Try again button. With no network at all, saved data still answers as before.
+- **Faster no-match searches.** Queries that match nothing (like "highest scoring games in decode") took 5–6 seconds on the server, comparing every name's words letter by letter. The scan now skips names missing any word typed and stops comparing as soon as a word is past its allowed typos: about 1 second, with the same results. (#463)
+
+## 2.5.8 — 2026-11-03
+
+FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
+
+### Highlights
+- [teams] "4215 highest score in worlds": the score, match, division and date
+- [teams] "4215 worlds record" counts Worlds matches only
+- [teams] Average score, streaks, last 5 matches, biggest win and more
+- [teams] Every answer says how it was counted and which records it comes from
+
+### Search
+- **Stat answers.** A question about one team's matches, events or seasons gets its answer at the top of the results: the number asked for, then the matches, a win-loss bar, tables by season and charts. It works for any team and any of these scopes: Worlds ("at worlds"), state championships ("at states"), a season ("2024-25", "this season", a game's name like "into the deep"), every season ("ever"), playoffs or quals, and red or blue. Questions it answers: highest and lowest score, which event it scored highest at, biggest win and loss, closest match, first and most recent match, match wins, record, record by alliance colour, matches played, average score, current and longest win streak, last N matches, blowout wins, losses, playoff and qualification matches, playoff appearances, best and worst event finish, first and most recent event, best OPR event, events played, average event rank, seasons played, first season, best season and most improved season.
+- **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
+- **Never one number across seasons.** Each season is a different game that scores on its own scale, so seasons are compared by OPR standing (rank among that season's teams) and record, never by raw OPR or scores: the best and most improved seasons use standing, an average over several seasons is listed season by season, and with no season named a best or lowest score, a biggest win or loss and a best OPR event are the latest season's, with every season's own listed below.
+- **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
 
 ## 2.5.7 — 2026-11-03
 
