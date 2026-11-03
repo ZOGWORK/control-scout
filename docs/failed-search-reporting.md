@@ -59,7 +59,8 @@ answer itself (`readTrace`), with the intent words of the redundancy brief's sec
   search's filler out (rn, right now, currently, please, and the rest of its `FILLER`), never inside a team's full
   name. "4215 opr rn" and "4215 opr right now" share one issue. Word order is kept: "4215 from where" and "4215 where
   from" are two issues. If search's key can't be worked out, the reporter's own (`reportKey`, the same steps with its
-  own filler list) is used.
+  own filler list) is used. A query already on record under the key it got before 2.8.1 (`reportKey`) stays on
+  that row, so its issue, count and dismissal carry over and no second issue opens.
 - **Title.** `Failed search: <key>`, the key cut at 80 characters with "…". The full query is in the body. `@` and
   `#<digit>` get a zero-width space so a title can't mention anyone or link an issue.
 - **Body.** Result type, count, first seen, last seen, Reproduce link (`https://controlscout.org/search?q=<latest query as typed>`, never the key, which may answer once filler is dropped),

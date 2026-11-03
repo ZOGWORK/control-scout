@@ -219,8 +219,9 @@ export const BUFFER_MAX = 500;
 export const PER_IP_HOUR = 30;
 const SETTLE_MAX = 5_000;
 
-interface Pending { q: string; key: string; failure: Failure | null; label: string; at: number }
-interface Buffered { key: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string }
+/** `legacy`: the key as it was made before 2.8.1 (reportKey), so a query already on record under it stays on its row. */
+interface Pending { q: string; key: string; legacy: string; failure: Failure | null; label: string; at: number }
+interface Buffered { key: string; legacy: string; count: number; first: number; last: number; examples: string[]; failure: Failure; label: string }
 
 const pending = new Map<string, Pending>();
 const buffer = new Map<string, Buffered>();
@@ -244,7 +245,8 @@ export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: S
     // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
     pending.delete(client);
     const failure = failureOf(q, a, trace);
-    pending.set(client, { q: safe, key: key || reportKey(safe), failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
+    const legacy = reportKey(safe);
+    pending.set(client, { q: safe, key: key || legacy, legacy, failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
   } catch {
     // Reporting never breaks search.
   }
@@ -267,11 +269,12 @@ function commit(client: string, p: Pending) {
   const b = buffer.get(key);
   if (b) {
     b.count++; b.last = Math.max(b.last, p.at); b.failure = p.failure; b.label = p.label;
-    if (!b.examples.includes(q)) b.examples = [q, ...b.examples].slice(0, EXAMPLES_MAX);
+    // The latest first, a repeat too: the Reproduce link opens examples[0], and the reading is this one's.
+    b.examples = [q, ...b.examples.filter((e) => e !== q)].slice(0, EXAMPLES_MAX);
     return;
   }
   if (buffer.size >= BUFFER_MAX) { counters.dropped++; return; }
-  buffer.set(key, { key, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label });
+  buffer.set(key, { key, legacy: p.legacy, count: 1, first: p.at, last: p.at, examples: [q], failure: p.failure, label: p.label });
 }
 
 /** Tests: forget what's waiting and buffered. */
@@ -318,9 +321,29 @@ export async function flushSearchFailures(now = Date.now(), everything = false):
   return items.length;
 }
 
-async function writeBatch(items: Buffered[]) {
-  const rows = await all<{ key: string; examples: string }>(`SELECT key, examples FROM search_failures WHERE key IN (${items.map(() => "?").join(",")})`, items.map((b) => b.key));
+/** The batch with each query on the row it belongs to: its own key, or the key it was filed under before 2.8.1
+ *  (reportKey) when only that row exists, so its issue, count and dismissal carry over and no second issue is
+ *  opened. Items that land on one row are merged, newest examples first. */
+export function onRows(batch: Buffered[], onRecord: Set<string>): Buffered[] {
+  const out = new Map<string, Buffered>();
+  for (const it of batch) {
+    const key = !onRecord.has(it.key) && it.legacy !== it.key && onRecord.has(it.legacy) ? it.legacy : it.key;
+    const b = out.get(key);
+    if (!b) { out.set(key, { ...it, key }); continue; }
+    const newer = it.last >= b.last ? it : b, older = newer === it ? b : it;
+    out.set(key, {
+      ...newer, key, count: b.count + it.count, first: Math.min(b.first, it.first), last: newer.last,
+      examples: [...newer.examples, ...older.examples.filter((e) => !newer.examples.includes(e))].slice(0, EXAMPLES_MAX),
+    });
+  }
+  return [...out.values()];
+}
+
+async function writeBatch(batch: Buffered[]) {
+  const asked = [...new Set(batch.flatMap((b) => [b.key, b.legacy]))];
+  const rows = await all<{ key: string; examples: string }>(`SELECT key, examples FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, asked);
   const had = new Map(rows.map((r) => [r.key, JSON.parse(r.examples) as string[]]));
+  const items = onRows(batch, new Set(had.keys()));
   await db().batch(items.map((b) => {
     const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
     const reading = JSON.stringify(b.failure.trace);

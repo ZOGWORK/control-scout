@@ -12,7 +12,7 @@ import { resetReportLimits, setGithubFetch } from "./errorReports";
 import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
-  counters, failureBody, failureOf, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
+  counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace,
 } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
@@ -179,6 +179,20 @@ describe("what counts as a failed search (§12.1)", () => {
 });
 
 describe("normalizing, aggregating and redacting (§12.2, §12.3)", () => {
+  it("a query on record under its pre-2.8.1 key stays on that row and its issue (Greptile on #495)", async () => {
+    // Filed by 2.8.0 under reportKey ("tell me" out); the new key keeps it, so the old row must be found.
+    noteSearch("tell me 4215 opr zzz", fallback("x", "opr zzz"), "192.0.2.10", null, clock, "tell me 4215 opr zzz");
+    clock += SETTLE_MS; settle(clock);
+    await run("INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen, issue_number, issue_state, reported_count) VALUES (?, ?, 'team-fallback', 'opr', '{}', '', '[]', 4, ?, ?, 777, 'dismissed', 4)",
+      ["4215 opr zzz", keyHash("4215 opr zzz"), new Date(clock).toISOString(), new Date(clock).toISOString()]);
+    await flushSearchFailures(clock);
+    expect((await rows()).map((r) => [r.key, r.count, r.issue_number, r.issue_state])).toEqual([["4215 opr zzz", 5, 777, "dismissed"]]);
+    // Two items landing on one row merge, the newer's examples first.
+    const it = (key: string, last: number, examples: string[]) => ({ key, legacy: "old", count: 1, first: last, last, examples, failure: { type: "weak" as const, intent: null, trace: readTrace("x", base0) }, label: "" });
+    expect(onRows([it("a", 2, ["A"]), it("b", 3, ["B"])], new Set(["old"]))).toMatchObject([{ key: "old", count: 2, first: 2, last: 3, examples: ["B", "A"] }]);
+    expect(onRows([it("a", 2, ["A"])], new Set(["a", "old"]))).toMatchObject([{ key: "a" }]);
+  });
+
   it("the route's key is search's own key of the redacted query", async () => {
     expect(await keyFor("Please #4215 jane@x.com opr rn")).toBe("4215 [email] opr");
     expect(await keyFor("4215 OPR rn?")).toBe(await keyFor("4215 opr right now"));
@@ -241,6 +255,11 @@ describe("settling (the dropdown searches while typing)", () => {
     await flushSearchFailures(clock);
     expect((await rows()).map((r) => [r.key, r.count])).toEqual([["4215 opr", 1]]);
   });
+  it("a repeated variant moves back to the front, so Reproduce opens the latest (Greptile on #495)", async () => {
+    for (const q of ["4215 opr rn", "4215 opr right now", "4215 opr rn"]) searched(q, fallback(q, q.slice(5)));
+    await flushSearchFailures(clock);
+    expect(JSON.parse((await rows())[0].examples)).toEqual(["4215 opr rn", "4215 opr right now"]);
+  });
   it("a query typed past a failure that then answers logs nothing", async () => {
     const ip = "203.0.113.6";
     clock += 1000; noteSearch("where is 4215", fallback("where is 4215", "where is"), ip, null, clock);
@@ -291,7 +310,8 @@ describe("GitHub issues (cases 23–30)", () => {
     expect((await rows())[0]).toMatchObject({ count: 4, reported_count: 4 });
     expect(issues[500].body).toContain("**Count:** 4");
     // The verbatim variants are kept, each once (a new one goes first).
-    expect(JSON.parse((await rows())[0].examples)).toEqual(["4215 OPR rn", "4215 opr right now", "4215 opr rn"]);
+    // Latest first: the repeat of "4215 opr rn" moved ahead of "4215 opr right now".
+    expect(JSON.parse((await rows())[0].examples)).toEqual(["4215 OPR rn", "4215 opr rn", "4215 opr right now"]);
     // A sync with nothing new writes nothing.
     calls = [];
     await syncSearchFailures();
