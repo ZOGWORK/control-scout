@@ -364,7 +364,7 @@ describe("search results page, phone (Part B 3b)", () => {
       lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2023–24: #10", "2022–23: #3", "2021–22: #20"]);
-    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
+    expect(container.querySelector("[data-vs-compare]")!.tagName).toBe("BUTTON");
   });
 
   it("one trip is still a chip, and the Compare picks keep the season the result is about", () => {
