@@ -4,7 +4,7 @@
 // opt-in usage. On a phone it reads in task order: search, the season, your team
 // and events come before the atlas. The brand lives in the shell's chrome.
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, ArrowUpRight, CalendarDays, LockOpen, MapPin, Sparkles } from "lucide-react";
 import { useApi, qs } from "../lib/api";
 import { useCurrentSeason, useMediaQuery, useTitle } from "../lib/meta";
@@ -13,8 +13,8 @@ import { myTeamsOf } from "../lib/myTeams";
 import { countryOf } from "../shared/countries";
 import type { EventListItem, TeamSummary } from "../shared/api";
 import type { HomeOverview } from "../shared/home";
-import { SEARCH_HINT, hitHref, usePageSearch, useSearch } from "../components/layout/Search";
-import { SearchBox } from "../components/search/SearchBox";
+import { SEARCH_HINT, usePageSearch, useSearch } from "../components/layout/Search";
+import { HeroSearch } from "../components/home/HeroSearch";
 import { EventStatusChip } from "../components/EventChips";
 import { Button } from "../components/ui/button";
 import { Reveal } from "../components/motion";
@@ -132,19 +132,12 @@ function Hero({ query }: { query?: string }) {
   // Home's search IS the page's search: the top-bar field steps aside here.
   const searchRef = usePageSearch();
   const { restoreFocus } = useSearch();
-  const nav = useNavigate();
   // The page's main content: full opacity on its first frame (no fade from 0).
   return (
     <Reveal fade={false} className="pt-2 @4xl/home:pt-8">
       <Headline />
       <p className="mt-4 max-w-[30rem] text-base text-text-muted">{HOME_LEAD}</p>
-      <SearchBox
-        size="lg" inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} tour="search" initialQuery={query}
-        label="Search teams, events and matches"
-        placeholder="Find a team, event or match…"
-        onPick={(h) => nav(hitHref(h))}
-        className="mt-6 max-sm:mt-4 w-full max-w-[36rem] [&>div:first-child]:rounded-xl"
-      />
+      <HeroSearch inputRef={searchRef} onEscape={restoreFocus} hint={SEARCH_HINT} initialQuery={query} />
       {/* The page's main actions, above the fold at every size; they paint with the rest of the hero. */}
       <div className="mt-4 flex max-w-[36rem] flex-wrap gap-3">
         <Button size="lg" asChild className="max-sm:flex-1"><Link to="/predict" data-tour="predict"><Sparkles /> Predict a match <ArrowUpRight /></Link></Button>
