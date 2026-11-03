@@ -141,6 +141,8 @@ describe("winning alliances", () => {
     // A bare year is when the event was held, as the asks read it: 2026 is the 2025–26 championship, 2025 the one before.
     expect((await searchAnswer("who won 2026 nj states", { limit: 25 })).stat!.title).toMatch(/2025–26 winning alliance$/);
     expect((await searchAnswer("who won 2025 nj states", { limit: 25 })).stat).toBeUndefined();
+    // "This year" is the current season (2026–27 here, not played): never last season's winners as this year's.
+    expect((await searchAnswer("who won nj states this year", { limit: 25 })).stat?.headline).toBeUndefined();
   });
   it('"last season" outside a championship question is the season before the current one', () => {
     expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2025, lastYear: true } });

@@ -9,7 +9,7 @@
 import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { all, get } from "../../../db.js";
-import { SEASONS } from "../../../data/seasons.js";
+import { CURRENT_SEASON, SEASONS } from "../../../data/seasons.js";
 import { fuzzyScore } from "../../fuzzy.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
@@ -97,8 +97,8 @@ export async function winnersAnswer(core: string, season: number | null, champio
     // The season's FIRST Championship: the season named; "this year" the current season; else ("last year", or none
     // named) the latest season whose championship has finished.
     const finished = season == null && !which.latest ? await finishedChampionships() : [];
-    const current = season == null && which.latest ? (await get<{ s: number | null }>("SELECT MAX(season) s FROM events"))?.s : null;
-    const s = season ?? (which.latest ? (current == null ? null : Number(current)) : finished[0] ?? await latestChampionship());
+    // "This year" is the current season even before its events are in: notYet says its results aren't.
+    const s = season ?? (which.latest ? CURRENT_SEASON : finished[0] ?? await latestChampionship());
     if (s == null) return null;
     if (season == null && which.latest) why = ` "This year" is ${gameOf(s)} (${seasonLabel(s)}), the current season.`;
     else if (season == null && finished[0] === s) why = ` ${which.lastYear ? '"Last year"' : "With no season named, the season"} is ${gameOf(s)} (${seasonLabel(s)}), the latest whose championship has finished.`;
