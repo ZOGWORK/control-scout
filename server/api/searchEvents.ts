@@ -140,14 +140,16 @@ function gaps(e: EventQuery, rows: Row[]): string {
 const EVENT_TYPES_NAMES: Record<string, true> = { meet: true, league: true, tournament: true, championship: true, qualifier: true, scrimmage: true, kickoff: true, premier: true };
 
 /** How the data spells the venue or city the query named, its most common spelling among the events matched: "at
- *  River Dell High School" (a venue, though one event has it "River DeHigh School"), "in Oradell" (a city). */
+ *  River Dell High School" (a venue, though one event has it "River DeHigh School"), "in Oradell" (a city). Only a
+ *  name every event matched answers to: a city's meets at two schools are "in Oradell", never one school's name. */
 function whereAsStored(e: EventQuery, rows: Row[]): { text: string; city: boolean } | null {
   if (!e.where || !rows.length) return null;
   for (const field of ["venue", "city"] as const) {
     const n = new Map<string, number>();
-    for (const r of rows) { const v = r[field]?.replace(/[,\s]+$/, ""); if (v && samePlace(e.where, v, field === "city")) n.set(v, (n.get(v) ?? 0) + 1); }
+    let all = true;
+    for (const r of rows) { const v = r[field]?.replace(/[,\s]+$/, ""); if (v && samePlace(e.where, v, field === "city")) n.set(v, (n.get(v) ?? 0) + 1); else all = false; }
     const best = [...n].sort((a, b) => b[1] - a[1])[0];
-    if (best) return { text: best[0], city: field === "city" };
+    if (best && all) return { text: best[0], city: field === "city" };
   }
   return null;
 }

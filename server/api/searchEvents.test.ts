@@ -288,3 +288,13 @@ describe("a venue, every season, spelled loosely (owner bug: River Dell)", () =>
     expect(refs((await ask("meets at dimond high school")).hits)).toEqual(["USAKDIM"]);
   });
 });
+
+describe("Greptile on #461, round 2", () => {
+  it("a city's meets at two venues read as the city, never one venue's name", async () => {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USNJOHS1', 'Oradell Meet', 'LeagueMeet', 'Oradell High School', 'Oradell', 'NJ', 'USA', '2025-02-09', '2025-02-09', 'test')", [S - 2]);
+    await rebuildSearch();
+    const a = await ask("meets in oradell");
+    expect(refs(a.hits)).toEqual(expect.arrayContaining(["USNJOHS1", "USNJNEM6"]));
+    expect(a.understood?.label).toBe("Meets in Oradell");
+  });
+});
