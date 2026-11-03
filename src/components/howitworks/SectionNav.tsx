@@ -20,6 +20,9 @@ export const SECTIONS = [
   { id: "settings", label: "Settings" },
 ] as const;
 
+/** A page's sections, in order: the prediction page's by default (FTC One Search's page passes its own). */
+export type NavSection = { readonly id: string; readonly label: string };
+
 export interface SectionTop { id: string; top: number }
 
 /**
@@ -27,10 +30,10 @@ export interface SectionTop { id: string; top: number }
  * window, at scroll position `y`), or the last section once the page is scrolled to the very bottom (it is
  * too short to reach the line). "" above the first section.
  */
-export function activeSection(tops: readonly SectionTop[], y: number, line: number, max: number): string {
+export function activeSection(tops: readonly SectionTop[], y: number, line: number, max: number, last: string = SECTIONS[SECTIONS.length - 1].id): string {
   let cur = "";
   for (const s of tops) if (s.top - y < line) cur = s.id;
-  if (max > 0 && y >= max - 2) cur = SECTIONS[SECTIONS.length - 1].id;
+  if (max > 0 && y >= max - 2) cur = last;
   return cur;
 }
 
@@ -41,7 +44,7 @@ export function scrollToId(id: string, reduced: boolean) {
   history.replaceState(history.state, "", `#${id}`);
 }
 
-export function SectionNav() {
+export function SectionNav({ sections = SECTIONS }: { sections?: readonly NavSection[] }) {
   const reduced = useReduced();
   const [active, setActive] = useState<string>("");
   // The progress line is written straight to its style: as state, every scrolled frame re-rendered the nav
@@ -57,7 +60,7 @@ export function SectionNav() {
     let tops: SectionTop[] = [], max = 0, line = 0, raf = 0;
     const measure = () => {
       const y = page.scrollTop;
-      tops = SECTIONS.flatMap((s) => { const el = document.getElementById(s.id); return el ? [{ id: s.id, top: el.getBoundingClientRect().top + y }] : []; });
+      tops = sections.flatMap((s) => { const el = document.getElementById(s.id); return el ? [{ id: s.id, top: el.getBoundingClientRect().top + y }] : []; });
       max = page.scrollHeight - page.clientHeight;
       // The reading line: a third of the way down the visible page, under the top bar.
       const top = pageTop();
@@ -67,7 +70,7 @@ export function SectionNav() {
       raf = 0;
       const y = page.scrollTop;
       if (bar.current) bar.current.style.transform = `scaleX(${max > 0 ? Math.min(1, y / max) : 0})`;
-      setActive(activeSection(tops, y, line, max));
+      setActive(activeSection(tops, y, line, max, sections[sections.length - 1]?.id ?? ""));
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
     const onResize = () => { measure(); onScroll(); };
@@ -78,7 +81,7 @@ export function SectionNav() {
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     return () => { ro?.disconnect(); window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onResize); cancelAnimationFrame(raf); };
-  }, []);
+  }, [sections]);
 
   // Keep the active link visible in the (horizontally scrolling) nav on phones.
   useEffect(() => {
@@ -97,7 +100,7 @@ export function SectionNav() {
     <nav aria-label="On this page" className="sticky top-[calc(var(--header-h)+0.5rem)] z-30 mb-10 max-sm:mb-6 mt-2">
       <div className="relative overflow-hidden rounded-xl border border-border bg-background p-1 shadow-[0_18px_40px_-24px_rgba(0,0,0,.55)]">
         <div ref={toc} className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {SECTIONS.map((s) => {
+          {sections.map((s) => {
             const on = s.id === active;
             return (
               <a
