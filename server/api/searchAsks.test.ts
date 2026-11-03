@@ -253,7 +253,7 @@ describe("who won an event (owner: \"who won nj states\")", () => {
       expect(a.step, q).toBe("deterministic");
       expect(a.hits[0], q).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "playoffs" });
       expect(a.card?.title, q).toBe("Who won · New Jersey Championship · 2025–26");
-      expect(a.card?.lines.map((l) => `${l.text} [${l.results.join()}]`), q).toEqual([
+      expect(a.card?.lines.map((l) => `${l.text} [${(l.results ?? []).join()}]`), q).toEqual([
         "23268 Ultraviolet [Winning Alliance - Captain]", "6980 Bad Wolf [Winning Alliance - 1st Team Selected]", "23268 Ultraviolet [Inspire Award]",
       ]);
       expect(a.understood?.label, q).toBe("Who won New Jersey Championship (2025–26): the winning alliance and the Inspire Award");
