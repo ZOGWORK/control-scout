@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.6.9 — 2026-11-03
+
+FTC One Search names a season's champions: "who won worlds", "decode winner", "who won nj states", each with the finals, every division's winners, the Inspire Award and other seasons one tap away.
+
+### Highlights
+- [history] "Who won worlds": the winning alliance with its finals
+- [history] "Who won nj states": each division's winners and the Inspire Award
+- [history] "This year" or "last year" picks the season; others are a tap away
+- [history] A championship not played yet says so and shows the latest one
+
+### Search
+- **Who won.** "Who won worlds", "decode winner", "into the deep champions", "who won worlds last year": the season's FIRST Championship winning alliance, with the final matches and each division's winners. A game's name picks its season, "this year" is the current season and "last year" or no season is the latest championship that has finished. A championship not played yet says so, with the latest finished one below. (#467)
+- **A place's championship.** "Who won nj states": that state's championship, each division apart, with its Inspire Award and links to the same answer for other seasons. A year on its own is when the event was held ("who won 2025 nj states" is 2024–25).
+- **Winning alliance.** The alliance that won the event's final match, with its whole roster from alliance selection; with no final stored, the event's published Winning Alliance award. A Leadership Award is never counted as a winner.
+
 ## 2.6.8 — 2026-11-03
 
 FTC One Search answers how a team changed: OPR, win rate, alliance score, penalties and ranking points event by event, and its standing and record season by season.
