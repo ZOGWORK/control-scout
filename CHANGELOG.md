@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.6 — 2026-11-03
+## 2.5.7 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
 
@@ -30,6 +30,20 @@ FTC One Search answers questions about a team's matches: its best score at World
 - **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Each season is a different game, so an every-season best also lists the best of each season. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
 - **Never one number across seasons.** Each season is a different game that scores on its own scale, so seasons are compared by OPR standing (rank among that season's teams) and record, never by raw OPR or scores: the best and most improved seasons use standing, an average over several seasons is listed season by season, and a best score names its season beside each season's own best.
 - **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
+## 2.5.6 — 2026-11-03
+
+Searching never waits where you typed: Enter opens the results page straight away, and a loading screen shows while the results arrive.
+
+### Highlights
+- [speed] Enter in any search box opens the results page straight away
+- [speed] A loading screen shows the shape of the results while they arrive
+- [speed] A new search from the results page clears the old results at once
+
+### Search
+- **Enter never waits.** Pressing Enter or the magnifier in a search box (Home, the top bar, the results page) used to wait with a spinner until the answer came back. Now it opens the results page at once. A team number, a team's whole name or an event code still goes to that team or event: from the box when its answer is already in, or from the results page as soon as its answer arrives, replacing itself so Back returns to where you typed. (#464)
+- **A loading screen while results arrive.** The results page shows grey shapes of what's coming: the title, a grid of result cards and, on a computer, the panel on the right. They shimmer gently and stay still if your device asks for reduced motion. A line reads "Searching teams, events and matches…" and your search stays in the search bar. A new search run from the results page replaces the old results with it straight away, so they never look current.
+- **No blank page first.** Clicking into a search box starts loading the results page, so Enter goes straight to its loading screen.
 
 ## 2.5.5 — 2026-11-03
 
