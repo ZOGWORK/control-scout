@@ -148,6 +148,24 @@ describe("FIRST's other event codes (mixed case, punctuation, spaces, Cyrillic)"
         expect((await res.json()).event.code).toBe(c);
       }
       expect((await fetch(`${base}/api/events/2019/a%3Fb`)).status).toBe(400); // a "?" can't be in a code
+      // The event page's tables ask the records with ?code=, in the address's spelling.
+      expect((await fetch(`${base}/api/records/2019/teams?code=${encodeURIComponent("2019inmeet10")}`)).status).toBe(200);
+      expect((await fetch(`${base}/api/records/2019/matches?code=${encodeURIComponent("63693260770.2649")}`)).status).toBe(200);
+    } finally { server.close(); }
+  });
+  it("the built app serves each page, even a code that ends like a file name (.2649)", async () => {
+    const dist = mkdtempSync(join(tmpdir(), "cs-dist-"));
+    writeFileSync(join(dist, "index.html"), '<html><head><title>x</title></head><body><div id="root"><!--cs-boot--></div></body></html>');
+    const server = createApp({ dist }).listen(0);
+    await new Promise((r) => server.once("listening", r));
+    try {
+      const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      for (const p of ["/events/2019/63693260770.2649", "/events/2019/63693260770.2649/display", "/events/2019/laredomeet%202"]) {
+        const res = await fetch(`${base}${p}`, { redirect: "manual" });
+        expect(res.status, p).toBe(200);
+        expect(await res.text(), p).toContain('<link rel="canonical"');
+      }
+      expect((await fetch(`${base}/missing.png`)).status).toBe(404); // a real missing file still is one
     } finally { server.close(); }
   });
   it("each is in the sitemap at its canonical address; a code an address can't carry never is", async () => {
@@ -183,9 +201,15 @@ describe("the sitemap", () => {
     expect(ev.bodyHtml).not.toContain("/SOON"); // not within two weeks
     const rk = await pageMeta("/rankings");
     expect(rk.bodyHtml).toContain("<p>");
-    // The record tables: the season's top teams by OPR, and its highest-scoring matches, as links.
-    expect((await pageMeta("/teams")).bodyHtml).toContain('<a href="/teams/4215">4215 Hypnotic Robotics</a> <small>record 5-0-0 · OPR 101.6');
-    expect((await pageMeta("/matches")).bodyHtml).toContain(`<a href="/events/${P}/PLAYED?match=qual:0:1">Q1 at Played qualifier</a>`);
+    // The record tables: the first page of the table the app opens on (its season, its sort), from the records API's
+    // own query, as links. A season asked for is the one shown.
+    await run(`INSERT INTO team_event_records (season, code, team, event_name, team_name, np_opr, auto_opr, dc_opr, endgame_opr)
+      VALUES (?, 'LGM1', 4215, 'League meet', 'Hypnotic Robotics', 101.6, 30.1, 60.2, 11.3), (?, 'PLAYED', 4215, 'Played qualifier', 'Hypnotic Robotics', 90, 20, 50, 20)`, [S, P]);
+    await run("INSERT INTO match_records (season, code, level, series, number, label, event_name, high) VALUES (?, 'LGM1', 'qual', 0, 1, 'Q1', 'League meet', 120), (?, 'PLAYED', 'qual', 0, 1, 'Q1', 'Played qualifier', 120)", [S, P]);
+    expect((await pageMeta("/teams")).bodyHtml).toContain('<a href="/teams/4215">4215 Hypnotic Robotics</a> <small>League meet · OPR 101.6 · auto 30.1 · TeleOp 60.2 · endgame 11.3');
+    expect((await pageMeta("/teams", { season: String(P) })).bodyHtml).toContain("Played qualifier · OPR 90.0");
+    expect((await pageMeta("/matches")).bodyHtml).toContain(`<a href="/events/${S}/LGM1?match=qual:0:1">Q1 at League meet</a>`);
+    expect((await pageMeta("/matches", { season: String(P) })).bodyHtml).toContain(`<a href="/events/${P}/PLAYED?match=qual:0:1">Q1 at Played qualifier</a>`);
   });
 });
 

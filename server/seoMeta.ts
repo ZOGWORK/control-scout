@@ -23,7 +23,7 @@ import { listEvents } from "./api/events.js";
 import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
 import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
 import { storedEventCode } from "./eventCodes.js";
-import { teamPageSql } from "../src/shared/teamPages.js";
+import { listRecords, recordsQuery } from "./api/records.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
@@ -494,37 +494,43 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
 
 /** How many rows the record tables (/teams, /matches) put in their first HTML. */
 const RECORD_ROWS = 100;
-/** The newest season with OPR ranks (the record tables' numbers). */
-const recordsSeason = async () => (await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE rank_np IS NOT NULL"))?.s ?? CURRENT_SEASON;
+/** The season a records page opens on: its ?season= when it's one we hold, else the current season (src/pages/RecordsPage.tsx). */
+const recordsSeason = (query: Record<string, unknown>) => {
+  const n = Number(qstr(query.season));
+  return SEASON_NUMBERS.includes(n) ? n : CURRENT_SEASON;
+};
+const n1 = (v: number | string | null | undefined) => (typeof v === "number" ? fmt1(v) : "–");
 
 /**
- * /teams, the team stats table: its season's top teams by OPR in the first paint (rank, team, record, OPR by phase),
- * as links. The app's own table (every team, any filter or sort) replaces it once it loads.
+ * /teams, the team records: the first page of the table the app opens on, from the same query its API answers with
+ * (server/api/records.ts listRecords). Team-event rows by OPR (no penalties), or with ?view=season one row per team;
+ * each a link to the team. The directory view (?view=listed) has its description only. The app's table replaces it.
  */
-async function teamsTableMeta(): Promise<PageMeta> {
-  const s = STATIC["/teams"], season = await recordsSeason();
-  const rows = await all<{ team: number; name: string | null; rank: number; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; wins: number; losses: number; ties: number }>(
-    `SELECT s.team, t.name, s.rank_np rank, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.wins, s.losses, s.ties
-     FROM team_season_stats s LEFT JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.rank_np IS NOT NULL AND ${teamPageSql("s.team", "t.name")} ORDER BY s.rank_np LIMIT ${RECORD_ROWS}`, [season]);
+async function teamsTableMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const s = STATIC["/teams"], season = recordsSeason(query), view = qstr(query.view);
+  const base = { title: s.title, description: fitDescription(s.description), type: "website" as const };
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const f = (v: number | null) => (v == null ? "–" : fmt1(v));
-  const items = rows.map((r) => `<li><a href="/teams/${r.team}">${h(teamHeading(r.team, r.name))}</a> <small>${h([`record ${r.wins}-${r.losses}-${r.ties}`, `OPR ${f(r.opr)}`, `auto ${f(r.auto)}`, `TeleOp ${f(r.teleop)}`, `endgame ${f(r.endgame)}`].join(" · "))}</small></li>`).join("");
-  const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(season).label)}: top ${rows.length} by OPR</h2><ol>${items}</ol>` : "");
-  return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml };
+  if (view === "listed") return { ...base, bodyHtml: `<p>${h(s.description)}</p>` };
+  const perSeason = view === "season";
+  const r = await listRecords(season, recordsQuery(perSeason ? "teamSeason" : "teamEvent", { sort: "totalPointsNpOpr", pageSize: String(RECORD_ROWS) }));
+  const items = (r.rows as unknown as { team: number; eventName?: string; stats: Record<string, number | string | null> }[]).map((x) => {
+    const name = typeof x.stats.teamName === "string" ? x.stats.teamName : null;
+    const facts = [perSeason ? "" : x.eventName ?? "", `OPR ${n1(x.stats.totalPointsNpOpr)}`, `auto ${n1(x.stats.autoPointsOpr)}`, `TeleOp ${n1(x.stats.dcPointsOpr)}`, `endgame ${n1(x.stats.endgamePointsOpr)}`].filter(Boolean).join(" · ");
+    return `<li><a href="/teams/${x.team}">${h(teamHeading(x.team, name))}</a> <small>${h(facts)}</small></li>`;
+  }).join("");
+  const heading = `${seasonInfo(season).label}: ${perSeason ? "teams" : "team events"} by OPR`;
+  return { ...base, bodyHtml: `<p>${h(s.description)}</p>` + (items ? `<h2>${h(heading)}</h2><ol>${items}</ol>` : "") };
 }
 
-/** /matches, the match records: its season's highest-scoring played matches in the first paint, each linked to its event. */
-async function matchesTableMeta(): Promise<PageMeta> {
-  const s = STATIC["/matches"], season = await recordsSeason();
-  const rows = await all<{ code: string; event: string; label: string; red: number; blue: number; level: string; series: number; number: number }>(
-    `SELECT m.code, e.name event, m.label, m.red_np red, m.blue_np blue, m.level, m.series, m.number
-     FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
-     WHERE m.season = ? AND m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL
-     ORDER BY MAX(m.red_np, m.blue_np) DESC, m.code, m.level, m.series, m.number LIMIT ${RECORD_ROWS}`, [season]);
+/** /matches, the match records: the first page of the table the app opens on (highest score first, penalties in, as
+ *  its API answers), each linked to its match on the event page. */
+async function matchesTableMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const s = STATIC["/matches"], season = recordsSeason(query);
+  const r = await listRecords(season, recordsQuery("match", { sort: "highScore", pageSize: String(RECORD_ROWS) }));
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const items = rows.map((r) => `<li><a href="${h(eventPath(season, r.code))}?match=${r.level}:${r.series}:${r.number}">${h(`${r.label} at ${r.event}`)}</a> <small>${h(`red ${r.red} · blue ${r.blue} (no penalties)`)}</small></li>`).join("");
-  const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(season).label)}: highest-scoring matches</h2><ol>${items}</ol>` : "");
+  const items = (r.rows as unknown as { eventCode: string; eventName: string; key: string; label: string; stats: Record<string, number | string | null> }[]).map((x) =>
+    `<li><a href="${h(eventPath(season, x.eventCode))}?match=${h(x.key)}">${h(`${x.label} at ${x.eventName}`)}</a> <small>${h(`red ${x.stats.redTotalPoints ?? "–"} · blue ${x.stats.blueTotalPoints ?? "–"}`)}</small></li>`).join("");
+  const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(season).label)}: highest scores</h2><ol>${items}</ol>` : "");
   return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml };
 }
 
@@ -648,8 +654,8 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if (p === "/events") return await eventsListMeta();
-    if (p === "/teams") return await teamsTableMeta();
-    if (p === "/matches") return await matchesTableMeta();
+    if (p === "/teams") return await teamsTableMeta(query);
+    if (p === "/matches") return await matchesTableMeta(query);
     if (/^\/search$/i.test(p)) return await searchMeta(sp.get("q") ?? "");
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
@@ -678,7 +684,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     const s = STATIC[p], body = searchDocsHtml();
     return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
   }
-  // The plain content pages (privacy, terms, contact, donate, download, rules): the whole page in the first paint too,
+  // The plain content pages (privacy, terms, contact, donate, rules): the whole page in the first paint too,
   // prerendered from the real page component at build time (src/prerender/staticPages.tsx).
   if (PRERENDERED_PAGES[p]) {
     const s = STATIC[p], body = prerenderedHtml(PRERENDERED_PAGES[p]);

@@ -22,14 +22,14 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 ### Highlights
 - [fixes] Every event opens, whatever its code looks like
 - [fixes] An event code in any case opens the same page
-- [speed] Privacy, terms, rules and download pages arrive in full
+- [speed] Privacy, terms, rules and contact pages arrive in full
 - [speed] Team and match records arrive with their top rows
 
 ### Events
 - **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals. (#491)
 
 ### Pages
-- **Words before the app.** Privacy, terms, contact, donate, download and the rules quick reference arrive with their whole text, and the team and match record tables with their top 100 rows, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again.
+- **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again.
 
 ## 2.7.8 — 2026-11-03
 

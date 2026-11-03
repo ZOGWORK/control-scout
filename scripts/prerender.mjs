@@ -1,5 +1,5 @@
 // Build step (npm run build): render How it works (/methodology), How FTC One Search works (/how-it-works/search) and the
-// plain content pages (privacy, terms, contact, donate, download, rules) to static HTML with the real page component
+// plain content pages (privacy, terms, contact, donate, rules) to static HTML with the real page component
 // (src/prerender/methodology.tsx, built for SSR into build/ssr), so the server can put the full text in the
 // first response (server/seoMeta.ts → bootShell). Charts and slider inputs are left out: a crawler reads the
 // words and captions, and the page stays a light text document. The app replaces it once it loads.

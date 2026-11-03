@@ -5,6 +5,5 @@ export const PRERENDERED_PAGES: Readonly<Record<string, string>> = {
   "/terms": "terms.html",
   "/contact": "contact.html",
   "/donate": "donate.html",
-  "/download": "download.html",
   "/rules": "rules.html",
 };

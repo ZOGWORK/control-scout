@@ -625,6 +625,8 @@ export function createApp(opts: { dist?: string } = {}) {
       if (format !== "json" && format !== "csv" && format !== "xlsx") throw bad("format must be json, csv or xlsx");
       try {
         const q = recordsQuery(scope, req.query as Record<string, unknown>, format !== "json" ? RECORDS_EXPORT_MAX : RECORDS_MAX_PAGE_SIZE);
+        // One event's rows (an event page's tables): its code as stored, in whatever case the query has it.
+        if (q.code) q.code = await storedEventCode(s, q.code);
         // The owner's scheduleDifficulty toggle off: its columns can't be asked for, sorted or filtered on, and the
         // default (every stat, no fields asked for) leaves them out.
         if (scope === "teamEvent" && !(await isEnabled("scheduleDifficulty"))) {
