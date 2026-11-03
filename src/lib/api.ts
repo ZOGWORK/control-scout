@@ -150,6 +150,14 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   const first = await Promise.race([request, deadline]).finally(() => clearTimeout(timer));
   if (first !== TIMED_OUT) return first;
   if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
+  // A search asked before anything else answered (the page's first request), while the server has answered
+  // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then says so; saved data never answers.
+  if (SEARCH_PATH.test(path) && serverUp()) {
+    const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
+    if (more !== TIMED_OUT) return more;
+    ctrl.abort();
+    throw new ApiError(0, SEARCH_SLOW, false, "search-slow");
+  }
   const won = await Promise.race([request.then((res) => ({ res })), savedAnswer(path).then((data) => ({ data }))]);
   if ("res" in won) return won.res;
   if (won.data == null) return request;
@@ -160,13 +168,54 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
 /** The error for a request its caller cancelled (an AbortError, as fetch's own). */
 const callerAborted = () => new DOMException("The request was cancelled", "AbortError");
 
-export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number }): Promise<T> {
-  const { json, _tries = 0, ...rest } = init ?? {};
+/** When the server last answered (any status), and when a request last failed for want of a network. */
+let lastAnswerAt = 0, lastFailAt = 0;
+/** A search slower than OFFLINE_TIMEOUT_MS while the server answers everything else is a slow search, not "no
+ *  signal": it gets this long, then one more try, then says so (SEARCH_SLOW). Saved data never answers it then. */
+export const SEARCH_SLOW_MS = 10_000;
+export const SEARCH_SLOW = "Search is slow right now. Try again.";
+const SEARCH_PATH = /^\/api\/search(\?|$)/;
+/** The server is up: the browser says it's online and the server answered within the last minute, since the last
+ *  request that failed for want of a network. */
+const serverUp = () => navigator.onLine !== false && lastAnswerAt > lastFailAt && Date.now() - lastAnswerAt < 60_000;
+
+/** A search while the server is up: SEARCH_SLOW_MS a try, two tries. Twice no network at all is no signal after all
+ *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly. */
+async function searchOnline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number }) | undefined): Promise<T> {
+  const outer = init?.signal;
+  let last: unknown;
+  for (let i = 0; i < 2; i++) {
+    if (outer?.aborted) throw callerAborted();
+    const ctrl = new AbortController();
+    const forward = () => ctrl.abort();
+    outer?.addEventListener("abort", forward, { once: true });
+    const timer = setTimeout(() => ctrl.abort(), SEARCH_SLOW_MS);
+    try {
+      return await apiFetch<T>(path, { ...init, signal: ctrl.signal, _online: true });
+    } catch (e) {
+      if (outer?.aborted) throw callerAborted();
+      // The server answered, under 500: its answer stands.
+      if (e instanceof ApiError && !e.offline && e.status < 500) throw e;
+      last = e;
+    } finally {
+      clearTimeout(timer);
+      outer?.removeEventListener("abort", forward);
+    }
+  }
+  if (last instanceof ApiError && last.offline) return offlineOr<T>(path, init?.method, last);
+  if (last instanceof ApiError) throw last;
+  throw new ApiError(0, SEARCH_SLOW, false, "search-slow");
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit & { json?: unknown; _tries?: number; _online?: boolean }): Promise<T> {
+  const { json, _tries = 0, _online = false, ...rest } = init ?? {};
+  // A slow search while everything else answers isn't "offline" (searchOnline).
+  if (!_online && (rest.method ?? "GET").toUpperCase() === "GET" && SEARCH_PATH.test(path) && serverUp()) return searchOnline<T>(path, init);
   // navigator.onLine is only a hint: iOS (above all a home-screen app back from the background) can report
   // false while the phone is online, and never send the "online" event. Skipping the request on it left the
   // whole app stuck on saved data. Always ask: with truly no signal the request fails at once anyway, and
   // that failure falls back to saved data the same way.
-  const kind = offlineKind(path, rest.method);
+  const kind = _online ? null : offlineKind(path, rest.method);
   const ctrl = kind ? new AbortController() : null;
   const outer = rest.signal;
   const forward = () => ctrl?.abort();
@@ -187,14 +236,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl) : await request;
     // The caller let it go (a newer search): nobody waits on an answer, so none is made from saved data either.
     if (outer?.aborted) throw callerAborted();
-    if (!(got instanceof Response)) { setUsingSaved(true); return got.saved; }
+    if (!(got instanceof Response)) { lastFailAt = Date.now(); setUsingSaved(true); return got.saved; }
     res = got;
     answered = true;
+    lastAnswerAt = Date.now();
   } catch (e) {
     if (e instanceof ApiError) throw e;
     // The page let the request go itself (it moved on): not unreachable, and no saved-data answer (or Offline badge).
     if (outer?.aborted) throw callerAborted();
     watch.failed();
+    lastFailAt = Date.now();
+    if (_online) throw unreachable();
     return offlineOr<T>(path, rest.method, unreachable());
   } finally {
     // Answered from saved data, or failed: settled. A server answer settles once its body is in (below).

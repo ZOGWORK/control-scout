@@ -15,7 +15,7 @@ vi.mock("./offline/predict", () => { loaded.push("predict"); return {}; });
 vi.mock("./packs", () => { loaded.push("packs"); return {}; });
 vi.mock("sql.js/dist/sql-wasm-browser.js", () => { loaded.push("sql.js"); return {}; });
 
-import { ApiError, OFFLINE_TIMEOUT_MS, apiFetch, load, noteOfflineAnswer, useApi, useOfflineMode } from "./api";
+import { ApiError, OFFLINE_TIMEOUT_MS, SEARCH_SLOW, SEARCH_SLOW_MS, apiFetch, load, noteOfflineAnswer, useApi, useOfflineMode } from "./api";
 import { markOffline, offlineSource, writeSaved, type SavedSeason } from "./offline/saved";
 import { PACK_META_KEY } from "./packPolicy";
 
@@ -377,5 +377,74 @@ describe("recovery: back to the server", () => {
     expect(mode.result.current).toBe(true);
     act(() => { window.dispatchEvent(new Event("online")); });
     expect(mode.result.current).toBe(false);
+  });
+});
+
+describe("a slow search while the server answers isn't offline (owner bug: 'highest scoring games in decode')", () => {
+  // beforeEach's /api/meta answered: the server is up.
+  it("past the offline timeout it keeps waiting for the server, never saved data or the Offline badge", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((res) => setTimeout(() => res(ok({ live: true })), OFFLINE_TIMEOUT_MS + 1500))));
+    const p = apiFetch("/api/search?q=highest%20scoring%20games%20in%20decode&answer=1");
+    await vi.advanceTimersByTimeAsync(OFFLINE_TIMEOUT_MS + 1500);
+    expect(await p).toEqual({ live: true });
+    expect(offlineAnswer).not.toHaveBeenCalled();
+    expect(mode.result.current).toBe(false);
+  });
+  it("too slow: one retry, then 'Search is slow', not offline", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    const fetch = hanging();
+    vi.stubGlobal("fetch", fetch);
+    const p = apiFetch("/api/search?q=gear&answer=1");
+    const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
+    await settled;
+    expect(offlineAnswer).not.toHaveBeenCalled();
+    expect(mode.result.current).toBe(false);
+  });
+  it("a failed first try is retried once and its answer used", async () => {
+    writeSaved([saved]);
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => (n++ ? ok({ live: true }) : new Response("{}", { status: 502 }))));
+    expect(await apiFetch("/api/search?q=gear&answer=1")).toEqual({ live: true });
+    expect(mode.result.current).toBe(false);
+  });
+  it("no network on both tries is no signal after all: saved data answers", async () => {
+    writeSaved([saved]);
+    networkDown();
+    expect(offlineSource(await apiFetch("/api/search?q=gear&answer=1"))).toEqual(src);
+    expect(mode.result.current).toBe(true);
+  });
+  it("asked before the server answered anything: the server answering meanwhile makes it slow, not offline", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    // The last thing to happen was a failure: the server isn't known to be up when the search starts.
+    networkDown();
+    await apiFetch("/api/meta").catch(() => {});
+    const hang = hanging();
+    vi.stubGlobal("fetch", vi.fn((p: string, init?: RequestInit) => (p.startsWith("/api/search") ? hang(p, init) : Promise.resolve(ok({})))));
+    const p = apiFetch("/api/search?q=gear&answer=1");
+    const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    await apiFetch("/api/meta");
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
+    await settled;
+    expect(offlineAnswer).not.toHaveBeenCalled();
+    expect(mode.result.current).toBe(false);
+  });
+  it("a newer search cancelling it fails as cancelled, with no retry", async () => {
+    writeSaved([saved]);
+    const fetch = hanging();
+    vi.stubGlobal("fetch", fetch);
+    const ctrl = new AbortController();
+    const p = apiFetch("/api/search?q=hyp", { signal: ctrl.signal });
+    ctrl.abort();
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(offlineAnswer).not.toHaveBeenCalled();
   });
 });
