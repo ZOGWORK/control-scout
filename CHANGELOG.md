@@ -22,6 +22,7 @@ FTC One Search keeps a venue's meets to that venue, and "who won" leaves the Lea
 ### Highlights
 - [fixes] "Meets at River Dell" no longer lists Riverdale High School, IL
 - [fixes] "Who won" lists the winning alliance, never Leadership winners
+- [history] Misspelt venues still count, in the venue's own state
 
 ### Search
 - **A venue stays in its own state.** A spelling a letter or two off now counts only in a state where the venue is found as typed. New Jersey's "River Dale High School" is still River Dell's meet, and Riverdale High School in Port Byron, Illinois, is no longer listed.
