@@ -103,8 +103,13 @@ export function readRuleQuery(typed: string, asked = false): RuleQuery | null {
 }
 
 const haystack = (r: RuleEntry, section: string) => fold(`${r.id} ${r.title} ${r.summary} ${r.penalty ?? ""} ${(r.keywords ?? []).join(" ")} ${section}`).split(/\s+/).filter(Boolean);
-/** A keyword is in the rule when a word there starts with it, or with its stem ("elements" → "element"). */
-const has = (words: string[], k: string) => { const stem = k.replace(/(?:ing|ed|es|s)$/, ""); return words.some((w) => w.startsWith(k) || (stem.length >= 4 && w.startsWith(stem))); };
+/** A keyword is in the rule when a word there starts with it, or with its stem ("elements" → "element"). A short one
+ *  (under five letters) only as itself or an ending of it ("pin": "pins", "pinned", "pinning"; never "pinch"). */
+const has = (words: string[], k: string) => {
+  const stem = k.replace(/(?:ing|ed|es|s)$/, "");
+  const own = (w: string) => (k.length >= 5 ? w.startsWith(k) : w === k || (w.startsWith(k) && /^(?:s|es|d|ed|ing|er|ers)$/.test(w.slice(k.length).replace(new RegExp(`^${k.at(-1)}(?=[a-z])`), ""))));
+  return words.some((w) => own(w) || (stem.length >= 4 && w.startsWith(stem)));
+};
 
 /** The past season a rule question is about: its past-game words the reference `ref` doesn't use, newest season. */
 export function pastSeasonOf(ref: SeasonReference, rq: RuleQuery): { season: number; words: string[] } | null {
