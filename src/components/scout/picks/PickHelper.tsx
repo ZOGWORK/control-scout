@@ -43,8 +43,12 @@ export function PickHelper({ season, eventCode, myTeam, onPickEvent }: {
     return () => clearInterval(t);
   }, [eventCode]);
   if (!eventCode) {
-    return <EmptyState icon={CalendarSearch} title="Choose an event first" description="The pick helper works from the teams at one event."
-      action={onPickEvent && <Button variant="outline" onClick={onPickEvent}>Choose event</Button>} />;
+    // Without the picker (a read-only workspace can't change its event): any event's Playoffs tab opens the helper there.
+    return onPickEvent
+      ? <EmptyState icon={CalendarSearch} title="Choose an event first" description="The pick helper works from the teams at one event."
+          action={<Button variant="outline" onClick={onPickEvent}>Choose event</Button>} />
+      : <EmptyState icon={CalendarSearch} title="Choose an event first" description="Open the event, then Pick helper on its Playoffs tab."
+          action={<Button variant="outline" asChild><Link to="/events">Find the event</Link></Button>} />;
   }
   if (data.error && !data.data) {
     return (

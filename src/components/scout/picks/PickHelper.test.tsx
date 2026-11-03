@@ -92,5 +92,10 @@ describe("PickHelper", () => {
     cleanup();
     show("/scout?tab=picks", 10, null);
     expect(within(document.body).getByText("Choose an event first")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Choose event" })).toBeTruthy();
+    cleanup();
+    // No picker (a read-only workspace): the way there is an event's page.
+    render(<MemoryRouter initialEntries={["/scout?tab=picks"]}><PickHelper season={2025} eventCode={null} myTeam={10} onPickEvent={null} /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Find the event" }).getAttribute("href")).toBe("/events");
   });
 });
