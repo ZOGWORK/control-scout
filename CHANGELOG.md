@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.4 — 2026-11-03
+## 2.4.5 — 2026-11-03
 
 Compare: the season picker sits with the team controls.
 
@@ -27,6 +27,18 @@ Compare: the season picker sits with the team controls.
 ### Compare
 - **Season picker moved.** The season buttons (2026–27, 2025–26, 2024–25, 2023–24, Earlier) now sit directly below the Quick add row, lined up on the left with the team search, instead of at the top right beside the title. Top to bottom: the team search and count, Quick add, the season, then the note and the comparison. Phones stack the same order. The seasons on offer and what picking one does are unchanged.
 - **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice. (#447)
+
+## 2.4.4 — 2026-11-03
+
+Home's search box says what it can do: type whatever you want.
+
+### Highlights
+- [home] FTC One Search on Home: a bigger, glowing box for any search
+- [home] Example searches cycle in the box, each marked with its kind
+- [home] Tap any example under the box to run it
+
+### Site
+- **FTC One Search on Home.** Home's search block is now the hero of its column: a taller field with a soft volt glow that brightens when you type, under "Type whatever you want" and the line "Search teams, events, matches, predictions, and records." The placeholder cycles through the search's own example searches every few seconds, the same list the empty search box offers. It holds still while the field has focus and never moves with reduced motion on, when the glow is static too. The examples are also chips under the box, one tap each to their results (and kept in your recent searches); on a phone they scroll sideways in one row. With the field empty and focused, the dropdown shows your recent searches. The placeholder is never searched for itself. The results dropdown stays the box's own width, so the globe beside it never moves. The rest of Home is unchanged. (#426)
 
 ## 2.4.3 — 2026-11-03
 
