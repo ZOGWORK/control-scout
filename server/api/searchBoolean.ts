@@ -11,7 +11,9 @@
 //   "\"Raider Robotics\""                    the teams named exactly that, then names holding the phrase
 // "vs", "compare", "who wins" and "have … and … played" keep their own readings (./searchCoverage.ts, ./answers/read.ts).
 import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
-import type { StatAnswer, StatBlock } from "../../src/shared/searchStat.js";
+import type { LeaderboardRow, StatAnswer, StatBlock } from "../../src/shared/searchStat.js";
+import { reportedTeleopIncludesEndgame } from "../data/seasons.js";
+import { all } from "../db.js";
 import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf } from "../../src/shared/teamTitle.js";
@@ -287,16 +289,51 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   const a = base(hits, label, `boolean-compare`);
   if (!full) return a;
   const stats = own.map((x) => x!.stat!);
-  const stat: StatAnswer = {
+  return { ...a, stat: await sideBySide(what, teams, stats, readScope(` ${b.rest} `).scope.season) };
+}
+
+const RECORD_TEXT = /^(\d+)-(\d+)-(\d+)$/;
+/** A headline's number for sorting: a record's win share, else the number in it, else none. */
+function numberOf(v: string | undefined): number | null {
+  if (!v) return null;
+  const r = RECORD_TEXT.exec(v);
+  if (r) { const n = Number(r[1]) + Number(r[2]) + Number(r[3]); return n ? (Number(r[1]) + 0.5 * Number(r[3])) / n : null; }
+  const x = Number.parseFloat(v.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(x) ? x : null;
+}
+
+/** Any other stat side by side: each team as the search's team table draws it (season OPR, its phases, penalties and
+ *  record: the stored season numbers each team page shows), the stat asked as its own column, sorted by it. The
+ *  season is the one named, else the latest every team played. */
+async function sideBySide(what: string, teams: number[], stats: StatAnswer[], named: number | null): Promise<StatAnswer> {
+  const rows = await all<any>(
+    `SELECT s.team, s.season, t.name, t.city, t.state, t.country, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen, s.wins, s.losses, s.ties
+     FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.team IN (${teams.map(() => "?").join(",")}) AND s.matches > 0 ORDER BY s.season DESC`, teams);
+  const has = (t: number, season: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === season);
+  const season = named ?? rows.map((r) => Number(r.season)).find((x) => teams.every((t) => has(t, x))) ?? null;
+  const num = (x: unknown) => (x == null ? null : Number(x));
+  const board: LeaderboardRow[] = teams.map((t, i) => {
+    const r = season != null ? has(t, season) : undefined, s = stats[i];
+    return {
+      rank: i + 1, team: { label: `${t}${r?.name ? ` ${r.name}` : ""}`, href: teamHref(t, season) },
+      location: r ? [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null : null,
+      record: r ? `${r.wins}-${r.losses}-${r.ties}` : "–", opr: num(r?.opr_np), value: numberOf(s.headline?.value), display: s.headline?.value ?? "–",
+      parts: r ? { auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame), pen: num(r.opr_pen) } : null,
+    };
+  });
+  const when = season != null ? seasonLabel(season) : "no season every team played";
+  return {
     family: "two-team", intent: "boolean-compare", title: `${what}: ${teams.join(" vs ")}`, scope: stats[0].scope,
-    definition: `Each team's own answer, as its team page and its own search give it. ${stats[0].definition}`, source: stats.map((s, i) => `${teams[i]}: ${s.source}`).join(" · "),
+    headline: { value: board.map((r) => r.display).join(" vs "), label: `${what}: ${teams.join(" vs ")}` },
+    definition: `${what} is each team's own answer, as its own search gives it (${stats.map((x, i) => `${teams[i]}: ${x.headline?.label ?? x.none ?? "none"}`).join("; ")}). The other columns are each team's stored ${when} season numbers, as its team page shows them. ${stats[0].definition}`,
+    source: stats.map((x, i) => `${teams[i]}: ${x.source}`).join(" · "),
     blocks: [
-      { kind: "table", title: what, columns: [{ key: "team", label: "Team" }, { key: "value", label: what, num: true }, { key: "detail", label: "Detail" }],
-        rows: stats.map((s, i) => ({ cells: { team: whoOf(s.team ?? { number: teams[i], name: null }), value: s.headline?.value ?? "–", detail: s.headline ? s.headline.label : s.none ?? "" }, href: s.headline?.href ?? teamHref(teams[i]) })) },
-      { kind: "links", title: "Try it", items: [{ label: "Compare side by side", href: `/compare?teams=${[...teams].sort((x, y) => x - y).join(",")}` }] },
+      { kind: "leaderboard", title: `${what}, side by side`, stat: { id: "boolean-compare", label: what }, note: season != null ? `${when} season numbers` : when, rows: board,
+        ...(season != null && reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}) },
+      { kind: "links", title: "Try it", items: [{ label: "Compare side by side", href: `/compare?teams=${[...teams].sort((x, y) => x - y).join(",")}${season != null ? `&season=${season}` : ""}` }] },
     ],
   };
-  return { ...a, stat };
+
 }
 
 /** A query that opens with one quoted phrase (`"Raider Robotics"`): the teams named exactly that first, then the names

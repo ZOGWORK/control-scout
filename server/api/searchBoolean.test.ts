@@ -179,8 +179,12 @@ describe("precedence and parsing", () => {
   it("any other stat: each team's own answer in one table, opening the section that answer opens", async () => {
     const a = await ask("4215 and 6980 record");
     expect(a.stat?.intent).toBe("boolean-compare");
-    const t = a.stat?.blocks.find((b) => b.kind === "table") as Extract<StatBlock, { kind: "table" }>;
-    expect(t.rows.map((r) => String(r.cells.team))).toEqual(["Hypnotic Robotics (4215)", "Bad Wolf (6980)"]);
+    // The search's team table: each team's season numbers, the stat asked as its own column.
+    const t = a.stat?.blocks.find((b) => b.kind === "leaderboard") as Extract<StatBlock, { kind: "leaderboard" }>;
+    expect(t.rows.map((r) => r.team.label)).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect(t.rows.map((r) => [r.opr, r.parts?.auto, r.record])).toEqual([[101.6, 25.4, "6-4-0"], [130, 32.5, "6-4-0"]]);
+    expect(t.stat.label).toBe(t.title.replace(", side by side", ""));
+    expect(a.stat?.headline?.value).toBe(t.rows.map((r) => r.display).join(" vs "));
     // Each team's link opens what its own answer opens ("4215 record" reads as this season's record).
     const own = await ask("4215 record this season");
     expect(a.stat?.title).toBe(`${own.stat?.title}: 4215 vs 6980`);
