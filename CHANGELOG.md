@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.5.4 — 2026-11-03
+
+FTC One Search answers "who won NJ states": the winning alliance and the Inspire Award, from the event's results.
+
+### Highlights
+- [history] "Who won NJ states" names the winning alliance and Inspire winner
+- [history] It answers the newest finished championship, its season named
+- [fixes] "TX states" lists state championships, not the FIRST Championship
+
+### Search
+- **Who won an event.** "Who won NJ states", "who won the New Jersey Championship", "winners of 2024-25 NJ states" and misspellings like "who won new jesey states" answer the newest finished championship of that place (or the event named, its newest finished season). The answer shows the winning alliance as FIRST records it (each division's, at a championship with divisions) and the Inspire Award winner, and opens the event on its playoffs. "Won" is never read as a name word. An event with no results recorded says so plainly. "Who won Inspire at …" still lists that award's winners.
+- **"States" is a state's own championship.** "TX states" lists Texas's state and regional championships, never the FIRST Championship held in Houston, and its line reads "State championships in Texas". "NJ states events" now reads as state championships too, not as all events. (#456)
+
 ## 2.5.3 — 2026-11-03
 
 Match timestamps for recordings that YouTube cut short: a match's Watch button now shows up on more events.
