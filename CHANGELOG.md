@@ -22,9 +22,10 @@ Home's headline is smaller, so the FTC One Search block and all its example chip
 ### Highlights
 - [home] The headline fits in two lines, with no gap under it
 - [home] The whole search block, chips included, shows without scrolling
+- [speed] The first paint's headline matches the page, so nothing jumps on load
 
 ### Home
-- **A smaller headline.** It never grows past its column, so even the longest hourly line keeps to two lines, and the space that used to sit under shorter lines is gone. Its words and colours are unchanged. The search block ends about 160 px higher on a laptop screen, and it is fully visible without scrolling on phones, tablets and desktop windows from 390×844 to 1440×900. The globe beside it doesn't move.
+- **A smaller headline.** It never grows past its column, so even the longest hourly line keeps to two lines, and the space that used to sit under shorter lines is gone. Its words and colours are unchanged. The search block ends about 160 px higher on a laptop screen, and it is fully visible without scrolling on phones, tablets and desktop windows from 390×844 to 1440×900. The globe beside it doesn't move. The page's first paint sizes its headline the same way, so it doesn't shrink when the app takes over. (#460)
 
 ## 2.5.4 — 2026-11-03
 
