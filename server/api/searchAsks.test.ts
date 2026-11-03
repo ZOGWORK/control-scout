@@ -326,3 +326,12 @@ describe("stat leaderboards: scope words and places (owner bug: best teleop in t
     expect(readAsk("best teleop in narnia")).toBeNull();
   });
 });
+
+describe("who won: a Leadership Award stored as a Winner isn't a winner (Worlds 2025–26, FTCCMP1)", () => {
+  it("leaves FIRST Leadership Award rows out of the winning alliance", async () => {
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USNJCMP', 'Winner', 3, 14270, 'FIRST Leadership Award')", [S]);
+    const a = await ask("who won nj states");
+    expect(a.card?.lines.flatMap((l) => l.results ?? [])).not.toContain("FIRST Leadership Award");
+    expect(a.card?.lines.map((l) => l.text)).not.toContain("14270 Quantum Mechanics");
+  });
+});

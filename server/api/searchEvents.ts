@@ -62,6 +62,13 @@ function samePlace(typed: string, text: string | null, whole = false): boolean {
   if (!whole && (t.includes(q) || (t.length >= 10 && q.includes(t)))) return true;
   return q.slice(0, 5) === t.slice(0, 5) && Math.abs(q.length - t.length) <= 2 && edits(q, t) <= Math.max(1, Math.floor(q.length / 8));
 }
+/** The venue or city is the place as typed, no letter off: the venue holds the words typed (or they hold it), or the
+ *  city is them. */
+function exactPlace(typed: string, r: Row): boolean {
+  const q = compact(typed), v = compact(r.venue ?? ""), c = compact(r.city ?? "");
+  return !!q && ((!!v && (v.includes(q) || (v.length >= 10 && q.includes(v)))) || c === q);
+}
+
 /** The event is at the place typed: its venue or city (samePlace), or every word typed is a word of its venue, in
  *  any order ("Dell River High School"). Never city words and venue words mixed: "Ramsey High School" is not Don
  *  Bosco Prep High School in Ramsey. */
@@ -117,7 +124,13 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     const named = e.kinds.map((k) => (k === "states" ? "championship" : k)).filter((k) => Object.hasOwn(EVENT_TYPES_NAMES, k));
     rows = rows.filter((r) => (r.type ? allowed.includes(r.type) : named.some((k) => allIn([k], r.name))));
   }
-  if (e.where && !drop.where) rows = rows.filter((r) => atPlace(e.where!, r));
+  if (e.where && !drop.where) {
+    rows = rows.filter((r) => atPlace(e.where!, r));
+    // A spelling a letter or two off counts only in a state where the place is found as typed: New Jersey's "River
+    // Dale High School" is River Dell's typo; Riverdale High School in Illinois is another school.
+    const states = new Set(rows.filter((r) => exactPlace(e.where!, r)).map((r) => `${r.country}:${r.state}`));
+    if (states.size) rows = rows.filter((r) => exactPlace(e.where!, r) || states.has(`${r.country}:${r.state}`));
+  }
   if (e.words.length) {
     const qs = e.words.flatMap((w) => words(w));
     rows = rows.filter((r) => allIn(qs, `${r.name} ${r.city ?? ""} ${r.venue ?? ""} ${r.code}`));
