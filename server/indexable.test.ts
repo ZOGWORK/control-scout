@@ -14,6 +14,9 @@ import { STATIC_PAGES, sitemapEntries } from "./sitemap";
 import { changedEvents } from "./indexNow";
 import { isReachableEventCode } from "./indexable";
 import { teamProfile } from "./api/teams";
+import { storedEventCode } from "./eventCodes";
+import { createApp } from "./app";
+import type { AddressInfo } from "node:net";
 
 const S = CURRENT_SEASON, P = CURRENT_SEASON - 1;
 const ORIGIN = "https://controlscout.org";
@@ -37,9 +40,9 @@ beforeAll(async () => {
     (?, 'LGM1', 'League meet', 'LeagueMeet', '2026-10-01', '2026-10-01', 0, 0, 't', NULL),
     (2019, '2019INMeet10', 'Mixed-case code', 'LeagueMeet', '2019-12-01', '2019-12-01', 0, 0, 't', NULL)`, [P, P, S, S, S]);
   await run("INSERT INTO event_teams (season, code, team, rank, qual_played) VALUES (?, 'PLAYED', 4215, 1, 5), (?, 'SOON', 5555, NULL, NULL), (?, 'LGM1', 8888, NULL, NULL), (?, 'LGM1', 3640, NULL, NULL), (?, 'PLAYED', 3640, 2, 5), (?, 'LGM1', 4215, 1, 4), (2019, '2019INMeet10', 4215, 1, 5)", [P, S, S, S, P, S]);
-  await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'PLAYED', 'qual', 0, 1, 'Q1', 1, 't'), (?, 'LGM1', 'qual', 0, 1, 'Q1', 1, 't')", [P, S]);
+  await run("INSERT INTO matches (season, code, level, series, number, label, played, source, red_np, blue_np) VALUES (?, 'PLAYED', 'qual', 0, 1, 'Q1', 1, 't', 120, 80), (?, 'LGM1', 'qual', 0, 1, 'Q1', 1, 't', NULL, NULL)", [P, S]);
   await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'PLAYED', 'qual', 0, 1, 4215, 'red', 1), (?, 'LGM1', 'qual', 0, 1, 4215, 'red', 1)", [P, S]);
-  await run("INSERT INTO team_season_stats (season, team, opr_np, wins, losses, ties, matches) VALUES (?, 4215, 101.6, 5, 0, 0, 5), (?, 3640, 40.2, 3, 2, 0, 5)", [P, P]);
+  await run("INSERT INTO team_season_stats (season, team, opr_np, rank_np, wins, losses, ties, matches) VALUES (?, 4215, 101.6, 1, 5, 0, 0, 5), (?, 3640, 40.2, 2, 3, 2, 0, 5)", [P, P]);
   await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'AWARDS', 'Inspire', 1, 6980, 'Inspire Award')", [P]);
   const dir = mkdtempSync(join(tmpdir(), "cs-index-"));
   file = join(dir, "index.html");
@@ -106,18 +109,54 @@ describe("class B: a page with nothing on it yet", () => {
 
 describe("class C: an address with no page", () => {
   it("is a real 404 with noindex and no canonical", async () => {
-    for (const p of ["/teams/31999", "/events/2025/NOPE", "/teams/1234567", "/events/2019/2019INMeet10"]) {
+    for (const p of ["/teams/31999", "/events/2025/NOPE", "/teams/1234567", "/events/2019/2019INMeet11", "/events/2019/a%3Fb"]) {
       const r = await renderPage(file, p);
       expect(r.status, p).toBe(404);
       expect(r.html).toContain('<meta name="robots" content="noindex" data-not-found />');
       expect(r.html).not.toContain('rel="canonical"');
     }
   });
-  it("never enters the sitemap: an event code the page can't look up is left out, whatever it holds", async () => {
-    expect(isReachableEventCode("USNJCMP")).toBe(true);
-    for (const c of ["2019INMeet10", "USVTM(KO", "NL'HKO", "63693260770.2649", "X", "ABCDEFGHIJKLMNOPQRSTUVWXY"]) expect(isReachableEventCode(c), c).toBe(false);
+});
+
+describe("FIRST's other event codes (mixed case, punctuation, spaces, Cyrillic)", () => {
+  // Stored as FIRST has them; each with a roster, so each is a page to index.
+  const CODES: [number, string][] = [[2019, "2019INMeet10"], [2019, "laredomeet 2"], [2019, "63693260770.2649"], [2019, "2019INLT!"], [2021, "RUМОS"], [2024, "USVTM(KO"], [2024, "NL'HKO"]];
+  beforeAll(async () => {
+    for (const [s, c] of CODES) {
+      if (c !== "2019INMeet10") await run("INSERT INTO events (season, code, name, type, start, end, remote, hybrid, source) VALUES (?, ?, ?, 'Qualifier', '2020-01-01', '2020-01-01', 0, 0, 't')", [s, c, `Event ${c}`]);
+      if (c !== "2019INMeet10") await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, 4215)", [s, c]);
+    }
+  });
+  it("each opens at any spelling of its code, its canonical the code in upper case, URL-encoded", async () => {
+    for (const [s, c] of CODES) {
+      const canonical = `${ORIGIN}/events/${s}/${encodeURIComponent(c.toUpperCase())}`;
+      for (const spelling of [c, c.toUpperCase(), c.toLowerCase()]) {
+        const r = await renderPage(file, `/events/${s}/${encodeURIComponent(spelling)}`);
+        expect(r.status, `${s} ${spelling}`).toBe(200);
+        expect(r.html, spelling).toContain(`<link rel="canonical" href="${canonical.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}" />`);
+      }
+    }
+  });
+  it("the API answers for each, at any spelling, with the event as stored", async () => {
+    const server = createApp().listen(0);
+    await new Promise((r) => server.once("listening", r));
+    try {
+      const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      for (const [s, c] of CODES) {
+        const res = await fetch(`${base}/api/events/${s}/${encodeURIComponent(c.toLowerCase())}`);
+        expect(res.status, c).toBe(200);
+        expect((await res.json()).event.code).toBe(c);
+      }
+      expect((await fetch(`${base}/api/events/2019/a%3Fb`)).status).toBe(400); // a "?" can't be in a code
+    } finally { server.close(); }
+  });
+  it("each is in the sitemap at its canonical address; a code an address can't carry never is", async () => {
     const locs = (await sitemapEntries()).map((e) => e.loc);
-    expect(locs.some((l) => l.includes("2019INMeet10"))).toBe(false);
+    for (const [s, c] of CODES) expect(locs, c).toContain(`${ORIGIN}/events/${s}/${encodeURIComponent(c.toUpperCase())}`);
+    expect(await storedEventCode(2019, "2019inmeet10")).toBe("2019INMeet10");
+    expect(await storedEventCode(2019, "NOPE")).toBe("NOPE");
+    for (const c of ["USNJCMP", "2019INMeet10", "NL'HKO", "laredomeet 2", "RUМОS"]) expect(isReachableEventCode(c), c).toBe(true);
+    for (const c of ["a/b", "a?b", "a#b", "a\\b", "a\nb", "", "x".repeat(41)]) expect(isReachableEventCode(c), c).toBe(false);
   });
 });
 
@@ -135,7 +174,7 @@ describe("the sitemap", () => {
   it("holds only the content pages whose first HTML is their content; never search, compare, records or a tool page", async () => {
     const locs = (await sitemapEntries()).map((e) => e.loc.slice(ORIGIN.length));
     for (const p of STATIC_PAGES) expect(locs).toContain(p);
-    for (const p of ["/search", "/compare", "/records", "/support", "/supporters", "/teams", "/matches", "/predict", "/privacy", "/terms", "/my-team", "/scout"]) expect(locs, p).not.toContain(p);
+    for (const p of ["/search", "/compare", "/records", "/support", "/supporters", "/predict", "/my-team", "/scout"]) expect(locs, p).not.toContain(p);
   });
   it("the event list and the world rankings carry their content in the first HTML", async () => {
     const ev = await pageMeta("/events");
@@ -144,6 +183,9 @@ describe("the sitemap", () => {
     expect(ev.bodyHtml).not.toContain("/SOON"); // not within two weeks
     const rk = await pageMeta("/rankings");
     expect(rk.bodyHtml).toContain("<p>");
+    // The record tables: the season's top teams by OPR, and its highest-scoring matches, as links.
+    expect((await pageMeta("/teams")).bodyHtml).toContain('<a href="/teams/4215">4215 Hypnotic Robotics</a> <small>record 5-0-0 · OPR 101.6');
+    expect((await pageMeta("/matches")).bodyHtml).toContain(`<a href="/events/${P}/PLAYED?match=qual:0:1">Q1 at Played qualifier</a>`);
   });
 });
 

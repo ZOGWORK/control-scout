@@ -28,8 +28,9 @@ describe("sitemap", () => {
     const locs = e.map((x) => x.loc);
     expect(locs).toContain("https://controlscout.org/");
     expect(locs).toContain("https://controlscout.org/teams/4215");
-    // Pages the app draws (their first HTML a heading and a line) stay out; they're crawlable from their links.
-    for (const p of ["/privacy", "/terms", "/contact", "/teams", "/matches", "/predict"]) expect(locs).not.toContain(`https://controlscout.org${p}`);
+    // Pages whose first HTML carries their content are listed; /predict (an input form) stays out, crawlable from its links.
+    for (const p of ["/privacy", "/terms", "/contact", "/teams", "/matches"]) expect(locs).toContain(`https://controlscout.org${p}`);
+    expect(locs).not.toContain("https://controlscout.org/predict");
     expect(locs).toContain("https://controlscout.org/faq");
     expect(locs).toContain("https://controlscout.org/rankings");
     expect(locs).toContain("https://controlscout.org/events/2025/USNJNOM3");

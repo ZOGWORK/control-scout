@@ -104,6 +104,8 @@ import { r2 } from "./scout/r2.js";
 import { fakeR2Router } from "./scout/fakeR2.js";
 import { liteRouter, liteSwitch } from "./lite/routes.js";
 import { openSearchRoute } from "./openSearch.js";
+import { storedEventCode } from "./eventCodes.js";
+import { isEventCodeParam } from "../src/shared/eventCode.js";
 import type { EventRefreshResult, ForecastView, MatchExplanationView, Meta, SearchHit, MatchView } from "../src/shared/api.js";
 
 export class HttpError extends Error { constructor(readonly status: number, message: string) { super(message); } }
@@ -151,9 +153,11 @@ const teamList = (x: unknown, name: string, max = 4) => {
   if (new Set(list).size !== list.length) throw bad(`${name}: a team is listed twice`);
   return list;
 };
+/** An event code as an address or a query gives it (src/shared/eventCode.ts): checked, never changed. A path's
+ *  :code is already the stored code (api.param below); a query's is looked up where it's read (storedEventCode). */
 const code = (x: unknown) => {
-  const c = String(x ?? "").toUpperCase();
-  if (!/^[A-Z0-9_-]{2,24}$/.test(c)) throw bad("invalid event code");
+  const c = String(x ?? "");
+  if (!isEventCodeParam(c)) throw bad("invalid event code");
   return c;
 };
 
@@ -251,6 +255,13 @@ export function createApp(opts: { dist?: string } = {}) {
   app.use((req, res, next) => (/^\/api\/(collect(\/vitals)?|digest\/webhook|csp-report)\/?$/i.test(req.path) ? next() : json(req, res, next)));
 
   const api = express.Router();
+  // Every route's :code, as stored: an address may spell it in any case (/api/events/2019/2019INMEET10 is event
+  // 2019INMeet10). A code that can't be one is left for code() to refuse; a season that isn't digits, for season().
+  api.param("code", (req, _res, next, raw) => {
+    const s = String(req.params.season ?? "");
+    if (!/^\d{1,6}$/.test(s) || !isEventCodeParam(String(raw))) { next(); return; }
+    storedEventCode(Number(s), String(raw)).then((c) => { req.params.code = c; next(); }, next);
+  });
   // Public FTC data (GET, not account or auth): cacheable for a minute, then
   // served stale while it revalidates (the ETag makes that a cheap 304).
   // Anything personal stays no-store (case-insensitive, like Express routing),
@@ -716,7 +727,7 @@ export function createApp(opts: { dist?: string } = {}) {
     const s = predictSeason(req.query.season);
     const red = teamList(req.query.red, "red", 3), blue = teamList(req.query.blue, "blue", 3);
     if (red.some((t) => blue.includes(t))) throw bad("a team can't be on both alliances");
-    const event = req.query.event != null && req.query.event !== "" ? code(req.query.event) : undefined;
+    const event = req.query.event != null && req.query.event !== "" ? await storedEventCode(s, code(req.query.event)) : undefined;
     const match = req.query.match != null && req.query.match !== "" ? String(req.query.match) : undefined;
     if (match && !event) throw bad("match needs its event");
     if (match && !MATCH_KEY.test(match)) throw bad("match must be a match key like qual:1:12");
@@ -782,13 +793,13 @@ export function createApp(opts: { dist?: string } = {}) {
   };
 
   api.get("/predict/event", predictions, limiter(30), h(async (req) => {
-    const s = predictSeason(req.query.season), c = code(req.query.code);
+    const s = predictSeason(req.query.season), c = await storedEventCode(s, code(req.query.code));
     const team = req.query.team ? int(req.query.team, "team", { min: 1, max: 999999 }) : null;
     return forecastFor(s, c, team, req.query.mode === "pre-event" ? "pre-event" : "current");
   }));
 
   api.get("/predict/partners", predictions, limiter(10), h(async (req) => {
-    const s = predictSeason(req.query.season), c = code(req.query.code), team = int(req.query.team, "team", { min: 1, max: 999999 });
+    const s = predictSeason(req.query.season), c = await storedEventCode(s, code(req.query.code)), team = int(req.query.team, "team", { min: 1, max: 999999 });
     // mode=pre-event: the scenarios from the ratings and event as they stood the day before (no hindsight).
     const pre = req.query.mode === "pre-event";
     return partnersMemo(`${await liveVersion(s)}|${s}|${c}|${team}|${pre ? "pre-event" : "current"}`, async () => {
