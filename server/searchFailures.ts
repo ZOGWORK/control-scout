@@ -401,6 +401,8 @@ export async function syncOne(key: string, now = new Date(), budget: Budget = { 
   try {
     const row = (await get<Row>(`SELECT ${COLUMNS} FROM search_failures WHERE key = ?`, [key]))!;
     const count = Number(row.count);
+    /** A regression comment still owed from an earlier sync. */
+    const owedBefore = row.regression_seen;
     // Over the day's cap: not even a search on GitHub until tomorrow.
     if (row.issue_number == null && capped(at)) { await release(); return "capped"; }
     let issue: Issue | null = null;
@@ -437,12 +439,20 @@ export async function syncOne(key: string, now = new Date(), budget: Budget = { 
     } else if (count > Number(row.reported_count) || adopted) {
       await write("PATCH", `/issues/${issue.number}`, { body: failureBody({ ...row, issue_number: issue.number }) });
     }
-    if (row.regression_seen) {
-      await write("POST", `/issues/${issue.number}/comments`, { body: `Regression: this query failed again after the issue was closed (last seen ${row.regression_seen}, result type ${row.result_type}, ${count} times in total). Reopened; nothing else changed.` });
+    const owed = row.regression_seen;
+    if (owed) {
+      // Owed from an earlier sync, the comment may be there already (its reply lost, or the row not saved after it):
+      // look first, by the failure time it names. Owed from this sync: just reopened, so it can't be.
+      const marker = `(last seen ${owed},`;
+      const earlier = row.regression_seen === owedBefore
+        && (await gh<{ body?: string | null }[]>(token, "GET", `/issues/${issue.number}/comments?since=${encodeURIComponent(owed)}&per_page=100`)).some((c) => (c.body ?? "").includes(marker));
+      if (!earlier) {
+        await write("POST", `/issues/${issue.number}/comments`, { body: `Regression: this query failed again after the issue was closed ${marker} result type ${row.result_type}, ${count} times in total). Reopened; nothing else changed.` });
+      }
     }
-    if (!sent) { await release(); return "up-to-date"; }
+    if (!sent && !owed) { await release(); return "up-to-date"; }
     await run("UPDATE search_failures SET issue_number = ?, issue_state = 'open', reported_count = ?, regression_seen = NULL, filing_at = NULL WHERE key = ?", [issue.number, count, key]);
-    return row.regression_seen ? "reopened" : adopted ? "adopted" : "updated";
+    return owed ? "reopened" : adopted ? "adopted" : "updated";
   } catch (e) {
     pauseFor(e);
     // Refused, or nothing sent yet: free the claim. Sent with no answer (a timeout, a 5xx): keep it until it goes

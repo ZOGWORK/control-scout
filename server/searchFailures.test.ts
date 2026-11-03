@@ -24,7 +24,7 @@ const TOKEN = "github_pat_TEST_ONLY_not_a_real_token_abc123";
 type Call = { method: string; path: string; body: any };
 let calls: Call[] = [];
 let nextIssue = 500;
-type FakeIssue = { state: string; state_reason?: string | null; closed_at?: string | null; body?: string; title?: string; labels?: string[] };
+type FakeIssue = { state: string; state_reason?: string | null; closed_at?: string | null; body?: string; title?: string; labels?: string[]; comments?: string[] };
 let issues: Record<number, FakeIssue> = {};
 let failGithub: number | null = null;
 let throwGithub = false;
@@ -58,7 +58,13 @@ const fakeGithub = (async (url: string | URL | Request, init?: RequestInit) => {
   if (m && !i) return new Response("{}", { status: 404 });
   if (m && !m[2] && method === "GET") return Response.json({ number: +m[1], ...i });
   if (m && !m[2] && method === "PATCH" && failing("patch")) return new Response("{}", { status: 500 });
-  if (m && m[2] && method === "POST" && failing("comment")) return new Response("{}", { status: 422 });
+  if (m && m[2] && method === "GET") return Response.json((i!.comments ?? []).map((b) => ({ body: b })));
+  if (m && m[2] && method === "POST") {
+    const st = failing("comment");
+    if (st === 422) return new Response("{}", { status: 422 });
+    (i!.comments ??= []).push(body.body);
+    if (st) return new Response("{}", { status: st });
+  }
   if (m && !m[2] && method === "PATCH") { Object.assign(i!, body, body.state === "open" ? { state_reason: null } : {}); return Response.json({ number: +m[1], ...i }); }
   if (m && m[2] && method === "POST") return Response.json({ id: 1 }, { status: 201 });
   return new Response("{}", { status: 404 });
@@ -379,6 +385,26 @@ describe("never a duplicate, never hammering GitHub (§12.3, §12.6)", () => {
     calls = [];
     await syncSearchFailures();
     expect(writes()).toHaveLength(0);
+  });
+  it("a regression comment whose reply was lost isn't posted twice (Greptile on #478)", async () => {
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    await flushSearchFailures(clock);
+    await syncSearchFailures();
+    Object.assign(issues[500], { state: "closed", state_reason: "completed", closed_at: new Date(clock).toISOString() });
+    searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
+    await flushSearchFailures(clock);
+    failNext.comment = [502, 1];
+    await syncSearchFailures();
+    expect(issues[500].comments).toHaveLength(1);
+    // The claim goes stale; the next sync finds the comment there and only clears what was owed.
+    await run("UPDATE search_failures SET filing_at = '2000-01-01T00:00:00.000Z'");
+    calls = [];
+    await syncSearchFailures();
+    expect(writes()).toHaveLength(0);
+    expect(issues[500].comments).toHaveLength(1);
+    calls = [];
+    await syncSearchFailures();
+    expect(calls).toHaveLength(0);
   });
   it("failures from before the owner closed an issue don't reopen it (Greptile on #478)", async () => {
     searched("4215 opr rn", fallback("4215 opr rn", "opr rn"));
