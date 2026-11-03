@@ -68,8 +68,8 @@ describe("what's read as a stat question", () => {
     for (const q of ["4215 seasons played at worlds", "4215 best season in playoffs", "4215 total events on red", "4215 best event finish in playoffs"]) expect(readStatQuestion(q), q).toBeNull();
     expect(readStatQuestion("4215 total events at worlds")).toMatchObject({ id: "total-events", scope: { championship: true } });
   });
-  it("leaves to search what it doesn't answer: a plain record, a season's high scores, a team at an event, no team", () => {
-    for (const q of ["4215 record", "4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "4215 record at New Jersey Championship", "hypnotic robotics", "average score"]) {
+  it("leaves to search what it doesn't answer: a plain record, a season's high scores, an event intent with no event, no team", () => {
+    for (const q of ["4215 record", "4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
       expect(readStatQuestion(q), q).toBeNull();
     }
   });
@@ -91,7 +91,9 @@ describe("the answers", () => {
     await run("INSERT INTO teams (number, name) VALUES (99, 'Newcomers')");
     await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJQ1', 99)");
     const c = await searchAnswer("99 worlds record", { limit: 25 });
-    expect(c.stat).toMatchObject({ blocks: [], none: "No Worlds matches found for Newcomers (99)." });
+    expect(c.stat).toMatchObject({ none: "No Worlds matches found for Newcomers (99)." });
+    // The Worlds follow-ups still sit under it, never in its place.
+    expect(c.stat!.blocks.map((b) => b.kind)).toEqual(["links", "related"]);
   });
   it("ever: every season, the best of each season beside it; a scrimmage never counts", async () => {
     const a = await searchAnswer("4215 highest score ever", { limit: 25 });

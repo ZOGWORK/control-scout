@@ -55,7 +55,14 @@ export function rewriteQuery(q: string): { q: string; note?: string } | null {
   if ((m = /^(.*\bteams?)\s+(?:near|around|close to|by)\s+(.+)$/.exec(t))) return { q: `${m[1]} in ${m[2]}`, note: `Teams in ${titleCase(m[2])} (no distances are on record, so "near" reads as "in")` };
   // Who won Worlds, asked by a year said in words, by the season's game, or as "worlds winners".
   if ((m = /^who won (?:the )?(?:worlds|first championship|world championships?) (this|last) year$/.exec(t))) {
-    return { q: `who won worlds ${new Date().getUTCFullYear() - (m[1] === "last" ? 1 : 0)}` };
+    // Worlds is held in the spring: the one held that calendar year is that year's season's, said as a season.
+    const held = new Date().getUTCFullYear() - (m[1] === "last" ? 1 : 0);
+    return { q: `who won worlds ${held - 1}-${String(held % 100).padStart(2, "0")}` };
+  }
+  // A bare year is the Worlds held that year ("who won worlds 2025": April 2025, the 2024–25 season's).
+  if ((m = /^(?:who won (?:the )?(?:worlds|first championship|world championships?)|(?:worlds|world) (?:winners?|champions?)) (20\d\d)$/.exec(t))) {
+    const held = Number(m[1]);
+    return { q: `who won worlds ${held - 1}-${String(held % 100).padStart(2, "0")}` };
   }
   if ((m = /^(?:(.+?)\s+)?(?:world |worlds |first championship )?(?:champions?|winners?|world champions?)$/.exec(t)) && m[1] && gameSeason(m[1])) {
     const s = gameSeason(m[1])!;

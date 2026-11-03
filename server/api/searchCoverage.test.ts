@@ -72,10 +72,15 @@ describe("answers on their own", () => {
     expect((await ask("qual 5 nj states")).step).toBeDefined();
     expect((await ask("asdfgh")).step).toBe("recovery");
   });
-  it("who won Worlds: the main event's winners, never a division's", async () => {
-    const a = await ask("worlds winners");
-    expect(a.card?.kind).toBe("event-awards");
-    expect(a.card?.lines.map((l) => l.text)).toEqual(["14270 Quantum Robotics", "4215 Hypnotic Robotics"]);
+  it("who won Worlds: a year is the one held that year, said as its season", () => {
+    expect(rewriteQuery("who won worlds 2025")?.q).toBe("who won worlds 2024-25");
+    expect(rewriteQuery("worlds winners 2026")?.q).toBe("who won worlds 2025-26");
+    expect(rewriteQuery("who won worlds last year")?.q).toMatch(/^who won worlds 20\d\d-\d\d$/);
+  });
+  it("an award at Worlds: the main event's, never a division's", async () => {
+    const a = await ask("who won inspire at worlds");
+    expect(a.card?.lines.map((l) => l.text)).toEqual(["4215 Hypnotic Robotics"]);
+    expect(a.hits[0]).toMatchObject({ ref: `${S}:FTCCMP1` });
   });
   it("a country's best teams, by OPR", async () => {
     const a = await ask("best teams in romania");

@@ -1,19 +1,25 @@
 // Stat answers (docs/search.md, "Stat answers"): a question about a team's records answered from the stored matches,
-// events and seasons, by fixed rules (./read.ts reads it, ./clauses.ts scopes it, ./families/* answer it). Step 0 of
-// search's chain (server/api/searchAnswer.ts): a query that isn't one of these, or whose team isn't found, goes on
-// through the chain unchanged.
+// events, seasons and awards, by fixed rules (./read.ts reads it, ./clauses.ts scopes it, ./families/* answer it).
+// Step 0 of search's chain (server/api/searchAnswer.ts): a query that isn't one of these, or whose team (or event)
+// isn't found, goes on through the chain unchanged.
 //
 // The dropdown and /search get the same hits and the same reading; the answer's blocks (tables, records, charts) are
 // worked out only for /search and its first paint (`full`), never per keystroke.
 import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
-import { seasonLabel } from "../../../src/shared/format.js";
+import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
+import { get } from "../../db.js";
+import { fuzzyScore } from "../fuzzy.js";
+import { search } from "../search.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
-import { teamEventSet } from "./eventSet.js";
-import { counts, matchAnswer, whoOf } from "./families/matches.js";
+import { teamEventSet, type TeamEvent } from "./eventSet.js";
+import { awardsAnswer } from "./families/awards.js";
+import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
-import { teamMatches } from "./matchSet.js";
+import { counts, matchAnswer, whoOf } from "./families/matches.js";
+import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
+import { shortEvent, teamMatches } from "./matchSet.js";
 import { readStatQuestion, type IntentId, type StatQuestion } from "./read.js";
 
 /** Search's own answer for the part of a query that names the team (searchAnswer with intents off). */
@@ -26,58 +32,149 @@ const TITLES: Record<IntentId, string> = {
   "wins-count": "Match wins", record: "Record", "average-score": "Average score", "total-matches": "Matches played", "total-events": "Events played", "seasons-played": "Seasons played",
   "seasons-count": "How many seasons", "current-streak": "Current streak", "longest-streak": "Longest win streak", "last-matches": "Last matches", "average-rank": "Average event rank",
   "playoff-appearances": "Playoff appearances", "blowout-wins": "Blowout wins", losses: "Losses", "playoff-matches": "Playoff matches", "qual-matches": "Qualification matches",
-  "red-blue-record": "Record by alliance colour",
+  "red-blue-record": "Record by alliance colour", results: "Results", "event-rank": "Rank", "event-opr": "OPR", "match-lookup": "Match",
+  "event-wins": "Event wins", "inspire-awards": "Inspire Awards", "finalist-finishes": "Finalist finishes", "total-awards": "All awards", "award-split": "Judged and performance awards",
+  awards: "Awards", "winning-alliance": "Winning alliance",
 };
 
-/** The intents read from event and season rows; the rest from matches. */
+/** The intents read from event and season rows; the rest from matches (or awards). */
 const EVENT_INTENTS = new Set<IntentId>(["best-finish", "worst-finish", "first-event", "last-event", "best-opr-event", "best-season", "most-improved-season", "first-season", "total-events", "average-rank", "seasons-played", "seasons-count"]);
+const AWARD_INTENTS = new Set<IntentId>(["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"]);
+
+/** One of the team's events, by the words typed ("New Jersey Championship"): the best name match of every season it
+ *  attended, the newest season on a tie (or the season named). Two events of one season matching about as well
+ *  ("Northern League Meet"): no pick, never a guess. */
+export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | null): TeamEvent | null {
+  const scored = evs.filter((e) => season == null || e.season === season)
+    .map((e) => ({ e, s: Math.max(fuzzyScore(words, e.name), fuzzyScore(words, e.code)) }))
+    .filter((x) => x.s >= 0.75)
+    .sort((a, b) => b.s - a.s || b.e.season - a.e.season || String(b.e.start).localeCompare(String(a.e.start)));
+  const [best, next] = scored;
+  if (!best) return null;
+  if (next && next.e.season === best.e.season && best.s - next.s < 0.05) return null;
+  return best.e;
+}
+
+/** The team's latest season with matches at official events (a season of only scrimmages isn't one). */
+async function latestSeason(team: number, id?: IntentId): Promise<number | null> {
+  // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
+  // never took the field): the latest season with a match the answer counts.
+  const official = officialClause();
+  const ms = (await teamMatches(team)).filter((m) => official(m) && (!id || counts(id, m)));
+  return ms.length ? Math.max(...ms.map((m) => m.season)) : null;
+}
 
 /** The scope an answer covers: the season named, else "this season" or an intent that defaults to one as the team's
  *  latest season with matches at official events (said so), else every season. */
-async function scopeFor(it: StatQuestion, team: number): Promise<Scope> {
+async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
+  if (s.at) {
+    // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
+    // alike): left to search's team-at-event answer, which lets the visitor pick.
+    const season = s.season ?? (s.latest ? await latestSeason(team, it.id) : null);
+    if (s.latest && season == null) return null;
+    const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
+    if (!e) return null;
+    return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
+  }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
-    // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams
-    // that never took the field): the latest season with a match this answer counts.
-    const official = officialClause();
-    const ms = (await teamMatches(team)).filter((m) => official(m) && counts(it.id, m));
-    const latest = ms.length ? Math.max(...ms.map((m) => m.season)) : null;
+    const latest = await latestSeason(team, it.id);
     scope.season = latest;
     if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
   }
   return scope;
 }
 
+/** An event by name for a team-less question (its newest season, or the season named). */
+async function findEvent(words: string, season: number | null) {
+  const found = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
+  const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
+  // A season named: the first event found that was held that season (search lists an event once, by its newest season,
+  // so an older one is looked up by its code).
+  if (season != null) {
+    for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e) return e; }
+    return null;
+  }
+  const top = found[0];
+  if (!top) return null;
+  const [s, code] = top.ref.split(":");
+  // No season named: the newest season of that event with a played playoff (an event not held yet has no winners).
+  const played = await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
+  return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
+}
+
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const it = readStatQuestion(q);
   if (!it) return null;
+  if (it.noTeam) return winnersSearch(q, it, opts);
   const base = await resolve(it.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
   const scope = await scopeFor(it, team.number);
+  if (!scope) return null;
   const title = `${it.leadEvent ? "Event with the highest score" : TITLES[it.id]}${scopePhrase(scope)}`;
   const label = `${whoOf(team)} · ${title}`;
-  const hit: SearchHit = { ...top, section: EVENT_INTENTS.has(it.id) ? "history" : "matches", ...(scope.season != null ? { linkSeason: scope.season } : {}), facts: undefined, events: undefined };
+  const section = AWARD_INTENTS.has(it.id) ? "awards" : EVENT_INTENTS.has(it.id) ? "history" : "matches";
+  const linkSeason = scope.season ?? scope.event?.season;
+  const hit: SearchHit = { ...top, section, ...(linkSeason != null ? { linkSeason } : {}), facts: undefined, events: undefined };
   // A team found by a correction ("hypnotc") keeps search's warning, said for the whole question.
   const guessed = base.step === "did-you-mean";
   const said = q.toLowerCase();
   const answer: SearchAnswer = {
     q, hits: [hit, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages, step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
     ...(guessed && base.didYouMean ? { didYouMean: said.includes(it.core) ? said.replace(it.core, base.didYouMean) : base.didYouMean } : {}),
-    understood: { kind: "question", label, ...(scope.season != null ? { season: scope.season } : {}) },
-    intent: { kind: `stat-${it.id}`, pattern: `[team] ${it.id}${it.scope.championship ? " [worlds]" : ""}${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, title] },
+    understood: { kind: "question", label, ...(linkSeason != null ? { season: linkSeason } : {}) },
+    intent: { kind: `stat-${it.id}`, pattern: `[team] ${it.id}${scope.event ? " [event]" : ""}${it.scope.championship ? " [worlds]" : ""}${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, title] },
   };
   if (!opts.full) return answer;
   const stat = await build(it, team, scope);
   if (!stat) return null;
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
+  // A Worlds answer ends with the season's championship events and the related Worlds questions (never instead of it).
+  if (scope.championship) {
+    const season = scope.season ?? worldsSeason(stat);
+    const follow = await worldsFollowUps(season, team);
+    stat.blocks.push(...follow.map((b) => (b.kind === "related" ? { ...b, queries: b.queries.filter((x) => x.toLowerCase() !== q.toLowerCase()) } : b)));
+  }
   return { ...answer, stat };
 }
 
+/** The season a Worlds answer is about: its headline's (the match or event it names), else the latest in the data. */
+const worldsSeason = (s: StatAnswer): number | null => {
+  const m = /\b(20\d\d)–\d\d\b/.exec(s.headline?.sub ?? "") ?? /\b(20\d\d)–\d\d\b/.exec(s.headline?.label ?? "");
+  return m ? Number(m[1]) : null;
+};
+
 async function build(it: StatQuestion, team: { number: number; name: string | null }, scope: Scope): Promise<StatAnswer | null> {
+  if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count });
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope);
-  return matchAnswer(it.id, team, await teamMatches(team.number), scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
+  const ms = await teamMatches(team.number);
+  if (scope.event) {
+    const ev = (await teamEventSet(team.number)).events.find((e) => e.season === scope.event!.season && e.code === scope.event!.code);
+    const at = await eventScopeAnswer(it.id, team, ms, ev, scope, { n: it.n });
+    if (at) return at;
+  }
+  return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
+}
+
+/** "ftc decode winning alliance", "New Jersey Championship winning alliance": no team, an event's (or the season's
+ *  championship's) winners. The event is the hit; its answer is worked out for the page only. */
+async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const championship = it.scope.championship || !it.core;
+  const named = championship ? null : await findEvent(it.core, it.scope.season);
+  if (!championship && !named) return null;
+  const stat = opts.full ? await winnersAnswer(it.core, it.scope.season, championship, async () => named) : null;
+  if (opts.full && !stat) return null;
+  const season = named?.season ?? it.scope.season;
+  const label = named ? `${shortEvent(named.name, named.type)} · Winning alliance` : `${season != null ? `${seasonLabel(season)} ` : ""}FIRST Championship · Winning alliances`;
+  const hits: SearchHit[] = named ? [{ kind: "event", ref: `${named.season}:${named.code}`, title: named.name, subtitle: [named.code, dateRange(named.start, named.end)].filter(Boolean).join(" · "), season: named.season, section: "playoffs" }] : [];
+  return {
+    q, hits, pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label: stat?.title ?? label, ...(season != null ? { season } : {}) },
+    intent: { kind: "stat-winning-alliance", pattern: named ? "[event] winning alliance" : "[season] winning alliance", met: true, understood: [label] },
+    ...(stat ? { stat } : {}),
+  };
 }

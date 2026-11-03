@@ -163,19 +163,25 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
 
+  // 0. A phrasing the readers below miss, said the way they read it ("compare 4215 and 6980" → "4215 vs 6980"):
+  // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so
+  // before the stat answers read it; every other rewrite after them, which answer a team's own stats first.
+  const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q) : null;
+  const rewritten = async (r: { q: string; note?: string }) => {
+    const a = await searchAnswer(opts.asked ? `${r.q}?` : r.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
+    const u = a.understood ?? understoodOf(a);
+    return { ...a, q, understood: r.note ? { ...u, label: `${u.label} · ${r.note}` } : u };
+  };
+  if (rw && rw.q !== q && /^who won worlds /.test(rw.q)) return rewritten(rw);
+
   // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
   const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false }), { full: !!opts.full, pages: pagesFor(q) });
   if (stat) return stat;
 
-  // 0. A phrasing the readers below miss, said the way they read it ("compare 4215 and 6980" → "4215 vs 6980"), or a
-  // question answered on its own: what a word means, a count, the FIRST Championship, an event's tab (./searchCoverage.ts).
+  // 0. Then the other rewrites, and a question answered on its own: what a word means, a count, the FIRST Championship,
+  // an event's tab (./searchCoverage.ts).
+  if (rw && rw.q !== q) return rewritten(rw);
   if (opts.intents !== false) {
-    const rw = (opts.rewrites ?? 0) < 2 ? rewriteQuery(q) : null;
-    if (rw && rw.q !== q) {
-      const a = await searchAnswer(opts.asked ? `${rw.q}?` : rw.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
-      const u = a.understood ?? understoodOf(a);
-      return { ...a, q, understood: rw.note ? { ...u, label: `${u.label} · ${rw.note}` } : u };
-    }
     const direct = explainAnswer(q) ?? (await countAnswer(q)) ?? (await teamFactAnswer(q, prefer)) ?? (await teamListAnswer(q)) ?? (await placeTeamsAnswer(q, prefer))
       ?? (await monthAnswer(q, opts.now)) ?? (await worldsAnswer(q, opts.now)) ?? (await eventPageAnswer(q, prefer, opts.now));
     if (direct) return direct;
