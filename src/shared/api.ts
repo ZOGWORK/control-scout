@@ -58,6 +58,8 @@ export interface SearchHit {
   /** How the hit matched: "exact" (every word typed names it) or "fuzzy" (a typo, a part of a word, or only its
    *  school, city or venue matched). Fuzzy hits come after exact ones and are listed apart ("Other teams matching …"). */
   match?: "exact" | "fuzzy";
+  /** Team hits: the team's numbers for its newest season with matches (./searchTeamStats.ts), each absent with no data. */
+  team?: SearchTeamStats;
   /** Fuzzy hits: the words typed that matched it ("good"), to name in that group's heading. */
   matched?: string[];
 }
@@ -70,6 +72,10 @@ export interface SearchCompare {
 }
 /** One team in a Compare: number, name, and place ("Hackettstown, NJ"), so the visitor sees which team it is. */
 export interface SearchCompareSide { number: number; name: string; place: string }
+
+/** A team's season numbers on its search row: `opr` is its season OPR without penalties (as the team page and
+ *  rankings show it), `record` its wins, losses and ties, `rank` its OPR rank among the season's ranked teams. */
+export interface SearchTeamStats { season: number; opr?: number; record?: { w: number; l: number; t: number }; rank?: { n: number; of: number } }
 
 /** An event hit's facts, for its date and status and for filters on /search (time, season, type). */
 export interface SearchEventInfo {
@@ -142,7 +148,7 @@ export interface SearchAnswer {
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
-  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores";
+  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule" | "leaderboard" | "event-awards";
   /** "Worlds appearances" */
   title: string;
   /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */

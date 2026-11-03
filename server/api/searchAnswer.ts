@@ -16,10 +16,13 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
-import { conversationQuery, nameWords, singularize } from "../../src/shared/searchQuery.js";
+import { conversationQuery, isQuestionForm, nameWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
+import { ruleAnswer } from "./searchRules.js";
+import { askAnswer, readAsk } from "./searchAsks.js";
+import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
@@ -105,7 +108,9 @@ export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promi
   // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
   const shown = opts.limit ?? 12;
   const a = await answerFor(read, { ...opts, typed, asked: /\?\s*$/.test(String(raw ?? "")), limit: Math.max(shown, SEARCH_PAGE_LIMIT) });
-  const out = read === typed ? a : { ...a, q: typed, pages: pagesFor(typed) };
+  // The page words as typed ("records" stays a page word); links the answer added itself (a region's rankings) stay.
+  const own = (p: { href: string }) => !pagesFor(read).some((x) => x.href === p.href);
+  const out = read === typed ? a : { ...a, q: typed, pages: [...a.pages.filter(own), ...pagesFor(typed).filter((p) => !a.pages.some((x) => x.href === p.href && own(x)))] };
   return { ...out, hits: out.hits.slice(0, shown), understood: out.understood ?? understoodOf(out) };
 }
 
@@ -148,7 +153,21 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
 
-  // 0. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
+  // 0. A question a view answers ("top teams in New Jersey", "highest OPR", "will 4215 win their next match", "who won
+  // Inspire at …", "how are predictions calculated"): that view's numbers and link (./searchAsks.ts).
+  const ask = opts.intents === false ? null : readAsk(q);
+  if (ask) {
+    const a = await askAnswer(q, ask, { prefer, ask: (x) => searchAnswer(x, { ...opts, learn: false }) });
+    if (a) return a;
+  }
+
+  // 0. A rules question ("Can robots descore … in autonomous?", "G402", "penalty for pinning"): the Rules quick
+  // reference's matching entries, or a plain "no rule found". Never team names (./searchRules.ts).
+  // A season's best scores ("what was the highest scoring match this season?") stay that question's.
+  const rq = opts.intents === false || parseHighScore(q) ? null : readRuleQuery(q, opts.asked);
+  if (rq) return ruleAnswer(q, rq);
+
+  // 0a. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
   const high = opts.intents === false ? null : parseHighScore(q);
   if (high) {
     if (!high.core) return highScoreAnswer(q, high, null, [], pagesFor(q));
@@ -171,7 +190,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const conv = opts.intents === false ? q : conversationQuery(q);
   if (conv !== q) {
     const a = await searchAnswer(opts.asked ? `${conv}?` : conv, opts);
-    return { ...a, q, pages: pagesFor(q) };
+    // Links the inner answer added itself ("show me highest OPR": the rankings) stay, then the page words as typed.
+    const added = a.pages.filter((p) => !pagesFor(conv).some((x) => x.href === p.href));
+    return { ...a, q, pages: [...added, ...pagesFor(q).filter((p) => !added.some((x) => x.href === p.href))] };
   }
 
   // 0d. A set of events read from a place, a time or a year ("upcoming meets in New Jersey", "meets this weekend",
@@ -247,6 +268,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // Word by word is never the answer: it's the closest matches, each naming the word it matched (brief Requirement 6).
   if (byWords) {
+    // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
+    // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
+    if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
     const ws = words(nameWords(rest, opts.asked));
     const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
     return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);
