@@ -91,6 +91,22 @@ describe("installPrefetch", () => {
     expect(fetched()).toEqual(["/api/events/2025/AUBRQ2", "/api/power-rankings"]);
   });
 
+  it("a search box that opens /search loads its code once focused (a picker box doesn't)", () => {
+    const box = (opens: boolean) => {
+      const d = document.createElement("div");
+      if (opens) d.setAttribute("data-opens-search", "");
+      const input = document.createElement("input");
+      d.append(input);
+      document.body.append(d);
+      return input;
+    };
+    box(false).dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(preload).not.toHaveBeenCalled();
+    box(true).dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+    expect(preload.mock.calls).toEqual([["SearchPage"]]);
+    expect(fetched()).toEqual([]);
+  });
+
   it("never for other sites, new tabs, downloads, or with Save-Data on", async () => {
     const focus = (a: Element) => a.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
     focus(link("https://example.com/teams/3"));

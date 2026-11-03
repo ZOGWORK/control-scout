@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.5 — 2026-11-03
+## 2.5.7 — 2026-11-03
 
 FTC One Search finds every meet held at a venue, past seasons too, and its lines say what you typed.
 
@@ -31,6 +31,32 @@ FTC One Search finds every meet held at a venue, past seasons too, and its lines
 - **Honest fallbacks.** With nothing to show, a time word goes before the venue: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead".
 - **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". Kinds that share no type are each named ("Meets and tournaments").
 - **Stat leaders, any scope.** "Best teleop in the world", "highest OPR this season", "most wins of all time" and "best driver controlled worldwide" show that stat's leaderboard, the same as "best teleop"; "best auto in NJ" or "best auto in New Jersey" shows New Jersey's. "Top", "strongest", "greatest" and "number one" read as "best"; "autonomous" as auto; "driver" or "driver controlled" as teleop. (#461)
+
+## 2.5.6 — 2026-11-03
+
+Searching never waits where you typed: Enter opens the results page straight away, and a loading screen shows while the results arrive.
+
+### Highlights
+- [speed] Enter in any search box opens the results page straight away
+- [speed] A loading screen shows the shape of the results while they arrive
+- [speed] A new search from the results page clears the old results at once
+
+### Search
+- **Enter never waits.** Pressing Enter or the magnifier in a search box (Home, the top bar, the results page) used to wait with a spinner until the answer came back. Now it opens the results page at once. A team number, a team's whole name or an event code still goes to that team or event: from the box when its answer is already in, or from the results page as soon as its answer arrives, replacing itself so Back returns to where you typed. (#464)
+- **A loading screen while results arrive.** The results page shows grey shapes of what's coming: the title, a grid of result cards and, on a computer, the panel on the right. They shimmer gently and stay still if your device asks for reduced motion. A line reads "Searching teams, events and matches…" and your search stays in the search bar. A new search run from the results page replaces the old results with it straight away, so they never look current.
+- **No blank page first.** Clicking into a search box starts loading the results page, so Enter goes straight to its loading screen.
+
+## 2.5.5 — 2026-11-03
+
+Home's headline is smaller, so the FTC One Search block and all its example chips sit above the fold.
+
+### Highlights
+- [home] The headline fits in two lines, with no gap under it
+- [home] The whole search block, chips included, shows without scrolling
+- [speed] The first paint's headline matches the page, so nothing jumps on load
+
+### Home
+- **A smaller headline.** It never grows past its column, so even the longest hourly line keeps to two lines, and the space that used to sit under shorter lines is gone. Its words and colours are unchanged. The search block ends about 160 px higher on a laptop screen, and it is fully visible without scrolling on phones, tablets and desktop windows from 390×844 to 1440×900. The globe beside it doesn't move. The page's first paint sizes its headline the same way, so it doesn't shrink when the app takes over. (#460)
 
 ## 2.5.4 — 2026-11-03
 
