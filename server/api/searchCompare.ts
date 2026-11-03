@@ -93,6 +93,17 @@ async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Sid
   return { typed, team: null, tied: recent, candidates };
 }
 
+/** The question a still-tied side asks. */
+const whichOf = (side: Side) => `Which "${side.typed}"? ${side.tied.length} teams have that name: ${side.tied.map((t) => `${t.number} (${placeOf(t)})`).join(", ")}`;
+
+/** The team `typed` names, by the same fixed rules as a Compare side (a number, an exact name, your team, one that has
+ *  played, the newest), or the teams still tied and the question to ask. Never a guess. */
+export async function namedTeam(typed: string, prefer: ReadonlySet<string>): Promise<{ team: number } | { tied: number[]; question: string } | null> {
+  const side = await readSide(typed, prefer);
+  if (side.team) return { team: side.team.number };
+  return side.tied.length ? { tied: side.tied.map((t) => t.number), question: whichOf(side) } : null;
+}
+
 /** Compare's hit for these teams (number order). */
 function compareHit(teams: TeamFacts[], q: string, season: number | null, resolved: { typed: string; number: number; rule: string; candidates: number[] }[], extra = ""): SearchHit {
   const sorted = [...teams].sort((a, b) => a.number - b.number);
@@ -145,7 +156,7 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   if (ambiguous.length) {
     // Still tied under the rules. One side tied: one Compare per candidate (every one), each with the teams the other
     // sides named. Several sides tied: the question for each, and the candidates to open; no Compare is guessed.
-    const which = (side: Side) => `Which "${side.typed}"? ${side.tied.length} teams have that name: ${side.tied.map((t) => `${t.number} (${placeOf(t)})`).join(", ")}`;
+    const which = whichOf;
     const others = known.slice(0, 3);
     // A candidate another side already named is no choice: it would be that team against itself.
     const choices = ambiguous.length === 1 ? ambiguous[0].tied.filter((c) => !others.some((o) => o.number === c.number)) : [];
