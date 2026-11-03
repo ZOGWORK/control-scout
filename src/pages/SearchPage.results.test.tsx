@@ -243,6 +243,24 @@ describe("search results page, Phase 2 cards", () => {
     expect(container.querySelector('[data-appearance="2022"]')!.getAttribute("data-highlight")).toBe("on");
   });
 
+  it("the timeline plots division rank (#1 at the top), never OPR across seasons; the banner has no OPR stat", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
+      lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    const fig = container.querySelector("[data-timeline]")!;
+    expect(fig.querySelector("figcaption")!.textContent).toBe("Division rank by season");
+    const top = (season: string) => parseFloat((fig.querySelector(`[data-node="${season}"]`) as HTMLElement).style.top);
+    // #3 highest, then #10, then #20 at the bottom of the band.
+    expect(top("2022")).toBeLessThan(top("2023"));
+    expect(top("2023")).toBeLessThan(top("2021"));
+    expect(top("2021")).toBe(82);
+    // A node still says its season's division, rank, record and OPR, in words.
+    expect(fig.querySelector('[data-node="2021"]')!.getAttribute("aria-label")).toBe("2021–22: Franklin Division, ranked #20, 4-4-0, OPR 124.8. Go to its card.");
+    const banner = container.querySelector("[data-stat-banner]")!.textContent!;
+    expect(banner).not.toMatch(/OPR/);
+    expect(banner).toContain("Win rate at Worlds50.0%");
+  });
+
   it("a championship question's records: stats, a timeline whose nodes jump to their cards, short titles and pills", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 2, lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
