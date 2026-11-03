@@ -106,7 +106,8 @@ async function findEvent(words: string, season: number | null) {
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const board = readLeaderboard(q) ?? boardOfAsk(q);
+  // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
+  const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
@@ -241,5 +242,8 @@ async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: bool
     intent: { kind: `stat-leaderboard-${b.kind}`, pattern: b.kind === "city" ? "teams in [city]" : `${b.kind} [stat]${b.region ? " [place]" : ""}`, met: true, understood: [label] },
   };
   if (!opts.full) return answer;
-  return { ...answer, stat: await leaderboardAnswer({ ...b, stat: st }) };
+  const stat = await leaderboardAnswer({ ...b, stat: st });
+  // The full list's page (Teams for an OPR list, Rankings for a rating list) leads the page links.
+  const more = stat.blocks.find((x) => x.kind === "leaderboard")?.more;
+  return { ...answer, stat, pages: more ? [{ title: more.label.replace(/^View more detail on (?:the )?/, "").replace(/^./, (c) => c.toUpperCase()), href: more.href }, ...opts.pages.filter((p) => p.href !== more.href)] : opts.pages };
 }
