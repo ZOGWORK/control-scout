@@ -6,6 +6,7 @@ import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStren
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
 import type { StatAnswer } from "./searchStat";
+import type { TeamTable } from "./teamTable";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
@@ -163,6 +164,9 @@ export interface SearchCard {
   none?: string;
   /** Under `none`: the closest real records (the team's state championship results), so it's never a dead end. */
   closest?: SearchCardLine[];
+  /** A list of teams ("teams in California"): the same teams as `lines`, as a table of their season numbers, which
+   *  /search draws in place of the lines (src/components/search/TeamTable.tsx). The dropdown keeps the lines. */
+  table?: TeamTable;
 }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
 export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string }
