@@ -278,7 +278,7 @@ export interface Glicko2Params {
   /** Season carry-over: μ ← ρ·μ, φ ← min(φ0, √(φ² + φ0²·(1 − ρ²))). */
   rho: number;
 }
-interface G2 { mu: number; phi: number; sigma: number }
+export interface G2 { mu: number; phi: number; sigma: number }
 const gFn = (phi2: number) => 1 / Math.sqrt(1 + (3 * phi2) / (Math.PI * Math.PI));
 
 export class Glicko2 implements Rater {
@@ -306,28 +306,35 @@ export class Glicko2 implements Rater {
       const red = i < 2, partner = G[red ? 1 - i : 5 - i], opp = red ? [G[2], G[3]] : [G[0], G[1]];
       // The composite opponent: opponents' sum minus the partner's rating, with all three deviations.
       const muO = opp[0].mu + opp[1].mu - partner.mu, phiO2 = opp[0].phi ** 2 + opp[1].phi ** 2 + partner.phi ** 2;
-      const g = gFn(phiO2), E = 1 / (1 + Math.exp(-g * (me.mu - muO))), s = red ? y : 1 - y;
-      const v = 1 / (g * g * E * (1 - E)), delta = v * g * (s - E);
-      const sigma = this.volatility(me, v, delta);
-      const phiStar = Math.sqrt(me.phi ** 2 + sigma ** 2), phi = 1 / Math.sqrt(1 / phiStar ** 2 + 1 / v);
-      return { mu: me.mu + phi * phi * g * (s - E), phi, sigma };
+      return glicko2Period(me, [{ mu: muO, phi2: phiO2, s: red ? y : 1 - y }], this.p.tau);
     });
     ids.forEach((id, i) => this.teams.set(id, next[i]));
     this.scale.update(m);
   }
-  /** Glickman's Illinois iteration for the new volatility. */
-  private volatility(me: G2, v: number, delta: number): number {
-    const a = Math.log(me.sigma ** 2), tau = this.p.tau, phi2 = me.phi ** 2;
-    const f = (x: number) => (Math.exp(x) * (delta * delta - phi2 - v - Math.exp(x))) / (2 * (phi2 + v + Math.exp(x)) ** 2) - (x - a) / (tau * tau);
-    let A = a, B: number;
-    if (delta * delta > phi2 + v) B = Math.log(delta * delta - phi2 - v);
-    else { let k = 1; while (f(a - k * tau) < 0 && k < 100) k++; B = a - k * tau; }
-    let fA = f(A), fB = f(B);
-    for (let it = 0; it < 100 && Math.abs(B - A) > 1e-6; it++) {
-      const C = A + ((A - B) * fA) / (fB - fA), fC = f(C);
-      if (fC * fB <= 0) { A = B; fA = fB; } else fA /= 2;
-      B = C; fB = fC;
-    }
-    return Math.exp(A / 2);
+}
+
+/** One Glicko-2 rating period (Glickman 2012, steps 3–7) against opponents given as (μ, φ², score). */
+export function glicko2Period(me: G2, games: { mu: number; phi2: number; s: number }[], tau: number): G2 {
+  let info = 0, sum = 0;
+  for (const o of games) { const g = gFn(o.phi2), E = 1 / (1 + Math.exp(-g * (me.mu - o.mu))); info += g * g * E * (1 - E); sum += g * (o.s - E); }
+  const v = 1 / info, delta = v * sum;
+  const sigma = volatility(me, v, delta, tau);
+  const phiStar = Math.sqrt(me.phi ** 2 + sigma ** 2), phi = 1 / Math.sqrt(1 / phiStar ** 2 + 1 / v);
+  return { mu: me.mu + phi * phi * sum, phi, sigma };
+}
+
+/** Glickman's Illinois iteration for the new volatility. */
+function volatility(me: G2, v: number, delta: number, tau: number): number {
+  const a = Math.log(me.sigma ** 2), phi2 = me.phi ** 2;
+  const f = (x: number) => (Math.exp(x) * (delta * delta - phi2 - v - Math.exp(x))) / (2 * (phi2 + v + Math.exp(x)) ** 2) - (x - a) / (tau * tau);
+  let A = a, B: number;
+  if (delta * delta > phi2 + v) B = Math.log(delta * delta - phi2 - v);
+  else { let k = 1; while (f(a - k * tau) < 0 && k < 100) k++; B = a - k * tau; }
+  let fA = f(A), fB = f(B);
+  for (let it = 0; it < 100 && Math.abs(B - A) > 1e-6; it++) {
+    const C = A + ((A - B) * fA) / (fB - fA), fC = f(C);
+    if (fC * fB <= 0) { A = B; fA = fB; } else fA /= 2;
+    B = C; fB = fC;
   }
+  return Math.exp(A / 2);
 }

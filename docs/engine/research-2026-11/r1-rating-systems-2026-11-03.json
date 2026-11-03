@@ -473,7 +473,7 @@
       "rho": 0.4
      },
      "brier2024": 0.18324,
-     "seconds": 65,
+     "seconds": 180,
      "solverIterations": 17645
     },
     {
@@ -482,7 +482,7 @@
       "rho": 0.7
      },
      "brier2024": 0.18167,
-     "seconds": 111,
+     "seconds": 163,
      "solverIterations": 17703
     },
     {
@@ -491,7 +491,7 @@
       "rho": 0.4
      },
      "brier2024": 0.18294,
-     "seconds": 131,
+     "seconds": 125,
      "solverIterations": 12546
     },
     {
@@ -500,7 +500,7 @@
       "rho": 0.7
      },
      "brier2024": 0.18153,
-     "seconds": 156,
+     "seconds": 99,
      "solverIterations": 12583
     },
     {
@@ -509,7 +509,7 @@
       "rho": 0.4
      },
      "brier2024": 0.18377,
-     "seconds": 190,
+     "seconds": 55,
      "solverIterations": 8614
     },
     {
@@ -518,7 +518,7 @@
       "rho": 0.7
      },
      "brier2024": 0.18287,
-     "seconds": 133,
+     "seconds": 83,
      "solverIterations": 8651
     }
    ]
@@ -541,7 +541,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19919,
-     "seconds": 7
+     "seconds": 5
     },
     {
      "params": {
@@ -552,7 +552,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19738,
-     "seconds": 4
+     "seconds": 5
     },
     {
      "params": {
@@ -563,7 +563,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19898,
-     "seconds": 6
+     "seconds": 5
     },
     {
      "params": {
@@ -574,7 +574,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19714,
-     "seconds": 7
+     "seconds": 5
     },
     {
      "params": {
@@ -585,7 +585,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19763,
-     "seconds": 10
+     "seconds": 5
     },
     {
      "params": {
@@ -596,7 +596,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19576,
-     "seconds": 6
+     "seconds": 4
     },
     {
      "params": {
@@ -640,7 +640,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19649,
-     "seconds": 9
+     "seconds": 6
     },
     {
      "params": {
@@ -651,7 +651,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19649,
-     "seconds": 4
+     "seconds": 5
     },
     {
      "params": {
@@ -662,7 +662,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19522,
-     "seconds": 9
+     "seconds": 6
     },
     {
      "params": {
@@ -673,7 +673,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.1984,
-     "seconds": 7
+     "seconds": 5
     },
     {
      "params": {
@@ -684,7 +684,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19866,
-     "seconds": 6
+     "seconds": 5
     },
     {
      "params": {
@@ -695,7 +695,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19833,
-     "seconds": 12
+     "seconds": 5
     },
     {
      "params": {
@@ -706,7 +706,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19858,
-     "seconds": 7
+     "seconds": 4
     },
     {
      "params": {
@@ -717,7 +717,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19765,
-     "seconds": 7
+     "seconds": 5
     },
     {
      "params": {
@@ -728,7 +728,7 @@
       "drawRate": 0.01
      },
      "brier2024": 0.19797,
-     "seconds": 7
+     "seconds": 5
     }
    ]
   },
@@ -748,7 +748,7 @@
       "rho": 0.4
      },
      "brier2024": 0.19672,
-     "seconds": 9
+     "seconds": 6
     },
     {
      "params": {
@@ -758,7 +758,7 @@
       "rho": 0.7
      },
      "brier2024": 0.19631,
-     "seconds": 7
+     "seconds": 6
     },
     {
      "params": {
@@ -768,7 +768,7 @@
       "rho": 0.4
      },
      "brier2024": 0.19672,
-     "seconds": 6
+     "seconds": 7
     },
     {
      "params": {
@@ -778,57 +778,57 @@
       "rho": 0.7
      },
      "brier2024": 0.19631,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.4
+     },
+     "brier2024": 0.1976,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.7
+     },
+     "brier2024": 0.19601,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.4
+     },
+     "brier2024": 0.1976,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.7
+     },
+     "brier2024": 0.19601,
      "seconds": 5
     },
     {
      "params": {
-      "phi0": 1,
-      "sigma0": 0.06,
-      "tau": 0.2,
-      "rho": 0.4
-     },
-     "brier2024": 0.1976,
-     "seconds": 9
-    },
-    {
-     "params": {
-      "phi0": 1,
-      "sigma0": 0.06,
-      "tau": 0.2,
-      "rho": 0.7
-     },
-     "brier2024": 0.19601,
-     "seconds": 7
-    },
-    {
-     "params": {
-      "phi0": 1,
-      "sigma0": 0.06,
-      "tau": 0.5,
-      "rho": 0.4
-     },
-     "brier2024": 0.1976,
-     "seconds": 7
-    },
-    {
-     "params": {
-      "phi0": 1,
-      "sigma0": 0.06,
-      "tau": 0.5,
-      "rho": 0.7
-     },
-     "brier2024": 0.19601,
-     "seconds": 8
-    },
-    {
-     "params": {
       "phi0": 2,
       "sigma0": 0.06,
       "tau": 0.2,
       "rho": 0.4
      },
      "brier2024": 0.2,
-     "seconds": 11
+     "seconds": 6
     },
     {
      "params": {
@@ -838,7 +838,7 @@
       "rho": 0.7
      },
      "brier2024": 0.19787,
-     "seconds": 10
+     "seconds": 6
     },
     {
      "params": {
@@ -848,7 +848,7 @@
       "rho": 0.4
      },
      "brier2024": 0.2,
-     "seconds": 12
+     "seconds": 5
     },
     {
      "params": {
@@ -858,7 +858,7 @@
       "rho": 0.7
      },
      "brier2024": 0.19787,
-     "seconds": 9
+     "seconds": 6
     }
    ]
   }

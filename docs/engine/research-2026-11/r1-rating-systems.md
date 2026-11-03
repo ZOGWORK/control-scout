@@ -6,7 +6,7 @@
 - **The low-sample slice (robots with 0–5 matches) gains nothing on the tuning season.** Extra uncertainty is the claimed advantage of TrueSkill and Glicko-2, and it doesn't show up on the slice where it should matter most.
 
 Files:
-- Scripts: `scripts/research/r1-raters.ts` (the three raters, with unit tests in `r1-raters.test.ts`) and `scripts/research/r1-rating-systems.ts` (the replay and walk-forward scoring).
+- Scripts: `scripts/research/r1-raters.ts` (the three raters). Unit tests in `r1-raters.test.ts` check them against published references: Glickman's Glicko-2 worked example, the TrueSkill 1-vs-1 example, and exact moment matching for wins and unequal draws. They also check the season transitions and the Massey solver shortcut and `scripts/research/r1-rating-systems.ts` (the replay and walk-forward scoring).
 - Output: `r1-rating-systems-2026-11-03.json`.
 - Corpus: the pinned snapshot (data version 2026-10-14), run on a copy.
 
@@ -53,6 +53,7 @@ All three use only what the FIRST API publishes: alliance totals and the per-pha
 - The normal equations are kept per robot.
 - At the first match of each UTC day they are solved by Jacobi-preconditioned conjugate gradients, warm-started from the last solution, to 0.01 points.
 - After each match, the four robots get three Gauss–Seidel passes.
+- **How close the shortcut is (unit test):** 40 matches on one day with random partners and noisy margins were predicted with the shortcut and with a full solve before every match. The largest difference was 0.48 points, against a typical predicted margin of 17.5 points, about 3%. That is far too small to close a gap of +0.024 Brier.
 
 **Outputs.**
 - **Margin:** native, in points (expected margin = r₁ + r₂ − r₃ − r₄).
