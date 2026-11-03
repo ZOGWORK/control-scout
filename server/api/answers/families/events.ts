@@ -1,0 +1,173 @@
+// Families 3 and 4 over a team's events and seasons (../eventSet.ts: the team page's own precomputed rows), filtered
+// by the same scope clauses as its matches (../clauses.ts):
+//   best/worst finish, first/last event, best OPR event, best/first/most improved season, total events, average
+//   event rank, seasons played and how many.
+// The rules stated with each answer:
+//   Finish: the team's qualification rank at an event (league meets left out: their rank is the league's running
+//     standing, not that meet's). Best is the lowest number; on a tie the latest event.
+//   Best season and most improved: by OPR rank among the season's ranked teams (as a top-percent share), since each
+//     season is a different game and its OPR numbers can't be compared across seasons.
+import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
+import { dateRange, place, seasonLabel } from "../../../../src/shared/format.js";
+import { eventInScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
+import type { TeamEvent, TeamSeason } from "../eventSet.js";
+import { eventHref, teamHref } from "../matchSet.js";
+import type { IntentId } from "../read.js";
+import { whoOf, type AnswerTeam } from "./matches.js";
+
+const FINISH_RULE = "Finish: the team's qualification rank at the event, out of the teams ranked there. League meets are left out (their rank is the league's running standing). On equal ranks, the latest event.";
+const SEASON_RULE = "Seasons are compared by OPR rank among that season's ranked teams (3 or more matches), as a top-percent share: each season is a different game, so its OPR numbers aren't comparable across seasons.";
+const EVENT_RULE = "Events the team attended (on the field at a played match, or on the roster of an event not played yet) at official events: qualifiers, league play, championships and premier events.";
+
+const top = (s: TeamSeason) => (s.rank != null && s.of ? s.rank / s.of : null);
+const topText = (s: TeamSeason) => (s.rank != null && s.of ? `#${s.rank} of ${s.of} (top ${Math.max(1, Math.round((100 * s.rank) / s.of))}%)` : "not ranked");
+const rec = (s: { wins: number; losses: number; ties: number }) => `${s.wins}-${s.losses}-${s.ties}`;
+const opr = (v: number | null) => (v == null ? "–" : v.toFixed(1));
+
+function eventRows(evs: TeamEvent[], team: number, title: string): StatBlock {
+  return {
+    kind: "table", title,
+    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "opr", label: "OPR", num: true }],
+    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–", opr: opr(e.opr) }, href: eventHref(e.season, e.code, team) })),
+  };
+}
+
+function seasonRows(ss: TeamSeason[], title: string, strong?: TeamSeason): StatBlock {
+  return {
+    kind: "table", title,
+    columns: [{ key: "season", label: "Season" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "rank", label: "OPR rank" }, { key: "events", label: "Events", num: true }],
+    rows: [...ss].reverse().map((s) => ({ cells: { season: seasonLabel(s.season), record: rec(s), opr: opr(s.opr), rank: topText(s), events: s.events }, strong: s === strong })),
+  };
+}
+
+/** The answer for an event or season intent, or null when `id` isn't one. */
+export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope): StatAnswer | null {
+  const keep = eventInScope(scope);
+  const evs = set.events.filter(keep);
+  const ss = set.seasons.filter((s) => (scope.season == null || s.season === scope.season) && s.matches > 0);
+  const who = whoOf(team), where = scopePhrase(scope);
+  const evSource = evs.length ? `From ${evs.length} event record${evs.length === 1 ? "" : "s"}, ${seasonLabel(evs[0].season)}${evs[0].season !== evs[evs.length - 1].season ? ` to ${seasonLabel(evs[evs.length - 1].season)}` : ""}` : "No events in this scope";
+  const ssSource = ss.length ? `From the team's ${ss.length} season record${ss.length === 1 ? "" : "s"} (the stats the team page shows)` : "No seasons with matches";
+  const base = { team, scope: scopeChips(scope) };
+  const none = (what: string) => `No ${what}${where} found for ${who}.`;
+
+  switch (id) {
+    case "best-finish":
+    case "worst-finish": {
+      const ranked = evs.filter((e) => e.rank != null && e.type !== "LeagueMeet");
+      const best = id === "best-finish";
+      const sorted = [...ranked].sort((a, b) => (best ? a.rank! - b.rank! : b.rank! - a.rank!) || String(b.start).localeCompare(String(a.start)));
+      const title = `${best ? "Best" : "Worst"} event finish${where}`;
+      const e = sorted[0];
+      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: FINISH_RULE, source: evSource, none: none("ranked events") };
+      return {
+        ...base, family: "superlative", intent: id, title, source: evSource, definition: FINISH_RULE,
+        headline: { value: `#${e.rank}${e.of ? ` of ${e.of}` : ""}`, label: e.name, sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        blocks: [eventRows(sorted.slice(0, 5), team.number, best ? "Best finishes" : "Lowest finishes")],
+      };
+    }
+    case "first-event":
+    case "last-event": {
+      const e = id === "first-event" ? evs[0] : evs[evs.length - 1];
+      const title = `${id === "first-event" ? "First" : "Most recent"} event${where}`;
+      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
+      return {
+        ...base, family: "superlative", intent: id, title, source: evSource, definition: EVENT_RULE,
+        headline: { value: e.name, label: [e.rank != null ? `Ranked #${e.rank}${e.of ? ` of ${e.of}` : ""}` : "", e.opr != null ? `OPR ${opr(e.opr)}` : ""].filter(Boolean).join(" · ") || "No rank posted", sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        blocks: [eventRows(id === "first-event" ? evs.slice(0, 5) : [...evs].reverse().slice(0, 5), team.number, id === "first-event" ? "First events" : "Latest events")],
+      };
+    }
+    case "best-opr-event": {
+      const withOpr = evs.filter((e) => e.opr != null).sort((a, b) => b.opr! - a.opr!);
+      const title = `Best OPR event${where}`;
+      const def = "OPR at an event: the team's offensive power rating there without penalties, as its team page shows. Each season is a different game, so the best event of each season is listed too.";
+      const e = withOpr[0];
+      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, source: evSource, none: none("events with an OPR") };
+      const season = set.seasons.find((s) => s.season === e.season);
+      const per = [...new Set(withOpr.map((x) => x.season))].sort((a, b) => b - a).map((s) => withOpr.find((x) => x.season === s)!);
+      return {
+        ...base, family: "superlative", intent: id, title, source: evSource, definition: def,
+        headline: { value: `OPR ${opr(e.opr)}`, label: e.name, sub: [seasonLabel(e.season), season ? `season OPR rank ${topText(season)}` : ""].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        blocks: [
+          { kind: "bars", title: "OPR by phase at that event", groups: [{ label: e.name, items: [{ label: "Auto", value: e.auto, tone: "a" }, { label: "TeleOp", value: e.teleop, tone: "b" }, { label: "Endgame", value: e.endgame, tone: "c" }] }] },
+          eventRows(per.length > 1 ? per : withOpr.slice(0, 5), team.number, per.length > 1 ? "Best OPR event each season" : "Best OPR events"),
+        ],
+      };
+    }
+    case "total-events": {
+      const title = `Events played${where}`;
+      if (!evs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
+      const per = [...new Set(evs.map((e) => e.season))].sort((a, b) => b - a);
+      return {
+        ...base, family: "aggregate", intent: id, title, source: evSource, definition: EVENT_RULE,
+        headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: `over ${per.length} season${per.length === 1 ? "" : "s"}${where}` },
+        blocks: [
+          { kind: "bars", title: "Events each season", groups: [...per].reverse().map((s) => ({ label: seasonLabel(s), items: [{ label: "Events", value: evs.filter((e) => e.season === s).length, tone: "a" as const }] })) },
+          eventRows([...evs].reverse(), team.number, "Events, newest first"),
+        ],
+      };
+    }
+    case "average-rank": {
+      const ranked = evs.filter((e) => e.rank != null && e.type !== "LeagueMeet");
+      const title = `Average event rank${where}`;
+      if (!ranked.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: FINISH_RULE, source: evSource, none: none("ranked events") };
+      const mean = ranked.reduce((a, e) => a + e.rank!, 0) / ranked.length;
+      return {
+        ...base, family: "aggregate", intent: id, title, source: evSource, definition: `${FINISH_RULE} The average is the mean of those ranks.`,
+        headline: { value: `#${mean.toFixed(1)}`, label: `mean rank over ${ranked.length} event${ranked.length === 1 ? "" : "s"}`, sub: `Best #${Math.min(...ranked.map((e) => e.rank!))} · lowest #${Math.max(...ranked.map((e) => e.rank!))}` },
+        blocks: [{ kind: "series", title: "Rank at each event (lower is better)", unit: "rank", points: ranked.map((e) => ({ x: e.name, y: e.rank, href: eventHref(e.season, e.code, team.number), note: seasonLabel(e.season) })) }],
+      };
+    }
+    case "seasons-played":
+    case "seasons-count":
+    case "first-season":
+    case "best-season":
+    case "most-improved-season": {
+      const titles: Record<string, string> = { "seasons-played": "Seasons played", "seasons-count": "How many seasons", "first-season": "First season", "best-season": "Best season", "most-improved-season": "Most improved season" };
+      const title = titles[id];
+      if (!ss.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: SEASON_RULE, source: ssSource, none: `No seasons with matches found for ${who}.` };
+      if (id === "seasons-played" || id === "seasons-count") {
+        return {
+          ...base, family: "aggregate", intent: id, title, source: ssSource, definition: "A season played: one with at least one scored match on record.",
+          headline: { value: `${ss.length} season${ss.length === 1 ? "" : "s"}`, label: ss.map((s) => seasonLabel(s.season)).join(", ") },
+          blocks: [seasonRows(ss, "Each season")],
+        };
+      }
+      if (id === "first-season") {
+        const s = ss[0];
+        return {
+          ...base, family: "superlative", intent: id, title, source: ssSource, definition: "The first season with a scored match on record (the team's rookie year is on its team page).",
+          headline: { value: seasonLabel(s.season), label: `${rec(s)} in ${s.matches} matches at ${s.events} event${s.events === 1 ? "" : "s"}`, sub: `OPR ${opr(s.opr)} · ${topText(s)}`, href: teamHref(team.number, s.season) },
+          blocks: [seasonRows(ss.slice(0, 1), "Debut season")],
+        };
+      }
+      if (id === "best-season") {
+        const ranked = ss.filter((s) => top(s) != null).sort((a, b) => top(a)! - top(b)!);
+        const s = ranked[0];
+        if (!s) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: SEASON_RULE, source: ssSource, none: `No ranked season found for ${who} (3 or more matches in a season).` };
+        return {
+          ...base, family: "superlative", intent: id, title, source: ssSource, definition: SEASON_RULE,
+          headline: { value: seasonLabel(s.season), label: `OPR ${topText(s)}`, sub: `${rec(s)} · OPR ${opr(s.opr)}`, href: teamHref(team.number, s.season) },
+          blocks: [seasonRows(ss, "Each season", s), { kind: "series", title: "Top-percent OPR rank each season (lower is better)", unit: "%", points: ss.map((x) => ({ x: seasonLabel(x.season), y: top(x) == null ? null : Math.max(1, Math.round(100 * top(x)!)) })) }],
+        };
+      }
+      // Most improved: the biggest gain in OPR rank share between two seasons in a row.
+      const ranked = ss.filter((s) => top(s) != null);
+      let bestGain: { from: TeamSeason; to: TeamSeason; gain: number } | null = null;
+      for (let i = 1; i < ranked.length; i++) {
+        if (ranked[i].season !== ranked[i - 1].season + 1) continue;
+        const gain = top(ranked[i - 1])! - top(ranked[i])!;
+        if (!bestGain || gain > bestGain.gain) bestGain = { from: ranked[i - 1], to: ranked[i], gain };
+      }
+      const def = `Most improved: the biggest rise in OPR rank share from one season to the next. ${SEASON_RULE}`;
+      if (!bestGain || bestGain.gain <= 0) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: def, source: ssSource, none: ranked.length < 2 ? `${who} needs two ranked seasons in a row to compare.` : `${who}'s OPR rank didn't rise from one season to the next.` };
+      return {
+        ...base, family: "superlative", intent: id, title, source: ssSource, definition: def,
+        headline: { value: seasonLabel(bestGain.to.season), label: `from top ${Math.round(100 * top(bestGain.from)!)}% to top ${Math.max(1, Math.round(100 * top(bestGain.to)!))}% by OPR rank`, sub: `OPR ${opr(bestGain.from.opr)} in ${seasonLabel(bestGain.from.season)} → ${opr(bestGain.to.opr)} in ${seasonLabel(bestGain.to.season)}`, href: teamHref(team.number, bestGain.to.season) },
+        blocks: [seasonRows(ss, "Each season", bestGain.to)],
+      };
+    }
+    default:
+      return null;
+  }
+}
