@@ -216,7 +216,7 @@ function commit(client: string, p: Pending) {
 }
 
 /** Tests: forget what's waiting and buffered. */
-export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.assign(counters, { dropped: 0, skipped: 0, limited: 0, unfiled: 0 }); pausedUntil = 0; }
+export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.assign(counters, { dropped: 0, skipped: 0, limited: 0, unfiled: 0 }); pausedUntil = 0; opened = { day: "", n: 0 }; }
 
 // --- Store --------------------------------------------------------------------------------------------------------
 
@@ -256,6 +256,14 @@ export async function flushSearchFailures(now = Date.now()): Promise<number> {
 export const SYNC_MS = 10 * 60_000;
 /** GitHub writes per sync at most (an issue created, or a body updated, counts one; a reopen two). */
 export const SYNC_WRITES = 20;
+/** New issues a day at most (UTC day, this server): many visitors' junk can't flood the public list. The rest wait
+ *  in the table, counted, the most-repeated first. */
+export const NEW_PER_DAY = 40;
+let opened = { day: "", n: 0 };
+const capped = (at: string) => {
+  if (opened.day !== at.slice(0, 10)) opened = { day: at.slice(0, 10), n: 0 };
+  return opened.n >= NEW_PER_DAY;
+};
 const CLAIM_STALE_MS = 10 * 60_000;
 export const LABEL = "failed-search";
 export const TITLE_MAX = 80;
@@ -329,7 +337,7 @@ async function findIssue(token: string, hash: string): Promise<Issue | null> {
   return (found.items ?? []).find((i) => (i.body ?? "").includes(hash)) ?? null;
 }
 
-export type SyncOutcome = "no-token" | "paused" | "claimed-elsewhere" | "opened" | "adopted" | "updated" | "reopened" | "dismissed" | "up-to-date";
+export type SyncOutcome = "no-token" | "paused" | "claimed-elsewhere" | "opened" | "capped" | "adopted" | "updated" | "reopened" | "dismissed" | "up-to-date";
 
 /** Brings one key's issue up to date: opens it, or updates its body (reopening it if it was closed as fixed). */
 export async function syncOne(key: string, now = new Date()): Promise<{ outcome: SyncOutcome; writes: number }> {
@@ -344,6 +352,8 @@ export async function syncOne(key: string, now = new Date()): Promise<{ outcome:
   try {
     const row = (await get<Row>(`SELECT ${COLUMNS} FROM search_failures WHERE key = ?`, [key]))!;
     const count = Number(row.count);
+    // Over the day's cap: not even a search on GitHub until tomorrow.
+    if (row.issue_number == null && capped(at)) { await release(); return { outcome: "capped", writes }; }
     let issue: Issue | null = null;
     if (row.issue_number != null) {
       try { issue = await gh<Issue>(token, "GET", `/issues/${row.issue_number}`); } catch (e) { if (!(e instanceof GithubError && (e.status === 404 || e.status === 410))) throw e; }
@@ -352,6 +362,8 @@ export async function syncOne(key: string, now = new Date()): Promise<{ outcome:
     const adopted = !issue ? await findIssue(token, row.hash) : null;
     issue ??= adopted;
     if (!issue) {
+      if (capped(at)) { await release(); return { outcome: "capped", writes }; }
+      opened.n++;
       const made = await gh<Issue>(token, "POST", "/issues", { title: failureTitle(row.key), body: failureBody({ ...row, issue_number: null }), labels: labelsFor(row) });
       writes++;
       // The body's re-check link needs the number: one more write, only at creation.
@@ -387,7 +399,8 @@ export async function syncOne(key: string, now = new Date()): Promise<{ outcome:
 export async function syncSearchFailures(now = new Date()): Promise<{ synced: number; writes: number }> {
   if (!env.githubReportToken || Date.now() < pausedUntil) return { synced: 0, writes: 0 };
   const due = await all<{ key: string }>(
-    "SELECT key FROM search_failures WHERE (issue_number IS NULL OR count > reported_count) AND COALESCE(issue_state, '') <> 'dismissed' ORDER BY last_seen LIMIT ?",
+    // Issues already filed first (their bodies), then the most-repeated failures.
+    "SELECT key FROM search_failures WHERE (issue_number IS NULL OR count > reported_count) AND COALESCE(issue_state, '') <> 'dismissed' ORDER BY issue_number IS NULL, count DESC, last_seen LIMIT ?",
     [SYNC_WRITES],
   );
   let writes = 0, synced = 0;
@@ -397,6 +410,7 @@ export async function syncSearchFailures(now = new Date()): Promise<{ synced: nu
       const r = await syncOne(key, now);
       writes += r.writes;
       if (r.outcome === "paused") break;
+      if (r.outcome === "capped") continue;
       synced++;
     } catch (e) {
       counters.unfiled++;

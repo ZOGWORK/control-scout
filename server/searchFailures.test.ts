@@ -11,7 +11,7 @@ import { rebuildSearch } from "./stats/job";
 import { resetReportLimits, setGithubFetch } from "./errorReports";
 import {
   counters, failureBody, failureOf, failureTitle, flushSearchFailures, githubPausedUntil, keyHash, noteSearch, recheck, redact, reportKey,
-  resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace,
+  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace,
 } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 
@@ -329,6 +329,16 @@ describe("never a duplicate, never hammering GitHub (§12.3, §12.6)", () => {
     calls = [];
     await syncSearchFailures();
     expect(calls).toHaveLength(0);
+  });
+  it("opens at most NEW_PER_DAY issues a day, the most-repeated first", async () => {
+    for (let i = 0; i < 45; i++) searched(`junk ${i}`, noMatch("x"), `203.0.113.${i}`);
+    for (let k = 0; k < 3; k++) searched("junk 44", noMatch("x"), `192.0.2.${k}`);
+    await flushSearchFailures(clock);
+    for (let k = 0; k < 5; k++) await syncSearchFailures();
+    const made = calls.filter((c) => c.method === "POST" && c.path === "/issues");
+    expect(made).toHaveLength(NEW_PER_DAY);
+    expect(made[0].body.title).toBe("Failed search: junk 44");
+    expect((await rows()).filter((r) => r.issue_number == null)).toHaveLength(45 - NEW_PER_DAY);
   });
   it("caps what one visitor can log in an hour", async () => {
     for (let i = 0; i < 40; i++) searched(`gibberish ${i}`, noMatch("x"), "203.0.113.200");

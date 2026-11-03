@@ -70,6 +70,8 @@ reports how it reached an answer (`SearchTrace`), the reading is taken from the 
 - **Sync, every 10 minutes.** At most 20 GitHub writes per sync (create plus number, body update, reopen plus
   comment). The worst case is 120 writes an hour. Write volume grows with distinct failing queries, never with
   searches.
+- **New issues.** At most 40 a day (per server). Bodies of filed issues are updated first, then new ones, the
+  most-repeated failure first. The rest wait in the table, counted.
 - **Rate limits.** A 403 or 429 with `Retry-After` (or no requests left) pauses all writes until then.
 - **GitHub down.** Counts stay in the table and the next sync catches up. Nothing waits on GitHub, and nothing
   queues in memory past the buffer cap.
