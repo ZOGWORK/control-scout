@@ -14,6 +14,7 @@ import { useServerFlag } from "../../lib/flags";
 import type { SearchAnswer, SearchCard, SearchFact, SearchHit } from "../../shared/api";
 import { SEARCH_GROUPS, cardWho, shownPath } from "../../shared/search";
 import { cn } from "../cn";
+import { TeamTable } from "./TeamTable";
 import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearches } from "./discover";
 import { dateRange, seasonLabel } from "../../lib/format";
 import { EventStatusChip } from "../EventChips";
@@ -324,7 +325,8 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
         {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text">{card.count} {card.count === 1 ? "time" : "times"}</span>}
       </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
-      {!!shown.length && (
+      {/* A list of teams on the full page: one table of their season numbers (./TeamTable.tsx); the dropdown keeps lines. */}
+      {!compact && !!card.table?.rows.length ? <div className="mt-2"><TeamTable table={card.table} label={card.title} /></div> : !!shown.length && (
         <>
           {card.none && <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Closest records</p>}
           {/* Full page: a row per record, divided by lines, how it went as bullets. The dropdown keeps it to a line. */}
