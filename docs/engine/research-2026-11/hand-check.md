@@ -8,7 +8,7 @@ work the number out?
 Verdicts:
 
 - **pass**: the inputs and the formula are on or next to the number, and the arithmetic is doable by hand.
-- **fixed**: it failed before this change; this PR (#PR) put the missing inputs or formula next to it.
+- **fixed**: it failed before this change; this PR (#488) put the missing inputs or formula next to it.
 - **open**: not reproducible by hand from the page. Either the number is a simulation or a fitted model with
   many inputs (it can be reproduced exactly with the published engine, `packages/predict-engine`, and its
   `model.json`, but not with a pencil), or the inputs it needs aren't stored. Listed as follow-ups below; none
