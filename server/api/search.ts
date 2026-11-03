@@ -205,9 +205,11 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   // distance, ~28k names, a few ms).
   if (!out.length && /\p{L}/u.test(query)) {
     const qs = words(query);
-    // Cheap prefilter: a typo of a word still shares a 2-letter chunk with it.
-    const qb = bigrams(qs.join(" "));
-    const scanned = (await fuzzyRows()).filter((r) => { if (!allow(r.kind)) return false; for (const b of qb) if (r.bigrams.has(b)) return true; return false; })
+    // Cheap prefilter: a typo of a word still shares a 2-letter chunk with it, and every word typed must match
+    // (scoreWords), so a name lacking any one word's chunks is out ("highest scoring games decode" scans the few
+    // names with all four, not every name with "in" in it).
+    const qb = qs.map((q) => bigrams(q)).filter((b) => b.size);
+    const scanned = (await fuzzyRows()).filter((r) => allow(r.kind) && qb.every((b) => { for (const x of b) if (r.bigrams.has(x)) return true; return false; }))
       .map((r) => ({ r, s: scoreWords(qs, r.words) })).filter((x) => x.s >= 0.6)
       .map((x) => (prefer.has(`${x.r.kind}:${x.r.ref}`) ? { ...x, s: x.s + 0.1 } : x)) // same preference as the indexed path
       .sort((a, b) => b.s - a.s || b.r.weight - a.r.weight || (b.r.season ?? 0) - (a.r.season ?? 0));
@@ -227,7 +229,9 @@ function newestSeasons(hits: SearchHit[], query: string): SearchHit[] {
 
 interface FuzzyRow { kind: "team" | "event"; ref: string; season: number | null; weight: number; title: string; subtitle: string; words: string[]; bigrams: Set<string> }
 
-const bigrams = (s: string) => { const out = new Set<string>(); for (const w of s.split(" ")) for (let i = 0; i + 2 <= w.length; i++) out.add(w.slice(i, i + 2)); return out; };
+/** A word's 2-letter chunks, each in letter order ("ea" and "ae" are one chunk), so a typo that swaps two letters
+ *  ("gaer" for "gear") still shares one with the word. */
+const bigrams = (s: string) => { const out = new Set<string>(); for (const w of s.split(" ")) for (let i = 0; i + 2 <= w.length; i++) out.add(w[i] < w[i + 1] ? w[i] + w[i + 1] : w[i + 1] + w[i]); return out; };
 let rowsCache: { version: string; rows: Promise<FuzzyRow[]> } | null = null;
 
 /** The typo index in memory (reloaded when the search index is rebuilt). */

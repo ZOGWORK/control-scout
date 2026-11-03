@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.5.9 — 2026-11-03
+
+A slow search no longer looks like being offline, and searches that match nothing answer five times faster.
+
+### Highlights
+- [fixes] A slow search says "Search is slow", never "Offline"
+- [speed] Searches that match nothing answer in about a second, not five
+- [fixes] A slow or failed search is tried once more by itself
+
+### Search
+- **Slow is not offline.** While your browser is online and the server answers everything else, a search that takes more than 4 seconds keeps waiting for the server instead of switching to saved data and the Offline badge. It gets up to 10 seconds, one more try, and then says "Search is slow right now. Try again." with a Try again button. With no network at all, saved data still answers as before.
+- **Faster no-match searches.** Queries that match nothing (like "highest scoring games in decode") took 5–6 seconds on the server, comparing every name's words letter by letter. The scan now skips names missing any word typed and stops comparing as soon as a word is past its allowed typos: about 1 second, with the same results. (#463)
+
 ## 2.5.8 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
