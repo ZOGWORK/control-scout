@@ -126,3 +126,11 @@ describe("Greptile on #436, round 4", () => {
     expect(a.hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["66662", "66663"]);
   });
 });
+
+describe("Greptile on #436, round 5", () => {
+  it("a stand-in number or a placeholder registration is never a side", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (202300005, 'Stand-in', 'X', 'NJ', 'USA'), (77771, 'Demo Team', 'X', 'NJ', 'USA'), (77772, 'Demo Team', 'Y', 'TX', 'USA')");
+    await rebuildSearch();
+    for (const q of ["202300005 vs 4215", "demo team vs 4215"]) expect((await ask(q)).hits.filter((h) => h.kind === "compare"), q).toEqual([]);
+  });
+});
