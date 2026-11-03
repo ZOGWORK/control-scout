@@ -1,14 +1,23 @@
 // The Scout page's sections, named for the job on event day: Event day (the picked event's match and pit
-// queues), Entries (everything scouted, filtered) and Pick list & planning (the pick list, assignments,
-// alliance, activity and the template). The page keeps the section in the URL (?tab=) and a view inside it
-// (?view=). Links from before the rebuild (?tab=match, ?tab=matches, ?tab=data) map onto the new sections.
+// queues), Entries (everything scouted, filtered), Pick list & planning (the pick list, assignments,
+// alliance, activity and the template) and Pick helper (partners that fill your alliance's gaps). The page
+// keeps the section in the URL (?tab=) and a view inside it (?view=). Links from before the rebuild
+// (?tab=match, ?tab=matches, ?tab=data) map onto the new sections.
 // Pure, so links built elsewhere (lite, inbox) and the page agree.
 
-export const SCOUT_SECTIONS = ["event", "entries", "planning"] as const;
+export const SCOUT_SECTIONS = ["event", "entries", "planning", "picks"] as const;
 export type ScoutSection = (typeof SCOUT_SECTIONS)[number];
-/** Personal's sections: nothing shared to plan (the pick list, assignments and alliance are a workspace's). */
-export const PERSONAL_SECTIONS: readonly ScoutSection[] = ["event", "entries"];
-export const SECTION_LABEL: Record<ScoutSection, string> = { event: "Event day", entries: "Entries", planning: "Pick list & planning" };
+/** Personal's sections: nothing shared to plan (the pick list, assignments and alliance are a workspace's).
+ *  The pick helper reads only public ratings, so everyone has it. */
+export const PERSONAL_SECTIONS: readonly ScoutSection[] = ["event", "entries", "picks"];
+export const SECTION_LABEL: Record<ScoutSection, string> = { event: "Event day", entries: "Entries", planning: "Pick list & planning", picks: "Pick helper" };
+/** Shorter names for a phone's tab row. */
+export const SECTION_SHORT: Partial<Record<ScoutSection, string>> = { picks: "Picks" };
+
+/** A link to the pick helper at one event (the event page's Playoffs tab). */
+export function pickHelperQuery(season: number, eventCode: string): URLSearchParams {
+  return new URLSearchParams({ tab: "picks", pevent: eventCode.toUpperCase(), season: String(season) });
+}
 
 /** The views under Pick list & planning (Pick list first, the one it opens on). */
 export const PLANNING_VIEWS = ["picklist", "assignments", "alliance", "activity", "template"] as const;
@@ -66,6 +75,21 @@ export function legacyScoutUrl(sp: URLSearchParams): URLSearchParams | null {
   if (out.has("setup")) { out.delete("setup"); out.set("pick", "1"); }
   if (view === "pit") out.delete("view");
   return out;
+}
+
+/** The pick helper's event-specific choices (its event, planned partners, teams marked taken): dropped when
+ *  the event or season changes, so one event's picks never follow onto another. Your team and the alliance
+ *  size stay. */
+export function clearPicks(sp: URLSearchParams): void {
+  for (const k of ["pevent", "pwith", "ptaken", "pposted"]) sp.delete(k);
+}
+
+/** An event chosen in the picker: the pick helper follows it. Its choices stay when the helper was already at
+ *  that event (the one a link named, else the one being scouted); otherwise they go with the old event. */
+export function picksOnEventChoice(sp: URLSearchParams, sessionEvent: string | null, chosen: string): void {
+  const helperAt = sp.get("pevent")?.toUpperCase() || sessionEvent?.toUpperCase() || null;
+  if (helperAt !== chosen.toUpperCase()) clearPicks(sp);
+  else sp.delete("pevent");
 }
 
 /** A link to the shared pick list (lite's "Full version", the bundle page). */

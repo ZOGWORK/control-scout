@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.4 — 2026-11-03
+## 2.8.5 — 2026-11-03
 
 FTC One Search understands "and", "or" and "not" between teams, and quotes around an exact name: "4215 and 6980" lists the matches both teams played in.
 
@@ -28,6 +28,20 @@ FTC One Search understands "and", "or" and "not" between teams, and quotes aroun
 ### Search
 - **Boolean operators.** `and` (or `&`), `or` (or `|`) and `not` (or `-` before a term) between teams, read like a web search: NOT first, then AND, then OR, no parentheses. What's asked still decides the answer: on its own or with "matches" it's the match list (both teams on the field, on either alliance, newest first, how many as partners and as opponents); with a stat it's the stat side by side (`4215 and 6980 opr`; any other stat, such as `4215 and 6980 record`, in the team table with each team's season OPR, phases, penalties and record). Two teams with no match in common are told so, with each team's own match count and a link to the "or" list. A team name with "and" or "not" in it ("Nuts and Bolts", "Batteries Not Included") stays a name, and `vs`, "compare" and "have … played each other" keep their own answers. Details in docs/search-boolean.md. (#497)
 - **Exact phrases.** A name in double quotes finds the teams named exactly that first, then names holding the words together, never names with the words apart.
+
+## 2.8.4 — 2026-11-03
+
+Scout has a pick helper. Choose your team at an event and it suggests the partners that fill your alliance's gaps, each on a radar of auto, TeleOp, endgame and fouls over your own, with what it adds.
+
+### Highlights
+- [scout] Pick helper: partners that fill your alliance's gaps
+- [scout] A radar per partner over yours, with the share it covers
+- [scout] Each card says what it raises and what it costs
+- [scout] Open it from Scout or an event's Playoffs tab
+
+### Scout
+- **Pick helper.** A new Scout section (Scout → Pick helper, no account needed). Pick your team at an event, or your alliance if it's posted; the top 5 free partners are the ones whose alliance covers the most of a four-axis radar (Auto, TeleOp, Endgame, Few fouls), so a team strong where you're weak can beat a higher-rated one. Add a partner to plan a 3-team alliance's second pick, mark teams taken as alliance selection goes, and "Show the numbers" lists every rating used. Each axis is the alliance's total ÷ the best 2 (or 3) teams at the event added up; area is ½·sin(2π/4)·Σ rᵢ·rᵢ₊₁ (full method on How it works). It reads the engine ratings the stats runs already store; nothing is rated on request.
+- **Event page.** The Playoffs tab links to the pick helper for that event. (#492)
 
 ## 2.8.3 — 2026-11-03
 
