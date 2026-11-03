@@ -12,7 +12,13 @@ export type IntentId =
   // Family 4: a count, a mean, a record or a streak over a filtered set.
   | "wins-count" | "record" | "average-score" | "total-matches" | "total-events" | "seasons-played" | "seasons-count"
   | "current-streak" | "longest-streak" | "last-matches" | "average-rank" | "playoff-appearances"
-  | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "red-blue-record";
+  | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "red-blue-record"
+  // Family 5: at one event (its matches, rank and OPR there).
+  | "results" | "event-rank" | "event-opr" | "match-lookup"
+  // Family 8: awards (a list or a count, by kind).
+  | "event-wins" | "inspire-awards" | "finalist-finishes" | "total-awards" | "award-split" | "awards"
+  // An event's or a season's winners: no team.
+  | "winning-alliance";
 
 interface IntentRule {
   id: IntentId;
@@ -22,11 +28,22 @@ interface IntentRule {
   season: "all" | "latest";
   /** Taken only when a scope is named ("4215 record" alone stays search's own team answer). */
   needsScope?: boolean;
+  /** Taken only with an event ("4215 rank at New Jersey Championship"). */
+  needsEvent?: boolean;
+  /** Names no team: what's left names an event, or nothing (the season's championship). */
+  noTeam?: boolean;
 }
 
 const MATCHES = "(?:matches|match|games?)";
 /** In order: the longer, more specific phrases first ("longest win streak" before "win streak"). */
 const RULES: IntentRule[] = [
+  { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\s+(?:the\s+)?(?:worlds?|world\s+championship|first\s+championship)\b|\bworld\s+champions\b/ },
+  { id: "award-split", family: "awards", season: "all", re: /\bjudged\s+(?:vs\.?|versus|and|or)\s+performance(?:\s+awards?)?\b|\bperformance\s+(?:vs\.?|versus|and|or)\s+judged(?:\s+awards?)?\b|\bawards?\s+by\s+(?:type|kind)\b/ },
+  { id: "event-wins", family: "awards", season: "all", re: /\bhow\s+many\s+(?:events?|tournaments?|competitions?)\s+(?:has|have|did)\s+(?<team>.+?)\s+won?\b|\b(?:ever\s+)?won\s+(?:an?\s+|any\s+)?(?:events?|tournaments?|competitions?)\b|\bevent\s+wins?\b|\b(?:events?|tournaments?)\s+won\b/ },
+  { id: "inspire-awards", family: "awards", season: "all", re: /\binspire(?:\s+awards?)?\b/ },
+  { id: "finalist-finishes", family: "awards", season: "all", re: /\bfinalists?(?:\s+(?:finish(?:es)?|alliances?|awards?))?\b/ },
+  { id: "total-awards", family: "awards", season: "all", re: /\b(?:total|number\s+of|how\s+many|all|career)\s+awards\b|\bawards?\s+(?:count|total)\b/ },
+  { id: "match-lookup", family: "event", season: "all", needsEvent: true, re: /\b(?:score|result)\s+(?:in|of|for)\s+(?:match|qual(?:ification)?|q)\s*(\d{1,3})\b|\b(?:match|qual|q)\s*(\d{1,3})\b/ },
   { id: "red-blue-record", family: "aggregate", season: "all", re: /\b(?:red\s+(?:vs\.?|versus|and|or)\s+blue|blue\s+(?:vs\.?|versus|and|or)\s+red)(?:\s+(?:alliance|side))?\s+(?:record|results?|split)\b|\brecord\s+(?:by|per)\s+(?:alliance\s+)?(?:colou?r|side)\b/ },
   { id: "most-improved-season", family: "superlative", season: "all", re: /\bmost\s+improved\s+season\b|\bbiggest\s+(?:opr\s+)?(?:jump|improvement|gain)\b/ },
   { id: "best-opr-event", family: "superlative", season: "all", re: /\b(?:best|highest|top)\s+opr\s+(?:event|competition|meet)\b|\b(?:event|competition|meet)\s+with\s+(?:the\s+)?(?:best|highest)\s+opr\b/ },
@@ -58,6 +75,10 @@ const RULES: IntentRule[] = [
   { id: "total-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:total|number\\s+of|career)\\s+${MATCHES}(?:\\s+played)?\\b|\\b${MATCHES}\\s+(?:count|total)\\b|\\bhow\\s+many\\s+${MATCHES}\\s+(?:has|have|did)\\s+(?<team>.+?)\\s+play(?:ed)?\\b`) },
   { id: "wins-count", family: "aggregate", season: "all", re: new RegExp(`\\bhow\\s+many\\s+(?:${MATCHES}\\s+|times\\s+)?(?:has|have|did)\\s+(?<team>.+?)\\s+won?\\b|\\b(?:number\\s+of|total|career|how\\s+many)\\s+(?:match\\s+)?wins\\b|\\bwins?\\s+count\\b`) },
   { id: "losses", family: "aggregate", season: "all", re: new RegExp(`\\blosses\\b|\\blost\\s+${MATCHES}\\b|\\b${MATCHES}\\s+lost\\b`) },
+  { id: "results", family: "event", season: "all", needsEvent: true, re: /\b(?:results?|matches|how\s+did\s+.+?\s+do)\b/ },
+  { id: "event-rank", family: "event", season: "all", needsEvent: true, re: /\b(?:rank(?:ed|ing)?|placement|place|placed|finish(?:ed)?|seed(?:ed)?)\b/ },
+  { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\bopr\b/ },
+  { id: "awards", family: "awards", season: "all", needsScope: true, re: /\bawards?\b/ },
   { id: "record", family: "aggregate", season: "all", needsScope: true, re: /\b(?:win[\s-]+loss(?:[\s-]+tie)?\s+)?record\b/ },
 ];
 
@@ -84,10 +105,14 @@ export interface StatQuestion {
   scope: ReadScope;
   /** "which event did 4215 score highest in": the answer leads with the event. */
   leadEvent: boolean;
-  /** "last 5 matches": how many. */
+  /** "last 5 matches": how many; "score in match 12": the match number. */
   n: number | null;
   /** "closest win", "current losing streak": the result asked about (null: any). */
   outcome: "W" | "L" | null;
+  /** "how many inspire awards", "event wins count": a count, not the list. */
+  count: boolean;
+  /** No team: what's left (an event's name, or "" for the season's championship). */
+  noTeam: boolean;
   /** What names the team. */
   core: string;
 }
@@ -151,22 +176,24 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
     if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
     if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
+    if (r.needsEvent && !scope.at) return null;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
     if (r.id === "red-blue-record") scope.alliance = null;
-    // An "at <event>" scope belongs to the event family (not built yet): left to search's team-at-event answer.
-    if (scope.at) return null;
     const leadEvent = r.id === "highest-score" && /\b(?:which|what)\s+(?:event|competition|tournament|meet)\b/.test(q);
     // A team's best scores in one season ("4215 high score", "hypnotic best score in decode") are the season records'
     // own answer (searchHighScores.ts, the same rule): taken here only with what that answer doesn't cover (Worlds,
     // states, every season, which event, playoffs or quals, a colour).
     if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance)) return null;
-    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : null;
+    const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : null;
     const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null) : null;
+    const count = /\b(?:count|how\s+many|number\s+of|total)\b/.test(q);
+    // A team-less question: what's left names an event (or nothing: the season's championship).
+    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for)\b/g, " ")) };
     let core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     // Nothing else names a team: the "year" was the team's number ("2024 worlds record").
     if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }
     if (!core) return null;
-    return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, core };
+    return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, count, noTeam: false, core };
   }
   return null;
 }
