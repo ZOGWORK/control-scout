@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.6.8 — 2026-11-03
+
+FTC One Search answers how a team changed: OPR, win rate, alliance score, penalties and ranking points event by event, and its standing and record season by season.
+
+### Highlights
+- [history] "4215 OPR history": OPR at each event this season, rising or falling
+- [history] "4215 OPR by season": the team's worldwide standing each season
+- [history] Win rate, penalties and ranking points by event
+- [history] "4215 record by season": wins, losses and ties each season
+
+### Search
+- **Event by event.** "4215 OPR history", "4215 win rate", "4215 average penalties", "4215 average alliance score by event", "4215 ranking points": a line over the team's events in one season (the one named, else its latest), with the values and whether it is rising, falling or steady against the event before. Lower penalties count as better. Links switch to other seasons, since every season is a different game.
+- **Season by season.** "4215 OPR by season" shows the team's OPR rank each season and the share of ranked teams it was ahead of, never the OPR in points across seasons. "4215 record by season" shows wins, losses and ties each season with the win rate as a line.
+- **Penalty totals.** "4215 total penalties in 2025-26": the penalty points the team's alliances gave away that season, in all and per match, by event. (#462)
+
 ## 2.6.7 — 2026-11-03
 
 FTC One Search's venue lines keep the spelling you typed.

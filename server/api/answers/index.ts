@@ -21,6 +21,7 @@ import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { shortEvent, teamMatches } from "./matchSet.js";
@@ -39,11 +40,15 @@ const TITLES: Record<IntentId, string> = {
   "red-blue-record": "Record by alliance colour", results: "Results", "event-rank": "Rank", "event-opr": "OPR", "match-lookup": "Match",
   "event-wins": "Event wins", "inspire-awards": "Inspire Awards", "finalist-finishes": "Finalist finishes", "total-awards": "All awards", "award-split": "Judged and performance awards",
   awards: "Awards", "winning-alliance": "Winning alliance",
+  "opr-history": "OPR by event", "opr-by-season": "OPR by season", "record-by-season": "Record by season", "win-rate": "Win rate by event", "avg-penalties": "Penalty points given by event",
+  "avg-score-by-event": "Average alliance score by event", "ranking-points": "Ranking points by event", "total-penalties": "Penalty points given",
   "most-played-opponent": "Most played opponent", "toughest-opponent": "Toughest opponent", "best-partner": "Best alliance partner", "frequent-partner": "Most frequent partner", "never-played": "Teams never played",
 };
 const TWO_TEAM_TITLES: Record<TwoTeamId, string> = { "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record" };
 
 /** The intents about the team's opponents and partners (family 6, one team named). */
+/** One number over the team's events or seasons (family 2), and a season's penalty total. */
+const TREND_INTENTS = new Set<IntentId>(["opr-history", "opr-by-season", "record-by-season", "win-rate", "avg-penalties", "avg-score-by-event", "ranking-points", "total-penalties"]);
 const OPPONENT_INTENTS = new Set<IntentId>(["most-played-opponent", "toughest-opponent", "best-partner", "frequent-partner"]);
 
 /** The intents read from event and season rows; the rest from matches (or awards). */
@@ -131,7 +136,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   if (!scope) return null;
   const title = `${it.leadEvent ? "Event with the highest score" : TITLES[it.id]}${scopePhrase(scope)}`;
   const label = `${whoOf(team)} · ${title}`;
-  const section = AWARD_INTENTS.has(it.id) ? "awards" : EVENT_INTENTS.has(it.id) ? "history" : "matches";
+  const section = AWARD_INTENTS.has(it.id) ? "awards" : EVENT_INTENTS.has(it.id) || TREND_INTENTS.has(it.id) ? "history" : "matches";
   const linkSeason = scope.season ?? scope.event?.season;
   const hit: SearchHit = { ...top, section, ...(linkSeason != null ? { linkSeason } : {}), facts: undefined, events: undefined };
   // A team found by a correction ("hypnotc") keeps search's warning, said for the whole question.
@@ -164,6 +169,8 @@ const worldsSeason = (s: StatAnswer): number | null => {
 
 async function build(it: StatQuestion, team: { number: number; name: string | null }, scope: Scope): Promise<StatAnswer | null> {
   if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count });
+  if (it.id === "total-penalties") return penaltyTotalAnswer(team, await teamEventSet(team.number), scope);
+  if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope);
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);

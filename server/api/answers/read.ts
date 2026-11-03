@@ -21,7 +21,11 @@ export type IntentId =
   // An event's or a season's winners: no team.
   | "winning-alliance"
   // Family 6: the team's opponents and partners.
-  | "most-played-opponent" | "toughest-opponent" | "best-partner" | "frequent-partner" | "never-played";
+  | "most-played-opponent" | "toughest-opponent" | "best-partner" | "frequent-partner" | "never-played"
+  // Family 2: one number over the team's events or seasons.
+  | "opr-history" | "opr-by-season" | "record-by-season" | "win-rate" | "avg-penalties" | "avg-score-by-event" | "ranking-points"
+  // Family 4 again: a season's penalty points.
+  | "total-penalties";
 
 /** Family 6 with two teams named ("4215 vs 6980 head to head"). */
 export type TwoTeamId = "head-to-head" | "opr-vs" | "rating-vs" | "win-chance" | "better-record";
@@ -44,6 +48,14 @@ const MATCHES = "(?:matches|match|games?)";
 /** In order: the longer, more specific phrases first ("longest win streak" before "win streak"). */
 const RULES: IntentRule[] = [
   { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\s+(?:the\s+)?(?:worlds?|world\s+championship|first\s+championship)\b|\bworld\s+champions\b/ },
+  { id: "opr-by-season", family: "trend", season: "all", re: /\bopr\s+(?:by|per|each|every|over\s+the)\s+seasons?\b|\bseason(?:al)?\s+opr\b/ },
+  { id: "record-by-season", family: "trend", season: "all", re: /\b(?:record|w-l-t|win[\s-]loss(?:[\s-]tie)?)\s+(?:by|per|each|every)\s+season\b|\bseason\s+by\s+season\s+record\b/ },
+  { id: "opr-history", family: "trend", season: "all", re: /\bopr\s+(?:history|trend|over\s+time|by\s+event|progression|graph|chart)\b/ },
+  { id: "avg-score-by-event", family: "trend", season: "all", re: /\b(?:average|avg|mean)\s+(?:alliance\s+)?score\s+(?:by|per|each|at\s+each)\s+event\b/ },
+  { id: "total-penalties", family: "aggregate", season: "all", re: /\btotal\s+penalt(?:y|ies)(?:\s+points)?\b|\bpenalt(?:y|ies)\s+total\b/ },
+  { id: "avg-penalties", family: "trend", season: "all", re: /\b(?:average|avg|mean)\s+penalt(?:y|ies)\b|\bpenalt(?:y|ies)(?:\s+points)?\s+(?:given|committed|per\s+match|by\s+event|trend)\b/ },
+  { id: "win-rate", family: "trend", season: "all", re: /\bwin(?:ning)?\s+(?:rate|percentage|pct|%)\b/ },
+  { id: "ranking-points", family: "trend", season: "all", re: /\branking\s+(?:points|score)\b/ },
   { id: "never-played", family: "two-team", season: "latest", re: /\bteams?\s+(?:(?:it|they|he|she)\s+)?(?:(?:has|have)\s+)?(?:never|not\s+yet|hasn't|haven't|has\s+not|have\s+not|didn't|did\s+not)\s+(?:played|faced|met)(?:\s+(?:against|with))?\b|\bnever\s+(?:played|faced|met)\s+(?:teams?|opponents?)\b/ },
   { id: "toughest-opponent", family: "two-team", season: "all", re: /\b(?:toughest|hardest|strongest|worst)\s+(?:opponents?|rivals?|matchups?)\b|\bnemesis\b/ },
   { id: "most-played-opponent", family: "two-team", season: "all", re: /\bmost\s+(?:played|common|frequent|faced|often\s+(?:played|faced))\s+(?:opponents?|rivals?)\b|\bopponents?\s+(?:faced|played|met)\s+(?:the\s+)?most\b|\bbiggest\s+rival\b/ },
@@ -313,6 +325,16 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // An event's rank and OPR are whole-event numbers: a match type or a colour can't apply to them.
     if ((r.id === "event-rank" || r.id === "event-opr") && (scope.level || scope.alliance)) return null;
     if (SEASON_ROWS.has(r.id) && scope.at) return null;
+    // A trend is the team's events or seasons: an event, Worlds, a match type or a colour can't apply.
+    if (r.family === "trend" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance)) return null;
+    // Season by season covers every season (a season named isn't one of its rows); event by event stays in one season
+    // (every season is a different game), so "all time" can't apply.
+    // A bare year with nothing else naming a team is the team's number ("2024 OPR by season"), not a season.
+    const yearIsTeam = scope.year && !squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
+    if ((r.id === "opr-by-season" || r.id === "record-by-season") && scope.season != null && !yearIsTeam) return null;
+    if (r.family === "trend" && r.id !== "opr-by-season" && r.id !== "record-by-season" && scope.ever) return null;
+    // A season's penalty total is every event's quals: an event, Worlds, a match type, a colour or all time can't apply.
+    if (r.id === "total-penalties" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.ever)) return null;
     if (AWARD_IDS.has(r.id) && (scope.level || scope.alliance)) return null;
     if (r.needsEvent && !scope.at) return null;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
