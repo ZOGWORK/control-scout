@@ -117,3 +117,12 @@ describe("Greptile on #436, round 3", () => {
     expect(a.understood?.label).toMatch(/^Which "twins"?/);
   });
 });
+
+describe("Greptile on #436, round 4", () => {
+  it("a tied candidate the other side already named is never offered against itself", async () => {
+    // "twins" stays tied (66662 has no stored state); 66662 is the other side, so the one choice is 66663.
+    const a = await ask("twins vs 66662");
+    expect(a.hits.filter((h) => h.kind === "compare").map((h) => h.ref)).toEqual(["66662,66663"]);
+    expect(a.hits.filter((h) => h.kind === "team").map((h) => h.ref)).toEqual(["66662", "66663"]);
+  });
+});
