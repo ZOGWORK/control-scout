@@ -45,6 +45,7 @@ export const BOOT_STYLE = `<style>
       @media (min-height:900px){.csb-nav{padding-top:12px}.csb-grp{margin-bottom:16px}.csb-nav a,.csb-more>summary{height:40px;margin-bottom:4px}}
       @media (min-height:1000px){.csb-nav{padding-top:16px}.csb-grp{margin-bottom:20px}.csb-nav a,.csb-more>summary{height:44px;margin-bottom:6px;font-size:15px}}
       @media (min-height:1100px){.csb-nav{padding-top:20px}.csb-grp{margin-bottom:24px}.csb-nav a,.csb-more>summary{height:48px}}
+      .csb-sub>div{margin-left:16px;padding-left:8px;border-left:1px solid var(--b-line)}
       .csb-more>summary{list-style:none;cursor:pointer}.csb-more>summary::-webkit-details-marker{display:none}
       .csb-nav a[aria-current]{color:var(--b-fg);background:color-mix(in srgb,var(--b-fg) 8%,transparent)}
       .csb-ico{width:18px;height:18px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
@@ -144,11 +145,12 @@ export function bootConsent(): string {
     + `<div class="csbc-btns"><button type="button" data-a="0">No thanks</button><button type="button" data-a="1">Allow</button></div></section>${script}`;
 }
 
-interface Item { to: string; label: string; end?: boolean }
+/** `children`: a row that folds open to its own pages, as the app's sidebar does (How it works). */
+interface Item { to: string; label: string; end?: boolean; children?: Item[] }
 // The sidebar's everyday pages, then its "More" group: a <details>, so it opens without the app too. Open on one of
 // its own pages, or when this device left it open (html.cs-nav-more, set in index.html from cs-nav-more).
 const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
-const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }, { to: "/how-it-works/search", label: "FTC One Search" }];
+const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Download" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
 const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 
@@ -157,8 +159,11 @@ const active = (path: string, it: Item) => {
   const p = path.toLowerCase();
   return p === it.to || (!it.end && p.startsWith(`${it.to}/`));
 };
-const link = (path: string, it: Item) =>
-  `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
+const within = (path: string, it: Item) => (it.children ?? [it]).some((k) => active(path, k));
+const link = (path: string, it: Item): string => it.children
+  // The same fold the app draws (Shell ParentRow): open on one of its pages.
+  ? `<details class="csb-more csb-sub"${within(path, it) ? " open" : ""}><summary><i class="csb-ico"></i><span>${esc(it.label)}</span></summary><div>${it.children.map((k) => link(path, k)).join("")}</div></details>`
+  : `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
 
 /** The static first paint for a page path (see the top of this file). `path` is the request path; `hero`: the
  *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default; `lite`: the page's
@@ -167,7 +172,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
-    + `<details class="csb-more"${MORE.some((it) => active(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
+    + `<details class="csb-more"${MORE.some((it) => within(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
     + `<script>if(document.documentElement.classList.contains('cs-nav-more'))document.querySelector('.csb-more').open=true</script>`;
   // Home's headline for this hour; the app reads data-line and keeps it, so its copy matches this paint. Every
   // line sits invisibly in the same cell (as in the app), so the hero is the app's height from the first frame.
