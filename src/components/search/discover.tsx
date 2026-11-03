@@ -1,12 +1,25 @@
 // FTC One Search, teaching what the box can do (docs/search.md, "Discoverability"): example chips that run their
 // query (for empty states; SearchBox lists the same examples as options), and this device's recent searches. Every example is a real query search answers
-// today. Home's hero block has its own rotating examples and chips (src/components/home/HeroSearch.tsx).
+// today.
 import { useSyncExternalStore } from "react";
 import { cn } from "../cn";
 
-/** Real, runnable examples across different kinds of question. Only queries search answers now (checked against the
- *  live answer API before each is added): a set of events, a versus, a question, a prediction, a record. */
-export const SEARCH_EXAMPLES: readonly string[] = ["meets in New Jersey", "4215 vs 6980", "when did 4215 go to worlds", "will 4215 win their next match", "4215 record"];
+/** What kind of search an example shows: the set has one of each (src/components/search/discover.test.ts). */
+export type SearchExampleKind = "place" | "versus" | "question" | "record" | "leaderboard" | "upcoming";
+
+/** Real, runnable examples, one of each kind, checked against the live answer API before each was added: each gives
+ *  a real result, not a "none found". No team appears twice, and some name no team at all, so the set shows the range
+ *  of what search answers rather than one team's page. ("top teams in NJ", "highest OPR" and a next-match prediction
+ *  wait until search answers them with results.) In sentence case: the text shown is the query that runs. */
+export const SEARCH_EXAMPLE_SET: readonly { q: string; kind: SearchExampleKind }[] = [
+  { q: "Meets in New Jersey", kind: "place" },
+  { q: "6980 vs 16461", kind: "versus" },
+  { q: "When did 7149 go to Worlds", kind: "question" },
+  { q: "18061 record", kind: "record" },
+  { q: "Highest score this season", kind: "leaderboard" },
+  { q: "Upcoming meets in Texas", kind: "upcoming" },
+];
+export const SEARCH_EXAMPLES: readonly string[] = SEARCH_EXAMPLE_SET.map((e) => e.q);
 
 /** Example queries as chips: tapping one runs it. The press keeps focus where it is (a chip inside the search
  *  dropdown mustn't close it before the tap lands). */
