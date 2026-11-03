@@ -11,7 +11,7 @@ export type IntentId =
   | "highest-score" | "lowest-score" | "biggest-win" | "biggest-loss" | "closest-match" | "first-match" | "recent-match"
   | "best-finish" | "worst-finish" | "first-event" | "last-event" | "best-opr-event" | "best-season" | "most-improved-season" | "first-season"
   // Family 4: a count, a mean, a record or a streak over a filtered set.
-  | "wins-count" | "record" | "average-score" | "total-matches" | "total-events" | "seasons-played" | "seasons-count"
+  | "wins-count" | "record" | "average-score" | "average-margin" | "total-points" | "total-matches" | "total-events" | "seasons-played" | "seasons-count"
   | "current-streak" | "longest-streak" | "last-matches" | "average-rank" | "playoff-appearances"
   | "blowout-wins" | "losses" | "playoff-matches" | "qual-matches" | "red-blue-record"
   // Family 5: at one event (its matches, rank and OPR there).
@@ -89,6 +89,8 @@ const RULES: IntentRule[] = [
   { id: "playoff-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:playoffs?|elimination|elims?)\\s+${MATCHES}\\b`) },
   { id: "qual-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:qualification|qualifying|quals?)\\s+${MATCHES}\\b`) },
   { id: "average-rank", family: "aggregate", season: "all", re: /\b(?:average|avg|mean)\s+(?:event\s+)?(?:rank(?:ing)?|placement|finish|place)\b/ },
+  { id: "average-margin", family: "aggregate", season: "latest", re: /\b(?:average|avg|mean|typical)\s+(?:winning\s+|match\s+)?(?:margin|point\s+differential|differential|point\s+diff)\b|\bmargin\s+(?:of\s+victory\s+)?(?:on\s+)?average\b/ },
+  { id: "total-points", family: "aggregate", season: "latest", re: /\btotal\s+(?:points|score)(?:\s+scored)?\b|\b(?:points|score)\s+total\b|\ball\s+the\s+points\b|\bhow\s+many\s+points\s+(?:has|have|did)\s+(?<team>.+?)\s+score[ds]?\b/ },
   { id: "average-score", family: "aggregate", season: "latest", re: /\b(?:average|avg|mean)\s+(?:match\s+|alliance\s+)?(?:scores?|points)\b/ },
   { id: "best-finish", family: "superlative", season: "all", re: /\b(?:best|highest|top)\s+(?:event\s+)?(?:finish|placement|ranking|rank|place)\b/ },
   { id: "worst-finish", family: "superlative", season: "all", re: /\b(?:worst|lowest)\s+(?:event\s+)?(?:finish|placement|ranking|rank|place)\b/ },
