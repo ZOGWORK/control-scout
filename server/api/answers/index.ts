@@ -8,6 +8,7 @@
 import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
+import { CURRENT_SEASON } from "../../data/seasons.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
@@ -224,7 +225,7 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   const championship = !it.scope.states && (it.scope.championship || !it.core);
   // As the asks' "who won" reads them: a bare year is when the event was held ("who won 2025 nj states": 2024–25),
   // "last year" the latest finished championship.
-  const asked = it.scope.lastYear ? null : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
+  const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? CURRENT_SEASON : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
   const named = championship ? null : await namedEvent(it, asked);
   if (!championship && !named) return null;
   const stat = opts.full ? await winnersAnswer(it.core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
