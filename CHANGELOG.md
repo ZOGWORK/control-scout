@@ -25,7 +25,7 @@ FTC One Search keeps a venue's meets to that venue, and "who won" leaves the Lea
 
 ### Search
 - **A venue stays in its own state.** A spelling a letter or two off now counts only in a state where the venue is found as typed. New Jersey's "River Dale High School" is still River Dell's meet, and Riverdale High School in Port Byron, Illinois, is no longer listed.
-- **Who won.** FIRST stores the Leadership Award at the 2025–26 Championship as a "Winner" row. "Who won" now leaves it out, so the card lists only the winning alliance and the Inspire Award.
+- **Who won.** FIRST stores the Leadership Award at the 2025–26 Championship as a "Winner" row. "Who won" now leaves it out, so the card lists only the winning alliance and the Inspire Award. (#466)
 
 ## 2.5.7 — 2026-11-03
 
