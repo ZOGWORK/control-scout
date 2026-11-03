@@ -567,7 +567,7 @@ export async function monthAnswer(q: string, now?: number): Promise<SearchAnswer
   const none = `No events on record in ${titleCase(m[2])} ${year}`;
   return {
     q, hits: [], pages: a.pages, step: "recovery", weak: true, understood: { ...understood, label: `${label}: ${none.toLowerCase()}` },
-    recovery: { understood: [label, none], closest: a.hits.filter((h) => h.kind === "event").slice(0, 10), browse: SEARCH_BROWSE },
+    recovery: { understood: [label, none], closest: (a.hits.some((h) => h.kind === "event") ? a.hits.filter((h) => h.kind === "event") : a.recovery?.closest ?? []).slice(0, 10), browse: a.recovery?.browse ?? SEARCH_BROWSE },
   };
 }
 

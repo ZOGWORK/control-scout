@@ -118,5 +118,7 @@ describe("Greptile on #465", () => {
     const feb = await ask("events in february 2026");
     expect(feb.step).toBe("recovery");
     expect(feb.understood?.label).toMatch(/no events on record in february 2026$/i);
+    // A year with no events at all: other years' events are still offered.
+    expect((await ask("events in march 2031")).recovery?.closest?.length).toBeGreaterThan(0);
   });
 });
