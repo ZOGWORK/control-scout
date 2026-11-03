@@ -77,6 +77,13 @@ export function legacyScoutUrl(sp: URLSearchParams): URLSearchParams | null {
   return out;
 }
 
+/** The pick helper's event-specific choices (its event, planned partners, teams marked taken): dropped when
+ *  the event or season changes, so one event's picks never follow onto another. Your team and the alliance
+ *  size stay. */
+export function clearPicks(sp: URLSearchParams): void {
+  for (const k of ["pevent", "pwith", "ptaken", "pposted"]) sp.delete(k);
+}
+
 /** A link to the shared pick list (lite's "Full version", the bundle page). */
 export function picklistQuery(space: string | null, season: string | null): URLSearchParams {
   const q = new URLSearchParams();

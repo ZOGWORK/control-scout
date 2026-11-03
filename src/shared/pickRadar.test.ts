@@ -1,6 +1,7 @@
 // The pick helper's math: radar area, the per-event scale, normalization (fouls inverted after summing) and the
 // order of suggestions (area first: a gap-filler beats a higher-rated team strong where you're already strong).
 import { describe, expect, it } from "vitest";
+import { clearPicks } from "./scoutSections";
 import { allianceOf, alliancePicked, allianceTotals, coverage, fullArea, normalizeTotals, pickScale, radarArea, suggestPartners, type PickTeam } from "./pickRadar";
 
 const team = (n: number, auto: number, teleop: number, endgame: number, fouls: number): PickTeam => ({ team: n, name: null, rank: null, auto, teleop, endgame, fouls, matches: 10 });
@@ -64,6 +65,14 @@ describe("suggestPartners", () => {
     const three = suggestPartners({ teams, members: [10, 30], size: 3 });
     expect(three.suggestions.length).toBe(3);
     expect(three.current.members).toEqual([10, 30]);
+  });
+});
+
+describe("clearPicks", () => {
+  it("drops one event's pick choices and keeps your team and the size", () => {
+    const sp = new URLSearchParams("tab=picks&pevent=AUCMP&pwith=1&ptaken=2,3&pposted=0&pteam=10&psize=3&season=2025");
+    clearPicks(sp);
+    expect(sp.toString()).toBe("tab=picks&pteam=10&psize=3&season=2025");
   });
 });
 

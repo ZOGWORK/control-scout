@@ -55,7 +55,7 @@ import { EventBar } from "../components/scout/eventday/EventBar";
 import { EventChooser } from "../components/scout/eventday/EventChooser";
 import { EventDay, MatchQueue } from "../components/scout/eventday/EventDay";
 import { useScoutEvent } from "../lib/scoutEvent";
-import { isPlanningView, legacyScoutUrl, PERSONAL_SECTIONS, SCOUT_SECTIONS, sectionFromUrl, type PlanningView, type ScoutSection } from "../shared/scoutSections";
+import { clearPicks, isPlanningView, legacyScoutUrl, PERSONAL_SECTIONS, SCOUT_SECTIONS, sectionFromUrl, type PlanningView, type ScoutSection } from "../shared/scoutSections";
 import { matchQueueProgress } from "../shared/scoutProgress";
 import { workspaceExportUrl } from "../shared/scoutExport";
 import { useScoutSession } from "../lib/scoutSession";
@@ -266,8 +266,9 @@ export default function ScoutPage() {
     if (leavingPit && !window.confirm(`Leave the pit entry for ${pitTeam}? What you've typed in it isn't saved.`)) return;
     scoutSession.set(code, (changed ? mineAt(code.toUpperCase()) : null) ?? session?.watching ?? DEFAULT_WATCHING);
     // A typed-in match waiting for its event (Pick the event) goes on where it was, now at this event.
-    // Chosen from the pick helper: back to it, at this event.
-    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? (section === "picks" ? "picks" : "event")); if (section === "picks") x.delete("pevent"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
+    // Chosen from the pick helper: back to it, at this event. Any event a pick helper link named, and the picks
+    // planned there, give way to the event chosen.
+    setSp((x) => { x.delete("pick"); x.set("tab", manual?.from ?? (section === "picks" ? "picks" : "event")); if (changed || (x.get("pevent") ?? code.toUpperCase()) !== code.toUpperCase()) clearPicks(x); else x.delete("pevent"); x.delete("view"); if (changed) x.delete("at"); if (leavingPit) x.delete("pit"); return x; });
   };
   // Another season in the picker: Scout's session and entry forms are per season, so an entry being filled in (a
   // pit entry, a typed-in match or an opened entry) would lose its answers. Ask first, then close it. A team still
@@ -277,7 +278,7 @@ export default function ScoutPage() {
     const draft = pitOpen ? `the pit entry for ${pitTeam}` : manual ? "the match you're typing in" : editing ? "the entry you have open" : null;
     if (draft && !window.confirm(`Leave ${draft}? What you've typed in it isn't saved.`)) return;
     if (manual) setManual(null);
-    setSp((x) => { x.set("season", String(y)); if (pitOpen) x.delete("pit"); x.delete("entry"); return x; });
+    setSp((x) => { x.set("season", String(y)); if (pitOpen) x.delete("pit"); x.delete("entry"); clearPicks(x); return x; });
   };
   // Stop scouting: this device leaves the event (entries stay, saved or queued). An open pit entry or typed-in
   // match on Event day asks first, as Change event does; one typed in from Entries stays open, kept at this event

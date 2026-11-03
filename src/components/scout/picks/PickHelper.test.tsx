@@ -65,6 +65,26 @@ describe("PickHelper", () => {
     const names = screen.getAllByRole("button", { name: /Mark \d+ taken/ }).map((b) => b.getAttribute("aria-label"));
     expect(names).toEqual(["Mark 30 taken", "Mark 40 taken"]);
   });
+  it("a posted partner with no rating is named, not counted as zero", async () => {
+    body = { ...base, alliances: [{ number: 1, captain: 10, pick1: 99, pick2: null }], sizeFrom: "alliances" };
+    show();
+    expect((await screen.findByRole("note")).textContent).toBe("99 has no rating yet, so the chart counts only 10.");
+  });
+  it("asks again for the posted alliances every minute while open, and on Refresh", async () => {
+    body = base;
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      show();
+      await screen.findByText("Your alliance");
+      const calls = () => (fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.length;
+      const before = calls();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(calls()).toBeGreaterThan(before);
+      const after = calls();
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+      await vi.waitFor(() => expect(calls()).toBeGreaterThan(after));
+    } finally { vi.useRealTimers(); }
+  });
   it("asks for a team, and for an event", async () => {
     body = base;
     show("/scout?tab=picks", null);

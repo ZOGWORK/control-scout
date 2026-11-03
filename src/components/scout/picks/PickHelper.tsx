@@ -3,9 +3,9 @@
 // partners whose alliance covers the most of it, each with its radar over yours and what it adds. Ratings
 // are the engine's, as stored by the stats job (GET /api/events/:season/:code/pick-ratings); the radar math
 // runs here. Choices live in the URL (?pteam, ?pwith, ?ptaken, ?psize), so a link opens the same view.
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { CalendarSearch, Check, Plus, Radar, Undo2, X } from "lucide-react";
+import { CalendarSearch, Check, Plus, Radar, RefreshCw, Undo2, X } from "lucide-react";
 import { useApi } from "../../../lib/api";
 import { EmptyState } from "../../page";
 import { LoadingBlock } from "../../states";
@@ -33,6 +33,15 @@ export function PickHelper({ season, eventCode, myTeam, onPickEvent }: {
 }) {
   const [sp, setSp] = useSearchParams();
   const data = useApi<PickRatings>(eventCode ? `/api/events/${season}/${encodeURIComponent(eventCode)}/pick-ratings` : null);
+  // Alliance selection posts while the page is open: asked again every minute while it's on screen (the server
+  // keeps the answer per data version, so a repeat is cheap), and on Refresh.
+  const reload = useRef(data.reload);
+  reload.current = data.reload;
+  useEffect(() => {
+    if (!eventCode) return;
+    const t = setInterval(() => { if (document.visibilityState === "visible") void reload.current(); }, REFRESH_MS);
+    return () => clearInterval(t);
+  }, [eventCode]);
   if (!eventCode) {
     return <EmptyState icon={CalendarSearch} title="Choose an event first" description="The pick helper works from the teams at one event."
       action={onPickEvent && <Button variant="outline" onClick={onPickEvent}>Choose event</Button>} />;
@@ -46,14 +55,18 @@ export function PickHelper({ season, eventCode, myTeam, onPickEvent }: {
     );
   }
   if (!data.data) return <LoadingBlock rows={3} label="Loading ratings" />;
-  return <PickBoard d={data.data} myTeam={myTeam} sp={sp} setSp={setSp} />;
+  return <PickBoard d={data.data} myTeam={myTeam} sp={sp} setSp={setSp} onRefresh={() => void data.reload()} />;
 }
 
-function PickBoard({ d, myTeam, sp, setSp }: {
+/** How often an open pick helper asks for the posted alliances again. */
+export const REFRESH_MS = 60_000;
+
+function PickBoard({ d, myTeam, sp, setSp, onRefresh }: {
   d: PickRatings;
   myTeam: number | null;
   sp: URLSearchParams;
   setSp: ReturnType<typeof useSearchParams>[1];
+  onRefresh: () => void;
 }) {
   const by = useMemo(() => new Map(d.teams.map((t) => [t.team, t])), [d.teams]);
   const asked = Number(sp.get("pteam"));
@@ -68,6 +81,8 @@ function PickBoard({ d, myTeam, sp, setSp }: {
   // Partners you added (not posted yet): only teams still free.
   const added = posted ? [] : list(sp.get("pwith")).filter((t) => by.has(t) && t !== me && !picked.has(t)).slice(0, size - 1);
   const members = me == null ? [] : posted ?? [me, ...added];
+  // A posted partner with no rating yet can't go on the chart: said so, never counted as zero.
+  const unratedHere = members.filter((t) => !by.has(t));
   const set = (k: string, v: string | null) => setSp((x) => { if (v) x.set(k, v); else x.delete(k); return x; }, { replace: true });
   // A few dozen areas at most: cheap enough to work out on every render.
   const view = me == null ? null : suggestPartners({ teams: d.teams, members, unavailable: [...picked, ...taken], size });
@@ -98,6 +113,7 @@ function PickBoard({ d, myTeam, sp, setSp }: {
             Use the {d.alliances.length} posted alliances
           </label>
         ) : <span className="text-xs text-muted-foreground">No alliances posted at {d.name} yet</span>}
+        <Button size="sm" variant="ghost" className="text-muted-foreground max-sm:h-10" onClick={onRefresh}><RefreshCw /> Refresh</Button>
       </div>
 
       {me == null || !view ? (
@@ -120,6 +136,9 @@ function PickBoard({ d, myTeam, sp, setSp }: {
             </div>
             <PickRadar current={view.current.axes} label={`Your alliance: ${axesWords(view.current.axes)}`} className="mx-auto w-full max-w-[17rem]" />
             <p className="text-center text-sm"><span className="font-semibold tabular-nums">{pct(view.current.share)}</span> <span className="text-muted-foreground">of the chart covered</span></p>
+            {unratedHere.length > 0 && (
+              <p role="note" className="text-center text-xs text-warning-text">{unratedHere.join(", ")} {unratedHere.length > 1 ? "have" : "has"} no rating yet, so the chart counts only {members.filter((t) => by.has(t)).join(", ")}.</p>
+            )}
           </Card>
           {view.suggestions.map((s, i) => (
             <SuggestionCard key={s.team.team} s={s} place={i + 1} current={view.current.share} currentAxes={view.current.axes} me={me}
