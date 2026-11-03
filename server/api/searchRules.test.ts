@@ -132,3 +132,12 @@ describe("Greptile on #437, round 4", () => {
     for (const q of ["rule G-421", "rule g 421", "G-421", "g421"]) expect(readRuleQuery(q), q).toMatchObject({ id: "G421" });
   });
 });
+
+describe("a short keyword is a whole word (live check of #437)", () => {
+  it("'pinning' finds the pinning rule, never one about pinch points", async () => {
+    await setFlag("rulesReference", true, "test"); invalidateFlags();
+    const a = await searchAnswer("penalty for pinning");
+    expect(a.card?.lines.map((l) => l.text.split(" · ")[0])).toContain("G421");
+    expect(a.card?.lines.map((l) => l.text.split(" · ")[0])).not.toContain("R603");
+  });
+});

@@ -28,6 +28,7 @@ FTC One Search reads a misspelled place, and "states" as a state's championship,
 - **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name ("new jesey", "pensylvania", "meets in new jersy") is read as that place. The line above the results says so: "Championships in New Jersey (from "new jesey")". It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
 - **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
 - **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
+- **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
 
 ## 2.4.2 — 2026-11-03
 
