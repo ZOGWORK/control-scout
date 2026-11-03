@@ -20,12 +20,13 @@ function useScrolled(px = 24) {
 }
 
 export function PhoneSearchBar({ query }: { query: string }) {
-  const { open } = useSearch();
+  // While the top bar's field is open it drops in right over this bar: hidden then (its place kept), or both show.
+  const { open, expanded } = useSearch();
   const nav = useNavigate();
   const small = useScrolled();
   return (
-    <div data-phone-search={small ? "compact" : "full"}
-      className={cn("sticky top-(--header-h) z-20 -mx-4 -mt-4 mb-3 border-b bg-primary px-4 sm:-mx-6 sm:px-6 transition-[padding,border-color] duration-150 md:hidden", small ? "border-line py-1.5" : "border-transparent py-2")}>
+    <div data-phone-search={small ? "compact" : "full"} aria-hidden={expanded || undefined}
+      className={cn("sticky top-(--header-h) z-20 -mx-4 -mt-4 mb-3 border-b bg-primary px-4 sm:-mx-6 sm:px-6 transition-[padding,border-color] duration-150 md:hidden", small ? "border-line py-1.5" : "border-transparent py-2", expanded && "invisible")}>
       <div className={cn("flex items-center rounded-xl border border-border bg-card transition-[height] duration-150", small ? "h-11" : "h-12")}>
         <button type="button" onClick={open} className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-l-xl pl-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={query ? `Search: ${query}. Change the search` : "Search teams, events and matches"}>
           <Search className="size-4 shrink-0 text-accent" aria-hidden />
