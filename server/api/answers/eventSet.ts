@@ -9,7 +9,8 @@ import { shortEvent } from "./matchSet.js";
 export interface TeamEvent {
   season: number; code: string; name: string; type: string | null; start: string | null; end: string | null;
   city: string | null; state: string | null; country: string | null; division: string | null;
-  /** Qualification rank there, and how many teams were ranked. */
+  /** Qualification rank there, and how many teams were ranked (none for a league meet: its stored rank is the league's
+   *  standing). */
   rank: number | null; of: number | null;
   /** The team's OPR at the event, without penalties (as on its pages), and its phases. */
   opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;
@@ -61,7 +62,8 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
     events: evs.map((r) => ({
       season: Number(r.season), code: r.code, name: shortEvent(r.name, r.type ?? null), type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
       city: r.city ?? null, state: r.state ?? null, country: r.country ?? null, division: r.division_code ?? null,
-      rank: num(r.rank), of: Number(r.ranked) || null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
+      // A league meet's stored rank is the league's running standing, not the team's finish there: left out.
+      rank: r.type === "LeagueMeet" ? null : num(r.rank), of: r.type === "LeagueMeet" ? null : Number(r.ranked) || null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
       matches: Number(r.matches) || 0,
     })),
     seasons: ss.map((r) => ({

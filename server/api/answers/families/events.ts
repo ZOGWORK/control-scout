@@ -43,7 +43,9 @@ function seasonRows(ss: TeamSeason[], title: string, strong?: TeamSeason): StatB
 /** The answer for an event or season intent, or null when `id` isn't one. */
 export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope): StatAnswer | null {
   const keep = eventInScope(scope);
-  const evs = set.events.filter(keep);
+  // Events the team has played at or that have begun: a published roster for a coming event is never its latest.
+  const today = new Date().toISOString().slice(0, 10);
+  const evs = set.events.filter((e) => keep(e) && (e.matches > 0 || (e.start != null && e.start.slice(0, 10) <= today)));
   const ss = set.seasons.filter((s) => (scope.season == null || s.season === scope.season) && s.matches > 0);
   const who = whoOf(team), where = scopePhrase(scope);
   const evSource = evs.length ? `From ${evs.length} event record${evs.length === 1 ? "" : "s"}, ${seasonLabel(evs[0].season)}${evs[0].season !== evs[evs.length - 1].season ? ` to ${seasonLabel(evs[evs.length - 1].season)}` : ""}` : "No events in this scope";
