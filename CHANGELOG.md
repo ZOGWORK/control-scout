@@ -21,11 +21,11 @@ FTC One Search: the example searches show the range of what you can ask, across 
 
 ### Highlights
 - [home] Example searches use different teams, and some use none at all
-- [home] New examples: "highest score this season", "upcoming meets in Texas"
+- [home] New examples: "Highest score this season", "Upcoming meets in Texas"
 - [home] Every example was checked to return real results
 
 ### Search
-- **Example searches.** The examples in the empty search box and on the results page's empty state no longer repeat one team. Each is a different kind of search with a different team, or none: "meets in New Jersey", "11115 vs 16461", "when did 7149 go to worlds", "18061 record", "highest score this season" and "upcoming meets in Texas". Every one was checked against live search and returns real results. (#441)
+- **Example searches.** The examples in the empty search box no longer repeat one team. Each is a different kind of search with a different team, or none, written as a sentence: "Meets in New Jersey", "11115 vs 16461", "When did 7149 go to Worlds", "18061 record", "Highest score this season" and "Upcoming meets in Texas". Every one was checked against live search and returns real results. (#441)
 
 ## 2.3.6 — 2026-11-02
 

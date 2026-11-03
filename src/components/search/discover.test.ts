@@ -10,6 +10,9 @@ describe("example searches", () => {
   it("some name no team at all", () => {
     expect(SEARCH_EXAMPLES.filter((q) => !/\b\d{3,5}\b/.test(q)).length).toBeGreaterThanOrEqual(2);
   });
+  it("sentence case: each starts with a capital or a number", () => {
+    for (const q of SEARCH_EXAMPLES) expect(q).toMatch(/^[A-Z0-9]/);
+  });
   it("one of each kind, and every query once", () => {
     expect(new Set(SEARCH_EXAMPLE_SET.map((e) => e.kind)).size).toBe(SEARCH_EXAMPLE_SET.length);
     expect(new Set(SEARCH_EXAMPLES).size).toBe(SEARCH_EXAMPLES.length);

@@ -10,14 +10,14 @@ export type SearchExampleKind = "place" | "versus" | "question" | "record" | "le
 /** Real, runnable examples, one of each kind, checked against the live answer API before each was added: each gives
  *  a real result, not a "none found". No team appears twice, and some name no team at all, so the set shows the range
  *  of what search answers rather than one team's page. ("top teams in NJ", "highest OPR" and a next-match prediction
- *  wait until search answers them with results.) */
+ *  wait until search answers them with results.) In sentence case: the text shown is the query that runs. */
 export const SEARCH_EXAMPLE_SET: readonly { q: string; kind: SearchExampleKind }[] = [
-  { q: "meets in New Jersey", kind: "place" },
+  { q: "Meets in New Jersey", kind: "place" },
   { q: "11115 vs 16461", kind: "versus" },
-  { q: "when did 7149 go to worlds", kind: "question" },
+  { q: "When did 7149 go to Worlds", kind: "question" },
   { q: "18061 record", kind: "record" },
-  { q: "highest score this season", kind: "leaderboard" },
-  { q: "upcoming meets in Texas", kind: "upcoming" },
+  { q: "Highest score this season", kind: "leaderboard" },
+  { q: "Upcoming meets in Texas", kind: "upcoming" },
 ];
 export const SEARCH_EXAMPLES: readonly string[] = SEARCH_EXAMPLE_SET.map((e) => e.q);
 
