@@ -83,7 +83,10 @@ async function findEvent(words: string, season: number | null) {
   const top = hits[0];
   if (!top) return null;
   const [s, code] = top.ref.split(":");
-  return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [Number(s), code])) ?? null;
+  // No season named: the newest season of that event with a played playoff (an event not held yet has no winners).
+  const played = season != null ? null : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
+  const at = played?.s != null ? Number(played.s) : Number(s);
+  return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [at, code])) ?? null;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */

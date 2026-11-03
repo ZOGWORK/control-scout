@@ -120,7 +120,7 @@ export interface StatQuestion {
 const WORLDS = /\b(?:(?:at|in|during|from)\s+)?(?:the\s+)?(?:worlds?|world\s+champ(?:ionships?|s)?|first\s+champ(?:ionships?|s)?|houston\s+champ(?:ionships?|s)?|championship\s+divisions?)\b/;
 const STATES = /\b(?:(?:at|in|during)\s+)?(?:the\s+)?(?:states|state\s+champ(?:ionships?|s)?|state\s+finals?)\b/;
 // The question's own words: never part of a team's name here.
-const FRAME = /\b(?:how|many|much|what|whats|which|who|when|where|is|was|were|are|has|have|had|did|does|do|the|a|an|of|in|at|on|for|by|to|team|teams|their|its|his|her|ever|all|time|career|so|far|total|number|score|scored|scores|points|match|matches|game|games|event|events|played|play|won|win|wins|been|show|me|tell|list|get|give|stats?|statistics)\b/g;
+const FRAME = /\b(?:how|many|much|what|whats|which|who|when|where|is|was|were|are|has|have|had|did|does|do|the|a|an|of|in|at|on|for|by|to|team|teams|their|its|his|her|ever|all|time|career|so|far|total|number|score|scored|scores|points|match|matches|game|games|event|events|played|play|won|win|wins|been|show|me|tell|list|get|give|stats?|statistics|count)\b/g;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** Answered from season rows: no event, match-type or colour scope applies to a season's numbers. */
@@ -155,7 +155,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
   else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:qualifications?|quals?|qualifying)\b/)) scope.level = "qual";
   const at = /\bat\s+(.+)$/.exec(rest);
-  if (at && at[1].trim()) scope.at = at[1].trim();
+  if (at && at[1].trim()) { scope.at = at[1].trim(); rest = rest.slice(0, at.index); }
   return { scope, rest: squash(rest) };
 }
 
@@ -182,8 +182,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     const leadEvent = r.id === "highest-score" && /\b(?:which|what)\s+(?:event|competition|tournament|meet)\b/.test(q);
     // A team's best scores in one season ("4215 high score", "hypnotic best score in decode") are the season records'
     // own answer (searchHighScores.ts, the same rule): taken here only with what that answer doesn't cover (Worlds,
-    // states, every season, which event, playoffs or quals, a colour).
-    if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance)) return null;
+    // states, every season, which event, playoffs or quals, a colour, one event).
+    if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance || scope.at)) return null;
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : null;
     const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null) : null;
     const count = /\b(?:count|how\s+many|number\s+of|total)\b/.test(q);

@@ -1,8 +1,9 @@
 // An event's (or a season's championship's) winning alliance, from the published awards and the final playoff series:
 //   "ftc decode winning alliance"          → the DECODE FIRST Championship: each division's winners, then the finals'
 //   "New Jersey Championship winning alliance" → that event (its newest season unless one is named), and its divisions'
-// The winning alliance is the event's Winning Alliance award (FIRST's own list of its teams); the final match scores
-// are the playoff matches of the event's last series (its finals). Not played yet: said so, never a guess. Also the
+// The winning alliance is the alliance that won the event's final match (its roster from alliance selection), else its
+// Winning Alliance award; the final match scores are the event's last playoff series. Not played yet: said so, never a
+// guess. (FIRST's 2025–26 Worlds finals award lists 13 teams, every division winner, so the final match decides.) Also the
 // Worlds follow-ups every Worlds answer ends with: the season's championship events as buttons, from the data, and the
 // related Worlds questions.
 import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared/searchStat.js";
@@ -12,7 +13,7 @@ import { SEASONS } from "../../../data/seasons.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
-const RULE = "The winning alliance is the event's Winning Alliance award, as FIRST publishes it. The final matches are the event's last playoff series (its finals). A championship with divisions crowns a winning alliance in each division; the finals between the division winners crown the champion.";
+const RULE = "The winning alliance is the alliance that won the event's final match (the last match of its last playoff series), with its whole roster from alliance selection; when no final match is stored, the event's published Winning Alliance award. A championship with divisions crowns a winning alliance in each division; the finals between the division winners crown the champion.";
 
 interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null; division: string | null }
 
@@ -25,18 +26,30 @@ async function latestChampionship(): Promise<number | null> {
   return s == null ? null : Number(s);
 }
 
-/** One event's winners, with its final matches (the last playoff series), as a table and match rows. */
-async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[] } | null> {
-  const ws = await all<{ team: number }>("SELECT team FROM awards WHERE season = ? AND code = ? AND type = 'Winner' ORDER BY placement", [e.season, e.code]);
-  if (!ws.length) return null;
-  const teams = ws.map((w) => Number(w.team));
+/** One event's winners, with its final matches: the alliance that won the last match of the event's last playoff
+ *  series (its finals), its whole roster from alliance selection; with no final match stored, the Winning Alliance
+ *  award. Null when neither is in the data (not played yet). */
+async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[]; from: "finals" | "award" } | null> {
   const last = await get<{ s: number | null }>("SELECT MAX(series) s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
   const ms = last?.s == null ? [] : await all<any>(
-    `SELECT m.level, m.series, m.number, m.label, m.time, m.red_total, m.blue_total, m.red_np, m.blue_np,
-            (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'red' AND x.on_field = 1) red,
-            (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'blue' AND x.on_field = 1) blue
+    `SELECT m.level, m.series, m.number, m.label, m.time, m.red_total, m.blue_total,
+            (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'red') red,
+            (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'blue') blue
      FROM matches m WHERE m.season = ? AND m.code = ? AND m.level = 'playoff' AND m.series = ? AND m.played = 1 ORDER BY m.number`, [e.season, e.code, last.s]);
   const nums = (s: string | null) => String(s ?? "").split(",").filter(Boolean).map(Number);
+  let teams: number[] = [], from: "finals" | "award" = "finals";
+  const decider = ms[ms.length - 1];
+  if (decider && Number(decider.red_total) !== Number(decider.blue_total)) {
+    const won = nums(Number(decider.red_total) > Number(decider.blue_total) ? decider.red : decider.blue);
+    // The alliance's whole roster (a team sitting the final out is still on it).
+    const roster = await all<any>("SELECT captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ?", [e.season, e.code]);
+    const mine = roster.map((a) => [a.captain, a.pick1, a.pick2, a.backup].filter((t) => t != null).map(Number)).find((ts) => won.some((t) => ts.includes(t)));
+    teams = mine ?? won;
+  } else {
+    from = "award";
+    teams = [...new Set((await all<{ team: number }>("SELECT team FROM awards WHERE season = ? AND code = ? AND type = 'Winner' ORDER BY placement", [e.season, e.code])).map((w) => Number(w.team)))];
+  }
+  if (!teams.length) return null;
   const links = await teamLinks([...teams, ...ms.flatMap((m) => [...nums(m.red), ...nums(m.blue)])]);
   const finals = ms.map((m): StatMatchRow => {
     // Shown from the winners' side: their colour, their score first.
@@ -51,7 +64,7 @@ async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow
       partners: (side === "red" ? red : blue).map(link), opponents: (side === "red" ? blue : red).map(link),
     };
   });
-  return { teams, finals };
+  return { teams, finals, from };
 }
 
 /** The winning-alliance answer for a season's championship (`core` empty) or a named event. Null when nothing names one. */
@@ -85,7 +98,7 @@ export async function winnersAnswer(core: string, season: number | null, champio
     rows.push({ cells: { division: shortEvent(d.name, d.type), alliance: w ? w.teams.map((t) => dl.get(t)?.label ?? String(t)).join(", ") : "Not decided in the data yet", final: w?.finals.map((f) => `${f.label} ${f.own}–${f.opp}`).join(", ") || "–" }, href: eventHref(d.season, d.code) });
   }
   if (rows.length) blocks.push({ kind: "table", title: worlds ? "Each division's winning alliance" : "Each division's winning alliance", columns: [{ key: "division", label: "Division" }, { key: "alliance", label: "Winning alliance" }, { key: "final", label: "Finals" }], rows });
-  if (worlds) blocks.push(...(await worldsFollowUps(parent.season, null)));
+  if (worlds) blocks.push(...(await worldsFollowUps(parent.season, null)).filter((b) => b.kind !== "related"));
   const base = { family: "event" as const, intent: "winning-alliance", title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: RULE, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
   if (!decided) return { ...base, blocks, none: worlds ? `No championship results yet for ${gameOf(parent.season)}: no winning alliance is published.` : `No winning alliance is published for ${shortEvent(parent.name, parent.type)} yet.` };
   return {
@@ -107,7 +120,7 @@ export async function worldsFollowUps(season: number | null, team: { number: num
   const qs = team
     ? [`${team.number} worlds record`, `${team.number} highest score in worlds`, `how many matches has ${team.number} won at worlds`, `when did ${team.number} go to worlds`]
     : [];
-  if (s != null) qs.push(`${gameOf(s).toLowerCase()} winning alliance`);
+  if (s != null) qs.push(`${gameOf(s)} winning alliance`);
   out.push({ kind: "related", title: "You may also want to know", queries: qs });
   return out;
 }
