@@ -42,6 +42,7 @@ FTC One Search on a phone: the search stays at the top as you scroll, the number
 - **The search at the top.** On a phone the search page shows your search in a bar that stays under the top bar while you scroll, and slims down once you do. Tap it to change the search; tap × to clear it. The title reads "Results: …" without the big heading.
 - **Numbers first.** A summary's stats are one row of blocks you swipe sideways, three to a screen. A team's championship trips are a line of chips ("2022–23: #3"), every season shown, each jumping to that trip's card.
 - **AI analysis folded.** When Bruno AI answers, his writing is behind "Show AI Analysis" on a phone, so the results stay near the top. On a wider screen it shows as before.
+<<<<<<< HEAD
 - **Made for thumbs.** A whole team card is one tap target, with a VS Compare button that starts a comparison with that team. An event card's quick links are full-size buttons. Results and their order are unchanged.
 >>>>>>> 785e1fbd (Search page on a phone: sticky search bar with clear, Results header, stats strip, season chips, AI analysis folded, touch team cards with VS Compare (2.3.7))
 
@@ -2239,6 +2240,9 @@ FTC One Search: the example searches show the range of what you can ask, across 
 
 ### Search
 - **Example searches.** The examples in the empty search box no longer repeat one team. Each is a different kind of search with a different team, or none, written as a sentence: "Meets in New Jersey", "11115 vs 16461", "When did 7149 go to Worlds", "18061 record", "Highest score this season" and "Upcoming meets in Texas". Every one was checked against live search and returns real results. (#441)
+=======
+- **Made for thumbs.** A whole team card is one tap target, with a VS Compare button that starts a comparison with that team. An event card's quick links are full-size buttons. Results and their order are unchanged. (#442)
+>>>>>>> febce510 (Changelog: link #442)
 
 ## 2.3.6 — 2026-11-02
 
