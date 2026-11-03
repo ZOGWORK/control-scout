@@ -1,10 +1,10 @@
 // FTC One Search, teaching what the box can do (docs/search.md, "Discoverability"): example chips that run their
 // query (for empty states; SearchBox lists the same examples as options), and this device's recent searches. Every example is a real query search answers
-// today. Home's hero block rotates through the same examples (src/components/home/HeroSearch.tsx).
+// today.
 import { useSyncExternalStore } from "react";
 import { cn } from "../cn";
 
-/** What kind of search an example shows (Home's hero gives each its icon). */
+/** What kind of search an example shows: the set has one of each (src/components/search/discover.test.ts). */
 export type SearchExampleKind = "place" | "versus" | "question" | "record" | "leaderboard" | "upcoming";
 
 /** Real, runnable examples, one of each kind, checked against the live answer API before each was added: each gives
