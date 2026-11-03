@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.4 — 2026-11-03
+## 2.4.5 — 2026-11-03
 
 FTC One Search reads a misspelled place, and "states" as a state's championship, across every season.
 
@@ -29,6 +29,18 @@ FTC One Search reads a misspelled place, and "states" as a state's championship,
 - **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
 - **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
 - **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
+
+## 2.4.4 — 2026-11-03
+
+Home's search box says what it can do: type whatever you want.
+
+### Highlights
+- [home] FTC One Search on Home: a bigger, glowing box for any search
+- [home] Example searches cycle in the box, each marked with its kind
+- [home] Tap any example under the box to run it
+
+### Site
+- **FTC One Search on Home.** Home's search block is now the hero of its column: a taller field with a soft volt glow that brightens when you type, under "Type whatever you want" and the line "Search teams, events, matches, predictions, and records." The placeholder cycles through the search's own example searches every few seconds, the same list the empty search box offers. It holds still while the field has focus and never moves with reduced motion on, when the glow is static too. The examples are also chips under the box, one tap each to their results (and kept in your recent searches); on a phone they scroll sideways in one row. With the field empty and focused, the dropdown shows your recent searches. The placeholder is never searched for itself. The results dropdown stays the box's own width, so the globe beside it never moves. The rest of Home is unchanged. (#426)
 
 ## 2.4.3 — 2026-11-03
 
