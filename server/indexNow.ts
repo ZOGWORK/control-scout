@@ -17,6 +17,7 @@ import { env } from "./env.js";
 import { RELEASE } from "./release.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
+import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./indexable.js";
 
 export const DEFAULT_KEY = "8da88d7fa9ed782383e804ed035f755e";
 export const ENDPOINT = "https://api.indexnow.org/indexnow";
@@ -40,8 +41,9 @@ interface State { accepted: boolean; cursor: Cursor; weeks: string[]; tried: str
  *  fit is left for the next ping, from where this one stops: nothing is skipped. */
 export async function changedEvents(cursor: Cursor, budget: number): Promise<{ paths: string[]; cursor: Cursor; more: boolean }> {
   const BATCH = 2000;
-  const events = await all<{ t: string; season: number; code: string }>(
-    `SELECT detail_synced_at t, season, code FROM events WHERE detail_synced_at IS NOT NULL AND (detail_synced_at, season, code) > (?, ?, ?)
+  // Each with whether its page is one to index (server/indexable.ts, the sitemap's rule): only those are sent.
+  const events = await all<{ t: string; season: number; code: string; ok: number }>(
+    `SELECT detail_synced_at t, season, code, ${eventHasDataSql("events")} ok FROM events WHERE detail_synced_at IS NOT NULL AND (detail_synced_at, season, code) > (?, ?, ?)
      ORDER BY detail_synced_at, season, code LIMIT ${BATCH + 1}`, [cursor.t, cursor.season, cursor.code]);
   const batch = events.slice(0, BATCH);
   const teams = new Map<string, number[]>();
@@ -49,7 +51,7 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
     const last = batch[batch.length - 1];
     const rows = await all<{ season: number; code: string; team: number }>(
       `SELECT et.season, et.code, et.team FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-       WHERE e.detail_synced_at IS NOT NULL AND (e.detail_synced_at, e.season, e.code) > (?, ?, ?) AND (e.detail_synced_at, e.season, e.code) <= (?, ?, ?)`,
+       WHERE ${teamIndexableSql("et.team")} AND e.detail_synced_at IS NOT NULL AND (e.detail_synced_at, e.season, e.code) > (?, ?, ?) AND (e.detail_synced_at, e.season, e.code) <= (?, ?, ?)`,
       [cursor.t, cursor.season, cursor.code, last.t, last.season, last.code]);
     for (const r of rows) { const k = `${r.season}:${r.code}`; teams.set(k, [...(teams.get(k) ?? []), r.team]); }
   }
@@ -59,7 +61,7 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
   let i = 0;
   for (; i < batch.length; i++) {
     const e = batch[i];
-    const add = [`/events/${e.season}/${encodeURIComponent(e.code)}`, ...(teams.get(`${e.season}:${e.code}`) ?? []).map((t) => `/teams/${t}`)].filter((x) => !seen.has(x));
+    const add = [...(e.ok && isReachableEventCode(e.code) ? [`/events/${e.season}/${encodeURIComponent(e.code)}`] : []), ...(teams.get(`${e.season}:${e.code}`) ?? []).map((t) => `/teams/${t}`)].filter((x) => !seen.has(x));
     // An event and its teams go together; one bigger than a whole ping on its own still goes (cut to fit).
     if (paths.length + add.length > budget && paths.length) break;
     for (const x of add) seen.add(x);
