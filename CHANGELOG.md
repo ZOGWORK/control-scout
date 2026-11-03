@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.8.6 — 2026-11-03
+
+A team's name with a place ("robo rebels nj") now finds the teams by that name, and says so plainly when none is there.
+
+### Highlights
+- [teams] "Robo rebels nj" lists every Robo Rebels when none is in NJ
+- [teams] A name and a state find that state's team by that name
+- [fixes] No more "No matches found" for a real team name and a place
+
+### Search
+- **A name and a place.** A team's whole name followed by a place ("robo rebels nj", "bad wolf new jersey") lists the teams by that name in that place, or, when none is there, says "No team named Robo Rebels in New Jersey" and lists every team by the name. Every team sharing the name is checked against its stored state and country, accents and case folded as search reads names, never a capped list. (#504)
+
 ## 2.8.5 — 2026-11-03
 
 Predictions show more of their working. The track record adds margin error, every prediction says in one line what it learns from and what changes in playoffs, and a few numbers now come with the sum behind them. No prediction changed.
