@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.4.4 — 2026-11-03
+
+FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
+
+### Highlights
+- [home] New example search: "Top teams in NJ" opens New Jersey's leaderboard
+- [home] New example search: "Highest OPR" lists this season's top OPRs
+- [home] Examples cover places, comparisons, questions, records and leaderboards
+
+### Search
+- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. (#PR)
+
 ## 2.4.3 — 2026-11-03
 
 FTC One Search answers more questions: who's on top in a state, who leads a stat, who won an award, and what Predict says.
