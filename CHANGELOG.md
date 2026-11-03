@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.0 — 2026-11-03
+## 2.4.2 — 2026-11-03
 
 Compare: the season picker sits with the team controls.
 
@@ -26,6 +26,34 @@ Compare: the season picker sits with the team controls.
 ### Compare
 - **Season picker moved.** The season buttons (2026–27, 2025–26, 2024–25, 2023–24, Earlier) now sit directly below the Quick add row, lined up on the left with the team search, instead of at the top right beside the title. Top to bottom: the team search and count, Quick add, the season, then the note and the comparison. Phones stack the same order. The seasons on offer and what picking one does are unchanged.
 - **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice.
+
+## 2.4.1 — 2026-11-03
+
+FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
+
+### Highlights
+- [teams] "4215 vs 6980" is a Compare of its own, above the teams
+- [teams] A Compare names each team's number and place
+- [fixes] "Ultraviolet vs Hypnotic history": extra words keep the versus
+- [fixes] A name several teams share is picked by fixed rules, or asked
+
+### Search
+- **Compare is its own kind.** A versus query ("4215 vs 6980", "hypnotic vs bad wolf", "ultraviolet vs hypnotic history") answers with one Compare row that opens /compare with both teams. It has its own group above Teams and is never counted as a team. Each side is named with its number and place ("Hypnotic Robotics (4215) · Oradell, NJ").
+- **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
+- **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#436)
+
+## 2.4.0 — 2026-11-03
+
+FTC One Search on a phone: shortlist a team or see its matches straight from the results, with a tap or a swipe.
+
+### Highlights
+- [teams] Swipe a team result right to add it to your Shortlist
+- [teams] Swipe it left to see its latest matches without leaving search
+- [teams] Both are also buttons on the card: Shortlist and Matches
+
+### Search
+- **Shortlist from the results.** On a phone each team result has a Shortlist button, the same list as the team page's; swipe the card right for the same. Swipe again or tap Shortlisted to take it off. There's no separate compare tray: the Shortlist is where teams you're considering go.
+- **Matches at a glance.** Tap Matches, or swipe the card left, for the team's latest ten played matches this season in a panel from the bottom: win, loss or tie, the match, the event and the score, each opening the match. Close it and you're back on the same results. Results and their order are unchanged. (#444)
 
 ## 2.3.9 — 2026-11-03
 
