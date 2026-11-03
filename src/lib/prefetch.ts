@@ -6,6 +6,8 @@
 // the page will ask for, so a prefetch is never fetched twice and a hover over a link whose data is
 // already fresh costs nothing. Only pages whose main request follows from the address alone are
 // covered; the paths must match what those pages pass to useApi (pinned by prefetch.test.ts).
+// A search box that opens /search (data-opens-search, src/components/search/SearchBox.tsx) loads its code once focused,
+// so Enter there draws /search's own loading screen at once, never a page-loading block.
 // Nothing is prefetched with Save-Data on, or for links to other sites, downloads or new tabs.
 import { load, peek, qs } from "./api";
 import { normalMatchKey } from "../shared/matchReport";
@@ -80,7 +82,12 @@ export function installPrefetch(preload: (m: PageModule) => void): () => void {
   const out = (e: PointerEvent) => {
     if (pending && !pending.contains(e.relatedTarget as Node | null)) { window.clearTimeout(timer); pending = null; }
   };
-  const now = (e: Event) => { const a = link(e.target); if (a) prefetchLink(a, preload); };
+  const now = (e: Event) => {
+    const a = link(e.target);
+    if (a) prefetchLink(a, preload);
+    else if (e.type === "focusin" && e.target instanceof Element && e.target.closest("[data-opens-search]")
+      && !(navigator as Navigator & { connection?: Conn }).connection?.saveData) preload("SearchPage");
+  };
   document.addEventListener("pointerover", over, { passive: true });
   document.addEventListener("pointerout", out, { passive: true });
   document.addEventListener("touchstart", now, { passive: true });
