@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.9 — 2026-11-03
+
+FTC One Search: a team number, a team's name or an event code takes you straight to its page.
+
+### Highlights
+- [fixes] Searching "6980" opens Bad Wolf's team page, not a results page
+- [fixes] A team's full name, like "Bad Wolf", goes straight to the team
+- [fixes] An event code, like "USNJNEM2", goes straight to the event
+
+### Search
+- **Straight to the page.** Enter (or the magnifier) on a search that names exactly one thing opens its page directly: a team number ("6980", "team 6980", "ftc 6980"), one team's whole name ("Bad Wolf", "simply complex") or an event code ("USNJNEM2"). Back returns to the page you searched from, and the search is still kept in your recent searches. Everything else still opens the full results page: questions, places, "vs", topics like "6980 record", part of a name, and names shared by more than one team (there are two teams called "Ultraviolet"). The choice is made from search's own answer, the same one the dropdown shows. Pressing Enter before the dropdown has loaded asks for that answer straight away and goes as soon as it arrives.
+- **Example search.** The versus example is now "6980 vs 16461": both teams have this season's record and OPR, so the head-to-head shows numbers on both sides. (#443)
+
 ## 2.3.8 — 2026-11-03
 
 FTC One Search on a phone: the search stays at the top as you scroll, the numbers come first, and every result is easy to tap.

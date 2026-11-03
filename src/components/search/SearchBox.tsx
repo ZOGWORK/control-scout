@@ -17,6 +17,7 @@ import { cn } from "../cn";
 import { SEARCH_EXAMPLES, addRecentSearch, clearRecentSearches, useRecentSearches } from "./discover";
 import { dateRange, seasonLabel } from "../../lib/format";
 import { EventStatusChip } from "../EventChips";
+import { directHit } from "./direct";
 import { dropdownNotes, dropdownSections, groupCount, teamOpr, type DropId } from "./dropdown";
 import { compareSides, compareTeams, eventFacts, teamParts } from "./page/results";
 import { answerSections, isAnswer, plainSections, type AnswerNotes, type AnswerRow, type AnswerSection, type SectionId } from "../../shared/searchSections";
@@ -352,14 +353,17 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const [q, setQ] = useState(initialQuery ?? syncQuery ?? "");
   const [open, setOpen] = useState(!!initialQuery);
   const synced = useRef(syncQuery);
+  // Enter or the magnifier on the page's own query: it's asked for after all (it may name one team: its page).
+  const [asked, setAsked] = useState(false);
   useEffect(() => {
     if (synced.current === syncQuery) return;
     synced.current = syncQuery;
     setQ(syncQuery ?? "");
     setOpen(false);
+    setAsked(false);
   }, [syncQuery]);
   // The page's own query, unedited: its results are on the page, so the box doesn't ask for them again.
-  const idle = syncQuery !== undefined && q === syncQuery;
+  const idle = syncQuery !== undefined && q === syncQuery && !asked;
   // Nothing is highlighted until the arrow keys or the pointer pick a row: plain Enter opens the full results page.
   const [active, setActive] = useState(-1);
   const { hits, answer, ai, refining, busy, error, logPick, stale, searchNow } = useSearchHits(idle ? "" : q, kinds);
@@ -419,20 +423,24 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     return () => document.removeEventListener("pointerdown", away);
   }, [open]);
   // A box holding the page's query keeps it (a pick that lands back on that page shows it again).
-  const go = (h: SearchHit) => { onPick(h); setQ(syncQuery ?? ""); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
+  const go = (h: SearchHit) => { onPick(h); setQ(syncQuery ?? ""); setAsked(false); setOpen(false); (document.activeElement as HTMLElement | null)?.blur?.(); onClose?.(); };
   // A search of everything (not a picker, not a box limited to some kinds): what was searched is remembered on
   // this device, for the recent searches list.
   const remember = seeAll && !kinds;
   const pick = (h: SearchHit) => { logPick(h); if (remember && q.trim()) addRecentSearch(q); go(h); };
-  // Enter pressed before a picker's results were in: the query it was pressed on, until they arrive.
-  const enterFor = useRef<string | null>(null);
+  // Enter pressed before the results were in: the query it was pressed on, until they arrive. `full`: a search box
+  // (the page or the one result it names); else a picker's (its top result).
+  const enterFor = useRef<{ q: string; full: boolean } | null>(null);
   useEffect(() => {
-    if (!enterFor.current) return;
+    const e = enterFor.current;
+    if (!e) return;
     // Closed (Escape, a click away, leaving the field) or retyped: the Enter is dropped, never acted on later.
-    if (!open || enterFor.current !== q.trim()) { enterFor.current = null; return; }
-    if (busy || stale) return;
+    if (!open || e.q !== q.trim()) { enterFor.current = null; return; }
+    // Still on its way: past the typing pause at once (a page's own query is only asked once pressed).
+    if (busy || stale) { searchNow(); return; }
     enterFor.current = null;
-    if (ordered[0]) pick(ordered[0].hit);
+    if (e.full) openDirectOrFull();
+    else if (ordered[0]) pick(ordered[0].hit);
   });
   const query = q.trim();
   // The last row: the full results page. Its index is right after the results', so the arrow keys reach it too.
@@ -448,15 +456,22 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   /** The full results page for a query: the one typed, or a recent search or example tapped. */
   const runQuery = (text: string) => { if (remember) addRecentSearch(text); go(searchPagePick(text.trim())); };
   const openFull = () => runQuery(query);
+  // A query that names one thing exactly (a team number, "team 6980", one team's whole name, an event code), as the
+  // server's answer for it reads: straight to its page. Anything else, the full results page.
+  const openDirectOrFull = () => { const d = directHit(answer, query); if (d) pick(d); else openFull(); };
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
   // page (a picker box: its top result, once it's current).
   const submit = (highlighted: boolean) => {
     if (highlighted && !stale && active >= 0 && ordered[active]) pick(ordered[active].hit);
-    else if (full) openFull();
-    else if (!stale && !busy && ordered[0]) pick(ordered[0].hit);
-    // A picker box whose results aren't in yet: ask now, and open the top result when they arrive (one press).
-    // (Open again first: a list closed meanwhile would drop the pending pick.)
-    else { setOpen(true); enterFor.current = query; searchNow(); }
+    // "See all results" highlighted: the results page, as clicking it does (never the one result it names).
+    else if (highlighted && full && active === ordered.length) openFull();
+    // The page's own query, unedited: its answer wasn't asked for; ask now and go when it's in.
+    else if (full && idle) { setAsked(true); setOpen(true); enterFor.current = { q: query, full }; }
+    else if (full && !busy && !stale) openDirectOrFull();
+    else if (!full && !stale && !busy && ordered[0]) pick(ordered[0].hit);
+    // Results not in yet: ask now, and go when they arrive (one press): the page or the one result it names, or a
+    // picker's top result. (Open again first: a list closed meanwhile would drop the pending press.)
+    else { setOpen(true); enterFor.current = { q: query, full }; searchNow(); }
   };
   const keep = (e: React.SyntheticEvent) => e.preventDefault(); // a press that mustn't take focus from the field
   const suggestion = (i: number) => ({
