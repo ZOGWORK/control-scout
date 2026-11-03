@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.2 — 2026-11-03
+## 2.8.4 — 2026-11-03
 
 FTC One Search understands "and", "or" and "not" between teams, and quotes around an exact name: "4215 and 6980" lists the matches both teams played in.
 
@@ -28,6 +28,18 @@ FTC One Search understands "and", "or" and "not" between teams, and quotes aroun
 ### Search
 - **Boolean operators.** `and` (or `&`), `or` (or `|`) and `not` (or `-` before a term) between teams, read like a web search: NOT first, then AND, then OR, no parentheses. What's asked still decides the answer: on its own or with "matches" it's the match list (both teams on the field, on either alliance, newest first, how many as partners and as opponents); with a stat it's the stat side by side (`4215 and 6980 opr`). Two teams with no match in common are told so, with each team's own match count and a link to the "or" list. A team name with "and" or "not" in it ("Nuts and Bolts", "Batteries Not Included") stays a name, and `vs`, "compare" and "have … played each other" keep their own answers. Details in docs/search-boolean.md. (#497)
 - **Exact phrases.** A name in double quotes finds the teams named exactly that first, then names holding the words together, never names with the words apart.
+
+## 2.8.2 — 2026-11-03
+
+Two searches the failed-search log caught now answer: when a team last played, and several of a team's listing facts at once.
+
+### Highlights
+- [teams] "When did hypnotic last play" opens their most recent match
+- [teams] "4215 sponsors school" answers both, each on its own line
+- [fixes] Headings keep "and" and "or" lower case
+
+### Search
+- **Fixes from the failed-search log.** "when did X last play" (or "play last", "last compete") reads as the team's most recent match. Several listing facts at once ("4215 sponsors school", "4215 rookie year, website") are each answered on their own line, in the order asked, with a team's whole name tried before any fact word is read off it. "last" is no longer called a word left out of a most-recent-match answer, and headings keep joining words small ("Sponsors and School or Organization"). (#496)
 
 ## 2.8.1 — 2026-11-03
 

@@ -151,10 +151,11 @@ describe("what counts as a failed search (§12.1)", () => {
   it("the layered reader's own result decides, on a real searchAnswer", async () => {
     const real = async (q: string) => { const a = await searchAnswer(q, { limit: 12, learn: false }); return { a, t: outcomeTrace(a) }; };
     // Two intents tied: ambiguous, with both named.
-    const amb = await real("4215 sponsors school");
+    // ("4215 sponsors school" is answered: both are listing facts.)
+    const amb = await real("4215 awards location");
     expect(amb.t?.result).toBe("ambiguous");
-    expect(failureOf("4215 sponsors school", amb.a, amb.t)).toMatchObject({ type: "ambiguous" });
-    expect(failureOf("4215 sponsors school", amb.a, amb.t)!.intent).toContain(" / ");
+    expect(failureOf("4215 awards location", amb.a, amb.t)).toMatchObject({ type: "ambiguous" });
+    expect(failureOf("4215 awards location", amb.a, amb.t)!.intent).toContain(" / ");
     // Answered: never a failure.
     const ok = await real("where is 4215 from");
     expect(ok.t?.result).toBe("answered");
