@@ -190,7 +190,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const conv = opts.intents === false ? q : conversationQuery(q);
   if (conv !== q) {
     const a = await searchAnswer(opts.asked ? `${conv}?` : conv, opts);
-    return { ...a, q, pages: pagesFor(q) };
+    // Links the inner answer added itself ("show me highest OPR": the rankings) stay, then the page words as typed.
+    const added = a.pages.filter((p) => !pagesFor(conv).some((x) => x.href === p.href));
+    return { ...a, q, pages: [...added, ...pagesFor(q).filter((p) => !added.some((x) => x.href === p.href))] };
   }
 
   // 0d. A set of events read from a place, a time or a year ("upcoming meets in New Jersey", "meets this weekend",

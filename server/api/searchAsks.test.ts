@@ -206,3 +206,10 @@ describe("Greptile on #440", () => {
     expect(parseQuestion("when does 4215 play next season")?.kind).not.toBe("next-match");
   });
 });
+
+describe("Greptile on #440, round 2", () => {
+  it("a conversational opening keeps the links the answer added", async () => {
+    expect(hrefs(await ask("show me highest OPR"))[0]).toBe("/rankings?season=2025");
+    expect(hrefs(await ask("show me top teams in NJ"))[0]).toBe("/rankings?season=2025&region=USA%3ANJ");
+  });
+});
