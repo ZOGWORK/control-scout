@@ -42,6 +42,7 @@ describe("rewrites: said the way a reader answers", () => {
     for (const q of ["compare 4215 and 6980", "is 4215 better than 6980", "which is better 4215 or 6980", "4215, 6980", "4215 & 6980"]) expect(rewriteQuery(q)?.q, q).toBe("4215 vs 6980");
     expect(rewriteQuery("who would win between 4215 and 6980")?.q).toBe("4215 vs 6980 who wins");
     expect(rewriteQuery("4215 2024")).toBeNull(); // a team and a year, never two teams
+    expect(rewriteQuery("2024 4215")).toBeNull();
     expect(rewriteQuery("42155")).toBeNull();
   });
   it("a team's history, worlds and states, asked with no verb", () => {

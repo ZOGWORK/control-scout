@@ -40,9 +40,9 @@ export function rewriteQuery(q: string): { q: string; note?: string } | null {
   if ((m = new RegExp(`^(?:who|which(?: team)?)\\s+(?:is|s|'s)\\s+(?:better|stronger)\\s*:?\\s+${TEAM}\\s+(?:or|and|vs\\.?)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
   if ((m = new RegExp(`^who\\s+(?:would|will|is going to|wins)\\s*(?:win)?\\s+(?:between\\s+)?${TEAM}\\s+(?:or|and)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} who wins` };
   if ((m = new RegExp(`^${TEAM}\\s+(?:or|and)\\s+${TEAM}\\s+(?:who wins|who would win|who will win|which is better|who is better)$`).exec(t))) return { q: `${m[1]} vs ${m[2]}${/win/.test(t) ? " who wins" : ""}` };
-  // Two numbers are two teams, unless one is a year ("4215 2024" is 4215's 2024 season).
+  // Two numbers are two teams, unless one is a year ("4215 2024" and "2024 4215" are 4215's 2024 season).
   const year = (n: string) => /^(?:19|20)\d\d$/.test(n);
-  if ((m = /^(\d{1,6})(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)(\d{1,6})$/.exec(t)) && m[1] !== m[2] && !(year(m[2]) && !year(m[1]))) return { q: `${m[1]} vs ${m[2]}` };
+  if ((m = /^(\d{1,6})(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)(\d{1,6})$/.exec(t)) && m[1] !== m[2] && year(m[1]) === year(m[2])) return { q: `${m[1]} vs ${m[2]}` };
   // A team's quality, asked the short way.
   if ((m = /^(?:is|are)\s+(.+?)\s+(?:any\s+|really\s+|actually\s+)?(?:good|strong|decent|competitive|any good)$/.exec(t))) return { q: `how good is ${m[1]}` };
   // A team's next match, asked as a prediction.
@@ -275,7 +275,9 @@ const SECTION_WORDS: [RegExp, SearchSection | "match"][] = [
 /** "nj states rankings", "match 12 at nj states", "qual 5 nj states": an event read from a place, its tab or match. */
 export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, now?: number): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
-  const mm = /\b(?:q|qual|qualification|match|m)\s*-?\s*(\d{1,3})\b/.exec(t);
+  // "q12", "qual 12", "match 12": a qualification match; "m3", as match codes say it, is playoff match 3.
+  const mm = /\b(q|qual|qualification|match|m)\s*-?\s*(\d{1,3})\b/.exec(t);
+  const kind = mm?.[1] === "m" ? { code: "M", word: "Playoff match" } : { code: "Q", word: "Qualification match" };
   const section = SECTION_WORDS.find(([w]) => w.test(t));
   if (!mm && !section) return null;
   let rest = t;
@@ -300,9 +302,9 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
     // that match number in every one of them.
     const codes = [code, ...(await all<{ code: string }>("SELECT code FROM events WHERE season = ? AND code LIKE ? AND code <> ? ORDER BY code", [Number(s), `${code}%`, code])).map((r) => r.code)];
     const found: SearchHit[] = [];
-    for (const c of codes) found.push(...(await search(`${s} ${c} Q${mm[1]}`, 5, prefer, new Set(["match"]), Number(s))).filter((h) => h.kind === "match").slice(0, 1));
-    if (found.length) return answer(q, { hits: [...found, { ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `Qualification match ${mm[1]} at ${target.title} (${seasonLabel(Number(s))})${found.length > 1 ? `, in each of its ${found.length} divisions` : ""}` } });
-    return answer(q, { hits: [{ ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `${target.title} (${seasonLabel(Number(s))}): no qualification match ${mm[1]} on record, here are its matches` } });
+    for (const c of codes) found.push(...(await search(`${s} ${c} ${kind.code}${mm[2]}`, 5, prefer, new Set(["match"]), Number(s))).filter((h) => h.kind === "match").slice(0, 1));
+    if (found.length) return answer(q, { hits: [...found, { ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `${kind.word} ${mm[2]} at ${target.title} (${seasonLabel(Number(s))})${found.length > 1 ? `, in each of its ${found.length} divisions` : ""}` } });
+    return answer(q, { hits: [{ ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `${target.title} (${seasonLabel(Number(s))}): no ${kind.word.toLowerCase()} ${mm[2]} on record, here are its matches` } });
   }
   const sec = section![1] as SearchSection;
   const tab = sec === "rankings" ? "Rankings" : sec === "playoffs" ? "Playoffs" : sec === "matches" ? "Matches" : sec === "awards" ? "Awards" : sec === "teams" ? "Teams" : "Odds";
@@ -587,7 +589,7 @@ export async function monthAnswer(q: string, now?: number): Promise<SearchAnswer
 /** "teams in New Jersey", "nj teams", "teams in Oradell", "texas ftc teams": a place's teams, best first. */
 export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, "").replace(/\bftc\b/g, " "));
-  const m = /^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)\s+(.+)$/.exec(t) ?? /^(.+?)\s+teams$/.exec(t);
+  const m = /^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)\s+(.+)$/.exec(t) ?? /^(.+?)\s+teams?$/.exec(t); // "teams" as search singularizes it too
   if (!m) return null;
   const p = await placeOf(cased(q, m[1]));
   const season = await defaultRankingsSeason();
