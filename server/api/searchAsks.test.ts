@@ -6,6 +6,7 @@ import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { readAsk } from "./searchAsks";
 import { withTeamStats } from "./searchTeamStats";
+import { parseQuestion } from "./searchQuestions";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -146,5 +147,62 @@ describe("the best team, worldwide (owner report: \"what is the best ftc team ri
     expect(a.step).toBe("recovery");
     expect(a.recovery?.closest).toEqual([]);
     expect(a.recovery?.browse.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Greptile on #440", () => {
+  beforeAll(async () => {
+    // A placeholder registration with a big OPR, a second Ultraviolet, an event from before predictions,
+    // and next season's New Jersey Championship (not held yet).
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (99990, 'Off-Season Demo Team', 'X', 'NJ', 'USA'), (20245, 'Ultraviolet', 'Norton Shores', 'MI', 'USA')");
+    await run("INSERT INTO team_seasons (season, team) VALUES (?, 99990), (?, 20245)", [S, S]);
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, matches, wins, losses, ties) VALUES (?, 99990, 999, 99, 10, 10, 0, 0)", [S]);
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (?, 'X', 23268, 50, 5), (?, 'X', 20245, 50, 5)", [S, S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2021, 'USNJOLD', 'Old Jersey Classic', 'Qualifier', 'Union', 'NJ', 'USA', '2022-01-08', '2022-01-08', 't'), (2026, 'USNJCMP', 'New Jersey Championship', 'Championship', 'Edison', 'NJ', 'USA', '2027-03-13', '2027-03-13', 't')");
+    await rebuildSearch();
+  });
+  it("region codes typed in capitals are read as regions", () => {
+    expect(readAsk("top teams in IN")).toMatchObject({ kind: "leaderboard", region: { key: "USA:IN" } });
+    expect(readAsk("GA rankings")).toMatchObject({ kind: "leaderboard", region: { key: "USA:GA" } });
+    expect(readAsk("highest OPR in OH")).toMatchObject({ kind: "stat", stat: "opr", region: { key: "USA:OH" } });
+  });
+  it("stat leaders never list a placeholder registration", async () => {
+    const a = await ask("highest OPR");
+    expect(a.card?.lines[0].text).toBe("20265 Heart of RoBots");
+    expect(a.card?.lines.map((l) => l.text).join()).not.toMatch(/99990/);
+  });
+  it("a past-tense qualify question is history, not the simulator", () => {
+    expect(readAsk("did 4215 qualify to worlds")).toBeNull();
+  });
+  it("Judges' Choice with either apostrophe", () => {
+    for (const q of ["who won judges' choice at new jersey championship", "who won judges’ choice at new jersey championship"])
+      expect(readAsk(q), q).toEqual({ kind: "award", award: "JudgesChoice", event: "new jersey championship" });
+  });
+  it("a shared name still tied: the question stays, and no Predict link is guessed", async () => {
+    const a = await ask("ultraviolet vs 20265 who wins");
+    expect(a.hits.filter((h) => h.kind === "compare").length).toBe(2);
+    expect(a.understood?.label).toMatch(/^Which "ultraviolet"\?/);
+    expect(hrefs(a).some((h) => h.startsWith("/predict"))).toBe(false);
+  });
+  it("a season written in a who-wins question goes to both Compare and Predict", async () => {
+    const a = await ask("4215 vs 6980 2024-25 who wins");
+    expect(a.hits[0]).toMatchObject({ kind: "compare", ref: "4215,6980" });
+    expect(a.hits[0].href).toContain("season=2024");
+    expect(hrefs(a).find((h) => h.startsWith("/predict"))).toContain("season=2024");
+  });
+  it("an event from before predictions has no odds to open", async () => {
+    const a = await ask("who will win old jersey classic");
+    expect(a.hits[0]).toMatchObject({ kind: "event", ref: "2021:USNJOLD" });
+    expect(a.hits[0].section).toBeUndefined();
+    expect(a.understood?.label).toMatch(/no odds for 2021–22, predictions start with 2023–24/);
+  });
+  it("an award from an older season shows that season's event, its own dates", async () => {
+    const a = await ask("who won inspire at new jersey championship");
+    expect(a.hits[0]).toMatchObject({ ref: "2025:USNJCMP", season: 2025, section: "awards" });
+    expect(a.hits[0].subtitle ?? "").not.toMatch(/2027/);
+  });
+  it("'play next' only when it ends the question", () => {
+    expect(parseQuestion("when does 4215 play next")).toMatchObject({ kind: "next-match" });
+    expect(parseQuestion("when does 4215 play next season")?.kind).not.toBe("next-match");
   });
 });

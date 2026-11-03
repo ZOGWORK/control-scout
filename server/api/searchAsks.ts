@@ -17,6 +17,8 @@ import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
 import { seasonLabel } from "../../src/shared/format.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
+import { FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { defaultRankingsSeason, rankings } from "./rankings.js";
 import { search } from "./search.js";
@@ -43,7 +45,7 @@ const AWARDS: Record<string, string> = {
 };
 
 /** A region named by the words `s` (all of them), or null. */
-const regionIn = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
+const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
 
 /** "What is the best FTC team right now" → "best team": the opener, "FTC" and the time words say nothing about which teams. */
 function leaderWords(t: string): { t: string; opened: boolean } {
@@ -58,6 +60,10 @@ function leaderWords(t: string): { t: string; opened: boolean } {
 /** The question `q` asks of a view, or null. `q` is cleaned (no punctuation), any case. */
 export function readAsk(q: string): Ask | null {
   const t = q.trim().toLowerCase().replace(/\s+/g, " ");
+  // Region codes that are also words ("IN", "ON", "OH") count only in capitals, so a region is read as typed.
+  const cased = new Map<string, string>();
+  for (const w of q.trim().split(/\s+/)) if (!cased.has(w.toLowerCase()) || /^[A-Z]+$/.test(w)) cased.set(w.toLowerCase(), w);
+  const regionIn = (s: string) => regionWords(s.split(" ").map((w) => cased.get(w) ?? w).join(" "));
   if (/^how (?:are|is|do|does) (?:the )?(?:predictions?|odds|win chances?|forecasts?)(?: (?:calculated|made|worked out|computed|work|working))?$|^how does (?:the )?(?:prediction|predict(?:ion)? engine|simulator) work$|^(?:prediction|predictions) (?:methodology|method)$/.test(t)) return { kind: "how" };
   // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
   const lw = leaderWords(t);
@@ -84,12 +90,16 @@ export function readAsk(q: string): Ask | null {
   m = /^who (?:will|is going to|would) win (?:the )?(.+)$/.exec(t);
   if (m) return { kind: "event-winner", event: m[1] };
   // Advancement.
-  m = /^(?:will|can|does|did) (.+?) (?:advance|qualify|make it)(?: to (?:states?|worlds|the championship|regionals?))?$/.exec(t)
+  // "Did 4215 qualify to worlds" is history (parseQuestion), not the simulator.
+  m = /^(?:will|can|does) (.+?) (?:advance|qualify|make it)(?: to (?:states?|worlds|the championship|regionals?))?$/.exec(t)
     ?? /^what does (.+?) need to (?:advance|qualify)(?: to .+)?$/.exec(t) ?? /^(.+?) (?:advancement|advancement odds|chances? to advance)$/.exec(t);
   if (m) return { kind: "advance", team: m[1] };
   // An event's award.
   m = /^who (?:won|got|received|took) (?:the )?(.+?)(?: award)? at (?:the )?(.+)$/.exec(t);
-  if (m && Object.hasOwn(AWARDS, m[1])) return { kind: "award", award: AWARDS[m[1]], event: m[2] };
+  if (m) {
+    const w = m[1].replace(/['’]/g, ""); // "Judges' Choice", "Judges’ Choice"
+    if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[2] };
+  }
   return null;
 }
 
@@ -149,7 +159,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const rows = await all<any>(
         `SELECT s.team, t.name, t.city, t.state, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.wins, s.losses, s.ties
          FROM team_season_stats s JOIN teams t ON t.number = s.team
-         WHERE s.season = ? AND s.matches >= ? AND ${col} IS NOT NULL${where}
+         WHERE s.season = ? AND s.matches >= ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${where}
          ORDER BY ${col} DESC${ask.stat === "wins" ? ", s.losses ASC" : ""}, s.team LIMIT 5`,
         [season, RANKED_MIN_MATCHES, ...(ask.region ? [ask.region.country, ask.region.state] : [])]);
       const value = (r: any) => ask.stat === "wins" ? `${r.wins}-${r.losses}-${r.ties}` : `${STAT_LABEL[ask.stat].replace(/^.*\((.+)\)$/, "$1").replace(/^Highest /, "")} ${fmt(r[col.slice(2)])}`;
@@ -172,17 +182,25 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "predict-versus": {
-      const vs = await versusAnswer(ask.rest, opts.prefer, null);
-      const c = vs?.hits.find((h) => h.kind === "compare");
+      // A season written as one ("2024-25") is the season of both the Compare and Predict.
+      const sm = /(?:^|\s)(20\d\d)\s*[-–/]\s*(\d\d)(?=\s|$)/.exec(ask.rest);
+      const season = sm && (Number(sm[1]) + 1) % 100 === Number(sm[2]) ? Number(sm[1]) : null;
+      const rest = sm && season != null ? (ask.rest.slice(0, sm.index) + " " + ask.rest.slice(sm.index + sm[0].length)).replace(/\s+/g, " ").trim() : ask.rest;
+      const vs = await versusAnswer(rest, opts.prefer, season);
+      // A shared name still tied: its question stays, and Predict waits for the team chosen.
+      const cs = vs?.hits.filter((h) => h.kind === "compare") ?? [];
+      const c = cs.length === 1 ? cs[0] : null;
       if (!vs || !c?.compare || c.compare.teams.length !== 2) return vs ? { ...vs, q } : null;
       const [a, b] = c.compare.teams;
-      const href = predictHref({ mode: "match", red: [a.number], blue: [b.number] });
+      const href = predictHref({ mode: "match", ...(season != null ? { season } : {}), red: [a.number], blue: [b.number] });
       return { ...vs, q, pages: withPage(q, [{ title: `Predict ${a.number} vs ${b.number}`, href }]), understood: { kind: "compare", label: `Who wins: ${a.name} (${a.number}) vs ${b.name} (${b.number}): Predict, and Compare` } };
     }
 
     case "event-winner": {
       const ev = await eventOf(ask.event, opts.prefer);
       if (!ev) return null;
+      // Events before predictions began have no odds: the event, and the reason.
+      if (ev.season != null && isLegacy(ev.season)) return answer(q, { hits: [ev], pages: pagesFor(q), understood: { kind: "question", label: `Who will win ${ev.title}: no odds for ${seasonLabel(ev.season)}, predictions start with ${seasonLabel(FIRST_PREDICT_SEASON)}`, season: ev.season } });
       return answer(q, { hits: [{ ...ev, section: "odds" }], pages: pagesFor(q), understood: { kind: "question", label: `Who will win ${ev.title}: its odds` } });
     }
 
@@ -206,7 +224,9 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const rows = await all<any>(
         "SELECT a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ? AND a.type = ? ORDER BY a.placement, a.team",
         [season, code, ask.award]);
-      if (season !== Number(found)) ev = { ...ev, ref: `${season}:${code}`, season };
+      // An older season: that season's event, with its own dates and place.
+      if (season !== Number(found)) ev = (await search(code, 5, opts.prefer, new Set(["event"]), season)).find((h) => h.kind === "event" && h.ref === `${season}:${code}`)
+        ?? { ...ev, ref: `${season}:${code}`, season, subtitle: seasonLabel(season) };
       const place = (p: number) => (p === 1 ? "Winner" : `${p}${p === 2 ? "nd" : p === 3 ? "rd" : "th"} place`);
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [place(Number(r.placement))], r.award ?? undefined));
       const award = rows[0]?.award ?? `${ask.award} Award`;
