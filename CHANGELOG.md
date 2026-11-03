@@ -25,7 +25,7 @@ FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
 - [home] Examples cover places, comparisons, questions, records and leaderboards
 
 ### Search
-- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. (#PR)
+- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. (#452)
 
 ## 2.4.3 — 2026-11-03
 
