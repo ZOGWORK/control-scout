@@ -8,7 +8,7 @@ Ratings come from `server/predict/engine.ts`. `ScoutForecaster.rebuild` replays 
 
 OPR is solved by least squares (`solveOpr`, `solveLeastSquares`) only in background jobs: the stats job, the live lane's per-event refresh and records (`server/stats/job.ts`, `server/data/live.ts`, `server/stats/records.ts`). Those jobs write `team_event_stats`, `team_season_stats` and the records tables, which requests read.
 
-A rebuild can be **started** by a page request when the data version has moved. It still runs off the response path: the request is answered from the previous build.
+A rebuild can be **started** by a page request when the data version has moved. For pages using `liveForecaster` it runs off the response path: the request is answered from the previous build. The one request path that uses `forecasterFor` instead, and so waits for the rebuild, is the simulated rankings (F3).
 
 ## Endpoints
 
@@ -21,7 +21,7 @@ A rebuild can be **started** by a page request when the data version has moved. 
 | `GET /predict/event?mode=pre-event`, `GET /predict/partners?mode=pre-event` | `preEventView`: the season's ratings **replayed from its rated matches before the event's start** | Before this PR: a full replay of the season up to that day on every cache miss, and the memo is keyed per team, so each team at an event replayed again. Plus a bonus-model fit on results before the start | Memo 2 min; 30/min and 10/min | **Finding F1, reduced here** (see below) |
 | `GET /predict/partners` (current) | The live book | Forced-partner simulations | `partnersMemo`, limited to 10/min | **OK** |
 | Model vs field (`/events/:s/:c/disagreements`) for a **finished** event | `replayTo`: the season replayed to the event's last match | A full season replay on a miss | Stored in kv, keyed by a fingerprint of the replay's inputs and the event's seeding; rebuilt only when either changes or the engine does | **Finding F2** (replay on request, persisted) |
-| `GET /events/:s/:c/simulated-rankings` | The live book + `eventBook` | Ranking simulation | One at a time server-wide; 2.5 s budget; kept per data version (200 kept) | **OK** (simulation, not ratings) |
+| `GET /events/:s/:c/simulated-rankings` | `forecasterFor` (the build for the **current** data version, not `liveForecaster`) + `eventBook` | Ranking simulation; after a data version change, the request **waits for the new build** (a full window replay) before the simulation starts | One at a time server-wide; 2.5 s simulation budget (the wait comes before it); kept per data version (200 kept) | **Finding F3** (waits on a rebuild) |
 | `GET /projections/:s/:c` (+ stream) | Stored projections | None (the job simulates in the background, `server/projections/job.ts`) | ETag, `no-cache` revalidation | **OK** |
 | `GET /predict/accuracy`, home track record | Stored `predictions` ledger (backtest + live) | Aggregation | Kept per data version and stats run, warmed in the background | **OK** |
 | Teams, Compare, world rankings, Power Rankings | `team_season_stats`, `ranking_snapshots` (weekly replays done by the stats job, `server/stats/rankings.ts`) | None | Rankings limited to 120/min, ETag | **OK** |
@@ -47,5 +47,9 @@ What is left: the **first** ask for a given start day after each data version st
 **F2, a finished event's model-vs-field comparison replays on a miss.**
 
 `finalView` in `server/api/disagreements.ts` calls `replayTo` (the season up to the event's last match) when its kv entry is missing or stale. The result is persisted with a fingerprint of everything the replay reads, so each finished event replays once per change to its inputs, not per visit. A data change before the event, such as a corrected earlier result, invalidates every later event's entry. Moving it fully off the request path would mean computing these in the stats job, which already runs weekly replays (`server/stats/rankings.ts`). Listed, not changed here.
+
+**F3: simulated rankings wait for a rebuild after a sync.**
+
+`simulatedRankings` (`server/projections/rankingSim.ts`) calls `forecasterFor(season)`, the build for the current data version, instead of `liveForecaster`. After a sync moves the version, the first click waits for the full window replay before its 2.5 s simulation budget starts. The wait is one rebuild per version, shared by every caller and also started by the background refresh, and the click is only offered before an event's quals start. Even so, it is a request waiting on rating computation. The likely fix is `liveForecaster` (key the kept answer by `liveVersion` alone), with a test. Listed, not changed here.
 
 **No request solves OPR.** `solveOpr` and `solveLeastSquares` run only in the stats job, the live lane and records, all in the background.
