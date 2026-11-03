@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.7.7 — 2026-11-03
+## 2.7.8 — 2026-11-03
 
 FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
 
@@ -23,10 +23,26 @@ FTC One Search reads a question by its words when its phrasing doesn't match: an
 - [teams] "4215 from where" and "4215 where from" show where they're from
 - [teams] "4215 opr rn" gets the OPR card; filler words never change it
 - [teams] Long questions get the short form's answer, read back to you
-- [rankings] "best opr nj" and "nj best opr" show New Jersey's leaders
+- [rankings] "highest opr california" works without "in", as with it
 
 ### Search
-- **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"). Details in docs/search-layers.md. (#479)
+- **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"), and a leaderboard asked with a place but no "in" ("highest opr california", "opr leaders texas") is the leaderboard, not a guess at a team. Details in docs/search-layers.md. (#479)
+
+## 2.7.7 — 2026-11-03
+
+Searches that find no answer are now logged, so they can be fixed. Each one becomes a GitHub issue on the public repository: the query (with emails, phone numbers and keys taken out) and how search read it, nothing about who searched. Search itself works exactly as before.
+
+### Highlights
+- [report] Searches that find no answer are logged, so they can be fixed
+- [report] Only the words searched are kept; never who searched
+- [speed] Logging happens after your answer, so search stays as fast
+- [report] Emails, phone numbers and keys are removed before logging
+
+### Search
+- **Failed searches logged.** A search with no match, or one that lands on a team page without answering what was asked ("4215 opr rn"), is counted and filed as a GitHub issue labelled failed-search, one issue per query however often it fails. The issue holds the query, how it was read and a link to try it again. It's a list to work through: nothing fixes or closes an issue automatically, and a query that fails again after its fix reopens the same issue. (#478)
+- **Privacy.** The repository is public, so an issue holds the query text and the outcome only. No IP address, account or device is kept, and emails, phone numbers and keys in a query are replaced before anything is stored.
+- **No slower.** Search answers first. The logging is in-memory bookkeeping (about 24 µs a search), written out in batches every minute and sent to GitHub every 10 minutes at most. If GitHub is down, search carries on and the counts catch up later.
+- **Error reports.** In-app error reports point at the repository's new home (ZOGWORK/control-scout), which GitHub's issue search needs to find a report's existing issue.
 
 ## 2.7.6 — 2026-11-03
 
