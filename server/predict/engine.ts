@@ -18,6 +18,9 @@ import { onPartnershipPrefixReady, partnershipPrefix } from "./partnerships.js";
 
 const yieldLoop = () => new Promise<void>((r) => setImmediate(r));
 
+/** Pre-event books kept per build (ScoutForecaster.bookBefore): one per event start day in use, a few MB each. */
+const BEFORE_BOOKS_MAX = 8;
+
 /** Teams a season's call can be about: rated that season or the one before (keeps the pair tables small).
  *  `before`: the season before's rated teams when the window doesn't replay it (its oldest season). */
 const activeTeams = (books: Map<number, RatingBook>, season: number, before: Iterable<number> = []) =>
@@ -218,11 +221,35 @@ export class ScoutForecaster extends Forecaster {
   preEventView(ev: EventInput): { f: Forecaster; ev: EventInput; book: RatingBook } | null {
     if (!ev.start) return null;
     const startMs = Date.parse(`${ev.start}T00:00:00Z`);
-    const prevSeason = this.books.get(ev.season - 1);
-    const book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
-    book.startSeason(ev.season);
-    for (const m of this.seasonEvents(ev.season).flatMap((e) => e.matches).filter((m) => m.time < startMs).sort((x, y) => x.time - y.time)) book.update(m);
-    return this.frozenView(ev, book, startMs);
+    return this.frozenView(ev, this.bookBefore(ev.season, startMs), startMs);
+  }
+
+  /** Season books replayed to an instant, kept for this build (its data never changes): `season|ms` → book. */
+  private beforeBooks = new Map<string, RatingBook>();
+  /** Replays done by bookBefore (tests: a second ask for the same instant doesn't replay again). */
+  beforeReplays = 0;
+
+  /**
+   * The season's ratings from its rated matches before `startMs` (the pre-event view's book), as a copy the
+   * caller may change. The replay is done once per season and instant for this build, so each team's "Before
+   * the event" odds or partner scenarios at an event, and every event starting the same day, share one replay
+   * instead of each replaying the season (precompute-check.md). A copy of a book gives the same numbers.
+   */
+  bookBefore(season: number, startMs: number): RatingBook {
+    const key = `${season}|${startMs}`;
+    let book = this.beforeBooks.get(key);
+    if (book) {
+      this.beforeBooks.delete(key); // most recently used last
+    } else {
+      this.beforeReplays++;
+      const prevSeason = this.books.get(season - 1);
+      book = prevSeason ? prevSeason.clone() : new RatingBook(FITTED_MODEL.rating);
+      book.startSeason(season);
+      for (const m of this.seasonEvents(season).flatMap((e) => e.matches).filter((m) => m.time < startMs).sort((x, y) => x.time - y.time)) book.update(m);
+    }
+    this.beforeBooks.set(key, book);
+    while (this.beforeBooks.size > BEFORE_BOOKS_MAX) this.beforeBooks.delete(this.beforeBooks.keys().next().value!);
+    return book.clone();
   }
 
   /**
