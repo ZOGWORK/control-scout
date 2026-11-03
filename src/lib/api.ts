@@ -183,7 +183,7 @@ const serverUp = () => navigator.onLine !== false && lastAnswerAt > lastFailAt &
  *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly. */
 async function searchOnline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number }) | undefined): Promise<T> {
   const outer = init?.signal;
-  let last: unknown;
+  let last: unknown, noNetwork = 0;
   for (let i = 0; i < 2; i++) {
     if (outer?.aborted) throw callerAborted();
     const ctrl = new AbortController();
@@ -197,13 +197,15 @@ async function searchOnline<T>(path: string, init: (RequestInit & { json?: unkno
       // The server answered, under 500: its answer stands.
       if (e instanceof ApiError && !e.offline && e.status < 500) throw e;
       last = e;
+      if (e instanceof ApiError && e.offline) noNetwork++;
     } finally {
       clearTimeout(timer);
       outer?.removeEventListener("abort", forward);
     }
   }
-  if (last instanceof ApiError && last.offline) return offlineOr<T>(path, init?.method, last);
-  if (last instanceof ApiError) throw last;
+  // Saved data only when both tries found no network at all; one slow try means the server is there.
+  if (noNetwork === 2) return offlineOr<T>(path, init?.method, last as ApiError);
+  if (last instanceof ApiError && !last.offline) throw last;
   throw new ApiError(0, SEARCH_SLOW, false, "search-slow");
 }
 

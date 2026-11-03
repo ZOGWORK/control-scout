@@ -413,6 +413,19 @@ describe("a slow search while the server answers isn't offline (owner bug: 'high
     expect(await apiFetch("/api/search?q=gear&answer=1")).toEqual({ live: true });
     expect(mode.result.current).toBe(false);
   });
+  it("a slow first try and a failed second one is still slow, not offline (Greptile on #463)", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    let n = 0;
+    const hang = hanging();
+    vi.stubGlobal("fetch", vi.fn((p: string, init?: RequestInit) => (n++ ? Promise.reject(new TypeError("Failed to fetch")) : hang(p, init))));
+    const p = apiFetch("/api/search?q=gear&answer=1");
+    const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS * 2);
+    await settled;
+    expect(offlineAnswer).not.toHaveBeenCalled();
+    expect(mode.result.current).toBe(false);
+  });
   it("no network on both tries is no signal after all: saved data answers", async () => {
     writeSaved([saved]);
     networkDown();
