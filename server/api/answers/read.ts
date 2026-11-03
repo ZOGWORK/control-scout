@@ -18,7 +18,12 @@ export type IntentId =
   // Family 8: awards (a list or a count, by kind).
   | "event-wins" | "inspire-awards" | "finalist-finishes" | "total-awards" | "award-split" | "awards"
   // An event's or a season's winners: no team.
-  | "winning-alliance";
+  | "winning-alliance"
+  // Family 6: the team's opponents and partners.
+  | "most-played-opponent" | "toughest-opponent" | "best-partner" | "frequent-partner" | "never-played";
+
+/** Family 6 with two teams named ("4215 vs 6980 head to head"). */
+export type TwoTeamId = "head-to-head" | "opr-vs" | "rating-vs" | "win-chance" | "better-record";
 
 interface IntentRule {
   id: IntentId;
@@ -38,6 +43,11 @@ const MATCHES = "(?:matches|match|games?)";
 /** In order: the longer, more specific phrases first ("longest win streak" before "win streak"). */
 const RULES: IntentRule[] = [
   { id: "winning-alliance", family: "event", season: "all", noTeam: true, re: /\bwinning\s+alliances?\b|\bwho\s+won\s+(?:the\s+)?(?:worlds?|world\s+championship|first\s+championship)\b|\bworld\s+champions\b/ },
+  { id: "never-played", family: "two-team", season: "latest", re: /\bteams?\s+(?:(?:it|they|he|she)\s+)?(?:(?:has|have)\s+)?(?:never|not\s+yet|hasn't|haven't|has\s+not|have\s+not|didn't|did\s+not)\s+(?:played|faced|met)(?:\s+(?:against|with))?\b|\bnever\s+(?:played|faced|met)\s+(?:teams?|opponents?)\b/ },
+  { id: "toughest-opponent", family: "two-team", season: "all", re: /\b(?:toughest|hardest|strongest|worst)\s+(?:opponents?|rivals?|matchups?)\b|\bnemesis\b/ },
+  { id: "most-played-opponent", family: "two-team", season: "all", re: /\bmost\s+(?:played|common|frequent|faced|often\s+(?:played|faced))\s+(?:opponents?|rivals?)\b|\bopponents?\s+(?:faced|played|met)\s+(?:the\s+)?most\b|\bbiggest\s+rival\b/ },
+  { id: "frequent-partner", family: "two-team", season: "all", re: /\bmost\s+(?:frequent|common|often|played\s+with)\s+(?:alliance\s+)?partners?\b|\bfrequent\s+(?:alliance\s+)?partners?\b|\bpartnered\s+(?:with\s+)?(?:the\s+)?most\b/ },
+  { id: "best-partner", family: "two-team", season: "all", re: /\b(?:best|strongest|top|winningest)\s+(?:alliance\s+)?partners?\b/ },
   { id: "award-split", family: "awards", season: "all", re: /\bjudged\s+(?:vs\.?|versus|and|or)\s+performance(?:\s+awards?)?\b|\bperformance\s+(?:vs\.?|versus|and|or)\s+judged(?:\s+awards?)?\b|\bawards?\s+by\s+(?:type|kind)\b/ },
   { id: "event-wins", family: "awards", season: "all", re: /\bhow\s+many\s+(?:events?|tournaments?|competitions?)\s+(?:has|have|did)\s+(?<team>.+?)\s+won?\b|\b(?:ever\s+)?won\s+(?:an?\s+|any\s+)?(?:events?|tournaments?|competitions?)\b|\bevent\s+wins?\b|\b(?:events?|tournaments?)\s+won\b/ },
   { id: "inspire-awards", family: "awards", season: "all", re: /\binspire(?:\s+awards?)?\b/ },
@@ -162,6 +172,55 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
 const hasScope = (s: ReadScope) => s.season != null || s.latest || s.ever || s.championship || s.states || !!s.level || !!s.alliance || !!s.at;
 
 /** The stat question `raw` asks, or null when it isn't one. `raw` is the query as search cleaned it. */
+export interface TwoTeamQuestion { id: TwoTeamId; scope: ReadScope; a: string; b: string }
+
+const VS = String.raw`(?:vs\.?|versus|v\.?|against)`;
+const H2H = String.raw`(?:head[\s-]?to[\s-]?head|h2h)`;
+/** In order; each names its two teams as groups 1 and 2. */
+const TWO_TEAM: { id: TwoTeamId; re: RegExp }[] = [
+  { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and) (.+?) ${H2H}(?: record| matches| results| history)?$`) },
+  { id: "head-to-head", re: new RegExp(String.raw`^${H2H}(?: record| matches| results| history)?(?: of| for| between)? (.+?) (?:${VS}|and) (.+)$`) },
+  { id: "head-to-head", re: new RegExp(String.raw`^(.+?) ${H2H}(?: record)? (?:${VS}|with) (.+)$`) },
+  { id: "head-to-head", re: /^(?:has|have|did) (.+?) (?:ever )?(?:played|faced|met|beaten|beat|lost to)(?: against)? (.+?)(?: before)?$/ },
+  { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:record|results?|matches) (?:against|${VS}) (.+)$`) },
+  { id: "opr-vs", re: new RegExp(String.raw`^(.+?) opr (?:${VS}|compared to|or) (.+)$`) },
+  { id: "opr-vs", re: new RegExp(String.raw`^(.+?) ${VS} (.+?) opr$`) },
+  { id: "rating-vs", re: new RegExp(String.raw`^(.+?) (?:prediction )?(?:rating|strength) (?:${VS}|compared to|or) (.+)$`) },
+  { id: "rating-vs", re: new RegExp(String.raw`^(.+?) ${VS} (.+?) (?:prediction )?(?:rating|strength)$`) },
+  { id: "win-chance", re: new RegExp(String.raw`^(.+?) (?:win (?:chances?|probability|odds)|chances? (?:of winning|to win)|odds) (?:${VS}|over) (.+)$`) },
+  { id: "win-chance", re: /^(?:what are the )?(?:chances?|odds|probability) (?:that )?(.+?) (?:beats|wins against|wins vs|will beat) (.+)$/ },
+  { id: "better-record", re: /^(?:who|which team|which) (?:has|had) (?:a |the )?better record (.+?) or (.+)$/ },
+  { id: "better-record", re: /^(.+?) or (.+?) (?:who has (?:a |the )?)?better record$/ },
+  { id: "better-record", re: /^better record (.+?) or (.+)$/ },
+];
+
+/** "4215 vs 6980 head to head", "4215 OPR vs 6980", "who has a better record, 4215 or 6980": two teams named, or null. */
+export function readTwoTeam(raw: string): TwoTeamQuestion | null {
+  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ")} `.replace(/\s+/g, " ");
+  // "red vs blue record" is one team's split by colour, not two teams.
+  if (/\b(?:red\s+(?:vs\.?|versus|v\.?|and|or)\s+blue|blue\s+(?:vs\.?|versus|v\.?|and|or)\s+red)\b/.test(q)) return null;
+  // A bare year is a season, unless that leaves a side empty: then it's a team's number ("4215 vs 2024 head to head").
+  for (const yearIsTeam of [false, true]) {
+    const { scope, rest } = readScope(yearIsTeam ? q.replace(/\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1") : q);
+    // "at <event>" isn't read for two teams: left to search.
+    if (scope.at) return null;
+    const side = (s: string) => squash(s.replace(/\b(?:team|teams|the|ftc)\b/g, " ").replace(/\bn(20\d\d)\b/g, "$1"));
+    for (const r of TWO_TEAM) {
+      const m = r.re.exec(rest);
+      if (!m) continue;
+      const a = side(m[1]), b = side(m[2]);
+      if (!a || !b || a === b) break;
+      // A side still holding a versus word names more than one team: Compare's question, not this one.
+      if (new RegExp(String.raw`\b${VS}\b`).test(a) || new RegExp(String.raw`\b${VS}\b`).test(b)) return null;
+      // Season numbers are read per team; match-type and colour scopes only apply to the meetings.
+      if (r.id !== "head-to-head" && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
+      return { id: r.id, scope, a, b };
+    }
+    if (!scope.year) break;
+  }
+  return null;
+}
+
 export function readStatQuestion(raw: string): StatQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ");
   // "world record score" and "highest score this season" with no team are a season's records (searchHighScores.ts).
@@ -176,6 +235,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
     if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
     if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
+    if (r.id === "never-played" && (scope.championship || scope.states || scope.level || scope.alliance || scope.ever)) return null;
     if (r.needsEvent && !scope.at) return null;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
     if (r.id === "red-blue-record") scope.alliance = null;
