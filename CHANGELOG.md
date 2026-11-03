@@ -26,7 +26,7 @@ FTC One Search says each thing once at the top of its results: the title, then a
 
 ### Search
 - **No repeated badge.** The badge under the title says how a search was read. When that reading is already the title ("League meets in New Jersey", or two teams side by side), the badge is left out, so the top of the page says it once. Badges that add something, like a team's name under its Worlds trips, stay.
-- **Did you mean, once.** For a misspelt name, the title reads "Closest names to “hypnotc”" and the suggestion appears once, on its own line above the results. Results and their order are unchanged.
+- **Did you mean, once.** For a misspelt name, the title reads "Closest names to “hypnotc”" and the suggestion appears once, on its own line above the results. Results and their order are unchanged. (#439)
 
 ## 2.3.5 — 2026-11-02
 
