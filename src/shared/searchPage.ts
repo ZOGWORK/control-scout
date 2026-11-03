@@ -12,7 +12,7 @@ export type AnswerExtra = Omit<SearchAnswer, "understood"> & { understood?: Unde
 export const readingOf = (a: AnswerExtra | undefined): string | null => a?.understood?.label?.trim() || null;
 
 /** A reading without its "(did you mean …)" tail: the page says that on its own line. */
-const plain = (s: string) => s.replace(/\s*\(did you mean [^)]*\)\s*$/i, "").trim();
+const plain = (s: string) => s.replace(/\s*\(did you mean\s.*\)\s*$/i, "").trim();
 const norm = (s: string) => plain(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 /** The badge as shown under a title: none when it only repeats the title ("League meets in New Jersey" under

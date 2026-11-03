@@ -42,6 +42,8 @@ describe("badgeUnder", () => {
     expect(badgeUnder("Closest names to \"hypnotc\"", 'Closest names to "hypnotc" (did you mean "Hypnotic Robotics"?)')).toBeNull();
     expect(badgeUnder("Team 7149 — Worlds Appearances", "Team 7149 ENFORCERS · Their worlds appearances")).toBe("Team 7149 ENFORCERS · Their worlds appearances");
     expect(badgeUnder("Simply Complex (18061)", null)).toBeNull();
+    // A suggested name with its own brackets is still the whole tail.
+    expect(badgeUnder('Closest names to "robotcs"', 'Closest names to "robotcs" (did you mean "Robotics (FTC)"?)')).toBeNull();
   });
 
   it("titles a names reading without its did-you-mean tail (the page says that on its own line)", () => {
