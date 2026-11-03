@@ -43,6 +43,7 @@ describe("a box holding the page's query (syncQuery)", () => {
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=upcoming%20meets%20in%20New%20Jersey")]);
     fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => { pending.splice(0, 1)[0].resolve({ q: "upcoming meets in New Jersey", hits: [], pages: [], step: "deterministic", weak: false }); });
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=upcoming%20meets%20in%20New%20Jersey" }));
   });
 });
