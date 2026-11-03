@@ -21,7 +21,7 @@ import { NoResults } from "../components/search/page/NoResults";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -77,7 +77,8 @@ export default function SearchPage() {
   }, [now.data, before.data, base, asked, hits]);
 
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
-  const badge = !found || !ax ? null : contextBadge({ ...ax, hits }, notes.understood);
+  const title = found ? pageTitle(ax, hits, isQualityQuestion(query)) : null;
+  const badge = !found || !ax ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
@@ -102,7 +103,7 @@ export default function SearchPage() {
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-        {!query ? "Search" : found ? pageTitle(ax, hits, isQualityQuestion(query)) : busy || error ? "Search results" : <>No matches for “{query}”</>}
+        {!query ? "Search" : found ? title : busy || error ? "Search results" : <>No matches for “{query}”</>}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
