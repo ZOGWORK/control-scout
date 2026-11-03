@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.8 — 2026-11-02
+
+Match videos play in the app: a match's video button no longer sends you off to YouTube.
+
+### Highlights
+- [live] A match's video button plays that match right on the page
+- [live] On an event page it plays in the event's own player, with the prediction over it
+- [live] Anywhere else it opens in a video window, without leaving the page
+
+### Event page
+- **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab.
+
 ## 2.3.7 — 2026-11-02
 
 FTC One Search: the example searches show the range of what you can ask, across different teams.
