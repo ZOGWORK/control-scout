@@ -12,6 +12,7 @@ import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
+import { eventWon } from "../searchAsks.js";
 import { namedTeam } from "../searchCompare.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
@@ -177,11 +178,23 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
 
 /** "ftc decode winning alliance", "New Jersey Championship winning alliance": no team, an event's (or the season's
  *  championship's) winners. The event is the hit; its answer is worked out for the page only. */
+/** The event a "who won" question names, by the same rule as the asks' "who won" (../searchAsks.ts eventWon): a place's
+ *  championship ("nj states") or an event by name, its newest finished season or the one named; else the event search
+ *  finds with a played playoff. */
+async function namedEvent(it: StatQuestion) {
+  const words = [it.core, it.scope.states ? "states" : "", it.scope.season != null ? seasonLabel(it.scope.season) : ""].filter(Boolean).join(" ");
+  const won = await eventWon(words, new Set());
+  if (won) return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [won.season, won.code])) ?? null;
+  return it.scope.states ? null : findEvent(it.core, it.scope.season);
+}
+
 async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const championship = it.scope.championship || !it.core;
-  const named = championship ? null : await findEvent(it.core, it.scope.season);
+  // "who won nj states": a place's state championship; "states" with no place names none.
+  if (it.scope.states && !it.core) return null;
+  const championship = !it.scope.states && (it.scope.championship || !it.core);
+  const named = championship ? null : await namedEvent(it);
   if (!championship && !named) return null;
-  const stat = opts.full ? await winnersAnswer(it.core, it.scope.season, championship, async () => named) : null;
+  const stat = opts.full ? await winnersAnswer(it.core, it.scope.season, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
   if (opts.full && !stat) return null;
   const season = named?.season ?? it.scope.season;
   const label = named ? `${shortEvent(named.name, named.type)} · Winning alliance` : `${season != null ? `${seasonLabel(season)} ` : ""}FIRST Championship · Winning alliances`;

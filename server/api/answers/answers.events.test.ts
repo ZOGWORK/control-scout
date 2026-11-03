@@ -43,6 +43,11 @@ beforeAll(async () => {
   await match("FTCCMP1", "playoff", 2, 1, "F1", 400, 410, [[6980, "red"], [207, "red"], [23268, "blue"], [7149, "blue"]]);
   await run("INSERT INTO alliances (season, code, number, name, captain, pick1) VALUES (2025, 'FTCCMP1', 1, 'Edison', 6980, 207), (2025, 'FTCCMP1', 2, 'Ochoa', 23268, 7149)");
   await run("INSERT INTO awards (season, code, type, placement, team) VALUES (2025, 'FTCCMP1', 'Winner', 1, 23268), (2025, 'FTCCMP1', 'Winner', 2, 7149), (2025, 'FTCCMP1', 'Winner', 3, 6980), (2025, 'FTCCMP1', 'Winner', 4, 207)");
+  // A Leadership Award is stored as a Winner too (FIRST's 2025-26 Worlds list): never a winning alliance.
+  await ev("USNJQ5", "Pine Barrens Qualifier", "Qualifier", "2026-02-01");
+  await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2025, 'USNJQ5', 'Winner', 1, 207, 'Winning Alliance - Captain'), (2025, 'USNJQ5', 'Winner', 1, 6980, '<i>FIRST</i>® Leadership Award Winner')");
+  // The next season has begun (an event on the calendar) but has no championship yet.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJQ26', 'Fall Qualifier', 'Qualifier', 'Hillsborough', 'NJ', 'USA', '2026-10-01', '2026-10-01', 't')");
   await rebuildSearch();
 });
 
@@ -108,9 +113,33 @@ describe("winning alliances", () => {
     // The season's championship events, from the data, as buttons.
     expect(a.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ title: "Worlds events, 2025–26", items: [{ label: "Edison Division" }, { label: "Ochoa Division" }, { label: "Worlds finals", sub: "finals" }] });
   });
-  it("a season with no championship in the data says so", async () => {
+  it("a season with no championship results says so, then the latest finished season's champions below it", async () => {
     const a = await searchAnswer("into the deep winning alliance", { limit: 25 });
-    expect(a.stat!.none).toBe("No championship results yet for INTO THE DEEP: the 2024–25 FIRST Championship isn't in the data.");
+    expect(a.stat!.none).toBe("No championship results yet for INTO THE DEEP (2024–25). Below: the latest finished season's champions, DECODE (2025–26).");
+    expect(a.stat!.headline).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS" });
+    const t = await searchAnswer("who won worlds this year", { limit: 25 });
+    expect(t.stat!.none).toBe("No championship results yet for BIOBUZZ (2026–27). Below: the latest finished season's champions, DECODE (2025–26).");
+  });
+  it("a season's champions however it's asked: a game's name, Worlds, winner, champion, last year", async () => {
+    for (const q of ["decode winner", "into the deep champions", "who won centerstage", "who won worlds", "worlds winners", "world champions", "who won worlds last year", "worlds winners 2025", "into the deep world champions"]) {
+      expect(readStatQuestion(q), q).toMatchObject({ id: "winning-alliance", noTeam: true, core: "" });
+    }
+    for (const q of ["decode winner", "who won worlds", "world champions", "who won worlds last year"]) {
+      expect((await searchAnswer(q, { limit: 25 })).stat!.headline, q).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS" });
+    }
+    expect((await searchAnswer("who won worlds last year", { limit: 25 })).stat!.definition).toContain('"Last year" is DECODE (2025–26), the latest whose championship has finished.');
+    // An award's winner, or a team, is never read as a season's champions.
+    for (const q of ["who won the inspire award at nj states", "4215 worlds winner", "4215 champion"]) expect(readStatQuestion(q)?.id, q).not.toBe("winning-alliance");
+  });
+  it("who won a state championship: its winners, each division apart, its Inspire Award and its other seasons", async () => {
+    const a = await searchAnswer("who won nj states", { limit: 25 });
+    expect(a.stat!.title).toMatch(/2025–26 winning alliance$/);
+    expect(a.stat!.headline).toBeDefined();
+    expect(a.stat!.blocks.some((b) => b.kind === "links" && b.title === "Inspire Award")).toBe(true);
+    expect(readStatQuestion("who won states")?.id === "winning-alliance" ? (await searchAnswer("who won states", { limit: 25 })).stat : undefined).toBeUndefined();
+  });
+  it("a Leadership Award stored as a Winner is never on the winning alliance", async () => {
+    expect((await searchAnswer("Pine Barrens Qualifier winning alliance", { limit: 25 })).stat!.headline).toMatchObject({ value: "207 Critical Mass" });
   });
 });
 
