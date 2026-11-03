@@ -24,6 +24,7 @@ import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.
 import { all } from "../db.js";
 import { defaultRankingsSeason, rankings } from "./rankings.js";
 import { search } from "./search.js";
+import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 
@@ -219,7 +220,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const where = ask.region ? " AND t.country = ? AND t.state = ?" : "";
       const col = STAT_COLUMN[ask.stat];
       const rows = await all<any>(
-        `SELECT s.team, t.name, t.city, t.state, s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, s.wins, s.losses, s.ties
+        `SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties
          FROM team_season_stats s JOIN teams t ON t.number = s.team
          WHERE s.season = ? AND s.matches >= ? AND ${col} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${where}
          ORDER BY ${col} DESC${ask.stat === "wins" ? ", s.losses ASC" : ""}, s.team LIMIT 5`,
@@ -229,7 +230,8 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const title = `${STAT_LABEL[ask.stat]}${ask.region ? ` in ${ask.region.name}` : ""} · ${seasonLabel(season)}`;
       return answer(q, {
         hits: [], pages: withPage(q, [{ title: "Rankings", href: `/rankings?season=${season}${ask.region ? `&region=${encodeURIComponent(ask.region.key)}` : ""}` }]),
-        card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No team has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
+        // The same teams as a table, sorted by the stat asked (most wins: the list's own order, its record a column).
+        card: { kind: "leaderboard", title, lines, ...(lines.length ? { table: tableOf(rows, season, ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame", wins: "rank" } as const)[ask.stat]) } : { none: `No team has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` }) },
         understood: { kind: "question", label: `${title}${ask.stat === "wins" ? "" : ", without penalties"}`, season, ...(ask.region ? { place: { key: ask.region.key, name: ask.region.name } } : {}) },
       });
     }
