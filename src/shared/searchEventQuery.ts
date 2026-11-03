@@ -31,18 +31,20 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
   // "states" ("nj states"): a state's own championship, never the FIRST Championship held there.
   states: ["Championship"],
   event: null, competition: null, comp: null,
+  // "worlds" is the FIRST Championship only, never a state's ("worlds 2026", "worlds divisions").
+  worlds: ["FIRSTChampionship"],
 };
 
 /** How an event word reads in a label, the word typed and no more ("Meets in New Jersey": never "League meets"). */
 const EVENT_LABEL: Record<string, string> = {
   meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", states: "State championships",
   qualifier: "Qualifiers", scrimmage: "Scrimmages", kickoff: "Kickoffs", premier: "Premier events",
-  event: "Events", competition: "Events", comp: "Events",
+  event: "Events", competition: "Events", comp: "Events", worlds: "FIRST Championship (Worlds) events",
 };
 
-export type SearchTime = "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
+export type SearchTime = "today" | "tomorrow" | "upcoming" | "past" | "this-weekend" | "next-weekend" | "this-week" | "next-week" | "this-month" | "next-month";
 const TIME_OF: Record<string, SearchTime> = {
-  upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past",
+  today: "today", tomorrow: "tomorrow", upcoming: "upcoming", "coming up": "upcoming", past: "past", recent: "past", previous: "past", latest: "past",
   "this weekend": "this-weekend", "next weekend": "next-weekend", "this week": "this-week", "next week": "next-week",
   "this month": "this-month", "next month": "next-month",
 };
@@ -173,7 +175,7 @@ export function readEventQuery(raw: string): EventQuery | null {
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
 
 const TIME_LABEL: Record<SearchTime, string> = {
-  upcoming: "Upcoming", past: "Past", "this-weekend": "This weekend's", "next-weekend": "Next weekend's", "this-week": "This week's",
+  today: "Today's", tomorrow: "Tomorrow's", upcoming: "Upcoming", past: "Past", "this-weekend": "This weekend's", "next-weekend": "Next weekend's", "this-week": "This week's",
   "next-week": "Next week's", "this-month": "This month's", "next-month": "Next month's",
 };
 
@@ -218,6 +220,8 @@ export function timeWindow(time: SearchTime, today: string): { from: string | nu
   const toSat = day === 0 ? -1 : 6 - day, toSun = day === 0 ? 0 : 7 - day;
   const iso = (y: number, m: number, dd: number) => new Date(Date.UTC(y, m, dd)).toISOString().slice(0, 10);
   switch (time) {
+    case "today": return { from: today, to: today };
+    case "tomorrow": return { from: add(1), to: add(1) };
     case "upcoming": return { from: today, to: null };
     case "past": return { from: null, to: add(-1) };
     case "this-weekend": return { from: add(toSat), to: add(toSun) };

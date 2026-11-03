@@ -133,6 +133,27 @@ export function keeps(h: SearchHit, f: PageFilters, today = todayIso()): boolean
   return true;
 }
 
+/** How many events each time tab would show with the other filters as they are (a tab with none is plain before
+ *  it's picked). */
+export function whenCounts(hits: SearchHit[], f: PageFilters, today = todayIso()): Record<When, number> {
+  const ev = hits.filter((h) => h.kind === "event");
+  const n = (when: When) => ev.filter((h) => keeps(h, { ...f, when }, today)).length;
+  return { all: n("all"), upcoming: n("upcoming"), past: n("past") };
+}
+
+/** What a filtered page with nothing left can switch to instead, nearest first: the other time tab, then every season,
+ *  then every event type, each named with how many events it would show ("2 upcoming"); none that would show none. */
+export function filterAlternatives(hits: SearchHit[], f: PageFilters, today = todayIso()): { label: string; f: PageFilters }[] {
+  const ev = hits.filter((h) => h.kind === "event");
+  const count = (g: PageFilters) => ev.filter((h) => keeps(h, g, today)).length;
+  const out: { label: string; f: PageFilters }[] = [];
+  const add = (g: PageFilters, say: (n: number) => string) => { const n = count(g); if (n) out.push({ label: say(n), f: g }); };
+  if (f.when !== "all") { const other: When = f.when === "past" ? "upcoming" : "past"; add({ ...f, when: other }, (n) => `${n} ${other}`); }
+  if (f.season != null) add({ ...f, season: null }, (n) => `${n} in every season`);
+  if (f.type != null) add({ ...f, type: null }, (n) => `${n} of every type`);
+  return out;
+}
+
 /** The choices the filters offer: the seasons and event types this result set holds (never ones it doesn't). */
 export function filterChoices(hits: SearchHit[]): { seasons: number[]; types: { value: string; label: string }[] } {
   const seasons = new Set<number>(), types = new Map<string, string>();
