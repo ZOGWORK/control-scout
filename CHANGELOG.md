@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.3 — 2026-11-03
+## 2.4.7 — 2026-11-03
 
 Teams: a link can name a state, so it opens on exactly the teams a search answer ranked.
 
@@ -26,6 +26,68 @@ Teams: a link can name a state, so it opens on exactly the teams a search answer
 
 ### Teams
 - **A state in the link.** `/teams?country=US&state=NJ` lists the teams whose home is New Jersey. It's the same place search answers use, so the "View more detail" link under a leaderboard opens on the same teams, in the same order, with the same numbers. FIRST's region codes can't always do this (Kansas teams sit in Missouri's region, California has four). The season, view, sort, region and filter in the link already worked, so a pre-filtered page such as New Jersey sorted by auto OPR for 2025–26 survives a refresh, the back button and a share. The place shows as one chip, "Teams from New Jersey, United States", and removing it clears both the country and the state. Switching between Team-events and Team seasons keeps it. (#451)
+
+## 2.4.6 — 2026-11-03
+
+Compare: the season picker sits with the team controls.
+
+### Highlights
+- [fixes] On Compare, the season picker sits right under Quick add
+- [fixes] The "no results yet" note names the season once
+- [fixes] Phones stack the same order: teams, Quick add, then season
+
+### Compare
+- **Season picker moved.** The season buttons (2026–27, 2025–26, 2024–25, 2023–24, Earlier) now sit directly below the Quick add row, lined up on the left with the team search, instead of at the top right beside the title. Top to bottom: the team search and count, Quick add, the season, then the note and the comparison. Phones stack the same order. The seasons on offer and what picking one does are unchanged.
+- **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice. (#447)
+
+## 2.4.5 — 2026-11-03
+
+FTC One Search answers "when" questions latest first, with the year at the front of each card.
+
+### Highlights
+- [teams] A team's Worlds or state trips list the latest season first
+- [teams] Each trip's card starts with its season in bold, then the division
+- [fixes] The empty search page no longer shows example searches
+- [teams] A game-rule answer shows a book icon instead of the trophy
+
+### Search
+- **Latest first.** "When did 23268 go to Worlds" lists 2025–26 before 2024–25, and so on back. The OPR chart above still reads left to right, oldest to newest, and selecting a season still jumps to its card. On a phone the season chips run latest first too.
+- **The year leads.** Each trip's card starts with its season in bold ("2025–26 · Lovelace Division"); the season chip that repeated it is gone.
+- **No example row on an empty page.** When nothing matches, the page explains what search covers, what it understood and links to browse events and teams; the example searches stay in the search box's dropdown.
+- **A book for rules.** An answer from the game manual ("can robots descore…") has a book icon; answers from records keep the trophy. Results and their order are unchanged. (#448)
+
+## 2.4.4 — 2026-11-03
+
+Home's search box says what it can do: type whatever you want.
+
+### Highlights
+- [home] FTC One Search on Home: a bigger, glowing box for any search
+- [home] Example searches cycle in the box, each marked with its kind
+- [home] Tap any example under the box to run it
+
+### Site
+- **FTC One Search on Home.** Home's search block is now the hero of its column: a taller field with a soft volt glow that brightens when you type, under "Type whatever you want" and the line "Search teams, events, matches, predictions, and records." The placeholder cycles through the search's own example searches every few seconds, the same list the empty search box offers. It holds still while the field has focus and never moves with reduced motion on, when the glow is static too. The examples are also chips under the box, one tap each to their results (and kept in your recent searches); on a phone they scroll sideways in one row. With the field empty and focused, the dropdown shows your recent searches. The placeholder is never searched for itself. The results dropdown stays the box's own width, so the globe beside it never moves. The rest of Home is unchanged. (#426)
+
+## 2.4.3 — 2026-11-03
+
+FTC One Search answers more questions: who's on top in a state, who leads a stat, who won an award, and what Predict says.
+
+### Highlights
+- [rankings] "What is the best FTC team right now" shows the world's top five
+- [rankings] "Top teams in New Jersey" shows its top five; team rows show OPR
+- [rankings] "Highest OPR", "best auto team" and "most wins" list the leaders
+- [predict] "Will 4215 win their next match?" opens Predict on its matches
+- [history] "Who won Inspire at …" names the winners from the event's results
+
+### Search
+- **The best team, worldwide.** "What is the best FTC team right now", "best team", "who is the best FTC team" and "top FTC teams" show the season's top five from the world rankings, titled "Top teams · 2025–26", and link the full ranking. "FTC", "right now", "currently" and "in the world" are read as filler, never as names.
+- **Questions don't list stray matches.** A question that matches nothing says what it read and offers the browse links. It no longer lists teams or towns that only share one of its words ("Best", "The Best Friends").
+- **Leaderboards by place.** "Top teams in New Jersey", "NJ rankings" and "best team in NJ" show the region's top five from the live rankings, each with its place in the region and in the world. They also link the region's full ranking.
+- **Stat leaders.** "Highest OPR", "best auto team", "best teleop", "best endgame" and "who has the most wins" list the season's top five by that number (OPR without penalties, or its auto, teleop or endgame part; wins with losses as the tie-break), optionally for a region ("highest OPR in NJ"). Only teams with 3 or more matches count. No other stat is ever inferred.
+- **Predictions and advancement.** "Will 4215 win their next match" shows its next match and opens Predict on its matches. "4215 vs 6980 who wins" shows the Compare and opens Predict with both teams filled in. "Who will win New Jersey Championship" opens the event's odds. "Will 4215 advance to states" and "what does 4215 need to advance" open the advancement simulator for the team.
+- **Event awards.** "Who won Inspire at New Jersey Championship" (and Think, Innovate, Design, Reach, Sustain, Connect, Control, Compass, Judges' Choice) lists the winners from the event's results. For an event that hasn't happened yet, it shows the latest season that gave the award, with that season named.
+- **Team questions.** "When does 4215 play next" shows its next match, or says plainly that none is scheduled yet. "How are predictions calculated" puts the methodology page first in Pages.
+- **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#440)
 
 ## 2.4.2 — 2026-11-03
 

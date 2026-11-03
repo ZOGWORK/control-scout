@@ -114,6 +114,15 @@ describe("ComparePage", () => {
     await waitFor(() => expect(where).toBe("/compare?teams=4215%2C6980"));
   });
 
+  it("the season sits under Quick add, above the comparison", async () => {
+    h.state.bookmarks = [12345];
+    page("/compare?teams=4215,6980");
+    const table = await screen.findByRole("table");
+    const before = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const count = screen.getByText("2 of 4 teams"), quick = screen.getByText("Quick add:"), season = screen.getByLabelText("Season");
+    expect(before(count, quick) && before(quick, season) && before(season, table)).toBe(true);
+  });
+
   it("the search keeps its place once teams are chosen, the table marks the best, and removing works", async () => {
     page("/compare?teams=4215,6980");
     const table = within(await screen.findByRole("table"));

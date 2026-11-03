@@ -36,13 +36,13 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
   const shown = apps.find((a) => a.id === on);
   return (
     <>
-    {/* Phones: every season as a chip in one sideways line, each jumping to its card. */}
+    {/* Phones: every season as a chip in one sideways line, newest first like the cards, each jumping to its card. */}
     <nav aria-label="Seasons" className="mt-3 md:hidden" data-timeline-chips>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">By season</p>
       <ol className="-mx-1 mt-1.5 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-        {apps.map((a, i) => (
+        {[...apps].reverse().map((a, i) => (
           <li key={a.id} className="flex shrink-0 items-center gap-1">
-            {i > 0 && <span aria-hidden className="text-muted-foreground">→</span>}
+            {i > 0 && <span aria-hidden className="text-muted-foreground">←</span>}
             <button type="button" onClick={() => jumpTo(a.id)} data-chip={a.season}
               className="min-h-11 rounded-full border border-accent/40 bg-accent/[0.08] px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
               {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.opr != null ? `OPR ${a.opr.toFixed(1)}` : a.division ?? "—"}
@@ -132,9 +132,10 @@ const PILL = "inline-flex items-baseline gap-1 rounded-md border border-border b
 export function AppearanceCard({ a }: { a: Appearance }) {
   const body = (
     <>
-      <p className="font-medium leading-snug text-foreground group-hover:text-accent-text">{a.title}</p>
+      {/* The question asks when: the season leads the card, ahead of the division. */}
+      <p className="leading-snug text-foreground group-hover:text-accent-text" data-card-title><b className="font-display text-lg font-semibold tabular-nums" data-season>{a.seasonLabel}</b><span className="text-muted-foreground"> · </span><span className="font-medium">{a.title}</span></p>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
-        {[...a.badges, a.place, a.seasonLabel].filter(Boolean).map((b) => <span key={b} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{b}</span>)}
+        {[...a.badges, a.place].filter(Boolean).map((b) => <span key={b} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{b}</span>)}
       </p>
       {a.when && <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="size-3.5 shrink-0" aria-hidden />{a.when}{a.place && <><MapPin className="ml-1.5 size-3.5 shrink-0" aria-hidden />{a.place}</>}</p>}
       <p className="mt-2 flex flex-wrap gap-1" data-pills>

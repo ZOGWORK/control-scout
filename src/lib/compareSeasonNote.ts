@@ -11,8 +11,8 @@ export function compareSeasonNote(o: { asked: boolean; season: number; current: 
   const none = o.teams.filter((t) => !t.hasResults).map((t) => String(t.number));
   const older = o.season < o.current;
   if (!older && !none.length) return null;
-  const why = `${seasonLabel(o.season)} is the latest season ${o.teams.length === 1 ? "this team has" : "any of these teams has"} results in`;
-  const head = older ? `No ${seasonLabel(o.current)} results yet, so this compares ${seasonLabel(o.season)}: ${why}.` : `Showing ${seasonLabel(o.season)}: ${why}.`;
+  const why = `the latest season ${o.teams.length === 1 ? "this team has" : "any of these teams has"} results in`;
+  const head = older ? `No ${seasonLabel(o.current)} results yet, so this compares ${seasonLabel(o.season)}, ${why}.` : `Showing ${seasonLabel(o.season)}, ${why}.`;
   const gap = none.length ? ` ${list(none)} ${none.length === 1 ? "has" : "have"} none in ${seasonLabel(o.season)}; pick another season above to compare ${none.length === 1 ? "it" : "them"} there.` : "";
   return head + gap;
 }
