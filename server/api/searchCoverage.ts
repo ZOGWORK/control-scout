@@ -590,7 +590,8 @@ export async function monthAnswer(q: string, now?: number): Promise<SearchAnswer
 export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, "").replace(/\bftc\b/g, " "));
   const m = /^(?:all\s+)?(?:the\s+)?teams?\s+(?:in|from|based in)\s+(.+)$/.exec(t) ?? /^(.+?)\s+teams?$/.exec(t); // "teams" as search singularizes it too
-  if (!m) return null;
+  // "best team", "top teams": the leaderboards' (./searchAsks.ts), never a place called "best".
+  if (!m || /\b(?:best|top|strongest|highest|most|worst|good|great|rookie|oldest|newest|undefeated)\b/.test(m[1])) return null;
   const p = await placeOf(cased(q, m[1]));
   const season = await defaultRankingsSeason();
   if (p) {
