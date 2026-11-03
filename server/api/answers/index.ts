@@ -60,8 +60,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const title = `${it.leadEvent ? "Event with the highest score" : TITLES[it.id]}${scopePhrase(scope)}`;
   const label = `${whoOf(team)} · ${title}`;
   const hit: SearchHit = { ...top, section: EVENT_INTENTS.has(it.id) ? "history" : "matches", ...(scope.season != null ? { linkSeason: scope.season } : {}), facts: undefined, events: undefined };
+  // A team found by a correction ("hypnotc") keeps search's warning, said for the whole question.
+  const guessed = base.step === "did-you-mean";
+  const said = q.toLowerCase();
   const answer: SearchAnswer = {
-    q, hits: [hit, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages, step: "deterministic", weak: false,
+    q, hits: [hit, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages, step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
+    ...(guessed && base.didYouMean ? { didYouMean: said.includes(it.core) ? said.replace(it.core, base.didYouMean) : base.didYouMean } : {}),
     understood: { kind: "question", label, ...(scope.season != null ? { season: scope.season } : {}) },
     intent: { kind: `stat-${it.id}`, pattern: `[team] ${it.id}${it.scope.championship ? " [worlds]" : ""}${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, title] },
   };

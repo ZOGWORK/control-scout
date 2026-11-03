@@ -139,6 +139,13 @@ describe("the answers", () => {
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · Record at Worlds");
   });
+  it("a team found by a correction keeps search's warning", async () => {
+    // Search corrects only to a team that has played (its event stats).
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2024, 'FTCCMP1EDIS', 4215, 3)");
+    const a = await searchAnswer("hipnotic robotics worlds record", { limit: 25 });
+    expect(a).toMatchObject({ step: "did-you-mean", didYouMean: "Hypnotic Robotics worlds record" });
+    expect(a.stat!.headline).toMatchObject({ value: "2-1-0" });
+  });
   it("the first paint says the answer before the app loads", async () => {
     const m = await pageMeta("/search", { q: "4215 worlds record" });
     expect(m.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
