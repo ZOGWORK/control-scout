@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
-import { readStatQuestion } from "./read";
+import { readStatQuestion, readTwoTeam } from "./read";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -115,6 +115,71 @@ describe("winning alliances", () => {
   });
 });
 
+describe("two teams", () => {
+  it("what's read: two teams and the question, a bare year that's a team", () => {
+    expect(readTwoTeam("4215 vs 6980 head to head")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
+    expect(readTwoTeam("Has 4215 ever played 6980")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980", scope: { ever: true } });
+    expect(readTwoTeam("4215 vs 2024 head to head")).toMatchObject({ id: "head-to-head", a: "4215", b: "2024", scope: { season: null } });
+    expect(readTwoTeam("4215 OPR vs 6980")).toMatchObject({ id: "opr-vs", a: "4215", b: "6980" });
+    expect(readTwoTeam("4215 rating vs 6980")).toMatchObject({ id: "rating-vs" });
+    expect(readTwoTeam("4215 win chance vs 6980")).toMatchObject({ id: "win-chance" });
+    expect(readTwoTeam("Who has a better record, 4215 or 6980")).toMatchObject({ id: "better-record", a: "4215", b: "6980" });
+    expect(readTwoTeam("4215 vs 6980")).toBeNull();
+    expect(readStatQuestion("4215 most played opponent")).toMatchObject({ id: "most-played-opponent", core: "4215" });
+    expect(readStatQuestion("4215 teams never played")).toMatchObject({ id: "never-played", core: "4215" });
+  });
+  it("head to head: the meetings and the record, partners apart, never met said plainly", async () => {
+    const a = await searchAnswer("4215 vs 6980 head to head", { limit: 25 });
+    expect(a.stat).toMatchObject({ family: "two-team", headline: { value: "4215 leads 1–0", label: "1 meeting" } });
+    expect(a.stat!.blocks.find((b) => b.kind === "matches")).toMatchObject({ title: "Meetings, newest first", rows: [{ label: "Q1", result: "W" }] });
+    expect(a.stat!.blocks.find((b) => b.kind === "kpis")).toMatchObject({ items: [{ value: "1" }, { value: "0" }, { label: "As partners", value: "2", sub: "0-2-0" }] });
+    expect(a.hits.map((h) => h.ref)).toEqual(["4215", "6980"]);
+    const n = await searchAnswer("4215 vs 207 head to head", { limit: 25 });
+    expect(n.stat!.none).toBe("Hypnotic Robotics (4215) and Critical Mass (207) have never played each other.");
+  });
+  it("season numbers side by side: OPR bars, the better record, a win chance that points to Predict", async () => {
+    await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties) VALUES (2025, 4215, 101.6, 30, 60, 11.6, 3, 50, 98, 29, 58, 11, 6, 40, 12, 9, 3, 0), (2025, 6980, 88.2, 25, 52, 11.2, 9, 50, 90, 26, 53, 11, 7, 80, 12, 10, 2, 0)");
+    const o = await searchAnswer("4215 OPR vs 6980", { limit: 25 });
+    expect(o.stat!.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "OPR 101.6 against 88.2, +13.4" });
+    expect(o.stat!.blocks.find((b) => b.kind === "bars")).toMatchObject({ groups: [{ label: "Total", items: [{ value: 101.6 }, { value: 88.2 }] }, {}, {}, {}] });
+    const r = await searchAnswer("Who has a better record, 4215 or 6980", { limit: 25 });
+    expect(r.stat!.headline).toMatchObject({ value: "Bad Wolf (6980)", label: "83% win rate against 75%" });
+    const w = await searchAnswer("4215 win chance vs 6980", { limit: 25 });
+    expect(w.stat!.headline).toMatchObject({ value: "4215 is stronger" });
+    expect(w.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ items: [{ label: "Predict 4215 vs 6980" }, {}] });
+  });
+  it("opponents and partners, and teams never played", async () => {
+    const t = await searchAnswer("4215 toughest opponent", { limit: 25 });
+    expect(t.stat!.headline).toMatchObject({ value: "7149 ENFORCERS", label: "met 3 times, 2-1-0 against 4215" });
+    const m = await searchAnswer("4215 most played opponent", { limit: 25 });
+    expect(m.stat!.headline).toMatchObject({ value: "7149 ENFORCERS" });
+    const p = await searchAnswer("4215 best alliance partner", { limit: 25 });
+    expect(p.stat!.none).toBe("No partner played with 3 or more times found for Hypnotic Robotics (4215).");
+    const f = await searchAnswer("4215 most frequent partner", { limit: 25 });
+    expect(f.stat!.headline!.value).toMatch(/^(207|6980|23268) /);
+    // Only teams with matches at an official event count (a scrimmage-only season isn't one): 6980 played Parkway.
+    expect((await searchAnswer("4215 teams never played", { limit: 25 })).stat!.none).toBe("No other NJ teams with matches in 2025–26.");
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'USNJCMPPKWY', 6980, 3)");
+    const n = await searchAnswer("4215 teams never played", { limit: 25 });
+    expect(n.stat!.none).toBe("Hypnotic Robotics (4215) has played against every NJ team with matches in 2025–26.");
+    // A playoff 4215 sat out (not on the field) never met the other alliance.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Bench Mark', 'Oradell', 'NJ', 'USA')");
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'USNJCMPPKWY', 31000, 3)");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 31000, 40, 3, 1, 2, 0)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCMPPKWY', 'playoff', 3, 1, 'M3', '2026-03-15T13:00:00Z', 1, 90, 90, 80, 80, 't')");
+    for (const [t, al, on] of [[4215, "red", 0], [207, "red", 1], [31000, "blue", 1]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCMPPKWY', 'playoff', 3, 1, ?, ?, ?)", [t, al, on]);
+    clearAllCaches();
+    const sat = await searchAnswer("4215 teams never played", { limit: 25 });
+    expect(JSON.stringify(sat.stat!.blocks)).toContain("31000 Bench Mark");
+  });
+  it("a season before Predict's (2023–24) offers Compare only", async () => {
+    await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2021, 4215, 80, 12, 8, 4, 0), (2021, 6980, 70, 12, 6, 6, 0)");
+    const a = await searchAnswer("4215 OPR vs 6980 in 2021-22", { limit: 25 });
+    const links = a.stat!.blocks.find((b) => b.kind === "links");
+    expect(links && links.kind === "links" && links.items.map((i) => i.label)).toEqual(["Compare side by side"]);
+  });
+});
+
 describe("what Greptile found", () => {
   it("reads the team in 'how did … do', a named event for winners, a Worlds division, a qualification-only match", () => {
     expect(readStatQuestion("how did 4215 do at New Jersey Championship")).toMatchObject({ id: "results", core: "4215" });
@@ -123,6 +188,8 @@ describe("what Greptile found", () => {
     // A scope its rows can't apply is left to search.
     expect(readStatQuestion("4215 seasons played at New Jersey Championship")).toBeNull();
     expect(readStatQuestion("4215 total awards on red")).toBeNull();
+    expect(readStatQuestion("4215 teams never played at New Jersey Championship")).toBeNull();
+    expect(readTwoTeam("4215 vs 6980 head to head.")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
   });
   it("a Worlds division named: that division's winners", async () => {
     const a = await searchAnswer("FIRST Championship - Edison Division winning alliance", { limit: 25 });

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.6.1 — 2026-11-03
+## 2.6.2 — 2026-11-03
 
 FTC One Search answers far more ways of asking: comparisons, winners, team facts, counts, months, glossary words and new leaderboards, where many used to end on "no results".
 
@@ -34,6 +34,21 @@ FTC One Search answers far more ways of asking: comparisons, winners, team facts
 - **An event's tab or match.** "NJ states rankings", "worlds playoffs" and "match 12 at nj states" open that tab or match; at an event with divisions, a match number shows each division's.
 - **What a word means.** OPR, the rating, reliability, ranking points, advancement, prediction accuracy, alliances, league meets, qualifiers, the Inspire Award, FTC itself and each season's game (DECODE, INTO THE DEEP …) are explained, with the page that explains more. "FTC rules" and "game manual" open Rules.
 - **Never a dead end.** A query with a team number in it that nothing else reads opens that team, saying what wasn't answered. A team named with "robotics", "team" or a state after it finds the team. Out of 332 test queries, only unknown team numbers and gibberish still end on "no results". (#465)
+
+## 2.6.1 — 2026-11-03
+
+FTC One Search answers questions about two teams: every match they played against each other, their OPR and ratings side by side, who has the better record, and a team's toughest opponents and best partners.
+
+### Highlights
+- [teams] "4215 vs 6980 head to head": every meeting and the record
+- [teams] "4215 OPR vs 6980": both teams' OPR by phase, side by side
+- [teams] "Who has a better record, 4215 or 6980" gives a verdict
+- [teams] Toughest opponent, best partner, teams never played
+
+### Search
+- **Head to head.** "4215 vs 6980 head to head" or "has 4215 ever played 6980" lists the matches the two teams played on opposite alliances, newest first, with the record between them and how often they were partners. Two teams that never met say so. It takes the same scopes as other answers: Worlds, a season, playoffs or quals.
+- **Side by side.** "4215 OPR vs 6980" and "4215 rating vs 6980" show both teams' stored season numbers by game phase (the season named, else the latest season both played). "Who has a better record, 4215 or 6980" compares their season win rates. "4215 win chance vs 6980" says which team is stronger and links to Predict, since every match is two alliances.
+- **Opponents and partners.** A team's most played and toughest opponent (best record against it, met 3 times or more), its most frequent and best partner (best record together, 3 matches or more), and the teams from its state it never played that season. (#457)
 
 ## 2.6.0 — 2026-11-03
 
