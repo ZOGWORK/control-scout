@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.2 — 2026-11-03
+
+On a phone, opening the search field on the search page no longer shows a second, half-covered search box under it.
+
+### Highlights
+- [fixes] One search box on a phone's search page, not two (#472)
+- [fixes] The page's own bar steps aside while the top search field is open
+- [fixes] It comes back as soon as the field closes
+
+### Fixes
+- **One search box.** On /search on a phone, tapping the search bar opens the top bar's field, which drops in just below the header. The page's own search bar stayed drawn underneath it, so a second box peeked out below the field. It now hides while the field is open (keeping its place, so nothing jumps) and shows again when the field closes. (#472)
+
 ## 2.7.1 — 2026-11-03
 
 FTC One Search answers a team's numbers one by one: OPR and each phase with the world rank, the prediction rating, the engine's report card, its events in a season or a state, its OPR against an average, reliability, schedule difficulty and league standing.
