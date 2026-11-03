@@ -176,5 +176,7 @@ describe("labels echo the words typed (owner bug)", () => {
     expect(eventSetLabel(readEventQuery("tournaments in NJ")!)).toBe("Tournaments in New Jersey");
     expect(eventSetLabel(readEventQuery("league tournaments in NJ")!)).toBe("League tournaments in New Jersey");
     expect(eventSetLabel(readEventQuery("events in NJ")!)).toBe("Events in New Jersey");
+    // Greptile on #461: kinds that share no type are each named, never the last one alone.
+    expect(eventSetLabel(readEventQuery("meets tournaments in NJ")!)).toBe("Meets and tournaments in New Jersey");
   });
 });

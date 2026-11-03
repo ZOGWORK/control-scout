@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { eventWon, readAsk } from "./searchAsks";
+import { eventWon, readAsk, type Stat } from "./searchAsks";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -299,5 +299,30 @@ describe("Greptile on #456", () => {
     // 2026-11-03 02:00 UTC is still Nov 2 in Los Angeles.
     expect(await won("CA states", Date.parse("2026-11-03T02:00:00Z"))).toBeNull();
     expect(await won("CA states", Date.parse("2026-11-03T09:00:00Z"))).toMatchObject({ code: "USCACMP" });
+  });
+});
+
+describe("stat leaderboards: scope words and places (owner bug: best teleop in the world)", () => {
+  const STATS: [string, Stat][] = [
+    ["highest opr", "opr"], ["best auto", "auto"], ["best autonomous", "auto"], ["best teleop", "teleop"], ["best tele op", "teleop"],
+    ["best driver", "teleop"], ["best driver controlled", "teleop"], ["best endgame", "endgame"], ["most wins", "wins"],
+    ["top teleop", "teleop"], ["strongest auto", "auto"], ["greatest endgame", "endgame"], ["number one teleop", "teleop"], ["highest teleop", "teleop"],
+  ];
+  const WORLD = ["", " in the world", " worldwide", " globally", " overall", " of all time", " ever", " right now", " this season", " currently", " in ftc", " in the world right now"];
+  const NJ = [" in NJ", " in New Jersey", " in New Jersey this season", " in NJ right now"];
+  it("every stat with every scope is the world's leaderboard", () => {
+    for (const [w, stat] of STATS) for (const sfx of WORLD) expect(readAsk(w + sfx), w + sfx).toEqual({ kind: "stat", stat, region: null });
+  });
+  it("every stat with a place is that place's leaderboard", () => {
+    for (const [w, stat] of STATS) for (const sfx of NJ) expect(readAsk(w + sfx), w + sfx).toMatchObject({ kind: "stat", stat, region: { key: "USA:NJ" } });
+  });
+  it("the question forms read the same", () => {
+    expect(readAsk("who has the best teleop in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
+    expect(readAsk("what is the best auto in new jersey")).toMatchObject({ kind: "stat", stat: "auto", region: { key: "USA:NJ" } });
+    expect(readAsk("best teleop team in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
+    expect(readAsk("which team has the most wins this season")).toEqual({ kind: "stat", stat: "wins", region: null });
+  });
+  it("a place that isn't one is never a leaderboard", () => {
+    expect(readAsk("best teleop in narnia")).toBeNull();
   });
 });

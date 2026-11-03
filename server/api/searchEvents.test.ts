@@ -276,7 +276,15 @@ describe("a venue, every season, spelled loosely (owner bug: River Dell)", () =>
   });
   it("a city counts only when it is the place typed", async () => {
     expect(refs((await ask("meets in oradell")).hits)).toEqual(expect.arrayContaining(["USNJNEM6", "USNJRD1", "USNJRD2"]));
+    // Greptile on #461: the city's name and another school's words never make a venue.
     const hs = await ask("meets at ramsey high school");
-    expect(hs.understood?.label).not.toContain("in Ramsey");
+    expect(refs(hs.hits)).not.toContain("USNJDB1");
+    expect(hs.understood?.fallback).toMatch(/^No meets at Ramsey High School in the data/);
+  });
+  it("two schools a couple of letters apart are never the same venue (Greptile on #461)", async () => {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USAKDIM', 'Anchorage Meet', 'LeagueMeet', 'Dimond High School', 'Anchorage', 'AK', 'USA', '2025-01-11', '2025-01-11', 'test')", [S - 2]);
+    await rebuildSearch();
+    expect(refs((await ask("meets at dumont high school")).hits)).not.toContain("USAKDIM");
+    expect(refs((await ask("meets at dimond high school")).hits)).toEqual(["USAKDIM"]);
   });
 });

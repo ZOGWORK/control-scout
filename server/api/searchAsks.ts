@@ -51,15 +51,21 @@ const AWARDS: Record<string, string> = {
 /** A region named by the words `s` (all of them), or null. */
 const regionWords = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
 
-/** "What is the best FTC team right now" → "best team": the opener, "FTC" and the time words say nothing about which teams. */
+/** Words that only say "everyone, this season": a leaderboard's scope is the world's unless a place is named. */
+const SCOPE_WORDS = /(?:^| )(?:right now|currently|now|today|this season|this year|in the (?:whole )?world|of the world|worldwide|globally|overall|of all time|all time|of all|ever)(?= |$)/g;
+
+/** "What is the best FTC team right now" → "best team", "best teleop in FTC in the world" → "best teleop": the opener,
+ *  "FTC" and the scope words say nothing about which teams. */
 function leaderWords(t: string): { t: string; opened: boolean } {
   const opener = /^(?:what|who|which)(?: is| are|s)? (?:the )?/;
   const opened = opener.test(t);
-  t = t.replace(opener, "").replace(/\b(?:ftc|first tech challenge)\b/g, " ")
-    .replace(/(?: (?:right now|currently|now|today|this season|this year|in the world|worldwide|globally|overall))+$/, "")
+  t = t.replace(opener, "").replace(/(?:^| )(?:in |of )?(?:ftc|first tech challenge)(?= |$)/g, " ").replace(SCOPE_WORDS, " ")
     .replace(/\s+/g, " ").trim();
   return { t, opened };
 }
+
+/** The stat a word names: "auto"/"autonomous", "teleop"/"tele op"/"driver"/"driver controlled", "endgame", "opr", "wins". */
+const statOf = (w: string): Stat => (w = w.replace(/\s+/g, ""), w.startsWith("auto") ? "auto" : w.startsWith("tele") || w.startsWith("driver") ? "teleop" : w.startsWith("end") ? "endgame" : w === "wins" ? "wins" : "opr");
 
 /** The question `q` asks of a view, or null. `q` is cleaned (no punctuation), any case. */
 export function readAsk(q: string): Ask | null {
@@ -76,13 +82,11 @@ export function readAsk(q: string): Ask | null {
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
-  // Stat leaders, the whole season or a region's.
-  m = /^(?:who (?:has|had|is) (?:the )?)?(?:highest|best|top|most|biggest) (opr|auto(?:nomous)?(?: opr)?|tele ?op(?: opr)?|end ?game(?: opr)?|wins)(?: teams?)?(?: in (.+))?$/.exec(t)
-    ?? /^(?:best|top) (auto(?:nomous)?|tele ?op|end ?game) (?:team|teams|robot|robots)(?: in (.+))?$/.exec(t)
-    ?? /^(?:which|what) team has (?:the )?(?:highest|best|most) (opr|wins)(?: in (.+))?$/.exec(t);
+  // Stat leaders, the whole season (scope words like "in the world" or "this season" change nothing) or a place's.
+  m = /^(?:(?:who )?(?:has|had|is) (?:the )?)?(?:the )?(?:highest|best|top|most|biggest|strongest|greatest|number one|no 1|1) (opr|auto(?:nomous)?|tele ?op|driver(?: ?controlled)?|end ?game|wins)(?: opr| scores?| scoring| points| period)?(?: teams?| robots?)?(?: (?:in|from|of) (.+))?$/.exec(lw.t)
+    ?? /^(?:which|what) team has (?:the )?(?:highest|best|most) (opr|wins)(?: in (.+))?$/.exec(t.replace(SCOPE_WORDS, " ").replace(/\s+/g, " ").trim());
   if (m) {
-    const w = m[1].replace(/\s+/g, "");
-    const stat: Stat = w.startsWith("auto") ? "auto" : w.startsWith("tele") ? "teleop" : w.startsWith("end") ? "endgame" : w === "wins" ? "wins" : "opr";
+    const stat = statOf(m[1]);
     const region = m[2] ? regionIn(m[2]) : null;
     if (!m[2] || region) return { kind: "stat", stat, region };
   }

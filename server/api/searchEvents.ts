@@ -62,11 +62,12 @@ function samePlace(typed: string, text: string | null, whole = false): boolean {
   if (!whole && (t.includes(q) || (t.length >= 10 && q.includes(t)))) return true;
   return q.slice(0, 5) === t.slice(0, 5) && Math.abs(q.length - t.length) <= 2 && edits(q, t) <= Math.max(1, Math.floor(q.length / 8));
 }
-/** The event is at the place typed: its venue or city (samePlace), or every word typed is a word of them, in any
- *  order ("Oradell River Dell"). */
+/** The event is at the place typed: its venue or city (samePlace), or every word typed is a word of its venue, in
+ *  any order ("Dell River High School"). Never city words and venue words mixed: "Ramsey High School" is not Don
+ *  Bosco Prep High School in Ramsey. */
 function atPlace(typed: string, r: Row): boolean {
   if (samePlace(typed, r.venue) || samePlace(typed, r.city, true)) return true;
-  const have = new Set(words(`${r.venue ?? ""} ${r.city ?? ""}`));
+  const have = new Set(words(r.venue ?? ""));
   const qs = words(typed).filter((w) => !STOPWORDS.has(w));
   return qs.length > 0 && qs.every((w) => have.has(w));
 }

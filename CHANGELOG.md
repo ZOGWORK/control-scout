@@ -23,12 +23,14 @@ FTC One Search finds every meet held at a venue, past seasons too, and its lines
 - [history] "Meets at River Dell High School" lists every season's meets there
 - [fixes] Venues match loosely: "HS", "Regional" and small misspellings
 - [fixes] Search lines repeat your words: "Meets in New Jersey"
+- [rankings] "Best teleop in the world" and "best auto in NJ" show the leaders
 
 ### Search
 - **A venue spans every season.** "Meets in River Dell High School" with no year lists its meets from every season in date order (upcoming first, then past, most recent first), so the Past filter has the past ones to show. "Past meets at …" lists only those.
 - **Venues match loosely.** Punctuation, "HS" or "H.S." for "High School", "Regional", and a letter or two off ("River DeHigh School", "River Dale High School") are the same venue. A city counts when the place typed is that city ("meets in Oradel").
 - **Honest fallbacks.** With nothing to show, a time word goes before the venue: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead".
-- **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". (#461)
+- **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". Kinds that share no type are each named ("Meets and tournaments").
+- **Stat leaders, any scope.** "Best teleop in the world", "highest OPR this season", "most wins of all time" and "best driver controlled worldwide" show that stat's leaderboard, the same as "best teleop"; "best auto in NJ" or "best auto in New Jersey" shows New Jersey's. "Top", "strongest", "greatest" and "number one" read as "best"; "autonomous" as auto; "driver" or "driver controlled" as teleop. (#461)
 
 ## 2.5.4 — 2026-11-03
 

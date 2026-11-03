@@ -183,12 +183,15 @@ const TIME_LABEL: Record<SearchTime, string> = {
 export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; city: boolean } | null; seasonLabel?: (s: number) => string; drop?: ("where" | "time")[] } = {}): string {
   const drop = new Set(opts.drop ?? []);
   // The event words as typed: a specific one beats a generic one ("NJ states events"), and "league" before another
-  // stays ("league meets": "League meets"). Never a narrower word than the one typed.
+  // stays ("league meets": "League meets"). Kinds that share no type are each named ("Meets and tournaments"). Never
+  // a narrower word than the one typed.
   const specific = e.kinds.filter((k) => EVENT_TYPES[k] !== null);
   const ks = specific.includes("states") ? ["states"] : specific;
+  const shared = ks.length > 1 && ks.map((k) => EVENT_TYPES[k]!).reduce((a, b) => a.filter((t) => b.includes(t))).length > 0;
   const kind = ks.length === 1 ? EVENT_LABEL[ks[0]]
     : ks.length > 1 && ks.slice(0, -1).every((k) => k === "league") && ks.at(-1) !== "league" ? `League ${EVENT_LABEL[ks.at(-1)!].toLowerCase()}`
-    : ks.length > 1 ? EVENT_LABEL[ks.at(-1)!]
+    : ks.length > 1 && shared ? EVENT_LABEL[ks.at(-1)!]
+    : ks.length > 1 ? [...new Set(ks.map((k) => EVENT_LABEL[k]))].map((l, i) => (i ? l.toLowerCase() : l)).join(" and ")
     : e.kinds.length === 1 ? EVENT_LABEL[e.kinds[0]] : "Events";
   const time = e.time && !drop.has("time") ? TIME_LABEL[e.time] : null;
   const what = time ? `${time} ${kind.toLowerCase()}` : kind;
