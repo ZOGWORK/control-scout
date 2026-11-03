@@ -312,7 +312,8 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
               <span className={cn("shrink-0 text-sm tabular-nums", asked)}>{r.display}</span>
             </div>
             <div className="ml-7 mt-1">{bar(r)}</div>
-            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${oneDp(r.opr)}` : "", phases(r)].filter(Boolean).join(" · ")}</p>
+            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${oneDp(r.opr)}` : ""].filter(Boolean).join(" · ")}</p>
+            {split && r.parts && <p className="ml-7 text-[11px] tabular-nums text-muted-foreground">{phases(r)}</p>}
           </li>
         ))}
       </ol>
