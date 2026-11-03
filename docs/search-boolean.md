@@ -52,6 +52,9 @@ matches."), shows each team's own match count, and links the OR list.
 - A team name holding an operator word is a name: `nuts and bolts`, `wingus & dingus` and `batteries not included`
   are those teams, and `nuts and bolts and 4215` is two teams.
 - A year beside a team number is a season, as before (`4215 and 2025` is not two teams).
+- `not` before a word that isn't a team (`4215 not opr`) is declined plainly: NOT leaves a team out of a list, it can't
+  leave out a stat. The answer says so and links `4215 opr` and `4215 matches`; it never shows the team page as if it
+  had answered.
 - Every term must be one team: a number on record, a full name, or a quoted name only one team has. Anything else
   (an unknown number, a word that isn't a team) leaves the query to the other readers.
 
