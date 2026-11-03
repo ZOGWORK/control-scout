@@ -1,5 +1,36 @@
 # Changelog
 
+## 3.4.0 — 2026-11-03 · Swing, the consistency stat
+
+Research brief item 6. Predictions are identical to 3.3.0: nothing the engine predicts reads the new
+module. The brief's item 12 gate (Brier must improve, no regressions) is met as **no prediction change**:
+- **Slice replay** (`scripts/engine-slices.ts --explain-against <3.3.0 dist>`, snapshot of 2026-10-29): every
+  field `explainMatch` serves is bit-identical to the vendored 3.3.0 build on all 109,182 predicted matches
+  of 2023–24 to 2026–27. Champion Brier unchanged: 0.1741 / 0.1570 / 0.1672 (2023–24 / 2024–25 / 2025–26).
+- **Build:** every file of `dist/` other than `index.*` (the new export and `ENGINE_VERSION`) and the new
+  `consistency.*` is byte-identical to 3.3.0's.
+- `npm run equivalence` against Control Point's 3.4.0 vendor: bytes and replayed numbers identical.
+
+- **`consistency.ts`** (new, pure): Control Scout's one consistency stat, now the engine's so Control Scout
+  and Control Point compute it with the same function.
+  - `averageRobotShare`: Σ alliance non-penalty points ÷ Σ robots on the field, over an event's played quals.
+  - `estimatedContribution`: (alliance non-penalty score − partner's event OPR) ÷ share. Two robots on the
+    field and the partner's OPR known, else no contribution.
+  - `tallyContributions` / `poolTallies` / `fieldVariance`: n and Σ squared deviations from the team's own
+    mean at each event; a season pools events, each keeping its own centring.
+  - `consistency(tally, fieldVar)`: swing = √((ss + PRIOR × fieldVar) ÷ (n + PRIOR)), `CONSISTENCY_PRIOR` 10.
+    Shown (`value`) from `CONSISTENCY_MIN_MATCHES` (5) contributions; below that `value` is null with a
+    `reason`, while `swing` stays (Control Scout's reliability index uses it, already shrunk).
+  - `eventContributions` / `eventConsistency`: the whole rule for one event from its alliances and OPRs
+    (what Control Point calls); `shownConsistency` applies the minimum to a stored swing.
+- **Why this base, not `ReliabilityState.vol`:** the rating's residual variance is an EMA of the fitted
+  model's standardized misses. It moves when the model is refitted, decays with time and can't be checked
+  from a score sheet. Swing uses only published scores and event OPR, so a reader can redo it by hand
+  (brief item 8), and Control Scout already showed it inside the reliability index.
+- **Same number as before in Control Scout:** its reliability job now calls these functions. Every stored
+  reliability row and every unrounded swing of 2023–24, 2024–25 and 2025–26 is bit-identical to 3.3.0's
+  job (96,515 rows, 96,503 swings, 0 differences).
+
 ## 3.3.0 — 2026-10-30 · Full why breakdown
 
 Win probabilities, scores and ranges are identical to 3.2.0: every field `explainMatch` served before is

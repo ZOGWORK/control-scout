@@ -6,7 +6,7 @@
 // held-out test.
 import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
-import { DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
+import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
 import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
@@ -132,6 +132,17 @@ export default function MethodologyPage() {
             <h3>Reliability: how dependable a robot has been</h3>
             <p>Next to OPR, team pages, Compare, pick lists and match reports show a <strong>reliability index</strong> from 0 to 100. It is an estimate made from qualification match results only, and its parts are always shown: <strong>no-shows</strong> (listed but not on the field), <strong>disqualifications</strong>, <strong>near-zero matches</strong>, <strong>swing</strong> (how much that estimated contribution moves from match to match), <strong>penalties</strong> given away against the season average, and how predictable its matches have been (the report card's miss spread). A near-zero match is when the alliance scored about what the partner's OPR alone would give. A robot playing defense, or a partner carrying the alliance, looks the same, so this is a hint and not proof of a dead robot.</p>
             <p>The index starts at 100 and loses {RELIABILITY_WEIGHTS.noShow} × the no-show rate, {RELIABILITY_WEIGHTS.dq} × the DQ rate, {RELIABILITY_WEIGHTS.nearZero} × the near-zero rate, {RELIABILITY_WEIGHTS.swing} × the swing, and up to {RELIABILITY_WEIGHTS.penalties * 1.5} each for penalties and predictability: nothing at half the season average or better, {RELIABILITY_WEIGHTS.penalties / 2} at the average, the full amount at twice it. Every part is pulled toward the season average as if the team had {RELIABILITY_PRIOR} more matches at it, so a few matches can't make a team look perfect or broken. These weights are a stated rule, not fitted. Members of a scouting workspace also see a second number that adds their own match notes (entries marked broken, disabled or no-show), clearly marked. Nobody outside that workspace ever sees it.</p>
+          </Prose>
+          <Prose id="swing">
+            <h3>Swing: how consistent a robot is</h3>
+            <p><strong>Swing</strong> is Control Scout's one consistency stat. It is the same number as the reliability index's swing part, worked out by the same engine function in Control Scout and Control Point, and it is the Swing column in event rankings, the world ranking and Compare. Lower is steadier. Everything in it comes from published qualification scores and the event's OPR, so you can redo it by hand:</p>
+            <ol>
+              <li><strong>Share</strong>: at the event, add up every alliance's non-penalty score and divide by the number of robots that were on the field. That is an average robot's share.</li>
+              <li><strong>Contribution</strong> in each match: the alliance's non-penalty score minus the partner's event OPR, divided by the share. Only matches with both robots on the field and the partner's OPR known count.</li>
+              <li><strong>Spread</strong>: the squared distance of each contribution from the team's own average at that event, added up (over all its events for the season, each event against its own average). Call it S over n matches.</li>
+              <li><strong>Pulled toward the field</strong>: swing = √((S + {CONSISTENCY_PRIOR} × V) ÷ (n + {CONSISTENCY_PRIOR})), where V is the same spread for every team in the season together (S over n for the whole field). So a few matches can't make a robot look rock steady or wild.</li>
+            </ol>
+            <p>±0.30 means a typical match lands within about a third of an average robot's share of the team's own average. Swing is shown from {CONSISTENCY_MIN_MATCHES} counted matches; below that the tables show "—" with the reason, and only the reliability index uses it (where the pull toward the field keeps it near average). It is not the report card's swing, which is the spread of the engine's misses. We picked this over the rating model's own variance because that one depends on the fitted model and fades with time, so nobody could check it from the score sheet. Predictions don't use swing: adding it changed no prediction.</p>
           </Prose>
         </section>
 

@@ -14,6 +14,7 @@
 // With no snapshot to compare against (the season's first week, or a finished season's live list),
 // movement is null everywhere and the page says why.
 import { direction, type TrendDir } from "./trend";
+import type { SwingCell } from "./reliability";
 
 export const RANKINGS_PAGE_SIZE = 50;
 /** Minimum rated matches before a team is ranked (the engine's own threshold for a rating rank). */
@@ -92,6 +93,8 @@ export interface RankingRow extends Movement {
   state: string | null;
   country: string | null;
   rating: number;
+  /** Season swing, the consistency stat (src/shared/reliability.ts SwingCell). Live ranking only: absent on a snapshot week. */
+  swing?: SwingCell | null;
 }
 
 export interface RankingsResponse {

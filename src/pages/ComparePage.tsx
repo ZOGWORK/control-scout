@@ -30,6 +30,7 @@ import { CompareConsensus } from "../components/ScoutConsensus";
 import { CompareBrief } from "../components/CompareBrief";
 import { compareEventNames } from "../lib/compareBrief";
 import { cn } from "../components/cn";
+import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { useTeamColors } from "../components/TeamColorPicker";
 import { Reveal, Stagger, StaggerItem, m } from "../components/motion";
 import { predictHref } from "../shared/predictUrl";
@@ -249,8 +250,8 @@ function Start({ suggestions, onPick, onPickAll }: { suggestions: Suggestion[]; 
   );
 }
 
-type Better = "high" | null;
-interface Metric { label: string; better: Better; value: (x: CompareTeam) => number | null; show: (x: CompareTeam) => string; sub?: (x: CompareTeam) => string | null }
+type Better = "high" | "low" | null;
+interface Metric { label: string; better: Better; value: (x: CompareTeam) => number | null; show: (x: CompareTeam) => string; sub?: (x: CompareTeam) => string | null; title?: (x: CompareTeam | null) => string }
 
 const winRate = (x: CompareTeam) => {
   const r = x.stats?.record;
@@ -261,6 +262,9 @@ const METRICS: Metric[] = [
   { label: "OPR", better: "high", value: (x) => x.stats?.opr.np.value ?? null, show: (x) => num(x.stats?.opr.np.value), sub: (x) => rankPct(x.stats?.opr.np.rank, x.stats?.opr.np.of) },
   // An estimate from match results (src/shared/reliability.ts), right under OPR: captains pick on both.
   { label: "Reliability (est.)", better: "high", value: (x) => x.stats?.reliability?.index ?? null, show: (x) => (x.stats?.reliability ? String(x.stats.reliability.index) : "—"), sub: (x) => (x.stats?.reliability ? `${x.stats.reliability.matches} quals` : null) },
+  // Swing, the consistency stat (the engine's, same number as the reliability index's part): lower = steadier.
+  { label: "Swing", better: "low", value: (x) => x.stats?.reliability?.consistency?.value ?? null, show: (x) => swingText(x.stats?.reliability?.consistency),
+    sub: (x) => (x.stats?.reliability?.consistency?.value != null ? `${x.stats.reliability.consistency.matches} quals` : null), title: (x) => (x ? swingTitle(x.stats?.reliability?.consistency) : SWING_LINE) },
   { label: "Auto", better: "high", value: (x) => x.stats?.opr.auto.value ?? null, show: (x) => num(x.stats?.opr.auto.value) },
   { label: "TeleOp", better: "high", value: (x) => x.stats?.opr.teleop.value ?? null, show: (x) => num(x.stats?.opr.teleop.value) },
   { label: "Endgame", better: "high", value: (x) => x.stats?.opr.endgame.value ?? null, show: (x) => num(x.stats?.opr.endgame.value) },
@@ -276,7 +280,7 @@ export function leaders(m: Pick<Metric, "better" | "value">, t: CompareTeam[]): 
   if (!m.better) return new Set();
   const vals = t.map((x) => m.value(x)).filter((v): v is number => v != null && Number.isFinite(v));
   if (vals.length < 2) return new Set();
-  const top = Math.max(...vals);
+  const top = m.better === "low" ? Math.min(...vals) : Math.max(...vals);
   return new Set(t.filter((x) => m.value(x) === top).map((x) => x.team.number));
 }
 
@@ -391,12 +395,12 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
             const best = leaders(metric, t);
             return (
               <m.tr key={metric.label} className="border-t border-border" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ ...CELL, delay: 0.05 + row * 0.03 }}>
-                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground">{metric.label}</th>
+                <th scope="row" className="px-3 py-2 text-left font-normal text-muted-foreground" title={metric.title?.(null)}>{metric.label}</th>
                 {t.map((x, i) => {
                   const lead = best.has(x.team.number);
                   const sub = metric.sub?.(x);
                   return (
-                    <m.td key={x.team.number} data-col={i} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", colClass(i), lead && "bg-accent/[0.08]")}
+                    <m.td key={x.team.number} data-col={i} title={metric.title?.(x)} className={cn("border-l border-border px-3 py-2 tabular-nums transition-colors duration-300", colClass(i), lead && "bg-accent/[0.08]")}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={CELL}>
                       <span className={cn("whitespace-nowrap font-medium", lead && "text-accent-text")}>{metric.show(x)}</span>
                       {lead && <span className="sr-only"> (best)</span>}
@@ -409,6 +413,7 @@ function StatsTable({ d, onRemove, onMove }: { d: CompareView; onRemove: (n: num
           })}
         </tbody>
       </table>
+      <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>
     </Reveal>
   );
 }

@@ -54,6 +54,7 @@ import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
 import { hasTeamPage } from "../shared/teamPages";
 import { eventRoster, eventStanding } from "../shared/eventStanding";
+import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 
 export default function EventPage() {
@@ -593,6 +594,9 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
       render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
     ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
     { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
+    // Swing at this event, the consistency stat (src/shared/reliability.ts): lower = steadier, "—" below the minimum.
+    ...(field.some((r) => r.swing) ? [{ key: "swing", label: "Swing", title: SWING_LINE, value: (r: FieldRow) => r.swing?.value ?? null, asc: true, align: "right" as const, heat: true,
+      render: (r: FieldRow) => <span title={swingTitle(r.swing)}>{swingText(r.swing)}</span> }] : []),
     { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
     { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true },
     { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true },
@@ -611,6 +615,7 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
         </div>
       )}
       <SortTable key={view} rows={field} cols={cols} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} csvName={`${code}-${season}-${meet ? "meet-" : ""}rankings`} highlight={(r) => r.team === team} empty="No teams registered yet." />
+      {field.some((r) => r.swing) && <p className="text-xs text-muted-foreground" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </div>
   );
 }

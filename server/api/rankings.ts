@@ -12,6 +12,7 @@ import {
   type PlaceFilter, type RankingPlaces, type RankingRow, type RankingsResponse,
 } from "../../src/shared/rankings.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
+import { swingCell } from "../../src/shared/reliability.js";
 
 interface TeamRow { rank: number; team: number; rating: number; name: string | null; state: string | null; country: string | null }
 
@@ -109,9 +110,15 @@ export async function rankings(q: RankingsQuery, now = Date.now()): Promise<Rank
   const matching = q.places.length ? list.filter((t) => inPlaces(t, q.places)) : list;
   const pages = Math.max(1, Math.ceil(matching.length / RANKINGS_PAGE_SIZE));
   const page = Math.min(Math.max(1, q.page), pages);
-  const rows: RankingRow[] = matching.slice((page - 1) * RANKINGS_PAGE_SIZE, page * RANKINGS_PAGE_SIZE).map((t) => ({
+  const slice = matching.slice((page - 1) * RANKINGS_PAGE_SIZE, page * RANKINGS_PAGE_SIZE);
+  // Swing (the consistency stat) is today's, so the live ranking shows it and a snapshot week doesn't.
+  const swing = q.week || !slice.length ? null : new Map((await all<{ team: number; swing: number | null; contrib_n: number }>(
+    `SELECT team, swing, contrib_n FROM team_reliability WHERE season = ? AND code = '' AND team IN (${slice.map(() => "?").join(",")})`,
+    [q.season, ...slice.map((t) => Number(t.team))])).map((r) => [Number(r.team), swingCell(r.swing == null ? null : Number(r.swing), Number(r.contrib_n))]));
+  const rows: RankingRow[] = slice.map((t) => ({
     rank: t.rank, team: Number(t.team), name: t.name ?? null, state: t.state ?? null, country: t.country ?? null,
     rating: t.rating, ...movementOf(t, prev, Number(t.team)),
+    ...(swing ? { swing: swing.get(Number(t.team)) ?? null } : {}),
   }));
   return {
     season: q.season, week: q.week, asOf: q.week ? new Date(weekStartMs(q.week)).toISOString() : await dataVersion().then((v) => (v === "0" ? null : v)),
