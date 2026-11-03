@@ -52,8 +52,11 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
 /** Which matches an intent reads: scored ones for scores (the team on the field), counted ones for results. */
 function pool(id: IntentId, all: TeamMatch[], scope: Scope): TeamMatch[] {
   const keep = inScope(scope);
-  const scores = id === "highest-score" || id === "lowest-score" || id === "average-score";
-  return all.filter((m) => keep(m) && (scores ? m.onField : m.counted));
+  return all.filter((m) => keep(m) && counts(id, m));
+}
+/** Whether an intent reads match `m`: a score only with the team on the field, a result when it's on the record. */
+export function counts(id: IntentId, m: TeamMatch): boolean {
+  return id === "highest-score" || id === "lowest-score" || id === "average-score" ? m.onField : m.counted;
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */

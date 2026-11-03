@@ -11,7 +11,7 @@ import { seasonLabel } from "../../../src/shared/format.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet } from "./eventSet.js";
-import { matchAnswer, whoOf } from "./families/matches.js";
+import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { eventAnswer } from "./families/events.js";
 import { teamMatches } from "./matchSet.js";
 import { readStatQuestion, type IntentId, type StatQuestion } from "./read.js";
@@ -38,9 +38,10 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
-    // A season of only scrimmages isn't one: its matches never count.
+    // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams
+    // that never took the field): the latest season with a match this answer counts.
     const official = officialClause();
-    const ms = (await teamMatches(team)).filter(official);
+    const ms = (await teamMatches(team)).filter((m) => official(m) && counts(it.id, m));
     const latest = ms.length ? Math.max(...ms.map((m) => m.season)) : null;
     scope.season = latest;
     if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
