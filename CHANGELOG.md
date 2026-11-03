@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.1 — 2026-11-03
+## 2.5.2 — 2026-11-03
 
 FTC One Search answers questions about one event, a team's awards and who won: a team's results at an event, its event wins, and the winning alliance of an event or of Worlds.
 
@@ -31,7 +31,7 @@ FTC One Search answers questions about one event, a team's awards and who won: a
 - **Winning alliances.** An event's winning alliance is the alliance that won its final match, with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
 - **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
 
-## 2.5.0 — 2026-11-03
+## 2.5.1 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
 
@@ -45,6 +45,19 @@ FTC One Search answers questions about a team's matches: its best score at World
 - **Stat answers.** A question about one team's matches, events or seasons gets its answer at the top of the results: the number asked for, then the matches, a win-loss bar, tables by season and charts. It works for any team and any of these scopes: Worlds ("at worlds"), state championships ("at states"), a season ("2024-25", "this season", a game's name like "into the deep"), every season ("ever"), playoffs or quals, and red or blue. Questions it answers: highest and lowest score, which event it scored highest at, biggest win and loss, closest match, first and most recent match, match wins, record, record by alliance colour, matches played, average score, current and longest win streak, last N matches, blowout wins, losses, playoff and qualification matches, playoff appearances, best and worst event finish, first and most recent event, best OPR event, events played, average event rank, seasons played, first season, best season and most improved season.
 - **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Each season is a different game, so an every-season best also lists the best of each season. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
 - **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
+## 2.5.0 — 2026-11-03
+
+FTC One Search on a phone: pick two teams to compare from the results, and preview a head-to-head without leaving them.
+
+### Highlights
+- [teams] VS Compare on a team result picks it for a Compare bar
+- [teams] The Compare bar sits above the tab bar and opens the comparison
+- [teams] A comparison result opens its head-to-head in a panel over the results
+
+### Search
+- **Pick two, compare.** On a phone, VS Compare on a team result picks it for comparing. Picked teams dock in a bar right above the tab bar; "Compare (2) →" opens them side by side (in the season the results are about, when they name one), and with only one picked, "Compare (1) →" opens Compare to add the other. A third pick replaces the first, and × drops a team. The picks belong to that search: a new search starts with none.
+- **Head-to-head without leaving.** Tapping a comparison result ("Hypnotic Robotics vs Ultraviolet") opens a panel from the bottom with both teams' record, OPR and OPR rank, and View full comparison → at the end. Close it and the results are just as you left them. Results and their order are unchanged. (#446)
 
 ## 2.4.9 — 2026-11-03
 

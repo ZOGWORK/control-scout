@@ -10,7 +10,7 @@
 // narrow the results here, in the address (./search/page/results.ts). A question also gets Bruno AI's short
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -21,10 +21,11 @@ import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
+import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -74,6 +75,28 @@ export default function SearchPage() {
   const sumPath = (s: number) => (teamNums.length ? `/api/teams-summary${qs({ season: s, teams: teamNums.join(",") })}` : null);
   const now = useApi<{ teams: TeamSummary[] }>(sumPath(base));
   const before = useApi<{ teams: TeamSummary[] }>(asked == null ? sumPath(season - 1) : null);
+  // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
+  // the Compare result whose head-to-head is open over the results.
+  const [picks, setPicks] = useState<number[]>([]);
+  // While a new search loads, the last one's results stay on screen dimmed: picking or previewing them does nothing.
+  const pick = (t: number) => { if (!stale) setPicks((p) => togglePick(p, t)); };
+  // The open head-to-head, the card it was opened from (focus goes back to it on close) and the answer it belongs to:
+  // only that answer's numbers ever fill it.
+  const [sheet, setSheet] = useState<{ hit: SearchHit; from: HTMLElement; of: typeof answer } | null>(null);
+  const preview = sheet?.of === answer ? sheet : null;
+  // A new search (Back included) starts with no picks and no open preview: both belonged to the last one.
+  const [pickedFor, setPickedFor] = useState(query);
+  if (pickedFor !== query) { setPickedFor(query); setPicks([]); setSheet(null); }
+  const pickNames = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const h of hits) if (h.kind === "team" && !isCompare(h)) { const p = teamParts(h.title); if (p?.name) m.set(Number(p.number), p.name); }
+    for (const c of compares) {
+      for (const s of compareSides(c)) if (s.name && !m.has(s.number)) m.set(s.number, s.name);
+      // An older server names the sides only in the title ("4215 Hypnotic Robotics vs 23268 Ultraviolet").
+      for (const t of c.title.split(/\s+vs\.?\s+/i)) { const p = teamParts(t); if (p?.name && !m.has(Number(p.number))) m.set(Number(p.number), p.name); }
+    }
+    return m;
+  }, [hits, compares]);
   const summaries = useMemo(() => {
     const m = teamSeasons(now.data?.teams, asked == null ? before.data?.teams : undefined, base);
     for (const h of hits) if (h.kind === "team" && h.linkSeason != null && h.linkSeason !== base) m.delete(Number(h.ref));
@@ -172,10 +195,10 @@ export default function SearchPage() {
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compare</h2>
-                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} />)}</div>
+                      <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
                     </section>
                   )}
-                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
+                  {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
                       <p className="text-foreground">No results match these filters.</p>
@@ -188,6 +211,14 @@ export default function SearchPage() {
               </div>
             </div>
           )}
+      {phone && (
+        <>
+          <CompareBar picks={picks} names={pickNames} season={asked} onDrop={pick} />
+          <CompareSheet open={!!preview} onClose={() => setSheet(null)} returnTo={preview?.from} title={preview ? compareTeams(preview.hit).slice(0, 2).map((n) => pickNames.get(n) ? `${pickNames.get(n)} (${n})` : `Team ${n}`).join(" vs ") : ""}>
+            {preview && <HeadToHead h={preview.hit} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} />}
+          </CompareSheet>
+        </>
+      )}
       </div>
     </div>
   );
@@ -215,7 +246,7 @@ function shape(sections: AnswerSection[], f: PageFilters): ViewSection[] {
   return out;
 }
 
-function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; picks: number[]; onPick: (team: number) => void; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
   const phone = useMediaQuery("(max-width: 767px)");
   const current = useCurrentSeason();
   const count = s.rows.filter((r) => !r.sub).length;
@@ -237,7 +268,7 @@ function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s
           {teamGroups.map(({ head, subs }) => (
             <div key={head.key}>
               {phone && /^\d+$/.test(head.hit.ref) ? (
-                <PhoneTeamCard team={Number(head.hit.ref)} name={teamParts(head.hit.title)?.name ?? ""} season={head.hit.linkSeason ?? summaries.get(Number(head.hit.ref))?.season ?? head.hit.season ?? current} linkSeason={head.hit.linkSeason}>
+                <PhoneTeamCard team={Number(head.hit.ref)} name={teamParts(head.hit.title)?.name ?? ""} season={head.hit.linkSeason ?? summaries.get(Number(head.hit.ref))?.season ?? head.hit.season ?? current} picked={picks.includes(Number(head.hit.ref))} onPick={() => onPick(Number(head.hit.ref))}>
                   <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
                 </PhoneTeamCard>
               ) : <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />}

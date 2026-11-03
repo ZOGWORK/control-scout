@@ -143,9 +143,10 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     const m = new RegExp(`\\b(?:in\\s+|during\\s+)?${[...s.game.replace(/\s+/g, "").toLowerCase()].join("[\\s-]?")}\\b`).exec(rest);
     if (m) { scope.season = s.season; rest = rest.replace(m[0], " "); }
   }
-  // A bare year is its season, as search reads it ("4215 worlds record 2024": 2024–25).
+  // A bare year is its season, as search reads it ("4215 worlds record 2024": 2024–25): one after "in" or "during"
+  // first; a number after "team" is always the team ("team 2024 worlds record in 2025").
   if (scope.season == null) {
-    const y = /\b(?:in\s+|during\s+)?(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest);
+    const y = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest) ?? /(?<!\bteam\s+)\b(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest);
     if (y && SEASONS.some((s) => s.season === Number(y[1]))) { scope.season = Number(y[1]); scope.year = true; rest = rest.replace(y[0], " "); }
   }
   if (take(/\b(?:this|current|the\s+current)\s+(?:season|year)\b|\bthis\s+year'?s?\b/)) scope.latest = true;
