@@ -74,7 +74,7 @@ interface SeasonRow { team: number; season: number; opr_np: number | null; opr_a
 
 /** Both teams' rows for the season named, else the latest season both played (said so). */
 async function bothSeasons(a: number, b: number, season: number | null): Promise<{ season: number | null; why?: string; ra?: SeasonRow; rb?: SeasonRow }> {
-  const rows = await all<SeasonRow>("SELECT * FROM team_season_stats WHERE team IN (?, ?) AND matches > 0" + (season != null ? " AND season = ?" : "") + " ORDER BY season DESC", season != null ? [a, b, season] : [a, b]);
+  const rows = await all<SeasonRow>("SELECT team, season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties FROM team_season_stats WHERE team IN (?, ?) AND matches > 0" + (season != null ? " AND season = ?" : "") + " ORDER BY season DESC", season != null ? [a, b, season] : [a, b]);
   const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
   if (season != null) return { season, ra: of(a, season), rb: of(b, season) };
   const s = rows.map((r) => Number(r.season)).find((x) => of(a, x) && of(b, x));
