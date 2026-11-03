@@ -21,6 +21,7 @@ import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -116,6 +117,8 @@ async function findEvent(words: string, season: number | null) {
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const board = readLeaderboard(q);
   if (board) return boardSearch(q, board, opts);
+  const tm = readTopMatches(q);
+  if (tm) return topSearch(q, tm, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   const it = readStatQuestion(q);
@@ -174,6 +177,21 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     if (at) return at;
   }
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
+}
+
+/** "Highest scoring games in decode", "top scores in nj this season", "highest scoring match ever": no team, a
+ *  season's best alliance and combined scores, worked out for the page only. */
+async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const label = `Highest-scoring matches${t.region ? ` in ${t.region.name}` : t.event ? ` at ${t.event}` : ""}${t.ever ? ", each season" : t.season != null ? `, ${seasonLabel(t.season)}` : ""}`;
+  const answer: SearchAnswer = {
+    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label, ...(t.season != null ? { season: t.season } : {}), ...(t.region ? { place: { key: t.region.key, name: t.region.name } } : {}) },
+    intent: { kind: "stat-season-top-matches", pattern: `highest scoring matches${t.region ? " [place]" : t.event ? " [event]" : ""}${t.season != null ? " [season]" : ""}`, met: true, understood: [label] },
+  };
+  if (!opts.full) return answer;
+  const stat = t.ever ? await everTopMatches(t, findEvent) : await topMatchesAnswer(t, findEvent);
+  if (!stat) return null;
+  return { ...answer, understood: { ...answer.understood!, label: stat.title }, stat };
 }
 
 /** "ftc decode winning alliance", "New Jersey Championship winning alliance": no team, an event's (or the season's
