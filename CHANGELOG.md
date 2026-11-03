@@ -29,7 +29,7 @@ FTC One Search answers questions about one event, a team's awards and who won: a
 - **One team at one event.** "4215 results at New Jersey Championship", "rank at", "OPR at" and "score in match 12 at" answer from the event the team played (its division, when the event has divisions): the record and matches, its rank of the teams there, its OPR by phase, or that one match. An event the team never attended is left to the usual search.
 - **Awards.** Event wins count 1st-place finishes (the winning alliance) and Inspire Awards, each labelled, so "won an event" says which; a 2nd or 3rd place Inspire is listed apart, never as a win. Also Inspire Award counts, finalist finishes, all awards and the judged/performance split, for any season, Worlds or one event.
 - **Winning alliances.** An event's winning alliance is the alliance that won its final match, with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
-- **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data.
+- **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
 
 ## 2.4.8 — 2026-11-03
 
