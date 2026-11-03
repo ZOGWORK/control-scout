@@ -36,6 +36,8 @@ import { AdvancementView } from "../components/Advancement";
 import { SearchBox } from "../components/search/SearchBox";
 import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
+import { PredictionBasis } from "../components/PredictionBasis";
+import { marginText, matchBasis, overlapTotal, scoreSum } from "../shared/predictionBasis";
 import { Reveal, m } from "../components/motion";
 import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
@@ -455,7 +457,8 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
         data: {
           season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
           rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, factorSheet: compactSheet(x.factorSheet), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
-          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
+          teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })),
+          overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
         },
       });
     }, () => live && setOut({ data: null, asOf: null, loading: false }));
@@ -496,10 +499,11 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           <div><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedRed} range={x.rangeRed} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeRed[0]}–{x.rangeRed[1]}</p></div>
           <div className="text-right"><p className="text-muted-foreground">Predicted score</p><p className="font-display text-2xl font-semibold"><ScoreRange mean={x.predictedBlue} range={x.rangeBlue} level={x.rangeLevel} pmClassName="text-base font-medium text-muted-foreground" /></p><p className="text-xs text-muted-foreground">{levelPct(x.rangeLevel)} range {x.rangeBlue[0]}–{x.rangeBlue[1]}</p></div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">± covers about {Math.round((x.rangeLevel ?? 0.8) * 10)} in 10 real scores. <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
+        <p className="mt-2 text-xs text-muted-foreground">Predicted margin: <span className="tabular-nums" data-testid="lab-margin">{marginText(x.predictedRed, x.predictedBlue)}</span>. ± covers about {Math.round((x.rangeLevel ?? 0.8) * 10)} in 10 real scores. <Link to="/methodology#ranges" className="underline">How often it holds</Link></p>
         {x.bonus && <BonusOdds season={x.season} bonus={x.bonus} className="mt-4 bg-text-base/[0.02]" />}
         <p className="mt-4 text-xs text-muted-foreground">{fav} is favoured — not certain. This is a probability from current ratings, including penalties each side tends to give away.</p>
         <CalibrationLine pRed={x.winProbRed} className="mt-2" />
+        <PredictionBasis kind={matchBasis(x.level)} className="mt-1.5" />
         {/* Made to be screenshotted: the card says where it came from. */}
         <div className="mt-5 max-sm:mt-4 flex items-center justify-between border-t border-border pt-3 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5"><img src="/logo-56.webp" alt="" className="size-4" /> FTC Control Scout · prediction lab</span>
@@ -518,22 +522,30 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
             <span>The robots' ratings <span className="text-sm font-normal text-muted-foreground">· {x.teamsRed.length + x.teamsBlue.length} robots</span></span> <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
           </summary>
           <table className="mt-3 w-full text-sm">
-            <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right">Matches</th></tr></thead>
+            <thead><tr className="text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"><th className="pb-2">Team</th><th className="pb-2 text-right">Adds</th><th className="pb-2 text-right">Auto</th><th className="pb-2 text-right">Tele</th><th className="pb-2 text-right">End</th><th className="pb-2 text-right" title="Penalty points it gives away per match (they count for the other alliance)">Pen</th><th className="pb-2 text-right">Matches</th></tr></thead>
             <tbody>
               {[...x.teamsRed.map((t) => ({ ...t, side: "red" })), ...x.teamsBlue.map((t) => ({ ...t, side: "blue" }))].map((t) => (
                 <tr key={t.team} className="border-t border-border">
                   <td className="py-1.5"><Link to={`/teams/${t.team}?season=${x.season}`} className={cn("font-mono hover:underline", t.side === "red" ? "text-red-alliance" : "text-blue-alliance")}>{t.team}</Link> <span className="text-xs text-muted-foreground">{t.name}</span></td>
                   <td className="text-right tabular-nums">{num(t.np, 0)}<span className="text-xs text-muted-foreground"> ±{num(t.sd, 0)}</span></td>
                   <td className="text-right tabular-nums">{num(t.auto, 0)}</td><td className="text-right tabular-nums">{num(t.teleop, 0)}</td><td className="text-right tabular-nums">{num(t.endgame, 0)}</td>
+                  <td className="text-right tabular-nums">{num(t.pen, 1)}</td>
                   <td className="text-right tabular-nums">{t.matches}{t.matches < 3 && <Badge variant="outline" className="ml-1">few</Badge>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {x.overlapRed != null && x.overlapBlue != null && (
+            <div className="mt-3 space-y-0.5 text-xs text-muted-foreground" data-testid="score-sum">
+              <p>Predicted score = robots' Adds − overlap + the other side's Pen:</p>
+              <p className="tabular-nums"><span className="text-red-alliance">Red</span> {scoreSum(x.teamsRed, x.overlapRed, x.teamsBlue)} = {x.predictedRed}</p>
+              <p className="tabular-nums"><span className="text-blue-alliance">Blue</span> {scoreSum(x.teamsBlue, x.overlapBlue, x.teamsRed)} = {x.predictedBlue}</p>
+            </div>
+          )}
         </details>
       </div>
       {/* Full width under both cards: on a wide screen its sections sit side by side (it sizes by its container). */}
-      {x.factorSheet && <FactorSheetPanel sheet={x.factorSheet} className="rounded-2xl bg-card" />}
+      {x.factorSheet && <FactorSheetPanel sheet={x.factorSheet} level={x.level ?? "qual"} className="rounded-2xl bg-card" />}
     </div>
   );
 }

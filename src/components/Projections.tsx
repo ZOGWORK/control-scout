@@ -10,6 +10,7 @@ import { Badge } from "./ui/basic";
 import { EmptyState } from "./page";
 import { Button } from "./ui/button";
 import { ConfidenceBadge } from "./predict";
+import { PredictionBasis } from "./PredictionBasis";
 import { ErrorState } from "./states";
 import { isFeatureDisabled } from "../lib/api";
 import { oddsPct } from "../lib/format";
@@ -219,6 +220,7 @@ function LiveView({ run, baseline, rankNow, names, pinned, local }: { run: Proje
       </div>
       <footer className="relative space-y-1.5 border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
         <p className="flex gap-1.5"><Info className="mt-0.5 size-3 shrink-0" /><span><span className="font-medium text-foreground">Advance</span>: {ADVANCE_LABEL}.{slotsNote ? ` ${slotsNote}.` : ""} <span className="font-medium text-foreground">Playoffs</span>: captain or picked; picks follow the fitted pick model (seed and rating).</span></p>
+        <PredictionBasis kind="event" />
         {local && <p className="flex gap-1.5"><HardDrive className="mt-0.5 size-3 shrink-0" /><span>{localLabel(run.runs)}: same engine and method as the server, kept on this device only and never mixed with the server's projections.</span></p>}
         <p className="flex flex-wrap gap-x-3 gap-y-1">
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2 w-5 rounded-full bg-accent/35" /> 80% range</span>

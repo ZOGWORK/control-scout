@@ -14,6 +14,8 @@ import {
 import { pointedRight, sheetReview, type FactorSheet, type SheetFactor } from "../shared/factorSheet";
 import { factorLabel } from "../lib/factorLabel";
 import { useFlag } from "../lib/flags";
+import { matchBasis } from "../shared/predictionBasis";
+import { PredictionBasis } from "./PredictionBasis";
 import { cn } from "./cn";
 
 const pctOf = (w: number) => (w <= 0 ? "0%" : w < 0.005 ? "<1%" : `${Math.round(w * 100)}%`);
@@ -33,8 +35,10 @@ const ICON: Record<SheetFactor["id"], LucideIcon> = {
   schedule: CalendarRange, headToHead: Swords,
 };
 
-export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, className }: {
+export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, className, level }: {
   sheet: FactorSheet;
+  /** The call's match level: the sheet then says what it learns from and what playoffs change. */
+  level?: "qual" | "playoff";
   /** The played result ("A" = red won): marks which factors pointed to the winner. */
   winner?: "A" | "B" | "tie" | null;
   defaultOpen?: boolean;
@@ -85,6 +89,7 @@ export function FactorSheetPanel({ sheet, winner = null, defaultOpen = false, cl
         <p className="text-xs text-text-muted">
           Each share is how much of the call that factor carries; the shares add up to 100%. A red bar helps red, a blue bar helps blue.
         </p>
+        {level && <PredictionBasis kind={matchBasis(level)} />}
       </div>
     </details>
   );

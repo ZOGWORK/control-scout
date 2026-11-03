@@ -8,6 +8,7 @@ import { BRACKET_ACCURACY } from "../shared/bracketAccuracy";
 import { oddsPct, seasonLabel } from "../lib/format";
 import { ConfidenceBadge, TierMark } from "./predict";
 import { cn } from "./cn";
+import { PredictionBasis } from "./PredictionBasis";
 
 /** One hue per alliance number (chip tint, text, bar), the same in every card. Chip text reaches 4.5:1 on its tint in both themes (textTones.test.ts). */
 export const ALLIANCE_HUES = [
@@ -44,10 +45,13 @@ export function BracketAccuracyNote() {
   const a = BRACKET_ACCURACY, s = BRACKET_ACCURACY.series;
   const seasons = a.seasons.length > 1 ? `${seasonLabel(a.seasons[0])} to ${seasonLabel(a.seasons[a.seasons.length - 1])}` : seasonLabel(a.seasons[0]);
   return (
+    <>
+    <PredictionBasis kind="bracket" />
     <p className="text-xs text-muted-foreground">
       Measured on {s.n.toLocaleString()} past playoff series ({seasons}, replayed with only what was known before each one): the favourite won{" "}
       <span className="font-semibold text-success">{Math.round(s.accuracy * 100)}%</span>, Brier score <span className="font-semibold text-foreground tabular-nums">{s.brier.toFixed(3)}</span>.
     </p>
+    </>
   );
 }
 

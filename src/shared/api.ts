@@ -545,6 +545,10 @@ export interface MatchExplanationView {
   reasons?: string[];
   teamsRed: (TeamStrength & { name: string | null })[];
   teamsBlue: (TeamStrength & { name: string | null })[];
+  /** Points each alliance loses to overlap (engine 2.11; 0 in playoffs): predicted score = Σ robots' np −
+   *  overlap + Σ opponents' pen. Optional: answers from before this field (an older server or pack) lack it. */
+  overlapRed?: number;
+  overlapBlue?: number;
   /** The match level the odds assume (a what-if with no level is a qualification match). */
   level?: "qual" | "playoff";
   /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */
