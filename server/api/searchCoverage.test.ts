@@ -5,6 +5,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { explainAnswer, rewriteQuery } from "./searchCoverage";
+import { CURRENT_SEASON } from "../data/seasons";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -99,5 +100,23 @@ describe("answers on their own", () => {
     const a = await ask("teams near oradell");
     expect(a.hits.map((h) => h.ref).sort()).toEqual(["4215", "6980"]);
     expect(a.understood?.label).toMatch(/"near" reads as "in"/);
+  });
+});
+
+describe("Greptile on #465", () => {
+  it("a state code keeps its capitals: 'OR' is Oregon", async () => {
+    expect((await ask("how many teams in OR")).understood?.label).toMatch(/Oregon/);
+  });
+  it("a month's events: its own count, August in the season's second year, and a month with none said so", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ1', 'March Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', '2026-03-07', '2026-03-07', 't')", [S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJAUG', 'August Scrimmage', 'Scrimmage', 'Union', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, `${CURRENT_SEASON + 1}-08-05`, `${CURRENT_SEASON + 1}-08-05`]);
+    await rebuildSearch();
+    const march = await ask("events in march 2026");
+    expect(march.hits.map((h) => h.title)).toEqual(["March Qualifier"]);
+    expect(march.understood?.total).toBe(1);
+    expect((await ask("events in august")).hits.map((h) => h.title)).toEqual(["August Scrimmage"]);
+    const feb = await ask("events in february 2026");
+    expect(feb.step).toBe("recovery");
+    expect(feb.understood?.label).toMatch(/no events on record in february 2026$/i);
   });
 });
