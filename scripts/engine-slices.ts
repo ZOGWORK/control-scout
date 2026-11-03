@@ -138,8 +138,9 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
           volatilityScore: vol.length ? Math.max(...vol) : null,
           eventSize: sizeBand(ev.teams.length || new Set(ev.matches.flatMap((x) => [...x.red.teams, ...x.blue.teams])).size), eventType: typeGroup(ev.type),
         },
-        // Under the event's region, as predictMatch read them (a newcomer's regional start moves its inputs).
-        ...(FEATURES ? { x: champion.withRegion(ctx.region, () => contextualFeatures(champion, m.red.teams, m.blue.teams, { ...pc, pRedWin: pc.pRaw! }, ctx, M.contextual!.coefficients.length)), pRaw: pc.pRaw } : {}),
+        // Under the event's region and the event itself, as predictMatch read them (a newcomer's regional start and,
+        // since 2.9, a robot's form at this event move its inputs).
+        ...(FEATURES ? { x: champion.withRegion(ctx.region, () => champion.withEvent(ctx.event, () => contextualFeatures(champion, m.red.teams, m.blue.teams, { ...pc, pRedWin: pc.pRaw! }, ctx, M.contextual!.coefficients.length))), pRaw: pc.pRaw } : {}),
         pred: { champion: side(pc, pc.pRedWin), "v2.0": side(pc, pc.pShadow!), legacy: side(pl, pl.pRedWin), ...(ph ? { challenger: side(ph, ph.pRedWin) } : {}) },
       });
     } else {

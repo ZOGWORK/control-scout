@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.3 — 2026-11-03
+## 2.8.4 — 2026-11-03
 
 Scout has a pick helper. Choose your team at an event and it suggests the partners that fill your alliance's gaps, each on a radar of auto, TeleOp, endgame and fouls over your own, with what it adds.
 
@@ -28,6 +28,18 @@ Scout has a pick helper. Choose your team at an event and it suggests the partne
 ### Scout
 - **Pick helper.** A new Scout section (Scout → Pick helper, no account needed). Pick your team at an event, or your alliance if it's posted; the top 5 free partners are the ones whose alliance covers the most of a four-axis radar (Auto, TeleOp, Endgame, Few fouls), so a team strong where you're weak can beat a higher-rated one. Add a partner to plan a 3-team alliance's second pick, mark teams taken as alliance selection goes, and "Show the numbers" lists every rating used. Each axis is the alliance's total ÷ the best 2 (or 3) teams at the event added up; area is ½·sin(2π/4)·Σ rᵢ·rᵢ₊₁ (full method on How it works). It reads the engine ratings the stats runs already store; nothing is rated on request.
 - **Event page.** The Playoffs tab links to the pick helper for that event. (#492)
+
+## 2.8.3 — 2026-11-03
+
+A search that lists teams answers as one table: rank, team, OPR and its phases, penalties and record, with bars to compare at a glance.
+
+### Highlights
+- [teams] Team lists in search are one sortable table, OPR first
+- [teams] Bars for OPR and each phase, top three marked
+- [teams] On a phone, tap a row for its Auto, TeleOp, Endgame and Pen
+
+### Search
+- **List answers as a table.** "teams in california", "best teams in new jersey", a country's best, undefeated teams, win rate, most improved, best rookies and the stat leaderboards share one table: rank, team, OPR, Auto, DC (TeleOp from 2024–25, when it includes the endgame), Endgame, Pen and W-L-T. It opens best OPR first, and the OPR, phase and record headers re-sort it. Each row has a bar for its OPR and a bar for its phases (scaled to the largest phase total, since phases don't add up to the OPR); a phase below zero is labelled, not drawn. On a phone, rank, team, OPR and record stay in view and the phases open under the row. Every number is the team's stored season stats, the same ones its page shows; the page's first paint carries the table as plain HTML. (#498)
 
 ## 2.8.2 — 2026-11-03
 

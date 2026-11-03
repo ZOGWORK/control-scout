@@ -17,6 +17,7 @@ import { countryOf } from "../../../../src/shared/countries.js";
 import type { Region } from "../../../../src/shared/regions.js";
 import { all, get } from "../../../db.js";
 import { defaultRankingsSeason } from "../../rankings.js";
+import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { teamHref } from "../matchSet.js";
 
 export const LEADERBOARD_MAX = 25;
@@ -70,8 +71,8 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const ranked = `s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}`;
   const args = [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : [])];
   const [rows, count] = await Promise.all([
-    all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; wins: number; losses: number; ties: number; matches: number }>(
-      `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.wins, s.losses, s.ties, s.matches
+    all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null; wins: number; losses: number; ties: number; matches: number }>(
+      `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.opr_pen pen, s.wins, s.losses, s.ties, s.matches
        FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}
        ORDER BY v DESC, ${st.id === "rating" ? "" : "s.wins DESC, "}s.team LIMIT ?`, [...args, b.n]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}`, args),
@@ -88,12 +89,13 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const num = (v: number | null) => (v == null ? null : Number(v));
   const board: StatBlock = {
     kind: "leaderboard", title: rookie ? `Rookie teams by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
+    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
     note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}`,
     rows: rows.map((r, i) => ({
       rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
       location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
       record: record(r), opr: num(r.opr), value: num(r.v), display: fmt(r.v, st),
-      parts: r.auto != null || r.teleop != null || r.endgame != null ? { auto: num(r.auto), teleop: num(r.teleop), endgame: num(r.endgame) } : null,
+      parts: r.auto != null || r.teleop != null || r.endgame != null || r.pen != null ? { auto: num(r.auto), teleop: num(r.teleop), endgame: num(r.endgame), pen: num(r.pen) } : null,
     })),
     // The Teams table counts qualification matches only, so its list can differ by a team or two: said on the link.
     ...(href ? { more: { label: st.teamsSort ? "View more detail on the Teams page (qualification matches)" : "View more detail on Rankings", href } } : {}),
