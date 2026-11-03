@@ -34,6 +34,8 @@ export interface SearchOutcome {
   team: string | null;
   /** Intents the keyword layer found (two or more when ambiguous). */
   intents: string[];
+  /** Intents a weak word pointed at when no keyword did ("4215 based": location), answered or not. */
+  weak: string[];
   scope: { season?: string; place?: string; event?: string };
   /** Filler and scaffolding words left out. */
   filler: string[];
@@ -47,7 +49,8 @@ const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", k
 export function traceOf(o: SearchOutcome | undefined) {
   if (!o) return null;
   return {
-    layers: o.layers.map((l) => LAYER_NUMBER[l]), won: o.won ? LAYER_NUMBER[o.won] : null, team: o.team, intents: o.intents,
+    // A weak word's candidates count as what was asked, so a question it couldn't answer is still reported.
+    layers: o.layers.map((l) => LAYER_NUMBER[l]), won: o.won ? LAYER_NUMBER[o.won] : null, team: o.team, intents: o.intents.length ? o.intents : o.weak,
     scope: [o.scope.place, o.scope.season, o.scope.event].filter((x): x is string => !!x), filler: o.filler,
     ...(o.result === "ambiguous" ? { ambiguous: o.intents } : {}),
   };
@@ -459,7 +462,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     const out = { ...a, q: typed };
     outcomes.set(out, {
       typed, normalized, layers: [...new Set(layers)], won, result: result ?? (won ? "answered" : resultOf(a, asked)),
-      team: x.teams[0] ?? null, intents: x.intents,
+      team: x.teams[0] ?? null, intents: x.intents, weak: x.weak,
       scope: { ...(x.found.season ? { season: x.found.season } : {}), ...(x.found.place ? { place: x.found.place } : {}), ...(x.found.event ? { event: x.found.event } : {}) },
       filler: [...new Set(filler)],
     });

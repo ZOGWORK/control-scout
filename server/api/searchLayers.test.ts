@@ -242,6 +242,10 @@ describe("the outcome failed-search reporting reads", () => {
     const a = await ask("4215 sponsors school");
     // Reporting classifies it as the user saw it: ambiguous, not a plain team fallback.
     expect(failureOf("4215 sponsors school", a, traceOf(searchOutcome(a)))).toMatchObject({ type: "ambiguous" });
+    // A weak word declined for its scope is still a question that wasn't answered: reported.
+    const w = await ask("4215 based 2024-25");
+    expect(traceOf(searchOutcome(w))?.intents).toEqual(["location"]);
+    expect(failureOf("4215 based 2024-25", w, traceOf(searchOutcome(w)))).not.toBeNull();
   });
   it("a count with a season isn't read as the current count", async () => {
     expect((await extract("number of teams new jersey 2024-25")).canonical).toBeNull();
