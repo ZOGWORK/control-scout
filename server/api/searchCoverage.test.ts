@@ -105,6 +105,11 @@ describe("answers on their own", () => {
     expect(a.card?.kind).toBe("info");
     expect(a.card?.lines[0]?.text).toMatch(/Oradell High School/);
   });
+  it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");
+    expect((await ask("teams in great britain")).understood?.label).toMatch(/^Teams in United Kingdom/);
+    expect((await ask("best team")).understood?.label ?? "").not.toMatch(/^Teams in/);
+  });
   it("teams in a town", async () => {
     const a = await ask("teams near oradell");
     expect(a.hits.map((h) => h.ref).sort()).toEqual(["4215", "6980"]);
