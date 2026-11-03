@@ -84,6 +84,14 @@ export function clearPicks(sp: URLSearchParams): void {
   for (const k of ["pevent", "pwith", "ptaken", "pposted"]) sp.delete(k);
 }
 
+/** An event chosen in the picker: the pick helper follows it. Its choices stay when the helper was already at
+ *  that event (the one a link named, else the one being scouted); otherwise they go with the old event. */
+export function picksOnEventChoice(sp: URLSearchParams, sessionEvent: string | null, chosen: string): void {
+  const helperAt = sp.get("pevent")?.toUpperCase() || sessionEvent?.toUpperCase() || null;
+  if (helperAt !== chosen.toUpperCase()) clearPicks(sp);
+  else sp.delete("pevent");
+}
+
 /** A link to the shared pick list (lite's "Full version", the bundle page). */
 export function picklistQuery(space: string | null, season: string | null): URLSearchParams {
   const q = new URLSearchParams();

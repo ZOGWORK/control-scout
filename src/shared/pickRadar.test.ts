@@ -1,7 +1,7 @@
 // The pick helper's math: radar area, the per-event scale, normalization (fouls inverted after summing) and the
 // order of suggestions (area first: a gap-filler beats a higher-rated team strong where you're already strong).
 import { describe, expect, it } from "vitest";
-import { clearPicks } from "./scoutSections";
+import { clearPicks, picksOnEventChoice } from "./scoutSections";
 import { allianceOf, alliancePicked, allianceTotals, coverage, fullArea, normalizeTotals, pickScale, radarArea, suggestPartners, type PickTeam } from "./pickRadar";
 
 const team = (n: number, auto: number, teleop: number, endgame: number, fouls: number): PickTeam => ({ team: n, name: null, rank: null, auto, teleop, endgame, fouls, matches: 10 });
@@ -73,6 +73,23 @@ describe("clearPicks", () => {
     const sp = new URLSearchParams("tab=picks&pevent=AUCMP&pwith=1&ptaken=2,3&pposted=0&pteam=10&psize=3&season=2025");
     clearPicks(sp);
     expect(sp.toString()).toBe("tab=picks&pteam=10&psize=3&season=2025");
+  });
+});
+
+describe("picksOnEventChoice", () => {
+  const q = () => new URLSearchParams("pevent=B&pwith=1&ptaken=2&pteam=10");
+  it("keeps the picks when the helper was already at the chosen event (a link's, over the session's)", () => {
+    const sp = q();
+    picksOnEventChoice(sp, "A", "b");
+    expect(sp.toString()).toBe("pwith=1&ptaken=2&pteam=10");
+  });
+  it("drops them for another event", () => {
+    const sp = q();
+    picksOnEventChoice(sp, "A", "C");
+    expect(sp.toString()).toBe("pteam=10");
+    const s2 = new URLSearchParams("pwith=1");
+    picksOnEventChoice(s2, "A", "A");
+    expect(s2.toString()).toBe("pwith=1");
   });
 });
 
