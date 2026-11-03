@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.3 — 2026-11-03
+## 2.8.4 — 2026-11-03
 
 Swing, Control Scout's consistency stat, has its own column wherever teams are compared: how far a robot's estimated points move from match to match. The formula sits next to it, and Control Point shows the same number for the same matches.
 
@@ -29,6 +29,18 @@ Swing, Control Scout's consistency stat, has its own column wherever teams are c
 - **Swing (consistency).** sd of (alliance non-penalty score − the partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the season's field as if 10 more matches. It's the same number as the reliability index's swing part, now computed by the prediction engine (3.4.0) so both apps use one function (#499). Event rankings show the team's swing at that event, the world ranking and Compare its season swing. Below 5 counted matches the cell reads "—", and its tooltip gives the reason.
 - **How it works.** A new "Swing" section works the formula step by step, so it can be checked by hand.
 - **Engine 3.4.0.** Predictions are unchanged: the replay of every predicted match since 2023–24 serves exactly what 3.3.0 did.
+
+## 2.8.3 — 2026-11-03
+
+A search that lists teams answers as one table: rank, team, OPR and its phases, penalties and record, with bars to compare at a glance.
+
+### Highlights
+- [teams] Team lists in search are one sortable table, OPR first
+- [teams] Bars for OPR and each phase, top three marked
+- [teams] On a phone, tap a row for its Auto, TeleOp, Endgame and Pen
+
+### Search
+- **List answers as a table.** "teams in california", "best teams in new jersey", a country's best, undefeated teams, win rate, most improved, best rookies and the stat leaderboards share one table: rank, team, OPR, Auto, DC (TeleOp from 2024–25, when it includes the endgame), Endgame, Pen and W-L-T. It opens best OPR first, and the OPR, phase and record headers re-sort it. Each row has a bar for its OPR and a bar for its phases (scaled to the largest phase total, since phases don't add up to the OPR); a phase below zero is labelled, not drawn. On a phone, rank, team, OPR and record stay in view and the phases open under the row. Every number is the team's stored season stats, the same ones its page shows; the page's first paint carries the table as plain HTML. (#498)
 
 ## 2.8.2 — 2026-11-03
 
@@ -82,7 +94,7 @@ FTC One Search reads a question by its words when its phrasing doesn't match: an
 ### Search
 - **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"), and a leaderboard asked with a place but no "in" ("highest opr california", "opr leaders texas") is the leaderboard, not a guess at a team. Details in docs/search-layers.md. (#479)
 
-## 2.8.3 — 2026-11-03
+## 2.7.8 — 2026-11-03
 
 Search engines now get only the team and event pages that have something on them, and every address in the sitemap opens a real page.
 
