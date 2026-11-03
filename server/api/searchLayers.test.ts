@@ -131,6 +131,8 @@ describe("filler: never changes an answer; forbidden words are never ignored", (
     expect(silent).toEqual([]);
     // Layer 1 reads past "today" (a stopword there): the answer says so.
     expect((await ask("4215 today opr")).understood?.label).toMatch(/"today" isn't part of this answer/);
+    // The same when a later layer answers it, after filler is taken out.
+    expect((await ask("4215 today opr rn")).understood?.label).toMatch(/"today" isn't part of this answer/);
     const x = await extract("4215 not opr");
     expect(x.forbidden).toEqual(["not"]);
     expect(x.canonical).toBeNull();

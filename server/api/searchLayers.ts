@@ -459,6 +459,11 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const strip = await stripFiller(q0);
   const normalized = strip.q.toLowerCase();
   const done = (a: SearchAnswer, won: LayerId | null, x: Extracted, result?: OutcomeResult, filler: string[] = []): SearchAnswer => {
+    // A forbidden word an answer read past ("4215 today opr", with or without filler) is named, never silently
+    // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it.
+    const own = (a.understood?.label ?? "").split(" · read as ")[0].toLowerCase();
+    const unread = won ? x0.forbidden.filter((w) => !own.includes(w)) : [];
+    if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
     const out = { ...a, q: typed };
     outcomes.set(out, {
       typed, normalized, layers: [...new Set(layers)], won, result: result ?? (won ? "answered" : resultOf(a, asked)),
@@ -504,9 +509,6 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
         const k = await keywordTry(q0, x0, "keyword", x0.dropped);
         if (k && !same(k, base)) return k;
       }
-      // A forbidden word Layer 1 read past ("4215 today opr") is named, never silently dropped.
-      const unread = x0.forbidden.filter((w) => !(base!.understood?.label ?? "").toLowerCase().includes(w));
-      if (unread.length && base.understood) base = { ...base, understood: { ...base.understood, label: `${base.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
       return done(base, "template", x0);
     }
   }
