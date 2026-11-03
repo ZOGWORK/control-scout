@@ -149,18 +149,16 @@ describe("pages and lists", () => {
 });
 
 describe("sitemap", () => {
-  it("lists /teams and /matches, never /records or a hidden team", async () => {
+  it("never lists /records (a redirect) or a hidden team", async () => {
     const locs = (await sitemapEntries()).map((e) => e.loc);
-    expect(locs).toContain("https://controlscout.org/teams");
-    expect(locs).toContain("https://controlscout.org/matches");
     expect(locs).not.toContain("https://controlscout.org/records");
     for (const t of HIDDEN) expect(locs).not.toContain(`https://controlscout.org/teams/${t}`);
   });
 
   it("every team URL it lists is a team page that answers 200", async () => {
     const teams = (await sitemapEntries()).map((e) => /\/teams\/(\d+)$/.exec(e.loc)?.[1]).filter((n): n is string => !!n);
-    // 18360 is on the off-season roster but never took the field: a thin page, left out (sitemap.ts).
-    expect(teams.map(Number)).toEqual([4215]);
+    // 18360 never took the field at the off-season event, but its season stats are on its page (server/indexable.ts).
+    expect(teams.map(Number)).toEqual([4215, 18360]);
     for (const n of teams) {
       expect(hasTeamPage(Number(n))).toBe(true);
       expect((await fetch(`${base}/api/teams/${n}`)).status, `team ${n}`).toBe(200);

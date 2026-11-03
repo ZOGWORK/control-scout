@@ -1,5 +1,12 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+# The public reads the content pages draw from (the longer rule wins): team pages, event pages,
+# the world rankings, a team's summary card and the power rankings.
+Allow: /api/teams/
+Allow: /api/events/
+Allow: /api/rankings
+Allow: /api/teams-summary
+Allow: /api/power-rankings
 
 Sitemap: https://controlscout.org/sitemap.xml
