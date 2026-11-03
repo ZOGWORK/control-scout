@@ -37,6 +37,8 @@ describe("what's read", () => {
     expect(readLeaderboard("Best rookie team in New Jersey")).toMatchObject({ kind: "rookie", stat: "opr" });
     expect(readLeaderboard("Most improved team in New Jersey")).toMatchObject({ kind: "improved" });
     expect(readLeaderboard("Teams in Oradell")).toMatchObject({ kind: "city", city: "oradell" });
+    expect(readLeaderboard("top 10 teams in NJ")).toMatchObject({ kind: "top", stat: "rating", n: 10, region: { key: "USA:NJ" } });
+    expect(readLeaderboard("top teams in NJ")).toBeNull();
     expect(readLeaderboard("teams in new jersey")).toBeNull();
     expect(readLeaderboard("top teams by vibes in nj")).toBeNull();
     expect(readLeaderboard("top 10 teams by opr in narnia")).toBeNull();

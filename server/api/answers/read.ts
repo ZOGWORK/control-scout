@@ -242,6 +242,12 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     const stat = boardStat(m[2]), region = place(m[3]);
     if (stat && region !== false) return { kind: "top", stat, n: n(m[1], 10), region, city: null, season: scope.season };
   }
+  // "top 10 teams in nj": a number asked for is honoured (search's own leaderboard shows 5); ranked as Rankings ranks,
+  // by the prediction rating
+  if ((m = new RegExp(`^(?:the )?(?:top|best|highest ranked|strongest) (\\d{1,2}) ${TEAMS}${PLACE}$`).exec(rest))) {
+    const region = place(m[2]);
+    if (region !== false) return { kind: "top", stat: "rating", n: n(m[1], 10), region, city: null, season: scope.season };
+  }
   // "best rookie team in new jersey", "top 5 rookies in nj"
   if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked)(?: (\\d{1,2}))? rookies?(?: ${TEAMS})?(?: by (.+?))?${PLACE}$`).exec(rest))) {
     const stat = m[2] ? boardStat(m[2]) : "opr", region = place(m[3]);
