@@ -12,7 +12,7 @@
 // "vs", "compare", "who wins" and "have … and … played" keep their own readings (./searchCoverage.ts, ./answers/read.ts).
 import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
 import type { StatAnswer, StatBlock } from "../../src/shared/searchStat.js";
-import { pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf } from "../../src/shared/teamTitle.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "./answers/clauses.js";
@@ -66,7 +66,7 @@ async function protectNames(toks: Tok[]): Promise<Tok[]> {
   const text = (t: Tok) => (isOp(t) ? (t.op === "and" ? "and" : t.op === "or" ? "or" : "not") : "word" in t ? t.word : null);
   const out: Tok[] = [];
   for (let i = 0; i < toks.length; i++) {
-    let took = 0;
+    let took = 0, name = "";
     for (let n = Math.min(NAME_SPAN, toks.length - i); n >= 3; n--) {
       const span = toks.slice(i, i + n);
       if (isOp(span[0]) || isOp(span[n - 1]) || !span.slice(1, -1).some(isOp)) continue;
@@ -74,9 +74,11 @@ async function protectNames(toks: Tok[]): Promise<Tok[]> {
       if (ws.some((w) => w == null)) continue;
       // "&" is folded away by the name key, as it is in the stored name ("Nuts & Bolts" is "nuts bolts").
       const said = ws.join(" "), amp = span.map((t, j) => (isOp(t) && t.op === "and" ? "&" : ws[j])).join(" ");
-      if (byName.has(nameKey(said)) || byName.has(nameKey(amp))) { took = n; break; }
+      // Kept as it matched, so the term reads back as that name.
+      if (byName.has(nameKey(said))) { took = n; name = said; break; }
+      if (byName.has(nameKey(amp))) { took = n; name = amp; break; }
     }
-    if (took) { out.push({ phrase: toks.slice(i, i + took).map(text).join(" ") }); i += took - 1; }
+    if (took) { out.push({ phrase: name }); i += took - 1; }
     else out.push(toks[i]);
   }
   return out;
@@ -143,9 +145,15 @@ export async function readBoolean(raw: string): Promise<BoolQuery | null> {
 const keyOf = (m: TeamMatch) => `${m.season}|${m.code}|${m.level}|${m.series}|${m.number}`;
 /** The teams on the field in a match, read from one team's side of it. */
 const onField = (m: TeamMatch, team: number) => new Set([...(m.onField ? [team] : []), ...m.partners, ...m.opponents]);
-/** Newest first: by date, then the event's own order (playoffs after qualifications, the final last). */
-const order = (a: TeamMatch, b: TeamMatch) => (b.date ?? "").localeCompare(a.date ?? "") || b.season - a.season || b.code.localeCompare(a.code)
-  || Number(b.level === "playoff") - Number(a.level === "playoff") || Number(b.level === "playoff" && b.series === 0) - Number(a.level === "playoff" && a.series === 0) || b.series - a.series || b.number - a.number;
+/** Newest first: events by their first day (a match's own time never moves it out of its event), then the event's own
+ *  order backwards: playoffs before qualifications, the final (series 0) first, then by series and number. */
+function newestFirst(ms: TeamMatch[]): (a: TeamMatch, b: TeamMatch) => number {
+  const day = new Map<string, string>();
+  for (const m of ms) { const k = `${m.season}|${m.code}`, d = (m.date ?? "").slice(0, 10); if (!day.has(k) || d < day.get(k)!) day.set(k, d); }
+  const dayOf = (m: TeamMatch) => day.get(`${m.season}|${m.code}`) ?? "";
+  return (a, b) => dayOf(b).localeCompare(dayOf(a)) || b.season - a.season || b.code.localeCompare(a.code)
+    || Number(b.level === "playoff") - Number(a.level === "playoff") || Number(b.level === "playoff" && b.series === 0) - Number(a.level === "playoff" && a.series === 0) || b.series - a.series || b.number - a.number;
+}
 
 /** The expression in words: "4215 and 6980", "4215 or 6980", "4215 without 6980". */
 function said(groups: Lit[][]): string {
@@ -171,6 +179,7 @@ async function matchListAnswer(b: BoolQuery, scope: Scope, who: Map<number, Answ
       seen.add(keyOf(m)); hits.push({ m, team: lead });
     }
   }
+  const order = newestFirst(hits.map((h) => h.m));
   hits.sort((x, y) => order(x.m, y.m));
   const where = scopePhrase(scope);
   const and2 = b.groups.length === 1 && b.groups[0].length === 2 && b.groups[0].every((l) => !l.neg);
@@ -207,7 +216,10 @@ type Reader = (q: string) => Promise<SearchAnswer>;
 
 /** One team's own answer to what's asked, when it is a stat answer about that team. */
 async function ownStat(read: Reader, team: number, rest: string, full: boolean): Promise<SearchAnswer | null> {
-  const a = await read(`${team} ${rest}`);
+  let a = await read(`${team} ${rest}`);
+  // A stat search answers on its own only with a scope ("4215 record" is the team's card): this season, said so.
+  const { scope } = readScope(` ${rest} `);
+  if (!a.intent?.kind.startsWith("stat-") && scope.season == null && !scope.latest && !scope.ever && !scope.championship && !scope.states) a = await read(`${team} ${rest} this season`);
   if (a.step === "recovery" || !a.intent?.kind.startsWith("stat-")) return null;
   if (full && (!a.stat || a.stat.team?.number !== team)) return null;
   return a;
@@ -225,8 +237,9 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   const left = [...new Set(b.groups.flat().filter((l) => l.neg).map((l) => l.team))].filter((t) => !wanted.includes(t));
   const { scope: rs, rest } = readScope(` ${b.rest} `);
   const hitsOf = async (ts: number[]) => (await Promise.all(ts.map(async (t) => (await read(String(t))).hits.find((h) => h.kind === "team" && h.ref === String(t))))).filter((h): h is SearchHit => !!h && !h.href);
-  const base = (hits: SearchHit[], label: string, kind: string): SearchAnswer => ({
-    q, hits: hits.map((h) => ({ ...h, section: "matches", facts: undefined, events: undefined })), pages: pagesFor(q), step: "deterministic", weak: false,
+  // A match list opens each team's matches; a stat keeps the section its own answer opens.
+  const base = (hits: SearchHit[], label: string, kind: string, section?: SearchHit["section"]): SearchAnswer => ({
+    q, hits: hits.map((h) => ({ ...h, ...(section ? { section } : {}), facts: undefined, events: undefined })), pages: pagesFor(q), step: "deterministic", weak: false,
     understood: { kind: "question", label }, intent: { kind, pattern: `[team] ${b.ops.join(" ")} [team]`, met: true, understood: [label] },
   });
 
@@ -243,7 +256,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
       scope.season = seasons.length ? Math.max(...seasons) : null;
     }
     const label = `Matches: ${b.groups.map((g) => g.filter((l) => !l.neg).map((l) => whoOf(who.get(l.team)!)).join(" and ") + (g.some((l) => l.neg) ? ` without ${g.filter((l) => l.neg).map((l) => whoOf(who.get(l.team)!)).join(" or ")}` : "")).join(" or ")}, either alliance${scopePhrase(scope)}`;
-    const a = base(hits.filter((h) => wanted.includes(Number(h.ref))), label, `boolean-${b.ops.includes("or") ? "or" : b.ops.includes("not") ? "not" : "and"}`);
+    const a = base(hits.filter((h) => wanted.includes(Number(h.ref))), label, `boolean-${b.ops.includes("or") ? "or" : b.ops.includes("not") ? "not" : "and"}`, "matches");
     return full ? { ...a, stat: await matchListAnswer(b, scope, who) } : a;
   }
 
@@ -286,32 +299,37 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   return { ...a, stat };
 }
 
-/** A query that is one quoted phrase (`"Raider Robotics"`): the teams named exactly that first, then the names that
- *  hold the phrase word for word; never a name that only has the words apart. With what's asked after it
- *  (`"bad wolf" opr`), the one team named exactly that is answered. */
+/** A query that opens with one quoted phrase (`"Raider Robotics"`): the teams named exactly that first, then the names
+ *  that hold the phrase word for word; never a name that only has the words apart, and when none holds it, that said
+ *  plainly (the quotes are never dropped). With what's asked after it (`"bad wolf" opr`), the one team named exactly
+ *  that is answered; a name several teams share lists them, asking which. A quoted question (`"4215 opr"`) is read as
+ *  the question. */
 async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | null> {
   const toks = tokenize(String(raw ?? "").slice(0, 120));
   if (!toks.length || !("phrase" in toks[0]) || toks.some(isOp) || toks.slice(1).some((t) => "phrase" in t)) return null;
   const phrase = toks[0].phrase, key = nameKey(phrase), q = String(raw ?? "").replace(/\s+/g, " ").trim();
+  const rest = toks.slice(1).map((t) => ("word" in t ? t.word : "")).join(" ");
   const exact = (await teamNames()).byName.get(key) ?? [];
-  if (toks.length > 1) {
-    if (exact.length !== 1) return null;
-    const as = `${exact[0]} ${toks.slice(1).map((t) => ("word" in t ? t.word : "")).join(" ")}`;
-    const a = await read(as);
-    if (a.step === "recovery") return null;
-    return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label} · "${phrase}" read as the exact name` } };
+  if (rest && exact.length === 1) {
+    const a = await read(`${exact[0]} ${rest}`);
+    if (a.step !== "recovery") return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label} · "${phrase}" read as the exact name` } };
   }
   const a = await read(phrase);
-  if (a.stat || a.card) return null;
+  if (!rest && (a.stat || a.card)) return null;
   const holds = (h: SearchHit) => ` ${nameKey(h.kind === "team" ? teamNameOf(h.title) : h.title)} `.includes(` ${key} `);
   const isExact = (h: SearchHit) => h.kind === "team" && exact.includes(h.ref);
   const missing = exact.filter((n) => !a.hits.some((h) => h.kind === "team" && h.ref === n));
   const extra = (await Promise.all(missing.slice(0, 25).map(async (n) => (await read(n)).hits.find((h) => h.kind === "team" && h.ref === n)))).filter((h): h is SearchHit => !!h);
   const kept = [...a.hits, ...extra].filter(holds);
-  if (!kept.length) return null;
+  const unread = rest ? ` · "${rest}" isn't read: ${exact.length > 1 ? `${exact.length} teams are named "${phrase}", so say which by its number` : `no team is named exactly "${phrase}"`}` : "";
+  if (!kept.length) {
+    const none = `No team or event name holds "${phrase}" word for word${unread}`;
+    return { q, hits: [], pages: pagesFor(q), step: "recovery", weak: true, understood: { kind: "names", label: none },
+      recovery: { understood: [none], closest: a.hits.slice(0, 5).map((h) => ({ ...h, match: "fuzzy" as const })), browse: SEARCH_BROWSE } };
+  }
   const hits = [...kept.filter(isExact), ...kept.filter((h) => !isExact(h))].map((h) => ({ ...h, match: "exact" as const }));
   const label = exact.length ? `Exact name "${phrase}": ${exact.length} team${exact.length === 1 ? "" : "s"} named exactly that${hits.length > exact.length ? ", then names holding the phrase" : ""}` : `Names holding "${phrase}" word for word`;
-  return { ...a, q, hits, step: "deterministic", weak: false, didYouMean: undefined, understood: { kind: "names", label } };
+  return { q, hits, pages: pagesFor(q), step: "deterministic", weak: false, understood: { kind: "names", label: `${label}${unread}` } };
 }
 
 /** "4215 not opr": NOT before a word that isn't a team. NOT leaves a team out of a list; it can't leave out a stat, so

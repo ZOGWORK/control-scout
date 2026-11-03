@@ -29,10 +29,12 @@ The operators never change the kind of answer; they say which teams it covers.
 | `4215 or 6980` | the matches with either team, each once |
 | `4215 not 6980`, `4215 -6980` | 4215's matches without 6980 in them |
 | `4215 and 6980 opr`, `4215 or 6980 opr` | both teams' OPR side by side, read as `4215 vs 6980 opr` (the same for the prediction rating) |
-| `4215 and 6980 record` (any other stat) | each team's own answer to `<team> record`, in one table, with a Compare link |
+| `4215 and 6980 record` (any other stat) | each team's own answer to `<team> record` (this season's, said so, when no season is named and the stat needs one), in one table, with a Compare link; each team's link opens what its own answer opens |
 | `4215 not 6980 opr` | 4215's OPR, saying 6980 was left out |
 | `"Raider Robotics"` | the teams named exactly that first, then names holding the phrase word for word; never a name with the words apart |
-| `"bad wolf" opr` | the one team named exactly "Bad Wolf", and its OPR |
+| `"Robotics Raider"` | "No team or event name holds "Robotics Raider" word for word", with the closest names offered; the quotes are never dropped |
+| `"bad wolf" opr` | the one team named exactly "Bad Wolf", and its OPR; a name several teams share (`"raider robotics" opr`) lists them and asks which, by number |
+| `"4215 opr"` | a quoted question is read as the question |
 
 A season, "this season" or a match type can follow a match list (`4215 and 6980 matches 2024-25`, `4215 or 6980 in
 playoffs`). An AND with nothing in common says so plainly ("Hypnotic Robotics (4215) and Bad Wolf (6980) have no shared

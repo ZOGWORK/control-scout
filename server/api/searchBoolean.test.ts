@@ -40,6 +40,9 @@ beforeAll(async () => {
       await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'USNJCMP', 'qual', 0, ?, ?, ?)", [n, t, side]);
     }
   }
+  // The final, with no time of its own (its date is the event's first day): 23268 against 14270.
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCMP', 'playoff', 0, 1, 'Final 1', null, 1, 120, 120, 80, 80, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance) VALUES (2025, 'USNJCMP', 'playoff', 0, 1, 23268, 'red'), (2025, 'USNJCMP', 'playoff', 0, 1, 14270, 'blue')");
   for (const t of [4215, 6980, 23268, 14270, 15461]) {
     await run("INSERT INTO event_teams (season, code, team, rank, wins, losses, ties, qual_played) VALUES (2025, 'USNJCMP', ?, 1, 4, 1, 0, 5)", [t]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USNJCMP', ?, 100, 5)", [t]);
@@ -93,6 +96,16 @@ describe("the brief's ten cases", () => {
     expect(refs).not.toContain("3333");
     expect(a.understood?.label).toContain("Exact name \"Raider Robotics\": 2 teams");
   });
+  it("7b. a phrase no name holds says so, never the words apart", async () => {
+    const a = await ask("\"Robotics Raider\"");
+    expect(a.step).toBe("recovery");
+    expect(a.hits).toEqual([]);
+    expect(a.understood?.label).toBe("No team or event name holds \"Robotics Raider\" word for word");
+    // A name two teams share, with a stat after it: those teams, asking which.
+    const b = await ask("\"Raider Robotics\" opr");
+    expect(b.hits.slice(0, 2).map((h) => h.ref).sort()).toEqual(["16762", "16774"]);
+    expect(b.understood?.label).toContain("\"opr\" isn't read: 2 teams are named \"Raider Robotics\", so say which by its number");
+  });
   it("8. a query without operators is read exactly as before", async () => {
     for (const q of ["4215", "4215 opr", "hypnotic robotics", "4215 vs 6980", "compare 4215 and 6980", "have 4215 and 6980 played each other",
       "who would win 4215 or 6980", "4215 or 6980 who wins", "who has a better record 4215 or 6980", "4215 and 6980 head to head", "4215 2024-25 opr",
@@ -105,7 +118,7 @@ describe("the brief's ten cases", () => {
     const a = await ask("23268 and 15461");
     expect(a.stat?.none).toBe("Ultraviolet (23268) and Nuts and Bolts (15461) have no shared matches.");
     const kpis = a.stat?.blocks.find((b) => b.kind === "kpis") as Extract<StatBlock, { kind: "kpis" }>;
-    expect(kpis.items.map((i) => [i.label, i.value])).toEqual([["Ultraviolet (23268)", "3"], ["Nuts and Bolts (15461)", "1"]]);
+    expect(kpis.items.map((i) => [i.label, i.value])).toEqual([["Ultraviolet (23268)", "4"], ["Nuts and Bolts (15461)", "1"]]);
     expect(a.stat?.blocks.some((b) => b.kind === "links" && b.items[0].href === "/search?q=23268%20or%2015461")).toBe(true);
   });
   it("10. a team name holding and, or or & stays a name", async () => {
@@ -115,6 +128,7 @@ describe("the brief's ten cases", () => {
     expect((await readBoolean("4215 -batteries not included"))?.groups).toEqual([[{ team: 4215, neg: false }, { team: 7418, neg: true }]]);
     expect((await readBoolean("nuts and bolts and 4215"))?.groups).toEqual([[{ team: 15461, neg: false }, { team: 4215, neg: false }]]);
     expect(rowsOf(await ask("Nuts and Bolts and 4215")).map((r) => r.label)).toEqual(["Q7"]);
+    expect((await readBoolean("wingus & dingus and 4215"))?.groups).toEqual([[{ team: 5110, neg: false }, { team: 4215, neg: false }]]);
   });
 });
 
@@ -139,7 +153,7 @@ describe("precedence and parsing", () => {
     // 23268 without 14270: Q4 only (Q5 and Q6 have 14270); with 4215 and 6980's Q1–Q4, each once.
     expect(rowsOf(await ask("4215 and 6980 or 23268 not 14270")).map((r) => r.label).sort()).toEqual(["Q1", "Q2", "Q3", "Q4"]);
     // Read as (4215 and 6980) or 23268, the NOT on 14270 alone: never 4215 and (6980 or 23268).
-    expect(rowsOf(await ask("4215 and 6980 or 23268")).map((r) => r.label).sort()).toEqual(["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"]);
+    expect(rowsOf(await ask("4215 and 6980 or 23268")).map((r) => r.label).sort()).toEqual(["Final 1", "Q1", "Q2", "Q3", "Q4", "Q5", "Q6"]);
   });
   it("a group only of NOTs, a dangling operator or an unknown team is no expression", async () => {
     for (const q of ["4215 or not 6980", "4215 and", "and 4215 6980", "4215 and 99999", "4215 and the bees"]) expect(await readBoolean(q), q).toBeNull();
@@ -148,6 +162,22 @@ describe("precedence and parsing", () => {
     expect((await ask("4215 and 6980 matches 2025-26")).stat?.headline?.value).toBe("4");
     expect((await ask("4215 and 6980 matches 2024-25")).stat?.none).toContain("no shared matches in 2024–25");
     expect((await ask("4215 or 6980 in playoffs")).stat?.none).toContain("No matches");
+  });
+  it("any other stat: each team's own answer in one table, opening the section that answer opens", async () => {
+    const a = await ask("4215 and 6980 record");
+    expect(a.stat?.intent).toBe("boolean-compare");
+    const t = a.stat?.blocks.find((b) => b.kind === "table") as Extract<StatBlock, { kind: "table" }>;
+    expect(t.rows.map((r) => String(r.cells.team))).toEqual(["Hypnotic Robotics (4215)", "Bad Wolf (6980)"]);
+    // Each team's link opens what its own answer opens ("4215 record" reads as this season's record).
+    const own = await ask("4215 record this season");
+    expect(a.stat?.title).toBe(`${own.stat?.title}: 4215 vs 6980`);
+    expect(a.hits[0].section).toBe(own.hits[0].section);
+    const awards = await ask("4215 and 6980 awards");
+    expect(awards.hits[0].section).toBe((await ask("4215 awards")).hits[0].section);
+  });
+  it("an untimed final stays at the top of its event, above the timed qualifications", async () => {
+    const rows = rowsOf(await ask("23268 or 14270"));
+    expect(rows[0].label).toBe("Final 1");
   });
   it("a quoted full name is one term", async () => {
     expect((await readBoolean("\"bad wolf\" and 4215"))?.groups).toEqual([[{ team: 6980, neg: false }, { team: 4215, neg: false }]]);
