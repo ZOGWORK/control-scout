@@ -32,6 +32,14 @@ beforeAll(async () => {
   await run(`INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero,
     no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES
     (2025, '', 4215, 30, 1, 0, 2, 30, 10, 0, 1, 0.03, 0, 0.07, 0.4, 0.8, 1.1, 88, 'now'), (2025, '', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 71, 'now')`);
+  // A rookie with a posted schedule and no played match; an old event's match left unplayed; a team under 3 matches.
+  await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (31000, 'New Bots', 'Edison', 'NJ', 'USA', 2026), (9999, 'Two Matches', 'Trenton', 'NJ', 'USA', 2020)");
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJFUT', 'Future Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2099-01-10', '2099-01-10', 't'), (2025, 'USNJOLD', 'Old Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2025-10-01', '2025-10-01', 't')");
+  for (const [code, season, t] of [["USNJFUT", 2026, 31000], ["USNJOLD", 2025, 4215]] as const) {
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, ?, 'qual', 0, 3, 'Q3', 0, 't')", [season, code]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, 'qual', 0, 3, ?, 'red', 1)", [season, code, t]);
+  }
+  await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9999, 300, 2, 2, 0, 0)");
   await rebuildSearch();
 });
 
@@ -47,6 +55,8 @@ describe("team facts", () => {
     // "4215 events" alone is the count, another answer's; Worlds or a match type can't apply to a fact.
     expect(readTeamFact("4215 events")).toBeNull();
     expect(readTeamFact("4215 opr at worlds")).toBeNull();
+    // A bare year naming nothing else is the team's number.
+    expect(readTeamFact("2024 reliability")).toMatchObject({ id: "reliability", core: "2024", season: null });
   });
   it("OPR and its phases, with the world rank; the prediction rating", async () => {
     const o = (await searchAnswer("4215 OPR", { limit: 25 })).stat!;
@@ -57,19 +67,26 @@ describe("team facts", () => {
     expect(r.headline).toMatchObject({ value: "94.6 ± 3.2", label: "#2 of 3 worldwide · top 67%", sub: "30 matches rated" });
   });
   it("events in a season and in a place", async () => {
-    expect((await searchAnswer("4215 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 event" });
+    expect((await searchAnswer("4215 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events" });
     expect((await searchAnswer("4215 events in New Jersey", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events", label: "in New Jersey, 1 season" });
+    // A season named keeps to it.
+    const n = (await searchAnswer("4215 events in New Jersey 2024-25", { limit: 25 })).stat!;
+    expect(n).toMatchObject({ title: "Events in New Jersey in 2024–25", none: expect.stringContaining("no events in New Jersey in 2024–25") });
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
     expect((await searchAnswer("4215 OPR vs world average", { limit: 25 })).stat!.headline).toMatchObject({ value: "−14.6", sub: "#2 of 3 by OPR · top 67%" });
     expect((await searchAnswer("4215 OPR vs New Jersey average", { limit: 25 })).stat!.headline).toMatchObject({ value: "+27.3" });
     const e = (await searchAnswer("4215 OPR vs New Jersey Championship average", { limit: 25 })).stat!;
     expect(e.headline).toMatchObject({ value: "+30.0", label: "above the average: 110.0 vs 80.0" });
+    // A team under 3 matches isn't in the counted group: no rank among them.
+    expect((await searchAnswer("9999 OPR vs New Jersey average", { limit: 25 })).stat!.headline).toMatchObject({ sub: "Not ranked among them: under 3 matches" });
   });
   it("reliability, league standing, the next match; a question about the next match is the asks' own", async () => {
     expect((await searchAnswer("4215 reliability", { limit: 25 })).stat!.headline).toMatchObject({ value: "88", label: "out of 100 · field average 71" });
     expect((await searchAnswer("4215 league rank", { limit: 25 })).stat!.headline).toMatchObject({ value: "#2 of 2", label: "League after NJ Bergen League Meet 3" });
+    // An old event's match left unplayed is never "next"; a rookie's posted schedule is, with no season played.
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
+    expect((await searchAnswer("31000 predicted score next match", { limit: 25 })).stat!.headline).toMatchObject({ value: "Q3", label: expect.stringContaining("Future Qualifier") });
     for (const q of ["will 4215 win its next match", "when is 4215 next match", "when is 4215 next event", "what events did 4215 win in 2025"]) expect(readTeamFact(q), q).toBeNull();
   });
 });

@@ -71,13 +71,18 @@ export function readTeamFact(raw: string): FactQuestion | null {
       // "events in 2025-26" names a season, not a place.
       const s = readScope(` events in ${what} `);
       if (s.scope.season != null && !s.rest.replace(/\bevents?\b/, "").trim()) { const core = rest.trim(); return core ? { id: "events-season", core, season: s.scope.season, region: null, world: false, event: null } : null; }
-      if (!(region = regionOf(what.split(" ")))) return null;
+      // "events in New Jersey 2024-25": the place, and the season read off it.
+      const place = s.scope.season != null ? s.rest.replace(/\bevents?\s+in\b/, "").trim() : what;
+      if (!(region = regionOf(place.split(" ")))) return null;
+      if (s.scope.season != null) scope.season ??= s.scope.season;
     }
     // "4215 events" alone is the count, another answer's: the season list needs a season. A question about them
     // ("when is 4215's next event", "what events did 4215 win in 2024") is the asks' own.
     if (r.id === "events-season" && scope.season == null) return null;
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
     const core = rest.replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
+    // A bare year with nothing else naming a team is the team's number ("2024 reliability").
+    if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event };
     if (!core) return null;
     return { id: r.id, core, season: scope.season, region, world, event };
   }
@@ -101,6 +106,22 @@ async function seasonOf(team: number, asked: number | null): Promise<number | nu
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
 export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
   const base = (intent: string, title: string, scope: string[], definition: string, source: string) => ({ family: "stat" as const, intent, title, team, scope, definition, source, blocks: [] as StatBlock[] });
+  // The next match needs no played season (a rookie's first event).
+  if (f.id === "next-match") {
+    const m = await get<any>(`SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, mt.alliance FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
+      JOIN events e ON e.season = m.season AND e.code = m.code WHERE mt.team = ? AND m.played = 0 AND (m.time IS NULL OR m.time >= ?) AND COALESCE(e.end, e.start) >= ? ORDER BY COALESCE(m.time, e.start), m.code, m.level, m.series, m.number LIMIT 1`, [team.number, new Date(Date.now() - 6 * 3600e3).toISOString(), new Date(Date.now() - 36 * 3600e3).toISOString().slice(0, 10)]);
+    const b = base("next-match", "Predicted score, next match", [], "The engine's prediction logged before the match: each alliance's expected score (without penalties) and the chance each wins. Shown once the schedule is posted.", "From the posted schedules and the engine's live predictions");
+    if (!m) return { ...b, none: `${who(team)} has no upcoming match on a posted schedule. Predict can forecast any alliance in the meantime.`, more: { label: "Open Predict", href: `/predict?teams=${team.number}` } };
+    const p = await get<any>("SELECT p_red, red_mean, blue_mean FROM predictions WHERE kind = 'live' AND season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [m.season, m.code, m.level, m.series, m.number]);
+    const own = m.alliance === "red" ? "red" : "blue";
+    const label = `${m.label} at ${shortEvent(m.name, m.type)}${m.time ? ` · ${String(m.time).slice(0, 16).replace("T", " ")}` : ""}`;
+    if (!p) return { ...b, headline: { value: m.label, label, sub: `On ${own}. The prediction is logged shortly before the match; the match page shows it then.`, href: matchHref(m) } };
+    const mine = own === "red" ? p.red_mean : p.blue_mean, theirs = own === "red" ? p.blue_mean : p.red_mean;
+    const win = own === "red" ? p.p_red : 1 - p.p_red;
+    return { ...b, headline: { value: `${Math.round(mine)}–${Math.round(theirs)}`, label, sub: `${own === "red" ? "Red" : "Blue"} (${who(team)}'s alliance) ${Math.round(win * 100)}% to win`, href: matchHref(m) },
+      blocks: [{ kind: "bars", title: "Predicted scores", groups: [{ label: m.label, items: [{ label: `${own === "red" ? "Red" : "Blue"} (with ${team.number})`, value: Math.round(mine), tone: "a" }, { label: own === "red" ? "Blue" : "Red", value: Math.round(theirs), tone: "b" }] }] }] };
+  }
+
   const season = await seasonOf(team.number, f.season);
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const S = seasonLabel(season);
@@ -154,21 +175,6 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     };
   }
 
-  if (f.id === "next-match") {
-    const m = await get<any>(`SELECT m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, mt.alliance FROM match_teams mt JOIN matches m ON m.season = mt.season AND m.code = mt.code AND m.level = mt.level AND m.series = mt.series AND m.number = mt.number
-      JOIN events e ON e.season = m.season AND e.code = m.code WHERE mt.team = ? AND m.played = 0 AND (m.time IS NULL OR m.time >= ?) ORDER BY COALESCE(m.time, e.start), m.code, m.level, m.series, m.number LIMIT 1`, [team.number, new Date(Date.now() - 6 * 3600e3).toISOString()]);
-    const b = base("next-match", "Predicted score, next match", [], "The engine's prediction logged before the match: each alliance's expected score (without penalties) and the chance each wins. Shown once the schedule is posted.", "From the posted schedules and the engine's live predictions");
-    if (!m) return { ...b, none: `${who(team)} has no upcoming match on a posted schedule. Predict can forecast any alliance in the meantime.`, more: { label: "Open Predict", href: `/predict?teams=${team.number}` } };
-    const p = await get<any>("SELECT p_red, red_mean, blue_mean FROM predictions WHERE kind = 'live' AND season = ? AND code = ? AND level = ? AND series = ? AND number = ?", [m.season, m.code, m.level, m.series, m.number]);
-    const own = m.alliance === "red" ? "red" : "blue";
-    const label = `${m.label} at ${shortEvent(m.name, m.type)}${m.time ? ` · ${String(m.time).slice(0, 16).replace("T", " ")}` : ""}`;
-    if (!p) return { ...b, headline: { value: m.label, label, sub: `On ${own}. The prediction is logged shortly before the match; the match page shows it then.`, href: matchHref(m) } };
-    const mine = own === "red" ? p.red_mean : p.blue_mean, theirs = own === "red" ? p.blue_mean : p.red_mean;
-    const win = own === "red" ? p.p_red : 1 - p.p_red;
-    return { ...b, headline: { value: `${Math.round(mine)}–${Math.round(theirs)}`, label, sub: `${own === "red" ? "Red" : "Blue"} (${who(team)}'s alliance) ${Math.round(win * 100)}% to win`, href: matchHref(m) },
-      blocks: [{ kind: "bars", title: "Predicted scores", groups: [{ label: m.label, items: [{ label: `${own === "red" ? "Red" : "Blue"} (with ${team.number})`, value: Math.round(mine), tone: "a" }, { label: own === "red" ? "Blue" : "Red", value: Math.round(theirs), tone: "b" }] }] }] };
-  }
-
   if (f.id === "events-season") {
     const evs = await teamEvents(season, team.number);
     const b = base("events-season", `Events in ${S}`, [S], "Every event the team is listed for that season, oldest first, with its rank, record and OPR there.", `From ${who(team)}'s ${S} events`);
@@ -181,9 +187,10 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   if (f.id === "events-place") {
     const r = f.region!;
     const evs = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.start, e.end, et.rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-      WHERE et.team = ? AND e.country = ? AND e.state = ? AND ${ATTENDED} ORDER BY e.start DESC, e.code LIMIT 60`, [team.number, r.country, r.state]);
-    const b = base("events-place", `Events in ${r.name}`, [r.name, "All seasons"], `Every event in ${r.name} the team is listed for, newest first, each season apart.`, `From ${who(team)}'s events`);
-    if (!evs.length) return { ...b, none: `${who(team)} has no events in ${r.name} on record.` };
+      WHERE et.team = ? AND e.country = ? AND e.state = ?${f.season != null ? " AND e.season = ?" : ""} AND ${ATTENDED} ORDER BY e.start DESC, e.code`, [team.number, r.country, r.state, ...(f.season != null ? [f.season] : [])]);
+    const in_ = f.season != null ? ` in ${seasonLabel(f.season)}` : "";
+    const b = base("events-place", `Events in ${r.name}${in_}`, [r.name, f.season != null ? seasonLabel(f.season) : "All seasons"], `Every event in ${r.name} the team is listed for${in_ || ", every season"}, newest first.`, `From ${who(team)}'s events`);
+    if (!evs.length) return { ...b, none: `${who(team)} has no events in ${r.name}${in_} on record.` };
     const seasons = new Set(evs.map((e) => Number(e.season)));
     return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: `in ${r.name}, ${seasons.size} season${seasons.size === 1 ? "" : "s"}` },
       blocks: [{ kind: "table", title: `Events in ${r.name}`, columns: [{ key: "season", label: "Season" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }],
@@ -191,7 +198,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   }
 
   if (f.id === "opr-vs-average") {
-    const ev = f.event ? await findEvent(f.event, f.season) : null;
+    const ev = f.event ? await findEvent(f.event, season) : null;
     if (f.event && !ev) return null;
     const at = ev ? ev.season : season;
     const AT = seasonLabel(at);
@@ -201,8 +208,8 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       ev ? `From the OPRs at ${where}, ${AT}` : `From the ${AT} season numbers`);
     // At a championship with divisions, the team's own division is its field.
     const own = ev
-      ? await get<{ v: number | null; code: string; name?: string; type?: string | null }>("SELECT s.opr_np v, s.code, e.name, e.type FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.season = ? AND (e.code = ? OR e.division_code = ?) AND s.team = ? AND s.matches > 0 ORDER BY e.division_code IS NULL LIMIT 1", [at, ev.code, ev.code, team.number])
-      : await get<{ v: number | null; code: string; name?: string; type?: string | null }>("SELECT opr_np v, '' code FROM team_season_stats WHERE season = ? AND team = ?", [at, team.number]);
+      ? await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number }>("SELECT s.opr_np v, s.code, e.name, e.type FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.season = ? AND (e.code = ? OR e.division_code = ?) AND s.team = ? AND s.matches > 0 ORDER BY e.division_code IS NULL LIMIT 1", [at, ev.code, ev.code, team.number])
+      : await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number }>("SELECT opr_np v, '' code, NULL name, NULL type, matches m FROM team_season_stats WHERE season = ? AND team = ?", [at, team.number]);
     if (own?.v == null) return { ...b, none: ev ? `${who(team)} has no OPR at ${where}.` : `${who(team)} has no OPR in ${AT}.` };
     const field = ev
       ? await get<{ avg: number | null; n: number; above: number }>("SELECT AVG(opr_np) avg, COUNT(*) n, SUM(CASE WHEN opr_np > ? THEN 1 ELSE 0 END) above FROM team_event_stats WHERE season = ? AND code = ? AND matches > 0 AND opr_np IS NOT NULL", [own.v, at, own.code])
@@ -212,7 +219,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const d = Number(own.v) - Number(field.avg);
     const fieldName = own.name ? shortEvent(own.name, own.type ?? null) : where;
     const rank = Number(field.above) + 1;
-    return { ...b, headline: { value: `${d >= 0 ? "+" : "−"}${dp(Math.abs(d))}`, label: `${d >= 0 ? "above" : "below"} the average: ${dp(own.v)} vs ${dp(field.avg)}`, sub: `#${rank} of ${n(Number(field.n))} by OPR · ${top(rank, Number(field.n))}` },
+    return { ...b, headline: { value: `${d >= 0 ? "+" : "−"}${dp(Math.abs(d))}`, label: `${d >= 0 ? "above" : "below"} the average: ${dp(own.v)} vs ${dp(field.avg)}`, ...(ev || Number(own.m ?? 0) >= RANKED_MIN_MATCHES ? { sub: `#${rank} of ${n(Number(field.n))} by OPR · ${top(rank, Number(field.n))}` } : { sub: `Not ranked among them: under ${RANKED_MIN_MATCHES} matches` }) },
       blocks: [{ kind: "bars", title: "OPR against the average", groups: [{ label: `${fieldName[0].toUpperCase()}${fieldName.slice(1)}, ${AT}`, items: [{ label: String(team.number), value: Math.round(Number(own.v) * 10) / 10, tone: "a" }, { label: "Average", value: Math.round(Number(field.avg) * 10) / 10, tone: "c" }] }] }] };
   }
 
