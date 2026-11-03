@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.6.5 — 2026-11-03
+
+FTC One Search keeps a venue's meets to that venue, and "who won" leaves the Leadership Award out.
+
+### Highlights
+- [fixes] "Meets at River Dell" no longer lists Riverdale High School, IL
+- [fixes] "Who won" lists the winning alliance, never Leadership winners
+- [history] Misspelt venues still count, in the venue's own state
+
+### Search
+- **A venue stays in its own state.** A spelling a letter or two off now counts only in a state where the venue is found as typed. New Jersey's "River Dale High School" is still River Dell's meet, and Riverdale High School in Port Byron, Illinois, is no longer listed.
+- **Who won.** FIRST stores the Leadership Award at the 2025–26 Championship as a "Winner" row. "Who won" now leaves it out, so the card lists only the winning alliance and the Inspire Award. (#466)
+
 ## 2.6.4 — 2026-11-03
 
 FTC One Search compares a team's championship trips by division rank, and its filters never leave you at a dead end.
