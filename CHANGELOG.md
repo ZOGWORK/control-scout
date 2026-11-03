@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.0 — 2026-11-03
+## 2.8.1 — 2026-11-03
 
 Scout has a pick helper. Choose your team at an event and it suggests the partners that fill your alliance's gaps, each on a radar of auto, TeleOp, endgame and fouls over your own, with what it adds.
 
@@ -29,6 +29,21 @@ Scout has a pick helper. Choose your team at an event and it suggests the partne
 - **Pick helper.** A new Scout section (Scout → Pick helper, no account needed). Pick your team at an event, or your alliance if it's posted; the top 5 free partners are the ones whose alliance covers the most of a four-axis radar (Auto, TeleOp, Endgame, Few fouls), so a team strong where you're weak can beat a higher-rated one. Add a partner to plan a 3-team alliance's second pick, mark teams taken as alliance selection goes, and "Show the numbers" lists every rating used. Each axis is the alliance's total ÷ the best 2 (or 3) teams at the event added up; area is ½·sin(2π/4)·Σ rᵢ·rᵢ₊₁ (full method on How it works). It reads the engine ratings the stats runs already store; nothing is rated on request.
 - **Event page.** The Playoffs tab links to the pick helper for that event. (#492)
 
+## 2.8.0 — 2026-11-03
+
+How a team's rating is read from alliance scores is now stated where the rating is shown, and "Before the event" odds load faster.
+
+### Highlights
+- [predict] Ratings say what they assume: random qualification partners
+- [predict] Playoff matches count half, because playoff partners are fixed
+- [speed] "Before the event" odds for a second team at an event load faster
+
+### Predictions
+- **What a rating assumes.** FTC only records alliance scores. The engine splits each alliance's miss equally between its robots, which separates a team from its partners only because qualification partners are drawn at random. Playoff alliances are fixed, so a playoff match moves a rating half as much. The How it works page (new "What this assumes" part), team pages and the world rankings now say so in one line. The numbers don't change. (#486)
+- **Faster "Before the event" views.** The ratings as they stood the day before an event are now worked out once per day for the current data, and shared by every team's odds and partner scenarios at that event and by every event starting that day. Before, each team's view replayed the season again. Same numbers.
+
+### Engine research notes
+- New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
 ## 2.7.9 — 2026-11-03
 
 FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
