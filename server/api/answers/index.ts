@@ -208,22 +208,25 @@ async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean
 /** The event a "who won" question names, by the same rule as the asks' "who won" (../searchAsks.ts eventWon): a place's
  *  championship ("nj states") or an event by name, its newest finished season or the one named; else the event search
  *  finds with a played playoff. */
-async function namedEvent(it: StatQuestion) {
-  const words = [it.core, it.scope.states ? "states" : "", it.scope.season != null ? seasonLabel(it.scope.season) : ""].filter(Boolean).join(" ");
+async function namedEvent(it: StatQuestion, season: number | null) {
+  const words = [it.core, it.scope.states ? "states" : "", season != null ? seasonLabel(season) : ""].filter(Boolean).join(" ");
   const won = await eventWon(words, new Set());
   if (won) return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [won.season, won.code])) ?? null;
-  return it.scope.states ? null : findEvent(it.core, it.scope.season);
+  return it.scope.states ? null : findEvent(it.core, season);
 }
 
 async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // "who won nj states": a place's state championship; "states" with no place names none.
   if (it.scope.states && !it.core) return null;
   const championship = !it.scope.states && (it.scope.championship || !it.core);
-  const named = championship ? null : await namedEvent(it);
+  // As the asks' "who won" reads them: a bare year is when the event was held ("who won 2025 nj states": 2024–25),
+  // "last year" the latest finished championship.
+  const asked = it.scope.lastYear ? null : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
+  const named = championship ? null : await namedEvent(it, asked);
   if (!championship && !named) return null;
-  const stat = opts.full ? await winnersAnswer(it.core, it.scope.season, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
+  const stat = opts.full ? await winnersAnswer(it.core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
   if (opts.full && !stat) return null;
-  const season = named?.season ?? it.scope.season;
+  const season = named?.season ?? asked;
   const label = named ? `${shortEvent(named.name, named.type)} · Winning alliance` : `${season != null ? `${seasonLabel(season)} ` : ""}FIRST Championship · Winning alliances`;
   // The event as event sets show it (its dates, place and status), as the asks' "who won" does.
   const row = named ? await get<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [named.season, named.code]) : null;

@@ -3,7 +3,7 @@
 // playoffs", "on red", "ever") and what's left, which names the team. One table of intents, each naming its family;
 // the scope words are read once, the same way for every intent (./clauses.ts applies them).
 import type { StatFamily } from "../../../src/shared/searchStat.js";
-import { SEASONS } from "../../data/seasons.js";
+import { CURRENT_SEASON, SEASONS } from "../../data/seasons.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
 
 export type IntentId =
@@ -181,7 +181,8 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     if (y && SEASONS.some((s) => s.season === Number(y[1]))) { scope.season = Number(y[1]); scope.year = true; rest = rest.replace(y[0], " "); }
   }
   if (take(/\b(?:this|current|the\s+current)\s+(?:season|year)\b|\bthis\s+year'?s?\b/)) scope.latest = true;
-  else if (take(/\b(?:last|previous|past)\s+(?:year|season)'?s?\b/)) scope.lastYear = true;
+  // "Last season" is the season before the current one; a championship question reads it as the latest finished one.
+  else if (take(/\b(?:last|previous|past)\s+(?:year|season)'?s?\b/)) { scope.lastYear = true; scope.season ??= CURRENT_SEASON - 1; }
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";
