@@ -4,7 +4,7 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { ArrowLeftRight, ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, BookOpen, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { offlineSource } from "../../lib/offline/saved";
@@ -317,7 +317,8 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   return (
     <div role="note" aria-label={who ? `${card.title}: ${who}` : card.title} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
       <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>
-        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title}{who && ` · ${who}`}
+        {/* A rule's answer (the game manual) has a book; records have the trophy. */}
+        {card.kind === "rule" ? <BookOpen className="size-3.5 shrink-0 text-accent" data-card-icon="rule" /> : <Trophy className="size-3.5 shrink-0 text-accent" />}{card.title}{who && ` · ${who}`}
         {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text">{card.count} {card.count === 1 ? "time" : "times"}</span>}
       </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
