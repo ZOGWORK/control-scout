@@ -66,11 +66,11 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
     box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
   }), [stream.videoId]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
-  // A match's own video: that match, its result once the video stops past the match's length.
+  // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).
   const timed = recording && matches.some((m) => m.clip);
   const ownMatch = own?.matchKey ? matches.find((m) => m.key === own.matchKey) ?? null : null;
   const call: OverlayCall | null = start == null || !overlay ? null
-    : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t >= MATCH_S ? "after" : "playing" } : null)
+    : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
     : timed ? (clock ? videoMoment(matches, clock.t) : null) : recording ? null : liveCall;
   const offerOverlay = timed || !recording || !!ownMatch;
   return (

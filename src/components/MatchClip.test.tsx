@@ -164,6 +164,22 @@ describe("match video links", () => {
   });
 });
 
+describe("a match's own video, with the call over it", () => {
+  it("shows the result only once it stops a match's length past where its link starts", () => {
+    localStorage.removeItem("cs-video-predictions");
+    const m = { key: "qual:0:1", label: "Q1", played: true, red: { teams: [{ number: 1, onField: true }], score: { total: 30 } }, blue: { teams: [{ number: 2, onField: true }], score: { total: 20 } }, prediction: { pRed: 0.6 }, video: "https://www.youtube.com/watch?v=Ve9_fshsUec&t=3600" };
+    render(<MemoryRouter><WatchLive d={{ ...d, matches: [m] } as unknown as EventDetail} stream={stream} /><MatchVideoLink url={m.video} label="Q1" matchKey={m.key} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("link", { name: "Official video of Q1" }));
+    const frame = document.querySelector("iframe")!;
+    const report = (t: number, playerState: number) => act(() => { window.dispatchEvent(new MessageEvent("message", { origin: "https://www.youtube-nocookie.com", source: frame.contentWindow, data: JSON.stringify({ event: "infoDelivery", info: { currentTime: t, playerState } }) })); });
+    const phase = () => document.querySelector("[data-video-predictions]")?.getAttribute("data-video-predictions");
+    report(3610, 2); // paused 10 s in: the match isn't over
+    expect(phase()).toBe("playing");
+    report(3600 + 170, 0); // ended past the match's length
+    expect(phase()).toBe("after");
+  });
+});
+
 describe("a video link's own start", () => {
   it("reads t= and start= in seconds or h/m/s, else 0", () => {
     expect(["https://www.youtube.com/watch?v=Ve9_fshsUec&t=90s", "https://youtu.be/Ve9_fshsUec?t=1m30s", "https://www.youtube.com/watch?v=Ve9_fshsUec&start=90",
