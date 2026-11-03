@@ -63,20 +63,29 @@ export function trendAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
   return {
     ...base,
     headline: { value: fmt(last.y, metric), label: `${metric.label} at ${last.e.name}${dir ? ` · ${dir.word}` : ""}`, sub: [seasonLabel(last.e.season), dateRange(last.e.start, last.e.end)].filter(Boolean).join(" · "), href: eventHref(last.e.season, last.e.code, team.number) },
-    blocks: [kpis, series],
+    blocks: [kpis, series, ...switcher(id, team, set.events, season)],
   };
 }
+
+/** The other seasons the same per-event trend can be read for, newest first: each opens that season's answer. */
+function switcher(id: IntentId, team: AnswerTeam, events: TeamEvent[], season: number | null): StatBlock[] {
+  const others = [...new Set(events.filter((e) => e.matches > 0 && e.season !== season).map((e) => e.season))].sort((a, b) => b - a);
+  if (!others.length) return [];
+  const words = SWITCH_WORDS[id] ?? id.replace(/-/g, " ");
+  return [{ kind: "links", title: "Other seasons", items: others.map((s) => ({ label: seasonLabel(s), href: `/search?q=${encodeURIComponent(`${team.number} ${words} in ${seasonLabel(s)}`)}` })) }];
+}
+const SWITCH_WORDS: Partial<Record<IntentId, string>> = { "opr-history": "opr history", "win-rate": "win rate by event", "avg-penalties": "penalties trend", "avg-score-by-event": "average score by event", "ranking-points": "ranking points by event" };
 
 function seasonTrend(id: "opr-by-season" | "record-by-season", team: AnswerTeam, all: TeamSeason[]): StatAnswer {
   const ss = all.filter((s) => s.matches > 0);
   const who = whoOf(team);
   const opr = id === "opr-by-season";
-  const title = opr ? "OPR by season" : "Record by season";
+  const title = opr ? "OPR standing by season" : "Record by season";
   const span = ss.length ? `${seasonLabel(ss[0].season)}${ss.length > 1 ? ` to ${seasonLabel(ss[ss.length - 1].season)}` : ""}` : "";
   const base = {
     family: "trend" as const, intent: id, title, team, scope: ["All seasons"],
     definition: opr
-      ? "OPR by season: the team's season OPR without penalties and its OPR rank among the season's ranked teams (3+ matches), as its team page shows. Each season is a different game, so the standing (the rank's share of all ranked teams) is what compares across seasons."
+      ? "OPR standing by season: the team's rank by season OPR (without penalties) among the season's ranked teams (3+ matches), as its team page shows, and the share of them it was ahead of. Each season is a different game, so an OPR number is never compared across seasons; the standing is."
       : "Record by season: the team's wins, losses and ties each season, as its team page shows (every match played, playoffs included).",
     source: ss.length ? `From ${ss.length} season record${ss.length === 1 ? "" : "s"}, ${span}` : "No seasons with matches",
   };
@@ -84,13 +93,17 @@ function seasonTrend(id: "opr-by-season" | "record-by-season", team: AnswerTeam,
   const latest = ss[ss.length - 1];
   const share = (s: TeamSeason) => (s.rank != null && s.of ? Math.max(1, Math.ceil((100 * s.rank) / s.of)) : null);
   if (opr) {
+    // Owner rule: a raw OPR is never compared across seasons (each is a different game). The line is the standing.
+    const ahead = (s: TeamSeason) => (s.rank != null && s.of ? Math.round((100 * (s.of - s.rank)) / s.of) : null);
     return {
       ...base,
-      headline: { value: fmt(latest.opr, { digits: 1 }), label: `OPR in ${seasonLabel(latest.season)}${share(latest) != null ? ` · top ${share(latest)}% worldwide` : ""}`, sub: latest.rank != null ? `OPR rank #${latest.rank} of ${latest.of}` : undefined, href: teamHref(team.number, latest.season) },
+      headline: share(latest) != null
+        ? { value: `Top ${share(latest)}%`, label: `worldwide by OPR in ${seasonLabel(latest.season)}`, sub: `OPR rank #${latest.rank} of ${latest.of}`, href: teamHref(team.number, latest.season) }
+        : { value: "Not ranked", label: `in ${seasonLabel(latest.season)} (under 3 matches)`, href: teamHref(team.number, latest.season) },
       blocks: [
-        { kind: "series", title: "Season OPR", points: ss.map((s) => ({ x: seasonLabel(s.season), y: s.opr == null ? null : Math.round(s.opr * 10) / 10, href: teamHref(team.number, s.season), note: share(s) != null ? `top ${share(s)}%` : undefined })) },
-        { kind: "table", title: "Each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "opr", label: "OPR", num: true }, { key: "rank", label: "OPR rank" }, { key: "share", label: "Standing" }],
-          rows: [...ss].reverse().map((s) => ({ cells: { season: seasonLabel(s.season), opr: fmt(s.opr, { digits: 1 }), rank: s.rank != null ? `#${s.rank} of ${s.of}` : "–", share: share(s) != null ? `top ${share(s)}%` : "–" }, href: teamHref(team.number, s.season), strong: s === latest })) },
+        { kind: "series", title: "Ahead of this share of ranked teams, by OPR", unit: "%", points: ss.map((s) => ({ x: seasonLabel(s.season), y: ahead(s), href: teamHref(team.number, s.season), note: s.rank != null ? `#${s.rank} of ${s.of}` : "not ranked" })) },
+        { kind: "table", title: "Each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "rank", label: "OPR rank" }, { key: "share", label: "Standing" }],
+          rows: [...ss].reverse().map((s) => ({ cells: { season: seasonLabel(s.season), rank: s.rank != null ? `#${s.rank} of ${s.of}` : "–", share: share(s) != null ? `top ${share(s)}%` : "–" }, href: teamHref(team.number, s.season), strong: s === latest })) },
       ],
     };
   }

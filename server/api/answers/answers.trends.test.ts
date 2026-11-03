@@ -44,6 +44,10 @@ describe("trends", () => {
     expect(o.stat).toMatchObject({ family: "trend", title: "OPR by event in 2025–26", headline: { value: "100.0", label: "OPR at New Jersey Championship · Rising" } });
     const s = o.stat!.blocks.find((b) => b.kind === "series");
     expect(s && s.kind === "series" && s.points.map((p) => [p.x, p.y])).toEqual([["Qualifier Two", 60], ["New Jersey Championship", 100]]);
+    // Its other seasons, each the same trend read in that season.
+    const other = o.stat!.blocks.find((b) => b.kind === "links");
+    expect(other && other.kind === "links" && other.items.map((l) => l.label)).toEqual(["2024–25"]);
+    if (other && other.kind === "links") for (const l of other.items) expect(readStatQuestion(decodeURIComponent(l.href.split("q=")[1]))).toMatchObject({ id: "opr-history", scope: { season: Number(l.label.slice(0, 4)) } });
     // Fewer penalty points is better: falling is good.
     const p = await searchAnswer("4215 average penalties", { limit: 25 });
     expect(p.stat!.blocks[0]).toMatchObject({ kind: "kpis", items: [{ value: "8.0" }, { label: "Trend", value: "Falling", tone: "good" }, { label: "Lowest" }] });
@@ -52,7 +56,12 @@ describe("trends", () => {
   });
   it("a season's penalty total; OPR and record by season", async () => {
     expect((await searchAnswer("4215 total penalties in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "148 points", label: "given in 11 qualification matches · 13.5 a match" });
-    expect((await searchAnswer("4215 OPR by season", { limit: 25 })).stat!.headline).toMatchObject({ value: "101.6", label: "OPR in 2025–26 · top 8% worldwide" });
+    // Never a raw OPR across seasons (owner rule): the standing each season, its rank, no OPR number.
+    const o = (await searchAnswer("4215 OPR by season", { limit: 25 })).stat!;
+    expect(o).toMatchObject({ title: "OPR standing by season", headline: { value: "Top 8%", label: "worldwide by OPR in 2025–26" } });
+    expect(JSON.stringify(o.blocks)).not.toContain("101.6");
+    const t = o.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.columns.map((c) => c.key)).toEqual(["season", "rank", "share"]);
     expect((await searchAnswer("4215 record by season", { limit: 25 })).stat!.headline).toMatchObject({ value: "10-4-0", label: "in 2025–26 · 71% wins" });
   });
 });
