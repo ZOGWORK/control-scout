@@ -37,7 +37,7 @@ export const TIME_WORDS = ["this weekend", "next weekend", "this week", "next we
 const ALWAYS_TIME = new Set(["this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 
 /** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */
-export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp"]);
+export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs"]);
 
 /** A question's own words: dropped from name matching when the query reads as a question (starts with one and has
  *  at least three words, or ended in "?"), so "can robots descore samples" never searches for teams named "Can". */
@@ -92,7 +92,8 @@ export function isQuestionForm(q: string): boolean {
 /** The time phrase in a query, and the query without it ("upcoming meets in NJ" → "upcoming", "meets in NJ"). */
 export function timePhrase(q: string): { phrase: string; rest: string } | null {
   const lower = ` ${q.toLowerCase().replace(/\s+/g, " ").trim()} `;
-  const hasEventWord = singularize(q).toLowerCase().split(/[^\p{L}]+/u).some((w) => EVENT_WORDS.has(w));
+  // "states" (a state's championship: "past NJ states") counts as typed; singular, "state" is a place word.
+  const hasEventWord = singularize(q).toLowerCase().split(/[^\p{L}]+/u).some((w) => EVENT_WORDS.has(w)) || /(?:^|\s)states(?=\s|$)/i.test(q);
   for (const p of TIME_WORDS) {
     if (!ALWAYS_TIME.has(p) && !hasEventWord) continue;
     if (!lower.includes(` ${p} `)) continue;
