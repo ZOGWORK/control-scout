@@ -28,7 +28,7 @@ FTC One Search answers questions about two teams: every match they played agains
 ### Search
 - **Head to head.** "4215 vs 6980 head to head" or "has 4215 ever played 6980" lists the matches the two teams played on opposite alliances, newest first, with the record between them and how often they were partners. Two teams that never met say so. It takes the same scopes as other answers: Worlds, a season, playoffs or quals.
 - **Side by side.** "4215 OPR vs 6980" and "4215 rating vs 6980" show both teams' stored season numbers by game phase (the season named, else the latest season both played). "Who has a better record, 4215 or 6980" compares their season win rates. "4215 win chance vs 6980" says which team is stronger and links to Predict, since every match is two alliances.
-- **Opponents and partners.** A team's most played and toughest opponent (best record against it, met 3 times or more), its most frequent and best partner (best record together, 3 matches or more), and the teams from its state it never played that season.
+- **Opponents and partners.** A team's most played and toughest opponent (best record against it, met 3 times or more), its most frequent and best partner (best record together, 3 matches or more), and the teams from its state it never played that season. (#457)
 
 ## 2.4.9 — 2026-11-03
 
