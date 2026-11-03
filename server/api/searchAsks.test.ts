@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { eventWon, readAsk } from "./searchAsks";
+import { eventWon, readAsk, type Stat } from "./searchAsks";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -12,6 +12,9 @@ import { CURRENT_SEASON } from "../data/seasons";
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
 const hrefs = (a: { pages: { href: string }[] }) => a.pages.map((p) => p.href);
+// On /search a leaderboard is the stat answer's card (server/api/answers/families/leaderboard.ts): its teams in order.
+const board = (a: Awaited<ReturnType<typeof ask>>) => { const b = a.stat?.blocks.find((x) => x.kind === "leaderboard"); return b && b.kind === "leaderboard" ? b : undefined; };
+const teams = (a: Awaited<ReturnType<typeof ask>>, n = 3) => board(a)?.rows.slice(0, n).map((r) => r.team.label);
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -70,16 +73,18 @@ describe("test 16: each intent returns its stated surface", () => {
   it("top teams in New Jersey (and NJ rankings, best team in NJ): the region's ranking, linked", async () => {
     for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ"]) {
       const a = await ask(q);
-      expect(a.card?.lines.map((l) => l.text), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
-      expect(hrefs(a), q).toContain("/rankings?season=2025&region=USA%3ANJ");
+      expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+      expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
       expect(a.hits, q).toEqual([]);
     }
   });
   it("best auto team: the team first by auto OPR; highest OPR and most wins likewise", async () => {
-    expect((await ask("best auto team")).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["auto OPR 80.2"] });
-    expect((await ask("highest OPR")).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["OPR 267.1"] });
-    expect((await ask("who has the most wins")).card?.lines[0]).toMatchObject({ text: "14270 Quantum Robotics", results: ["91-25-0"] });
-    expect((await ask("highest OPR in NJ")).card?.lines.map((l) => l.text)).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect(board(await ask("best auto team"))?.rows[0]).toMatchObject({ team: { label: "20265 Heart of RoBots" }, display: "80.2" });
+    expect(board(await ask("highest OPR"))?.rows[0]).toMatchObject({ team: { label: "20265 Heart of RoBots" }, display: "267.1" });
+    expect(board(await ask("who has the most wins"))?.rows[0]).toMatchObject({ team: { label: "14270 Quantum Robotics" }, record: "91-25-0" });
+    expect(teams(await ask("highest OPR in NJ"))).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    // The dropdown keeps the short card.
+    expect((await searchAnswer("best auto team", { limit: 8, learn: false })).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["auto OPR 80.2"] });
   });
   it("will 4215 win their next match: its next match, and Predict opened on its matches", async () => {
     const a = await ask("will 4215 win their next match");
@@ -135,10 +140,9 @@ describe("the best team, worldwide (owner report: \"what is the best ftc team ri
     for (const q of ["what is the best ftc team right now", "best team", "who is the best ftc team", "top ftc teams"]) {
       const a = await ask(q);
       expect(a.step, q).toBe("deterministic");
-      expect(a.card?.title, q).toBe("Top teams · 2025–26");
-      expect(a.card?.lines[0]?.text, q).toBe("20265 Heart of RoBots");
-      expect(a.card?.lines.map((l) => l.text), q).not.toContain("99001 The Best Friends");
-      expect(a.understood?.label, q).toBe("Top teams · 2025–26: the world rankings");
+      expect(a.stat?.title, q).toBe("Top 10 teams by prediction rating worldwide · 2025–26");
+      expect(teams(a, 1), q).toEqual(["20265 Heart of RoBots"]);
+      expect(teams(a, 10), q).not.toContain("99001 The Best Friends");
       expect(hrefs(a)[0], q).toBe("/rankings?season=2025");
       expect(a.hits, q).toEqual([]);
     }
@@ -169,8 +173,8 @@ describe("Greptile on #440", () => {
   });
   it("stat leaders never list a placeholder registration", async () => {
     const a = await ask("highest OPR");
-    expect(a.card?.lines[0].text).toBe("20265 Heart of RoBots");
-    expect(a.card?.lines.map((l) => l.text).join()).not.toMatch(/99990/);
+    expect(teams(a, 1)).toEqual(["20265 Heart of RoBots"]);
+    expect(teams(a, 25)!.join()).not.toMatch(/99990/);
   });
   it("a past-tense qualify question is history, not the simulator", () => {
     expect(readAsk("did 4215 qualify to worlds")).toBeNull();
@@ -210,7 +214,8 @@ describe("Greptile on #440", () => {
 
 describe("Greptile on #440, round 2", () => {
   it("a conversational opening keeps the links the answer added", async () => {
-    expect(hrefs(await ask("show me highest OPR"))[0]).toBe("/rankings?season=2025");
+    // An OPR list's full list is the Teams page, sorted the same way.
+    expect(hrefs(await ask("show me highest OPR"))[0]).toMatch(/^\/teams\?view=season&season=2025&sort=totalPointsNpOpr/);
     expect(hrefs(await ask("show me top teams in NJ"))[0]).toBe("/rankings?season=2025&region=USA%3ANJ");
   });
 });
@@ -298,5 +303,30 @@ describe("Greptile on #456", () => {
     // 2026-11-03 02:00 UTC is still Nov 2 in Los Angeles.
     expect(await won("CA states", Date.parse("2026-11-03T02:00:00Z"))).toBeNull();
     expect(await won("CA states", Date.parse("2026-11-03T09:00:00Z"))).toMatchObject({ code: "USCACMP" });
+  });
+});
+
+describe("stat leaderboards: scope words and places (owner bug: best teleop in the world)", () => {
+  const STATS: [string, Stat][] = [
+    ["highest opr", "opr"], ["best auto", "auto"], ["best autonomous", "auto"], ["best teleop", "teleop"], ["best tele op", "teleop"],
+    ["best driver", "teleop"], ["best driver controlled", "teleop"], ["best endgame", "endgame"], ["most wins", "wins"],
+    ["top teleop", "teleop"], ["strongest auto", "auto"], ["greatest endgame", "endgame"], ["number one teleop", "teleop"], ["highest teleop", "teleop"],
+  ];
+  const WORLD = ["", " in the world", " worldwide", " globally", " overall", " of all time", " ever", " right now", " this season", " currently", " in ftc", " in the world right now"];
+  const NJ = [" in NJ", " in New Jersey", " in New Jersey this season", " in NJ right now"];
+  it("every stat with every scope is the world's leaderboard", () => {
+    for (const [w, stat] of STATS) for (const sfx of WORLD) expect(readAsk(w + sfx), w + sfx).toEqual({ kind: "stat", stat, region: null });
+  });
+  it("every stat with a place is that place's leaderboard", () => {
+    for (const [w, stat] of STATS) for (const sfx of NJ) expect(readAsk(w + sfx), w + sfx).toMatchObject({ kind: "stat", stat, region: { key: "USA:NJ" } });
+  });
+  it("the question forms read the same", () => {
+    expect(readAsk("who has the best teleop in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
+    expect(readAsk("what is the best auto in new jersey")).toMatchObject({ kind: "stat", stat: "auto", region: { key: "USA:NJ" } });
+    expect(readAsk("best teleop team in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
+    expect(readAsk("which team has the most wins this season")).toEqual({ kind: "stat", stat: "wins", region: null });
+  });
+  it("a place that isn't one is never a leaderboard", () => {
+    expect(readAsk("best teleop in narnia")).toBeNull();
   });
 });

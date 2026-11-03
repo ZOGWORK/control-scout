@@ -82,11 +82,13 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "best-opr-event": {
       const withOpr = evs.filter((e) => e.opr != null).sort((a, b) => b.opr! - a.opr!);
       const title = `Best OPR event${where}`;
-      const def = "OPR at an event: the team's offensive power rating there without penalties, as its team page shows. Each season is a different game, so the best event of each season is listed too.";
-      const e = withOpr[0];
+      // Each season is a different game, so an OPR is never compared across seasons: with several and none named, the
+      // answer is the latest season's best event (said so), and each season's best is listed below it.
+      const per = [...new Set(withOpr.map((x) => x.season))].sort((a, b) => b - a).map((s) => withOpr.find((x) => x.season === s)!);
+      const e = withOpr[0] && per.length > 1 ? per[0] : withOpr[0];
+      const def = `OPR at an event: the team's offensive power rating there without penalties, as its team page shows.${per.length > 1 ? ` Each season is a different game, so an OPR is never compared across seasons: the answer is ${seasonLabel(e.season)}'s best event, the latest season here, and each season's best is listed below.` : ""}`;
       if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, source: evSource, none: none("events with an OPR") };
       const season = set.seasons.find((s) => s.season === e.season);
-      const per = [...new Set(withOpr.map((x) => x.season))].sort((a, b) => b - a).map((s) => withOpr.find((x) => x.season === s)!);
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: def,
         headline: { value: `OPR ${opr(e.opr)}`, label: e.name, sub: [seasonLabel(e.season), season ? `season OPR rank ${topText(season)}` : ""].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
