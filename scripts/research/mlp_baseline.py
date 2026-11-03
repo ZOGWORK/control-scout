@@ -13,7 +13,7 @@ Inputs (both made on a COPY of the decompressed data/snapshot.db.br):
 Run (Python 3.14, scripts/research/requirements.txt in a venv):
   python scripts/research/mlp_baseline.py --matches matches.json.gz --engine-rows engine-rows.json.gz \
       --out docs/engine/research-2026-11/mlp-baseline-<date>.json [--jobs 15] [--seeds 5]
-  About four hours on 16 cores: the paper's 4 x 50 tanh net takes about 11 minutes per fit.
+  About 2.5 hours on 16 cores (2026-11-03 run: 8,362 s); the paper's 4 x 50 tanh net takes about 11 minutes per fit.
 
 Steps: (1) the grid's small nets on the tuning season (2024-25) only, seed 0; (2) the paper's exact
 config, 3 seeds on the paper features and seed 0 on engine-ratings (seed 0 also enters the grid);
