@@ -53,8 +53,24 @@ export function rewriteQuery(q: string): { q: string; note?: string } | null {
   if ((m = /^(.*\b(?:best|top|strongest|highest|most)\b.*?)\s+(?:in\s+(?:ftc|first tech challenge|the world)|worldwide|globally|overall|this season|this year|right now|currently)$/.exec(t))) return { q: m[1] };
   // "Near" a town is in it: there's no distance on record.
   if ((m = /^(.*\bteams?)\s+(?:near|around|close to|by)\s+(.+)$/.exec(t))) return { q: `${m[1]} in ${m[2]}`, note: `Teams in ${titleCase(m[2])} (no distances are on record, so "near" reads as "in")` };
+  // Who won Worlds, asked by a year said in words, by the season's game, or as "worlds winners".
+  if ((m = /^who won (?:the )?(?:worlds|first championship|world championships?) (this|last) year$/.exec(t))) {
+    return { q: `who won worlds ${new Date().getUTCFullYear() - (m[1] === "last" ? 1 : 0)}` };
+  }
+  if ((m = /^(?:(.+?)\s+)?(?:world |worlds |first championship )?(?:champions?|winners?|world champions?)$/.exec(t)) && m[1] && gameSeason(m[1])) {
+    const s = gameSeason(m[1])!;
+    return { q: `who won worlds ${s.label.replace("–", "-")}`, note: `${s.game} is ${s.label}: its FIRST Championship` };
+  }
+  if ((m = /^(?:worlds|first championship|world championships?) (?:winners?|champions?)(?:\s+(20\d\d(?:\s*-\s*\d\d)?))?$/.exec(t))) return { q: `who won worlds${m[1] ? ` ${m[1]}` : ""}` };
+  if ((m = /^(.+?\s+division)\s+(?:winners?|champions?)$/.exec(t))) return { q: `who won ${m[1]}` };
+  if ((m = /^(.+?\s+(?:states|state championship|championship|regional))\s+(?:winners?|champions?)$/.exec(t))) return { q: `who won ${m[1]}` };
+  // A place's Inspire Award winners: its state championship's, the one with the place in it.
+  if ((m = /^(?:the\s+)?inspire(?: award)? (?:winners?|winner list)(?: (?:in|from|at))? (.+)$/.exec(t)) && regionOf(m[1].split(" "))) {
+    return { q: `who won inspire at ${m[1]} states`, note: `the Inspire Award at the ${regionOf(m[1].split(" "))!.name} championship` };
+  }
   // A team's Worlds or states history, asked with no verb: "4215 worlds", "bad wolf states history".
-  if ((m = /^(.+?)\s+(worlds|states|state championships?|first championship)(?:\s+(?:history|appearances|record|results))?$/.exec(t)) && !regionOf(m[1].split(" ")) && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?)\b|\bq\d/.test(m[1])) {
+  if ((m = /^(.+?)\s+(worlds|states|state championships?|first championship)(?:\s+(?:history|appearances|record|results))?$/.exec(t)) && !regionOf(m[1].split(" ")) && !readEventQuery(squash(q))?.region
+    && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for)\b|\bq\d/.test(m[1])) {
     return { q: `when did ${m[1]} go to ${/^worlds|first/.test(m[2]) ? "worlds" : "states"}` };
   }
   // A team's wins and awards: "has 4215 won an event" (its event wins and awards), "did 4215 win inspire", "4215 inspire".
@@ -129,6 +145,36 @@ const EXPLAINS: { words: RegExp; label: string; lines: SearchCardLine[]; pages: 
     label: "FIRST Tech Challenge (FTC)",
     lines: [{ text: "FIRST Tech Challenge is FIRST's robotics competition for teams of students", detail: "Each season has a new game: teams play league meets, qualifiers and championships, up to the FIRST Championship", href: "/events" }],
     pages: [{ title: "Events", href: "/events" }, { title: "Rankings", href: "/rankings" }, { title: "FAQ", href: "/faq" }],
+  },
+  {
+    words: /^(?:what(?:'s| is| are)|whats)\s+(?:an?\s+|the\s+)?(?:alliances?|alliance selection|alliance partners?)(?:\s+in\s+ftc)?$/,
+    label: "Alliances: the two sides of every match",
+    lines: [
+      { text: "Every match is red against blue: two alliances of two teams each", detail: "In qualification matches the alliances are drawn by the schedule", href: "/events" },
+      { text: "For the playoffs, the top-ranked teams pick their alliance partners", detail: "That's alliance selection: an event's Playoffs tab shows who picked whom", href: "/events" },
+    ],
+    pages: [{ title: "Events", href: "/events" }, { title: "Rules", href: "/rules" }],
+  },
+  {
+    words: /^(?:what(?:'s| is| are)|whats)\s+(?:an?\s+|the\s+)?(?:league meets?|leagues?|league tournaments?)(?:\s+in\s+ftc)?$/,
+    label: "League meets: a league's matches across the season",
+    lines: [{ text: "In regions that play in leagues, teams meet several times over the season", detail: "Each meet's matches count toward the league's rankings, which lead to its league tournament", href: "/events" }],
+    pages: [{ title: "Events", href: "/events" }],
+  },
+  {
+    words: /^(?:what(?:'s| is| are)|whats)\s+(?:an?\s+|the\s+)?(?:qualifiers?|qualifying tournaments?|regionals?)(?:\s+in\s+ftc)?$/,
+    label: "Qualifiers: the events teams advance from",
+    lines: [{ text: "A qualifier is a tournament where teams compete to advance to their region's championship", detail: "Advancement comes from awards and playoff results", href: "/methodology#advancement" }],
+    pages: [{ title: "Events", href: "/events" }, { title: "How advancement works", href: "/methodology#advancement" }],
+  },
+  {
+    words: /^(?:what(?:'s| is| are)|whats)\s+(?:an?\s+|the\s+)?(?:inspire(?: award)?|ftc awards?|awards? in ftc|judged awards?)$/,
+    label: "The Inspire Award and FTC's awards",
+    lines: [
+      { text: "The Inspire Award is FTC's top award, for the team judged the best all-round example of the program", detail: "Judges weigh the robot, the engineering portfolio and the team together", href: "/events" },
+      { text: "Every event's Awards tab lists who won each award", detail: "Try \"who won inspire at nj states\"", href: "/events" },
+    ],
+    pages: [{ title: "Events", href: "/events" }],
   },
 ];
 
@@ -371,6 +417,35 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const title = `Undefeated teams${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const lines = rows.map((r) => lineOf(r, [`${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`]));
     return card(title, lines, `No team${p ? ` in ${p.name}` : ""} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: ${Number(n?.n ?? 0)} with no losses (${RANKED_MIN_MATCHES}+ matches), most wins first`);
+  }
+  // The best win rate: wins over matches played, ranked teams only, ties counting half.
+  if ((m = /^(?:teams?\s+with\s+(?:the\s+)?)?(?:highest|best|top)\s+(?:win(?:ning)?\s+(?:rate|percentage|%)|winrate)(?:\s+teams?)?(?:\s+(?:in|from)\s+(.+?))?$/.exec(t))) {
+    const p = m[1] ? await placeOf(m[1]) : null;
+    if (m[1] && !p) return null;
+    const rate = "(s.wins + 0.5 * s.ties) * 1.0 / (s.wins + s.losses + s.ties)";
+    const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties, ${rate} rate FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} AND s.wins + s.losses + s.ties > 0${placeSql(p)} ORDER BY rate DESC, s.wins DESC, s.opr_np DESC, s.team LIMIT 10`, [season, ...placeArgs(p)]);
+    const title = `Highest win rate${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
+    const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `${Math.round(Number(r.rate) * 100)}% wins`, `${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`]));
+    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: wins over matches played (a tie counts half), ${RANKED_MIN_MATCHES}+ matches`);
+  }
+  // Most improved: the biggest rise in OPR standing (rank among the season's ranked teams, as a share) from the season
+  // before, never raw OPR across seasons (each game scores on its own scale).
+  if ((m = /^(?:the\s+)?most\s+improved(?:\s+teams?)?(?:\s+(?:in|from)\s+(.+?))?(?:\s+this season)?$/.exec(t))) {
+    const p = m[1] ? await placeOf(m[1]) : null;
+    if (m[1] && !p) return null;
+    const standing = async (s: number) => {
+      const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} ORDER BY s.opr_np DESC, s.team`, [s]);
+      return new Map(rows.map((r, i) => [Number(r.team), { ...r, rank: i + 1, share: (i + 1) / rows.length }]));
+    };
+    const [now, before] = [await standing(season), await standing(season - 1)];
+    const inPlace = (r: any) => !p || (p.state ? r.state === p.state && r.country === p.country : r.country === p.country);
+    const pct = (share: number) => `top ${Math.max(1, Math.round(share * 100))}%`;
+    const rows = [...now.values()].filter((r) => before.has(Number(r.team)) && inPlace(r))
+      .map((r) => ({ ...r, was: before.get(Number(r.team))!, gain: before.get(Number(r.team))!.share - r.share }))
+      .filter((r) => r.gain > 0).sort((a, b) => b.gain - a.gain || a.rank - b.rank).slice(0, 10);
+    const title = `Most improved${p ? ` in ${p.name}` : ""} · ${seasonLabel(season - 1)} → ${seasonLabel(season)}`;
+    const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `${pct(r.was.share)} → ${pct(r.share)}`, `OPR rank ${r.was.rank} → ${r.rank}`, `${r.wins}-${r.losses}-${r.ties}`]));
+    return card(title, lines, `No team${p ? ` in ${p.name}` : ""} ranked in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: the biggest rise in OPR standing (rank among each season's ranked teams), never raw OPR across seasons`);
   }
   // The best rookies: this season's rookie teams by OPR.
   if ((m = /^(?:the\s+)?(?:best|top|strongest)(?:\s+\d+)?\s+rookies?(?:\s+teams?)?(?:\s+(?:in|from)\s+(.+?))?$/.exec(t))) {
