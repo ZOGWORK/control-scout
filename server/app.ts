@@ -70,7 +70,7 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
-import { noteSearch, reportingOn, searchFailuresRouter } from "./searchFailures.js";
+import { keyFor, noteSearch, outcomeTrace, reportingOn, searchFailuresRouter } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
@@ -362,8 +362,12 @@ export function createApp(opts: { dist?: string } = {}) {
     if (req.query.answer === "1" && !kinds.size) {
       const q = String(req.query.q ?? "");
       const ans = await searchAnswer(q, { limit, prefer });
+      // How it was read (server/api/searchLayers.ts), taken from the answer object itself, before it's copied.
+      const trace = outcomeTrace(ans);
+      const at = Date.now();
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
-      void reportingOn().then((on) => { if (on) noteSearch(q, ans, req.ip ?? "?"); }).catch(() => {});
+      // The key is search's own (keyFor), worked out off the answer path too.
+      void reportingOn().then(async (on) => { if (on) noteSearch(q, ans, req.ip ?? "?", trace, at, await keyFor(q)); }).catch(() => {});
       return { ...ans, hits: await withTeamStats(ans.hits) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };

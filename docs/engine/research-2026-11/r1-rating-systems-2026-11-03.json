@@ -1,0 +1,3754 @@
+{
+ "meta": {
+  "generated": "2026-11-03",
+  "championRows": "champion-rows.json.gz",
+  "scoredRows": {
+   "2024-25": 32974,
+   "2025-26": 36345
+  },
+  "protocol": "rolling monthly origins Oct 2024-Jun 2026, 365-day fit windows; rated events, decisive matches; deltas model minus champion (engine 3.3.0, served p and margin); event bootstrap 2000 draws"
+ },
+ "context": {
+  "2024-25 (tuning)": {
+   "champion": {
+    "n": 32974,
+    "brier": 0.157904,
+    "logLoss": 0.477476,
+    "accuracy": 0.7653,
+    "marginMae": 38.8437
+   },
+   "legacyPre2_0": {
+    "n": 32974,
+    "brier": 0.162879,
+    "logLoss": 0.491938,
+    "accuracy": 0.758355,
+    "marginMae": 39.3847
+   }
+  },
+  "2025-26 (reused)": {
+   "champion": {
+    "n": 36345,
+    "brier": 0.168264,
+    "logLoss": 0.505151,
+    "accuracy": 0.747751,
+    "marginMae": 37.3536
+   },
+   "legacyPre2_0": {
+    "n": 36345,
+    "brier": 0.180276,
+    "logLoss": 0.536247,
+    "accuracy": 0.726317,
+    "marginMae": 39.3517
+   }
+  },
+  "championRefit": {
+   "2024-25 (tuning)": {
+    "all": {
+     "model": {
+      "n": 32974,
+      "brier": 0.157903,
+      "logLoss": 0.47755,
+      "accuracy": 0.7653,
+      "marginMae": 38.7257
+     },
+     "champion": {
+      "n": 32974,
+      "brier": 0.157904,
+      "logLoss": 0.477476,
+      "accuracy": 0.7653,
+      "marginMae": 38.8437
+     },
+     "delta": {
+      "n": 32974,
+      "events": 1149,
+      "brier": -9.87256e-7,
+      "brier95": [
+       -0.0000314279,
+       0.0000279829
+      ],
+      "logLoss": 0.0000740205,
+      "logLoss95": [
+       -0.000045345,
+       0.000198779
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.117928,
+      "marginMae95": [
+       -0.171984,
+       -0.0618676
+      ]
+     }
+    },
+    "robots with 0-5 rated matches (fewest on the field)": {
+     "model": {
+      "n": 14057,
+      "brier": 0.165619,
+      "logLoss": 0.496945,
+      "accuracy": 0.749804,
+      "marginMae": 34.3539
+     },
+     "champion": {
+      "n": 14057,
+      "brier": 0.165627,
+      "logLoss": 0.496935,
+      "accuracy": 0.749804,
+      "marginMae": 34.3609
+     },
+     "delta": {
+      "n": 14057,
+      "events": 845,
+      "brier": -0.00000763652,
+      "brier95": [
+       -0.000051194,
+       0.0000360657
+      ],
+      "logLoss": 0.00000953495,
+      "logLoss95": [
+       -0.000153174,
+       0.000178528
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.00698138,
+      "marginMae95": [
+       -0.0623025,
+       0.04562
+      ]
+     }
+    },
+    "early event: quals 1-10": {
+     "model": {
+      "n": 10822,
+      "brier": 0.175339,
+      "logLoss": 0.522319,
+      "accuracy": 0.73212,
+      "marginMae": 37.1338
+     },
+     "champion": {
+      "n": 10822,
+      "brier": 0.175291,
+      "logLoss": 0.522071,
+      "accuracy": 0.73212,
+      "marginMae": 37.4014
+     },
+     "delta": {
+      "n": 10822,
+      "events": 1128,
+      "brier": 0.0000479056,
+      "brier95": [
+       -0.00000576959,
+       0.00010521
+      ],
+      "logLoss": 0.000248345,
+      "logLoss95": [
+       0.0000406733,
+       0.000479734
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.267529,
+      "marginMae95": [
+       -0.336243,
+       -0.194282
+      ]
+     }
+    },
+    "playoffs": {
+     "model": {
+      "n": 4343,
+      "brier": 0.150954,
+      "logLoss": 0.459501,
+      "accuracy": 0.782869,
+      "marginMae": 42.4689
+     },
+     "champion": {
+      "n": 4343,
+      "brier": 0.15099,
+      "logLoss": 0.459593,
+      "accuracy": 0.782869,
+      "marginMae": 42.5313
+     },
+     "delta": {
+      "n": 4343,
+      "events": 518,
+      "brier": -0.0000353906,
+      "brier95": [
+       -0.000125875,
+       0.0000531401
+      ],
+      "logLoss": -0.0000924927,
+      "logLoss95": [
+       -0.000456326,
+       0.000286098
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.0623583,
+      "marginMae95": [
+       -0.206036,
+       0.0825538
+      ]
+     }
+    }
+   },
+   "2025-26 (reused)": {
+    "all": {
+     "model": {
+      "n": 36345,
+      "brier": 0.168312,
+      "logLoss": 0.505333,
+      "accuracy": 0.747751,
+      "marginMae": 37.2796
+     },
+     "champion": {
+      "n": 36345,
+      "brier": 0.168264,
+      "logLoss": 0.505151,
+      "accuracy": 0.747751,
+      "marginMae": 37.3536
+     },
+     "delta": {
+      "n": 36345,
+      "events": 1214,
+      "brier": 0.0000479661,
+      "brier95": [
+       0.0000264742,
+       0.0000704046
+      ],
+      "logLoss": 0.000182949,
+      "logLoss95": [
+       0.0000985136,
+       0.000273453
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.0740071,
+      "marginMae95": [
+       -0.119725,
+       -0.0210754
+      ]
+     }
+    },
+    "robots with 0-5 rated matches (fewest on the field)": {
+     "model": {
+      "n": 15230,
+      "brier": 0.178181,
+      "logLoss": 0.529402,
+      "accuracy": 0.727971,
+      "marginMae": 36.3138
+     },
+     "champion": {
+      "n": 15230,
+      "brier": 0.178142,
+      "logLoss": 0.529262,
+      "accuracy": 0.727971,
+      "marginMae": 36.309
+     },
+     "delta": {
+      "n": 15230,
+      "events": 903,
+      "brier": 0.0000389224,
+      "brier95": [
+       0.0000106454,
+       0.0000689072
+      ],
+      "logLoss": 0.000140141,
+      "logLoss95": [
+       0.0000390668,
+       0.000246286
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": 0.00482987,
+      "marginMae95": [
+       -0.0669621,
+       0.0729959
+      ]
+     }
+    },
+    "early event: quals 1-10": {
+     "model": {
+      "n": 11481,
+      "brier": 0.183024,
+      "logLoss": 0.54258,
+      "accuracy": 0.718579,
+      "marginMae": 36.8346
+     },
+     "champion": {
+      "n": 11481,
+      "brier": 0.183001,
+      "logLoss": 0.542463,
+      "accuracy": 0.718579,
+      "marginMae": 37.0187
+     },
+     "delta": {
+      "n": 11481,
+      "events": 1189,
+      "brier": 0.0000233186,
+      "brier95": [
+       -0.00000727108,
+       0.0000561126
+      ],
+      "logLoss": 0.000117338,
+      "logLoss95": [
+       -0.0000017953,
+       0.00024362
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.184091,
+      "marginMae95": [
+       -0.265561,
+       -0.105197
+      ]
+     }
+    },
+    "playoffs": {
+     "model": {
+      "n": 5046,
+      "brier": 0.157593,
+      "logLoss": 0.479791,
+      "accuracy": 0.765953,
+      "marginMae": 37.6376
+     },
+     "champion": {
+      "n": 5046,
+      "brier": 0.157579,
+      "logLoss": 0.47982,
+      "accuracy": 0.765953,
+      "marginMae": 37.7183
+     },
+     "delta": {
+      "n": 5046,
+      "events": 600,
+      "brier": 0.0000141261,
+      "brier95": [
+       -0.0000471996,
+       0.0000777733
+      ],
+      "logLoss": -0.0000295336,
+      "logLoss95": [
+       -0.000249033,
+       0.000181521
+      ],
+      "accuracyPp": 0,
+      "accuracy95": [
+       0,
+       0
+      ],
+      "marginMae": -0.0807001,
+      "marginMae95": [
+       -0.222527,
+       0.0668018
+      ]
+     }
+    }
+   }
+  },
+  "championRefitSlopes": [
+   {
+    "origin": "2024-10",
+    "probability": 1.0129,
+    "margin": 0.9384
+   },
+   {
+    "origin": "2024-11",
+    "probability": 1.0123,
+    "margin": 0.9391
+   },
+   {
+    "origin": "2024-12",
+    "probability": 1.026,
+    "margin": 0.9443
+   },
+   {
+    "origin": "2025-01",
+    "probability": 1.0322,
+    "margin": 0.9456
+   },
+   {
+    "origin": "2025-02",
+    "probability": 1.0234,
+    "margin": 0.9314
+   },
+   {
+    "origin": "2025-03",
+    "probability": 0.9987,
+    "margin": 0.9229
+   },
+   {
+    "origin": "2025-04",
+    "probability": 0.9966,
+    "margin": 0.9186
+   },
+   {
+    "origin": "2025-06",
+    "probability": 0.9963,
+    "margin": 0.9168
+   },
+   {
+    "origin": "2025-07",
+    "probability": 0.9925,
+    "margin": 0.9119
+   },
+   {
+    "origin": "2025-10",
+    "probability": 0.9867,
+    "margin": 0.9091
+   },
+   {
+    "origin": "2025-11",
+    "probability": 0.9855,
+    "margin": 0.9083
+   },
+   {
+    "origin": "2025-12",
+    "probability": 0.9878,
+    "margin": 0.907
+   },
+   {
+    "origin": "2026-01",
+    "probability": 0.9928,
+    "margin": 0.9
+   },
+   {
+    "origin": "2026-02",
+    "probability": 1.0066,
+    "margin": 0.9028
+   },
+   {
+    "origin": "2026-03",
+    "probability": 1.0368,
+    "margin": 0.9143
+   },
+   {
+    "origin": "2026-04",
+    "probability": 1.0381,
+    "margin": 0.9212
+   },
+   {
+    "origin": "2026-05",
+    "probability": 1.0384,
+    "margin": 0.9246
+   },
+   {
+    "origin": "2026-06",
+    "probability": 1.0348,
+    "margin": 0.9214
+   }
+  ]
+ },
+ "tuning": {
+  "massey": {
+   "chosen": {
+    "lambda": 4,
+    "rho": 0.7
+   },
+   "tried": [
+    {
+     "params": {
+      "lambda": 2,
+      "rho": 0.4
+     },
+     "brier2024": 0.18324,
+     "seconds": 180,
+     "solverIterations": 17645
+    },
+    {
+     "params": {
+      "lambda": 2,
+      "rho": 0.7
+     },
+     "brier2024": 0.18167,
+     "seconds": 163,
+     "solverIterations": 17703
+    },
+    {
+     "params": {
+      "lambda": 4,
+      "rho": 0.4
+     },
+     "brier2024": 0.18294,
+     "seconds": 125,
+     "solverIterations": 12546
+    },
+    {
+     "params": {
+      "lambda": 4,
+      "rho": 0.7
+     },
+     "brier2024": 0.18153,
+     "seconds": 99,
+     "solverIterations": 12583
+    },
+    {
+     "params": {
+      "lambda": 8,
+      "rho": 0.4
+     },
+     "brier2024": 0.18377,
+     "seconds": 55,
+     "solverIterations": 8614
+    },
+    {
+     "params": {
+      "lambda": 8,
+      "rho": 0.7
+     },
+     "brier2024": 0.18287,
+     "seconds": 83,
+     "solverIterations": 8651
+    }
+   ]
+  },
+  "trueskill": {
+   "chosen": {
+    "sigma0": 1,
+    "beta": 1,
+    "tau": 0.1,
+    "rho": 0.7,
+    "drawRate": 0.01
+   },
+   "tried": [
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 0.5,
+      "tau": 0.01,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19919,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 0.5,
+      "tau": 0.01,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19738,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 0.5,
+      "tau": 0.03,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19898,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 0.5,
+      "tau": 0.03,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19714,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 0.5,
+      "tau": 0.1,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19763,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 0.5,
+      "tau": 0.1,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19576,
+     "seconds": 4
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 1,
+      "tau": 0.01,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19768,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 1,
+      "tau": 0.01,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19666,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 1,
+      "tau": 0.03,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19755,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 1,
+      "tau": 0.03,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19649,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 1,
+      "tau": 0.1,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19649,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 1,
+      "tau": 0.1,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19522,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 2,
+      "tau": 0.01,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.1984,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 2,
+      "tau": 0.01,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19866,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 2,
+      "tau": 0.03,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19833,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 2,
+      "tau": 0.03,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19858,
+     "seconds": 4
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 2,
+      "tau": 0.1,
+      "rho": 0.4,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19765,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "sigma0": 1,
+      "beta": 2,
+      "tau": 0.1,
+      "rho": 0.7,
+      "drawRate": 0.01
+     },
+     "brier2024": 0.19797,
+     "seconds": 5
+    }
+   ]
+  },
+  "glicko2": {
+   "chosen": {
+    "phi0": 1,
+    "sigma0": 0.06,
+    "tau": 0.2,
+    "rho": 0.7
+   },
+   "tried": [
+    {
+     "params": {
+      "phi0": 0.5,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.4
+     },
+     "brier2024": 0.19672,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 0.5,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.7
+     },
+     "brier2024": 0.19631,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 0.5,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.4
+     },
+     "brier2024": 0.19672,
+     "seconds": 7
+    },
+    {
+     "params": {
+      "phi0": 0.5,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.7
+     },
+     "brier2024": 0.19631,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.4
+     },
+     "brier2024": 0.1976,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.7
+     },
+     "brier2024": 0.19601,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.4
+     },
+     "brier2024": 0.1976,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 1,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.7
+     },
+     "brier2024": 0.19601,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "phi0": 2,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.4
+     },
+     "brier2024": 0.2,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 2,
+      "sigma0": 0.06,
+      "tau": 0.2,
+      "rho": 0.7
+     },
+     "brier2024": 0.19787,
+     "seconds": 6
+    },
+    {
+     "params": {
+      "phi0": 2,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.4
+     },
+     "brier2024": 0.2,
+     "seconds": 5
+    },
+    {
+     "params": {
+      "phi0": 2,
+      "sigma0": 0.06,
+      "tau": 0.5,
+      "rho": 0.7
+     },
+     "brier2024": 0.19787,
+     "seconds": 6
+    }
+   ]
+  }
+ },
+ "methods": {
+  "massey": {
+   "alone": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.181529,
+       "logLoss": 0.538776,
+       "accuracy": 0.724632,
+       "marginMae": 43.7462
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": 0.023625,
+       "brier95": [
+        0.0220369,
+        0.0251978
+       ],
+       "logLoss": 0.0612995,
+       "logLoss95": [
+        0.0571583,
+        0.0653377
+       ],
+       "accuracyPp": -4.06684,
+       "accuracy95": [
+        -4.52672,
+        -3.62024
+       ],
+       "marginMae": 4.90256,
+       "marginMae95": [
+        4.53745,
+        5.2566
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.193228,
+       "logLoss": 0.566072,
+       "accuracy": 0.700647,
+       "marginMae": 39.4265
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": 0.0276012,
+       "brier95": [
+        0.0251046,
+        0.0299557
+       ],
+       "logLoss": 0.0691366,
+       "logLoss95": [
+        0.0631762,
+        0.074904
+       ],
+       "accuracyPp": -4.9157,
+       "accuracy95": [
+        -5.72744,
+        -4.09769
+       ],
+       "marginMae": 5.06565,
+       "marginMae95": [
+        4.57995,
+        5.52086
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.192195,
+       "logLoss": 0.563249,
+       "accuracy": 0.699224,
+       "marginMae": 40.3051
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": 0.0169039,
+       "brier95": [
+        0.0143026,
+        0.0193776
+       ],
+       "logLoss": 0.0411781,
+       "logLoss95": [
+        0.0344769,
+        0.0474924
+       ],
+       "accuracyPp": -3.2896,
+       "accuracy95": [
+        -4.1207,
+        -2.42741
+       ],
+       "marginMae": 2.90377,
+       "marginMae95": [
+        2.38872,
+        3.4345
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.175092,
+       "logLoss": 0.525443,
+       "accuracy": 0.743726,
+       "marginMae": 48.1042
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": 0.0241022,
+       "brier95": [
+        0.0197348,
+        0.0283598
+       ],
+       "logLoss": 0.0658497,
+       "logLoss95": [
+        0.0534269,
+        0.0778998
+       ],
+       "accuracyPp": -3.91434,
+       "accuracy95": [
+        -4.96388,
+        -2.82759
+       ],
+       "marginMae": 5.57294,
+       "marginMae95": [
+        4.69104,
+        6.45865
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.19395,
+       "logLoss": 0.568893,
+       "accuracy": 0.699285,
+       "marginMae": 41.2267
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": 0.0256861,
+       "brier95": [
+        0.0241915,
+        0.0271484
+       ],
+       "logLoss": 0.0637423,
+       "logLoss95": [
+        0.0599048,
+        0.067301
+       ],
+       "accuracyPp": -4.84661,
+       "accuracy95": [
+        -5.29451,
+        -4.39881
+       ],
+       "marginMae": 3.87312,
+       "marginMae95": [
+        3.63308,
+        4.11535
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.205203,
+       "logLoss": 0.594524,
+       "accuracy": 0.676133,
+       "marginMae": 40.1225
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": 0.0270612,
+       "brier95": [
+        0.0246612,
+        0.0294179
+       ],
+       "logLoss": 0.0652624,
+       "logLoss95": [
+        0.0593038,
+        0.0708899
+       ],
+       "accuracyPp": -5.18385,
+       "accuracy95": [
+        -5.95222,
+        -4.447
+       ],
+       "marginMae": 3.81356,
+       "marginMae95": [
+        3.46093,
+        4.14683
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.203607,
+       "logLoss": 0.592142,
+       "accuracy": 0.681517,
+       "marginMae": 39.5152
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": 0.0206056,
+       "brier95": [
+        0.0181683,
+        0.0230115
+       ],
+       "logLoss": 0.0496791,
+       "logLoss95": [
+        0.0437766,
+        0.0555671
+       ],
+       "accuracyPp": -3.70612,
+       "accuracy95": [
+        -4.55889,
+        -2.8513
+       ],
+       "marginMae": 2.49656,
+       "marginMae95": [
+        2.08898,
+        2.91891
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.180057,
+       "logLoss": 0.536738,
+       "accuracy": 0.732065,
+       "marginMae": 41.3644
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": 0.0224783,
+       "brier95": [
+        0.0184365,
+        0.0264049
+       ],
+       "logLoss": 0.0569174,
+       "logLoss95": [
+        0.0469434,
+        0.0667924
+       ],
+       "accuracyPp": -3.38882,
+       "accuracy95": [
+        -4.55167,
+        -2.21222
+       ],
+       "marginMae": 3.64612,
+       "marginMae95": [
+        2.99037,
+        4.30778
+       ]
+      }
+     }
+    }
+   },
+   "plattSlopes": [
+    1.7415,
+    1.7443,
+    1.791,
+    1.8399,
+    1.7981,
+    1.7434,
+    1.7344,
+    1.7268,
+    1.7091,
+    1.6974,
+    1.6933,
+    1.6318,
+    1.5975,
+    1.5754,
+    1.605,
+    1.6148,
+    1.6233,
+    1.6154
+   ],
+   "hybrid": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.157851,
+       "logLoss": 0.477365,
+       "accuracy": 0.76527,
+       "marginMae": 38.7287
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": -0.000053012,
+       "brier95": [
+        -0.00018437,
+        0.0000811924
+       ],
+       "logLoss": -0.000111921,
+       "logLoss95": [
+        -0.000480113,
+        0.000262933
+       ],
+       "accuracyPp": -0.00303269,
+       "accuracy95": [
+        -0.116046,
+        0.103319
+       ],
+       "marginMae": -0.114939,
+       "marginMae95": [
+        -0.171491,
+        -0.0570429
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.165588,
+       "logLoss": 0.496899,
+       "accuracy": 0.750445,
+       "marginMae": 34.3574
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": -0.0000391857,
+       "brier95": [
+        -0.000235721,
+        0.000160282
+       ],
+       "logLoss": -0.0000363903,
+       "logLoss95": [
+        -0.000559766,
+        0.000509609
+       ],
+       "accuracyPp": 0.064025,
+       "accuracy95": [
+        -0.116136,
+        0.240453
+       ],
+       "marginMae": -0.00351871,
+       "marginMae95": [
+        -0.0586042,
+        0.0485846
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.175109,
+       "logLoss": 0.521562,
+       "accuracy": 0.733598,
+       "marginMae": 37.1318
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": -0.000182429,
+       "brier95": [
+        -0.000392556,
+        0.0000366454
+       ],
+       "logLoss": -0.00050888,
+       "logLoss95": [
+        -0.00108882,
+        0.0000673271
+       ],
+       "accuracyPp": 0.147847,
+       "accuracy95": [
+        -0.0646651,
+        0.35905
+       ],
+       "marginMae": -0.269576,
+       "marginMae95": [
+        -0.339047,
+        -0.195601
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.151038,
+       "logLoss": 0.459593,
+       "accuracy": 0.779876,
+       "marginMae": 42.4766
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": 0.0000480428,
+       "brier95": [
+        -0.000367394,
+        0.000449881
+       ],
+       "logLoss": -1.76204e-7,
+       "logLoss95": [
+        -0.00120348,
+        0.00122285
+       ],
+       "accuracyPp": -0.299332,
+       "accuracy95": [
+        -0.630631,
+        0.0470478
+       ],
+       "marginMae": -0.054693,
+       "marginMae95": [
+        -0.199063,
+        0.0908776
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.168014,
+       "logLoss": 0.504552,
+       "accuracy": 0.747035,
+       "marginMae": 37.2578
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": -0.000249909,
+       "brier95": [
+        -0.000375376,
+        -0.000132423
+       ],
+       "logLoss": -0.000598686,
+       "logLoss95": [
+        -0.000922966,
+        -0.000292723
+       ],
+       "accuracyPp": -0.0715367,
+       "accuracy95": [
+        -0.17907,
+        0.0394644
+       ],
+       "marginMae": -0.0957589,
+       "marginMae95": [
+        -0.146889,
+        -0.0414735
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.177844,
+       "logLoss": 0.52847,
+       "accuracy": 0.727118,
+       "marginMae": 36.2978
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": -0.000297342,
+       "brier95": [
+        -0.000474463,
+        -0.000121724
+       ],
+       "logLoss": -0.000792186,
+       "logLoss95": [
+        -0.00124823,
+        -0.000342514
+       ],
+       "accuracyPp": -0.0853578,
+       "accuracy95": [
+        -0.265733,
+        0.0974849
+       ],
+       "marginMae": -0.0112157,
+       "marginMae95": [
+        -0.0845831,
+        0.0570275
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.182644,
+       "logLoss": 0.541645,
+       "accuracy": 0.718143,
+       "marginMae": 36.7979
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": -0.000357156,
+       "brier95": [
+        -0.000551761,
+        -0.000159217
+       ],
+       "logLoss": -0.000817734,
+       "logLoss95": [
+        -0.00130701,
+        -0.00032133
+       ],
+       "accuracyPp": -0.0435502,
+       "accuracy95": [
+        -0.254118,
+        0.174095
+       ],
+       "marginMae": -0.22083,
+       "marginMae95": [
+        -0.303647,
+        -0.140065
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.157039,
+       "logLoss": 0.478435,
+       "accuracy": 0.765755,
+       "marginMae": 37.5863
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": -0.000539196,
+       "brier95": [
+        -0.00089066,
+        -0.000194236
+       ],
+       "logLoss": -0.00138496,
+       "logLoss95": [
+        -0.00230412,
+        -0.000505187
+       ],
+       "accuracyPp": -0.0198177,
+       "accuracy95": [
+        -0.335107,
+        0.291659
+       ],
+       "marginMae": -0.131991,
+       "marginMae95": [
+        -0.273909,
+        0.0118225
+       ]
+      }
+     }
+    }
+   },
+   "hybridWeights": [
+    [
+     0.9549,
+     0.1669,
+     0.01
+    ],
+    [
+     0.9486,
+     0.1771,
+     0.0189
+    ],
+    [
+     0.9205,
+     0.1848,
+     0.1712
+    ],
+    [
+     0.9086,
+     0.2291,
+     0.1756
+    ],
+    [
+     0.9453,
+     0.1343,
+     0.1185
+    ],
+    [
+     0.8854,
+     0.1246,
+     0.2734
+    ],
+    [
+     0.8942,
+     0.1235,
+     0.2291
+    ],
+    [
+     0.881,
+     0.1362,
+     0.2629
+    ],
+    [
+     0.8676,
+     0.1321,
+     0.3097
+    ],
+    [
+     0.8497,
+     0.1385,
+     0.3517
+    ],
+    [
+     0.8532,
+     0.136,
+     0.3384
+    ],
+    [
+     0.8596,
+     0.1304,
+     0.3281
+    ],
+    [
+     0.8763,
+     0.1239,
+     0.2899
+    ],
+    [
+     0.8206,
+     0.1601,
+     0.5299
+    ],
+    [
+     0.8778,
+     0.1795,
+     0.3913
+    ],
+    [
+     0.8728,
+     0.1855,
+     0.4132
+    ],
+    [
+     0.8813,
+     0.1796,
+     0.3883
+    ],
+    [
+     0.8602,
+     0.1977,
+     0.4389
+    ]
+   ],
+   "hybridVsRefit": {
+    "2024-25 (tuning)": {
+     "n": 32974,
+     "events": 1149,
+     "brier": -0.0000520248,
+     "brier95": [
+      -0.000182586,
+      0.0000787273
+     ],
+     "logLoss": -0.000185942,
+     "logLoss95": [
+      -0.000530347,
+      0.000153601
+     ],
+     "accuracyPp": -0.00303269,
+     "accuracy95": [
+      -0.116046,
+      0.103319
+     ],
+     "marginMae": 0.00298864,
+     "marginMae95": [
+      -0.00215062,
+      0.00775574
+     ]
+    },
+    "2025-26 (reused)": {
+     "n": 36345,
+     "events": 1214,
+     "brier": -0.000297875,
+     "brier95": [
+      -0.000426492,
+      -0.00018135
+     ],
+     "logLoss": -0.000781635,
+     "logLoss95": [
+      -0.00111661,
+      -0.000469133
+     ],
+     "accuracyPp": -0.0715367,
+     "accuracy95": [
+      -0.17907,
+      0.0394644
+     ],
+     "marginMae": -0.0217518,
+     "marginMae95": [
+      -0.034835,
+      -0.00955305
+     ]
+    }
+   }
+  },
+  "massey-phases": {
+   "alone": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.179812,
+       "logLoss": 0.53515,
+       "accuracy": 0.727315,
+       "marginMae": 43.7462
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": 0.0219081,
+       "brier95": [
+        0.0204154,
+        0.0234767
+       ],
+       "logLoss": 0.0576736,
+       "logLoss95": [
+        0.053641,
+        0.0617623
+       ],
+       "accuracyPp": -3.79845,
+       "accuracy95": [
+        -4.2437,
+        -3.35693
+       ],
+       "marginMae": 4.90256,
+       "marginMae95": [
+        4.53745,
+        5.2566
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.191042,
+       "logLoss": 0.560696,
+       "accuracy": 0.702675,
+       "marginMae": 39.4265
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": 0.0254147,
+       "brier95": [
+        0.0229532,
+        0.0277582
+       ],
+       "logLoss": 0.0637601,
+       "logLoss95": [
+        0.0576283,
+        0.0694146
+       ],
+       "accuracyPp": -4.71295,
+       "accuracy95": [
+        -5.50755,
+        -3.94016
+       ],
+       "marginMae": 5.06565,
+       "marginMae95": [
+        4.57995,
+        5.52086
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.190782,
+       "logLoss": 0.55974,
+       "accuracy": 0.703243,
+       "marginMae": 40.3051
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": 0.0154909,
+       "brier95": [
+        0.0129009,
+        0.0179682
+       ],
+       "logLoss": 0.0376692,
+       "logLoss95": [
+        0.0311565,
+        0.0439478
+       ],
+       "accuracyPp": -2.88764,
+       "accuracy95": [
+        -3.68061,
+        -2.08796
+       ],
+       "marginMae": 2.90377,
+       "marginMae95": [
+        2.38872,
+        3.4345
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.173513,
+       "logLoss": 0.523084,
+       "accuracy": 0.744416,
+       "marginMae": 48.1042
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": 0.0225228,
+       "brier95": [
+        0.0182251,
+        0.0266975
+       ],
+       "logLoss": 0.0634901,
+       "logLoss95": [
+        0.0509883,
+        0.076424
+       ],
+       "accuracyPp": -3.84527,
+       "accuracy95": [
+        -4.93151,
+        -2.78164
+       ],
+       "marginMae": 5.57294,
+       "marginMae95": [
+        4.69104,
+        6.45865
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.186238,
+       "logLoss": 0.550984,
+       "accuracy": 0.717802,
+       "marginMae": 41.2267
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": 0.0179741,
+       "brier95": [
+        0.0167282,
+        0.0192385
+       ],
+       "logLoss": 0.0458331,
+       "logLoss95": [
+        0.0428344,
+        0.0490506
+       ],
+       "accuracyPp": -2.99491,
+       "accuracy95": [
+        -3.41032,
+        -2.58774
+       ],
+       "marginMae": 3.87312,
+       "marginMae95": [
+        3.63308,
+        4.11535
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.198635,
+       "logLoss": 0.579399,
+       "accuracy": 0.690315,
+       "marginMae": 40.1225
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": 0.020493,
+       "brier95": [
+        0.0184148,
+        0.0224232
+       ],
+       "logLoss": 0.0501372,
+       "logLoss95": [
+        0.045059,
+        0.0548783
+       ],
+       "accuracyPp": -3.76559,
+       "accuracy95": [
+        -4.43694,
+        -3.06888
+       ],
+       "marginMae": 3.81356,
+       "marginMae95": [
+        3.46093,
+        4.14683
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.197192,
+       "logLoss": 0.57674,
+       "accuracy": 0.695976,
+       "marginMae": 39.5152
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": 0.0141907,
+       "brier95": [
+        0.0121312,
+        0.0162832
+       ],
+       "logLoss": 0.034277,
+       "logLoss95": [
+        0.0290451,
+        0.0395323
+       ],
+       "accuracyPp": -2.26026,
+       "accuracy95": [
+        -3.06425,
+        -1.50712
+       ],
+       "marginMae": 2.49656,
+       "marginMae95": [
+        2.08898,
+        2.91891
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.171567,
+       "logLoss": 0.517377,
+       "accuracy": 0.753864,
+       "marginMae": 41.3644
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": 0.0139889,
+       "brier95": [
+        0.010769,
+        0.0172168
+       ],
+       "logLoss": 0.0375561,
+       "logLoss95": [
+        0.0293332,
+        0.0456654
+       ],
+       "accuracyPp": -1.20888,
+       "accuracy95": [
+        -2.19907,
+        -0.212069
+       ],
+       "marginMae": 3.64612,
+       "marginMae95": [
+        2.99037,
+        4.30778
+       ]
+      }
+     }
+    }
+   },
+   "phaseWeightsByFold": [
+    [
+     1.9727,
+     2.2731,
+     1.6877,
+     0.0118
+    ],
+    [
+     1.958,
+     2.2821,
+     1.6883,
+     0.0125
+    ],
+    [
+     2.0234,
+     2.1185,
+     1.7427,
+     -0.012
+    ],
+    [
+     2.0674,
+     2.0576,
+     1.7115,
+     0.0442
+    ],
+    [
+     1.9427,
+     1.9544,
+     1.7109,
+     -0.1838
+    ],
+    [
+     1.8003,
+     1.8533,
+     1.7649,
+     -0.3792
+    ],
+    [
+     1.888,
+     1.7788,
+     1.8422,
+     -0.4248
+    ],
+    [
+     1.9337,
+     1.7314,
+     1.9422,
+     -0.4012
+    ],
+    [
+     1.8968,
+     1.7154,
+     1.9353,
+     -0.3862
+    ],
+    [
+     1.8512,
+     1.7114,
+     1.9523,
+     -0.4221
+    ],
+    [
+     1.8597,
+     1.7021,
+     1.9434,
+     -0.4054
+    ],
+    [
+     1.9661,
+     1.7042,
+     1.7234,
+     -0.0512
+    ],
+    [
+     2.0554,
+     1.7311,
+     1.6486,
+     -0.0008
+    ],
+    [
+     2.3024,
+     1.7261,
+     1.6659,
+     0.098
+    ],
+    [
+     2.3817,
+     1.8596,
+     1.8398,
+     0.1301
+    ],
+    [
+     2.3627,
+     1.9141,
+     1.8765,
+     0.1249
+    ],
+    [
+     2.3505,
+     1.9647,
+     1.8087,
+     0.1223
+    ],
+    [
+     2.3029,
+     1.9528,
+     1.7928,
+     0.1299
+    ]
+   ]
+  },
+  "trueskill": {
+   "alone": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.195223,
+       "logLoss": 0.571441,
+       "accuracy": 0.693865,
+       "marginMae": 47.5602
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": 0.0373188,
+       "brier95": [
+        0.0354551,
+        0.0391717
+       ],
+       "logLoss": 0.0939641,
+       "logLoss95": [
+        0.0892035,
+        0.0984371
+       ],
+       "accuracyPp": -7.14351,
+       "accuracy95": [
+        -7.67188,
+        -6.60814
+       ],
+       "marginMae": 8.71656,
+       "marginMae95": [
+        8.23995,
+        9.16784
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.206996,
+       "logLoss": 0.598719,
+       "accuracy": 0.667461,
+       "marginMae": 42.7621
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": 0.0413689,
+       "brier95": [
+        0.0385087,
+        0.0440665
+       ],
+       "logLoss": 0.101784,
+       "logLoss95": [
+        0.0948992,
+        0.108138
+       ],
+       "accuracyPp": -8.23433,
+       "accuracy95": [
+        -9.09817,
+        -7.34278
+       ],
+       "marginMae": 8.40121,
+       "marginMae95": [
+        7.82622,
+        8.94694
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.202176,
+       "logLoss": 0.58727,
+       "accuracy": 0.676862,
+       "marginMae": 43.4622
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": 0.0268849,
+       "brier95": [
+        0.0236202,
+        0.0298973
+       ],
+       "logLoss": 0.0651997,
+       "logLoss95": [
+        0.0572089,
+        0.0726363
+       ],
+       "accuracyPp": -5.52578,
+       "accuracy95": [
+        -6.41892,
+        -4.56347
+       ],
+       "marginMae": 6.06082,
+       "marginMae95": [
+        5.42781,
+        6.67075
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.193331,
+       "logLoss": 0.567775,
+       "accuracy": 0.701819,
+       "marginMae": 53.215
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": 0.0423413,
+       "brier95": [
+        0.036977,
+        0.0472901
+       ],
+       "logLoss": 0.108181,
+       "logLoss95": [
+        0.0948411,
+        0.120982
+       ],
+       "accuracyPp": -8.105,
+       "accuracy95": [
+        -9.51832,
+        -6.66204
+       ],
+       "marginMae": 10.6838,
+       "marginMae95": [
+        9.49313,
+        11.8861
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.202315,
+       "logLoss": 0.589006,
+       "accuracy": 0.684895,
+       "marginMae": 43.9951
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": 0.0340504,
+       "brier95": [
+        0.0323768,
+        0.0357086
+       ],
+       "logLoss": 0.0838552,
+       "logLoss95": [
+        0.0798266,
+        0.0879549
+       ],
+       "accuracyPp": -6.2856,
+       "accuracy95": [
+        -6.79667,
+        -5.8004
+       ],
+       "marginMae": 6.64153,
+       "marginMae95": [
+        6.29881,
+        7.01789
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.212712,
+       "logLoss": 0.612735,
+       "accuracy": 0.657879,
+       "marginMae": 42.3827
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": 0.0345699,
+       "brier95": [
+        0.0319544,
+        0.0369179
+       ],
+       "logLoss": 0.0834733,
+       "logLoss95": [
+        0.0773077,
+        0.0891937
+       ],
+       "accuracyPp": -7.00919,
+       "accuracy95": [
+        -7.75258,
+        -6.21383
+       ],
+       "marginMae": 6.07368,
+       "marginMae95": [
+        5.65799,
+        6.49339
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.210414,
+       "logLoss": 0.607284,
+       "accuracy": 0.663226,
+       "marginMae": 41.9403
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": 0.0274133,
+       "brier95": [
+        0.0246875,
+        0.0302067
+       ],
+       "logLoss": 0.0648204,
+       "logLoss95": [
+        0.0582235,
+        0.071595
+       ],
+       "accuracyPp": -5.53523,
+       "accuracy95": [
+        -6.43336,
+        -4.63729
+       ],
+       "marginMae": 4.92162,
+       "marginMae95": [
+        4.47006,
+        5.38436
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.193333,
+       "logLoss": 0.568765,
+       "accuracy": 0.706897,
+       "marginMae": 44.5406
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": 0.0357541,
+       "brier95": [
+        0.0313719,
+        0.0398581
+       ],
+       "logLoss": 0.0889451,
+       "logLoss95": [
+        0.0783392,
+        0.099643
+       ],
+       "accuracyPp": -5.90567,
+       "accuracy95": [
+        -7.10458,
+        -4.61659
+       ],
+       "marginMae": 6.82235,
+       "marginMae95": [
+        5.95005,
+        7.67864
+       ]
+      }
+     }
+    }
+   },
+   "plattSlopes": [
+    1.7356,
+    1.7313,
+    1.7533,
+    1.7996,
+    1.8066,
+    1.8103,
+    1.8204,
+    1.8148,
+    1.7997,
+    1.7926,
+    1.7935,
+    1.7175,
+    1.6623,
+    1.6136,
+    1.5981,
+    1.5972,
+    1.589,
+    1.582
+   ],
+   "hybrid": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.157812,
+       "logLoss": 0.477218,
+       "accuracy": 0.76527,
+       "marginMae": 38.7354
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": -0.0000916687,
+       "brier95": [
+        -0.000189199,
+        0.0000124982
+       ],
+       "logLoss": -0.000258679,
+       "logLoss95": [
+        -0.000526805,
+        0.0000367604
+       ],
+       "accuracyPp": -0.00303269,
+       "accuracy95": [
+        -0.11154,
+        0.102183
+       ],
+       "marginMae": -0.108212,
+       "marginMae95": [
+        -0.162331,
+        -0.0511733
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.165593,
+       "logLoss": 0.496847,
+       "accuracy": 0.749591,
+       "marginMae": 34.3651
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": -0.0000344339,
+       "brier95": [
+        -0.00017641,
+        0.000112201
+       ],
+       "logLoss": -0.000088654,
+       "logLoss95": [
+        -0.00048654,
+        0.000307412
+       ],
+       "accuracyPp": -0.0213417,
+       "accuracy95": [
+        -0.19153,
+        0.155017
+       ],
+       "marginMae": 0.00422302,
+       "marginMae95": [
+        -0.0525249,
+        0.0574789
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.175095,
+       "logLoss": 0.52156,
+       "accuracy": 0.734153,
+       "marginMae": 37.1482
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": -0.00019561,
+       "brier95": [
+        -0.000365673,
+        -0.0000146038
+       ],
+       "logLoss": -0.000510424,
+       "logLoss95": [
+        -0.000998004,
+        -0.0000268514
+       ],
+       "accuracyPp": 0.20329,
+       "accuracy95": [
+        0,
+        0.397596
+       ],
+       "marginMae": -0.253183,
+       "marginMae95": [
+        -0.323847,
+        -0.176936
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.150914,
+       "logLoss": 0.459266,
+       "accuracy": 0.780336,
+       "marginMae": 42.4639
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": -0.0000760899,
+       "brier95": [
+        -0.000364331,
+        0.000195112
+       ],
+       "logLoss": -0.00032752,
+       "logLoss95": [
+        -0.00109147,
+        0.000388135
+       ],
+       "accuracyPp": -0.253281,
+       "accuracy95": [
+        -0.545827,
+        0.0236686
+       ],
+       "marginMae": -0.0673526,
+       "marginMae95": [
+        -0.209843,
+        0.0797282
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.168129,
+       "logLoss": 0.504788,
+       "accuracy": 0.747696,
+       "marginMae": 37.272
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": -0.000135495,
+       "brier95": [
+        -0.000251203,
+        -0.0000231846
+       ],
+       "logLoss": -0.000362087,
+       "logLoss95": [
+        -0.00066602,
+        -0.000069965
+       ],
+       "accuracyPp": -0.00550282,
+       "accuracy95": [
+        -0.124083,
+        0.114544
+       ],
+       "marginMae": -0.0815377,
+       "marginMae95": [
+        -0.129035,
+        -0.0283282
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.177958,
+       "logLoss": 0.528734,
+       "accuracy": 0.726855,
+       "marginMae": 36.3121
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": -0.000183338,
+       "brier95": [
+        -0.000361871,
+        -0.00000299903
+       ],
+       "logLoss": -0.000527772,
+       "logLoss95": [
+        -0.000969046,
+        -0.0000653956
+       ],
+       "accuracyPp": -0.111622,
+       "accuracy95": [
+        -0.285584,
+        0.0664982
+       ],
+       "marginMae": 0.00313059,
+       "marginMae95": [
+        -0.0674197,
+        0.0719531
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.182711,
+       "logLoss": 0.541717,
+       "accuracy": 0.718666,
+       "marginMae": 36.8202
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": -0.000289976,
+       "brier95": [
+        -0.000498932,
+        -0.0000789353
+       ],
+       "logLoss": -0.000746191,
+       "logLoss95": [
+        -0.00127411,
+        -0.000218344
+       ],
+       "accuracyPp": 0.00871004,
+       "accuracy95": [
+        -0.218436,
+        0.243902
+       ],
+       "marginMae": -0.198506,
+       "marginMae95": [
+        -0.28041,
+        -0.119723
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.157338,
+       "logLoss": 0.479144,
+       "accuracy": 0.765755,
+       "marginMae": 37.6239
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": -0.000240861,
+       "brier95": [
+        -0.000547927,
+        0.0000506293
+       ],
+       "logLoss": -0.000676893,
+       "logLoss95": [
+        -0.0015348,
+        0.000157456
+       ],
+       "accuracyPp": -0.0198177,
+       "accuracy95": [
+        -0.29988,
+        0.257681
+       ],
+       "marginMae": -0.0943803,
+       "marginMae95": [
+        -0.236614,
+        0.0515185
+       ]
+      }
+     }
+    }
+   },
+   "hybridWeights": [
+    [
+     0.9746,
+     0.1077,
+     0.0326
+    ],
+    [
+     0.9679,
+     0.1199,
+     0.0405
+    ],
+    [
+     0.8978,
+     0.126,
+     0.2556
+    ],
+    [
+     0.8897,
+     0.1525,
+     0.2734
+    ],
+    [
+     0.9,
+     0.1091,
+     0.2508
+    ],
+    [
+     0.7715,
+     0.1293,
+     0.5148
+    ],
+    [
+     0.7993,
+     0.1405,
+     0.4268
+    ],
+    [
+     0.7823,
+     0.1433,
+     0.4705
+    ],
+    [
+     0.7473,
+     0.1361,
+     0.5606
+    ],
+    [
+     0.7147,
+     0.1424,
+     0.6299
+    ],
+    [
+     0.7226,
+     0.1375,
+     0.6105
+    ],
+    [
+     0.735,
+     0.1308,
+     0.5836
+    ],
+    [
+     0.7766,
+     0.1281,
+     0.4822
+    ],
+    [
+     0.6344,
+     0.1542,
+     0.8813
+    ],
+    [
+     0.7429,
+     0.155,
+     0.6657
+    ],
+    [
+     0.7245,
+     0.152,
+     0.7225
+    ],
+    [
+     0.739,
+     0.1435,
+     0.69
+    ],
+    [
+     0.7086,
+     0.1553,
+     0.7568
+    ]
+   ],
+   "hybridVsRefit": {
+    "2024-25 (tuning)": {
+     "n": 32974,
+     "events": 1149,
+     "brier": -0.0000906814,
+     "brier95": [
+      -0.000182939,
+      0.00000563862
+     ],
+     "logLoss": -0.0003327,
+     "logLoss95": [
+      -0.000579663,
+      -0.0000754762
+     ],
+     "accuracyPp": -0.00303269,
+     "accuracy95": [
+      -0.11154,
+      0.102183
+     ],
+     "marginMae": 0.00971637,
+     "marginMae95": [
+      0.00407155,
+      0.0155965
+     ]
+    },
+    "2025-26 (reused)": {
+     "n": 36345,
+     "events": 1214,
+     "brier": -0.000183461,
+     "brier95": [
+      -0.000303593,
+      -0.0000725083
+     ],
+     "logLoss": -0.000545036,
+     "logLoss95": [
+      -0.000874899,
+      -0.000236015
+     ],
+     "accuracyPp": -0.00550282,
+     "accuracy95": [
+      -0.124083,
+      0.114544
+     ],
+     "marginMae": -0.00753057,
+     "marginMae95": [
+      -0.0134532,
+      -0.00172259
+     ]
+    }
+   }
+  },
+  "glicko2": {
+   "alone": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.196014,
+       "logLoss": 0.573453,
+       "accuracy": 0.691408,
+       "marginMae": 47.8163
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": 0.0381102,
+       "brier95": [
+        0.0362563,
+        0.0399558
+       ],
+       "logLoss": 0.0959764,
+       "logLoss95": [
+        0.09123,
+        0.100413
+       ],
+       "accuracyPp": -7.38916,
+       "accuracy95": [
+        -7.90616,
+        -6.8476
+       ],
+       "marginMae": 8.97265,
+       "marginMae95": [
+        8.49241,
+        9.44951
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.20731,
+       "logLoss": 0.599566,
+       "accuracy": 0.666607,
+       "marginMae": 42.9549
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": 0.0416829,
+       "brier95": [
+        0.0387855,
+        0.0444601
+       ],
+       "logLoss": 0.102631,
+       "logLoss95": [
+        0.0956994,
+        0.109222
+       ],
+       "accuracyPp": -8.3197,
+       "accuracy95": [
+        -9.17731,
+        -7.42315
+       ],
+       "marginMae": 8.59404,
+       "marginMae95": [
+        8.01565,
+        9.1479
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.202748,
+       "logLoss": 0.588892,
+       "accuracy": 0.675938,
+       "marginMae": 43.6325
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": 0.0274572,
+       "brier95": [
+        0.024267,
+        0.0304275
+       ],
+       "logLoss": 0.0668214,
+       "logLoss95": [
+        0.0589795,
+        0.0743211
+       ],
+       "accuracyPp": -5.61819,
+       "accuracy95": [
+        -6.5017,
+        -4.66568
+       ],
+       "marginMae": 6.23112,
+       "marginMae95": [
+        5.591,
+        6.84505
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.194677,
+       "logLoss": 0.571377,
+       "accuracy": 0.696523,
+       "marginMae": 53.6458
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": 0.0436873,
+       "brier95": [
+        0.0383003,
+        0.0486201
+       ],
+       "logLoss": 0.111784,
+       "logLoss95": [
+        0.0981893,
+        0.124858
+       ],
+       "accuracyPp": -8.63458,
+       "accuracy95": [
+        -10.0478,
+        -7.13951
+       ],
+       "marginMae": 11.1145,
+       "marginMae95": [
+        9.89218,
+        12.3839
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.202831,
+       "logLoss": 0.590225,
+       "accuracy": 0.683134,
+       "marginMae": 44.1571
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": 0.0345662,
+       "brier95": [
+        0.0328721,
+        0.0362558
+       ],
+       "logLoss": 0.0850745,
+       "logLoss95": [
+        0.0810044,
+        0.0891437
+       ],
+       "accuracyPp": -6.46169,
+       "accuracy95": [
+        -6.96271,
+        -5.99097
+       ],
+       "marginMae": 6.80357,
+       "marginMae95": [
+        6.44486,
+        7.1887
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.212816,
+       "logLoss": 0.612931,
+       "accuracy": 0.6565,
+       "marginMae": 42.5597
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": 0.0346741,
+       "brier95": [
+        0.0320662,
+        0.0370062
+       ],
+       "logLoss": 0.0836693,
+       "logLoss95": [
+        0.0776264,
+        0.0893369
+       ],
+       "accuracyPp": -7.14708,
+       "accuracy95": [
+        -7.91501,
+        -6.35352
+       ],
+       "marginMae": 6.25073,
+       "marginMae95": [
+        5.83008,
+        6.66987
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.210412,
+       "logLoss": 0.607289,
+       "accuracy": 0.661571,
+       "marginMae": 42.0024
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": 0.0274106,
+       "brier95": [
+        0.0246887,
+        0.0301796
+       ],
+       "logLoss": 0.0648263,
+       "logLoss95": [
+        0.0583314,
+        0.0715757
+       ],
+       "accuracyPp": -5.70072,
+       "accuracy95": [
+        -6.59762,
+        -4.77999
+       ],
+       "marginMae": 4.98372,
+       "marginMae95": [
+        4.52979,
+        5.43886
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.194199,
+       "logLoss": 0.570993,
+       "accuracy": 0.702537,
+       "marginMae": 44.7817
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": 0.0366207,
+       "brier95": [
+        0.0322772,
+        0.0406982
+       ],
+       "logLoss": 0.0911727,
+       "logLoss95": [
+        0.080381,
+        0.101878
+       ],
+       "accuracyPp": -6.34166,
+       "accuracy95": [
+        -7.56964,
+        -5.07665
+       ],
+       "marginMae": 7.06347,
+       "marginMae95": [
+        6.18968,
+        7.94168
+       ]
+      }
+     }
+    }
+   },
+   "plattSlopes": [
+    0.9016,
+    0.9017,
+    0.9266,
+    0.9656,
+    0.9839,
+    0.9962,
+    1.0045,
+    1.002,
+    0.9945,
+    0.9906,
+    0.991,
+    0.9545,
+    0.9265,
+    0.9043,
+    0.8968,
+    0.8966,
+    0.8927,
+    0.8899
+   ],
+   "hybrid": {
+    "2024-25 (tuning)": {
+     "all": {
+      "model": {
+       "n": 32974,
+       "brier": 0.157815,
+       "logLoss": 0.477236,
+       "accuracy": 0.764906,
+       "marginMae": 38.7325
+      },
+      "champion": {
+       "n": 32974,
+       "brier": 0.157904,
+       "logLoss": 0.477476,
+       "accuracy": 0.7653,
+       "marginMae": 38.8437
+      },
+      "delta": {
+       "n": 32974,
+       "events": 1149,
+       "brier": -0.0000888325,
+       "brier95": [
+        -0.000181539,
+        0.00000823281
+       ],
+       "logLoss": -0.000240163,
+       "logLoss95": [
+        -0.000498709,
+        0.0000367821
+       ],
+       "accuracyPp": -0.039425,
+       "accuracy95": [
+        -0.14694,
+        0.0609496
+       ],
+       "marginMae": -0.11118,
+       "marginMae95": [
+        -0.164664,
+        -0.0545921
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 14057,
+       "brier": 0.165579,
+       "logLoss": 0.496819,
+       "accuracy": 0.749306,
+       "marginMae": 34.3626
+      },
+      "champion": {
+       "n": 14057,
+       "brier": 0.165627,
+       "logLoss": 0.496935,
+       "accuracy": 0.749804,
+       "marginMae": 34.3609
+      },
+      "delta": {
+       "n": 14057,
+       "events": 845,
+       "brier": -0.0000479216,
+       "brier95": [
+        -0.000183723,
+        0.0000889058
+       ],
+       "logLoss": -0.000116734,
+       "logLoss95": [
+        -0.000491891,
+        0.000252011
+       ],
+       "accuracyPp": -0.0497973,
+       "accuracy95": [
+        -0.217926,
+        0.115599
+       ],
+       "marginMae": 0.00171269,
+       "marginMae95": [
+        -0.0544782,
+        0.0542383
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 10822,
+       "brier": 0.175098,
+       "logLoss": 0.521571,
+       "accuracy": 0.733598,
+       "marginMae": 37.1449
+      },
+      "champion": {
+       "n": 10822,
+       "brier": 0.175291,
+       "logLoss": 0.522071,
+       "accuracy": 0.73212,
+       "marginMae": 37.4014
+      },
+      "delta": {
+       "n": 10822,
+       "events": 1128,
+       "brier": -0.000193416,
+       "brier95": [
+        -0.000356398,
+        -0.0000193301
+       ],
+       "logLoss": -0.000499602,
+       "logLoss95": [
+        -0.000950654,
+        -0.0000592007
+       ],
+       "accuracyPp": 0.147847,
+       "accuracy95": [
+        -0.0461297,
+        0.340512
+       ],
+       "marginMae": -0.256519,
+       "marginMae95": [
+        -0.327073,
+        -0.180827
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 4343,
+       "brier": 0.150918,
+       "logLoss": 0.459301,
+       "accuracy": 0.779876,
+       "marginMae": 42.4636
+      },
+      "champion": {
+       "n": 4343,
+       "brier": 0.15099,
+       "logLoss": 0.459593,
+       "accuracy": 0.782869,
+       "marginMae": 42.5313
+      },
+      "delta": {
+       "n": 4343,
+       "events": 518,
+       "brier": -0.0000719634,
+       "brier95": [
+        -0.000338285,
+        0.000186682
+       ],
+       "logLoss": -0.000292249,
+       "logLoss95": [
+        -0.00101796,
+        0.000392771
+       ],
+       "accuracyPp": -0.299332,
+       "accuracy95": [
+        -0.573394,
+        -0.0450653
+       ],
+       "marginMae": -0.0676566,
+       "marginMae95": [
+        -0.210548,
+        0.080318
+       ]
+      }
+     }
+    },
+    "2025-26 (reused)": {
+     "all": {
+      "model": {
+       "n": 36345,
+       "brier": 0.168131,
+       "logLoss": 0.504803,
+       "accuracy": 0.747888,
+       "marginMae": 37.2721
+      },
+      "champion": {
+       "n": 36345,
+       "brier": 0.168264,
+       "logLoss": 0.505151,
+       "accuracy": 0.747751,
+       "marginMae": 37.3536
+      },
+      "delta": {
+       "n": 36345,
+       "events": 1214,
+       "brier": -0.000133142,
+       "brier95": [
+        -0.000248567,
+        -0.0000263715
+       ],
+       "logLoss": -0.00034707,
+       "logLoss95": [
+        -0.000636918,
+        -0.0000708684
+       ],
+       "accuracyPp": 0.0137571,
+       "accuracy95": [
+        -0.10744,
+        0.132996
+       ],
+       "marginMae": -0.0814755,
+       "marginMae95": [
+        -0.128785,
+        -0.0285267
+       ]
+      }
+     },
+     "robots with 0-5 rated matches (fewest on the field)": {
+      "model": {
+       "n": 15230,
+       "brier": 0.177961,
+       "logLoss": 0.528752,
+       "accuracy": 0.727052,
+       "marginMae": 36.3109
+      },
+      "champion": {
+       "n": 15230,
+       "brier": 0.178142,
+       "logLoss": 0.529262,
+       "accuracy": 0.727971,
+       "marginMae": 36.309
+      },
+      "delta": {
+       "n": 15230,
+       "events": 903,
+       "brier": -0.000180446,
+       "brier95": [
+        -0.000353844,
+        -0.00000598282
+       ],
+       "logLoss": -0.000509664,
+       "logLoss95": [
+        -0.000943862,
+        -0.0000578659
+       ],
+       "accuracyPp": -0.0919238,
+       "accuracy95": [
+        -0.268694,
+        0.0999334
+       ],
+       "marginMae": 0.00192502,
+       "marginMae95": [
+        -0.0680099,
+        0.0699964
+       ]
+      }
+     },
+     "early event: quals 1-10": {
+      "model": {
+       "n": 11481,
+       "brier": 0.182695,
+       "logLoss": 0.541699,
+       "accuracy": 0.719275,
+       "marginMae": 36.8202
+      },
+      "champion": {
+       "n": 11481,
+       "brier": 0.183001,
+       "logLoss": 0.542463,
+       "accuracy": 0.718579,
+       "marginMae": 37.0187
+      },
+      "delta": {
+       "n": 11481,
+       "events": 1189,
+       "brier": -0.000306459,
+       "brier95": [
+        -0.000505714,
+        -0.0000976715
+       ],
+       "logLoss": -0.0007646,
+       "logLoss95": [
+        -0.00126753,
+        -0.000252561
+       ],
+       "accuracyPp": 0.0696803,
+       "accuracy95": [
+        -0.156753,
+        0.305224
+       ],
+       "marginMae": -0.198528,
+       "marginMae95": [
+        -0.280725,
+        -0.120039
+       ]
+      }
+     },
+     "playoffs": {
+      "model": {
+       "n": 5046,
+       "brier": 0.157327,
+       "logLoss": 0.479127,
+       "accuracy": 0.765161,
+       "marginMae": 37.6266
+      },
+      "champion": {
+       "n": 5046,
+       "brier": 0.157579,
+       "logLoss": 0.47982,
+       "accuracy": 0.765953,
+       "marginMae": 37.7183
+      },
+      "delta": {
+       "n": 5046,
+       "events": 600,
+       "brier": -0.00025174,
+       "brier95": [
+        -0.000554516,
+        0.0000377546
+       ],
+       "logLoss": -0.000693361,
+       "logLoss95": [
+        -0.00152892,
+        0.0000785639
+       ],
+       "accuracyPp": -0.0792707,
+       "accuracy95": [
+        -0.340408,
+        0.182002
+       ],
+       "marginMae": -0.0916612,
+       "marginMae95": [
+        -0.234288,
+        0.0538096
+       ]
+      }
+     }
+    }
+   },
+   "hybridWeights": [
+    [
+     0.9932,
+     0.0552,
+     -0.0283
+    ],
+    [
+     0.9876,
+     0.0619,
+     -0.019
+    ],
+    [
+     0.9555,
+     0.0646,
+     0.1997
+    ],
+    [
+     0.9559,
+     0.0783,
+     0.1973
+    ],
+    [
+     0.9509,
+     0.0576,
+     0.2275
+    ],
+    [
+     0.8621,
+     0.0691,
+     0.532
+    ],
+    [
+     0.8781,
+     0.0751,
+     0.4254
+    ],
+    [
+     0.8674,
+     0.0773,
+     0.4758
+    ],
+    [
+     0.8462,
+     0.0741,
+     0.5755
+    ],
+    [
+     0.8258,
+     0.0775,
+     0.6458
+    ],
+    [
+     0.8312,
+     0.0746,
+     0.622
+    ],
+    [
+     0.8379,
+     0.0712,
+     0.6002
+    ],
+    [
+     0.861,
+     0.0698,
+     0.5009
+    ],
+    [
+     0.7823,
+     0.0875,
+     0.9341
+    ],
+    [
+     0.8593,
+     0.0872,
+     0.6829
+    ],
+    [
+     0.8488,
+     0.0859,
+     0.7504
+    ],
+    [
+     0.8587,
+     0.0812,
+     0.7109
+    ],
+    [
+     0.8381,
+     0.0886,
+     0.7865
+    ]
+   ],
+   "hybridVsRefit": {
+    "2024-25 (tuning)": {
+     "n": 32974,
+     "events": 1149,
+     "brier": -0.0000878453,
+     "brier95": [
+      -0.000175723,
+      0.00000300677
+     ],
+     "logLoss": -0.000314184,
+     "logLoss95": [
+      -0.00053613,
+      -0.0000757743
+     ],
+     "accuracyPp": -0.039425,
+     "accuracy95": [
+      -0.14694,
+      0.0609496
+     ],
+     "marginMae": 0.00674847,
+     "marginMae95": [
+      0.00200337,
+      0.0116343
+     ]
+    },
+    "2025-26 (reused)": {
+     "n": 36345,
+     "events": 1214,
+     "brier": -0.000181108,
+     "brier95": [
+      -0.000297405,
+      -0.0000744659
+     ],
+     "logLoss": -0.000530019,
+     "logLoss95": [
+      -0.000836431,
+      -0.000234348
+     ],
+     "accuracyPp": 0.0137571,
+     "accuracy95": [
+      -0.10744,
+      0.132996
+     ],
+     "marginMae": -0.00746839,
+     "marginMae95": [
+      -0.0132901,
+      -0.00191606
+     ]
+    }
+   }
+  }
+ }
+}
