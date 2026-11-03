@@ -22,6 +22,7 @@ import { env } from "./env.js";
 import { isEnabled } from "./flags.js";
 import { ownerOf } from "./owner.js";
 import { GITHUB_REPO, GithubError, fenced, gh, refused, takeReportSlot } from "./errorReports.js";
+import { searchKey, searchOutcome, traceOf, type OutcomeResult } from "./api/searchLayers.js";
 import type { SearchAnswer } from "../src/shared/api.js";
 
 // --- What counts as a failed search (brief §12.1) ---------------------------------------------------------------
@@ -45,6 +46,8 @@ export interface SearchTrace {
   filler: string[];
   /** Two or more intents matched equally well (brief §10): their names. */
   ambiguous?: string[];
+  /** What the layered reader called the answer (SearchOutcome.result), when it reported one: it decides. */
+  result?: OutcomeResult;
 }
 
 export interface Failure { type: FailureType; intent: string | null; trace: SearchTrace }
@@ -86,11 +89,32 @@ export function readTrace(q: string, a: SearchAnswer): SearchTrace {
   return { layers: [], won: null, team: teamHit ?? number, intents: intentWordsIn(n), scope, filler: fillerIn(n) };
 }
 
+/** The trace of a top-level searchAnswer() answer, from the layered reader's own outcome (with its result), or null
+ *  when it reported none. Read from the answer object searchAnswer returned, before it's copied. */
+export function outcomeTrace(a: SearchAnswer): SearchTrace | null {
+  const o = searchOutcome(a);
+  const t = traceOf(o);
+  return o && t ? { ...t, result: o.result } : null;
+}
+
+/** The layered reader's results as failure types (one rename: "name-search-only" is filed as "name-only"). */
+export const RESULT_TYPE: Record<Exclude<OutcomeResult, "answered">, FailureType> = {
+  "no-match": "no-match", "team-fallback": "team-fallback", weak: "weak", "name-search-only": "name-only", empty: "empty", ambiguous: "ambiguous",
+};
+
 /** A failed search, or null when the answer answered (brief §12.1). Only the outcome counts, never the phrasing. */
 export function failureOf(q: string, a: SearchAnswer, given?: SearchTrace | null): Failure | null {
   const trace = given ?? readTrace(q, a);
   const n = normalizeQuery(q);
   if (!n) return null;
+  if (trace.result) {
+    // The layered reader said what the answer is: that decides, not a reading of the answer here.
+    if (trace.result === "answered") return null;
+    const type = trace.result === "weak" && a.hits.length === 0 ? "no-match" : RESULT_TYPE[trace.result];
+    // A fallback or a weak answer is a failure only when a team and an intent were both asked for (§12.1).
+    if ((type === "team-fallback" || type === "weak") && !(trace.team && trace.intents.length)) return null;
+    return { type, intent: trace.ambiguous?.length ? trace.ambiguous.join(" / ") : trace.intents[0] ?? null, trace };
+  }
   const intents = intentsIn(n);
   const intent = trace.ambiguous?.length ? trace.ambiguous.join(" / ") : intents[0] ?? null;
   const teamAndIntent = !!trace.team && trace.intents.length > 0;
@@ -136,6 +160,21 @@ export function reportKey(q: string): string {
   let k = ` ${n} `;
   for (const f of FILLER) k = k.split(` ${f} `).join(" ");
   return k.replace(/\s+/g, " ").trim() || n;
+}
+
+/** The query as logged: as typed, trimmed and cut to 200 characters, personal data out (before it's normalized:
+ *  lowercasing or splitting "+" could break a pattern). */
+export const safeQuery = (q: string) => redact(String(q).trim().slice(0, 200));
+
+/** The aggregation key for a query as /api/search files it: search's own key (searchKey: Layer 0, filler out, never
+ *  inside a team's name) of the redacted query, punctuation and case folded first. reportKey when that fails. */
+export async function keyFor(q: string): Promise<string> {
+  const safe = safeQuery(q);
+  try {
+    return (await searchKey(normalizeQuery(safe))) || reportKey(safe);
+  } catch {
+    return reportKey(safe);
+  }
 }
 
 /** Personal data and secrets out of anything logged (brief §12.2: the repository is public). */
@@ -190,12 +229,12 @@ export const counters = { dropped: 0, skipped: 0, limited: 0, unfiled: 0 };
 
 const related = (a: string, b: string) => a.startsWith(b) || b.startsWith(a);
 
-/** Called by /api/search after it answered (every answer=1 search, failed or not). Synchronous, never throws. */
-export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now()): void {
+/** Called by /api/search after it answered (every answer=1 search, failed or not). Synchronous, never throws.
+ *  `key`: the aggregation key (keyFor), worked out by the caller; reportKey of the query when not given. */
+export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: SearchTrace | null, now = Date.now(), key?: string): void {
   try {
     settle(now);
-    // Personal data out of the query as typed, before it's normalized (lowercasing or splitting "+" could break a pattern).
-    const safe = redact(String(q).trim().slice(0, 200));
+    const safe = safeQuery(q);
     const n = normalizeQuery(safe);
     if (!n) return;
     const was = pending.get(client);
@@ -205,7 +244,7 @@ export function noteSearch(q: string, a: SearchAnswer, client: string, trace?: S
     // Re-inserted, so the map stays oldest first and settle() stops at the first entry still waiting.
     pending.delete(client);
     const failure = failureOf(q, a, trace);
-    pending.set(client, { q: safe, key: reportKey(safe), failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
+    pending.set(client, { q: safe, key: key || reportKey(safe), failure: failure && { ...failure, trace: redactTrace(failure.trace) }, label: redact(a.understood?.label ?? ""), at: now });
   } catch {
     // Reporting never breaks search.
   }
@@ -513,7 +552,7 @@ export async function recheck(issueNumber: number, answer: (q: string) => Promis
   if (!row) return null;
   const q = (JSON.parse(row.examples) as string[])[0] ?? row.key;
   const a = await answer(q);
-  const f = failureOf(q, a);
+  const f = failureOf(q, a, outcomeTrace(a));
   const label = redact(a.understood?.label ?? "");
   const at = now.toISOString();
   if (f) await run("UPDATE search_failures SET count = count + 1, last_seen = ?, result_type = ? WHERE key = ?", [at, f.type, row.key]);

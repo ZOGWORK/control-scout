@@ -42,15 +42,24 @@ Code: `server/searchFailures.ts`. It files through the in-app error reporter's G
 Any answer counts as a success: a card, a stat answer, a leaderboard, a team page asked for by name, or a page named
 outright ("privacy", "records"). Only the outcome counts, never the phrasing.
 
-The intent words are the minimum sets of the redundancy brief's section 6 (`INTENT_WORDS`). Until the layered reader
-reports how it reached an answer (`SearchTrace`), the reading is taken from the answer itself (`readTrace`).
+**Who decides.** The layered reader (`server/api/searchLayers.ts`) reports how it reached each answer
+(`SearchOutcome`), and its `result` decides: `answered` is never filed, `name-search-only` is filed as `name-only`,
+and a `weak` answer with no hits at all is a `no-match`. A `team-fallback` or `weak` result is filed only when the
+query asked for a team and an intent (section 12.1); "4215 zzz" falling back to the team's page is an answer. The
+intent is the reader's first intent, or both tied intents ("leaderboard / awards") when it was ambiguous. The route
+and the owner's re-check both read the outcome this way (`outcomeTrace`).
+
+When there is no outcome (a copy of the answer, or a caller outside `/api/search`), the reading is taken from the
+answer itself (`readTrace`), with the intent words of the redundancy brief's section 6 (`INTENT_WORDS`).
 
 ## One issue per query
 
-- **Key.** Lowercase, punctuation out, spaces collapsed, `#4215` → `4215`, then filler out (`FILLER`: rn, right now,
-  currently, at the moment, please, pls, just, really, basically, actually, quick, kindly, hey, hi, hello, tell me,
-  show me, give me, look up). "4215 opr rn" and "4215 opr right now" share one issue. Word order is kept: "4215 from
-  where" and "4215 where from" are two issues.
+- **Key.** Search's own key (`searchKey`) of the redacted query (`keyFor`): personal data out first (so the key
+  holds `[email]`, never the address), then lowercase, punctuation out, spaces collapsed, `#4215` → `4215`, then
+  search's filler out (rn, right now, currently, please, and the rest of its `FILLER`), never inside a team's full
+  name. "4215 opr rn" and "4215 opr right now" share one issue. Word order is kept: "4215 from where" and "4215 where
+  from" are two issues. If search's key can't be worked out, the reporter's own (`reportKey`, the same steps with its
+  own filler list) is used.
 - **Title.** `Failed search: <key>`, the key cut at 80 characters with "…". The full query is in the body. `@` and
   `#<digit>` get a zero-width space so a title can't mention anyone or link an issue.
 - **Body.** Result type, count, first seen, last seen, Reproduce link (`https://controlscout.org/search?q=<latest query as typed>`, never the key, which may answer once filler is dropped),

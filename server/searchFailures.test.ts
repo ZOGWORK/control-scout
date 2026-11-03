@@ -10,8 +10,9 @@ import { sha256 } from "./auth/session";
 import { rebuildSearch } from "./stats/job";
 import { resetReportLimits, setGithubFetch } from "./errorReports";
 import { setFlag } from "./flags";
+import { searchAnswer } from "./api/searchAnswer";
 import {
-  counters, failureBody, failureOf, failureTitle, flushSearchFailures, githubPausedUntil, keyHash, noteSearch, recheck, redact, reportKey,
+  counters, failureBody, failureOf, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
   NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace,
 } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
@@ -146,9 +147,43 @@ describe("what counts as a failed search (§12.1)", () => {
     // A no-match's own browse links are not.
     expect(failureOf("xyzzyq", { ...noMatch("xyzzyq"), pages: [{ title: "Teams", href: "/teams" }] })?.type).toBe("no-match");
   });
+
+  it("the layered reader's own result decides, on a real searchAnswer", async () => {
+    const real = async (q: string) => { const a = await searchAnswer(q, { limit: 12, learn: false }); return { a, t: outcomeTrace(a) }; };
+    // Two intents tied: ambiguous, with both named.
+    const amb = await real("4215 sponsors school");
+    expect(amb.t?.result).toBe("ambiguous");
+    expect(failureOf("4215 sponsors school", amb.a, amb.t)).toMatchObject({ type: "ambiguous" });
+    expect(failureOf("4215 sponsors school", amb.a, amb.t)!.intent).toContain(" / ");
+    // Answered: never a failure.
+    const ok = await real("where is 4215 from");
+    expect(ok.t?.result).toBe("answered");
+    expect(failureOf("where is 4215 from", ok.a, ok.t)).toBeNull();
+    // A team and nothing asked of it: the fallback to its page is an honest answer.
+    const zzz = await real("4215 zzz");
+    expect(zzz.t).not.toBeNull();
+    expect(failureOf("4215 zzz", zzz.a, zzz.t)).toBeNull();
+    // A copy of the answer has no outcome: the trace is read from the answer instead.
+    expect(outcomeTrace({ ...ok.a })).toBeNull();
+  });
+
+  it("the result types map onto failure types, a weak answer with no hits is a no-match", () => {
+    const t = (result: SearchTrace["result"], over: Partial<SearchTrace> = {}): SearchTrace => ({ layers: ["0"], won: null, team: "4215", intents: ["opr"], scope: [], filler: [], result, ...over });
+    expect(failureOf("4215 opr", { ...base0, hits: [team] }, t("name-search-only"))).toMatchObject({ type: "name-only", intent: "opr" });
+    expect(failureOf("4215 opr", { ...base0, hits: [team] }, t("weak"))?.type).toBe("weak");
+    expect(failureOf("4215 opr", base0, t("weak"))?.type).toBe("no-match");
+    expect(failureOf("4215 opr", { ...base0, hits: [team] }, t("team-fallback", { intents: [] }))).toBeNull();
+    expect(failureOf("opr", { ...base0, hits: [team] }, t("weak", { team: null }))).toBeNull();
+    expect(failureOf("4215 opr", { ...base0, hits: [team] }, t("answered"))).toBeNull();
+  });
 });
 
 describe("normalizing, aggregating and redacting (§12.2, §12.3)", () => {
+  it("the route's key is search's own key of the redacted query", async () => {
+    expect(await keyFor("Please #4215 jane@x.com opr rn")).toBe("4215 [email] opr");
+    expect(await keyFor("4215 OPR rn?")).toBe(await keyFor("4215 opr right now"));
+  });
+
   it("filler variants of one failing query share a key; distinct queries don't", () => {
     expect(reportKey("4215 OPR rn")).toBe("4215 opr");
     expect(reportKey("#4215 opr right now?")).toBe("4215 opr");
