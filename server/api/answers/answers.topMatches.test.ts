@@ -33,6 +33,12 @@ beforeAll(async () => {
   await match(2024, "USTXQ1", 1, 400, 20); // the Texas Qualifier a season earlier, with a played playoff
   await run("INSERT INTO matches (season, code, level, series, number, label, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'USTXQ1', 'playoff', 1, 1, 'M1', 1, 90, 90, 80, 80, 't')");
   await match(2024, "USMAQ0", 1, 120, 30); // Massachusetts: last season only
+  // A championship whose divisions played this season, while the parent holds only last season's matches.
+  await ev(2024, "USCACMP", "California Championship", "Championship", "CA", "2025-03-01");
+  await ev(2025, "USCACMP", "California Championship", "Championship", "CA", "2026-03-01");
+  await run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (2025, 'USCACMPD1', 'California Championship - Sierra Division', 'Championship', 'USCACMP', 'Town', 'CA', 'USA', '2026-03-01', '2026-03-01', 't')");
+  await match(2024, "USCACMP", 1, 210, 40);
+  await match(2025, "USCACMPD1", 1, 260, 60);
   await rebuildSearch();
 });
 
@@ -52,10 +58,10 @@ describe("season top matches", () => {
     const a = (await searchAnswer("highest scoring games in decode", { limit: 25 })).stat!;
     expect(a).toMatchObject({ title: "Highest-scoring matches, DECODE 2025–26", headline: { value: "350 points", label: "Q1 at Texas Qualifier" } });
     const ms = a.blocks.find((b) => b.kind === "matches");
-    expect(ms && ms.kind === "matches" && ms.rows.map((r) => r.ownNp)).toEqual([350, 300, 250, 200, 100, 50]);
+    expect(ms && ms.kind === "matches" && ms.rows.map((r) => r.ownNp)).toEqual([350, 300, 260, 250, 200, 100, 60, 50]);
     expect(ms && ms.kind === "matches" && ms.rows[0]).toMatchObject({ own: 360, partners: [{ label: "207 Critical Mass" }, { label: "4215 Hypnotic Robotics" }], opponents: [{ label: "6980 Bad Wolf" }, { label: "23268 Ultraviolet" }] });
     const combined = a.blocks.find((b) => b.kind === "table");
-    expect(combined && combined.kind === "table" && combined.rows.map((r) => r.cells.combined)).toEqual([450, 400, 400]);
+    expect(combined && combined.kind === "table" && combined.rows.map((r) => r.cells.combined)).toEqual([450, 400, 400, 320]);
     expect(a.blocks.find((b) => b.kind === "bars")).toBeDefined();
   });
   it("in a place, or at one event", async () => {
@@ -77,6 +83,9 @@ describe("season top matches", () => {
     const tx = (await searchAnswer("highest scoring match ever at texas qualifier", { limit: 25 })).stat!;
     const tt = tx.blocks[0];
     expect(tt.kind === "table" && tt.rows.map((r) => [r.cells.season, r.cells.score, r.cells.event])).toEqual([["DECODE 2025–26", 350, "Texas Qualifier"], ["INTO THE DEEP 2024–25", 400, "Texas Qualifier"]]);
+  });
+  it("at an event: this season's division matches count, not only the parent's", async () => {
+    expect((await searchAnswer("highest scoring matches at california championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "260 points" });
   });
   it("the search box keeps the asks' own high-score card", async () => {
     expect((await searchAnswer("highest scoring games in decode", { limit: 8 })).intent?.kind).not.toBe("stat-season-top-matches");

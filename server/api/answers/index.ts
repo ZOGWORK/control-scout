@@ -118,7 +118,10 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
   const [s, code] = top.ref.split(":");
   // No season named: the newest season of that event with a played playoff (an event not held yet has no winners), or
   // with any played match when the answer is its matches.
-  const played = await get<{ s: number | null }>(`SELECT MAX(season) s FROM matches WHERE code = ?${opts.anyPlayed ? "" : " AND level = 'playoff'"} AND played = 1`, [code]);
+  // An answer about its matches counts its divisions' matches too.
+  const played = opts.anyPlayed
+    ? await get<{ s: number | null }>("SELECT MAX(m.season) s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE (e.code = ? OR e.division_code = ?) AND m.played = 1", [code, code])
+    : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
   return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
 }
 
