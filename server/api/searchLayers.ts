@@ -90,10 +90,10 @@ export function tokens(q: string): string[] {
 
 /** A name or a word as the word layers compare them: apostrophes dropped first ("Don't" is "dont", as typed either
  *  way), then accents, case and punctuation folded. */
-const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
+export const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
 
 let names: { at: number; byName: Map<string, string[]>; list: [string, string][] } | null = null;
-async function teamNames() {
+export async function teamNames() {
   if (names && Date.now() - names.at < 10 * 60_000) return names;
   const rows = await all<{ number: number; name: string | null }>("SELECT number, name FROM teams WHERE name IS NOT NULL AND name <> ''");
   const byName = new Map<string, string[]>(), list: [string, string][] = [];
@@ -109,13 +109,13 @@ async function teamNames() {
 /** Forget the cached names (tests that write teams). */
 export const forgetTeamNames = () => { names = null; };
 
-async function teamExists(n: string): Promise<boolean> {
+export async function teamExists(n: string): Promise<boolean> {
   return !!(await get("SELECT 1 FROM teams WHERE number = ?", [Number(n)]));
 }
 
 /** The teams a run of words names: its full name exactly, or failing that one team whose name starts with those whole
  *  words ("hypnotic" for Hypnotic Robotics, 5+ letters). Several teams of one name are all returned (never one picked). */
-async function teamsNamed(ws: string[]): Promise<string[]> {
+export async function teamsNamed(ws: string[]): Promise<string[]> {
   const n = ws.join(" ");
   if (!n || /^\d+$/.test(n)) return [];
   const { byName, list } = await teamNames();
