@@ -1,7 +1,7 @@
 // Family 7, leaderboards (the brief's "ranked list, stat plus place filter, precomputed"): teams ranked by one stored
 // season number (team_season_stats, the numbers every team page shows: never worked out here), in one state or
-// province or worldwide, capped at 25 rows. Each answer ends with a link to the same list on the Teams page (its
-// season table, filtered and sorted the same way) or on Rankings, so the rest is one click away.
+// province or worldwide, capped at 25 rows. An OPR list ends with a link to the same list on the Teams page (its
+// season table, filtered and sorted the same way; its OPRs are these), a rating list with one to Rankings.
 // The rules every answer below states:
 //   A team is ranked once it has played 3 matches that season (as Rankings), and only teams with a team page.
 //   Win rate: wins over matches played (ties count as played).
@@ -21,16 +21,17 @@ import { teamHref } from "../matchSet.js";
 
 export const LEADERBOARD_MAX = 25;
 
-/** A stat a leaderboard ranks by: its stored column (or expression), its words, and the Teams page's sort key. */
+/** A stat a leaderboard ranks by: its stored column (or expression), its words, and the Teams page's sort key: only
+ *  where that table shows the same number (its OPRs; its wins and averages count qualification matches only). */
 export interface BoardStat { id: string; label: string; sql: string; unit: string; teamsSort: string | null; digits: number }
 export const BOARD_STATS: Record<string, BoardStat> = {
   opr: { id: "opr", label: "OPR", sql: "s.opr_np", unit: "", teamsSort: "totalPointsNpOpr", digits: 1 },
   auto: { id: "auto", label: "Auto OPR", sql: "s.opr_auto", unit: "", teamsSort: "autoPointsOpr", digits: 1 },
   teleop: { id: "teleop", label: "TeleOp OPR", sql: "s.opr_teleop", unit: "", teamsSort: "dcPointsOpr", digits: 1 },
   endgame: { id: "endgame", label: "Endgame OPR", sql: "s.opr_endgame", unit: "", teamsSort: "endgamePointsOpr", digits: 1 },
-  "win-rate": { id: "win-rate", label: "Win rate", sql: "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))", unit: "%", teamsSort: "wins", digits: 0 },
-  wins: { id: "wins", label: "Wins", sql: "s.wins", unit: "", teamsSort: "wins", digits: 0 },
-  "avg-score": { id: "avg-score", label: "Average score", sql: "s.avg_np", unit: "", teamsSort: "totalPointsNpAvg", digits: 1 },
+  "win-rate": { id: "win-rate", label: "Win rate", sql: "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))", unit: "%", teamsSort: null, digits: 0 },
+  wins: { id: "wins", label: "Wins", sql: "s.wins", unit: "", teamsSort: null, digits: 0 },
+  "avg-score": { id: "avg-score", label: "Average score", sql: "s.avg_np", unit: "", teamsSort: null, digits: 1 },
   rating: { id: "rating", label: "Prediction rating", sql: "s.rating_np", unit: "", teamsSort: null, digits: 1 },
 };
 
@@ -73,7 +74,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
      ORDER BY v DESC, s.wins DESC, s.team LIMIT ?`,
     [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : []), b.n]);
   const title = rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
-  const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : rankingsHref(season, b.region);
+  const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" ? rankingsHref(season, b.region) : null;
   const definition = `${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength." : ""}${why}`;
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers`, ...(href ? { more: { label: st.teamsSort ? "View more on the Teams page" : "View more on Rankings", href } } : {}) };
   if (!rows.length) return { ...base, blocks: [], none: `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };

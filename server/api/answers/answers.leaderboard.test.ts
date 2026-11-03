@@ -54,6 +54,8 @@ describe("the lists", () => {
   it("win rate, rookies, the most improved by standing", async () => {
     const w = await searchAnswer("Top teams by win rate in New Jersey", { limit: 25 });
     expect(w.stat!.headline).toMatchObject({ value: "31814 Quantum Core", label: "Win rate 83%, 20-4-0 · Hillsborough" });
+    // The Teams table counts qualification matches only: no link to a list that would differ.
+    expect(w.stat!.more).toBeUndefined();
     const r = await searchAnswer("Best rookie team in New Jersey", { limit: 25 });
     expect(r.stat!.headline).toMatchObject({ value: "31814 Quantum Core" });
     expect(r.stat!.more!.href).toContain("filter=and-qualMatchesPlayed.gte.3+rookieYear.eq.2025-");
