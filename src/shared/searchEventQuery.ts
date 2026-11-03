@@ -11,8 +11,10 @@
 //     ("in Oradell", "at River Dell High School").
 //   - Time (src/shared/searchQuery.ts TIME_WORDS) is a date window (timeWindow).
 //   - Year: "2024" means events held in calendar 2024 (a 2024 Houston championship belongs to the 2023–24 season);
-//     "2023-24" means that season. No year: the current season.
-import { findRegions, isRegionCode, regionLabel, type Region } from "./regions.js";
+//     "2023-24" means that season. No year: the current season, except championships (one a season): every season.
+//   - A near-miss of a place's full name ("new jesey") is that place, said as read ("New Jersey (from "new jesey")").
+//   - "states", "state champs" or "champs" with a place is its championship ("nj states").
+import { findRegions, isRegionCode, nearRegion, regionLabel, type Region } from "./regions.js";
 import { QUESTION_WORDS, STOPWORDS, isQuestionForm, singularize, timePhrase } from "./searchQuery.js";
 
 /** Words that ask something of events rather than name them. */
@@ -25,12 +27,13 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
   meet: ["LeagueMeet"], league: ["LeagueMeet", "LeagueTournament"], tournament: ["LeagueTournament"],
   championship: ["Championship", "FIRSTChampionship"], qualifier: ["Qualifier", "SuperQualifier"],
   scrimmage: ["Scrimmage", "PracticeDay"], kickoff: ["Kickoff"], premier: ["Premier"],
+  champ: ["Championship", "FIRSTChampionship"], champs: ["Championship", "FIRSTChampionship"],
   event: null, competition: null, comp: null,
 };
 
 /** How an event word reads in a label ("League meets in New Jersey"). */
 const EVENT_LABEL: Record<string, string> = {
-  meet: "League meets", league: "League events", tournament: "League tournaments", championship: "Championships",
+  meet: "League meets", league: "League events", tournament: "League tournaments", championship: "Championships", champ: "Championships", champs: "Championships",
   qualifier: "Qualifiers", scrimmage: "Scrimmages", kickoff: "Kickoffs", premier: "Premier events",
   event: "Events", competition: "Events", comp: "Events",
 };
@@ -62,6 +65,10 @@ export interface EventQuery {
   where: string | null;
   /** Other words: each must be in the event's name, city, venue or code ("Edison Division", "Houston"). */
   words: string[];
+  /** The words typed for the region when they were a near miss of its name ("new jesey"). */
+  regionTyped?: string;
+  /** Every season, newest first: a championship asked for with no year, season or time. */
+  allSeasons?: boolean;
 }
 
 /** The region `ws` (whole words) names exactly, if any. A two-letter code that's also a word counts only in capitals. */
@@ -106,7 +113,12 @@ export function readEventQuery(raw: string): EventQuery | null {
   const tokens = q.split(" ").filter(Boolean);
   const kinds: string[] = [], rest: string[] = [];
   for (const w of tokens) (Object.hasOwn(EVENT_TYPES, w.toLowerCase()) ? kinds : rest).push(w);
-  let region: Region | null = null;
+  // "states" with a place is its championship ("nj states", "states in new jesey"), read before the place so a near
+  // miss of it is tried too; never corrected to "stats". Without a place it names nothing (dropped below).
+  // Beside a generic event word too ("NJ states events").
+  const statesOnly = kinds.every((k) => EVENT_TYPES[k.toLowerCase()] === null) && /(?:^|\s)states(?=\s|$)/i.test(raw) && !/united\s+states/i.test(raw);
+  if (statesOnly) kinds.push("championship");
+  let region: Region | null = null, regionTyped: string | undefined;
   const where: string[] = [], words: string[] = [];
   for (let i = 0; i < rest.length;) {
     if (PLACE_MARKERS.has(rest[i].toLowerCase()) && i + 1 < rest.length) {
@@ -120,6 +132,8 @@ export function readEventQuery(raw: string): EventQuery | null {
       // what's left of the segment, little words out, is a city or venue.
       let n = Math.min(full.length, 5), r: Region | null = null;
       for (; n >= 1; n--) if ((r = regionOf(full.slice(0, n)))) break;
+      // A near miss of a place's full name ("meets in new jersy"), when the query names a kind of event.
+      if (!r && !region && kinds.length) for (n = Math.min(full.length, 4); n >= 1; n--) if ((r = nearRegion(full.slice(0, n).join(" ")))) { regionTyped = full.slice(0, n).join(" ").toLowerCase(); break; }
       const tail = (k: number) => full.slice(k).filter((x) => !STOPWORDS.has(x.toLowerCase()));
       if (r && !region) { region = r; if (tail(n).length) where.push(tail(n).join(" ")); } else if (tail(0).length) where.push(tail(0).join(" "));
       i = j;
@@ -130,16 +144,26 @@ export function readEventQuery(raw: string): EventQuery | null {
     const r = regionOf(words.slice(a, a + n));
     if (r) { region = r; words.splice(a, n); break; }
   }
+  // A near miss of a place's full name ("new jesey states"), when the query names a kind of event.
+  for (let a = 0; !region && kinds.length && a < words.length; a++) for (let n = Math.min(4, words.length - a); n >= 1; n--) {
+    const r = nearRegion(words.slice(a, a + n).join(" "));
+    if (r) { region = r; regionTyped = words.slice(a, a + n).join(" ").toLowerCase(); words.splice(a, n); break; }
+  }
   // "state" beside a region says nothing more: "NJ state championship" is New Jersey's championship.
   // "next" before an event word means upcoming ("when is the next meet in NJ"); a question's own words name nothing.
   if (!time && kinds.length && words.some((w) => /^next$/i.test(w))) time = "upcoming";
-  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^states?$/i.test(w)); });
+  if (statesOnly && !region) kinds.pop();
+  const named = words.filter((w) => { const l = w.toLowerCase(); return !STOPWORDS.has(l) && !QUESTION_WORDS.has(l) && !FRAME_WORDS.has(l) && !(region && /^(?:states?|champs?)$/i.test(w)); });
   // A question about the events ("who will win the NJ championship", "who won Inspire at …") or an action word
   // ("winner", "advance") asks something of them, read elsewhere: not the set of events itself.
   if (named.some((w) => ASKS.has(w.toLowerCase())) || (named.length && isQuestionForm(raw))) return null;
   const scoped = !!(time || year != null || season != null || region || where.length);
   if (!(kinds.length && scoped) && !(time && (region || where.length))) return null;
-  return { kinds: [...new Set(kinds.map((k) => k.toLowerCase()))], time, year, season, region, where: where.join(" ") || null, words: named };
+  const ks = [...new Set(kinds.map((k) => (/^champs?$/i.test(k) ? "championship" : k.toLowerCase())))];
+  // Championships (one a season) by the types the words mean: "championship events in NJ" is still championships.
+  const types = eventTypesOf(ks);
+  const allSeasons = !!types && types.every((t) => t === "Championship" || t === "FIRSTChampionship") && !time && year == null && season == null;
+  return { kinds: ks, time, year, season, region, where: where.join(" ") || null, words: named, ...(regionTyped ? { regionTyped } : {}), ...(allSeasons ? { allSeasons } : {}) };
 }
 
 const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: string) => a + c.toUpperCase());
@@ -158,9 +182,9 @@ export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; cit
   const time = e.time && !drop.has("time") ? TIME_LABEL[e.time] : null;
   const what = time ? `${time} ${kind.toLowerCase()}` : kind;
   const words = e.words.length ? ` matching "${e.words.join(" ")}"` : "";
-  const place = e.region ? ` in ${e.region.name}` : "";
+  const place = e.region ? ` in ${e.region.name}${e.regionTyped ? ` (from "${e.regionTyped}")` : ""}` : "";
   const where = e.where && !drop.has("where") ? (opts.where ? ` ${opts.where.city ? "in" : "at"} ${opts.where.text}` : ` at ${titleCase(e.where)}`) : "";
-  const when = e.season != null ? `, ${opts.seasonLabel ? opts.seasonLabel(e.season) : e.season}` : e.year != null ? ` held in ${e.year}` : "";
+  const when = e.season != null ? `, ${opts.seasonLabel ? opts.seasonLabel(e.season) : e.season}` : e.year != null ? ` held in ${e.year}` : e.allSeasons ? ", every season" : "";
   return `${what}${words}${place}${where}${when}`;
 }
 

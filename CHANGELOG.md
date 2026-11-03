@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.9 — 2026-11-03
+## 2.5.1 — 2026-11-03
 
 FTC One Search answers questions about one event, a team's awards and who won: a team's results at an event, its event wins, and the winning alliance of an event or of Worlds.
 
@@ -31,7 +31,7 @@ FTC One Search answers questions about one event, a team's awards and who won: a
 - **Winning alliances.** An event's winning alliance is the alliance that won its final match, with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
 - **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
 
-## 2.4.8 — 2026-11-03
+## 2.5.0 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
 
@@ -45,6 +45,33 @@ FTC One Search answers questions about a team's matches: its best score at World
 - **Stat answers.** A question about one team's matches, events or seasons gets its answer at the top of the results: the number asked for, then the matches, a win-loss bar, tables by season and charts. It works for any team and any of these scopes: Worlds ("at worlds"), state championships ("at states"), a season ("2024-25", "this season", a game's name like "into the deep"), every season ("ever"), playoffs or quals, and red or blue. Questions it answers: highest and lowest score, which event it scored highest at, biggest win and loss, closest match, first and most recent match, match wins, record, record by alliance colour, matches played, average score, current and longest win streak, last N matches, blowout wins, losses, playoff and qualification matches, playoff appearances, best and worst event finish, first and most recent event, best OPR event, events played, average event rank, seasons played, first season, best season and most improved season.
 - **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Each season is a different game, so an every-season best also lists the best of each season. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
 - **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
+## 2.4.9 — 2026-11-03
+
+FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
+
+### Highlights
+- [home] New example search: "Top teams in NJ" opens New Jersey's leaderboard
+- [home] New example search: "Highest OPR" lists this season's top OPRs
+- [home] Examples cover places, comparisons, questions, records and leaderboards
+
+### Search
+- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. On Home, "Top teams in NJ" carries a Rankings tag. (#452)
+
+## 2.4.8 — 2026-11-03
+
+FTC One Search reads a misspelled place, and "states" as a state's championship, across every season.
+
+### Highlights
+- [fixes] "new jesey states" finds New Jersey's championships, not a guess
+- [history] A state's championships list every season, newest first
+- [fixes] "NJ states" means the state championship, never "stats"
+
+### Search
+- **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name ("new jesey", "pensylvania", "meets in new jersy") is read as that place. The line above the results says so: "Championships in New Jersey (from "new jesey")". It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
+- **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
+- **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). Divisions are listed with their championship. When there are more than a page holds, the newest come first, the line says how many there are in all, and a link opens the full list on Events. A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
+- **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
 
 ## 2.4.7 — 2026-11-03
 
