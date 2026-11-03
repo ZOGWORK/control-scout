@@ -230,3 +230,39 @@ describe("Greptile on #440, round 3", () => {
     expect(hrefs(a)).toContain(`/predict?mode=advancement&season=${CURRENT_SEASON}&team=23268`);
   });
 });
+
+describe("who won an event (owner: \"who won nj states\")", () => {
+  // Today is after every finished event in this fixture; next season's NJ Championship (2027) isn't held yet.
+  beforeAll(async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJCMPPKWY', 'New Jersey Championship - Parkway Division', 'Championship', 'Union', 'NJ', 'USA', '2026-03-14', '2026-03-14', 't')", [S]);
+    await run(`INSERT INTO awards (season, code, type, placement, team, name) VALUES
+      (?, 'USNJCMP', 'Winner', 1, 23268, 'Winning Alliance - Captain'), (?, 'USNJCMP', 'Winner', 2, 6980, 'Winning Alliance - 1st Team Selected'),
+      (?, 'USNJCMP', 'Finalist', 1, 4215, 'Finalist Alliance - Captain')`, [S, S, S]);
+    await rebuildSearch();
+  });
+  it("reads 'who won' an event or a place's states, never 'won' as a name word; an award stays an award", () => {
+    expect(readAsk("who won nj states")).toEqual({ kind: "event-won", event: "nj states" });
+    expect(readAsk("who won the new jersey championship")).toEqual({ kind: "event-won", event: "new jersey championship" });
+    expect(readAsk("winners of nj states")).toEqual({ kind: "event-won", event: "nj states" });
+    expect(readAsk("who won inspire at new jersey championship")).toMatchObject({ kind: "award" });
+    expect(readAsk("who won inspire")).toBeNull();
+  });
+  it("answers the newest finished championship: its winning alliance, then the Inspire Award", async () => {
+    for (const q of ["who won nj states", "who won new jesey states", "who won the New Jersey Championship"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.hits[0], q).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "playoffs" });
+      expect(a.card?.title, q).toBe("Who won · New Jersey Championship · 2025–26");
+      expect(a.card?.lines.map((l) => `${l.text} [${l.results.join()}]`), q).toEqual([
+        "23268 Ultraviolet [Winning Alliance - Captain]", "6980 Bad Wolf [Winning Alliance - 1st Team Selected]", "23268 Ultraviolet [Inspire Award]",
+      ]);
+      expect(a.understood?.label, q).toBe("Who won New Jersey Championship (2025–26): the winning alliance and the Inspire Award");
+    }
+  });
+  it("an event with no results recorded says so plainly", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNYCMP', 'New York Championship', 'Championship', 'Albany', 'NY', 'USA', '2026-03-01', '2026-03-01', 't')", [S]);
+    const a = await ask("who won ny states");
+    expect(a.card?.lines).toEqual([]);
+    expect(a.card?.none).toBe("No results are recorded for New York Championship (2025–26) yet.");
+  });
+});
