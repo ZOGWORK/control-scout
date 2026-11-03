@@ -51,6 +51,8 @@ describe("season top matches", () => {
     expect(readTopMatches("top scores this season")).not.toBeNull();
     expect(readTopMatches("highest scoring matches in MA")).toMatchObject({ region: { state: "MA" } });
     expect(readTopMatches("highest scoring matches in District of Columbia")).toMatchObject({ region: { state: "DC" } });
+    expect(readTopMatches("4215 highest score in NJ")).toBeNull();
+    expect(readTopMatches("4215 highest score in District of Columbia")).toBeNull();
     expect(readTopMatches("highest scoring matches at 2024 texas qualifier")).toMatchObject({ season: 2024, event: "texas qualifier" });
     expect(readTopMatches("highest combined scores in decode")).toMatchObject({ season: 2025 });
     expect(readTopMatches("top alliance scores in decode")).toMatchObject({ season: 2025 });

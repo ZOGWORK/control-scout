@@ -54,7 +54,10 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const typed = words ? words.split(" ").map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w) : [];
   // A place's whole name, its own small words kept ("in District of Columbia"), else what the filler left.
   const named = /\bin\s+((?:the\s+)?[a-z][a-z\s.]*?)\s*$/.exec(q.replace(/\b(?:ever|all[\s-]+time|of\s+all\s+time|in\s+history|this\s+(?:season|year))\b/g, " ").replace(/\s+/g, " "));
-  const region = words ? (named ? regionOf(named[1].split(" ").map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null) ?? regionOf(typed) : null;
+  // Only when the place explains every word left: "4215 highest score in NJ" is the team's question.
+  const placeWords = named ? named[1].split(" ").filter(Boolean) : [];
+  const whole = placeWords.length && words.split(" ").every((w) => placeWords.includes(w)) ? regionOf(placeWords.map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w)) : null;
+  const region = words ? whole ?? regionOf(typed) : null;
   if (words && !region) return null;
   return { season, game: hs.game, ever: ever && season == null, region, event: event || null };
 }
