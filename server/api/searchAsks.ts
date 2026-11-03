@@ -131,10 +131,11 @@ export async function eventWon(words: string, prefer: ReadonlySet<string>, now =
   const e = readEventQuery(words);
   const types = e ? eventTypesOf(e.kinds) : null;
   // A place's championship ("nj states"), with no event named beyond it: its newest finished one of the types asked
-  // ("states": the state's own, never the FIRST Championship held there), the one with the most results first.
+  // ("states": the state's own, never the FIRST Championship held there; one stored with no type, by its name), the
+  // one with the most results first.
   if (e?.region && !e.words.length && !e.where && types?.every((t) => t === "Championship" || t === "FIRSTChampionship")) {
     const rows = await all<Ev>(
-      `SELECT season, code, name, start, end, timezone FROM events ev WHERE type IN (${types.map(() => "?").join(", ")}) AND country = ? AND state = ?
+      `SELECT season, code, name, start, end, timezone FROM events ev WHERE (type IN (${types.map(() => "?").join(", ")}) OR (type IS NULL AND name LIKE '%Championship%')) AND country = ? AND state = ?
        ORDER BY season DESC, (SELECT COUNT(*) FROM awards a WHERE a.season = ev.season AND a.code = ev.code) DESC, length(code), code`,
       [...types, e.region.country, e.region.state]);
     return pick(finished(rows).filter(inScope)[0]);

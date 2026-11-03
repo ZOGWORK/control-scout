@@ -291,6 +291,10 @@ describe("Greptile on #456", () => {
   it("a division named is that division", async () => {
     expect(await won("new jersey championship parkway division")).toMatchObject({ code: "USNJCMPPKWY", season: S });
   });
+  it("a championship stored with no type is found by its name", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USORCMP', 'Oregon Championship', NULL, 'Portland', 'OR', 'USA', '2026-02-01', '2026-02-01', 't'), (2024, 'USOROLD', 'Oregon Qualifier', 'Championship', 'Salem', 'OR', 'USA', '2025-02-01', '2025-02-01', 't')", [S]);
+    expect(await won("OR states")).toMatchObject({ code: "USORCMP", season: S });
+  });
   it("an event on its last day at its venue isn't finished yet", async () => {
     // 2026-11-03 02:00 UTC is still Nov 2 in Los Angeles.
     expect(await won("CA states", Date.parse("2026-11-03T02:00:00Z"))).toBeNull();
