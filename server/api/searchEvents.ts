@@ -11,7 +11,7 @@
 import type { SearchAnswer, SearchEventInfo, SearchHit, SearchUnderstood } from "../../src/shared/api.js";
 import { eventSetLabel, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { STOPWORDS } from "../../src/shared/searchQuery.js";
-import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
+import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, pagesFor } from "../../src/shared/search.js";
 import { eventStatus } from "../../src/shared/eventDay.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
@@ -94,8 +94,9 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     const qs = e.words.flatMap((w) => words(w));
     rows = rows.filter((r) => allIn(qs, `${r.name} ${r.city ?? ""} ${r.venue ?? ""} ${r.code}`));
   }
-  // Every season: newest season first, each season's events in date order.
-  if (e.allSeasons) return rows.sort((a, b) => Number(b.season) - Number(a.season) || (a.start ?? "").localeCompare(b.start ?? "") || a.code.localeCompare(b.code));
+  // Every season: newest season first, each season's events in date order. A division (USNJCMPPKWY) goes with its
+  // championship (USNJCMP) when that's listed: one row a championship, so more seasons fit.
+  if (e.allSeasons) return rows.filter((d) => !rows.some((m) => m.season === d.season && d.code.length > m.code.length && d.code.startsWith(m.code) && /^[A-Z]+$/.test(d.code.slice(m.code.length)))).sort((a, b) => Number(b.season) - Number(a.season) || (a.start ?? "").localeCompare(b.start ?? "") || a.code.localeCompare(b.code));
   return chronological(rows, now, dayAt);
 }
 
@@ -142,9 +143,14 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     ...(window ? { window } : {}), ...(eventTypesOf(e.kinds) ? { eventTypes: eventTypesOf(e.kinds)! } : {}),
   };
   const place = e.region ? await placeHit(e.region) : null;
+  // Every season but more than a page holds: the newest shown, said so, and the rest one click away on Events.
+  const room = SEARCH_PAGE_LIMIT - (place ? 1 : 0);
+  const more = (rows: Row[]) => (e.allSeasons && rows.length > room ? rows.length : 0);
   const done = (rows: Row[], understood: SearchUnderstood): SearchAnswer => ({
-    q, hits: [...(place ? [place] : []), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])], pages: pagesFor(q), step: "deterministic", weak: false,
-    understood: { ...understood, total: rows.length },
+    q, hits: [...(place ? [place] : []), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])],
+    pages: more(rows) && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
+    step: "deterministic", weak: false,
+    understood: { ...understood, ...(more(rows) ? { label: `${understood.label}, newest ${room} of ${rows.length} shown` } : {}), total: rows.length },
   });
 
   const rows = await rowsFor(e, now);
