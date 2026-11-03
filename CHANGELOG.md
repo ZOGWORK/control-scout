@@ -21,7 +21,7 @@ FTC One Search answers more questions: who's on top in a state, who leads a stat
 
 ### Highlights
 - [rankings] "What is the best FTC team right now" shows the world's top five
-- [rankings] "Top teams in New Jersey" shows the state's top five, with OPR on team rows
+- [rankings] "Top teams in New Jersey" shows its top five; team rows show OPR
 - [rankings] "Highest OPR", "best auto team" and "most wins" list the leaders
 - [predict] "Will 4215 win their next match?" opens Predict on its matches
 - [history] "Who won Inspire at …" names the winners from the event's results
