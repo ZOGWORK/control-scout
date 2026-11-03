@@ -1,6 +1,6 @@
 // A search answer's team table (./teamTable.ts): its sorts and a stat leaderboard read as the same table.
 import { describe, expect, it } from "vitest";
-import { TEAM_COLUMNS, firstDir, hasPhases, sortTeamRows, teamTableOfLeaderboard, type TeamTableRow } from "./teamTable";
+import { TEAM_COLUMNS, firstDir, hasPhases, sortTeamRows, teamColumns, teamTableOfLeaderboard, type TeamTableRow } from "./teamTable";
 
 const row = (rank: number, team: number, opr: number | null, auto: number | null, w: number, l: number, t = 0, pen: number | null = 5): TeamTableRow => ({
   rank, team, name: `Team ${team}`, location: null, href: `/teams/${team}`, opr, auto, dc: opr == null ? null : opr / 2, endgame: 10, pen, wins: w, losses: l, ties: t,
@@ -37,7 +37,9 @@ describe("sortTeamRows", () => {
 
 describe("the columns", () => {
   it("every definition fits on one line", () => {
-    for (const c of TEAM_COLUMNS) expect(c.def.length, c.key).toBeLessThanOrEqual(90);
+    for (const c of [...TEAM_COLUMNS, ...teamColumns(true)]) expect(c.def.length, c.key).toBeLessThanOrEqual(90);
+    // A season whose TeleOp includes the endgame names the column TeleOp, never DC.
+    expect(teamColumns(true).find((c) => c.key === "dc")?.label).toBe("TeleOp");
   });
   it("hasPhases: a season with no phase numbers draws no phase columns", () => {
     expect(hasPhases(ROWS)).toBe(true);

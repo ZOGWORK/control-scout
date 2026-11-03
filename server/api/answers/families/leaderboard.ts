@@ -17,6 +17,7 @@ import { countryOf } from "../../../../src/shared/countries.js";
 import type { Region } from "../../../../src/shared/regions.js";
 import { all, get } from "../../../db.js";
 import { defaultRankingsSeason } from "../../rankings.js";
+import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { teamHref } from "../matchSet.js";
 
 export const LEADERBOARD_MAX = 25;
@@ -88,6 +89,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const num = (v: number | null) => (v == null ? null : Number(v));
   const board: StatBlock = {
     kind: "leaderboard", title: rookie ? `Rookie teams by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
+    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
     note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}`,
     rows: rows.map((r, i) => ({
       rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },

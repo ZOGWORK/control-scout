@@ -1,25 +1,27 @@
 // A search answer's list of teams as one table (src/shared/teamTable.ts): a row per team with its season OPR (a bar
-// behind it, scaled to the best OPR listed), the OPR's phases with a stacked bar of them, the penalties it gives away
+// under it, scaled to the best OPR listed), the OPR's phases with a stacked bar of them, the penalties it gives away
 // and its record. The OPR, phase and record headers re-sort the rows already sent; nothing is fetched or worked out.
 // On a phone the rank, team, OPR and record stay in the row, and the phases open under it on a tap.
 import { Fragment, useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
-import { PHASE_NOTE, TEAM_COLUMNS, firstDir, hasPhases, sortTeamRows, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
+import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
 
 const oneDp = (v: number | null) => (v == null ? "–" : (Math.round(v * 10) / 10).toFixed(1));
 const record = (r: TeamTableRow) => `${r.wins}-${r.losses}-${r.ties}`;
-const def = (k: TeamSortKey) => TEAM_COLUMNS.find((c) => c.key === k)?.def;
 
 /** The phases, in the order every row stacks them, with their colours (the team page's: auto sky, TeleOp emerald,
- *  endgame violet). Penalties are points given away, so they stand apart at the end of the bar. */
-export const PHASE_SEGMENTS = [
-  { key: "auto", label: "Auto", tone: "bg-chart-2" },
-  { key: "dc", label: "DC", tone: "bg-chart-3" },
-  { key: "endgame", label: "Endgame", tone: "bg-chart-4" },
-  { key: "pen", label: "Pen (given away)", tone: "bg-danger/70" },
-] as const;
+ *  endgame violet). Penalties are points given away, so they stand apart at the end of the bar. `withEndgame`: the
+ *  season's TeleOp includes the endgame, so it's named TeleOp and the bar leaves the endgame out (never drawn twice). */
+export function phaseSegments(withEndgame = false) {
+  return [
+    { key: "auto", label: "Auto", tone: "bg-chart-2", drawn: true },
+    { key: "dc", label: withEndgame ? "TeleOp" : "DC", tone: "bg-chart-3", drawn: true },
+    { key: "endgame", label: "Endgame", tone: "bg-chart-4", drawn: !withEndgame },
+    { key: "pen", label: "Pen (given away)", tone: "bg-danger/70", drawn: true },
+  ] as const;
+}
 
 type Sort = { key: TeamSortKey; dir: "asc" | "desc" };
 
@@ -29,10 +31,15 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   const id = useId();
   const rows = useMemo(() => sortTeamRows(table.rows, sort.key, sort.dir), [table.rows, sort]);
   const phases = hasPhases(table.rows);
-  // The OPR bars scale to the best OPR listed; the phase bars to the biggest phase total listed (never the OPR).
+  const withEndgame = !!table.teleopWithEndgame;
+  const columns = teamColumns(withEndgame);
+  const def = (k: TeamSortKey) => columns.find((c) => c.key === k)?.def;
+  const segments = phaseSegments(withEndgame);
+  const drawn = segments.filter((p) => p.drawn);
+  // The OPR bars scale to the best OPR listed; the phase bars to the biggest drawn phase total listed (never the OPR).
   const oprMax = Math.max(1e-9, ...table.rows.map((r) => r.opr ?? 0));
   const pos = (v: number | null) => Math.max(0, v ?? 0);
-  const phaseMax = Math.max(1e-9, ...table.rows.map((r) => pos(r.auto) + pos(r.dc) + pos(r.endgame) + pos(r.pen)));
+  const phaseMax = Math.max(1e-9, ...table.rows.map((r) => drawn.reduce((t, p) => t + pos(r[p.key]), 0)));
   const onSort = (key: TeamSortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: firstDir(key) }));
   const toggle = (team: number) => setOpen((o) => { const n = new Set(o); if (n.has(team)) n.delete(team); else n.add(team); return n; });
 
@@ -48,9 +55,10 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
       </th>
     );
   };
+  // A negative OPR (a fit below zero) gets no segment, and the bar's label says so rather than reading it as zero.
   const bar = (r: TeamTableRow, wide?: boolean) => (
-    <span role="img" aria-label={PHASE_SEGMENTS.map((p) => `${p.label} ${oneDp(r[p.key])}`).join(", ")} className={cn("flex h-2 items-center gap-px", wide ? "w-full" : "w-28")} data-phase-bar>
-      {PHASE_SEGMENTS.map((p) => (
+    <span role="img" aria-label={drawn.map((p) => `${p.label} ${oneDp(r[p.key])}${(r[p.key] ?? 0) < 0 ? " (below zero, not drawn)" : ""}`).join(", ")} className={cn("flex h-2 items-center gap-px", wide ? "w-full" : "w-28")} data-phase-bar>
+      {drawn.map((p) => (
         <span key={p.key} className={cn("h-full first:rounded-l-sm last:rounded-r-sm", p.tone, p.key === "pen" && pos(r.pen) > 0 && "ml-1 rounded-sm")} style={{ width: `${(pos(r[p.key]) / phaseMax) * 100}%` }} />
       ))}
     </span>
@@ -72,7 +80,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
               {sortTh("opr", "OPR", "md:w-28")}
               {phases && <>
                 {sortTh("auto", "Auto", "max-md:hidden")}
-                {sortTh("dc", "DC", "max-md:hidden")}
+                {sortTh("dc", withEndgame ? "TeleOp" : "DC", "max-md:hidden")}
                 {sortTh("endgame", "Endgame", "max-md:hidden")}
                 {sortTh("pen", "Pen", "max-md:hidden")}
               </>}
@@ -95,7 +103,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                         : <span className="text-xs text-muted-foreground">{r.rank}</span>}
                     </td>
                     <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
-                      <Link to={r.href} className="line-clamp-2 break-words font-medium md:block md:truncate text-foreground hover:text-accent-text hover:underline"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
+                      <Link to={r.href} className="line-clamp-2 break-words font-medium text-foreground hover:text-accent-text hover:underline md:block md:truncate"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
                       {r.location && <span className="block truncate text-[11px] text-muted-foreground">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
@@ -124,9 +132,9 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     <tr id={more} hidden={!isOpen} className="md:hidden" data-phases-row={r.team}>
                       <td colSpan={cols} className="px-3 pb-2.5 pt-0.5">
                         <dl className="grid grid-cols-4 gap-1 text-[11px]">
-                          {PHASE_SEGMENTS.map((p) => (
+                          {segments.map((p) => (
                             <div key={p.key}>
-                              <dt className="flex items-center gap-1 text-muted-foreground"><span className={cn("size-2 rounded-sm", p.tone)} aria-hidden />{p.key === "pen" ? "Pen" : p.label}</dt>
+                              <dt className="flex items-center gap-1 text-muted-foreground"><span className={cn("size-2 rounded-sm", p.drawn ? p.tone : "bg-muted-foreground/40")} aria-hidden />{p.key === "pen" ? "Pen" : p.label}</dt>
                               <dd className="font-medium tabular-nums text-foreground">{oneDp(r[p.key])}</dd>
                             </div>
                           ))}
@@ -144,15 +152,15 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
       {phases && (
         <figcaption className="mt-1.5 space-y-1 text-[11px] text-muted-foreground" data-legend>
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {PHASE_SEGMENTS.map((p) => <span key={p.key} className="inline-flex items-center gap-1"><span className={cn("size-2 rounded-sm", p.tone)} aria-hidden />{p.label}</span>)}
+            {drawn.map((p) => <span key={p.key} className="inline-flex items-center gap-1"><span className={cn("size-2 rounded-sm", p.tone)} aria-hidden />{p.label}</span>)}
           </span>
-          <span className="block" data-phase-note>{PHASE_NOTE}</span>
+          <span className="block" data-phase-note>{phaseNote(withEndgame)}</span>
         </figcaption>
       )}
       <details className="mt-1 text-[11px] text-muted-foreground" data-column-defs>
         <summary className="cursor-pointer select-none hover:text-foreground">What the columns mean</summary>
         <dl className="mt-1 space-y-0.5">
-          {TEAM_COLUMNS.filter((c) => phases || !["auto", "dc", "endgame", "pen"].includes(c.key)).map((c) => (
+          {columns.filter((c) => phases || !["auto", "dc", "endgame", "pen"].includes(c.key)).map((c) => (
             <div key={c.key} className="flex gap-1.5"><dt className="w-14 shrink-0 font-medium text-foreground">{c.label}</dt><dd>{c.def}</dd></div>
           ))}
         </dl>

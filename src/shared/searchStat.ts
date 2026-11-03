@@ -59,7 +59,9 @@ export type StatBlock =
   | { kind: "bars"; title: string; groups: { label: string; items: { label: string; value: number | null; tone?: "a" | "b" | "c" | "d" }[] }[]; unit?: string }
   /** Teams ranked by one season number: each row's bar is the asked stat scaled to #1, with an OPR's auto, TeleOp and
    *  endgame split stacked in it. `note`: the season, how many teams are ranked and by what. */
-  | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink }
+  | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink;
+      /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
+      teleopWithEndgame?: boolean }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */

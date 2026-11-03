@@ -193,6 +193,8 @@ describe("a list of teams as a table", () => {
     const a = (await placeTeamsAnswer("teams in new jersey", new Set()))!;
     const t = a.card!.table!;
     expect(t.by).toBe("opr");
+    // From 2024–25 on the stored TeleOp OPR includes the endgame (as FIRST reports it): said so, never called DC.
+    expect(t.teleopWithEndgame).toBe(true);
     expect(t.rows.map((r) => r.team)).toEqual(a.card!.lines.map((l) => Number(l.text.split(" ")[0])));
     expect(t.rows[0]).toMatchObject({ rank: 1, team: 23268, name: "Ultraviolet", location: "Hackettstown, NJ", href: `/teams/23268?season=${S}`, opr: 157.9, auto: 39.475, dc: 78.95, endgame: 10, pen: 2.5, wins: 33, losses: 17, ties: 0 });
     // The header context line is the same as before.
@@ -213,7 +215,7 @@ describe("a list of teams as a table", () => {
   it("the first paint carries the whole table, no script needed", async () => {
     const m = await pageMeta("/search", { q: "teams in new jersey" });
     const html = m.bodyHtml ?? "";
-    expect(html).toMatch(/<table aria-label="Teams in New Jersey · best by OPR, [^"]+"><thead><tr><th scope="col">#<\/th><th scope="col">Team<\/th><th scope="col" title="[^"]+">OPR<\/th><th scope="col" title="[^"]+">Auto<\/th><th scope="col" title="[^"]+">DC<\/th><th scope="col" title="[^"]+">Endgame<\/th><th scope="col" title="[^"]+">Pen<\/th><th scope="col" title="[^"]+">W-L-T<\/th><\/tr><\/thead>/);
+    expect(html).toMatch(/<table aria-label="Teams in New Jersey · best by OPR, [^"]+"><thead><tr><th scope="col">#<\/th><th scope="col">Team<\/th><th scope="col" title="[^"]+">OPR<\/th><th scope="col" title="[^"]+">Auto<\/th><th scope="col" title="Driver-controlled OPR, endgame included[^"]+">TeleOp<\/th><th scope="col" title="[^"]+">Endgame<\/th><th scope="col" title="[^"]+">Pen<\/th><th scope="col" title="[^"]+">W-L-T<\/th><\/tr><\/thead>/);
     expect(html).toContain(`<tr><td>1</td><td><a href="/teams/23268?season=${S}">23268 Ultraviolet</a><br><small>Hackettstown, NJ</small></td><td>157.9</td><td>39.5</td><td>79.0</td><td>10.0</td><td>2.5</td><td>33-17-0</td></tr>`);
     expect(html).toContain("don't add up to the OPR");
   });

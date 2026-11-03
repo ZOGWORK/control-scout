@@ -505,7 +505,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const title = `Highest win rate${p ? ` in ${p.name}` : ""} · ${seasonLabel(season)}`;
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `${Math.round(Number(r.rate) * 100)}% wins`, `${r.wins}-${r.losses}-${r.ties}`, `OPR ${fmt1(r.opr_np)}`], season));
     return card(title, lines, `No team${p ? ` in ${p.name}` : ""} has ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: wins over matches played (a tie counts half), ${RANKED_MIN_MATCHES}+ matches`,
-      { by: "rank", asked: { label: "Win rate" }, rows: rows.map((r, i) => tableRow(r, i + 1, season, { value: Number(r.rate), display: `${Math.round(Number(r.rate) * 100)}%` })) });
+      tableOf(rows.map((r, i) => tableRow(r, i + 1, season, { value: Number(r.rate), display: `${Math.round(Number(r.rate) * 100)}%` })), season, "rank", { label: "Win rate" }, true));
   }
   // Most improved: the biggest rise in OPR standing (rank among the season's ranked teams, as a share) from the season
   // before, never raw OPR across seasons (each game scores on its own scale).
@@ -525,7 +525,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
     const title = `Most improved${p ? ` in ${p.name}` : ""} · ${seasonLabel(season - 1)} → ${seasonLabel(season)}`;
     const lines = rows.map((r, i) => lineOf(r, [`#${i + 1}`, `${pct(r.was.share)} → ${pct(r.share)}`, `OPR rank ${r.was.rank} → ${r.rank}`, `${r.wins}-${r.losses}-${r.ties}`], season));
     return card(title, lines, `No team${p ? ` in ${p.name}` : ""} ranked in both ${seasonLabel(season - 1)} and ${seasonLabel(season)}.`, [{ title: "Rankings", href: `/rankings?season=${season}` }], `${title}: the biggest rise in OPR standing (rank among each season's ranked teams), never raw OPR across seasons`,
-      { by: "rank", asked: { label: "OPR standing" }, rows: rows.map((r, i) => tableRow(r, i + 1, season, { value: r.gain, display: `${pct(r.was.share)} → ${pct(r.share)}` })) });
+      tableOf(rows.map((r, i) => tableRow(r, i + 1, season, { value: r.gain, display: `${pct(r.was.share)} → ${pct(r.share)}` })), season, "rank", { label: "OPR standing" }, true));
   }
   // The best rookies: this season's rookie teams by OPR.
   if ((m = /^(?:the\s+)?(?:best|top|strongest)(?:\s+\d+)?\s+rookies?(?:\s+teams?)?(?:\s+(?:in|from)\s+(.+?))?$/.exec(t))) {

@@ -36,21 +36,39 @@ export interface TeamTable {
   by: Exclude<TeamSortKey, "record">;
   /** The list's own column ("Win rate"), when the rows carry `asked`. */
   asked?: { label: string };
+  /** The stored TeleOp OPR includes the endgame, as FIRST reports it from 2024–25 on (server/data/seasons.ts,
+   *  teleopAsReported): the column is "TeleOp", and the phase bar leaves the endgame out so it isn't drawn twice. */
+  teleopWithEndgame?: boolean;
   rows: TeamTableRow[];
 }
 
-/** The columns' one-line definitions (header titles, the legend and the first paint's table). */
-export const TEAM_COLUMNS: { key: Exclude<TeamSortKey, "rank" | "asked">; label: string; def: string }[] = [
-  { key: "opr", label: "OPR", def: "Points added to the alliance's score, penalties left out (the team's best event)" },
-  { key: "auto", label: "Auto", def: "Autonomous OPR: the team's best at any event that season" },
-  { key: "dc", label: "DC", def: "Driver-controlled (TeleOp) OPR, endgame left out: its best that season" },
-  { key: "endgame", label: "Endgame", def: "Endgame OPR: the team's best at any event that season" },
-  { key: "pen", label: "Pen", def: "Penalty points given away a match: its lowest at any event (lower is better)" },
-  { key: "record", label: "W-L-T", def: "The season's wins, losses and ties; sorted by win share (a tie counts half)" },
-];
+export type TeamColumn = { key: Exclude<TeamSortKey, "rank" | "asked">; label: string; def: string };
 
-/** The honest note under the phase columns: each is its own best, so they never add up to the OPR. */
-export const PHASE_NOTE = "Auto, DC and Endgame are each the team's own best that season, maybe from different events, so they don't add up to the OPR. The phase bar compares phases between teams, not shares of the OPR.";
+/** The columns' one-line definitions (header titles, the legend and the first paint's table). `withEndgame`: the
+ *  season's TeleOp OPR includes the endgame (TeamTable.teleopWithEndgame). */
+export function teamColumns(withEndgame = false): TeamColumn[] {
+  return [
+    { key: "opr", label: "OPR", def: "Points added to the alliance's score, penalties left out (the team's best event)" },
+    { key: "auto", label: "Auto", def: "Autonomous OPR: the team's best at any event that season" },
+    withEndgame
+      ? { key: "dc", label: "TeleOp", def: "Driver-controlled OPR, endgame included as FIRST reports it: its best that season" }
+      : { key: "dc", label: "DC", def: "Driver-controlled (TeleOp) OPR, endgame left out: its best that season" },
+    { key: "endgame", label: "Endgame", def: withEndgame ? "Endgame OPR (also inside TeleOp): its best at any event that season" : "Endgame OPR: the team's best at any event that season" },
+    { key: "pen", label: "Pen", def: "Penalty points given away a match: its lowest at any event (lower is better)" },
+    { key: "record", label: "W-L-T", def: "The season's wins, losses and ties; sorted by win share (a tie counts half)" },
+  ];
+}
+/** The columns of a season whose TeleOp leaves the endgame out. */
+export const TEAM_COLUMNS = teamColumns();
+
+/** The honest note under the phase columns: each is its own best, so they never add up to the OPR; a negative OPR
+ *  (a fit below zero) has no segment. */
+export function phaseNote(withEndgame = false): string {
+  return withEndgame
+    ? "Auto, TeleOp and Endgame are each the team's own best that season, maybe from different events, so they don't add up to the OPR; TeleOp already includes the endgame, so the bar draws Auto, TeleOp and Pen. The bar compares phases between teams, not shares of the OPR, and a negative OPR gets no segment."
+    : "Auto, DC and Endgame are each the team's own best that season, maybe from different events, so they don't add up to the OPR. The phase bar compares phases between teams, not shares of the OPR, and a negative OPR gets no segment.";
+}
+export const PHASE_NOTE = phaseNote();
 
 /** A key's first-click direction: bigger is better, except penalties given away. */
 export const firstDir = (key: TeamSortKey): "asc" | "desc" => (key === "rank" || key === "pen" ? "asc" : "desc");
@@ -78,11 +96,12 @@ const RECORD = /^(\d+)-(\d+)-(\d+)$/;
 const TEAM_IN_HREF = /^\/teams\/(\d+)/;
 
 /** A stat leaderboard's rows (server/api/answers/families/leaderboard.ts) as the same table. */
-export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[]): TeamTable {
+export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[], teleopWithEndgame = false): TeamTable {
   const by: TeamTable["by"] = ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame" } as Record<string, TeamTable["by"]>)[statId] ?? "rank";
   return {
     by,
     ...(by === "rank" ? { asked: { label: statLabel } } : {}),
+    ...(teleopWithEndgame ? { teleopWithEndgame: true } : {}),
     rows: rows.map((r) => {
       const rec = RECORD.exec(r.record);
       const number = Number(TEAM_IN_HREF.exec(r.team.href)?.[1] ?? r.team.label.split(" ")[0]);

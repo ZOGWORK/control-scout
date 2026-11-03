@@ -37,7 +37,7 @@ import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref } from "../src/shared/search.js";
-import { PHASE_NOTE, TEAM_COLUMNS, hasPhases, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
+import { hasPhases, phaseNote, teamColumns, teamTableOfLeaderboard, type TeamTable } from "../src/shared/teamTable.js";
 import { badgeUnder, contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
@@ -518,14 +518,15 @@ const dp1 = (v: number | null) => (v == null ? "–" : (Math.round(v * 10) / 10)
  *  column, in the list's own order, so the first paint answers the question without the app. */
 export function teamTableHtml(t: TeamTable, label: string): string {
   const ph = hasPhases(t.rows);
-  const def = (k: string) => TEAM_COLUMNS.find((c) => c.key === k)?.def ?? "";
+  const columns = teamColumns(!!t.teleopWithEndgame);
+  const def = (k: string) => columns.find((c) => c.key === k)?.def ?? "";
   const cols: [string, string][] = [["#", ""], ["Team", ""], ...(t.asked ? [[t.asked.label, ""] as [string, string]] : []), ["OPR", def("opr")],
-    ...(ph ? (["auto", "dc", "endgame", "pen"] as const).map((k) => [TEAM_COLUMNS.find((c) => c.key === k)!.label, def(k)] as [string, string]) : []), ["W-L-T", def("record")]];
+    ...(ph ? (["auto", "dc", "endgame", "pen"] as const).map((k) => [columns.find((c) => c.key === k)!.label, def(k)] as [string, string]) : []), ["W-L-T", def("record")]];
   const head = `<tr>${cols.map(([c, d]) => `<th scope="col"${d ? ` title="${esc(d)}"` : ""}>${esc(c)}</th>`).join("")}</tr>`;
   const body = t.rows.map((r) => `<tr><td>${r.rank}</td><td><a href="${esc(r.href)}">${esc(`${r.team}${r.name ? ` ${r.name}` : ""}`)}</a>${r.location ? `<br><small>${esc(r.location)}</small>` : ""}</td>`
     + (t.asked ? `<td>${esc(r.asked?.display ?? "–")}</td>` : "") + `<td>${dp1(r.opr)}</td>`
     + (ph ? [r.auto, r.dc, r.endgame, r.pen].map((v) => `<td>${dp1(v)}</td>`).join("") : "") + `<td>${r.wins}-${r.losses}-${r.ties}</td></tr>`).join("");
-  return `<table aria-label="${esc(label)}"><thead>${head}</thead><tbody>${body}</tbody></table>${ph ? `<p><small>${esc(PHASE_NOTE)}</small></p>` : ""}`;
+  return `<table aria-label="${esc(label)}"><thead>${head}</thead><tbody>${body}</tbody></table>${ph ? `<p><small>${esc(phaseNote(!!t.teleopWithEndgame))}</small></p>` : ""}`;
 }
 
 /**
@@ -566,7 +567,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
     + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
     + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
     // A leaderboard's teams, every row, as the app's table has them; its "View more detail" link under it.
-    + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
+    + s.blocks.map((b) => (b.kind === "leaderboard" ? `<h3>${esc(b.title)}</h3><p><small>${esc(b.note)}</small></p>${teamTableHtml(teamTableOfLeaderboard(b.stat.id, b.stat.label, b.rows, b.teleopWithEndgame), b.title)}${b.more ? `<p><a href="${esc(b.more.href)}">${esc(b.more.label)}</a></p>` : ""}` : "")).join("")
     + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
   // The heading as the app titles it; a badge that only repeats it is left out, as the app leaves it out.
   const heading = answer.hits.length || c || s || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : "No matches found";

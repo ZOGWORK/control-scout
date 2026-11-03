@@ -1,6 +1,7 @@
 // A search answer's list of teams as table rows (src/shared/teamTable.ts), from the row each list's query already
 // reads: the stored season numbers (team_season_stats, the ones each team page shows), never worked out here.
 import type { TeamTable, TeamTableRow } from "../../src/shared/teamTable.js";
+import { reportedTeleopIncludesEndgame } from "../data/seasons.js";
 
 /** The stored phase OPRs a list's query adds to its SELECT (team_season_stats as `s`): one query, no extra reads. */
 export const PHASE_COLS = "s.opr_auto, s.opr_teleop, s.opr_endgame, s.opr_pen";
@@ -14,5 +15,11 @@ export const tableRow = (r: any, rank: number, season: number, asked?: TeamTable
   wins: Number(r.wins ?? 0), losses: Number(r.losses ?? 0), ties: Number(r.ties ?? 0), ...(asked ? { asked } : {}),
 });
 
-/** A list's rows as its table, sorted first by `by` ("opr" for a list by OPR, "rank" for one in its own order). */
-export const tableOf = (rows: any[], season: number, by: TeamTable["by"] = "opr"): TeamTable => ({ by, rows: rows.map((r, i) => tableRow(r, i + 1, season)) });
+/** A list's table, sorted first by `by` ("opr" for a list by OPR, "rank" for one in its own order): `rows` already
+ *  made (with tableRow), or the query's rows. The season says whether its stored TeleOp OPR includes the endgame. */
+export function tableOf(rows: any[], season: number, by: TeamTable["by"] = "opr", asked?: TeamTable["asked"], made = false): TeamTable {
+  return {
+    by, ...(asked ? { asked } : {}), ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
+    rows: made ? rows : rows.map((r, i) => tableRow(r, i + 1, season)),
+  };
+}

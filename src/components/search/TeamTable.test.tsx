@@ -83,6 +83,21 @@ describe("TeamTable", () => {
     fireEvent.click(container.querySelector('button[data-sort="asked"]')!);
     expect(teams(container)).toEqual([200, 100, 400, 300]);
   });
+  it("a season whose TeleOp includes the endgame: named TeleOp, and the bar never draws the endgame twice", () => {
+    const { container } = draw({ ...TABLE, teleopWithEndgame: true });
+    expect(heads(container)).toEqual(["#", "Team", "OPR", "Auto", "TeleOp", "Endgame", "Pen", "W-L-T"]);
+    const bar = container.querySelector("[data-phase-bar]")!;
+    expect(bar.children).toHaveLength(3);
+    expect(bar.getAttribute("aria-label")).toBe("Auto 20.0, TeleOp 90.0, Pen (given away) 3.0");
+    expect(container.querySelector("[data-phase-note]")?.textContent).toMatch(/TeleOp already includes the endgame/);
+  });
+  it("a negative phase OPR has no segment, and its label says so", () => {
+    const { container } = draw({ by: "opr", rows: [{ ...TABLE.rows[0], pen: -1.3 }, TABLE.rows[1]] });
+    const bar = container.querySelector('[data-team-row="100"] [data-phase-bar]')!;
+    expect(bar.getAttribute("aria-label")).toMatch(/Pen \(given away\) -1\.3 \(below zero, not drawn\)$/);
+    expect((bar.lastElementChild as HTMLElement).style.width).toBe("0%");
+    expect(container.querySelector("[data-phase-note]")?.textContent).toMatch(/negative OPR gets no segment/);
+  });
   it("no phase numbers: no phase columns, bar or toggle", () => {
     const { container } = draw({ by: "opr", rows: TABLE.rows.map((r) => ({ ...r, auto: null, dc: null, endgame: null, pen: null })) });
     expect(heads(container)).toEqual(["#", "Team", "OPR", "W-L-T"]);
