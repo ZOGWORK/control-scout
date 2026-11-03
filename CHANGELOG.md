@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.3.7 — 2026-11-02
+
+FTC One Search: the example searches show the range of what you can ask, across different teams.
+
+### Highlights
+- [home] Example searches use different teams, and some use none at all
+- [home] New examples: "highest score this season", "upcoming meets in Texas"
+
+### Search
+- **Example searches.** The examples in the empty search box and on the results page's empty state no longer repeat one team. Each is a different kind of search with a different team, or none: "meets in New Jersey", "11115 vs 16461", "when did 7149 go to worlds", "18061 record", "highest score this season" and "upcoming meets in Texas". Every one was checked against live search and returns real results. (#PR)
+
 ## 2.3.6 — 2026-11-02
 
 FTC One Search says each thing once at the top of its results: the title, then a badge only when it adds something.
