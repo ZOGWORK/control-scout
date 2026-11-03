@@ -5,6 +5,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
+import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { readStatQuestion, readTwoTeam } from "./read";
 
@@ -187,5 +188,41 @@ describe("what Greptile found", () => {
     const a = await searchAnswer("Live Qualifier winning alliance", { limit: 25 });
     expect(a.stat!.headline).toBeUndefined();
     expect(a.stat!.none).toBe("No winning alliance is published for Live Qualifier yet.");
+  });
+  it("an event's rank or OPR never takes a match filter it can't apply", () => {
+    expect(readStatQuestion("4215 OPR at New Jersey Championship in playoffs")).toBeNull();
+    expect(readStatQuestion("4215 rank at New Jersey Championship on red")).toBeNull();
+  });
+  it("a match the team played as a surrogate still has its score", async () => {
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCMPPKWY', 'qual', 0, 7, 'Q7', '2026-03-15T09:00:00Z', 1, 111, 111, 99, 99, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field, surrogate) VALUES (2025, 'USNJCMPPKWY', 'qual', 0, 7, 4215, 'red', 1, 1)");
+    clearAllCaches(); // the team's matches are cached
+    await rebuildSearch();
+    const a = await searchAnswer("4215 score in match 7 at New Jersey Championship", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: expect.stringContaining("111") });
+  });
+  it("an older season of an event that came back is still found by its season", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USNJCMP', 'New Jersey Championship', 'Championship', 'Union', 'NJ', 'USA', '2025-03-15', '2025-03-15', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2024, 'USNJCMP', 'playoff', 0, 1, 'F1', NULL, 1, 200, 200, 100, 100, 't'), (2024, 'USNJCMP', 'playoff', 0, 2, 'F2', NULL, 1, 210, 210, 100, 100, 't')");
+    for (const n of [1, 2]) for (const [t, al] of [[6980, "red"], [207, "red"], [4215, "blue"], [7149, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2024, 'USNJCMP', 'playoff', 0, ?, ?, ?, 1)", [n, t, al]);
+    await rebuildSearch();
+    const a = await searchAnswer("New Jersey Championship winning alliance 2024-25", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: expect.stringContaining("6980 Bad Wolf") });
+    expect(a.stat!.scope).toContain("2024–25");
+  });
+  it("a Worlds answer ends with related questions, never the one just asked", async () => {
+    const a = await searchAnswer("ftc decode winning alliance", { limit: 25 });
+    expect(a.stat!.blocks.find((b) => b.kind === "related")).toMatchObject({ queries: ["23268 worlds record", "23268 highest score in worlds", "INTO THE DEEP winning alliance"] });
+  });
+  it("a classic bracket's final is series 0, never its highest-numbered semifinal", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJCLAS', 'Classic Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-02-07', '2026-02-07', 't')");
+    // Semifinal 2 (series 2): blue wins twice. The final (series 0): red wins twice.
+    for (const [series, n, label, red, blue] of [[2, 1, "SF2-1", 50, 100], [2, 2, "SF2-2", 50, 100], [0, 1, "F1", 120, 80], [0, 2, "F2", 130, 90]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCLAS', 'playoff', ?, ?, ?, NULL, 1, ?, ?, ?, ?, 't')", [series, n, label, red, red, blue, blue]);
+      for (const [t, a] of (series === 0 ? [[4215, "red"], [207, "red"], [6980, "blue"], [23268, "blue"]] : [[7149, "red"], [207, "blue"]]) as [number, string][]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCLAS', 'playoff', ?, ?, ?, ?, 1)", [series, n, t, a]);
+    }
+    await rebuildSearch();
+    const a = await searchAnswer("Classic Qualifier winning alliance", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "207 Critical Mass, 4215 Hypnotic Robotics", sub: "F1 120–80 · F2 130–90" });
   });
 });

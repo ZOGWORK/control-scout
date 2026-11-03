@@ -48,8 +48,7 @@ describe("the magnifier searches (Req 5, test 10)", () => {
     expect(fireEvent.mouseDown(magnifier)).toBe(false);
     expect(document.activeElement).toBe(input);
     fireEvent.click(magnifier);
-    // …and the click searches at once, without waiting out the typing pause, and goes when the answer is in.
-    await reply(/q=meets/, answer("meets in New Jersey", { hits: [] }));
+    // …and the click goes at once, without waiting out the typing pause or the answer.
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(onPick.mock.calls[0][0].href).toBe("/search?q=meets%20in%20New%20Jersey");
     expect(document.activeElement).not.toBe(input);

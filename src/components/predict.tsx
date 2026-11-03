@@ -4,11 +4,11 @@ import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState
 import { AnimatePresence, useReducedMotion } from "motion/react";
 import { m as Motion } from "./motion";
 import { Link, useLocation } from "react-router-dom";
-import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, History, PlayCircle, Radio, ShieldCheck, Video, X } from "lucide-react";
+import { Check, ChevronDown, CircleDashed, ClipboardList, Gauge, Handshake, History, Radio, ShieldCheck, Video, X } from "lucide-react";
 import type { AllianceScore, ConfidenceTier, Factor, MatchPredictionView, MatchView, PairHistory } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
 import { cn } from "./cn";
-import { ClipLink } from "./MatchClip";
+import { ClipLink, MatchVideoLink } from "./MatchClip";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct, predictedText } from "../shared/scoreRange";
 import { Popover, PopoverContent, PopoverTrigger, TapTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./ui/overlay";
@@ -337,8 +337,8 @@ export function MatchRow({ m, highlight, showEvent, eventName, open, onToggle, o
                 <span className="sr-only">{p.kind === "live" ? "pre-match" : "replayed"}: {KIND_LABEL[p.kind]}</span>
               </span>
             )}
-            {m.clip && <ClipLink clip={m.clip} className={cn(STATUS_CHIP, VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
-            {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className={cn(STATUS_CHIP, "still-hover:text-text-base")} aria-label="Official match video"><PlayCircle className="size-3.5" /></a>}
+            {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, VIDEO_TONE.chip, "still-hover:bg-video/20")}><span className="text-[10px]">Watch</span></ClipLink>}
+            {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className={cn(STATUS_CHIP, "still-hover:text-text-base")} />}
             {videos > 0 && <span className={cn(STATUS_CHIP, "text-accent-text")} title={`${videos} saved video link${videos > 1 ? "s" : ""}`}><Video className="size-3.5" /><span className="text-[10px]">{videos}</span></span>}
           </div>
         )}

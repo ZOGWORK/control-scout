@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.3 — 2026-11-03
+## 2.6.1 — 2026-11-03
 
 FTC One Search answers questions about two teams: every match they played against each other, their OPR and ratings side by side, who has the better record, and a team's toughest opponents and best partners.
 
@@ -30,7 +30,7 @@ FTC One Search answers questions about two teams: every match they played agains
 - **Side by side.** "4215 OPR vs 6980" and "4215 rating vs 6980" show both teams' stored season numbers by game phase (the season named, else the latest season both played). "Who has a better record, 4215 or 6980" compares their season win rates. "4215 win chance vs 6980" says which team is stronger and links to Predict, since every match is two alliances.
 - **Opponents and partners.** A team's most played and toughest opponent (best record against it, met 3 times or more), its most frequent and best partner (best record together, 3 matches or more), and the teams from its state it never played that season. (#457)
 
-## 2.5.2 — 2026-11-03
+## 2.6.0 — 2026-11-03
 
 FTC One Search answers questions about one event, a team's awards and who won: a team's results at an event, its event wins, and the winning alliance of an event or of Worlds.
 
@@ -43,10 +43,23 @@ FTC One Search answers questions about one event, a team's awards and who won: a
 ### Search
 - **One team at one event.** "4215 results at New Jersey Championship", "rank at", "OPR at" and "score in match 12 at" answer from the event the team played (its division, when the event has divisions): the record and matches, its rank of the teams there, its OPR by phase, or that one match. An event the team never attended is left to the usual search.
 - **Awards.** Event wins count 1st-place finishes (the winning alliance) and Inspire Awards, each labelled, so "won an event" says which; a 2nd or 3rd place Inspire is listed apart, never as a win. Also Inspire Award counts, finalist finishes, all awards and the judged/performance split, for any season, Worlds or one event.
-- **Winning alliances.** An event's winning alliance is the alliance that won its final match, with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
+- **Winning alliances.** An event's winning alliance is the alliance that won its final match (the final series, which a classic bracket stores as series 0, never a semifinal), with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
 - **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
 
-## 2.5.1 — 2026-11-03
+## 2.5.9 — 2026-11-03
+
+A slow search no longer looks like being offline, and searches that match nothing answer five times faster.
+
+### Highlights
+- [fixes] A slow search says "Search is slow", never "Offline"
+- [speed] Searches that match nothing answer in about a second, not five
+- [fixes] A slow or failed search is tried once more by itself
+
+### Search
+- **Slow is not offline.** While your browser is online and the server answers everything else, a search that takes more than 4 seconds keeps waiting for the server instead of switching to saved data and the Offline badge. It gets up to 10 seconds, one more try, and then says "Search is slow right now. Try again." with a Try again button. With no network at all, saved data still answers as before.
+- **Faster no-match searches.** Queries that match nothing (like "highest scoring games in decode") took 5–6 seconds on the server, comparing every name's words letter by letter. The scan now skips names missing any word typed and stops comparing as soon as a word is past its allowed typos: about 1 second, with the same results. (#463)
+
+## 2.5.8 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
 
@@ -58,8 +71,103 @@ FTC One Search answers questions about a team's matches: its best score at World
 
 ### Search
 - **Stat answers.** A question about one team's matches, events or seasons gets its answer at the top of the results: the number asked for, then the matches, a win-loss bar, tables by season and charts. It works for any team and any of these scopes: Worlds ("at worlds"), state championships ("at states"), a season ("2024-25", "this season", a game's name like "into the deep"), every season ("ever"), playoffs or quals, and red or blue. Questions it answers: highest and lowest score, which event it scored highest at, biggest win and loss, closest match, first and most recent match, match wins, record, record by alliance colour, matches played, average score, current and longest win streak, last N matches, blowout wins, losses, playoff and qualification matches, playoff appearances, best and worst event finish, first and most recent event, best OPR event, events played, average event rank, seasons played, first season, best season and most improved season.
-- **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Each season is a different game, so an every-season best also lists the best of each season. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
+- **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
+- **Never one number across seasons.** Each season is a different game that scores on its own scale, so seasons are compared by OPR standing (rank among that season's teams) and record, never by raw OPR or scores: the best and most improved seasons use standing, an average over several seasons is listed season by season, and with no season named a best or lowest score, a biggest win or loss and a best OPR event are the latest season's, with every season's own listed below.
 - **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
+## 2.5.7 — 2026-11-03
+
+FTC One Search finds every meet held at a venue, past seasons too, and its lines say what you typed.
+
+### Highlights
+- [history] "Meets at River Dell High School" lists every season's meets there
+- [fixes] Venues match loosely: "HS", "Regional" and small misspellings
+- [fixes] Search lines repeat your words: "Meets in New Jersey"
+- [rankings] "Best teleop in the world" and "best auto in NJ" show the leaders
+
+### Search
+- **A venue spans every season.** "Meets in River Dell High School" with no year lists its meets from every season in date order (upcoming first, then past, most recent first), so the Past filter has the past ones to show. "Past meets at …" lists only those.
+- **Venues match loosely.** Punctuation, "HS" or "H.S." for "High School", "Regional", and a letter or two off ("River DeHigh School", "River Dale High School") are the same venue. A city counts when the place typed is that city ("meets in Oradel").
+- **Honest fallbacks.** With nothing to show, a time word goes before the venue: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead".
+- **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". Kinds that share no type are each named ("Meets and tournaments").
+- **Stat leaders, any scope.** "Best teleop in the world", "highest OPR this season", "most wins of all time" and "best driver controlled worldwide" show that stat's leaderboard, the same as "best teleop"; "best auto in NJ" or "best auto in New Jersey" shows New Jersey's. "Top", "strongest", "greatest" and "number one" read as "best"; "autonomous" as auto; "driver" or "driver controlled" as teleop. (#461)
+
+## 2.5.6 — 2026-11-03
+
+Searching never waits where you typed: Enter opens the results page straight away, and a loading screen shows while the results arrive.
+
+### Highlights
+- [speed] Enter in any search box opens the results page straight away
+- [speed] A loading screen shows the shape of the results while they arrive
+- [speed] A new search from the results page clears the old results at once
+
+### Search
+- **Enter never waits.** Pressing Enter or the magnifier in a search box (Home, the top bar, the results page) used to wait with a spinner until the answer came back. Now it opens the results page at once. A team number, a team's whole name or an event code still goes to that team or event: from the box when its answer is already in, or from the results page as soon as its answer arrives, replacing itself so Back returns to where you typed. (#464)
+- **A loading screen while results arrive.** The results page shows grey shapes of what's coming: the title, a grid of result cards and, on a computer, the panel on the right. They shimmer gently and stay still if your device asks for reduced motion. A line reads "Searching teams, events and matches…" and your search stays in the search bar. A new search run from the results page replaces the old results with it straight away, so they never look current.
+- **No blank page first.** Clicking into a search box starts loading the results page, so Enter goes straight to its loading screen.
+
+## 2.5.5 — 2026-11-03
+
+Home's headline is smaller, so the FTC One Search block and all its example chips sit above the fold.
+
+### Highlights
+- [home] The headline fits in two lines, with no gap under it
+- [home] The whole search block, chips included, shows without scrolling
+- [speed] The first paint's headline matches the page, so nothing jumps on load
+
+### Home
+- **A smaller headline.** It never grows past its column, so even the longest hourly line keeps to two lines, and the space that used to sit under shorter lines is gone. Its words and colours are unchanged. The search block ends about 160 px higher on a laptop screen, and it is fully visible without scrolling on phones, tablets and desktop windows from 390×844 to 1440×900. The globe beside it doesn't move. The page's first paint sizes its headline the same way, so it doesn't shrink when the app takes over. (#460)
+
+## 2.5.4 — 2026-11-03
+
+FTC One Search answers "who won NJ states": the winning alliance and the Inspire Award, from the event's results.
+
+### Highlights
+- [history] "Who won NJ states" names the winning alliance and Inspire winner
+- [history] It answers the newest finished championship, its season named
+- [fixes] "TX states" lists state championships, not the FIRST Championship
+
+### Search
+- **Who won an event.** "Who won NJ states", "who won the New Jersey Championship", "winners of 2024-25 NJ states" and misspellings like "who won new jesey states" answer the newest finished championship of that place (or the event named, its newest finished season). The answer shows the winning alliance as FIRST records it (each division's, at a championship with divisions) and the Inspire Award winner, and opens the event on its playoffs. "Won" is never read as a name word. An event with no results recorded says so plainly. "Who won Inspire at …" still lists that award's winners.
+- **"States" is a state's own championship.** "TX states" lists Texas's state and regional championships, never the FIRST Championship held in Houston, and its line reads "State championships in Texas". "NJ states events" now reads as state championships too, not as all events. (#456)
+
+## 2.5.3 — 2026-11-03
+
+Match timestamps for recordings that YouTube cut short: a match's Watch button now shows up on more events.
+
+### Highlights
+- [live] More events get a Watch button on their matches
+- [live] A recording YouTube cut short is checked against its own chapters
+- [live] The DECODE Preview Event in Texas now has Watch on 47 of 50 matches
+
+### Event page
+- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters, the clock still holds and they get their Watch. A real gap moves every later match away from its chapter for good, so Watch stops at the match before it. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to 47 of 50. (#449)
+
+## 2.5.2 — 2026-11-03
+
+Match videos play in the app: a match's video button no longer sends you off to YouTube.
+
+### Highlights
+- [live] A match's video button plays that match right on the page
+- [live] On an event page it plays in the event's player, prediction on top
+- [live] Anywhere else it opens in a video window, without leaving the page
+
+### Event page
+- **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab. (#445)
+
+## 2.5.1 — 2026-11-03
+
+FTC One Search keeps Bruno AI's overview on every question, and titles a plain name search by what it found.
+
+### Highlights
+- [teams] Bruno AI answers "how good is" a team again, above its standing
+- [fixes] A plain name search is titled by what it found, never your words
+- [teams] Bruno AI knows who won each event listed, for "who won nj states"
+
+### Search
+- **Bruno AI on every question.** Before FTC One Search, Bruno AI wrote a short overview for every question; "how good is simply complex" had lost it when the standing summary arrived. He's back: his overview sits above the standing (on a phone, the numbers first and his writing under "Show AI Analysis"). The record cards and summaries sit beside him and never replace him, and a test now lists every kind of question the page answers (championship trips, states, a team's standing, awards, next match, comparisons, rules, high scores, leaderboards, event awards, and a plain question answered by name matches) so none can lose him again.
+- **Who won.** Bruno AI is now told who won each event in the results (its winning alliance and Inspire Award), so "who won nj states" gets an answer from the records instead of nothing.
+- **No echo in the title.** When search reads no meaning into the words and lists names that match them ("who won nj states"), the title says what it found ("Matching events", "Matching teams and events") instead of repeating the words, and no badge repeats them either. With nothing found the title is just "No matches found" (the words are in the search bar above). A title for a question it understood is unchanged. (#454)
 
 ## 2.5.0 — 2026-11-03
 

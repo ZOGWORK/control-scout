@@ -31,15 +31,13 @@ describe("a box holding the page's query (syncQuery)", () => {
     expect(input.value).toBe("4215 vs 6980");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
-  it("refines from there: an edit searches, Enter opens /search for the new text; Enter unedited runs it again", async () => {
+  it("refines from there: an edit searches, Enter opens /search for the new text at once; Enter unedited runs it again", async () => {
     const onPick = vi.fn();
     render(<SearchBox onPick={onPick} placeholder="Search" label="Search" syncQuery="meets in New Jersey" />);
     const input = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
     act(() => input.focus());
     fireEvent.keyDown(input, { key: "Enter" });
-    // Pressed, the page's query is asked for (it might name one team), with no typing pause.
-    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=meets%20in%20New%20Jersey")]);
-    await act(async () => { pending.splice(0, 1)[0].resolve({ q: "meets in New Jersey", hits: [], pages: [], step: "deterministic", weak: false }); });
+    // Pressed, the page's query: the page again (which already has its answer, and opens the one team it may name).
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=meets%20in%20New%20Jersey" }));
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     expect(pending).toHaveLength(0); // back to holding the page's query: not asked again
@@ -47,8 +45,7 @@ describe("a box holding the page's query (syncQuery)", () => {
     fireEvent.change(input, { target: { value: "upcoming meets in New Jersey" } });
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=upcoming%20meets%20in%20New%20Jersey")]);
-    fireEvent.keyDown(input, { key: "Enter" });
-    await act(async () => { pending.splice(0, 1)[0].resolve({ q: "upcoming meets in New Jersey", hits: [], pages: [], step: "deterministic", weak: false }); });
+    fireEvent.keyDown(input, { key: "Enter" }); // the answer still on its way: /search at once
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=upcoming%20meets%20in%20New%20Jersey" }));
   });
 });

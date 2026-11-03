@@ -247,3 +247,9 @@ describe("plurals and stopwords", () => {
     expect((await search("simply complex", 5))[0].title).toBe("18061 | Simply Complex");
   });
 });
+
+describe("the in-memory typo scan (Greptile on #463)", () => {
+  it("a swapped-letter typo still finds the name: every word must share a chunk, in either letter order", async () => {
+    expect((await search("ma gaer", 5)).map((h) => h.title)).toContain("16000 | Gear Maniacs");
+  });
+});

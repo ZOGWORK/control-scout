@@ -28,12 +28,14 @@ export const EVENT_TYPES: Record<string, string[] | null> = {
   championship: ["Championship", "FIRSTChampionship"], qualifier: ["Qualifier", "SuperQualifier"],
   scrimmage: ["Scrimmage", "PracticeDay"], kickoff: ["Kickoff"], premier: ["Premier"],
   champ: ["Championship", "FIRSTChampionship"], champs: ["Championship", "FIRSTChampionship"],
+  // "states" ("nj states"): a state's own championship, never the FIRST Championship held there.
+  states: ["Championship"],
   event: null, competition: null, comp: null,
 };
 
-/** How an event word reads in a label ("League meets in New Jersey"). */
+/** How an event word reads in a label, the word typed and no more ("Meets in New Jersey": never "League meets"). */
 const EVENT_LABEL: Record<string, string> = {
-  meet: "League meets", league: "League events", tournament: "League tournaments", championship: "Championships", champ: "Championships", champs: "Championships",
+  meet: "Meets", league: "League events", tournament: "Tournaments", championship: "Championships", champ: "Championships", champs: "Championships", states: "State championships",
   qualifier: "Qualifiers", scrimmage: "Scrimmages", kickoff: "Kickoffs", premier: "Premier events",
   event: "Events", competition: "Events", comp: "Events",
 };
@@ -112,12 +114,13 @@ export function readEventQuery(raw: string): EventQuery | null {
   if (SEARCH_TOPICS.some(([t]) => lowerQ.includes(` ${t} `)) || /\s(?:last|this|next|previous)\s+(?:season|year)\s/.test(lowerQ)) return null;
   const tokens = q.split(" ").filter(Boolean);
   const kinds: string[] = [], rest: string[] = [];
-  for (const w of tokens) (Object.hasOwn(EVENT_TYPES, w.toLowerCase()) ? kinds : rest).push(w);
+  // "states" is a kind only beside a place (below).
+  for (const w of tokens) (Object.hasOwn(EVENT_TYPES, w.toLowerCase()) && !/^states$/i.test(w) ? kinds : rest).push(w);
   // "states" with a place is its championship ("nj states", "states in new jesey"), read before the place so a near
   // miss of it is tried too; never corrected to "stats". Without a place it names nothing (dropped below).
   // Beside a generic event word too ("NJ states events").
   const statesOnly = kinds.every((k) => EVENT_TYPES[k.toLowerCase()] === null) && /(?:^|\s)states(?=\s|$)/i.test(raw) && !/united\s+states/i.test(raw);
-  if (statesOnly) kinds.push("championship");
+  if (statesOnly) kinds.push("states");
   let region: Region | null = null, regionTyped: string | undefined;
   const where: string[] = [], words: string[] = [];
   for (let i = 0; i < rest.length;) {
@@ -160,6 +163,7 @@ export function readEventQuery(raw: string): EventQuery | null {
   const scoped = !!(time || year != null || season != null || region || where.length);
   if (!(kinds.length && scoped) && !(time && (region || where.length))) return null;
   const ks = [...new Set(kinds.map((k) => (/^champs?$/i.test(k) ? "championship" : k.toLowerCase())))];
+  // A specific kind with a generic one ("NJ states events") reads as the specific one.
   // Championships (one a season) by the types the words mean: "championship events in NJ" is still championships.
   const types = eventTypesOf(ks);
   const allSeasons = !!types && types.every((t) => t === "Championship" || t === "FIRSTChampionship") && !time && year == null && season == null;
@@ -178,7 +182,17 @@ const TIME_LABEL: Record<SearchTime, string> = {
  *  `drop`: parts left out (a fallback's label). */
 export function eventSetLabel(e: EventQuery, opts: { where?: { text: string; city: boolean } | null; seasonLabel?: (s: number) => string; drop?: ("where" | "time")[] } = {}): string {
   const drop = new Set(opts.drop ?? []);
-  const kind = e.kinds.length === 1 ? EVENT_LABEL[e.kinds[0]] : "Events";
+  // The event words as typed: a specific one beats a generic one ("NJ states events"), and "league" before another
+  // stays ("league meets": "League meets"). Kinds that share no type are each named ("Meets and tournaments"). Never
+  // a narrower word than the one typed.
+  const specific = e.kinds.filter((k) => EVENT_TYPES[k] !== null);
+  const ks = specific.includes("states") ? ["states"] : specific;
+  const shared = ks.length > 1 && ks.map((k) => EVENT_TYPES[k]!).reduce((a, b) => a.filter((t) => b.includes(t))).length > 0;
+  const kind = ks.length === 1 ? EVENT_LABEL[ks[0]]
+    : ks.length > 1 && ks.slice(0, -1).every((k) => k === "league") && ks.at(-1) !== "league" ? `League ${EVENT_LABEL[ks.at(-1)!].toLowerCase()}`
+    : ks.length > 1 && shared ? EVENT_LABEL[ks.at(-1)!]
+    : ks.length > 1 ? [...new Set(ks.map((k) => EVENT_LABEL[k]))].map((l, i) => (i ? l.toLowerCase() : l)).join(" and ")
+    : e.kinds.length === 1 ? EVENT_LABEL[e.kinds[0]] : "Events";
   const time = e.time && !drop.has("time") ? TIME_LABEL[e.time] : null;
   const what = time ? `${time} ${kind.toLowerCase()}` : kind;
   const words = e.words.length ? ` matching "${e.words.join(" ")}"` : "";

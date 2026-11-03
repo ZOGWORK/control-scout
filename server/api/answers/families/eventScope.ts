@@ -19,7 +19,8 @@ const rec = (ms: TeamMatch[]) => ({ wins: ms.filter((m) => m.result === "W").len
 export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null }): Promise<StatAnswer | null> {
   if (!scope.event || !["results", "event-rank", "event-opr", "match-lookup"].includes(id)) return null;
   const keep = inScope(scope);
-  const ms = all.filter((m) => keep(m) && m.counted);
+  // The record counts official results; one match's score is any match the team played on the field (a surrogate too).
+  const ms = all.filter((m) => keep(m) && (id === "match-lookup" ? m.onField : m.counted));
   const who = whoOf(team), name = scope.event.name;
   const base = { team, scope: scopeChips(scope), source: ms.length ? sourceOf(ms) : "From the event's published rankings" };
   const links = await teamLinks(ms.flatMap((m) => [...m.partners, ...m.opponents]));
