@@ -372,7 +372,9 @@ describe("search results page, phone (Part B 3b)", () => {
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
     fireEvent.click(container.querySelector("[data-vs-compare]")!);
-    expect(document.querySelector("[data-compare-bar]")!.textContent).toContain("Pick one more");
+    // One team found: its pick still goes on to /compare, where the other team is added.
+    expect(document.querySelector("[data-compare-go]")!.textContent).toContain("Compare (1)");
+    expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
   });
 
   it("Shortlist and Matches are buttons on the card, and a swipe does the same", () => {
@@ -429,7 +431,7 @@ describe("search results page, phone (Part B 3b)", () => {
     fireEvent.click(vs()[2]);
     expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=23268,6980");
     fireEvent.click(screen.getByRole("button", { name: "Remove 6980 from the comparison" }));
-    expect(document.querySelector("[data-compare-bar]")!.textContent).toContain("Pick one more");
+    expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=23268");
   });
 
   it("a new search starts with no picks, and going back to the first doesn't bring them back", () => {

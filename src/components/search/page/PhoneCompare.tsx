@@ -20,7 +20,8 @@ export function togglePick(picks: readonly number[], team: number): number[] {
 /** Where the picks compare: both sides, in the season the results are about when they're about one. */
 export const pickHref = (picks: readonly number[], season?: number | null) => `/compare?teams=${picks.join(",")}${season != null ? `&season=${season}` : ""}`;
 
-/** The picks, above the tab bar: each team (tap × to drop it), then Compare (2) → once there are two. */
+/** The picks, above the tab bar: each team (tap × to drop it), then Compare →. One pick still goes on to /compare,
+ *  where the other team is added (a search that found one team can still end in a comparison). */
 export function CompareBar({ picks, names, season, onDrop }: { picks: number[]; names: Map<number, string>; season?: number | null; onDrop: (team: number) => void }) {
   // The first-visit privacy banner (ConsentBanner) sits in this same strip: the bar waits until that's answered.
   const { decided } = useConsent();
@@ -40,9 +41,7 @@ export function CompareBar({ picks, names, season, onDrop }: { picks: number[]; 
           </li>
         ))}
       </ul>
-      {picks.length === 2
-        ? <Link to={pickHref(picks, season)} data-compare-go className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink">Compare (2)<ArrowRight className="size-4" aria-hidden /></Link>
-        : <span className="shrink-0 text-xs text-muted-foreground">Pick one more</span>}
+      <Link to={pickHref(picks, season)} data-compare-go className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink">Compare ({picks.length})<ArrowRight className="size-4" aria-hidden /></Link>
     </div>,
     body,
   );
