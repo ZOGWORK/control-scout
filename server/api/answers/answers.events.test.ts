@@ -136,4 +136,15 @@ describe("what Greptile found", () => {
     expect(a.stat!.headline).toBeUndefined();
     expect(a.stat!.none).toBe("No winning alliance is published for Live Qualifier yet.");
   });
+  it("a classic bracket's final is series 0, never its highest-numbered semifinal", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJCLAS', 'Classic Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-02-07', '2026-02-07', 't')");
+    // Semifinal 2 (series 2): blue wins twice. The final (series 0): red wins twice.
+    for (const [series, n, label, red, blue] of [[2, 1, "SF2-1", 50, 100], [2, 2, "SF2-2", 50, 100], [0, 1, "F1", 120, 80], [0, 2, "F2", 130, 90]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCLAS', 'playoff', ?, ?, ?, NULL, 1, ?, ?, ?, ?, 't')", [series, n, label, red, red, blue, blue]);
+      for (const [t, a] of (series === 0 ? [[4215, "red"], [207, "red"], [6980, "blue"], [23268, "blue"]] : [[7149, "red"], [207, "blue"]]) as [number, string][]) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCLAS', 'playoff', ?, ?, ?, ?, 1)", [series, n, t, a]);
+    }
+    await rebuildSearch();
+    const a = await searchAnswer("Classic Qualifier winning alliance", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "207 Critical Mass, 4215 Hypnotic Robotics", sub: "F1 120–80 · F2 130–90" });
+  });
 });

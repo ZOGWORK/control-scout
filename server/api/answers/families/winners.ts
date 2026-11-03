@@ -31,7 +31,8 @@ async function latestChampionship(): Promise<number | null> {
  *  series (its finals), its whole roster from alliance selection; with no final match stored, the Winning Alliance
  *  award. Null when neither is in the data (not played yet), or its final isn't decided yet. */
 async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[]; from: "finals" | "award" } | null> {
-  const last = await get<{ s: number | null }>("SELECT MAX(series) s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
+  // The final is series 0 when the bracket stores one (classic brackets, and some others), else the last series.
+  const last = await get<{ s: number | null }>("SELECT CASE WHEN MIN(series) = 0 THEN 0 ELSE MAX(series) END s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
   const ms = last?.s == null ? [] : await all<any>(
     `SELECT m.level, m.series, m.number, m.label, m.time, m.red_total, m.blue_total,
             (SELECT GROUP_CONCAT(team) FROM match_teams x WHERE x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.alliance = 'red') red,
