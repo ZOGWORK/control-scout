@@ -205,26 +205,38 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     }
 
     case "average-margin": {
-      const title = `Average margin${where}`;
-      const def = `Average margin: the official score of the team's alliance minus the other alliance's, averaged over every match on its record (a loss counts as a negative margin). ${RESULT_RULE}`;
-      if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
+      // "average winning margin": over wins only; "average losing margin": over losses only; else every match.
+      const only = opts.outcome ?? null;
+      const title = `Average ${only === "W" ? "winning " : only === "L" ? "losing " : ""}margin${where}`;
+      const def = only
+        ? `Average ${only === "W" ? "winning" : "losing"} margin: the official score of the team's alliance minus the other alliance's, averaged over its ${only === "W" ? "wins" : "losses"} only. ${RESULT_RULE}`
+        : `Average margin: the official score of the team's alliance minus the other alliance's, averaged over every match on its record (a loss counts as a negative margin). ${RESULT_RULE}`;
+      const picked = only ? ms.filter((m) => m.result === only) : ms;
+      const unit = only === "W" ? ["win", "wins"] : only === "L" ? ["loss", "losses"] : ["match", "matches"];
+      if (!picked.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none(only === "W" ? "wins" : only === "L" ? "losses" : "matches") };
       const margin = (m: TeamMatch) => m.own - m.opp;
       const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
       const signed = (x: number) => `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toFixed(1)}`;
       // Each season is a different game: the latest season's figure up front, every season's in the table.
-      const seasons = bySeason(ms);
+      const seasons = bySeason(picked);
       const [latest, xs] = seasons[0];
-      const wins = xs.filter((m) => m.result === "W"), losses = xs.filter((m) => m.result === "L");
+      const all = ms.filter((m) => m.season === latest);
+      const wins = all.filter((m) => m.result === "W"), losses = all.filter((m) => m.result === "L");
       const events = new Map<string, TeamMatch[]>();
       for (const m of xs) events.set(`${m.season}|${m.code}`, [...(events.get(`${m.season}|${m.code}`) ?? []), m]);
+      const kpis = [
+        ...(only !== "L" ? [{ label: "In wins", value: wins.length ? signed(mean(wins.map(margin))) : "–" }] : []),
+        ...(only !== "W" ? [{ label: "In losses", value: losses.length ? signed(mean(losses.map(margin))) : "–" }] : []),
+        { label: "Record", value: recText(record(all)) },
+      ];
       return {
         ...base, family: "aggregate", intent: id, title,
-        headline: { value: signed(mean(xs.map(margin))), label: `points a match in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: seasons.length > 1 ? "Each season is a different game: every season is listed apart" : recText(record(xs)) },
+        headline: { value: signed(mean(xs.map(margin))), label: `points a ${unit[0]} in ${seasonLabel(latest)}, over ${xs.length} ${unit[xs.length === 1 ? 0 : 1]}`, sub: seasons.length > 1 ? "Each season is a different game: every season is listed apart" : recText(record(all)) },
         blocks: [
-          { kind: "kpis", items: [{ label: "In wins", value: wins.length ? signed(mean(wins.map(margin))) : "–" }, { label: "In losses", value: losses.length ? signed(mean(losses.map(margin))) : "–" }, { label: "Record", value: recText(record(xs)) }] },
-          { kind: "series", title: `Average margin by event, ${seasonLabel(latest)}`, unit: "points", points: [...events.values()].map((ys) => ({ x: ys[0].event, y: Number(mean(ys.map(margin)).toFixed(1)), href: eventHref(ys[0].season, ys[0].code, team.number), note: `${ys.length} matches` })) },
+          { kind: "kpis", items: kpis },
+          { kind: "series", title: `Average ${only === "W" ? "winning " : only === "L" ? "losing " : ""}margin by event, ${seasonLabel(latest)}`, unit: "points", points: [...events.values()].map((ys) => ({ x: ys[0].event, y: Number(mean(ys.map(margin)).toFixed(1)), href: eventHref(ys[0].season, ys[0].code, team.number), note: `${ys.length} matches` })) },
           ...(seasons.length > 1 ? [{ kind: "table" as const, title: "Each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "Average margin", num: true }, { key: "record", label: "W-L-T" }, { key: "n", label: "Matches", num: true }],
-            rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: signed(mean(ys.map(margin))), record: recText(record(ys)), n: ys.length }, strong: s === latest })) }] : []),
+            rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: signed(mean(ys.map(margin))), record: recText(record(ms.filter((m) => m.season === s))), n: ys.length }, strong: s === latest })) }] : []),
         ],
         definition: seasons.length > 1 ? `${def} Each season is a different game, so no average is pooled across seasons.` : def,
       };

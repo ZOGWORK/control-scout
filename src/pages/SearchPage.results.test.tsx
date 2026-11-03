@@ -246,7 +246,8 @@ describe("search results page", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, lines: [], count: 5 } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Team 7149 — Worlds Appearances");
-    expect(container.querySelector("[data-context-badge]")!.textContent).toBe("ENFORCERS (7149) · Worlds appearances");
+    // The reading "ENFORCERS (7149) · Worlds appearances" only repeats the heading, so no badge says it again.
+    expect(container.querySelectorAll("[data-context-badge]")).toHaveLength(0);
   });
 });
 

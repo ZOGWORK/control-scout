@@ -160,6 +160,15 @@ describe("the answers", () => {
     expect(m.stat!.headline!.value).toMatch(/^[+−]?\d+\.\d$/);
     expect(m.stat!.headline!.label).toMatch(/in 2025–26/);
     expect(m.stat!.definition).toMatch(/minus the other alliance's/);
+    // No season asked: every season in the table, the latest up front.
+    const mt = m.stat!.blocks.find((b) => b.kind === "table");
+    expect(mt && mt.kind === "table" && mt.rows.map((r) => r.cells.season)).toEqual(["2025–26", "2024–25"]);
+    // A winning margin is over wins only.
+    const w = await searchAnswer("4215 average winning margin", { limit: 25 });
+    expect(w.stat).toMatchObject({ intent: "average-margin", title: expect.stringMatching(/^Average winning margin/) });
+    expect(w.stat!.headline!.value).toMatch(/^\+\d+\.\d$/);
+    expect(w.stat!.headline!.label).toMatch(/points a win in/);
+    expect(w.understood?.label).toMatch(/· Average winning margin/);
     const t = await searchAnswer("how many points has 4215 scored", { limit: 25 });
     expect(t.stat).toMatchObject({ intent: "total-points" });
     const table = t.stat!.blocks.find((b) => b.kind === "table");
