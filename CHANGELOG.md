@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.8.1 — 2026-11-03
+
+Failed searches are filed the way search itself read them: search's own verdict decides whether a query failed and how, and one failing question lands on one issue however it was phrased.
+
+### Highlights
+- [report] A failed search is filed as search itself judged it
+- [report] One failing question, one issue, however it was typed
+- [fixes] An issue's Reproduce link opens the search exactly as typed
+
+### Search
+- **Failed-search reports follow search's own reading.** Search's layered reader now decides whether a query failed: an answer is never filed, a question two ways at once is filed as ambiguous with both readings named, and a team page shown for a question nobody asked of it ("4215 zzz") is an answer, not a failure. Issues aggregate under search's own key of the redacted query, so "4215 OPR rn?" and "4215 opr right now" are one issue. The Reproduce link in an issue now opens the latest query as typed rather than its shortened key, which could answer. Details in docs/failed-search-reporting.md. (#495)
+
 ## 2.8.0 — 2026-11-03
 
 How a team's rating is read from alliance scores is now stated where the rating is shown, and "Before the event" odds load faster.
