@@ -154,6 +154,22 @@ describe("the answers", () => {
     const t = a.stat!.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.rows.map((r) => r.cells.season)).toEqual(["2025–26", "2024–25"]);
   });
+  it("average margin and total points: the latest season up front, every season apart, never pooled", async () => {
+    const m = await searchAnswer("4215 average margin", { limit: 25 });
+    expect(m.stat).toMatchObject({ intent: "average-margin" });
+    expect(m.stat!.headline!.value).toMatch(/^[+−]?\d+\.\d$/);
+    expect(m.stat!.headline!.label).toMatch(/in 2025–26/);
+    expect(m.stat!.definition).toMatch(/minus the other alliance's/);
+    const t = await searchAnswer("how many points has 4215 scored", { limit: 25 });
+    expect(t.stat).toMatchObject({ intent: "total-points" });
+    const table = t.stat!.blocks.find((b) => b.kind === "table");
+    expect(table && table.kind === "table" && table.rows.every((r) => /^\d[\d,]*$/.test(String(r.cells.total)))).toBe(true);
+    expect(t.stat!.definition).toMatch(/no total is added up across seasons/);
+  });
+  it("\"this season\" with nothing played in the season in progress says so in the line", async () => {
+    const a = await searchAnswer("4215 record this season", { limit: 25 });
+    expect(a.understood!.label).toMatch(/no 2026–27 matches yet, so their latest season/);
+  });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });
     expect(a.stat).toBeUndefined();

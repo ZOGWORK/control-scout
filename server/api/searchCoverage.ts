@@ -38,8 +38,8 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
   // Whether two teams have met: their head-to-head (every match they played on opposite alliances).
-  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met)(?:\\s+(?:each other|one another|before|against each other))?$`).exec(t))
-    || (m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met)\\s+(?:against\\s+)?${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head`, pre: true };
+  if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?$`).exec(t))
+    || (m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head`, pre: true };
   // A team at a state championship by its short name ("4215 record at nj states", "4215 match 12 at nj states"):
   // that state's championship among the team's events.
   if ((m = /^(\d{1,6}(?:\s+vs\.?\s+\d{1,6})?)\s+(.*?)\s*\b(?:at|in)\s+(?:the\s+)?(.+?)\s+(?:states|state championships?|state champs|championship)$/.exec(t)) && regionOf(m[3].split(" "))) {
