@@ -105,3 +105,25 @@ describe("questions about events are not event sets", () => {
     expect(readEventQuery("when is the next meet in NJ")).toMatchObject({ time: "upcoming", region: { key: "USA:NJ" } });
   });
 });
+
+describe("place typos and 'states' (owner report)", () => {
+  it("reads a near miss of a place's name, said as read", () => {
+    expect(readEventQuery("new jesey states")).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, regionTyped: "new jesey", allSeasons: true, words: [] });
+    expect(readEventQuery("meets in new jersy")).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, regionTyped: "new jersy" });
+    expect(readEventQuery("pensylvania champs")).toMatchObject({ kinds: ["championship"], region: { key: "USA:PA" } });
+  });
+  it("'states', 'state champs' and 'champs' with a place are its championship", () => {
+    for (const q of ["nj states", "NJ state champs", "new jersey champs"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [], allSeasons: true });
+  });
+  it("never guesses: no event word, a code, or two places as close", () => {
+    expect(readEventQuery("new jesey")).toBeNull();
+    expect(readEventQuery("nj state")).toBeNull();
+    expect(readEventQuery("meets in nk")).toMatchObject({ region: null, where: "nk" }); // a city, as before
+    expect(readEventQuery("meets in Jersey City")?.regionTyped).toBeUndefined();
+  });
+  it("championships with a year, season or time keep that scope", () => {
+    expect(readEventQuery("2024-25 nj states")?.allSeasons).toBeUndefined();
+    expect(readEventQuery("upcoming championships in NJ")?.allSeasons).toBeUndefined();
+    expect(readEventQuery("meets in NJ")?.allSeasons).toBeUndefined();
+  });
+});

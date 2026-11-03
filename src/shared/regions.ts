@@ -65,6 +65,35 @@ export function findRegions(q: string): Region[] {
   return ALL.filter((r) => r.names.some((n) => n.startsWith(f))).slice(0, 3).map(({ names: _, ...r }) => r);
 }
 
+/** Letters to change, add or drop to turn `a` into `b`. */
+function edits(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** The region a near-miss of its full name means ("new jesey" → New Jersey): the same number of words, each starting
+ *  with the same letter, at most one letter off per word and two in all, and names of five letters or more. Only when
+ *  exactly one region is that close; never a code, never a guess between two. */
+export function nearRegion(q: string): Region | null {
+  const f = fold(q), qw = f.split(" ");
+  if (f.replace(/ /g, "").length < 5) return null;
+  const near: Region[] = [];
+  for (const r of ALL) for (const n of r.names) {
+    const nw = n.split(" ");
+    if (nw.length !== qw.length || n.replace(/ /g, "").length < 5 || n === f) continue;
+    const d = nw.map((w, i) => (w[0] === qw[i][0] ? edits(qw[i], w) : 9));
+    if (d.every((x) => x <= 1) && d.reduce((a, b) => a + b, 0) <= 2) { near.push(r); break; }
+  }
+  if (near.length !== 1) return null;
+  const { names: _, ...region } = near[0] as Region & { names: string[] };
+  return region;
+}
+
 /** Every region and country name of more than one word, lower case ("district of columbia", "united states of america"),
  *  so search keeps a little word that is part of one. */
 export const REGION_PHRASES: readonly string[] = [
