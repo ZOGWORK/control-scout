@@ -26,7 +26,7 @@ Searches that find no answer are now logged, so they can be fixed. Each one beco
 - [report] Emails, phone numbers and keys are removed before logging
 
 ### Search
-- **Failed searches logged.** A search with no match, or one that lands on a team page without answering what was asked ("4215 opr rn"), is counted and filed as a GitHub issue labelled failed-search, one issue per query however often it fails. The issue holds the query, how it was read and a link to try it again. It's a list to work through: nothing fixes or closes an issue automatically, and a query that fails again after its fix reopens the same issue. (#PR)
+- **Failed searches logged.** A search with no match, or one that lands on a team page without answering what was asked ("4215 opr rn"), is counted and filed as a GitHub issue labelled failed-search, one issue per query however often it fails. The issue holds the query, how it was read and a link to try it again. It's a list to work through: nothing fixes or closes an issue automatically, and a query that fails again after its fix reopens the same issue. (#478)
 - **Privacy.** The repository is public, so an issue holds the query text and the outcome only. No IP address, account or device is kept, and emails, phone numbers and keys in a query are replaced before anything is stored.
 - **No slower.** Search answers first. The logging is in-memory bookkeeping (about 24 µs a search), written out in batches every minute and sent to GitHub every 10 minutes at most. If GitHub is down, search carries on and the counts catch up later.
 - **Error reports.** In-app error reports point at the repository's new home (ZOGWORK/control-scout), which GitHub's issue search needs to find a report's existing issue.
