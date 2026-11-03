@@ -7,6 +7,7 @@ import { searchAnswer } from "./searchAnswer";
 import { readAsk } from "./searchAsks";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
+import { CURRENT_SEASON } from "../data/seasons";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -94,7 +95,7 @@ describe("test 16: each intent returns its stated surface", () => {
     expect((await ask("who will win New Jersey Championship")).hits[0]).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "odds" });
   });
   it("will 4215 advance: Predict's advancement simulator", async () => {
-    expect(hrefs(await ask("will 4215 advance to states"))[0]).toBe("/predict?mode=advancement&season=2025&team=4215");
+    expect(hrefs(await ask("will 4215 advance to states"))[0]).toBe(`/predict?mode=advancement&season=${CURRENT_SEASON}&team=4215`);
   });
   it("who won Inspire at an event: its winner, from the event's results", async () => {
     const a = await ask("who won Inspire at New Jersey Championship");
@@ -226,6 +227,6 @@ describe("Greptile on #440, round 3", () => {
   it("your own team settles it", async () => {
     const a = await searchAnswer("will ultraviolet advance", { limit: 25, learn: false, prefer: new Set(["team:23268"]) });
     expect(a.hits[0]).toMatchObject({ ref: "23268" });
-    expect(hrefs(a)).toContain("/predict?mode=advancement&season=2025&team=23268");
+    expect(hrefs(a)).toContain(`/predict?mode=advancement&season=${CURRENT_SEASON}&team=23268`);
   });
 });

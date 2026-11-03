@@ -18,7 +18,7 @@ import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
+import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { defaultRankingsSeason, rankings } from "./rankings.js";
 import { search } from "./search.js";
@@ -220,7 +220,8 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       if (!named) return null;
       if ("tied" in named) return whichAnswer(q, named);
       const team = named.hit;
-      const season = await defaultRankingsSeason();
+      // This season's simulator, even before anyone has three rated matches (when the rankings still show last season's).
+      const season = CURRENT_SEASON;
       const name = cleanTeamName(Number(team.ref), team.title.replace(/^\d+\s*\|\s*/, "")) ?? team.ref;
       const href = predictHref({ mode: "advancement", team: Number(team.ref), season });
       return answer(q, { hits: [{ ...team, section: "history" }], pages: withPage(q, [{ title: `${name}'s advancement odds`, href }]), understood: { kind: "question", label: `${name} (${team.ref}) · Advancement odds` } });
