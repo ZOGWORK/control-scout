@@ -2,7 +2,7 @@
 // The header's search with the whole answer (docs/search.md): live as you type, an older reply never replacing a
 // newer one, the keyboard, Escape, what a screen reader hears, Bruno AI's suggestion arriving after search's own
 // results (labelled as his), the gap note, the pages and the recovery state.
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit } from "../../shared/api";
 
@@ -319,7 +319,7 @@ describe("the answer's parts", () => {
     const { input } = mount();
     await type(input, "hypnotic vs bad wolf reputation");
     await reply(/q=hypnotic/, answer("hypnotic vs bad wolf reputation", { step: "closest", hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
-    fireEvent.click(screen.getByRole("option", { name: /Compare side by side/ }));
+    fireEvent.click(within(screen.getByRole("group", { name: "Comparisons" })).getByRole("option"));
     expect(beacon).toHaveBeenCalledTimes(1);
   });
 });
