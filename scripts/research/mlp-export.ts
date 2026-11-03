@@ -31,10 +31,11 @@ for (const s of SEASONS) {
   for (const m of matches) {
     if (predictable(m)) {
       book.setTime(m.time);
-      const ratings = book.withRegion(m.region, () => [...m.red.teams, ...m.blue.teams].map((t) => {
+      // Read as predictMatch reads them: under the event's region AND the event (its within-event form).
+      const ratings = book.withRegion(m.region, () => book.withEvent(m.eventCode, () => [...m.red.teams, ...m.blue.teams].map((t) => {
         const r = book.get(t);
         return [r.auto, r.teleop, r.endgame, r.pen, r.n].map((x) => +x.toFixed(4));
-      }));
+      })));
       const ph = (a: typeof m.red) => [a.auto, a.teleop, a.endgame, a.penCommitted, a.total];
       rows.push([matchKey(s, m.eventCode, m.level, m.series, m.number), s, m.eventCode, m.level, m.time, !unrated.has(m.eventCode), m.red.teams, m.blue.teams, ph(m.red), ph(m.blue), ratings]);
     }
