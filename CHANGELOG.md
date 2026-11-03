@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.6.3 — 2026-11-03
+## 2.6.4 — 2026-11-03
 
 FTC One Search answers how a team changed: OPR, win rate, alliance score, penalties and ranking points event by event, and its standing and record season by season.
 
@@ -29,6 +29,26 @@ FTC One Search answers how a team changed: OPR, win rate, alliance score, penalt
 - **Event by event.** "4215 OPR history", "4215 win rate", "4215 average penalties", "4215 average alliance score by event", "4215 ranking points": a line over the team's events in one season (the one named, else its latest), with the values and whether it is rising, falling or steady against the event before. Lower penalties count as better. Links switch to other seasons, since every season is a different game.
 - **Season by season.** "4215 OPR by season" shows the team's OPR rank each season and the share of ranked teams it was ahead of, never the OPR in points across seasons. "4215 record by season" shows wins, losses and ties each season with the win rate as a line.
 - **Penalty totals.** "4215 total penalties in 2025-26": the penalty points the team's alliances gave away that season, in all and per match, by event. (#462)
+
+## 2.6.3 — 2026-11-03
+
+FTC One Search answers far more ways of asking: comparisons, winners, team facts, counts, months, glossary words and new leaderboards, where many used to end on "no results".
+
+### Highlights
+- [history] "Who won worlds last year" and "decode champions" name the winners
+- [rankings] New lists: highest win rate, most improved, undefeated, rookies
+- [teams] "4215 school" and "4215 rookie year" answer from the team's record
+- [fixes] "Compare 4215 and 6980", "is 4215 good" and more phrasings work
+
+### Search
+- **Said another way.** Phrasings the readers missed are said the way they read them: "compare A and B", "is A better than B", "which is better A or B", "who would win A or B" and "4215, 6980" compare the two teams; "is 4215 good" is "how good is 4215"; "predict 4215 next games" is its next match; "4215 worlds" and "bad wolf states" are its Worlds and states history; "4215 inspire" and "has 4215 won an event" are its awards; "4215 losses" is its record; "4215 decode" is its DECODE season. Scope words that add nothing ("in the world", "in FTC", "right now") are dropped. "Teams near Oradell" reads as "in Oradell", and the line says so, since no distances are on record.
+- **Who won.** "Who won worlds", "worlds winners", "who won worlds last year", "decode champions" (that season's FIRST Championship), "franklin division winners", "nj states winners" and "inspire award winners nj" name the winning alliance and the Inspire Award from the event's results. Worlds answers its finals, never a division's.
+- **New leaderboards.** The highest win rate (a tie counts half), the most improved (the biggest rise in OPR standing from one season to the next, never raw OPR across seasons), undefeated teams, the best rookies, rookie, oldest and newest teams, a country's best teams, a place's average OPR, a place's top scores, and a place's teams at Worlds. Each takes a place: "most improved in Texas".
+- **Team facts.** A team's school, home town, rookie year, website and sponsors, from its own record.
+- **Counts, months and Worlds.** "How many teams in Canada", "how many league meets this season", "events in January", "events today" and "tomorrow", "worlds this year", "worlds 2026" and "state championships" each get their own answer.
+- **An event's tab or match.** "NJ states rankings", "worlds playoffs" and "match 12 at nj states" open that tab or match; at an event with divisions, a match number shows each division's.
+- **What a word means.** OPR, the rating, reliability, ranking points, advancement, prediction accuracy, alliances, league meets, qualifiers, the Inspire Award, FTC itself and each season's game (DECODE, INTO THE DEEP …) are explained, with the page that explains more. "FTC rules" and "game manual" open Rules.
+- **Never a dead end.** A query with a team number in it that nothing else reads opens that team, saying what wasn't answered. A team named with "robotics", "team" or a state after it finds the team. Out of 332 test queries, only unknown team numbers and gibberish still end on "no results". (#465)
 
 ## 2.6.2 — 2026-11-03
 
