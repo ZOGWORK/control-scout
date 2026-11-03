@@ -46,9 +46,16 @@ describe("badgeUnder", () => {
     expect(badgeUnder('Closest names to "robotcs"', 'Closest names to "robotcs" (did you mean "Robotics (FTC)"?)')).toBeNull();
   });
 
-  it("titles a names reading without its did-you-mean tail (the page says that on its own line)", () => {
+  it("never titles or badges the page with the query typed: a names reading is titled by what was found", () => {
     const a = { q: "hypnotc", hits: [], pages: [], step: "deterministic", weak: true, understood: { label: 'Closest names to "hypnotc" (did you mean "Hypnotic Robotics"?)' } } as unknown as Parameters<typeof pageTitle>[0];
-    expect(pageTitle(a, [])).toBe('Closest names to "hypnotc"');
+    expect(pageTitle(a, [])).toBe("Search results");
+    expect(pageTitle(a, [team("4215 Hypnotic Robotics")])).toBe("Matching teams");
+    const ev: SearchHit = { kind: "event", ref: "2025:NJW", title: "FTC NJ Multi-Track Workshops (North)", subtitle: "", season: 2025 };
+    const won = { ...a, q: "who won nj states", understood: { label: 'Teams, events and matches matching "won nj states"' } } as typeof a;
+    expect(pageTitle(won, [ev, ev])).toBe("Matching events");
+    expect(pageTitle(won, [team("18061 | Simply Complex"), ev])).toBe("Matching teams and events");
+    expect(contextBadge(won!)).toBeNull();
+    expect(contextBadge({ ...a!, understood: { label: 'No match for "zzz"' } })).toBeNull();
     // "How good is X": X names the page even when the reading says more.
     const q = { ...a, q: "how good is simply complex", understood: { label: "Simply Complex (18061) — OPR" } } as typeof a;
     expect(pageTitle(q, [{ kind: "team", ref: "18061", title: "18061 | Simply Complex", subtitle: "", season: 2025 }], true)).toBe("Simply Complex (18061)");

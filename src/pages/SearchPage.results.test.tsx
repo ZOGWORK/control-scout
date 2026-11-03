@@ -163,7 +163,9 @@ describe("search results page", () => {
   it("never dead-ends: says what search covers, what was understood, labeled closest matches and places to go", () => {
     state.answer = answer([], { step: "recovery", recovery: { understood: ["Events in New Jersey", "at Nonexistent High School"], closest: [team(4215, "Hypnotic Robotics", "Oradell, NJ")], browse: [] } });
     const { container } = show("/search?q=meets%20at%20Nonexistent%20High%20School%20in%20New%20Jersey");
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No matches for “meets at Nonexistent High School in New Jersey”");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No matches found");
+    // The query is in the top bar: the heading never repeats it.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).not.toContain("Nonexistent");
     expect(container.textContent).toContain("FTC One Search covers teams, events, matches and places");
     expect(container.querySelector("[data-understood]")!.textContent).toContain("Events in New Jersey");
     expect(screen.getByRole("region", { name: "Closest matches" }).textContent).toContain("not an exact match");
