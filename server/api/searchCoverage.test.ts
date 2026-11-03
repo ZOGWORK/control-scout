@@ -6,6 +6,7 @@ import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
+import { pageMeta } from "../seoMeta";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -207,5 +208,42 @@ describe("Greptile on #465", () => {
   });
   it("a team named with a state it isn't in is never said to be in it", async () => {
     expect((await ask("hypnotic robotics texas")).understood?.label ?? "").not.toMatch(/Texas/);
+  });
+});
+
+describe("a list of teams as a table", () => {
+  beforeAll(async () => {
+    // The phases each team page shows (team_season_stats), set here so the table has numbers to read.
+    await run("UPDATE team_season_stats SET opr_auto = opr_np / 4, opr_teleop = opr_np / 2, opr_endgame = 10, opr_pen = 2.5 WHERE season = ?", [S]);
+  });
+  it("a place's teams: a row per team with the stored phase OPRs, in the list's order", async () => {
+    const a = (await placeTeamsAnswer("teams in new jersey", new Set()))!;
+    const t = a.card!.table!;
+    expect(t.by).toBe("opr");
+    // From 2024–25 on the stored TeleOp OPR includes the endgame (as FIRST reports it): said so, never called DC.
+    expect(t.teleopWithEndgame).toBe(true);
+    expect(t.rows.map((r) => r.team)).toEqual(a.card!.lines.map((l) => Number(l.text.split(" ")[0])));
+    expect(t.rows[0]).toMatchObject({ rank: 1, team: 23268, name: "Ultraviolet", location: "Hackettstown, NJ", href: `/teams/23268?season=${S}`, opr: 157.9, auto: 39.475, dc: 78.95, endgame: 10, pen: 2.5, wins: 33, losses: 17, ties: 0 });
+    // The header context line is the same as before.
+    expect(a.understood?.label).toMatch(/registered for .*, best by OPR first$/);
+  });
+  it("a list ranked by another number carries it as its own column, in its own order", async () => {
+    const w = (await ask("teams with the highest win rate")).card!.table!;
+    expect(w).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
+    expect(w.rows[0]).toMatchObject({ team: 6980, asked: { display: "100%" } });
+    expect((await ask("undefeated teams")).card!.table!.rows.map((r) => r.team)).toEqual([6980]);
+    expect((await ask("best teams in romania")).card!.table!.rows[0]).toMatchObject({ team: 14270, dc: 100 });
+  });
+  it("a single team's answer keeps its card, with no table", async () => {
+    const a = await ask("4215 school");
+    expect(a.card?.kind).toBe("info");
+    expect(a.card?.table).toBeUndefined();
+  });
+  it("the first paint carries the whole table, no script needed", async () => {
+    const m = await pageMeta("/search", { q: "teams in new jersey" });
+    const html = m.bodyHtml ?? "";
+    expect(html).toMatch(/<table aria-label="Teams in New Jersey · best by OPR, [^"]+"><thead><tr><th scope="col">#<\/th><th scope="col">Team<\/th><th scope="col" title="[^"]+">OPR<\/th><th scope="col" title="[^"]+">Auto<\/th><th scope="col" title="Driver-controlled OPR, endgame included[^"]+">TeleOp<\/th><th scope="col" title="[^"]+">Endgame<\/th><th scope="col" title="[^"]+">Pen<\/th><th scope="col" title="[^"]+">W-L-T<\/th><\/tr><\/thead>/);
+    expect(html).toContain(`<tr><td>1</td><td><a href="/teams/23268?season=${S}">23268 Ultraviolet</a><br><small>Hackettstown, NJ</small></td><td>157.9</td><td>39.5</td><td>79.0</td><td>10.0</td><td>2.5</td><td>33-17-0</td></tr>`);
+    expect(html).toContain("don't add up to the OPR");
   });
 });

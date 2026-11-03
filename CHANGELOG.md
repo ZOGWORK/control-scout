@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.3 — 2026-11-03
+## 2.8.4 — 2026-11-03
 
 Every event opens now, whatever its code looks like, and the policy, help and record pages arrive with their words in place.
 
@@ -30,6 +30,18 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 
 ### Pages
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again.
+
+## 2.8.3 — 2026-11-03
+
+A search that lists teams answers as one table: rank, team, OPR and its phases, penalties and record, with bars to compare at a glance.
+
+### Highlights
+- [teams] Team lists in search are one sortable table, OPR first
+- [teams] Bars for OPR and each phase, top three marked
+- [teams] On a phone, tap a row for its Auto, TeleOp, Endgame and Pen
+
+### Search
+- **List answers as a table.** "teams in california", "best teams in new jersey", a country's best, undefeated teams, win rate, most improved, best rookies and the stat leaderboards share one table: rank, team, OPR, Auto, DC (TeleOp from 2024–25, when it includes the endgame), Endgame, Pen and W-L-T. It opens best OPR first, and the OPR, phase and record headers re-sort it. Each row has a bar for its OPR and a bar for its phases (scaled to the largest phase total, since phases don't add up to the OPR); a phase below zero is labelled, not drawn. On a phone, rank, team, OPR and record stay in view and the phases open under the row. Every number is the team's stored season stats, the same ones its page shows; the page's first paint carries the table as plain HTML. (#498)
 
 ## 2.8.2 — 2026-11-03
 
