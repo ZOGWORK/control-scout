@@ -144,6 +144,12 @@ export async function eventWon(words: string, prefer: ReadonlySet<string>, now =
       [...types, e.region.country, e.region.state]);
     return pick(finished(rows).filter(inScope)[0]);
   }
+  // The FIRST Championship ("worlds", "worlds 2025"): its newest finished one, the main event (its finals) over its divisions.
+  if ((e?.kinds.includes("worlds") && !e.region && !e.words.length && !e.where) || /^(?:the )?(?:worlds|first championship|world championships?)$/.test(words.trim())) {
+    const rows = await all<Ev>(
+      `SELECT season, code, name, start, end, timezone FROM events WHERE type = 'FIRSTChampionship' ORDER BY season DESC, length(code), code`, []);
+    return pick(finished(rows).filter(inScope)[0]);
+  }
   // An event by name ("New Jersey Championship Parkway Division"): the code search finds, its newest finished season
   // (or the one named).
   const ev = await eventOf(sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words, prefer);
@@ -274,7 +280,10 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "award": {
-      let ev = await eventOf(ask.event, opts.prefer);
+      // A place's championship ("nj states") or Worlds as "who won" reads it; else the event the name search finds.
+      const won = await eventWon(ask.event, opts.prefer);
+      const [wonRow] = won ? await all<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [won.season, won.code]) : [];
+      let ev = wonRow ? eventHit(wonRow) : await eventOf(ask.event, opts.prefer);
       if (!ev) return null;
       // The event found, or (not held yet, or no such award recorded) the latest season the same event code gave it:
       // "who won Inspire at New Jersey Championship" in November is last season's winner, said with its season.
@@ -304,7 +313,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       // Inspire Award winner. Nothing is inferred from match scores.
       const rows = await all<any>(
         `SELECT a.type, a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team
-         WHERE a.season = ? AND a.code = ? AND (a.type = 'Winner' OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', substr(a.name, 1, instr(a.name, 'Winning')), a.placement, a.team`,
+         WHERE a.season = ? AND a.code = ? AND ((a.type = 'Winner' AND COALESCE(a.name, '') NOT LIKE '%Leadership%') OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', substr(a.name, 1, instr(a.name, 'Winning')), a.placement, a.team`,
         [won.season, won.code]);
       const lines = rows.map((r) => teamLine(Number(r.team), r.name, [String(r.award ?? (r.type === "Inspire" ? "Inspire Award" : "Winning Alliance")).replace(/<[^>]+>/g, "")]));
       // The event row as event sets show it (its dates, place and status).

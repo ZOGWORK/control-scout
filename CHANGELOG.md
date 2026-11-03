@@ -15,7 +15,37 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.6.3 — 2026-11-03
+## 2.7.0 — 2026-11-03
+
+FTC One Search lists a season's highest-scoring matches: the top alliance scores and the top combined scores, worldwide, in a state or at one event, with every team, the event, the date and a link to each match.
+
+### Highlights
+- [history] "Highest scoring games in decode": the season's top 10 scores
+- [history] Top combined scores, both alliances added together
+- [history] In a state or at one event: "highest scoring matches in NJ"
+- [history] "Highest scoring match ever": each season's best, one row a season
+
+### Search
+- **A season's top scores.** "Highest scoring games in decode", "top scores this season", "highest combined scores", "highest scoring matches in MA", "highest scoring matches at the New Jersey Championship": the season's 10 highest alliance scores as bars, then each match with both alliances' teams, the event, the date and a link, and the 10 highest combined scores. A score is the alliance's own points without penalties, as the season records count them (in 2020–21 and 2021–22, before its own penalties). Official events only. An event's divisions count with it. (#468)
+- **Ever.** "Highest scoring match ever" lists each season's best apart, since each season is a different game: never one all-time record. A state or an event named stays that state or event in every season.
+- The search box keeps its own high-score card; the full lists are on the search page.
+
+## 2.6.9 — 2026-11-03
+
+FTC One Search names a season's champions: "who won worlds", "decode winner", "who won nj states", each with the finals, every division's winners, the Inspire Award and other seasons one tap away.
+
+### Highlights
+- [history] "Who won worlds": the winning alliance with its finals
+- [history] "Who won nj states": each division's winners and the Inspire Award
+- [history] "This year" or "last year" picks the season; others are a tap away
+- [history] A championship not played yet says so and shows the latest one
+
+### Search
+- **Who won.** "Who won worlds", "decode winner", "into the deep champions", "who won worlds last year": the season's FIRST Championship winning alliance, with the final matches and each division's winners. A game's name picks its season, "this year" is the current season and "last year" or no season is the latest championship that has finished. A championship not played yet says so, with the latest finished one below. (#467)
+- **A place's championship.** "Who won nj states": that state's championship, each division apart, with its Inspire Award and links to the same answer for other seasons. A year on its own is when the event was held ("who won 2025 nj states" is 2024–25).
+- **Winning alliance.** The alliance that won the event's final match, with its whole roster from alliance selection; with no final stored, the event's published Winning Alliance award. A Leadership Award is never counted as a winner.
+
+## 2.6.8 — 2026-11-03
 
 FTC One Search answers how a team changed: OPR, win rate, alliance score, penalties and ranking points event by event, and its standing and record season by season.
 
@@ -29,6 +59,77 @@ FTC One Search answers how a team changed: OPR, win rate, alliance score, penalt
 - **Event by event.** "4215 OPR history", "4215 win rate", "4215 average penalties", "4215 average alliance score by event", "4215 ranking points": a line over the team's events in one season (the one named, else its latest), with the values and whether it is rising, falling or steady against the event before. Lower penalties count as better. Links switch to other seasons, since every season is a different game.
 - **Season by season.** "4215 OPR by season" shows the team's OPR rank each season and the share of ranked teams it was ahead of, never the OPR in points across seasons. "4215 record by season" shows wins, losses and ties each season with the win rate as a line.
 - **Penalty totals.** "4215 total penalties in 2025-26": the penalty points the team's alliances gave away that season, in all and per match, by event. (#462)
+
+## 2.6.7 — 2026-11-03
+
+FTC One Search's venue lines keep the spelling you typed.
+
+### Highlights
+- [fixes] "Meets at Riverdale High School" keeps the name you typed
+- [fixes] A venue line never swaps in a similar school's spelling
+- [history] Typo spellings still find the venue's meets, as before
+
+### Search
+- **Venue lines keep your spelling.** A venue's line takes its name from the venues found as typed. "Meets at riverdale high school" reads "Meets at Riverdale High School", no longer "River Dell High School" (New Jersey's more common spelling). A typo with nothing found as typed ("river dell hs") still reads the venue's own spelling. (#470)
+
+## 2.6.6 — 2026-11-03
+
+Typing "help" into FTC One Search shows what it can answer, with a query to try for each.
+
+### Highlights
+- [fixes] "Help" shows what FTC One Search answers, never "no exact match"
+- [fixes] Each kind of question has a query to try, one tap away
+- [fixes] A team named "Helpers" is still found by its name
+
+### Search
+- **Help.** "Help", "how do I search", "what can I search for" and "examples" answer with what the box reads: a team, two teams, events by place and time, leaders and records, who won, and what a word means. Each comes with an example query that opens its answer. Before, "help" said there was no exact match and listed teams with "Hel" in their names. (#469)
+
+## 2.6.5 — 2026-11-03
+
+FTC One Search keeps a venue's meets to that venue, and "who won" leaves the Leadership Award out.
+
+### Highlights
+- [fixes] "Meets at River Dell" no longer lists Riverdale High School, IL
+- [fixes] "Who won" lists the winning alliance, never Leadership winners
+- [history] Misspelt venues still count, in the venue's own state
+
+### Search
+- **A venue stays in its own state.** A spelling a letter or two off now counts only in a state where the venue is found as typed. New Jersey's "River Dale High School" is still River Dell's meet, and Riverdale High School in Port Byron, Illinois, is no longer listed.
+- **Who won.** FIRST stores the Leadership Award at the 2025–26 Championship as a "Winner" row. "Who won" now leaves it out, so the card lists only the winning alliance and the Inspire Award. (#466)
+
+## 2.6.4 — 2026-11-03
+
+FTC One Search compares a team's championship trips by division rank, and its filters never leave you at a dead end.
+
+### Highlights
+- [teams] A team's Worlds or state trips chart division rank, best on top
+- [teams] The trip stats show the win rate there instead of a peak OPR
+- [teams] On a phone, each season's chip shows its rank, never an OPR
+- [fixes] Search filters show counts, and an empty one offers the other tab
+
+### Search
+- **Rank, not OPR, across seasons.** Each season is a different game with its own scoring, so an OPR from 2021–22 can't be set against one from 2025–26. The chart over a team's Worlds or state trips now plots its division rank each season, #1 at the top; each point still names its division, rank, record and OPR, and selecting it still jumps to that season's card. The stats above it drop "Peak OPR" for the win rate across those trips ("Win rate at Worlds 67.3%, 33–16–0 in quals"), counted from the same records, beside the best division rank. On a phone each season's chip leads with its rank (its division when it has none).
+- **Filters that say what they hold.** The time tabs show how many events each holds ("All 5 · Upcoming 2 · Past 3"), so an empty one is plain before you pick it. A filter that leaves nothing says what's empty ("No past events in these results.") and offers each choice that isn't, one tap away ("Show 2 upcoming", "Show 3 in every season"), beside Clear filters. The season menu still shows whenever the results span seasons. Results and their order are unchanged. (#459)
+
+## 2.6.3 — 2026-11-03
+
+FTC One Search answers far more ways of asking: comparisons, winners, team facts, counts, months, glossary words and new leaderboards, where many used to end on "no results".
+
+### Highlights
+- [history] "Who won worlds last year" and "decode champions" name the winners
+- [rankings] New lists: highest win rate, most improved, undefeated, rookies
+- [teams] "4215 school" and "4215 rookie year" answer from the team's record
+- [fixes] "Compare 4215 and 6980", "is 4215 good" and more phrasings work
+
+### Search
+- **Said another way.** Phrasings the readers missed are said the way they read them: "compare A and B", "is A better than B", "which is better A or B", "who would win A or B" and "4215, 6980" compare the two teams; "is 4215 good" is "how good is 4215"; "predict 4215 next games" is its next match; "4215 worlds" and "bad wolf states" are its Worlds and states history; "4215 inspire" and "has 4215 won an event" are its awards; "4215 losses" is its record; "4215 decode" is its DECODE season. Scope words that add nothing ("in the world", "in FTC", "right now") are dropped. "Teams near Oradell" reads as "in Oradell", and the line says so, since no distances are on record.
+- **Who won.** "Who won worlds", "worlds winners", "who won worlds last year", "decode champions" (that season's FIRST Championship), "franklin division winners", "nj states winners" and "inspire award winners nj" name the winning alliance and the Inspire Award from the event's results. Worlds answers its finals, never a division's.
+- **New leaderboards.** The highest win rate (a tie counts half), the most improved (the biggest rise in OPR standing from one season to the next, never raw OPR across seasons), undefeated teams, the best rookies, rookie, oldest and newest teams, a country's best teams, a place's average OPR, a place's top scores, and a place's teams at Worlds. Each takes a place: "most improved in Texas".
+- **Team facts.** A team's school, home town, rookie year, website and sponsors, from its own record.
+- **Counts, months and Worlds.** "How many teams in Canada", "how many league meets this season", "events in January", "events today" and "tomorrow", "worlds this year", "worlds 2026" and "state championships" each get their own answer.
+- **An event's tab or match.** "NJ states rankings", "worlds playoffs" and "match 12 at nj states" open that tab or match; at an event with divisions, a match number shows each division's.
+- **What a word means.** OPR, the rating, reliability, ranking points, advancement, prediction accuracy, alliances, league meets, qualifiers, the Inspire Award, FTC itself and each season's game (DECODE, INTO THE DEEP …) are explained, with the page that explains more. "FTC rules" and "game manual" open Rules.
+- **Never a dead end.** A query with a team number in it that nothing else reads opens that team, saying what wasn't answered. A team named with "robotics", "team" or a state after it finds the team. Out of 332 test queries, only unknown team numbers and gibberish still end on "no results". (#465)
 
 ## 2.6.2 — 2026-11-03
 

@@ -23,6 +23,8 @@ beforeAll(async () => {
   await ev("USNJCMPPKWY", "New Jersey Championship - Parkway Division", "Championship", "2026-03-15", "USNJCMP");
   await ev("FTCCMP1", "FIRST Championship - FIRST Tech Challenge", "FIRSTChampionship", "2026-04-29");
   await ev("FTCCMP1EDIS", "FIRST Championship - FIRST Tech Challenge - Edison Division", "FIRSTChampionship", "2026-04-29", "FTCCMP1");
+  // An Edison Division a season earlier: a division's answer switches to the same division.
+  await run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (2024, 'FTCCMP1EDIS', 'FIRST Championship - FIRST Tech Challenge - Edison Division', 'FIRSTChampionship', 'FTCCMP1', 'Houston', 'TX', 'USA', '2025-04-16', '2025-04-19', 't')");
   await ev("FTCCMP1OCHO", "FIRST Championship - FIRST Tech Challenge - Ochoa Division", "FIRSTChampionship", "2026-04-29", "FTCCMP1");
   const match = (code: string, level: string, series: number, n: number, label: string, red: number, blue: number, teams: [number, string, number?][]) => Promise.all([
     run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, ?, ?, ?, ?, ?, '2026-03-15T10:00:00Z', 1, ?, ?, ?, ?, 't')", [code, level, series, n, label, red, red, blue, blue]),
@@ -147,6 +149,11 @@ describe("winning alliances", () => {
   it('"last season" outside a championship question is the season before the current one', () => {
     expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2025, lastYear: true } });
     expect(readStatQuestion("4215 average score last season")).toMatchObject({ scope: { season: 2025 } });
+  });
+  it("a Worlds division's other seasons are that division's", async () => {
+    const a = await searchAnswer("decode edison division winners", { limit: 25 });
+    const other = a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Other seasons");
+    expect(other && other.kind === "links" && other.items.map((i) => decodeURIComponent(i.href))).toEqual(["/search?q=into the deep edison division winners"]);
   });
   it("a Leadership Award stored as a Winner is never on the winning alliance", async () => {
     expect((await searchAnswer("Pine Barrens Qualifier winning alliance", { limit: 25 })).stat!.headline).toMatchObject({ value: "207 Critical Mass" });

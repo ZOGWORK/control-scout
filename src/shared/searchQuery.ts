@@ -33,8 +33,8 @@ export const STOPWORDS = new Set(["in", "at", "on", "the", "a", "an", "for", "of
 /** Words about when, never what: "upcoming meets in New Jersey" is New Jersey's meets from today on. "past",
  *  "recent", "previous" and "latest" are time words only beside an event word ("past meets"), so a name with one
  *  stays a name. Phrases are matched as whole words; longer ones first. */
-export const TIME_WORDS = ["this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest"];
-const ALWAYS_TIME = new Set(["this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
+export const TIME_WORDS = ["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up", "past", "recent", "previous", "latest"];
+const ALWAYS_TIME = new Set(["today", "tomorrow", "this weekend", "next weekend", "this week", "next week", "this month", "next month", "upcoming", "coming up"]);
 
 /** The words that say a query asks for events ("meets in New Jersey"), singular (after singularize). */
 export const EVENT_WORDS = new Set(["meet", "event", "tournament", "championship", "qualifier", "scrimmage", "league", "competition", "premier", "kickoff", "comp", "champ", "champs"]);
