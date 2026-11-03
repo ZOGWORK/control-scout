@@ -325,6 +325,8 @@ export function failureTitle(key: string): string {
 }
 
 export const reproduceUrl = (q: string) => `${SITE}/search?q=${encodeURIComponent(q)}`;
+/** The query to try again: the latest one as typed (redacted), never the key, which drops filler and may answer. */
+const latestTyped = (r: Pick<Row, "examples" | "key">) => (JSON.parse(r.examples) as string[])[0] ?? r.key;
 
 export function failureBody(r: Row): string {
   const t = JSON.parse(r.reading) as SearchTrace;
@@ -337,7 +339,7 @@ export function failureBody(r: Row): string {
     `**Count:** ${r.count}`,
     `**First seen:** ${r.first_seen}`,
     `**Last seen:** ${r.last_seen}`,
-    `**Reproduce:** ${reproduceUrl(r.key)}`,
+    `**Reproduce:** ${reproduceUrl(examples[0] ?? r.key)}`,
     `**Re-check (owner):** ${SITE}/api/reports/search-failures/${r.issue_number ?? "ISSUE"}/recheck`,
     `**Key:** \`${r.hash}\``,
     "",
@@ -519,7 +521,7 @@ export async function recheck(issueNumber: number, answer: (q: string) => Promis
   if (token) {
     const body = f
       ? `Re-check ${at}: still fails (result type ${f.type}). Search said:\n\n${fenced(label || "(nothing)")}\n\nLeft open. Count and last seen updated.`
-      : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(row.key)}.`;
+      : `Re-check ${at}: this query now returns a direct answer. Search said:\n\n${fenced(label || "(nothing)")}\n\nNot closed by this check: the owner closes it after checking live at ${reproduceUrl(latestTyped(row))}.`;
     try { await gh(token, "POST", `/issues/${issueNumber}/comments`, { body }); } catch (e) { pauseFor(e); throw e; }
   }
   return { answered: !f, label };

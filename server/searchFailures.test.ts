@@ -225,7 +225,7 @@ describe("GitHub issues (cases 23–30)", () => {
     expect(made[0].body.title).toBe("Failed search: xyzzyq");
     expect(made[0].body.labels).toEqual(["failed-search", "result:no-match"]);
     const body = issues[500].body!;
-    for (const part of ["**Result type:** no-match", "**Count:** 1", "**First seen:**", "**Last seen:**", "**Reproduce:** https://controlscout.org/search?q=xyzzyq",
+    for (const part of ["**Result type:** no-match", "**Count:** 1", "**First seen:**", "**Last seen:**", "**Reproduce:** https://controlscout.org/search?q=Xyzzyq",
       "**Re-check (owner):** https://controlscout.org/api/reports/search-failures/500/recheck", `**Key:** \`${keyHash("xyzzyq")}\``,
       "### Query as typed", "Xyzzyq", "### Normalized query", "### Interpreted reading", "Layer that won:   none", "### Status", "Close only after checking live"]) expect(body).toContain(part);
     expect((await rows())[0]).toMatchObject({ issue_number: 500, issue_state: "open", reported_count: 1 });
@@ -240,6 +240,8 @@ describe("GitHub issues (cases 23–30)", () => {
     expect(issues[500].body).toContain("Team:             4215");
     expect(issues[500].body).toContain("Intent keywords:  opr");
     expect(issues[500].body).toContain("Filler dropped:   rn");
+    // Reproduce opens the query as typed: the key ("4215 opr") drops the filler and answers (found live on #481).
+    expect(issues[500].body).toContain("**Reproduce:** https://controlscout.org/search?q=4215%20opr%20rn");
   });
 
   it("25: the same failure three times is one issue with count 3 and no comment per repeat", async () => {

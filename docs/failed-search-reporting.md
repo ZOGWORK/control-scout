@@ -53,7 +53,7 @@ reports how it reached an answer (`SearchTrace`), the reading is taken from the 
   where" and "4215 where from" are two issues.
 - **Title.** `Failed search: <key>`, the key cut at 80 characters with "…". The full query is in the body. `@` and
   `#<digit>` get a zero-width space so a title can't mention anyone or link an issue.
-- **Body.** Result type, count, first seen, last seen, Reproduce link (`https://controlscout.org/search?q=<key>`),
+- **Body.** Result type, count, first seen, last seen, Reproduce link (`https://controlscout.org/search?q=<latest query as typed>`, never the key, which may answer once filler is dropped),
   owner Re-check link, key hash, then: the query as typed (the 5 latest distinct variants), the normalized query,
   the interpreted reading (team, intent words, intent, scope, filler dropped, layers attempted, layer that won, what
   search said) and the status footer. Query text sits in code fences, so no markdown, link or mention in it runs.
