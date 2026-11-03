@@ -85,7 +85,7 @@ const RULES: IntentRule[] = [
   { id: "total-matches", family: "aggregate", season: "all", re: new RegExp(`\\b(?:total|number\\s+of|career)\\s+${MATCHES}(?:\\s+played)?\\b|\\b${MATCHES}\\s+(?:count|total)\\b|\\bhow\\s+many\\s+${MATCHES}\\s+(?:has|have|did)\\s+(?<team>.+?)\\s+play(?:ed)?\\b`) },
   { id: "wins-count", family: "aggregate", season: "all", re: new RegExp(`\\bhow\\s+many\\s+(?:${MATCHES}\\s+|times\\s+)?(?:has|have|did)\\s+(?<team>.+?)\\s+won?\\b|\\b(?:number\\s+of|total|career|how\\s+many)\\s+(?:match\\s+)?wins\\b|\\bwins?\\s+count\\b`) },
   { id: "losses", family: "aggregate", season: "all", re: new RegExp(`\\blosses\\b|\\blost\\s+${MATCHES}\\b|\\b${MATCHES}\\s+lost\\b`) },
-  { id: "results", family: "event", season: "all", needsEvent: true, re: /\b(?:results?|matches|how\s+did\s+.+?\s+do)\b/ },
+  { id: "results", family: "event", season: "all", needsEvent: true, re: /\b(?:results?|matches|how\s+did\s+(?<team>.+?)\s+do)\b/ },
   { id: "event-rank", family: "event", season: "all", needsEvent: true, re: /\b(?:rank(?:ed|ing)?|placement|place|placed|finish(?:ed)?|seed(?:ed)?)\b/ },
   { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\bopr\b/ },
   { id: "awards", family: "awards", season: "all", needsScope: true, re: /\bawards?\b/ },
@@ -135,6 +135,8 @@ const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 
 /** Answered from season rows: no event, match-type or colour scope applies to a season's numbers. */
 const SEASON_ROWS = new Set<IntentId>(["seasons-played", "seasons-count", "first-season", "best-season", "most-improved-season"]);
+/** Answered from the awards: no match type or colour applies. */
+const AWARD_IDS = new Set<IntentId>(["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"]);
 /** Answered from event rows: an event-level scope (Worlds, states, a season) applies, a match type or colour doesn't. */
 const EVENT_ROWS = new Set<IntentId>(["best-finish", "worst-finish", "first-event", "last-event", "best-opr-event", "total-events", "average-rank"]);
 
@@ -236,7 +238,9 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
     if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
     if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
-    if (r.id === "never-played" && (scope.championship || scope.states || scope.level || scope.alliance || scope.ever)) return null;
+    if (r.id === "never-played" && (scope.championship || scope.states || scope.level || scope.alliance || scope.ever || scope.at)) return null;
+    if (SEASON_ROWS.has(r.id) && scope.at) return null;
+    if (AWARD_IDS.has(r.id) && (scope.level || scope.alliance)) return null;
     if (r.needsEvent && !scope.at) return null;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
     if (r.id === "red-blue-record") scope.alliance = null;
@@ -245,11 +249,13 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // own answer (searchHighScores.ts, the same rule): taken here only with what that answer doesn't cover (Worlds,
     // states, every season, which event, playoffs or quals, a colour, one event).
     if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance || scope.at)) return null;
+    // "q12", "qual 12": a qualification match only, never a playoff match with that number.
+    if (r.id === "match-lookup" && /\bq(?:ual(?:ification)?)?\s*\d/.test(m[0])) scope.level = "qual";
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : null;
     const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null) : null;
     const count = /\b(?:count|how\s+many|number\s+of|total)\b/.test(q);
     // A team-less question: what's left names an event (or nothing: the season's championship).
-    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for)\b/g, " ")) };
+    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
     let core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     // Nothing else names a team: the "year" was the team's number ("2024 worlds record").
     if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }

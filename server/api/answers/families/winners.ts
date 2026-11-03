@@ -10,6 +10,7 @@ import type { StatAnswer, StatBlock, StatMatchRow } from "../../../../src/shared
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { all, get } from "../../../db.js";
 import { SEASONS } from "../../../data/seasons.js";
+import { fuzzyScore } from "../../fuzzy.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
 
@@ -28,7 +29,7 @@ async function latestChampionship(): Promise<number | null> {
 
 /** One event's winners, with its final matches: the alliance that won the last match of the event's last playoff
  *  series (its finals), its whole roster from alliance selection; with no final match stored, the Winning Alliance
- *  award. Null when neither is in the data (not played yet). */
+ *  award. Null when neither is in the data (not played yet), or its final isn't decided yet. */
 async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow[]; from: "finals" | "award" } | null> {
   const last = await get<{ s: number | null }>("SELECT MAX(series) s FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1", [e.season, e.code]);
   const ms = last?.s == null ? [] : await all<any>(
@@ -38,9 +39,16 @@ async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow
      FROM matches m WHERE m.season = ? AND m.code = ? AND m.level = 'playoff' AND m.series = ? AND m.played = 1 ORDER BY m.number`, [e.season, e.code, last.s]);
   const nums = (s: string | null) => String(s ?? "").split(",").filter(Boolean).map(Number);
   let teams: number[] = [], from: "finals" | "award" = "finals";
-  const decider = ms[ms.length - 1];
-  if (decider && Number(decider.red_total) !== Number(decider.blue_total)) {
-    const won = nums(Number(decider.red_total) > Number(decider.blue_total) ? decider.red : decider.blue);
+  // The final is decided once an alliance has won two of its matches (a best-of-three), or the event is over and one
+  // alliance won more. Mid-event, the latest played series may be a semifinal or a final still going: never a champion.
+  const redWins = ms.filter((m) => Number(m.red_total) > Number(m.blue_total)).length, blueWins = ms.filter((m) => Number(m.blue_total) > Number(m.red_total)).length;
+  const end = String(e.end ?? e.start ?? "").slice(0, 10);
+  const over = !!end && end < new Date().toISOString().slice(0, 10);
+  const decided = Math.max(redWins, blueWins) >= 2 || (over && redWins !== blueWins);
+  if (ms.length && !decided) return null;
+  if (ms.length) {
+    const colour = redWins > blueWins ? "red" : "blue";
+    const won = [...new Set(ms.flatMap((m) => nums(m[colour])))];
     // The alliance's whole roster (a team sitting the final out is still on it).
     const roster = await all<any>("SELECT captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ?", [e.season, e.code]);
     const mine = roster.map((a) => [a.captain, a.pick1, a.pick2, a.backup].filter((t) => t != null).map(Number)).find((ts) => won.some((t) => ts.includes(t)));
@@ -78,6 +86,13 @@ export async function winnersAnswer(core: string, season: number | null, champio
     if (!parent) {
       const label = `${gameOf(s)} (${seasonLabel(s)})`;
       return { family: "event", intent: "winning-alliance", title: `${label} championship winning alliance`, scope: ["FIRST Championship (Worlds)", seasonLabel(s)], blocks: [], definition: RULE, source: "No championship events in the data for this season", none: `No championship results yet for ${gameOf(s)}: the ${seasonLabel(s)} FIRST Championship isn't in the data.` };
+    }
+    // A division named with it ("FIRST Championship - Edison Division winning alliance"): that division's winners.
+    if (core) {
+      const divs = await all<Ev>(`SELECT ${evCols} FROM events WHERE season = ? AND division_code = ?`, [parent.season, parent.code]);
+      const best = divs.map((d) => ({ d, s: fuzzyScore(core, d.name.split(/\s+-\s+/).pop() ?? d.name) })).filter((x) => x.s >= 0.75).sort((a, b) => b.s - a.s)[0];
+      if (!best) return null;
+      parent = best.d;
     }
   } else parent = await findEvent(core, season);
   if (!parent) return null;
