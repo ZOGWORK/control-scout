@@ -21,7 +21,7 @@ Teams: a link can name a state, so it opens on exactly the teams a search answer
 
 ### Highlights
 - [teams] A Teams link can name a state, like New Jersey teams only
-- [share] The Teams page you're looking at is its own link: refresh, back and share keep it
+- [share] A filtered Teams page survives refresh, back and sharing
 - [teams] One chip, "Teams from New Jersey, United States", clears the place
 
 ### Teams
