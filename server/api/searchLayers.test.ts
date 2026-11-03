@@ -68,6 +68,21 @@ describe("Layer 0 and the word layers' tokens", () => {
     expect(tokens("#4215's OPR in 2024 – 25")).toEqual(["4215", "opr", "in", "2024-25"]);
     expect(tokens("Hypnotic Robotics, DECODE year")).toEqual(["hypnotic", "robotics", "decode", "year"]);
   });
+  it("every word list entry reads as itself, so none can never match", () => {
+    for (const w of [...INTENTS.flatMap((i) => i.words), ...FILLER, ...FORBIDDEN, ...PARAPHRASES.flat(), ...Object.keys(WEAK_SIGNALS)]) {
+      if (/^what does mean$|^when did start$/.test(w)) continue;
+      expect(tokens(w).join(" "), w).toBe(w);
+    }
+  });
+  it("each intent's keywords, beside a team (or alone, for the teamless ones), find that intent", async () => {
+    for (const it of INTENTS.filter((i) => i.team === "required")) {
+      for (const w of it.words) {
+        const x = await extract(`4215 ${w}`);
+        // A rule may hand a keyword to a stronger intent ("next match" is next-match's), never to none.
+        expect(x.intents.length + x.weak.length, `4215 ${w}`).toBeGreaterThan(0);
+      }
+    }
+  });
 });
 
 describe("paraphrase sets: every member returns the canonical answer", () => {

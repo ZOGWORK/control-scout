@@ -98,6 +98,13 @@ export const PARAPHRASE_SETS: ParaphraseSet[] = [
   { intent: "meaning", canonical: "what is opr", members: [
     ["statement", "define opr"], ["reversed", "opr meaning"], ["filler", "what is opr please"], ["question", "what does opr mean"],
   ] },
+  // Every other team intent Layer 1 reads team-first: Layer 2's team-first phrasing (searchLayers.ts teamFirst).
+  { intent: "team-first (biggest win)", canonical: "4215 biggest win", members: [
+    ["of", "biggest win of 4215"], ["filler", "biggest win of hypnotic robotics please"], ["question", "what is 4215 biggest win rn"],
+  ] },
+  { intent: "team-first (highest score at an event)", canonical: "4215 highest score at new jersey championship", members: [
+    ["reversed", "highest score at new jersey championship for 4215"], ["filler", "4215 highest score at new jersey championship please"],
+  ] },
   { intent: "versus", canonical: "4215 vs 6980", members: [
     ["filler", "4215 vs 6980 please"], ["statement", "compare 4215 and 6980"], ["statement", "4215 versus 6980"],
     ["question", "is 4215 better than 6980"], ["name", "hypnotic robotics vs bad wolf"],

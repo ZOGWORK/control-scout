@@ -102,7 +102,8 @@ async function teamsNamed(ws: string[]): Promise<string[]> {
   const { byName, list } = await teamNames();
   const exact = byName.get(n);
   if (exact) return exact;
-  if (n.replace(/\s/g, "").length < 5) return [];
+  // A one-word start of a name needs 6+ letters ("hypnotic"), so a common word ("total") isn't read as a team.
+  if (n.replace(/\s/g, "").length < (ws.length > 1 ? 5 : 6)) return [];
   const pre = list.filter(([name]) => name === n || name.startsWith(`${n} `));
   return pre.length === 1 ? [pre[0][1]] : [];
 }
@@ -111,7 +112,7 @@ async function teamsNamed(ws: string[]): Promise<string[]> {
 // Layer 2: keyword intent extraction.
 
 type Kind = "intent" | "phase" | "award" | "lead" | "filler" | "scaffold" | "forbidden" | "join" | "season" | "place" | "weak";
-interface Tok { w: string; kind?: Kind; id?: string; span?: number; phrase?: string }
+interface Tok { w: string; kind?: Kind; id?: string; span?: number; phrase?: string; team?: string }
 
 const phrases = (ws: string[]) => ws.map((p) => p.split(" "));
 const LEXICON: { ws: string[]; kind: Kind; id?: string }[] = [
@@ -181,6 +182,9 @@ export interface Extracted {
   unknown: string[];
   /** The canonical phrasing for the one intent, when there is one. */
   canonical: string | null;
+  /** Any team intent the catalog doesn't list ("longest win streak of 4215"): the team first, then the other words
+   *  in the order typed, filler and scaffolding left out, as Layer 1's team-first phrasings read them. */
+  teamFirst: string | null;
   intent: Intent | null;
 }
 
@@ -236,6 +240,7 @@ export async function extract(q: string): Promise<Extracted> {
         if (t.kind === "scaffold" || t.kind === "filler") { const at = dropped.indexOf(t.phrase!); if (at >= 0) dropped.splice(at, 1); }
         if (t.kind === "weak") weak.delete(t.id!);
         t.kind = undefined;
+        t.team = hit[0];
       }
     } else if (hit.length > 1) unknown.push(...runWords(r), `(${hit.length} teams named that)`);
     else if (!eventRun) eventRun = r;
@@ -259,10 +264,19 @@ export async function extract(q: string): Promise<Extracted> {
   const teamNums: string[] = [], years: string[] = [];
   for (const { t } of nums) (isYear(t.w) ? years : teamNums).push(String(Number(t.w)));
   for (const n of teamNums) if (await teamExists(n)) found.teams.push(n); else unknown.push(n);
-  for (const n of named) if (!found.teams.includes(n)) found.teams.push(n);
+  const markNumber = (n: string) => { for (const { t } of nums) if (String(Number(t.w)) === n) t.team = n; };
+  found.teams.forEach(markNumber);
+  // A name beside a typed number is a second team only when the query joins them ("4215 vs bad wolf"); else its
+  // words are the question's ("total awards 4215" isn't two teams).
+  const joined = strong.has("versus") || toks.some((t) => t.kind === "join");
+  for (const n of named) {
+    if (found.teams.includes(n)) continue;
+    if (found.teams.length && !joined) { for (const t of toks) if (t.team === n) { t.team = undefined; unknown.push(t.w); } continue; }
+    found.teams.push(n);
+  }
   for (const y of years) {
     // A bare year with nothing else naming a team is the team (readTeamFact's rule), else the season.
-    if (!found.teams.length && (await teamExists(y)) && !isTeamless(strong)) found.teams.push(y);
+    if (!found.teams.length && (await teamExists(y)) && !isTeamless(strong)) { found.teams.push(y); markNumber(y); }
     else if (!found.season) found.season = y;
     else unknown.push(y);
   }
@@ -298,7 +312,7 @@ export async function extract(q: string): Promise<Extracted> {
   if (it?.id === "meaning") {
     const term = toks.filter((t) => t.kind !== "scaffold" && t.kind !== "filler" && !(t.kind === "intent" && t.id === "meaning")).map((t) => t.w).join(" ");
     unknown.length = 0;
-    return { teams: [], intents, weak: [], found, dropped, forbidden: blocking, unknown: term ? [] : ["(no term)"], canonical: term ? `what is ${term}` : null, intent: it };
+    return { teams: [], intents, weak: [], found, dropped, forbidden: blocking, unknown: term ? [] : ["(no term)"], canonical: term ? `what is ${term}` : null, teamFirst: null, intent: it };
   }
   let canonical = it && !blocking.length && !unknown.length ? it.canonical(found) : null;
   if (!canonical && it?.id === "events" && found.teams.length === 1 && !blocking.length && !unknown.length) {
@@ -307,8 +321,20 @@ export async function extract(q: string): Promise<Extracted> {
     if (s?.season) canonical = `${found.teams[0]} events in ${s.season}-${String((s.season + 1) % 100).padStart(2, "0")}`;
   }
   const weakIds = !intents.length && found.teams.length === 1 ? [...new Set([...weak].flatMap((w) => WEAK_SIGNALS[w]))] : [];
-  return { teams: found.teams, intents, weak: weakIds, found, dropped, forbidden: blocking, unknown, canonical, intent: it };
+  let teamFirst: string | null = null;
+  if (found.teams.length === 1 && !blocking.length) {
+    const rest = toks.filter((t) => !t.team && t.kind !== "filler" && (t.kind !== "scaffold" || KEPT_CONNECTORS.has(t.w))).map((t) => t.w);
+    while (rest.length && KEPT_CONNECTORS.has(rest[0])) rest.shift();
+    while (rest.length && KEPT_CONNECTORS.has(rest.at(-1)!)) rest.pop();
+    // A team and a place or season alone asks nothing more ("hypnotic robotics texas" stays a name in a state).
+    const asks = toks.some((t) => !t.team && !t.kind && !/^\d+$/.test(t.w)) || toks.some((t) => t.kind === "intent" || t.kind === "phase" || t.kind === "award" || t.kind === "weak");
+    if (rest.length && asks) teamFirst = `${found.teams[0]} ${rest.join(" ")}`;
+  }
+  return { teams: found.teams, intents, weak: weakIds, found, dropped, forbidden: blocking, unknown, canonical, teamFirst, intent: it };
 }
+
+/** Connectors that place what follows ("highest score at worlds"): kept in the team-first phrasing. */
+const KEPT_CONNECTORS = new Set(["at", "in", "on", "during", "with"]);
 
 /** Intents that never have a team: a year in them is a season ("who won worlds 2025"). */
 const isTeamless = (strong: Set<string>) => [...strong].some((id) => INTENTS.find((x) => x.id === id)?.team === "forbidden");
@@ -369,10 +395,13 @@ const same = (a: SearchAnswer, b: SearchAnswer) =>
   JSON.stringify([a.stat?.title, a.stat?.headline?.value, a.card?.kind, a.card?.title, a.understood?.label, a.hits[0]?.ref, a.hits[0]?.section])
   === JSON.stringify([b.stat?.title, b.stat?.headline?.value, b.card?.kind, b.card?.title, b.understood?.label, b.hits[0]?.ref, b.hits[0]?.section]);
 
+const CONNECTORS = new Set(["of", "in", "for", "at", "the", "a", "an", "to", "on", "during", "with", "is", "are", "does", "do"]);
+
 /** The reading line: how the query was read, appended to what the answer understood. */
 function readAs(a: SearchAnswer, typed: string, as: string, left: string[]): SearchAnswer {
   const u = a.understood ?? { kind: "names" as const, label: "" };
-  const words = [...new Set(left)].filter(Boolean);
+  // Connectors ("the", "in") go unsaid: the line names the words that could look like part of the question.
+  const words = [...new Set(left)].filter((w) => w && !CONNECTORS.has(w));
   const note = `read as "${as}"${words.length ? `, leaving out ${words.slice(0, 6).map((w) => `"${w}"`).join(", ")}${words.length > 6 ? " …" : ""}` : ""}`;
   return { ...a, q: typed, understood: { ...u, label: u.label ? `${u.label} · ${note}` : note } };
 }
@@ -384,7 +413,10 @@ function readAs(a: SearchAnswer, typed: string, as: string, left: string[]): Sea
 type Run = (q: string) => Promise<SearchAnswer>;
 
 /** The answer for a top-level query, through the layers. `run` is the existing reader path (Layer 1). */
-export async function layeredAnswer(typed: string, run: Run): Promise<SearchAnswer> {
+export async function layeredAnswer(typed: string, reader: Run): Promise<SearchAnswer> {
+  // A phrasing two layers reach ("what is endgame" is its own canonical form) is read once.
+  const seen = new Map<string, Promise<SearchAnswer>>();
+  const run: Run = (q) => { const k = q; if (!seen.has(k)) seen.set(k, reader(q)); return seen.get(k)!; };
   const layers: LayerId[] = ["normalize"];
   const q0 = normalizeQuery(typed);
   const x0 = await extract(q0);
@@ -395,7 +427,7 @@ export async function layeredAnswer(typed: string, run: Run): Promise<SearchAnsw
     const out = { ...a, q: typed };
     outcomes.set(out, {
       typed, normalized, layers: [...new Set(layers)], won, result: result ?? (won ? "answered" : resultOf(a, asked)),
-      team: x.teams[0] ?? null, intents: x.intents.length ? x.intents : x.weak,
+      team: x.teams[0] ?? null, intents: x.intents,
       scope: { ...(x.found.season ? { season: x.found.season } : {}), ...(x.found.place ? { place: x.found.place } : {}), ...(x.found.event ? { event: x.found.event } : {}) },
       filler: [...new Set(filler)],
     });
@@ -404,10 +436,14 @@ export async function layeredAnswer(typed: string, run: Run): Promise<SearchAnsw
   const template = testLayers.template !== false, keyword = testLayers.keyword !== false;
   const ok = (a: SearchAnswer) => resultOf(a, asked) === "answered";
   const keywordTry = async (q: string, x: Extracted, layer: LayerId, left: string[]) => {
-    if (!keyword || !x.canonical) return null;
-    layers.push(layer);
-    const a = await run(x.canonical);
-    return ok(a) ? done(readAs(a, typed, x.canonical, left), layer, x, "answered", left) : null;
+    if (!keyword) return null;
+    for (const as of [x.canonical, x.teamFirst]) {
+      if (!as) continue;
+      layers.push(layer);
+      const a = await run(as);
+      if (ok(a)) return done(readAs(a, typed, as, left), layer, x, "answered", left);
+    }
+    return null;
   };
 
   // Layer 1.
@@ -468,8 +504,10 @@ export async function layeredAnswer(typed: string, run: Run): Promise<SearchAnsw
   // Layer 6: the existing answer, with the candidates named when two intents fit equally.
   layers.push("fallback");
   const fallback = base ?? (await run(q0));
-  const cands = x0.intents.length > 1 ? x0.intents : xw.weak.length > 1 ? xw.weak : [];
-  if (cands.length > 1 && x0.teams.length) {
+  // Only when every word was read: a query with words nobody read isn't two clear readings.
+  const clean = (x: Extracted) => !x.unknown.length && !x.forbidden.length && x.teams.length === 1;
+  const cands = x0.intents.length > 1 && clean(x0) ? x0.intents : xw.weak.length > 1 && clean(xw) ? xw.weak : [];
+  if (cands.length > 1) {
     const u = fallback.understood ?? { kind: "team" as const, label: "" };
     const line = `read as ${x0.teams[0]} with ${cands.join(" or ")}: say which`;
     return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line } }, null, { ...x0, intents: cands }, "ambiguous");
