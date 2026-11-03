@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.5.8 — 2026-11-03
+
+FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
+
+### Highlights
+- [teams] "4215 highest score in worlds": the score, match, division and date
+- [teams] "4215 worlds record" counts Worlds matches only
+- [teams] Average score, streaks, last 5 matches, biggest win and more
+- [teams] Every answer says how it was counted and which records it comes from
+
+### Search
+- **Stat answers.** A question about one team's matches, events or seasons gets its answer at the top of the results: the number asked for, then the matches, a win-loss bar, tables by season and charts. It works for any team and any of these scopes: Worlds ("at worlds"), state championships ("at states"), a season ("2024-25", "this season", a game's name like "into the deep"), every season ("ever"), playoffs or quals, and red or blue. Questions it answers: highest and lowest score, which event it scored highest at, biggest win and loss, closest match, first and most recent match, match wins, record, record by alliance colour, matches played, average score, current and longest win streak, last N matches, blowout wins, losses, playoff and qualification matches, playoff appearances, best and worst event finish, first and most recent event, best OPR event, events played, average event rank, seasons played, first season, best season and most improved season.
+- **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
+- **Never one number across seasons.** Each season is a different game that scores on its own scale, so seasons are compared by OPR standing (rank among that season's teams) and record, never by raw OPR or scores: the best and most improved seasons use standing, an average over several seasons is listed season by season, and with no season named a best or lowest score, a biggest win or loss and a best OPR event are the latest season's, with every season's own listed below.
+- **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
 ## 2.5.7 — 2026-11-03
 
 FTC One Search finds every meet held at a venue, past seasons too, and its lines say what you typed.
