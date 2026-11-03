@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Teams: a link can name a state, so it opens on exactly the teams a search answer ranked.
 
 ### Highlights
-- [teams] Teams links can name a state: New Jersey teams only, sorted however the link says
+- [teams] A Teams link can name a state, like New Jersey teams only
 - [share] The Teams page you're looking at is its own link: refresh, back and share keep it
 - [teams] One chip, "Teams from New Jersey, United States", clears the place
 
