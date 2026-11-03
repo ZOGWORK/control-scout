@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, HOME_SEARCH_NAME, HOME_SEARCH_SUB, HOME_SEARCH_TITLE, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
 
@@ -81,16 +81,13 @@ export const BOOT_STYLE = `<style>
       .csb-hl{display:grid;font:600 min(36px,8.5cqi)/1.05 "Space Grotesk",sans-serif;letter-spacing:-.02em}.csb-hl>*{grid-area:1/1}.csb-hl>i{visibility:hidden;font-style:normal}.csb-hl b{display:block;font-weight:inherit}
       .csb-home>p{margin:16px 0 0;max-width:30rem;font-size:16px;line-height:1.5}
       .csb-home{--r:14px}
-      .csb .csb-home>p.csb-hs{margin:var(--r) 0 0;max-width:38rem;font-size:calc(var(--r)*.875);line-height:calc(var(--r)*1.25)}
-      .csb-hs small{display:block;font-size:calc(var(--r)*.75);line-height:var(--r);font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--b-acc)}
-      .csb-hs b{display:block;margin:calc(var(--r)*.375) 0 calc(var(--r)*.25);font:600 calc(var(--r)*1.5)/1.3333 "Space Grotesk",sans-serif;letter-spacing:-.01em;color:var(--b-fg)}
       .csb-home>div:not(.csb-hl){max-width:38rem;height:calc(var(--r)*4);margin:var(--r) 0 0;border:1px solid var(--b-line);border-radius:var(--r)}
       .csb .csb-home>p.csb-about{margin:calc(var(--r)*3.25 + 72px) 0 0;font-size:14px;line-height:20px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
       .csb .csb-tabs>*{display:flex;flex:1;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
-      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1,.csb-hl{font-size:min(35px,8.5cqi)}.csb .csb-home>p.csb-hs{margin-top:calc(var(--r)*1.5)}.csb-hs b{font-size:calc(var(--r)*1.75)}.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*5.75 + 72px)}}
+      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1,.csb-hl{font-size:min(35px,8.5cqi)}.csb-home>div:not(.csb-hl){margin-top:calc(var(--r)*1.5)}.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*5.75 + 72px)}}
       @media (min-width:768px){.csb-home{--r:16px}.csb .csb-home h1,.csb-hl{font-size:min(40px,8.5cqi)}.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:20rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
       @media (min-width:1024px){.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*8.5 + 72px)}.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}.csb-search span{max-width:24rem}}
       @media (max-width:1279px){${rail("")}}
@@ -176,7 +173,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   // A page with no title of its own (not found) gets the shell alone.
   const liteLink = lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open the light version</a>: text only, a fraction of the data.</p>` : "";
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><p class="csb-hs"><small>${esc(HOME_SEARCH_NAME)}</small><b>${esc(HOME_SEARCH_TITLE)}</b>${esc(HOME_SEARCH_SUB)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     // A page the server drew whole (a team or event page: server/firstPaint.ts): the app's own markup, in the app's page
     // frame, styled by the app's stylesheet (server/seo.ts loads it before this paints). Under it, the lists it leaves
     // closed or on another tab (PageMeta.moreHtml), so crawlers read them too. Its data follows for the app.
