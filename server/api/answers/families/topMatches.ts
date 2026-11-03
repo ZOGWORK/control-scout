@@ -35,7 +35,8 @@ const FILLER = /\b(?:the|in|of|for|during|all|ftc|first|tech|challenge|what|what
 export function readTopMatches(raw: string): TopMatchesQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!.,]/g, " ")} `.replace(/\s+/g, " ");
   if (!ASKED.test(q) || /\bworld[\s-]+records?\b|\brecords?\b/.test(q)) return null;
-  const hs = parseHighScore(q);
+  // "highest combined scores", "top alliance score": the same question to the high-score reader.
+  const hs = parseHighScore(q.replace(/\b(highest|top|best|biggest|max(?:imum)?)\s+(?:match|alliance|combined)\s+(scores?)\b/, "$1 $2"));
   if (!hs) return null;
   const ever = /\b(?:ever|all[\s-]+time|of\s+all\s+time|in\s+history)\b/.test(q);
   let rest = ` ${hs.core} `;
@@ -44,7 +45,10 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   if (at) rest = rest.slice(0, at.index);
   const words = rest.replace(FILLER, " ").replace(/\s+/g, " ").trim();
   // Words left over name a place ("in nj") or nothing; anything else (a team) is another answer's.
-  const region = words ? regionOf(words.split(" ")) : null;
+  // A state code is read as typed ("MA", "OR": in lower case they're words), so each word's own case is kept.
+  const asTyped = raw.replace(/[?!.,]/g, " ").split(/\s+/);
+  const typed = words ? words.split(" ").map((w) => asTyped.find((x) => x.toLowerCase() === w) ?? w) : [];
+  const region = words ? regionOf(typed) : null;
   if (words && !region) return null;
   return { season: hs.season, game: hs.game, ever: ever && hs.season == null, region, event: event || null };
 }
@@ -62,14 +66,23 @@ function where(season: number, region: Region | null, event: { season: number; c
   return { sql: sql.join(" AND "), args };
 }
 
+const SIDE_FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code";
+const side = (s: "red" | "blue", w: string) => `SELECT ${COLS}, '${s}' side, COALESCE(m.${s}_np, m.${s}_total) score ${SIDE_FROM} WHERE ${w} AND COALESCE(m.${s}_np, m.${s}_total) IS NOT NULL`;
+
+/** One season's best alliance score only (the "ever" table's row). */
+async function bestOf(season: number, region: Region | null, event: { season: number; code: string } | null) {
+  const w = where(season, region, event);
+  // select-star: the derived table's own columns (side() names each one), not a table's.
+  return (await get<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql)} UNION ALL ${side("blue", w.sql)}) ORDER BY score DESC, start, code, label LIMIT 1`, [...w.args, ...w.args])) ?? null;
+}
+
 /** The top alliance scores (each side its own row) and the top combined scores, in one season's scope. */
 async function topOf(season: number, region: Region | null, event: { season: number; code: string } | null) {
   const w = where(season, region, event);
-  const from = "FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code";
-  const side = (s: "red" | "blue") => `SELECT ${COLS}, '${s}' side, COALESCE(m.${s}_np, m.${s}_total) score ${from} WHERE ${w.sql} AND COALESCE(m.${s}_np, m.${s}_total) IS NOT NULL`;
+  const from = SIDE_FROM;
   const [alliances, combined, count] = await Promise.all([
     // select-star: the derived table's own columns (side() names each one), not a table's.
-    all<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red")} UNION ALL ${side("blue")}) ORDER BY score DESC, start, code, label LIMIT ?`, [...w.args, ...w.args, TOP_MATCHES]),
+    all<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql)} UNION ALL ${side("blue", w.sql)}) ORDER BY score DESC, start, code, label LIMIT ?`, [...w.args, ...w.args, TOP_MATCHES]),
     all<Row & { score: number }>(`SELECT ${COLS}, COALESCE(m.red_np, m.red_total) + COALESCE(m.blue_np, m.blue_total) score ${from} WHERE ${w.sql} AND COALESCE(m.red_np, m.red_total) IS NOT NULL AND COALESCE(m.blue_np, m.blue_total) IS NOT NULL ORDER BY score DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, TOP_MATCHES]),
     get<{ n: number }>(`SELECT COUNT(*) n ${from} WHERE ${w.sql}`, w.args),
   ]);
@@ -141,14 +154,19 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
  *  latest season's lists in full above them. */
 export async function everTopMatches(t: TopMatchesQuestion, findEvent: Parameters<typeof topMatchesAnswer>[1]): Promise<StatAnswer | null> {
   const latest = await topMatchesAnswer({ ...t, ever: false }, findEvent);
-  if (!latest || !latest.headline) return latest;
-  const seasons = (await all<{ s: number }>(`SELECT DISTINCT m.season s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}) ORDER BY m.season DESC`, [...OFFICIAL_TYPES])).map((r) => Number(r.s));
-  const per = await Promise.all(seasons.map(async (s) => ({ s, r: (await topOf(s, t.region, null)).alliances[0] })));
+  if (!latest) return null;
+  // An event named is the same event (its code) each season it was held.
+  const ev = t.event ? await findEvent(t.event, null) : null;
+  const seasons = (await all<{ s: number }>(`SELECT DISTINCT m.season s ${SIDE_FROM} WHERE m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})${ev ? " AND (e.code = ? OR e.division_code = ?)" : ""} ORDER BY m.season DESC`, [...OFFICIAL_TYPES, ...(ev ? [ev.code, ev.code] : [])])).map((r) => Number(r.s));
+  const per = (await Promise.all(seasons.map(async (s) => ({ s, r: await bestOf(s, t.region, ev ? { season: s, code: ev.code } : null) })))).filter((p) => p.r);
+  if (!per.length) return latest;
   const gameOf = (s: number) => SEASONS.find((x) => x.season === s)?.game ?? seasonLabel(s);
   const table: StatBlock = { kind: "table", title: "Highest alliance score each season (each season is a different game)", columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
-    rows: per.filter((p) => p.r).map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r.score, match: r.label, event: shortEvent(r.name, r.type) }, href: matchHref(r), strong: s === seasons[0] })) };
+    rows: per.map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r!.score, match: r!.label, event: shortEvent(r!.name, r!.type) }, href: matchHref(r!), strong: s === per[0].s })) };
+  const place = ev ? ` at ${shortEvent(ev.name, ev.type)}` : t.region ? ` in ${t.region.name}` : "";
+  // The latest season's lists only when it has scores here (a place's newest season may have none yet).
   return {
-    ...latest, title: `Highest-scoring match each season${t.region ? ` in ${t.region.name}` : ""}`, scope: ["Every season", ...latest.scope.slice(1)], blocks: [table, ...latest.blocks],
+    ...latest, none: undefined, title: `Highest-scoring match each season${place}`, scope: ["Every season", ...latest.scope.slice(1)], blocks: [table, ...(latest.headline ? latest.blocks : [])],
     definition: `${latest.definition} Each season is a different game that scores on its own scale, so there is no all-time record: each season's best is listed apart, and the latest season's lists below.`,
   };
 }

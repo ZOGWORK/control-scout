@@ -89,7 +89,7 @@ function Block({ b }: { b: StatBlock }) {
       return (
         <div data-block="matches">
           <h3 className={H3}>{b.title}</h3>
-          <ul className="overflow-hidden rounded-lg border border-border">{b.rows.map((r) => <MatchRow key={r.href} r={r} />)}</ul>
+          <ul className="overflow-hidden rounded-lg border border-border">{b.rows.map((r) => <MatchRow key={`${r.href}|${r.alliance}`} r={r} />)}</ul>
           {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
         </div>
       );
