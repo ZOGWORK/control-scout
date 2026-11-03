@@ -135,6 +135,9 @@ export function SeriesCard({ s, matches, final }: { s: BracketSeriesView; matche
               <TierMark tier={s.call.tier} className="ml-auto text-[11px]" />
             </p>
             <div className="mt-1.5"><Bar p={s.call.p} alliance={s.call.alliance} /></div>
+            {s.bestOf > 1 && s.call.game != null && (
+              <p className="mt-1 text-muted-foreground tabular-nums" data-testid="series-game">Best of {s.bestOf}, from {oddsPct(s.call.game)} each game</p>
+            )}
           </div>
         ) : s.likely ? (
           <p className="flex items-center gap-1.5 text-muted-foreground">Likeliest winner <AllianceChip alliance={s.likely.alliance} /> <span className="font-semibold text-foreground tabular-nums">{oddsPct(s.likely.p)}</span></p>
