@@ -164,6 +164,20 @@ describe("GET /api/records/:season/teams?country=", () => {
     expect(ev.body.rows.map((r) => r.team)).toEqual([101]);
   });
 
+  it("narrows a country to one state, the place search's leaderboards use, in their order", async () => {
+    for (const [t, st, opr] of [[130, "NJ", 50], [131, "nj", 70], [132, "MO", 90], [133, "KS", 80], [134, "NJ", 60]] as const) {
+      await run("INSERT INTO teams (number, name, country, state) VALUES (?, ?, 'USA', ?)", [t, `Team ${t}`, st]);
+      await run("INSERT INTO team_season_records (season, team, team_name, auto_opr) VALUES (?, ?, ?, ?)", [S, t, `Team ${t}`, opr]);
+    }
+    clearAllCaches();
+    const nj = await getJson<Page>(`/api/records/${S}/teams?scope=season&sort=autoPointsOpr&fields=teamName&country=US&state=nj`);
+    expect(nj.body.rows.map((r) => r.team)).toEqual([131, 134, 130]);
+    expect((await teams("country=US&state=KS")).body.rows.map((r) => r.team)).toEqual([133]);
+    expect((await teams("state=NJ")).status).toBe(400);
+    expect((await teams("country=US&state=N%20J")).status).toBe(400);
+    await run("DELETE FROM team_season_records WHERE season = ? AND team BETWEEN 130 AND 134", [S]);
+  });
+
   it("answers a country with no teams with no rows, and refuses what isn't a country", async () => {
     const none = await teams("country=FR");
     expect(none.status).toBe(200);

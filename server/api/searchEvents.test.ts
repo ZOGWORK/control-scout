@@ -224,3 +224,14 @@ describe("a state's championships, every season (owner report: \"new jesey state
     expect((await ask("nj states")).understood?.label).not.toMatch(/stats/i);
   });
 });
+
+describe("Greptile on #450, round 3", () => {
+  it("more championships than a page holds: the newest first, how many in all, and the full list linked", async () => {
+    for (let i = 0; i < 30; i++) await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, ?, ?, 'Championship', 'V', 'Austin', 'TX', 'USA', ?, ?, 'test')", [S - (i % 4), `USTXR${i}`, `Texas Region ${i} Championship`, `2026-0${1 + (i % 9)}-01`, `2026-0${1 + (i % 9)}-01`]);
+    const a = await ask("tx states");
+    expect(a.understood?.total).toBe(32); // and the two Houston FIRST Championship divisions above
+    expect(a.understood?.label).toMatch(/, 32 in all \(the full list is on Events\)$/);
+    expect((await searchAnswer("tx states", { now, limit: 15, learn: false })).understood?.label).toBe(a.understood?.label); // the same line for any limit
+    expect(a.pages[0]).toEqual({ title: "Championships in Texas, each season: Events", href: "/events?region=USA%3ATX&type=Championship" });
+  });
+});

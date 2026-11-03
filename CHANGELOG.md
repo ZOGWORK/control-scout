@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.6 — 2026-11-03
+## 2.4.8 — 2026-11-03
 
 FTC One Search reads a misspelled place, and "states" as a state's championship, across every season.
 
@@ -27,8 +27,33 @@ FTC One Search reads a misspelled place, and "states" as a state's championship,
 ### Search
 - **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name ("new jesey", "pensylvania", "meets in new jersy") is read as that place. The line above the results says so: "Championships in New Jersey (from "new jesey")". It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
 - **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
-- **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
+- **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). Divisions are listed with their championship. When there are more than a page holds, the newest come first, the line says how many there are in all, and a link opens the full list on Events. A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
 - **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
+
+## 2.4.7 — 2026-11-03
+
+Teams: a link can name a state, so it opens on exactly the teams a search answer ranked.
+
+### Highlights
+- [teams] A Teams link can name a state, like New Jersey teams only
+- [share] A filtered Teams page survives refresh, back and sharing
+- [teams] One chip, "Teams from New Jersey, United States", clears the place
+
+### Teams
+- **A state in the link.** `/teams?country=US&state=NJ` lists the teams whose home is New Jersey. It's the same place search answers use, so the "View more detail" link under a leaderboard opens on the same teams, in the same order, with the same numbers. FIRST's region codes can't always do this (Kansas teams sit in Missouri's region, California has four). The season, view, sort, region and filter in the link already worked, so a pre-filtered page such as New Jersey sorted by auto OPR for 2025–26 survives a refresh, the back button and a share. The place shows as one chip, "Teams from New Jersey, United States", and removing it clears both the country and the state. Switching between Team-events and Team seasons keeps it. (#451)
+
+## 2.4.6 — 2026-11-03
+
+Compare: the season picker sits with the team controls.
+
+### Highlights
+- [fixes] On Compare, the season picker sits right under Quick add
+- [fixes] The "no results yet" note names the season once
+- [fixes] Phones stack the same order: teams, Quick add, then season
+
+### Compare
+- **Season picker moved.** The season buttons (2026–27, 2025–26, 2024–25, 2023–24, Earlier) now sit directly below the Quick add row, lined up on the left with the team search, instead of at the top right beside the title. Top to bottom: the team search and count, Quick add, the season, then the note and the comparison. Phones stack the same order. The seasons on offer and what picking one does are unchanged.
+- **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice. (#447)
 
 ## 2.4.5 — 2026-11-03
 

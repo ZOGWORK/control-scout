@@ -189,6 +189,23 @@ describe("country (from the home page's atlas)", () => {
     expect(parseTableState(new URLSearchParams("country=US"), "teamSeason").countryUnknown).toBeNull();
     expect(parseTableState(new URLSearchParams("country=ZZ"), "match").countryUnknown).toBeNull();
   });
+  it("reads a state only with a country, writes it back, and sends it to the API; clearing drops both", () => {
+    const s = parseTableState(new URLSearchParams("country=US&state=nj&sort=autoPointsOpr"), "teamSeason");
+    expect(s.homeState).toBe("NJ");
+    // A state it can't use is kept as a problem until cleared, never dropped for broader rows.
+    for (const q of ["state=NJ", "country=US&state=N-J"]) {
+      const bad = parseTableState(new URLSearchParams(q), "teamSeason");
+      expect([bad.homeState, bad.stateUnknown, hasFilters(bad)], q).toEqual([null, new URLSearchParams(q).get("state"), true]);
+      expect(writeTableState(new URLSearchParams(), { ...bad, page: 2 }, "teamSeason").get("state")).toBe(bad.stateUnknown);
+      expect(writeTableState(new URLSearchParams(q), clearFilters(bad), "teamSeason").has("state")).toBe(false);
+    }
+    expect(parseTableState(new URLSearchParams("state=NJ"), "match").stateUnknown).toBeNull();
+    expect(writeTableState(new URLSearchParams(), s, "teamSeason").get("state")).toBe("NJ");
+    const api = new URL(recordsUrl({ season: 2025, scope: "teamSeason", state: s, fields: [] }), "http://x").searchParams;
+    expect([api.get("country"), api.get("state"), api.get("sort"), api.get("dir")]).toEqual(["US", "NJ", "autoPointsOpr", "desc"]);
+    const cleared = clearFilters(s);
+    expect(writeTableState(new URLSearchParams("country=US&state=NJ"), cleared, "teamSeason").toString()).toBe("sort=autoPointsOpr");
+  });
   it("is sent to the API (and the CSV export) for team records only", () => {
     const s = parseTableState(new URLSearchParams("country=GB"), "teamSeason");
     expect(new URL(recordsUrl({ season: 2026, scope: "teamSeason", state: s, fields: [] }), "http://x").searchParams.get("country")).toBe("GB");
