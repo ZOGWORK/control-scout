@@ -33,8 +33,8 @@ export interface Meta {
 }
 
 export interface SearchHit {
-  kind: "team" | "event" | "match" | "place";
-  /** team: "4215"; event: "2025:USNJQ1"; match: "2025:USNJQ1:qual:0:12"; place: "USA:NJ" */
+  kind: "team" | "event" | "match" | "place" | "compare";
+  /** team: "4215"; event: "2025:USNJQ1"; match: "2025:USNJQ1:qual:0:12"; place: "USA:NJ"; compare: "4215,6980" */
   ref: string;
   title: string;
   subtitle: string;
@@ -51,6 +51,8 @@ export interface SearchHit {
   events?: SearchEventPick[];
   /** A feature this result opens instead of the team's page ("hypnotic versus bad wolf" → Compare): a site path. */
   href?: string;
+  /** Compare hits: the teams side by side, and how a name several teams share was read. */
+  compare?: SearchCompare;
   /** An event's dates, type, venue and status (from its stored dates, as on the Events list): event hits only. */
   event?: SearchEventInfo;
   /** How the hit matched: "exact" (every word typed names it) or "fuzzy" (a typo, a part of a word, or only its
@@ -59,6 +61,15 @@ export interface SearchHit {
   /** Fuzzy hits: the words typed that matched it ("good"), to name in that group's heading. */
   matched?: string[];
 }
+
+/** A Compare hit's teams (number order) and, for a name several teams share ("Ultraviolet"), which one was picked,
+ *  by which rule (server/api/searchCompare.ts), out of which candidates. */
+export interface SearchCompare {
+  teams: SearchCompareSide[];
+  resolved?: { typed: string; number: number; rule: string; candidates: number[] }[];
+}
+/** One team in a Compare: number, name, and place ("Hackettstown, NJ"), so the visitor sees which team it is. */
+export interface SearchCompareSide { number: number; name: string; place: string }
 
 /** An event hit's facts, for its date and status and for filters on /search (time, season, type). */
 export interface SearchEventInfo {
@@ -131,7 +142,7 @@ export interface SearchAnswer {
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
-  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores";
+  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule";
   /** "Worlds appearances" */
   title: string;
   /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */

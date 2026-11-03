@@ -90,7 +90,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
         {e.venue && <p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{e.venue}</span></p>}
       </div>
       <nav aria-label={`${title}: pages`} className="relative z-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-quick-links>
-        {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-sm:py-1">{l.label}</Link>)}
+        {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center max-md:rounded-full max-md:border max-md:border-border max-md:px-3.5 max-md:text-sm max-md:text-foreground max-md:hover:no-underline">{l.label}</Link>)}
         <Link to={hitHref(cur)} onClick={() => onOpen(cur)} tabIndex={-1} aria-hidden className="ml-auto max-sm:hidden"><Cta>View event</Cta></Link>
       </nav>
     </div>
@@ -110,7 +110,7 @@ export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) 
   return (
     <span className="mt-1.5 flex flex-wrap gap-1" data-badges>
       {badges.map((b) => (
-        <span key={b.label} className="inline-flex max-w-full items-baseline gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px]">
+        <span key={b.label} className="inline-flex max-w-full items-baseline gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] max-md:rounded-full max-md:bg-muted max-md:px-2 max-md:text-xs">
           <span className="shrink-0 text-muted-foreground">{b.label}</span><span className="min-w-0 break-words font-semibold tabular-nums text-foreground">{b.value}</span>
         </span>
       ))}
@@ -121,17 +121,18 @@ export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) 
 /** `bare`: the page's summary already shows this team's numbers, so the card shows none (neither the server's facts
  *  nor the season badges): each number once. */
 export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?: SeasonSummary; bare?: boolean; onOpen: () => void }) {
+  // The title's link covers the whole card (the tap target). On a phone its own actions (VS Compare, Shortlist,
+  // Matches) sit under it (PhoneTeamActions.tsx).
   return (
-    <Link to={hitHref(h)} onClick={onOpen} data-result="team"
-      className="lift group flex items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
+    <div data-result="team" className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
-        <span className="block break-words text-sm font-medium text-foreground group-hover:text-accent-text">{teamTitle(h.title)}</span>
-        {h.subtitle && <span className="block truncate text-xs text-muted-foreground">{h.subtitle}</span>}
+        <Link to={hitHref(h)} onClick={onOpen} className="block break-words text-sm font-medium text-foreground outline-none group-hover:text-accent-text after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent max-md:text-base">{teamTitle(h.title)}</Link>
+        {h.subtitle && <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground max-md:text-sm"><MapPin className="size-3.5 shrink-0 md:hidden" aria-hidden /><span className="truncate">{h.subtitle}</span></span>}
         {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
       <span className="shrink-0 self-center max-sm:hidden"><Cta>View scouting profile</Cta></span>
-    </Link>
+    </div>
   );
 }
 
@@ -199,7 +200,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   );
 }
 
-const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass, event: CalendarDays, team: Shield } as const;
+const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass, event: CalendarDays, team: Shield, compare: ArrowLeftRight } as const;
 
 /** A plain row (places, matches, a team's events, pages): its name and details, no web address. */
 export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof typeof ROW_ICON; sub?: boolean; onOpen: () => void }) {

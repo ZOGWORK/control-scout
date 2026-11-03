@@ -18,15 +18,17 @@ import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
+import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
+import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
-import { useTitle, useMeta, useCurrentSeason } from "../lib/meta";
+import { useTitle, useMeta, useCurrentSeason, useMediaQuery } from "../lib/meta";
 import { useApi, qs } from "../lib/api";
 import { cn } from "../components/cn";
 
@@ -41,6 +43,7 @@ export default function SearchPage() {
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
+  const phone = useMediaQuery("(max-width: 767px)");
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
@@ -101,9 +104,11 @@ export default function SearchPage() {
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
           The query itself lives in the top bar (refine there): the page never repeats it. */}
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text" data-eyebrow>FTC One Search</p>
-      <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-        {!query ? "Search" : found ? title : busy || error ? "Search results" : <>No matches for “{query}”</>}
+      {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
+      {phone && <PhoneSearchBar query={query} />}
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
+      <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
+        {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : <>No matches for “{query}”</>}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
@@ -207,6 +212,8 @@ function shape(sections: AnswerSection[], f: PageFilters): ViewSection[] {
 }
 
 function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+  const phone = useMediaQuery("(max-width: 767px)");
+  const current = useCurrentSeason();
   const count = s.rows.filter((r) => !r.sub).length;
   const title = s.id === "fuzzy" && fuzzyWord ? `Other teams matching “${fuzzyWord}”` : s.title;
   const teamish = s.id === "team" || s.id === "top" || s.id === "fuzzy";
@@ -225,7 +232,11 @@ function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
             <div key={head.key}>
-              <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
+              {phone && /^\d+$/.test(head.hit.ref) ? (
+                <PhoneTeamCard team={Number(head.hit.ref)} name={teamParts(head.hit.title)?.name ?? ""} season={head.hit.linkSeason ?? summaries.get(Number(head.hit.ref))?.season ?? head.hit.season ?? current} linkSeason={head.hit.linkSeason}>
+                  <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
+                </PhoneTeamCard>
+              ) : <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />}
               {!!subs.length && (
                 <ul className="mt-1 overflow-hidden rounded-xl border border-border bg-card">
                   {subs.map((r) => <li key={r.key} className="border-b border-border last:border-b-0"><ResultRow h={r.hit} icon="event" sub onOpen={() => onOpen(r.hit)} /></li>)}

@@ -4,7 +4,7 @@
 // the results in the address and clear back to all of them, and nothing found is never a bare dead end.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
 
 const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
@@ -18,8 +18,24 @@ const summaries: TeamSummary[] = [
   { team: 23268, name: "Ultraviolet", place: "Hackettstown, NJ", opr: null, oprRank: null, of: null, rating: null, ratingSd: null, record: null, lastEvent: null, nextEvent: null },
 ];
 const paths = vi.hoisted(() => [] as (string | null)[]);
-vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
+// A team's matches (the phone's Matches sheet): one win and one loss, the loss last.
+const side = (n: number, total: number) => ({ teams: [{ number: n, surrogate: false, dq: false, onField: true }], score: { total, np: total, auto: 0, teleop: 0, endgame: 0, pen: 0 } });
+const teamMatches = { matches: [
+  { season: 2025, code: "USNJQ1", key: "qual:0:3", level: "qual", series: 0, number: 3, label: "Q3", time: null, startsAt: null, played: true, red: side(4215, 120), blue: side(1, 90), video: null, prediction: null },
+  { season: 2025, code: "USNJQ1", key: "qual:0:9", level: "qual", series: 0, number: 9, label: "Q9", time: null, startsAt: null, played: true, red: side(2, 150), blue: side(4215, 101), video: null, prediction: null },
+] };
+vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p?.includes("/matches") ? teamMatches : p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
+// The Shortlist a phone's team card adds to (the team page's own list): a set here, and a change re-renders the card.
+const shortlisted = vi.hoisted(() => new Set<number>());
+vi.mock("../lib/personal", async (orig) => {
+  const { useState } = await import("react");
+  return { ...(await orig<typeof import("../lib/personal")>()),
+    useTeamFlags: (n: number) => {
+      const [, bump] = useState(0);
+      return { bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); bump((x) => x + 1); } };
+    } };
+});
 
 const { default: SearchPage } = await import("./SearchPage");
 
@@ -40,7 +56,7 @@ describe("search results page", () => {
     const cmp = container.querySelector('[data-section="compare"]')!;
     const teams = container.querySelector('[data-section="team"]')!;
     expect(cmp.compareDocumentPosition(teams) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(teams as HTMLElement).getAllByRole("link")).toHaveLength(2);
+    expect(teams.querySelectorAll('[data-result="team"]')).toHaveLength(2);
     expect(within(teams as HTMLElement).getByText("2")).toBeTruthy();
     const card = within(cmp as HTMLElement).getByRole("link");
     expect(card.getAttribute("href")).toBe("/compare?teams=4215,23268");
@@ -106,10 +122,10 @@ describe("search results page", () => {
     const fuzzy = (h: SearchHit) => ({ ...h, match: "fuzzy" as const, matched: ["good"] });
     state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ"), fuzzy(team(7100, "Good Enough", "X")), fuzzy(team(16215, "Goodfellas", "Y"))]);
     const { container } = show("/search?q=x");
-    expect(within(container.querySelector('[data-section="top"]') as HTMLElement).getAllByRole("link")).toHaveLength(1);
+    expect(container.querySelector('[data-section="top"]')!.querySelectorAll('[data-result="team"]')).toHaveLength(1);
     const other = container.querySelector('[data-section="fuzzy"]') as HTMLElement;
     expect(other.textContent).toContain("Other teams matching “good”");
-    expect(within(other).getAllByRole("link")).toHaveLength(2);
+    expect(other.querySelectorAll('[data-result="team"]')).toHaveLength(2);
   });
 
   it("a query that names a site page is answered, not a dead end", () => {
@@ -298,5 +314,84 @@ describe("search results page, Phase 3 layout", () => {
     const { container } = show("/search?q=x");
     expect(container.querySelector("[data-layout]")!.getAttribute("data-layout")).toBe("single");
     expect(container.querySelector("[data-panel]")).toBeNull();
+  });
+});
+
+describe("search results page, phone (Part B 3b)", () => {
+  // A phone-width screen: every (max-width) query matches.
+  const real = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = ((q: string) => ({ matches: /max-width/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = real; });
+  const worlds = (season: string, div: string, rank: number, opr: number) => ({
+    text: `FIRST Championship - Houston - World Championship - FIRST Tech Challenge - ${div} Division`,
+    detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
+  });
+
+  it("a search bar holding the query with a clear button, and a short Results header", () => {
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    const bar = container.querySelector("[data-phone-search]")!;
+    expect(bar.textContent).toContain("how good is simply complex");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Results: Simply Complex (18061)");
+    fireEvent.click(screen.getByRole("button", { name: "Clear the search" }));
+    expect(loc).toBe("/search");
+  });
+
+  it("every season as a chip, and each team card a VS Compare of its own", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
+      lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2021–22: #20", "2022–23: #3", "2023–24: #10"]);
+    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
+  });
+
+  it("one trip is still a chip, and VS Compare keeps the season the result is about", () => {
+    state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
+    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
+  });
+
+  it("Shortlist and Matches are buttons on the card, and a swipe does the same", () => {
+    shortlisted.clear();
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215");
+    const add = screen.getByRole("button", { name: "Shortlist" });
+    expect(add.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(add);
+    expect(shortlisted.has(4215)).toBe(true);
+    shortlisted.clear();
+    // Swipe right: the same Shortlist add.
+    const card = container.querySelector("[data-swipe]")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 140, clientY: 104 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 140, clientY: 104 }] });
+    expect(shortlisted.has(4215)).toBe(true);
+    // On: it says so, and a second tap takes it off.
+    expect(screen.getByRole("button", { name: "Shortlisted" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Shortlisted" }));
+    expect(shortlisted.has(4215)).toBe(false);
+    expect(screen.getByRole("button", { name: "Shortlist" }).getAttribute("aria-pressed")).toBe("false");
+    // A mostly-vertical drag is a scroll, not a swipe.
+    fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 110, clientY: 300 }] });
+    expect(shortlisted.has(4215)).toBe(false);
+  });
+
+  it("Matches, tapped or swiped left, lists the team's latest played matches, newest first", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215");
+    fireEvent.click(screen.getByRole("button", { name: "Matches" }));
+    const rows = () => [...document.querySelectorAll("[data-match-history] li")].map((li) => li.textContent);
+    expect(rows()).toEqual(["LQ9 · USNJQ1101–150", "WQ3 · USNJQ1120–90"]);
+    fireEvent.click(within(document.querySelector("[data-matches-sheet]") as HTMLElement).getByRole("button", { name: "Close" }));
+    expect(document.querySelector("[data-match-history]")).toBeNull();
+    const card = container.querySelector("[data-swipe]")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 80, clientY: 102 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80, clientY: 102 }] });
+    expect(rows()).toHaveLength(2);
   });
 });

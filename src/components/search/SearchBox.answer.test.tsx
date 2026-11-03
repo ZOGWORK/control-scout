@@ -71,10 +71,12 @@ describe("live search", () => {
     await act(async () => { vi.advanceTimersByTime(105); });
     expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=world&")]);
   });
-  it("Enter before the pause is over opens the full results page with one press", async () => {
+  it("Enter before the pause is over asks at once and opens the full results page when the answer is in (one press)", async () => {
     const { input, onPick } = mount();
     fireEvent.change(input, { target: { value: "bio buzz record" } });
     fireEvent.keyDown(input, { key: "Enter" });
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=bio%20buzz%20record&")]); // no pause
+    await reply(/q=bio/, answer("bio buzz record", { hits: [t("16461", "Infinite Turtles")] }));
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(onPick.mock.calls[0][0].href).toBe("/search?q=bio%20buzz%20record");
   });
@@ -131,6 +133,8 @@ describe("typing on (the last answer stays while the next is on its way)", () =>
     await reply(/q=4215&/, answer("4215", { hits: [t("4215", "Hypnotic Robotics")] }));
     await type(input, "4215 vs 6980");
     fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).not.toHaveBeenCalled(); // never the older answer's
+    await reply(/q=4215%20vs/, answer("4215 vs 6980", { hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
   });
 });
@@ -160,6 +164,7 @@ describe("Enter and the full results page", () => {
     expect(screen.getAllByRole("option").some((o) => o.getAttribute("aria-selected") === "true")).toBe(false);
     fireEvent.keyDown(input, { key: "ArrowDown" }); // a row of the older list, still on screen
     fireEvent.keyDown(input, { key: "Enter" });
+    await reply(/q=4215%20vs/, answer("4215 vs 6980", { hits: [{ ...t("4215", "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }] }));
     expect(onPick).toHaveBeenCalledTimes(1);
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ href: "/search?q=4215%20vs%206980" }));
   });

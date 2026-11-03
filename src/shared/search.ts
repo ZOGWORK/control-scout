@@ -3,7 +3,7 @@
 import type { SearchHit, SearchPageLink, SearchSection } from "./api.js";
 
 /** The kinds in the order they're listed, with their group names. */
-export const SEARCH_GROUPS: [SearchHit["kind"], string][] = [["place", "Places"], ["team", "Teams"], ["event", "Events"], ["match", "Matches"]];
+export const SEARCH_GROUPS: [SearchHit["kind"], string][] = [["compare", "Compare"], ["place", "Places"], ["team", "Teams"], ["event", "Events"], ["match", "Matches"]];
 
 /** How many hits the /search page lists (the API's most). */
 export const SEARCH_PAGE_LIMIT = 25;
@@ -104,6 +104,7 @@ export function hitHref(h: SearchHit): string {
   if (h.kind === "team") return `/teams/${h.ref}${h.linkSeason ? `?season=${h.linkSeason}` : ""}${h.section ? `#${h.section}` : ""}`;
   if (h.kind === "event") { const [s, c] = h.ref.split(":"); return `/events/${s}/${c}${h.section ? `?tab=${h.section}` : ""}`; }
   if (h.kind === "place") return `/events?region=${encodeURIComponent(h.ref)}`;
+  if (h.kind === "compare") return `/compare?teams=${h.ref}`;
   const [s, c, level, series, number] = h.ref.split(":");
   return `/events/${s}/${c}?match=${level}:${series}:${number}`;
 }

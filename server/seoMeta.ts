@@ -34,7 +34,7 @@ import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
 import { SEARCH_HITS_ID, SEARCH_PAGE_LIMIT, cardWho, hitHref } from "../src/shared/search.js";
-import { contextBadge, pageTitle } from "../src/shared/searchPage.js";
+import { contextBadge, isQualityQuestion, pageTitle } from "../src/shared/searchPage.js";
 
 /** The site's name, the same everywhere a search engine reads one: every <title>, og:site_name, the
  *  WebSite and Organization data. "FTC Control Scout" is its alternate name (in the structured data). */
@@ -498,7 +498,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: n || c || answer.pages.length ? pageTitle(answer, answer.hits) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading: n || c || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

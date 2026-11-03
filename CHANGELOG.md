@@ -15,7 +15,48 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.8 — 2026-11-02
+## 2.4.2 — 2026-11-03
+
+FTC One Search answers rules questions from the Rules quick reference, never with team names.
+
+### Highlights
+- [fixes] "Can robots descore…?" asks the rules, not teams named "Can"
+- [teams] "Penalty for hoarding" and "G402" show the rule, linked to /rules
+- [history] An older game's piece links that season's official manual
+
+### Search
+- **Rules questions go to the rules.** A rule number ("G402", "rule 10.5.1"), a query starting with "penalty", "foul" or "rule", or a question with a rule word (descore, pin, foul, inspection, control, hoard, …) is answered from the season's Rules quick reference (the same data as /rules, the `rulesReference` setting). A rule is listed only when every word asked is in it. Each rule shows its number, summary and penalty, linked to its entry on /rules. When no rule matches, the answer says so and never guesses. No team is ever listed for a rules question. "Can Control" on its own is still a team.
+- **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#437)
+
+## 2.4.1 — 2026-11-03
+
+FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
+
+### Highlights
+- [teams] "4215 vs 6980" is a Compare of its own, above the teams
+- [teams] A Compare names each team's number and place
+- [fixes] "Ultraviolet vs Hypnotic history": extra words keep the versus
+- [fixes] A name several teams share is picked by fixed rules, or asked
+
+### Search
+- **Compare is its own kind.** A versus query ("4215 vs 6980", "hypnotic vs bad wolf", "ultraviolet vs hypnotic history") answers with one Compare row that opens /compare with both teams. It has its own group above Teams and is never counted as a team. Each side is named with its number and place ("Hypnotic Robotics (4215) · Oradell, NJ").
+- **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
+- **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#436)
+
+## 2.4.0 — 2026-11-03
+
+FTC One Search on a phone: shortlist a team or see its matches straight from the results, with a tap or a swipe.
+
+### Highlights
+- [teams] Swipe a team result right to add it to your Shortlist
+- [teams] Swipe it left to see its latest matches without leaving search
+- [teams] Both are also buttons on the card: Shortlist and Matches
+
+### Search
+- **Shortlist from the results.** On a phone each team result has a Shortlist button, the same list as the team page's; swipe the card right for the same. Swipe again or tap Shortlisted to take it off. There's no separate compare tray: the Shortlist is where teams you're considering go.
+- **Matches at a glance.** Tap Matches, or swipe the card left, for the team's latest ten played matches this season in a panel from the bottom: win, loss or tie, the match, the event and the score, each opening the match. Close it and you're back on the same results. Results and their order are unchanged. (#444)
+
+## 2.4.0 — 2026-11-03
 
 Match videos play in the app: a match's video button no longer sends you off to YouTube.
 
@@ -25,7 +66,36 @@ Match videos play in the app: a match's video button no longer sends you off to 
 - [live] Anywhere else it opens in a video window, without leaving the page
 
 ### Event page
-- **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab.
+- **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab. (#445)
+
+## 2.3.9 — 2026-11-03
+
+FTC One Search: a team number, a team's name or an event code takes you straight to its page.
+
+### Highlights
+- [fixes] Searching "6980" opens Bad Wolf's team page, not a results page
+- [fixes] A team's full name, like "Bad Wolf", goes straight to the team
+- [fixes] An event code, like "USNJNEM2", goes straight to the event
+
+### Search
+- **Straight to the page.** Enter (or the magnifier) on a search that names exactly one thing opens its page directly: a team number ("6980", "team 6980", "ftc 6980"), one team's whole name ("Bad Wolf", "simply complex") or an event code ("USNJNEM2"). Back returns to the page you searched from, and the search is still kept in your recent searches. Everything else still opens the full results page: questions, places, "vs", topics like "6980 record", part of a name, and names shared by more than one team (there are two teams called "Ultraviolet"). The choice is made from search's own answer, the same one the dropdown shows. Pressing Enter before the dropdown has loaded asks for that answer straight away and goes as soon as it arrives.
+- **Example search.** The versus example is now "6980 vs 16461": both teams have this season's record and OPR, so the head-to-head shows numbers on both sides. (#443)
+
+## 2.3.8 — 2026-11-03
+
+FTC One Search on a phone: the search stays at the top as you scroll, the numbers come first, and every result is easy to tap.
+
+### Highlights
+- [teams] On a phone, your search stays in a bar at the top, with an × to clear it
+- [teams] Stats sit in one row you swipe; each season is a tap-to-jump chip
+- [teams] Bruno AI's written answer folds behind "Show AI Analysis" on a phone
+- [teams] Team results have a VS Compare button; event links are big enough to tap
+
+### Search
+- **The search at the top.** On a phone the search page shows your search in a bar that stays under the top bar while you scroll, and slims down once you do. Tap it to change the search; tap × to clear it. The title reads "Results: …" without the big heading.
+- **Numbers first.** A summary's stats are one row of blocks you swipe sideways, three to a screen. A team's championship trips are a line of chips ("2022–23: #3"), every season shown, each jumping to that trip's card.
+- **AI analysis folded.** When Bruno AI answers, his writing is behind "Show AI Analysis" on a phone, so the results stay near the top. On a wider screen it shows as before.
+- **Made for thumbs.** A whole team card is one tap target, with a VS Compare button that starts a comparison with that team. An event card's quick links are full-size buttons. Results and their order are unchanged. (#442)
 
 ## 2.3.7 — 2026-11-02
 

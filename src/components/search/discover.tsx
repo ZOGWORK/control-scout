@@ -13,7 +13,7 @@ export type SearchExampleKind = "place" | "versus" | "question" | "record" | "le
  *  wait until search answers them with results.) In sentence case: the text shown is the query that runs. */
 export const SEARCH_EXAMPLE_SET: readonly { q: string; kind: SearchExampleKind }[] = [
   { q: "Meets in New Jersey", kind: "place" },
-  { q: "11115 vs 16461", kind: "versus" },
+  { q: "6980 vs 16461", kind: "versus" },
   { q: "When did 7149 go to Worlds", kind: "question" },
   { q: "18061 record", kind: "record" },
   { q: "Highest score this season", kind: "leaderboard" },
