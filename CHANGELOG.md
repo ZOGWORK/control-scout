@@ -46,7 +46,6 @@ FTC One Search answers questions about one event, a team's awards and who won: a
 - **Winning alliances.** An event's winning alliance is the alliance that won its final match, with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
 - **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
 
-## 2.5.1 — 2026-11-03
 ## 2.5.6 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
