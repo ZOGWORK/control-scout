@@ -54,14 +54,22 @@ function compact(s: string): string {
   return ws.filter((w) => w && !STOPWORDS.has(w) && w !== "regional").join("");
 }
 /** Whether `text` (a stored venue, or a city: `whole`) is the place typed: a venue holds the words typed (or they
- *  hold it); either is a letter or two off (one per eight letters). */
+ *  hold it); either is a letter or two off (one per eight letters), its first five letters the same ("Dumont High
+ *  School" is never "Dimond High School"). */
 function samePlace(typed: string, text: string | null, whole = false): boolean {
   const q = compact(typed), t = compact(text ?? "");
   if (!q || !t) return false;
   if (!whole && (t.includes(q) || (t.length >= 10 && q.includes(t)))) return true;
-  return Math.abs(q.length - t.length) <= 2 && edits(q, t) <= Math.max(1, Math.floor(q.length / 8));
+  return q.slice(0, 5) === t.slice(0, 5) && Math.abs(q.length - t.length) <= 2 && edits(q, t) <= Math.max(1, Math.floor(q.length / 8));
 }
-const atPlace = (typed: string, r: Row) => samePlace(typed, r.venue) || samePlace(typed, r.city, true) || allIn(words(typed).filter((w) => !STOPWORDS.has(w)), `${r.venue ?? ""} ${r.city ?? ""}`);
+/** The event is at the place typed: its venue or city (samePlace), or every word typed is a word of them, in any
+ *  order ("Oradell River Dell"). */
+function atPlace(typed: string, r: Row): boolean {
+  if (samePlace(typed, r.venue) || samePlace(typed, r.city, true)) return true;
+  const have = new Set(words(`${r.venue ?? ""} ${r.city ?? ""}`));
+  const qs = words(typed).filter((w) => !STOPWORDS.has(w));
+  return qs.length > 0 && qs.every((w) => have.has(w));
+}
 
 const placeOf = (r: Row) => [r.city, r.state, r.country].filter(Boolean).join(", ");
 

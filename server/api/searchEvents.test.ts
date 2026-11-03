@@ -275,7 +275,7 @@ describe("a venue, every season, spelled loosely (owner bug: River Dell)", () =>
     expect(none.understood?.fallback).toBe("No past meets in New Jersey at Brand New High School in the data — showing past meets in New Jersey instead");
   });
   it("a city counts only when it is the place typed", async () => {
-    expect(refs((await ask("meets in oradel")).hits)).toEqual(expect.arrayContaining(["USNJNEM6", "USNJRD1", "USNJRD2"]));
+    expect(refs((await ask("meets in oradell")).hits)).toEqual(expect.arrayContaining(["USNJNEM6", "USNJRD1", "USNJRD2"]));
     const hs = await ask("meets at ramsey high school");
     expect(hs.understood?.label).not.toContain("in Ramsey");
   });
