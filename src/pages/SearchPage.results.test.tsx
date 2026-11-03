@@ -165,7 +165,8 @@ describe("search results page", () => {
     expect(container.querySelector("[data-understood]")!.textContent).toContain("Events in New Jersey");
     expect(screen.getByRole("region", { name: "Closest matches" }).textContent).toContain("not an exact match");
     expect(screen.getByRole("link", { name: /Browse all events/ }).getAttribute("href")).toBe("/events");
-    expect(container.querySelectorAll("[data-example]").length).toBeGreaterThan(0);
+    // No example searches here: the top bar's dropdown offers those.
+    expect(container.querySelectorAll("[data-example]")).toHaveLength(0);
     expect(container.textContent).not.toMatch(/Here's what we found/);
   });
 
@@ -219,6 +220,22 @@ describe("search results page, Phase 2 cards", () => {
   const worlds = (season: string, div: string, rank: number, opr: number) => ({
     text: `FIRST Championship - Houston - World Championship - FIRST Tech Challenge - ${div} Division`,
     detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
+  });
+
+  it("a 'when' answer's cards go newest first, each led by its season; the chart still reads left to right", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
+      lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    const cards = [...container.querySelectorAll("[data-appearance]")];
+    expect(cards.map((c) => c.getAttribute("data-appearance"))).toEqual(["2023", "2022", "2021"]);
+    expect(cards[0].querySelector("[data-card-title]")!.textContent).toBe("2023–24 · Franklin Division");
+    // The season leads the card, so it isn't repeated as a chip.
+    expect(cards[0].textContent!.match(/2023–24/g)).toHaveLength(1);
+    expect([...container.querySelectorAll("[data-node]")].map((n) => n.getAttribute("data-node"))).toEqual(["2021", "2022", "2023"]);
+    // Each node still jumps to its own season's card.
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(container.querySelector('[data-node="2022"]')!);
+    expect(container.querySelector('[data-appearance="2022"]')!.getAttribute("data-highlight")).toBe("on");
   });
 
   it("a championship question's records: stats, a timeline whose nodes jump to their cards, short titles and pills", () => {
@@ -343,7 +360,7 @@ describe("search results page, phone (Part B 3b)", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
       lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
-    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2021–22: #20", "2022–23: #3", "2023–24: #10"]);
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2023–24: #10", "2022–23: #3", "2021–22: #20"]);
     expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
   });
 
