@@ -168,6 +168,7 @@ describe("the answers", () => {
     expect(w.stat).toMatchObject({ intent: "average-margin", title: expect.stringMatching(/^Average winning margin/) });
     expect(w.stat!.headline!.value).toMatch(/^\+\d+\.\d$/);
     expect(w.stat!.headline!.label).toMatch(/points a win in/);
+    expect(w.understood?.label).toMatch(/· Average winning margin/);
     const t = await searchAnswer("how many points has 4215 scored", { limit: 25 });
     expect(t.stat).toMatchObject({ intent: "total-points" });
     const table = t.stat!.blocks.find((b) => b.kind === "table");
