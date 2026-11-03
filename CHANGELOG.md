@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.6.0 — 2026-11-03
+
+FTC One Search answers questions about one event, a team's awards and who won: a team's results at an event, its event wins, and the winning alliance of an event or of Worlds.
+
+### Highlights
+- [teams] "Has 4215 ever won an event": 1st places and Inspire Awards
+- [teams] "ftc decode winning alliance": Worlds champions and each division
+- [teams] A team's results, rank and OPR at one event, or one match there
+- [teams] Worlds answers end with that season's Worlds events
+
+### Search
+- **One team at one event.** "4215 results at New Jersey Championship", "rank at", "OPR at" and "score in match 12 at" answer from the event the team played (its division, when the event has divisions): the record and matches, its rank of the teams there, its OPR by phase, or that one match. An event the team never attended is left to the usual search.
+- **Awards.** Event wins count 1st-place finishes (the winning alliance) and Inspire Awards, each labelled, so "won an event" says which; a 2nd or 3rd place Inspire is listed apart, never as a win. Also Inspire Award counts, finalist finishes, all awards and the judged/performance split, for any season, Worlds or one event.
+- **Winning alliances.** An event's winning alliance is the alliance that won its final match (the final series, which a classic bracket stores as series 0, never a semifinal), with its whole roster from alliance selection; the published award is used only when no final is stored. A season's championship ("ftc decode winning alliance") shows the champions, decided by the finals between the division winners, and each division's winners; a division not played yet says so.
+- **Worlds follow-ups.** A Worlds answer ends with that season's Worlds events as buttons and related questions, all from the data. (#455)
+
 ## 2.5.9 — 2026-11-03
 
 A slow search no longer looks like being offline, and searches that match nothing answer five times faster.
