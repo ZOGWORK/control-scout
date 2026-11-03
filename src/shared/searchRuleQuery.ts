@@ -75,7 +75,9 @@ function seasonNamed(q: string): { season: number; rest: string } | null {
 }
 
 /** The rule question `q` asks, or null when it isn't one. `asked`: the query as typed ended in "?". */
-export function readRuleQuery(raw: string, asked = false): RuleQuery | null {
+export function readRuleQuery(typed: string, asked = false): RuleQuery | null {
+  // A rule number however it's spelled, as /rules takes it: "G-421", "g 421" → "G421".
+  const raw = typed.replace(/\b([grite])[\s-]+(\d{3})\b/gi, "$1$2");
   // A question about a team ("how good is Can Control", "where is Can Control") is the team's, whatever its name holds;
   // one that names a rule, a penalty or a foul ("where is the rule on pinning") stays a rules question.
   const conv = stripConversation(raw);

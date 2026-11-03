@@ -126,3 +126,9 @@ describe("Greptile on #437, round 3", () => {
     expect((await searchAnswer("G402 in 2026-27 for samples")).card?.lines[0].text).toBe("G402 · No AUTO interference");
   });
 });
+
+describe("Greptile on #437, round 4", () => {
+  it("a rule number spelled with a hyphen or a space", () => {
+    for (const q of ["rule G-421", "rule g 421", "G-421", "g421"]) expect(readRuleQuery(q), q).toMatchObject({ id: "G421" });
+  });
+});
