@@ -88,3 +88,13 @@ What the measurements showed:
 - **Carry-over by phase:** last season predicts this season's endgame about half as well as auto and TeleOp (slopes about 0.3 against 0.65). Even so, giving endgame less carry-over made every slice worse, so it stays at 1.
 - **No-history teams vs teams with history:** in early matches, robots with no history beat the prior by about 2 points per robot, and robots with history miss by about 2. Moving the rookie z or the uncertainties doesn't help: the existing settings sit on a plateau.
 - **Region:** the per-region bias of newcomers holds from season to season (r = 0.75). This is the signal 2.7 uses.
+
+## Research program, November 2026 (`research-2026-11/`)
+
+Each topic is a note plus a forward-only test against the live engine. The protocol: monthly rolling origins from October 2024 to July 2026, fits on the prior 365 days, decisive matches, event-bootstrap intervals. The scripts are in `scripts/research/`.
+- [R3: component importance](research-2026-11/r3-component-importance.md):
+  - TeleOp ≫ auto > endgame; expected fouls add nothing to the win call.
+  - The auto reweighting candidate fails on 2025–26. No change.
+- [R5: margin-of-victory Elo](research-2026-11/r5-mov-elo.md):
+  - Standalone it is about 0.029 Brier behind.
+  - As an extra input it doesn't clear the gate in both seasons, and plain Elo adds as much. No change.
