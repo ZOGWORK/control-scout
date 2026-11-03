@@ -72,6 +72,10 @@ export default function MethodologyPage() {
             <WorkedUpdate />
             <p>The gain starts high, so a team's first few matches teach the engine a lot, and it shrinks as evidence builds up. It never drops below a floor, so a team that genuinely improves mid-season still gets noticed.</p>
           </Prose>
+          <Prose id="rating-assumption">
+            <h3>What this assumes</h3>
+            <p>Splitting the miss only works because <strong>qualification partners are drawn at random</strong> and change every match. Over a season, a team is the one thing its alliances have in common, so its share shows through. In playoffs the same partners play every match, so their shares can't be told apart. That's why a playoff match moves a rating {RATING.playoffWeight === 0.5 ? "half" : `${Math.round(RATING.playoffWeight * 100)}%`} as much as a qualification match. Read a rating mostly as a qualification-match number.</p>
+          </Prose>
           <GainChart />
           <LearnSim />
           <Prose>

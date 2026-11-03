@@ -148,18 +148,22 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   const seasons = await teamSeasons(number);
   // Default: the newest season the team has results in (fall back to registered).
   let s = season;
+  let current: TeamEventRow[] | null = null;
   if (!s) {
     const withResults = await get<{ season: number }>("SELECT MAX(season) season FROM team_season_stats WHERE team = ? AND matches > 0", [number]);
-    // The current season is always listed (seasons[0]) but is only the default when the team is entered in
-    // it; otherwise the newest season it actually played, remote-only seasons included (they have no stats row).
-    const entered = !!(await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]));
+    // The current season is always listed (seasons[0]) but is only the default when the page lists an event of it
+    // for the team (a league roster entry for a meet it skipped lists none, and opened on an empty season a team
+    // with years of results); otherwise the newest season it actually played, remote-only seasons included (they
+    // have no stats row).
+    if (await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number])) current = await teamEvents(CURRENT_SEASON, number);
+    const entered = !!current?.length;
     s = entered || withResults?.season === CURRENT_SEASON ? CURRENT_SEASON : seasons.find((x) => x !== CURRENT_SEASON) ?? CURRENT_SEASON;
   }
   // Report cards and schedule difficulty are their own requests (teamReportCards, teamSchedule), asked for when
   // the team page's collapsed sections are first opened.
   const [stats, events, awardsAllTime] = await Promise.all([
     seasonStats(s, number),
-    teamEvents(s, number),
+    s === CURRENT_SEASON && current ? current : teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
   ]);
   return {
