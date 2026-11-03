@@ -156,7 +156,36 @@ describe("two teams", () => {
     expect(p.stat!.none).toBe("No partner played with 3 or more times found for Hypnotic Robotics (4215).");
     const f = await searchAnswer("4215 most frequent partner", { limit: 25 });
     expect(f.stat!.headline!.value).toMatch(/^(207|6980|23268) /);
+    // Only teams with matches at an official event count (a scrimmage-only season isn't one): 6980 played Parkway.
+    expect((await searchAnswer("4215 teams never played", { limit: 25 })).stat!.none).toBe("No other NJ teams with matches in 2025–26.");
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'USNJCMPPKWY', 6980, 3)");
     const n = await searchAnswer("4215 teams never played", { limit: 25 });
     expect(n.stat!.none).toBe("Hypnotic Robotics (4215) has played against every NJ team with matches in 2025–26.");
+  });
+});
+
+describe("what Greptile found", () => {
+  it("reads the team in 'how did … do', a named event for winners, a Worlds division, a qualification-only match", () => {
+    expect(readStatQuestion("how did 4215 do at New Jersey Championship")).toMatchObject({ id: "results", core: "4215" });
+    expect(readStatQuestion("winning alliance at New Jersey Championship")).toMatchObject({ id: "winning-alliance", noTeam: true, core: "new jersey championship" });
+    expect(readStatQuestion("4215 score in q12 at New Jersey Championship")).toMatchObject({ id: "match-lookup", n: 12, scope: { level: "qual" } });
+    // A scope its rows can't apply is left to search.
+    expect(readStatQuestion("4215 seasons played at New Jersey Championship")).toBeNull();
+    expect(readStatQuestion("4215 total awards on red")).toBeNull();
+    expect(readStatQuestion("4215 teams never played at New Jersey Championship")).toBeNull();
+    expect(readTwoTeam("4215 vs 6980 head to head.")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
+  });
+  it("a Worlds division named: that division's winners", async () => {
+    const a = await searchAnswer("FIRST Championship - Edison Division winning alliance", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "6980 Bad Wolf, 207 Critical Mass, 4215 Hypnotic Robotics" });
+  });
+  it("a final still going (one win of a best of three, the event not over) crowns no one", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJLIVE', 'Live Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2099-01-01', '2099-01-01', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJLIVE', 'playoff', 6, 1, 'F1', '2099-01-01T15:00:00Z', 1, 100, 100, 50, 50, 't')");
+    for (const [t, a] of [[4215, "red"], [6980, "red"], [207, "blue"], [23268, "blue"]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJLIVE', 'playoff', 6, 1, ?, ?, 1)", [t, a]);
+    await rebuildSearch();
+    const a = await searchAnswer("Live Qualifier winning alliance", { limit: 25 });
+    expect(a.stat!.headline).toBeUndefined();
+    expect(a.stat!.none).toBe("No winning alliance is published for Live Qualifier yet.");
   });
 });

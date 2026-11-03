@@ -12,6 +12,7 @@ import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
+import { namedTeam } from "../searchCompare.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer } from "./families/awards.js";
@@ -62,22 +63,28 @@ export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | 
   return best.e;
 }
 
+/** The team's latest season with matches at official events (a season of only scrimmages isn't one). */
+async function latestSeason(team: number): Promise<number | null> {
+  const ms = (await teamMatches(team)).filter(officialClause());
+  return ms.length ? Math.max(...ms.map((m) => m.season)) : null;
+}
+
 /** The scope an answer covers: the season named, else "this season" or an intent that defaults to one as the team's
  *  latest season with matches at official events (said so), else every season. */
 async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.at) {
-    // An event the team attended; none (or two alike): left to search's team-at-event answer, which lets the visitor pick.
-    const e = pickTeamEvent((await teamEventSet(team)).events, s.at, s.season);
+    // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
+    // alike): left to search's team-at-event answer, which lets the visitor pick.
+    const season = s.season ?? (s.latest ? await latestSeason(team) : null);
+    if (s.latest && season == null) return null;
+    const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;
     return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
-    // A season of only scrimmages isn't one: its matches never count.
-    const official = officialClause();
-    const ms = (await teamMatches(team)).filter(official);
-    const latest = ms.length ? Math.max(...ms.map((m) => m.season)) : null;
+    const latest = await latestSeason(team);
     scope.season = latest;
     if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
   }
@@ -180,9 +187,13 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
 /** "4215 vs 6980 head to head", "4215 OPR vs 6980": both teams found by search as typed (a team number or a name it
  *  matches outright), else left to Compare's own versus answer, which asks about a shared name. */
 async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const [ra, rb] = await Promise.all([resolve(two.a), resolve(two.b)]);
-  const ta = ra.step === "deterministic" ? ra.hits[0] : undefined, tb = rb.step === "deterministic" ? rb.hits[0] : undefined;
-  if (!ta || !tb || ta.kind !== "team" || tb.kind !== "team" || ta.href || tb.href || ta.ref === tb.ref) return null;
+  // Each side by Compare's own rules (a number, an exact name, the one that has played, the newest); a name several
+  // teams share is left to Compare, which asks which one.
+  const [na, nb] = await Promise.all([namedTeam(two.a, new Set()), namedTeam(two.b, new Set())]);
+  if (!na || !nb || !("team" in na) || !("team" in nb) || na.team === nb.team) return null;
+  const hitOf = async (n: number) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n));
+  const [ta, tb] = await Promise.all([hitOf(na.team), hitOf(nb.team)]);
+  if (!ta || !tb || ta.href || tb.href) return null;
   const a = { number: Number(ta.ref), name: teamNameOf(ta.title) || null }, b = { number: Number(tb.ref), name: teamNameOf(tb.title) || null };
   const s = two.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };

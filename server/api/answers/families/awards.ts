@@ -21,12 +21,13 @@ interface AwardRow { season: number; code: string; name: string; type: string; p
 const WINS_RULE = "Won an event: two kinds of win, listed apart. 1st place means the team was on the event's Winning Alliance (FIRST's Winning Alliance award); the Inspire Award is the event's top judged award (1st place Inspire). Both from the event's published awards.";
 const KIND_RULE = "Performance awards: Winning and Finalist Alliance. Individual awards: Dean's List, Compass and Volunteer. Every other award is a judged team award. From the events' published awards.";
 
-/** The team's awards in the scope, newest first (one query, on awards_team). */
+/** The team's awards in the scope, newest first (one query, on awards_team): all of them, so every count is whole; the
+ *  tables show the first 50. */
 async function awardRows(team: number, scope: Scope): Promise<AwardRow[]> {
   const w = eventSql(scope);
   return all<AwardRow>(
     `SELECT a.season, a.code, e.name, e.type event_type, a.type award, a.placement, e.start, e.end FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code
-     WHERE a.team = ? AND ${w.sql} ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.type = 'Inspire' DESC, a.placement LIMIT 400`,
+     WHERE a.team = ? AND ${w.sql} ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.type = 'Inspire' DESC, a.placement`,
     [team, ...w.args]).then((rs) => rs.map((r: any) => ({ season: Number(r.season), code: r.code, name: shortEvent(r.name, r.event_type ?? null), type: r.award, placement: Number(r.placement), start: r.start, end: r.end })));
 }
 
