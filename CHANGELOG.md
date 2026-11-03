@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.1 — 2026-11-03
+## 2.8.3 — 2026-11-03
 
 Predictions show more of their working. The track record adds margin error, every prediction says in one line what it learns from and what changes in playoffs, and a few numbers now come with the sum behind them. No prediction changed.
 
@@ -29,6 +29,30 @@ Predictions show more of their working. The track record adds margin error, ever
 - **Margin error.** The track record's ledger now shows how many points the predicted margin (red's predicted score minus blue's) missed by on average, against always guessing a tie, with qualifiers and playoffs apart. Live calls and the season replay stay separate, as always. (#488)
 - **Quals and playoffs, stated.** The match drawer, Know your match, the Lab, the factor sheet, projections, advancement odds, simulated rankings and the bracket each carry one short line: ratings learn from every played match, a playoff result counts half, and in playoffs partners add up in full, ranges are tighter and there are no bonus RPs. A new "Quals and playoffs" section on How it works has the details.
 - **Numbers you can check.** The match drawer and the Lab show the predicted margin ("Red by 12 (118 − 106)"). The Lab's ratings table adds each robot's penalties and writes each predicted score out: robots' ratings, minus the overlap cut, plus the other side's penalties. A best-of-3 series shows the one-game chance it comes from.
+
+## 2.8.2 — 2026-11-03
+
+Two searches the failed-search log caught now answer: when a team last played, and several of a team's listing facts at once.
+
+### Highlights
+- [teams] "When did hypnotic last play" opens their most recent match
+- [teams] "4215 sponsors school" answers both, each on its own line
+- [fixes] Headings keep "and" and "or" lower case
+
+### Search
+- **Fixes from the failed-search log.** "when did X last play" (or "play last", "last compete") reads as the team's most recent match. Several listing facts at once ("4215 sponsors school", "4215 rookie year, website") are each answered on their own line, in the order asked, with a team's whole name tried before any fact word is read off it. "last" is no longer called a word left out of a most-recent-match answer, and headings keep joining words small ("Sponsors and School or Organization"). (#496)
+
+## 2.8.1 — 2026-11-03
+
+Failed searches are filed the way search itself read them: search's own verdict decides whether a query failed and how, and one failing question lands on one issue however it was phrased.
+
+### Highlights
+- [report] A failed search is filed as search itself judged it
+- [report] One failing question, one issue, however it was typed
+- [fixes] An issue's Reproduce link opens the search exactly as typed
+
+### Search
+- **Failed-search reports follow search's own reading.** Search's layered reader now decides whether a query failed: an answer is never filed, a question two ways at once is filed as ambiguous with both readings named, and a team page shown for a question nobody asked of it ("4215 zzz") is an answer, not a failure. Issues aggregate under search's own key of the redacted query, so "4215 OPR rn?" and "4215 opr right now" are one issue. The Reproduce link in an issue now opens the latest query as typed rather than its shortened key, which could answer. Details in docs/failed-search-reporting.md. (#495)
 
 ## 2.8.0 — 2026-11-03
 

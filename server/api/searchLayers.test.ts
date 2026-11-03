@@ -200,10 +200,11 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
     expect((await stripFiller("please don't explode opr")).q).toBe("please don't explode opr");
   });
   it("two intents with no rule between them are named, never guessed", async () => {
-    const a = await ask("4215 sponsors school");
-    expect(searchOutcome(a)).toMatchObject({ result: "ambiguous", intents: ["sponsors", "school"], won: null });
-    expect(a.understood?.label).toMatch(/sponsors or school: say which/);
-    expect(searchOutcome(await ask("4215 awards location"))).toMatchObject({ result: "ambiguous", intents: ["awards", "location"] });
+    const a = await ask("4215 awards location");
+    expect(searchOutcome(a)).toMatchObject({ result: "ambiguous", intents: ["awards", "location"], won: null });
+    expect(a.understood?.label).toMatch(/awards or location: say which/);
+    // Two facts from FIRST's listing are both answered, not ambiguous (failed-search #489).
+    expect(searchOutcome(await ask("4215 sponsors school"))?.result).toBe("answered");
     // A weak word with two meanings is named too.
     expect((await extract("4215 stats")).weak).toEqual(["opr", "record"]);
   });
@@ -235,15 +236,15 @@ describe("the outcome failed-search reporting reads", () => {
     expect(searchOutcome(await ask("please 4215 not opr"))?.normalized).toBe(f.normalized);
   });
   it("the trace reporting reads: layers by number, ambiguity carried, the failure classified from it", async () => {
-    const t = traceOf(searchOutcome(await ask("4215 sponsors school")))!;
-    expect(t).toMatchObject({ won: null, team: "4215", ambiguous: ["sponsors", "school"] });
+    const t = traceOf(searchOutcome(await ask("4215 awards location")))!;
+    expect(t).toMatchObject({ won: null, team: "4215", ambiguous: ["awards", "location"] });
     expect(t.layers[0]).toBe("0");
     expect(t.layers.at(-1)).toBe("6");
     expect(traceOf(searchOutcome(await ask("4215 opr rn")))).toMatchObject({ won: "2", filler: ["rn"] });
     const { failureOf } = await import("../searchFailures");
-    const a = await ask("4215 sponsors school");
+    const a = await ask("4215 awards location");
     // Reporting classifies it as the user saw it: ambiguous, not a plain team fallback.
-    expect(failureOf("4215 sponsors school", a, traceOf(searchOutcome(a)))).toMatchObject({ type: "ambiguous" });
+    expect(failureOf("4215 awards location", a, traceOf(searchOutcome(a)))).toMatchObject({ type: "ambiguous" });
     // A weak word declined for its scope is still a question that wasn't answered: reported.
     const w = await ask("4215 based 2024-25");
     expect(traceOf(searchOutcome(w))?.intents).toEqual(["location"]);
