@@ -173,6 +173,9 @@ describe("normalizing, aggregating and redacting (§12.2, §12.3)", () => {
     expect(redact("+1 (201) 555-0123")).toBe("[phone]");
     expect(redact("020 7946 0958")).toBe("[phone]");
     expect(redact("4215 +5 points")).toBe("4215 +5 points");
+    // Full-width forms are read as what they normalize to (Greptile on #478).
+    expect(redact("meets at jane＠example.com 2099")).toBe("meets at [email] 2099");
+    expect(redact("２０１ 555 0123")).toBe("[phone]");
   });
   it("redacts the query as typed, before it's normalized (Greptile on #478)", async () => {
     searched("4215 school jane+doe@example.com", fallback("x", "school"));

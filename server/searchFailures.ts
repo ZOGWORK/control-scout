@@ -140,7 +140,9 @@ export function reportKey(q: string): string {
 
 /** Personal data and secrets out of anything logged (brief §12.2: the repository is public). */
 export function redact(text: string): string {
-  return text
+  // Compatibility forms first ("＠" is "@", "５" is "5"): normalizing later must never turn a kept string into an
+  // address. Case and "+" are kept, so the token and phone patterns below still see the text as typed.
+  return text.normalize("NFKC")
     // Secrets and tokens first (they can contain @ or digit runs): GitHub, OpenAI-style, Slack, AWS, JWTs,
     // then any 24+ character run mixing letters and digits.
     .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{16,}|github_pat_\w{16,}|sk-[\w-]{16,}|xox[abpr]-[\w-]{10,}|AKIA[0-9A-Z]{16}|eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,})/g, "[token]")

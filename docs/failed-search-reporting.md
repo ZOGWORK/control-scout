@@ -79,6 +79,9 @@ reports how it reached an answer (`SearchTrace`), the reading is taken from the 
 - **GitHub down.** Counts stay in the table and the next sync catches up. Nothing waits on GitHub, and nothing
   queues in memory past the buffer cap.
 - **Per visitor.** At most 30 logged failures an hour. The IP is used in memory only and never stored.
+- **Counts are searches that reached the server.** A visitor repeating a search within a few minutes may get it from
+  their own browser's cache (`/api/search` is cacheable for 60 s, 300 s stale). That repeat isn't counted again, just
+  as a retry within the settle window isn't: the count is roughly distinct searches, not page views.
 
 ## Privacy (the repository is public)
 
