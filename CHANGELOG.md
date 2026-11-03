@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.5.0 — 2026-11-03
+
+FTC One Search on a phone: pick two teams to compare from the results, and preview a head-to-head without leaving them.
+
+### Highlights
+- [teams] VS Compare on a team result picks it for a Compare bar
+- [teams] The Compare bar sits above the tab bar and opens the comparison
+- [teams] A comparison result opens its head-to-head in a panel over the results
+
+### Search
+- **Pick two, compare.** On a phone, VS Compare on a team result picks it for comparing. Picked teams dock in a bar right above the tab bar; "Compare (2) →" opens them side by side (in the season the results are about, when they name one), and with only one picked, "Compare (1) →" opens Compare to add the other. A third pick replaces the first, and × drops a team. The picks belong to that search: a new search starts with none.
+- **Head-to-head without leaving.** Tapping a comparison result ("Hypnotic Robotics vs Ultraviolet") opens a panel from the bottom with both teams' record, OPR and OPR rank, and View full comparison → at the end. Close it and the results are just as you left them. Results and their order are unchanged. (#446)
+
 ## 2.4.9 — 2026-11-03
 
 FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
