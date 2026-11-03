@@ -70,7 +70,7 @@ export function rewriteQuery(q: string): { q: string; note?: string } | null {
   }
   // A team's Worlds or states history, asked with no verb: "4215 worlds", "bad wolf states history".
   if ((m = /^(.+?)\s+(worlds|states|state championships?|first championship)(?:\s+(?:history|appearances|record|results))?$/.exec(t)) && !regionOf(m[1].split(" ")) && !readEventQuery(squash(q))?.region
-    && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for)\b|\bq\d/.test(m[1])) {
+    && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for|all|the|every|list|show)\b|\bq\d/.test(m[1])) {
     return { q: `when did ${m[1]} go to ${/^worlds|first/.test(m[2]) ? "worlds" : "states"}` };
   }
   // A team's wins and awards: "has 4215 won an event" (its event wins and awards), "did 4215 win inspire", "4215 inspire".
@@ -241,16 +241,17 @@ export async function worldsAnswer(q: string, now?: number): Promise<SearchAnswe
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
   const worlds = /^(?:(?:where|when)(?:'s| is| are| was| were| will)?\s+(?:the\s+)?(?:next\s+)?|(?:list|show)\s+(?:me\s+)?(?:the\s+)?)?(?:ftc\s+)?(?:worlds|world championships?|first championships?|ftc championships?|first world championships?)(?:\s+(?:divisions?|(20\d\d)(?:\s*[-–/]\s*(\d\d))?|(this|last|next) (year|season)))*(?:\s+be)?$/.exec(t);
   // "State championships", "all state championships", "championships this season": every championship of the season.
-  const states = /^(?:all\s+(?:the\s+)?)?(?:state\s+|regional\s+)?(?:championships|champs)(?:\s+(this|last|next) (?:year|season))?$/.exec(t);
+  // "state championship" too, as search singularizes it. Said with "state", a state's own (never Worlds).
+  const states = /^(?:all\s+(?:the\s+)?)?(state\s+|regional\s+)?(?:championships?|champs)(?:\s+(this|last|next) (?:year|season))?$/.exec(t);
   if (!worlds && !states) return null;
   let year: number | null = null, season: number | null = null;
   if (worlds?.[1]) { if (worlds[2] && (Number(worlds[1]) + 1) % 100 === Number(worlds[2])) season = Number(worlds[1]); else if (!worlds[2]) year = Number(worlds[1]); }
-  const rel = worlds ? worlds[3] : states![1];
+  const rel = worlds ? worlds[3] : states![2];
   const shift = rel === "last" ? -1 : rel === "next" ? 1 : 0;
   // Worlds is held in the spring, so "worlds this year" is the one held this calendar year; "this season" is the season's.
   if (rel && worlds?.[4] === "year") year = new Date(now ?? Date.now()).getUTCFullYear() + shift;
   else if (rel) season = CURRENT_SEASON + shift;
-  const kinds = worlds ? ["worlds"] : ["championship"];
+  const kinds = worlds ? ["worlds"] : states![1] ? ["states"] : ["championship"];
   // State championships alone: this season's, never the FIRST Championship as one of them.
   const e: EventQuery = { kinds, time: null, year, season: states && season == null ? CURRENT_SEASON : season, region: null, where: null, words: [], ...(worlds && year == null && season == null ? { allSeasons: true } : {}) };
   return eventSetAnswer(q, e, { now });
@@ -290,7 +291,7 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
     // that match number in every one of them.
     const codes = [code, ...(await all<{ code: string }>("SELECT code FROM events WHERE season = ? AND code LIKE ? AND code <> ? ORDER BY code", [Number(s), `${code}%`, code])).map((r) => r.code)];
     const found: SearchHit[] = [];
-    for (const c of codes) found.push(...(await search(`${c} Q${mm[1]}`, 5, prefer, new Set(["match"]), Number(s))).filter((h) => h.kind === "match").slice(0, 1));
+    for (const c of codes) found.push(...(await search(`${s} ${c} Q${mm[1]}`, 5, prefer, new Set(["match"]), Number(s))).filter((h) => h.kind === "match").slice(0, 1));
     if (found.length) return answer(q, { hits: [...found, { ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `Qualification match ${mm[1]} at ${target.title} (${seasonLabel(Number(s))})${found.length > 1 ? `, in each of its ${found.length} divisions` : ""}` } });
     return answer(q, { hits: [{ ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `${target.title} (${seasonLabel(Number(s))}): no qualification match ${mm[1]} on record, here are its matches` } });
   }
@@ -338,7 +339,8 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
   const teams = (await search(name, 25, prefer, new Set(["team"]))).filter((h) => h.kind === "team");
   const exact = teams.filter((h) => normalize(teamNameOf(h.title)) === normalize(name));
   const inRegion = region ? exact.filter((h) => new RegExp(`\\b${region!.state}\\b`).test(h.subtitle ?? "")) : exact;
-  const pick = inRegion.length ? inRegion : exact;
+  // A state named and no team of that name there: none, never another state's team said to be in it.
+  const pick = inRegion;
   if (!pick.length) return null;
   const label = pick.length === 1 ? `${nameOf(pick[0])}${region ? ` (${region.name})` : ""}` : `Teams named "${titleCase(name)}"${region ? ` in ${region.name}` : ""}`;
   return answer(q, { hits: pick.map((h) => ({ ...h, match: "exact" as const })), pages: pagesFor(q), understood: { kind: pick.length === 1 ? "team" : "names", label } });

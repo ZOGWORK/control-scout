@@ -20,10 +20,10 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 FTC One Search answers far more ways of asking: comparisons, winners, team facts, counts, months, glossary words and new leaderboards, where many used to end on "no results".
 
 ### Highlights
-- [history] "Who won worlds last year", "decode champions" and "franklin division winners" name the winners
-- [rankings] New leaderboards: highest win rate, most improved, undefeated, rookies, a country's best
-- [teams] "4215 school", "where is 4215 from", "4215 rookie year" answer from the team's record
-- [fixes] "Compare 4215 and 6980", "is 4215 good", "teams near Oradell" and many more phrasings work
+- [history] "Who won worlds last year" and "decode champions" name the winners
+- [rankings] New lists: highest win rate, most improved, undefeated, rookies
+- [teams] "4215 school" and "4215 rookie year" answer from the team's record
+- [fixes] "Compare 4215 and 6980", "is 4215 good" and more phrasings work
 
 ### Search
 - **Said another way.** Phrasings the readers missed are said the way they read them: "compare A and B", "is A better than B", "which is better A or B", "who would win A or B" and "4215, 6980" compare the two teams; "is 4215 good" is "how good is 4215"; "predict 4215 next games" is its next match; "4215 worlds" and "bad wolf states" are its Worlds and states history; "4215 inspire" and "has 4215 won an event" are its awards; "4215 losses" is its record; "4215 decode" is its DECODE season. Scope words that add nothing ("in the world", "in FTC", "right now") are dropped. "Teams near Oradell" reads as "in Oradell", and the line says so, since no distances are on record.
@@ -33,7 +33,7 @@ FTC One Search answers far more ways of asking: comparisons, winners, team facts
 - **Counts, months and Worlds.** "How many teams in Canada", "how many league meets this season", "events in January", "events today" and "tomorrow", "worlds this year", "worlds 2026" and "state championships" each get their own answer.
 - **An event's tab or match.** "NJ states rankings", "worlds playoffs" and "match 12 at nj states" open that tab or match; at an event with divisions, a match number shows each division's.
 - **What a word means.** OPR, the rating, reliability, ranking points, advancement, prediction accuracy, alliances, league meets, qualifiers, the Inspire Award, FTC itself and each season's game (DECODE, INTO THE DEEP …) are explained, with the page that explains more. "FTC rules" and "game manual" open Rules.
-- **Never a dead end.** A query with a team number in it that nothing else reads opens that team, saying what wasn't answered. A team named with "robotics", "team" or a state after it finds the team. Out of 332 test queries, only unknown team numbers and gibberish still end on "no results".
+- **Never a dead end.** A query with a team number in it that nothing else reads opens that team, saying what wasn't answered. A team named with "robotics", "team" or a state after it finds the team. Out of 332 test queries, only unknown team numbers and gibberish still end on "no results". (#465)
 
 ## 2.5.9 — 2026-11-03
 

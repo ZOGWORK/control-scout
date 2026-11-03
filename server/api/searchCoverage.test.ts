@@ -48,7 +48,7 @@ describe("rewrites: said the way a reader answers", () => {
     expect(rewriteQuery("4215 worlds")?.q).toBe("when did 4215 go to worlds");
     expect(rewriteQuery("bad wolf states")?.q).toBe("when did bad wolf go to states");
     // A place's championship, a match at one, and a question with its own verb are left to their readers.
-    for (const q of ["nj states", "OR states", "new jesey states", "qual 5 nj states", "will 4215 advance to states"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/^when did/);
+    for (const q of ["nj states", "OR states", "new jesey states", "qual 5 nj states", "will 4215 advance to states", "all state championships"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/^when did/);
   });
   it("winners, by a game's name or a division", () => {
     expect(rewriteQuery("decode champions")).toMatchObject({ q: "who won worlds 2025-26" });
@@ -120,5 +120,13 @@ describe("Greptile on #465", () => {
     expect(feb.understood?.label).toMatch(/no events on record in february 2026$/i);
     // A year with no events at all: other years' events are still offered.
     expect((await ask("events in march 2031")).recovery?.closest?.length).toBeGreaterThan(0);
+  });
+  it("'state championships' are the states' own, never Worlds", async () => {
+    const a = await ask("state championships");
+    expect(a.understood?.label).toMatch(/^State championships/);
+    expect(a.hits.some((h) => /FIRST Championship/.test(h.title))).toBe(false);
+  });
+  it("a team named with a state it isn't in is never said to be in it", async () => {
+    expect((await ask("hypnotic robotics texas")).understood?.label ?? "").not.toMatch(/Texas/);
   });
 });
