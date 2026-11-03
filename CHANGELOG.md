@@ -20,12 +20,13 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Compare: the season picker sits with the team controls.
 
 ### Highlights
-- [fixes] On Compare, the season picker is right under Quick add, next to where you pick teams
+- [fixes] On Compare, the season picker sits right under Quick add
 - [fixes] The "no results yet" note names the season once
+- [fixes] Phones stack the same order: teams, Quick add, then season
 
 ### Compare
 - **Season picker moved.** The season buttons (2026–27, 2025–26, 2024–25, 2023–24, Earlier) now sit directly below the Quick add row, lined up on the left with the team search, instead of at the top right beside the title. Top to bottom: the team search and count, Quick add, the season, then the note and the comparison. Phones stack the same order. The seasons on offer and what picking one does are unchanged.
-- **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice.
+- **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice. (#447)
 
 ## 2.4.1 — 2026-11-03
 
