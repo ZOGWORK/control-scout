@@ -58,7 +58,7 @@ for (const [t0, t1] of origins()) {
   fits.push({ origin: new Date(t0).toISOString().slice(0, 10), train: train.length, test: test.length, plattSlope: +a.toFixed(4) });
 }
 out.fits = fits;
-const fmt = (m: ReturnType<typeof murphy>) => `BS ${m.brier.toFixed(4)} REL ${(1e4 * m.rel).toFixed(2)}e-4 (debiased ${(1e4 * m.relDebiased).toFixed(2)}) RES ${m.res.toFixed(4)} UNC ${m.unc.toFixed(4)} BS−REL ${m.perfectCal.toFixed(4)} resid ${(1e4 * m.residual).toFixed(2)}e-4`;
+const fmt = (m: ReturnType<typeof murphy>) => `BS ${m.brier.toFixed(4)} REL ${(1e4 * m.rel).toFixed(2)}e-4 (debiased ${(1e4 * m.relDebiased).toFixed(2)}) RES ${m.res.toFixed(4)} UNC ${m.unc.toFixed(4)} BS−REL ${m.bsMinusRel.toFixed(4)} UNC−RES ${m.binRecal.toFixed(4)} PAV ${m.pav.toFixed(5)} MCB ${(1e4 * m.mcb).toFixed(2)}e-4 DSC ${m.dsc.toFixed(4)} resid ${(1e4 * m.residual).toFixed(2)}e-4`;
 const comparison: Record<string, unknown> = {};
 for (const { season, label } of rolledSeasons) {
   const R = pre.filter((r) => r.season === season && r.y !== 0.5 && platt.has(r.key));

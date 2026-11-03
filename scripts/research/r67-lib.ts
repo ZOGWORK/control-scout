@@ -92,15 +92,22 @@ export function bands(rows: { y: number; p: number }[]) {
   return [...g].sort((a, b) => a[0] - b[0]).map(([b, x]) => ({ band: `${b * 10}-${b * 10 + 10}%`, n: x.n, stated: x.s / x.n, won: x.w / x.n }));
 }
 
-export interface Murphy { n: number; bins: number; brier: number; rel: number; res: number; unc: number; residual: number; relDebiased: number; resDebiased: number; perfectCal: number; sharpness: number }
+export interface Murphy { n: number; bins: number; brier: number; rel: number; res: number; unc: number; residual: number; relDebiased: number; resDebiased: number; bsMinusRel: number; binRecal: number; pav: number; mcb: number; dsc: number; sharpness: number }
 /**
  * Binned Murphy (1973) decomposition of the Brier score of p = P(red wins) against y:
  *   BS ≈ REL − RES + UNC,  REL = Σ n_k(p̄_k − ō_k)²/N,  RES = Σ n_k(ō_k − ō)²/N,  UNC = ō(1 − ō).
  * With K equal-width bins the identity is not exact: residual = BS − (REL − RES + UNC) holds the within-bin
  * terms (Stephenson et al. 2008). Each bin's (p̄_k − ō_k)² also carries sampling noise of about ō_k(1 − ō_k)/n_k,
  * so the plain REL is biased upward; relDebiased subtracts Σ ō_k(1 − ō_k)/N (Ferro & Fricker 2012 style), and
- * resDebiased subtracts the same noise from RES (minus UNC/N for the overall mean). perfectCal = BS − REL is the
- * Brier the same forecasts would score if each bin's stated chance equalled its observed rate.
+ * resDebiased subtracts the same noise from RES (minus UNC/N for the overall mean).
+ * Three "perfect calibration" figures, because the binned one is not a bound:
+ *   bsMinusRel = BS − REL, the brief's definition (it keeps the binning residual);
+ *   binRecal   = UNC − RES, the Brier if every forecast were replaced by its bin's observed rate (this loses the
+ *                within-bin resolution, so it can sit ABOVE BS);
+ *   pav        = the Brier after the best monotone recalibration fitted IN SAMPLE (pool-adjacent-violators on p),
+ *                the CORP decomposition (Dimitriadis, Gneiting & Jordan 2021): BS = MCB − DSC + UNC exactly, with
+ *                MCB = BS − pav (miscalibration) and DSC = UNC − pav (discrimination). No monotone recalibration
+ *                can score below pav on these matches; it is optimistic, being fitted on the matches it scores.
  * sharpness = mean p(1 − p): the Brier the engine expects of itself if its own probabilities were true.
  */
 export function murphy(rows: { y: number; p: number }[], K = 20): Murphy {
@@ -114,15 +121,31 @@ export function murphy(rows: { y: number; p: number }[], K = 20): Murphy {
     const pk = b.p / b.n, ok = b.y / b.n;
     rel += (b.n * (pk - ok) ** 2) / N; res += (b.n * (ok - ybar) ** 2) / N; noise += (ok * (1 - ok)) / N;
   }
-  const unc = ybar * (1 - ybar);
+  const unc = ybar * (1 - ybar), bp = pavBrier(rows);
   // ō_k(1−ō_k) is itself the biased (1/n) variance; the n/(n−1) correction is below 0.1% at these bin sizes.
-  return { n: N, bins: K, brier: bs, rel, res, unc, residual: bs - (rel - res + unc), relDebiased: Math.max(0, rel - noise), resDebiased: Math.max(0, res - noise + unc / N), perfectCal: bs - rel, sharpness: sh / N };
+  return { n: N, bins: K, brier: bs, rel, res, unc, residual: bs - (rel - res + unc), relDebiased: Math.max(0, rel - noise), resDebiased: Math.max(0, res - noise + unc / N), bsMinusRel: bs - rel, binRecal: unc - res, pav: bp, mcb: bs - bp, dsc: unc - bp, sharpness: sh / N };
+}
+
+/** Brier of the in-sample isotonic (PAV) recalibration of p: equal p values start as one block. */
+export function pavBrier(rows: { y: number; p: number }[]): number {
+  const s = [...rows].sort((a, b) => a.p - b.p), blocks: { y: number; n: number }[] = [];
+  for (let i = 0; i < s.length; ) {
+    let j = i, y = 0;
+    while (j < s.length && s[j].p === s[i].p) y += s[j++].y;
+    blocks.push({ y, n: j - i }); i = j;
+    while (blocks.length > 1 && blocks[blocks.length - 2].y / blocks[blocks.length - 2].n >= blocks[blocks.length - 1].y / blocks[blocks.length - 1].n) {
+      const b = blocks.pop()!, a = blocks[blocks.length - 1]; a.y += b.y; a.n += b.n;
+    }
+  }
+  // Within a block the fitted value is its mean ō, so its Brier sum is n·ō(1 − ō) for 0/1 outcomes.
+  let sum = 0; for (const b of blocks) { const o = b.y / b.n; sum += b.n * o * (1 - o); }
+  return sum / s.length;
 }
 
 /** Event-bootstrap 95% intervals for every Murphy term. */
 export function murphyBoot(rows: { event: string; y: number; p: number }[], K = 20, draws = 1000, seed = 7) {
   const E = byEvent(rows), rand = rng(seed);
-  const keys = ["brier", "rel", "res", "unc", "relDebiased", "resDebiased", "perfectCal"] as const;
+  const keys = ["brier", "rel", "res", "unc", "relDebiased", "resDebiased", "bsMinusRel", "binRecal", "pav", "mcb", "dsc"] as const;
   const acc: Record<string, number[]> = Object.fromEntries(keys.map((k) => [k, []]));
   for (let d = 0; d < draws; d++) {
     const S: { y: number; p: number }[] = [];

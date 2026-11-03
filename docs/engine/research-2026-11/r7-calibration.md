@@ -2,7 +2,10 @@
 
 **Verdict:** calibration is not where the remaining error is.
 - **Platt vs isotonic.** On decisive DECODE matches the result is the same as Part 12.5: isotonic is no better than the shipped Platt-family stretch, so the stretch stays.
-- **Ceiling from perfect calibration.** The Murphy decomposition puts the live engine's calibration cost at about 1–2×10⁻⁴ of Brier (0.1%). Perfect calibration would move the DECODE Brier from 0.1681 to 0.1680 at best.
+- **Ceiling from perfect calibration.** The binned Murphy decomposition puts the live engine's calibration term at 1–2×10⁻⁴ (DECODE BS − REL = 0.1680 against BS 0.1681). Binning can hide errors within bins, so it is no bound on its own.
+  - A bin-free check, the best monotone recalibration fitted on the very matches it scores (CORP), lowers the DECODE Brier to 0.1676. That is 5.7×10⁻⁴, an optimistic upper bound because it is fitted in sample.
+  - Out of sample, the best mapping found (isotonic, walk-forward) gains nothing over the shipped stretch.
+  - So recalibration is worth somewhere between 0 and about 6×10⁻⁴ (at most 0.3%).
 - **Where the remaining error is.** Everything left is resolution: telling strong alliances from weak ones. That needs better information, not a better final mapping.
 - Script: `scripts/research/r7-calibration.ts`, with helpers in `scripts/research/r67-lib.ts`.
 - Output: `r7-calibration-2026-10-14.json`.
@@ -43,7 +46,11 @@ Isotonic does have lower **reliability** (REL) in both seasons, because a step m
   - REL = Σ n_k (p̄_k − ō_k)² / N (the calibration term; lower is better);
   - RES = Σ n_k (ō_k − ō)² / N (resolution; higher is better);
   - UNC = ō(1 − ō) (uncertainty: the Brier of a constant forecast at the base rate).
-- **BS − REL** is the Brier the same forecasts would score with perfect calibration (each bin's stated chance equal to its win rate).
+- **BS − REL** is the brief's "Brier with perfect calibration". It is not exactly the Brier of any real forecast, because it keeps the binning residual.
+  - Replacing every forecast by its bin's observed rate scores **UNC − RES** instead, and that loses the within-bin resolution: in DECODE it is 0.1682, *above* the actual 0.1681.
+  - Neither number bounds what recalibration could gain, since bins can hide errors inside them. For that, see the CORP table below.
+- **CORP** (Dimitriadis, Gneiting & Jordan 2021), the bin-free check. Recalibrate p by the best monotone map fitted in sample (pool-adjacent-violators on p), giving Brier BS_PAV. Then BS = MCB − DSC + UNC exactly, with MCB = BS − BS_PAV (miscalibration) and DSC = UNC − BS_PAV (discrimination).
+  - No monotone recalibration can score below BS_PAV on these matches. Because the map is fitted on the matches it scores, MCB **overstates** what a real (out-of-sample) recalibration could gain.
 - **Self-expected Brier** is the mean p(1 − p): the Brier the engine expects of itself if its own chances were exactly true.
 - **Intervals** come from resampling whole events, 1,000 draws.
 
@@ -71,6 +78,22 @@ REL and residual are ×10⁻⁴.
 | 2025–26 qual | 31,489 | 0.1699 [0.1673, 0.1724] | 1.83 [1.52, 4.60] | 0.79 [0.47, 3.59] | 0.0800 [0.0775, 0.0829] | 0.2500 | 0.1697 [0.1669, 0.1723] | 0.1736 | −2.37 | 1.53 / 2.97 |
 | 2025–26 playoff | 5,083 | 0.1573 [0.1520, 0.1629] | 10.22 [8.99, 26.54] | 3.79 [2.50, 20.03] | 0.0619 [0.0575, 0.0675] | 0.2185 [0.2129, 0.2233] | 0.1563 [0.1500, 0.1613] | 0.1617 | −2.23 | 8.30 / 16.99 |
 
+The bin-free CORP check on the same rows. MCB is ×10⁻⁴. As with REL, the MCB intervals sit above the point estimate: duplicated events in a resample let the in-sample map overfit further. Read them as upper ranges.
+
+| Season / part | BS | BS − REL | UNC − RES (bin rates) | BS_PAV [95%] | MCB = BS − BS_PAV [95%] | DSC [95%] |
+|---|---|---|---|---|---|---|
+| 2023–24 all | 0.1752 | 0.1750 | 0.1752 | 0.1745 [0.1717, 0.1770] | 6.23 [8.39, 11.80] | 0.0748 [0.0723, 0.0776] |
+| 2023–24 qual | 0.1774 | 0.1772 | 0.1775 | 0.1767 [0.1734, 0.1792] | 6.89 [8.98, 12.80] | 0.0733 [0.0708, 0.0766] |
+| 2023–24 playoff | 0.1563 | 0.1548 | 0.1550 | 0.1536 [0.1449, 0.1595] | 26.54 [30.50, 50.53] | 0.0494 [0.0438, 0.0576] |
+| 2024–25 all | 0.1578 | 0.1577 | 0.1578 | 0.1572 [0.1544, 0.1592] | 6.08 [7.88, 10.71] | 0.0924 [0.0904, 0.0951] |
+| 2024–25 qual | 0.1589 | 0.1587 | 0.1589 | 0.1582 [0.1554, 0.1604] | 6.48 [8.44, 11.90] | 0.0918 [0.0896, 0.0946] |
+| 2024–25 playoff | 0.1508 | 0.1498 | 0.1501 | 0.1489 [0.1414, 0.1547] | 18.33 [23.31, 37.90] | 0.0693 [0.0639, 0.0776] |
+| **2025–26 all (reused)** | **0.1681** | **0.1680** | **0.1682** | **0.1676** [0.1648, 0.1696] | **5.65** [7.50, 10.69] | **0.0816** [0.0796, 0.0843] |
+| 2025–26 qual | 0.1699 | 0.1697 | 0.1699 | 0.1693 [0.1663, 0.1716] | 5.88 [7.85, 11.27] | 0.0807 [0.0784, 0.0838] |
+| 2025–26 playoff | 0.1573 | 0.1563 | 0.1565 | 0.1552 [0.1486, 0.1598] | 21.52 [24.88, 40.49] | 0.0633 [0.0592, 0.0693] |
+
+The walk-forward mappings show how much of that in-sample MCB is real. In DECODE the walk-forward Platt stretch scores 0.16822 and the walk-forward isotonic map 0.16821, while the in-sample PAV map of the same rows reaches 0.16760. The ~6×10⁻⁴ gap is what fitting in sample buys; a walk-forward map does not get it.
+
 The walk-forward final mappings (Part 1 rows; out of sample), 20 bins, ×10⁻⁴ for REL:
 
 | Season | Mapping | BS | REL raw [95%] | REL debiased [95%] | RES [95%] | BS − REL [95%] |
@@ -84,19 +107,21 @@ The walk-forward final mappings (Part 1 rows; out of sample), 20 bins, ×10⁻�
 
 DECODE (2025–26, all decisive matches, live engine):
 - **Brier 0.1681 = REL 0.0002 − RES 0.0810 + UNC 0.2492** (plus a −0.0002 binning residual).
-- **Perfect calibration:** BS − REL = 0.1680 (debiased: 0.1680 as well, since 1.04×10⁻⁴ rounds away).
-  - Calibration costs 1–2×10⁻⁴ of Brier, about 0.1%, which is smaller than the event-bootstrap interval on the Brier itself (±23×10⁻⁴).
-  - No calibration method can buy more than that. The same holds in 2023–24 (0.1752 → 0.1750) and 2024–25 (0.1578 → 0.1577).
+- **Perfect calibration, as the brief defines it:** BS − REL = 0.1680 (debiased: 0.1680 as well, since 1.04×10⁻⁴ rounds away). Earlier seasons: 2023–24 0.1752 → 0.1750, 2024–25 0.1578 → 0.1577.
+- **This is not a bound.** Binning hides errors within bins, and the residual is as large as REL. The bin-free bounds:
+  - Optimistic (in sample): the best monotone recalibration of these very matches scores 0.1676, 5.7×10⁻⁴ below the live Brier (CORP MCB). No monotone recalibration can do better on these matches.
+  - Realistic (out of sample): walk-forward isotonic and Platt both score 0.1682 on the pre-stretch rows, so a forward-fitted map gains nothing over the shipped stretch.
+- **So calibration is worth between 0 and about 6×10⁻⁴ (at most 0.3%).** That is a quarter of the event-bootstrap interval on the Brier itself (±23×10⁻⁴).
 - **Uncertainty: UNC = 0.2492.** This is the Brier of always saying "the base rate" (red wins 52.8% of decisive matches: 50.4% of quals, 67.8% of playoffs). It is fixed by the matches, not the model.
   - It is **not** the floor. The true floor, the noise left once both alliances' real strength is known, cannot be measured from outcomes alone.
 - **Resolution: RES = 0.0810.** This is what the engine removes from UNC by separating strong alliances from weak ones. It is the only term left to improve.
   - The program's stretch target of Brier 0.155 would need RES of about 0.094 (+16%), with calibration as it is.
   - That has to come from better information: ratings, features, the R1–R5 topics. It cannot come from the final mapping.
 - **Self-expected Brier 0.1719 against actual 0.1681.** If the engine's own chances were exactly true it would expect a Brier of 0.172. It does slightly better than it expects, so it is still a little **timid** in DECODE, consistent with the favourite winning 1–2 points more often than stated in the 65–85% bands (12.5).
-  - That timidity is already priced in the REL above. A slightly steeper stretch is the rollover refit noted in 12.5, worth at most ~1×10⁻⁴.
+  - That timidity is part of the MCB above. A slightly steeper stretch is the rollover refit noted in 12.5; Part 1 shows a forward-fitted stretch is worth about 2×10⁻⁴ over none.
 
 **Quals vs playoffs.**
-- **Playoff REL looks five times larger** (raw 9.9–14.7×10⁻⁴), but most of that is small-sample noise: there are about 3,000–5,000 matches over 20 bins. Debiased, it is 2.4–3.8×10⁻⁴, and the bin sensitivity (6–8 at 10 bins, 17–23 at 50) shows how noise-driven the raw number is. Playoff calibration costs at most a few 10⁻⁴: R6's playoff-only recalibration (slope) found no gain, and the seed term only a season-specific one.
+- **Playoff REL looks five times larger** (raw 9.9–14.7×10⁻⁴), but most of that is small-sample noise: there are about 3,000–5,000 matches over 20 bins. Debiased, it is 2.4–3.8×10⁻⁴, and the bin sensitivity (6–8 at 10 bins, 17–23 at 50) shows how noise-driven the raw number is. The in-sample CORP MCB for playoffs (18–27×10⁻⁴) is larger, but the in-sample map overfits more on 3,000–5,000 rows. Out of sample, playoff calibration gains are at most a few 10⁻⁴: R6's playoff-only recalibration (slope) found no gain, and the seed term only a season-specific one.
 - **Playoff UNC is lower** (0.20–0.22 against 0.25), because red is the higher seed and wins 68–72% of playoff matches. That, not better modeling, is why playoff Brier is lower.
 - **Playoff RES is lower too** (DECODE 0.062 against 0.080). Selected alliances are harder to separate than random quals pairs. See R6.
 
@@ -104,4 +129,4 @@ DECODE (2025–26, all decisive matches, live engine):
 
 Nothing. The engine stays 3.3.0 with the Platt-family stretch.
 - The 2026–27 rollover refit of the stretch slope (already on the list from 12.5) stays the one calibration action.
-- The decomposition says calibration work beyond that cannot move Brier by more than about 0.0002.
+- The decomposition, with the CORP bound, says no monotone recalibration can move the DECODE Brier by more than about 0.0006, even fitted in sample. Out of sample, the mappings tried move it by nothing measurable.

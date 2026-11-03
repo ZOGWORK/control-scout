@@ -31,7 +31,7 @@ The bracket predictor (`src/shared/bracketOdds.ts`) builds series odds from thes
 
 These are decisive matches (ties left out) at rated events, pre-match predictions from the slice replay, for the whole season. Intervals come from resampling whole events.
 - **Margin MAE** is |expected (red − blue) − actual|, in points.
-- **In-sample caveat:** the final recalibration (slope 1.057692) was fitted on 2024-07-26 to 2026-07-26, so these 2024–25 and 2025–26 numbers are in-sample for that one step. The walk-forward numbers in Part 2 are not.
+- **In-sample caveat:** the final recalibration (slope 1.057692) was fitted on 2024-07-26 to 2026-07-26, so these 2024–25 and 2025–26 numbers are in-sample for that one step. Part 2's primary comparison refits that step before each origin instead.
 
 | Season | Part | n | Brier [95%] | Accuracy [95%] | Margin MAE [95%] | Log loss | Fav. stated | Red stated → won |
 |---|---|---|---|---|---|---|---|---|
@@ -74,9 +74,15 @@ What this shows:
 - Each month from October 2024 to July 2026 gets a model fitted on the **playoff rows only** from the 365 days before it, then scored on that month's playoff rows only. Origins with fewer than 500 playoff training rows keep the champion; none were needed.
 - Rows are decisive and from rated events; the fitting data is pre-match only.
 - 2024–25 is the tuning season. 2025–26 (DECODE) is judged and labelled **reused**, because it has already been looked at.
-- The champion is the live engine 3.3.0's served chance.
+**The champion, without later results.** The live engine's served chance carries a final stretch (slope 1.057692) fitted through July 2026. Used as is, it would let the baseline, and every challenger layered on it, see the months being scored. So the primary champion is the live engine 3.3.0 **before** its stretch (`engine-slices --champion '{"rating":{},"recalibration":false}'`).
+- The stretch slope is refitted at each origin on the 365 days of all rated matches before it, exactly as R7 and Part 12.5 fit it.
+- The rolling slope runs 1.032–1.090; the shipped value is 1.0577.
+- That champion's chance feeds both the baseline and the layered challengers.
+- **Remaining caveat:** the contextual model's own calibration shape inside the engine was fitted on spring 2025. That is in-sample for part of 2024–25, but out of sample for DECODE.
 
-The challengers (z is the logit of the live chance):
+The same comparison against the served (in-sample) chance is kept in the JSON (`served`) and reaches the same verdict; its deltas differ by at most 0.5×10⁻⁴.
+
+The challengers (z is the logit of the champion's chance at that origin):
 
 | Challenger | Form | What it tests |
 |---|---|---|
@@ -89,35 +95,35 @@ The challengers (z is the logit of the live chance):
 
 Each challenger minus the champion, on playoff matches only. Brier is in units of 10⁻⁴, so negative is better. Accuracy is in points (positive is better) and margin MAE in points (negative is better). The 95% intervals come from resampling whole events.
 
-**2024–25 (rolled, tuning)**: 4,353 playoff matches. Champion: Brier 0.1508, accuracy 78.31%, margin MAE 42.51.
+**2024–25 (rolled, tuning)**: 4,353 playoff matches. Champion (walk-forward stretch): Brier 0.1507, accuracy 78.31%, margin MAE 42.51.
 
 | Challenger | Δ Brier [95%] | Δ accuracy [95%] | Δ margin MAE [95%] |
 |---|---|---|---|
-| slope | +0.47 [−0.71, +1.61] | 0.00 | 0 |
-| seed | +0.50 [−3.02, +3.81] | −0.41 [−0.75, −0.07] | 0 |
-| slope+seed | +1.47 [−2.22, +5.26] | −0.28 [−0.62, +0.07] | 0 |
-| refit | +6.60 [−5.27, +18.25] | −0.48 [−1.00, +0.07] | 0 |
-| refit (ridge 1e-2) | +2.58 [−8.12, +12.69] | −0.48 [−0.97, +0.05] | 0 |
+| slope | +0.77 [−0.26, +1.81] | 0.00 | 0 |
+| seed | +0.54 [−2.68, +3.56] | −0.32 [−0.65, 0.00] | 0 |
+| slope+seed | +1.77 [−1.93, +5.52] | −0.28 [−0.62, +0.07] | 0 |
+| refit | +6.90 [−4.84, +18.27] | −0.48 [−1.00, +0.07] | 0 |
+| refit (ridge 1e-2) | +2.89 [−7.71, +13.02] | −0.48 [−0.97, +0.05] | 0 |
 | margin | 0 | 0 | −0.121 [−0.236, −0.013] |
-| playoff | +1.47 [−2.22, +5.26] | −0.28 [−0.62, +0.07] | −0.121 [−0.236, −0.013] |
+| playoff | +1.77 [−1.93, +5.52] | −0.28 [−0.62, +0.07] | −0.121 [−0.236, −0.013] |
 
-**2025–26 DECODE (rolled, reused)**: 5,083 playoff matches. Champion: Brier 0.1573, accuracy 76.63%, margin MAE 37.85.
+**2025–26 DECODE (rolled, reused)**: 5,083 playoff matches. Champion (walk-forward stretch): Brier 0.1574, accuracy 76.63%, margin MAE 37.85.
 
 | Challenger | Δ Brier [95%] | Δ accuracy [95%] | Δ margin MAE [95%] |
 |---|---|---|---|
-| slope | −0.20 [−0.71, +0.33] | 0.00 | 0 |
-| seed | −3.39 [−5.96, −0.77] | −0.08 [−0.43, +0.25] | 0 |
-| slope+seed | −3.34 [−5.96, −0.64] | −0.06 [−0.42, +0.30] | 0 |
-| refit | −3.12 [−12.04, +5.75] | +0.12 [−0.38, +0.60] | 0 |
-| refit (ridge 1e-2) | −5.37 [−14.11, +2.96] | +0.04 [−0.45, +0.52] | 0 |
+| slope | −0.62 [−1.34, +0.15] | 0.00 | 0 |
+| seed | −3.43 [−5.96, −0.89] | −0.02 [−0.38, +0.33] | 0 |
+| slope+seed | −3.75 [−6.44, −0.94] | −0.06 [−0.42, +0.30] | 0 |
+| refit | −3.54 [−12.77, +5.47] | +0.12 [−0.38, +0.60] | 0 |
+| refit (ridge 1e-2) | −5.79 [−14.52, +2.60] | +0.04 [−0.45, +0.52] | 0 |
 | margin | 0 | 0 | −0.131 [−0.298, +0.041] |
-| playoff | −3.34 [−5.96, −0.64] | −0.06 [−0.42, +0.30] | −0.131 [−0.298, +0.041] |
+| playoff | −3.75 [−6.44, −0.94] | −0.06 [−0.42, +0.30] | −0.131 [−0.298, +0.041] |
 
-**Gate:** a challenger must cut Brier with an interval entirely below zero, and must not lose accuracy or margin MAE, on both seasons. **No challenger passes.**
-- **slope:** about zero in both seasons. The month-by-month playoff slope stays between 0.996 and 1.040, so the shipped stretch already suits playoffs. This matches Part 7: there is no playoff calibration gap to close.
+**Gate:** a challenger must cut Brier with an interval entirely below zero, and must not lose accuracy or margin MAE, on both seasons. **No challenger passes**, against either champion.
+- **slope:** about zero in both seasons. On top of the walk-forward stretch, the month-by-month playoff slope stays between 0.982 and 1.048, so the global stretch already suits playoffs. This matches Part 7: there is no playoff calibration gap to close.
 - **seed / slope+seed:** the only real signal, and it is not stable.
-  - In DECODE, red (the higher seed) wins more than the engine says. The fitted red term climbs to about +0.12 logits by spring 2026, and Brier improves by 3.4×10⁻⁴ with an interval below zero. Accuracy dips slightly (−0.06 to −0.08).
-  - In 2024–25 the same term is fitted from 2023–24, where it was +0.03 to +0.11. It does not help (+0.5 to +1.5×10⁻⁴) and costs 0.3–0.4 accuracy points (the seed-only interval excludes zero).
+  - In DECODE, red (the higher seed) wins more than the engine says. The fitted red term climbs to about +0.12 logits by spring 2026, and Brier improves by 3.4–3.8×10⁻⁴ with an interval below zero. Accuracy dips slightly (−0.02 to −0.06).
+  - In 2024–25 the same term is fitted from 2023–24, where it was +0.03 to +0.11. It does not help (+0.5 to +1.8×10⁻⁴) and costs about 0.3 accuracy points.
   - A term that helps in one season and hurts in the other is the season's own pattern, not a stable playoff effect.
 - **refit:** the intervals are wide (±9 to ±12×10⁻⁴). It is worse on the tuning season and better in DECODE as a point estimate. 22 weights fitted on 3,000–5,100 playoff rows are too noisy to beat weights fitted on all matches.
 - **margin:** playoff expected margins are a little too large (c = 0.85–0.95) and lean slightly red (d = +1 to +4 points).
@@ -127,7 +133,7 @@ Each challenger minus the champion, on playoff matches only. Brier is in units o
 ## Power
 
 The playoff sample limits what this test can detect. With about 4,400–5,100 playoff matches per season, the 95% intervals are:
-- about ±0.6×10⁻⁴ for a one-parameter slope;
+- about ±0.5–1.0×10⁻⁴ for a one-parameter slope;
 - about ±2.6–3.5×10⁻⁴ for a red/seed term;
 - about ±9–12×10⁻⁴ for the 22-input refit.
 
