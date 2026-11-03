@@ -551,6 +551,10 @@ export interface MatchExplanationView {
   reasons?: string[];
   teamsRed: (TeamStrength & { name: string | null })[];
   teamsBlue: (TeamStrength & { name: string | null })[];
+  /** Points each alliance loses to overlap (engine 2.11; 0 in playoffs): predicted score = Σ robots' np −
+   *  overlap + Σ opponents' pen. Optional: answers from before this field (an older server or pack) lack it. */
+  overlapRed?: number;
+  overlapBlue?: number;
   /** The match level the odds assume (a what-if with no level is a qualification match). */
   level?: "qual" | "playoff";
   /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */
@@ -597,6 +601,19 @@ export interface AccuracyBlock {
   /** Score ranges (engine 2.2+): how often real alliance scores landed inside the stated range. Null when no
    *  call in the block stated one (calls logged before 2.2). Scored the same way as the win calls. */
   ranges?: RangeCoverage | null;
+  /** Margin error: how far the predicted margin (red's expected score minus blue's) landed from the real one.
+   *  Null when no call in the block had a predicted score. Scored on the same calls as the win calls. */
+  margin?: MarginError | null;
+}
+
+export interface MarginError {
+  /** Calls with a predicted score (calls logged before the season's first rated match have none). */
+  n: number;
+  /** Mean absolute error of the predicted margin, in points. */
+  mae: number;
+  /** The same for always predicting a 0-point margin (the mean absolute real margin): the "no skill" line. */
+  baselineMae: number;
+  byLevel: { qual: { n: number; mae: number }; playoff: { n: number; mae: number } };
 }
 
 export interface RangeCoverage {

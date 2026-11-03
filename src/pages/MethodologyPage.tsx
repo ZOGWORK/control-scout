@@ -6,7 +6,7 @@
 // held-out test.
 import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
-import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
+import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, DEFAULT_BAND, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
 import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
@@ -119,6 +119,18 @@ export default function MethodologyPage() {
             <p>Since engine 2.8 there is one more step, refitted on the latest two seasons of calls: the engine was a little <strong>too cautious</strong> (favourites it gave 70–80% won about two points more often than that), so every probability is stretched slightly away from 50%: its log-odds are multiplied by {(MODEL.contextual!.recalibration?.slope ?? 1).toFixed(3)}. That never changes which side is favoured, and it has no term for alliance colour. Checked month by month on matches after each fit, it brought the calls in the 50–80% range closer to how often they came true in both seasons tested.</p>
           </Prose>
           <Playground />
+          <Prose id="quals-playoffs">
+            <h3>Quals and playoffs</h3>
+            <p>Every prediction learns from the same ratings, and the ratings learn from every played match: qualifications and playoffs. Remote and hybrid events are left out. A playoff result moves a rating {Math.round(RATING.playoffWeight * 100)}% as much as a qualification result, because teams play differently in eliminations. What changes in a playoff call:</p>
+            <CleanList items={[
+              <><strong>Partners add up in full.</strong> The overlap cut above is for qualification alliances only.</>,
+              <><strong>Tighter score ranges.</strong> Playoff scores swing less, so the game-noise part of a range is {Math.round((MODEL.band ?? DEFAULT_BAND).playoff * 100)}% as large (in points², before rating uncertainty is added).</>,
+              <><strong>The win model knows it's a playoff.</strong> One of its inputs is whether the match is a playoff, so the same score gap can give slightly different odds.</>,
+              <><strong>No bonus RP odds.</strong> Playoffs give no ranking points, and the bonus model learns from qualification matches only. OPR and the reliability index also use qualification matches only.</>,
+              <><strong>Event simulations</strong> draw each robot's strength once per run from its current rating and don't update it inside the run. Simulated playoffs use the playoff settings above; a three-robot alliance fields its two strongest.</>,
+            ]} />
+            <p>The track record scores qualifiers and playoffs together and also shows each apart.</p>
+          </Prose>
           <Prose id="factors">
             <h3>The top 3 factors</h3>
             <p>On a prediction, the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
