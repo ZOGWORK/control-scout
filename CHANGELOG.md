@@ -25,7 +25,7 @@ FTC One Search's venue lines keep the spelling you typed.
 - [history] Typo spellings still find the venue's meets, as before
 
 ### Search
-- **Venue lines keep your spelling.** A venue's line takes its name from the venues found as typed. "Meets at riverdale high school" reads "Meets at Riverdale High School", no longer "River Dell High School" (New Jersey's more common spelling). A typo with nothing found as typed ("river dell hs") still reads the venue's own spelling. (#PR)
+- **Venue lines keep your spelling.** A venue's line takes its name from the venues found as typed. "Meets at riverdale high school" reads "Meets at Riverdale High School", no longer "River Dell High School" (New Jersey's more common spelling). A typo with nothing found as typed ("river dell hs") still reads the venue's own spelling. (#470)
 
 ## 2.6.5 — 2026-11-03
 
