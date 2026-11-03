@@ -34,6 +34,7 @@ import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { eventDisagreements } from "./api/disagreements.js";
+import { pickRatings } from "./api/pickRatings.js";
 import { MATCH_KEY as REPORT_KEY } from "../src/shared/matchReport.js";
 import { trackRecord } from "./api/accuracy.js";
 import { currentWeather } from "./weather.js";
@@ -45,6 +46,7 @@ import { latestRankings, rankingsWeek } from "./powerRankings/store.js";
 import { isWeekId } from "../src/shared/powerRankings.js";
 import { pairHistory } from "../src/shared/pairHistory.js";
 import { compactSheet } from "../src/shared/factorSheet.js";
+import { overlapTotal } from "../src/shared/predictionBasis.js";
 import { FORECAST_RUNS } from "../src/shared/projections.js";
 import { liveForecaster, liveVersion, dataVersion, recentRecords } from "./predict/engine.js";
 import { bonusView } from "../src/shared/bonusOdds.js";
@@ -544,6 +546,15 @@ export function createApp(opts: { dist?: string } = {}) {
     return r;
   }));
 
+  // Scout's pick helper: each team's stored engine rating components and the posted alliances (api/pickRatings.ts).
+  // Read only, kept per data version; revalidated every time (alliance selection posts mid-event).
+  api.get("/events/:season/:code/pick-ratings", h(async (req, res) => {
+    const r = await pickRatings(season(req.params.season), code(req.params.code));
+    if (!r) throw new HttpError(404, `No event ${req.params.code} in ${req.params.season}`);
+    res.setHeader("Cache-Control", "no-cache");
+    return r;
+  }));
+
   // Model vs field: where the model's rating order and the official seeding disagree most (api/disagreements.ts).
   // Rebuilt with the event detail, so it moves with every ranking change; revalidated on event days.
   api.get("/events/:season/:code/disagreements", h(async (req, res) => {
@@ -708,6 +719,7 @@ export function createApp(opts: { dist?: string } = {}) {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
       rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, ...((await isEnabled("factorSheet")) ? { factorSheet: compactSheet(x.factorSheet) } : {}), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
+      overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB),
       level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
     };
   }));

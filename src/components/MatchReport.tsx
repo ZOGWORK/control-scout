@@ -25,6 +25,8 @@ import { BonusOdds } from "./BonusOdds";
 import { FactorSheetPanel } from "./FactorSheet";
 import { ScoreRange } from "./ScoreRange";
 import { levelPct } from "../shared/scoreRange";
+import { matchBasis } from "../shared/predictionBasis";
+import { PredictionBasis } from "./PredictionBasis";
 
 type Side = "red" | "blue";
 const SIDE: Record<Side, { name: string; text: string; card: string; edge: string }> = {
@@ -99,9 +101,10 @@ function Call({ m, earned }: { m: MatchView; earned?: MatchReport["bonus"] }) {
               <summary className="cursor-pointer select-none text-xs font-medium text-muted-foreground">Why</summary>
               <FactorList factors={p.factors.slice(0, 3)} reasons={p.reasons} className="mt-1.5" />
               {p.history ? <PairHistoryLine history={p.history} className="mt-1.5" /> : null}
-              {p.sheet && <FactorSheetPanel sheet={p.sheet} winner={winner ? (winner === "tie" ? "tie" : winner === "red" ? "A" : "B") : null} defaultOpen={!!scored} className="mt-3" />}
+              {p.sheet && <FactorSheetPanel sheet={p.sheet} level={m.level} winner={winner ? (winner === "tie" ? "tie" : winner === "red" ? "A" : "B") : null} defaultOpen={!!scored} className="mt-3" />}
             </details>
           ) : null}
+          <PredictionBasis kind={matchBasis(m.level)} className="mt-2" />
         </>
       ) : (
         <p className="text-sm text-muted-foreground">{!full ? "No prediction: the engine predicts full 2-against-2 matches only." : scored ? "No prediction was recorded before this match." : "No prediction for this match yet."}</p>

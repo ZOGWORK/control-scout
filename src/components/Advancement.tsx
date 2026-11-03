@@ -17,6 +17,7 @@ import { EmptyState, Stat } from "./page";
 import { Stagger, StaggerItem } from "./motion";
 import { ErrorState } from "./states";
 import { ConfidenceBadge } from "./predict";
+import { PredictionBasis } from "./PredictionBasis";
 import { ago, oddsPct } from "../lib/format";
 import { projectionsPath } from "../lib/projections";
 import { projectionHeadline } from "./Projections";
@@ -143,7 +144,8 @@ export function AdvancementView({ season, code, team, nameOf, onPickTeam }: { se
         </span>
       </div>
       {/* The Rankings tab's Adv. odds column, reconciled: the same projection, or the pre-event forecast (no hindsight). */}
-      <p className="-mt-2 mb-4 text-xs text-muted-foreground" data-odds-basis>{oddsTabBasis(!!proj.data?.current, mode)}</p>
+      <p className="-mt-2 text-xs text-muted-foreground" data-odds-basis>{oddsTabBasis(!!proj.data?.current, mode)}</p>
+      <PredictionBasis kind="event" className="mb-4 mt-1" />
       {fc.hindsightNote && <p className="mb-4 flex gap-2 rounded-xl border border-warning/30 bg-warning/[0.06] px-4 py-3 text-sm"><Info className="mt-0.5 size-4 shrink-0 text-warning" />{fc.hindsightNote}</p>}
       {mode === "pre-event" && <p className="mb-4 flex gap-2 rounded-xl border border-info/30 bg-info/[0.06] px-4 py-3 text-sm"><History className="mt-0.5 size-4 shrink-0 text-info" />These are the odds as they stood the day before the event: ratings from earlier matches only, and none of this event's results.</p>}
       {fc.assumptions.length > 0 && (

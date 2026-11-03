@@ -6,7 +6,7 @@
 // held-out test.
 import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
-import { DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
+import { DEFAULT_BAND, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
 import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
@@ -119,6 +119,18 @@ export default function MethodologyPage() {
             <p>Since engine 2.8 there is one more step, refitted on the latest two seasons of calls: the engine was a little <strong>too cautious</strong> (favourites it gave 70–80% won about two points more often than that), so every probability is stretched slightly away from 50%: its log-odds are multiplied by {(MODEL.contextual!.recalibration?.slope ?? 1).toFixed(3)}. That never changes which side is favoured, and it has no term for alliance colour. Checked month by month on matches after each fit, it brought the calls in the 50–80% range closer to how often they came true in both seasons tested.</p>
           </Prose>
           <Playground />
+          <Prose id="quals-playoffs">
+            <h3>Quals and playoffs</h3>
+            <p>Every prediction learns from the same ratings, and the ratings learn from every played match: qualifications and playoffs. Remote and hybrid events are left out. A playoff result moves a rating {Math.round(RATING.playoffWeight * 100)}% as much as a qualification result, because teams play differently in eliminations. What changes in a playoff call:</p>
+            <CleanList items={[
+              <><strong>Partners add up in full.</strong> The overlap cut above is for qualification alliances only.</>,
+              <><strong>Tighter score ranges.</strong> Playoff scores swing less, so the game-noise part of a range is {Math.round((MODEL.band ?? DEFAULT_BAND).playoff * 100)}% as large (in points², before rating uncertainty is added).</>,
+              <><strong>The win model knows it's a playoff.</strong> One of its inputs is whether the match is a playoff, so the same score gap can give slightly different odds.</>,
+              <><strong>No bonus RP odds.</strong> Playoffs give no ranking points, and the bonus model learns from qualification matches only. OPR and the reliability index also use qualification matches only.</>,
+              <><strong>Event simulations</strong> draw each robot's strength once per run from its current rating and don't update it inside the run. Simulated playoffs use the playoff settings above; a three-robot alliance fields its two strongest.</>,
+            ]} />
+            <p>The track record scores qualifiers and playoffs together and also shows each apart.</p>
+          </Prose>
           <Prose id="factors">
             <h3>The top 3 factors</h3>
             <p>On a prediction, the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
@@ -165,6 +177,18 @@ export default function MethodologyPage() {
             <h3>"What if we pick them?"</h3>
             <p>Because the simulator can force any pairing, the advancement tab answers partner questions. If you're likely to captain: "if we pick team X, our odds become…". If you're likely to be picked: "if captain Y picks us…". When this was tested on real alliances, knowing the actual partner cut the error on "this alliance wins the event" by about 16% compared with general after-quals odds (Brier 0.072 vs 0.086, in the engine's held-out test).</p>
             <p>For an event that has already happened, "Before the event" replays the ratings to the day before it started and hides its results. Its bonus ranking point odds learn only from results played before the event started. That's the forecast without hindsight.</p>
+          </Prose>
+          <Prose id="pick-helper">
+            <h3>Pick helper: partners that fill your gaps</h3>
+            <p>Scout's <Link to="/scout?tab=picks">Pick helper</Link> suggests the partners at an event that round out your alliance, not just the highest-rated ones left. It reads each team's four rating parts from above (auto, TeleOp without the endgame, endgame, and penalty points it gives away a match, to one decimal), as the stats runs store them. Nothing is rated on the spot, and no odds are shown.</p>
+            <CleanList items={[
+              <><strong>Alliance value.</strong> Add up its teams' ratings in each part. Fouls are added up too, then turned around so fewer is better.</>,
+              <><strong>Axes from 0 to 100.</strong> Auto, TeleOp and Endgame: the alliance's total ÷ the best <em>n</em> teams at this event in that part added up, where <em>n</em> is the alliance size. Few fouls: 1 − the alliance's fouls ÷ the <em>n</em> most-fouling teams here added up. Each is clamped to 0–1 and shown ×100.</>,
+              <><strong>Area.</strong> For <em>k</em> axes, ½·sin(2π/<em>k</em>)·Σ rᵢ·rᵢ₊₁, the last axis wrapping to the first. With four axes that's ½·(Auto·TeleOp + TeleOp·Endgame + Endgame·Few fouls + Few fouls·Auto); the full chart is 2. Area depends on the order, so the order is fixed: Auto, TeleOp, Endgame, Few fouls, clockwise from the top. "Covered" is area ÷ 2.</>,
+              <><strong>Suggestions.</strong> Every rated team not already on a posted alliance (or marked taken) is tried as your next partner; the top 5 by area are shown, ties to the higher rating. Each card lists the axes it raises and lowers, in axis points.</>,
+              <><strong>Alliance size.</strong> 3 when a posted alliance at the event has a second pick, otherwise 2; you can switch. A 3-team alliance plays two at a time, so its third team reads as depth.</>,
+            ]} />
+            <p>Area rewards an alliance that is strong on neighbouring axes, so a partner strong where you're weak usually beats one strong where you're already strong. It's a way to see gaps, not a prediction: it ignores how two robots share the field. The ratings split alliance scores between partners, which works best when partners change match to match, as in qualifications.</p>
           </Prose>
           <Prose id="projections">
             <h3>Live projections</h3>
