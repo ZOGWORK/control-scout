@@ -315,8 +315,9 @@ async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | n
     if (a.step !== "recovery") return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label} · "${phrase}" read as the exact name` } };
   }
   const a = await read(phrase);
-  if (!rest && (a.stat || a.card)) return null;
-  const holds = (h: SearchHit) => ` ${nameKey(h.kind === "team" ? teamNameOf(h.title) : h.title)} `.includes(` ${key} `);
+  // A question answered as one (the page's stat or card, the dropdown's reading of it) is that question's.
+  if (!rest && (a.stat || a.card || a.intent || a.understood?.kind === "question" || a.understood?.kind === "compare")) return null;
+  const holds = (h: SearchHit) => h.ref === key || ` ${nameKey(h.kind === "team" ? teamNameOf(h.title) : h.title)} `.includes(` ${key} `);
   const isExact = (h: SearchHit) => h.kind === "team" && exact.includes(h.ref);
   const missing = exact.filter((n) => !a.hits.some((h) => h.kind === "team" && h.ref === n));
   const extra = (await Promise.all(missing.slice(0, 25).map(async (n) => (await read(n)).hits.find((h) => h.kind === "team" && h.ref === n)))).filter((h): h is SearchHit => !!h);

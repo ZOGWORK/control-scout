@@ -96,6 +96,14 @@ describe("the brief's ten cases", () => {
     expect(refs).not.toContain("3333");
     expect(a.understood?.label).toContain("Exact name \"Raider Robotics\": 2 teams");
   });
+  it("7c. a quoted question or number is read as it is, in the dropdown as on the page", async () => {
+    for (const limit of [8, 25]) {
+      const a = await searchAnswer("\"4215 opr\"", { limit, learn: false });
+      expect(a.step, `${limit}`).not.toBe("recovery");
+      expect(a.understood?.label, `${limit}`).not.toContain("word for word");
+      expect((await searchAnswer("\"4215\"", { limit, learn: false })).hits[0]?.ref).toBe("4215");
+    }
+  });
   it("7b. a phrase no name holds says so, never the words apart", async () => {
     const a = await ask("\"Robotics Raider\"");
     expect(a.step).toBe("recovery");
