@@ -23,6 +23,7 @@ import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
 import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -103,7 +104,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 }
 
 /** An event by name for a team-less question (its newest season, or the season named). */
-async function findEvent(words: string, season: number | null) {
+async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean } = {}) {
   const found = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
   const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
   // A season named: the first event found that was held that season (search lists an event once, by its newest season,
@@ -115,13 +116,20 @@ async function findEvent(words: string, season: number | null) {
   const top = found[0];
   if (!top) return null;
   const [s, code] = top.ref.split(":");
-  // No season named: the newest season of that event with a played playoff (an event not held yet has no winners).
-  const played = await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
+  // No season named: the newest season of that event with a played playoff (an event not held yet has no winners), or
+  // with any played match when the answer is its matches.
+  // An answer about its matches counts its divisions' matches too.
+  const played = opts.anyPlayed
+    ? await get<{ s: number | null }>("SELECT MAX(m.season) s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE (e.code = ? OR e.division_code = ?) AND m.played = 1", [code, code])
+    : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
   return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
+  const tm = readTopMatches(q);
+  if (tm) return topSearch(q, tm, opts);
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
@@ -183,6 +191,23 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     if (at) return at;
   }
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
+}
+
+/** "Highest scoring games in decode", "top scores in nj this season", "highest scoring match ever": no team, a
+ *  season's best alliance and combined scores, worked out for the page only. */
+async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const label = `Highest-scoring matches${t.region ? ` in ${t.region.name}` : t.event ? ` at ${t.event}` : ""}${t.ever ? ", each season" : t.season != null ? `, ${seasonLabel(t.season)}` : ""}`;
+  const answer: SearchAnswer = {
+    q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label, ...(t.season != null ? { season: t.season } : {}), ...(t.region ? { place: { key: t.region.key, name: t.region.name } } : {}) },
+    intent: { kind: "stat-season-top-matches", pattern: `highest scoring matches${t.region ? " [place]" : t.event ? " [event]" : ""}${t.season != null ? " [season]" : ""}`, met: true, understood: [label] },
+  };
+  // The search box keeps the asks' own high-score card.
+  if (!opts.full) return null;
+  const matchesAt = (words: string, season: number | null) => findEvent(words, season, { anyPlayed: true });
+  const stat = t.ever ? await everTopMatches(t, matchesAt) : await topMatchesAnswer(t, matchesAt);
+  if (!stat) return null;
+  return { ...answer, understood: { ...answer.understood!, label: stat.title }, stat };
 }
 
 /** "ftc decode winning alliance", "New Jersey Championship winning alliance": no team, an event's (or the season's

@@ -84,8 +84,12 @@ describe("the answer", () => {
     expect(a.card!.lines.map((l) => l.text)).toEqual(["221 points: Q2 at New Jersey Championship", "180 points: Q1 at New Jersey Championship"]);
   });
   it("2020–21 and 2021–22: penalties came off the alliance's own score, and it says so", async () => {
-    const a = await searchAnswer("highest score in freight frenzy");
-    expect(a.card!.lines[0]).toMatchObject({ text: "160 points: Q1 at Freight Frenzy Qualifier", results: ["Red alliance: 207 Critical Mass, 4215 Hypnotic Robotics", "140 after its own penalties"] });
+    // A season's highest score with no team is the stat answer's (server/api/answers/families/topMatches.ts).
+    const a = await searchAnswer("highest score in freight frenzy", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "160 points", label: "Q1 at Freight Frenzy Qualifier" });
+    expect(a.stat!.definition).toContain("penalties came off the alliance's own score");
+    const ms = a.stat!.blocks.find((b) => b.kind === "matches");
+    expect(ms && ms.kind === "matches" && ms.rows[0]).toMatchObject({ own: 140, ownNp: 160, partners: [{ label: "207 Critical Mass" }, { label: "4215 Hypnotic Robotics" }] });
   });
   it("the season's first official match not played yet: no record, its scrimmages' best below", async () => {
     const a = await searchAnswer("World record score bio buzz");

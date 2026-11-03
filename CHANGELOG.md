@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.0 — 2026-11-03
+
+FTC One Search lists a season's highest-scoring matches: the top alliance scores and the top combined scores, worldwide, in a state or at one event, with every team, the event, the date and a link to each match.
+
+### Highlights
+- [history] "Highest scoring games in decode": the season's top 10 scores
+- [history] Top combined scores, both alliances added together
+- [history] In a state or at one event: "highest scoring matches in NJ"
+- [history] "Highest scoring match ever": each season's best, one row a season
+
+### Search
+- **A season's top scores.** "Highest scoring games in decode", "top scores this season", "highest combined scores", "highest scoring matches in MA", "highest scoring matches at the New Jersey Championship": the season's 10 highest alliance scores as bars, then each match with both alliances' teams, the event, the date and a link, and the 10 highest combined scores. A score is the alliance's own points without penalties, as the season records count them (in 2020–21 and 2021–22, before its own penalties). Official events only. An event's divisions count with it. (#468)
+- **Ever.** "Highest scoring match ever" lists each season's best apart, since each season is a different game: never one all-time record. A state or an event named stays that state or event in every season.
+- The search box keeps its own high-score card; the full lists are on the search page.
+
 ## 2.6.9 — 2026-11-03
 
 FTC One Search names a season's champions: "who won worlds", "decode winner", "who won nj states", each with the finals, every division's winners, the Inspire Award and other seasons one tap away.
