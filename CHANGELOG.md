@@ -15,6 +15,47 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.4 — 2026-11-03
+
+FTC One Search answers more of the questions people actually ask about one team, and reads a few it used to get wrong.
+
+### Highlights
+- [teams] Average margin and total points per team, each season apart
+- [teams] "Have 4215 and 6980 played?" opens their head to head
+- [teams] Penalties, partners, best match and world rank all answer
+- [teams] "This season" says so when the season has no matches yet
+
+### Search
+- **New answers.** Average margin (or winning or losing margin, over wins or losses only) and total points, with the latest season up front and every season listed apart, never pooled. (#475)
+- **Read right.** Head-to-head questions ("has 4215 played 6980", "did 4215 ever face 6980") open the Compare, not another team; "at nj states", penalties, no-shows, best and worst match, best event, partners, opponents, events this season, world rank, region rank, next-match odds and awards at an event each get the answer they ask for, with a note when it is read a certain way.
+- **Smaller fixes.** Motivate and Dean's List count as awards; "past events in michigan" lists events, not a team named for pasta; "nj states matches" opens the Matches tab; a "this season" answer with no matches yet in the season in progress says it fell back to the latest season.
+
+## 2.7.3 — 2026-11-03
+
+Home's search box speaks for itself: the label and heading above it are gone, so the field and its examples lead.
+
+### Highlights
+- [home] Home's search box stands on its own, no heading above it
+- [home] The field keeps its label and its rotating examples
+- [home] The first paint matches, so nothing jumps as the page loads
+
+### Home
+- **Search box.** The "FTC One Search" tag, the "Type whatever you want" heading and the line under it are gone from Home's search block; the field's own label and placeholder say what it does, and the example chips stay. The page's first paint draws it the same way. (#474)
+
+## 2.7.2 — 2026-11-03
+
+FTC One Search has its own page explaining what you can search for and how each query is answered. In the menu, How it works now opens to its two pages: Predictions and FTC One Search.
+
+### Highlights
+- [home] A new page on FTC One Search: what to type and how it's read
+- [home] Six steps, 16 kinds of answers, each one a real query to try
+- [home] How it works in the menu opens to Predictions and FTC One Search
+- [home] What search can't do yet, stated plainly
+
+### How it works
+- **FTC One Search.** /how-it-works/search explains the six steps every query goes through, in order; how places, times, kinds of events, comparisons and names are read; the kinds of answers, each a query you can run; how the results page is laid out; what happens when nothing matches; that no AI decides what you meant (the Bruno AI summary is a separate extra); and its limits. (#473)
+- **In the menu.** How it works opens to its two pages, Predictions and FTC One Search, and stays open on either. The prediction page is unchanged, at /methodology.
+
 ## 2.7.1 — 2026-11-03
 
 FTC One Search answers a team's numbers one by one: OPR and each phase with the world rank, the prediction rating, the engine's report card, its events in a season or a state, its OPR against an average, reliability, schedule difficulty and league standing.

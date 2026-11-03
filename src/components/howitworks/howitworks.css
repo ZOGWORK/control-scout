@@ -86,6 +86,9 @@ html.light .hiw { --hiw-gold: #eab308; --hiw-line: #d4d4d8; }
   .hiw-stage:not(:last-child)::after { content: "→"; position: absolute; right: -.78rem; top: 1rem; font-family: var(--font-display); font-weight: 800; color: var(--hiw-gold); font-size: 1.05rem; }
 }
 
+/* Six steps wrap below lg: arrows only once they sit in one row (.hiw-steps-wrap). */
+@media (min-width: 768px) and (max-width: 1023.98px) { .hiw-steps-wrap .hiw-stage::after { content: none; } }
+
 @media (prefers-reduced-motion: reduce) {
   .hiw *, .hiw *::before, .hiw *::after { transition-duration: 0s !important; animation: none !important; }
   .hiw .hiw-reveal { opacity: 1; transform: none; filter: none; }

@@ -10,7 +10,7 @@
 // the page block carries the path it was made for and hides itself on another.
 import type { PageMeta } from "./seoMeta.js";
 import { pageTitle } from "../src/shared/routes.js";
-import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, HOME_SEARCH_NAME, HOME_SEARCH_SUB, HOME_SEARCH_TITLE, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
+import { BOOT_CHOICE_GLOBAL, BOOT_CONSENT_ID, HOME_ABOUT, HOME_LEAD, PAGE_DATA_ID, PAGE_FRAME, homeHeadlineAt } from "../src/shared/boot.js";
 import { DEFAULT_HERO_LINES, HERO_LINES_ID, type HeroLinesResponse } from "../src/shared/heroLines.js";
 import { LITE_BOOT_S } from "../src/shared/lite.js";
 
@@ -25,7 +25,9 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
 // A row's name stays for screen readers (visually hidden, like the app's sr-only); the brand link has its aria-label.
 const rail = (on: string) => `${on}.csb-side{width:60px}${on}.csb-brand{justify-content:center;padding:0}${on}.csb-brand span{display:none}`
   + `${on}.csb-nav a span,${on}.csb-more>summary span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}`
-  + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`;
+  + `${on}.csb-nav a,${on}.csb-more>summary{justify-content:center;padding:0}`
+  // A fold's pages sit level with every other row in the rail, as the app draws them there (no indent, no rule).
+  + `${on}.csb-sub>div{margin-left:0;padding-left:0;border-left:0}`;
 export const BOOT_STYLE = `<style>
       html{background:#0a0a0b;scrollbar-gutter:stable}html.light{background:#fff}html.dim{background:#1e1f23}html.midnight{background:#000}body{margin:0}
       html::-webkit-scrollbar{width:6px;height:6px}html::-webkit-scrollbar-thumb{background:#2e2e35;border-radius:999px}html.light::-webkit-scrollbar-thumb{background:#d4d4d8}html.dim::-webkit-scrollbar-thumb{background:#45464e}html.midnight::-webkit-scrollbar-thumb{background:#222227}
@@ -45,6 +47,7 @@ export const BOOT_STYLE = `<style>
       @media (min-height:900px){.csb-nav{padding-top:12px}.csb-grp{margin-bottom:16px}.csb-nav a,.csb-more>summary{height:40px;margin-bottom:4px}}
       @media (min-height:1000px){.csb-nav{padding-top:16px}.csb-grp{margin-bottom:20px}.csb-nav a,.csb-more>summary{height:44px;margin-bottom:6px;font-size:15px}}
       @media (min-height:1100px){.csb-nav{padding-top:20px}.csb-grp{margin-bottom:24px}.csb-nav a,.csb-more>summary{height:48px}}
+      .csb-sub>div{margin-left:16px;padding-left:8px;border-left:1px solid var(--b-line)}
       .csb-more>summary{list-style:none;cursor:pointer}.csb-more>summary::-webkit-details-marker{display:none}
       .csb-nav a[aria-current]{color:var(--b-fg);background:color-mix(in srgb,var(--b-fg) 8%,transparent)}
       .csb-ico{width:18px;height:18px;flex-shrink:0;border-radius:6px;background:currentColor;opacity:.22}
@@ -81,16 +84,13 @@ export const BOOT_STYLE = `<style>
       .csb-hl{display:grid;font:600 min(36px,8.5cqi)/1.05 "Space Grotesk",sans-serif;letter-spacing:-.02em}.csb-hl>*{grid-area:1/1}.csb-hl>i{visibility:hidden;font-style:normal}.csb-hl b{display:block;font-weight:inherit}
       .csb-home>p{margin:16px 0 0;max-width:30rem;font-size:16px;line-height:1.5}
       .csb-home{--r:14px}
-      .csb .csb-home>p.csb-hs{margin:var(--r) 0 0;max-width:38rem;font-size:calc(var(--r)*.875);line-height:calc(var(--r)*1.25)}
-      .csb-hs small{display:block;font-size:calc(var(--r)*.75);line-height:var(--r);font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--b-acc)}
-      .csb-hs b{display:block;margin:calc(var(--r)*.375) 0 calc(var(--r)*.25);font:600 calc(var(--r)*1.5)/1.3333 "Space Grotesk",sans-serif;letter-spacing:-.01em;color:var(--b-fg)}
       .csb-home>div:not(.csb-hl){max-width:38rem;height:calc(var(--r)*4);margin:var(--r) 0 0;border:1px solid var(--b-line);border-radius:var(--r)}
       .csb .csb-home>p.csb-about{margin:calc(var(--r)*3.25 + 72px) 0 0;font-size:14px;line-height:20px}
       .csb-tabs{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;padding-bottom:env(safe-area-inset-bottom);border-top:1px solid var(--b-line);background:var(--b-tab)}
       .csb .csb-tabs>*{display:flex;flex:1;min-height:52px;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:500;color:var(--b-mut)}
       .csb-tabs a[aria-current]{color:var(--b-acc)}
       .csb-tabs a[aria-current] .csb-ico{background:var(--b-acc);opacity:.9}
-      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1,.csb-hl{font-size:min(35px,8.5cqi)}.csb .csb-home>p.csb-hs{margin-top:calc(var(--r)*1.5)}.csb-hs b{font-size:calc(var(--r)*1.75)}.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*5.75 + 72px)}}
+      @media (min-width:640px){.csb-top{padding:0 24px}.csb-crumb i{display:inline}.csb-page{padding:32px 24px 0}.csb-page h1{font-size:32px}.csb-home{padding-top:24px}.csb .csb-home h1,.csb-hl{font-size:min(35px,8.5cqi)}.csb-home>div:not(.csb-hl){margin-top:calc(var(--r)*1.5)}.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*5.75 + 72px)}}
       @media (min-width:768px){.csb-home{--r:16px}.csb .csb-home h1,.csb-hl{font-size:min(40px,8.5cqi)}.csb-side{display:flex}.csb-top{gap:12px;height:48px;padding:0 24px}.csb-top>a,.csb-menu,.csb-tabs{display:none}.csb-crumb{display:block}.csb-search{flex:1;justify-content:center}.csb-search span{display:flex;align-items:center;width:100%;max-width:20rem;height:36px;margin:0;padding:0 12px;border:1px solid var(--b-line);border-radius:8px;font-size:14px;color:var(--b-mut);opacity:1}}
       @media (min-width:1024px){.csb .csb-home>p.csb-about{margin-top:calc(var(--r)*8.5 + 72px)}.csb-top{padding:0 32px}.csb-page{padding:32px 32px 0}.csb-search span{max-width:24rem}}
       @media (max-width:1279px){${rail("")}}
@@ -144,11 +144,12 @@ export function bootConsent(): string {
     + `<div class="csbc-btns"><button type="button" data-a="0">No thanks</button><button type="button" data-a="1">Allow</button></div></section>${script}`;
 }
 
-interface Item { to: string; label: string; end?: boolean }
+/** `children`: a row that folds open to its own pages, as the app's sidebar does (How it works). */
+interface Item { to: string; label: string; end?: boolean; children?: Item[] }
 // The sidebar's everyday pages, then its "More" group: a <details>, so it opens without the app too. Open on one of
 // its own pages, or when this device left it open (html.cs-nav-more, set in index.html from cs-nav-more).
 const PRIMARY: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/teams", label: "Teams" }, { to: "/rankings", label: "Rankings" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
-const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Download" }, { to: "/methodology", label: "How it works" }];
+const MORE: Item[] = [{ to: "/power-rankings", label: "Power rankings" }, { to: "/compare", label: "Compare" }, { to: "/shortlist", label: "Shortlist" }, { to: "/download", label: "Download" }, { to: "/methodology", label: "How it works", children: [{ to: "/methodology", label: "Predictions" }, { to: "/how-it-works/search", label: "FTC One Search" }] }];
 // The phone tab bar's default (src/lib/tabBar.ts DEFAULT_TABS); a device with its own choice gets it once the app loads.
 const TABS: Item[] = [{ to: "/", label: "Home", end: true }, { to: "/events", label: "Events" }, { to: "/predict", label: "Predict", end: true }, { to: "/my-team", label: "My team" }, { to: "/scout", label: "Scout" }];
 
@@ -157,8 +158,11 @@ const active = (path: string, it: Item) => {
   const p = path.toLowerCase();
   return p === it.to || (!it.end && p.startsWith(`${it.to}/`));
 };
-const link = (path: string, it: Item) =>
-  `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
+const within = (path: string, it: Item) => (it.children ?? [it]).some((k) => active(path, k));
+const link = (path: string, it: Item): string => it.children
+  // The same fold the app draws (Shell ParentRow): open on one of its pages.
+  ? `<details class="csb-more csb-sub"${within(path, it) ? " open" : ""}><summary><i class="csb-ico"></i><span>${esc(it.label)}</span></summary><div>${it.children.map((k) => link(path, k)).join("")}</div></details>`
+  : `<a href="${it.to}"${active(path, it) ? ' aria-current="page"' : ""}><i class="csb-ico"></i><span>${esc(it.label)}</span></a>`;
 
 /** The static first paint for a page path (see the top of this file). `path` is the request path; `hero`: the
  *  home page's lines in use (server/heroLines.ts liveHeroLines), the built-in ones by default; `lite`: the page's
@@ -167,7 +171,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   const p = path.length > 1 ? path.replace(/\/+$/, "") : "/";
   const home = p === "/";
   const nav = `<div class="csb-grp">${PRIMARY.map((it) => link(p, it)).join("")}</div>`
-    + `<details class="csb-more"${MORE.some((it) => active(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
+    + `<details class="csb-more"${MORE.some((it) => within(p, it)) ? " open" : ""}><summary><i class="csb-ico"></i><span>More</span></summary><div>${MORE.map((it) => link(p, it)).join("")}</div></details>`
     + `<script>if(document.documentElement.classList.contains('cs-nav-more'))document.querySelector('.csb-more').open=true</script>`;
   // Home's headline for this hour; the app reads data-line and keeps it, so its copy matches this paint. Every
   // line sits invisibly in the same cell (as in the app), so the hero is the app's height from the first frame.
@@ -176,7 +180,7 @@ export function bootShell(path: string, meta: PageMeta, hero: HeroLinesResponse 
   // A page with no title of its own (not found) gets the shell alone.
   const liteLink = lite ? `<p class="csb-lite" data-nosnippet>Slow connection? <a href="${esc(lite)}">Open the light version</a>: text only, a fraction of the data.</p>` : "";
   const page = home
-    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><p class="csb-hs"><small>${esc(HOME_SEARCH_NAME)}</small><b>${esc(HOME_SEARCH_TITLE)}</b>${esc(HOME_SEARCH_SUB)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
+    ? `<div class="csb-page csb-home" id="cs-boot-page" data-path="/"><div class="csb-hl">${lines.map(([a, b]) => `<i aria-hidden="true">${esc(a)} <b>${esc(b)}</b></i>`).join("")}<h1 data-line="${line}">${esc(lines[line][0])} <span>${esc(lines[line][1])}</span></h1></div><p>${esc(HOME_LEAD)}</p><div></div><p class="csb-about">${esc(HOME_ABOUT)}</p></div>`
     // A page the server drew whole (a team or event page: server/firstPaint.ts): the app's own markup, in the app's page
     // frame, styled by the app's stylesheet (server/seo.ts loads it before this paints). Under it, the lists it leaves
     // closed or on another tab (PageMeta.moreHtml), so crawlers read them too. Its data follows for the app.

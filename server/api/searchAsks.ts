@@ -45,7 +45,8 @@ const STAT_COLUMN: Record<Stat, string> = { opr: "s.opr_np", auto: "s.opr_auto",
 /** The award types as FIRST stores them, by the word people use. "control" here is the Control Award. */
 const AWARDS: Record<string, string> = {
   inspire: "Inspire", think: "Think", innovate: "Innovate", design: "Design", reach: "Reach", sustain: "Sustain",
-  connect: "Connect", control: "Control", compass: "Compass", judges: "JudgesChoice", "judges choice": "JudgesChoice",
+  connect: "Connect", control: "Control", motivate: "Motivate", compass: "Compass", judges: "JudgesChoice", "judges choice": "JudgesChoice",
+  "deans list": "DeansList", "dean's list": "DeansList",
 };
 
 /** A region named by the words `s` (all of them), or null. */
