@@ -41,7 +41,12 @@ export interface GainPatch {
   gainN(t: number, r: TeamRating, m: MatchRecord, book: RatingBook): number | undefined;
   after?(m: MatchRecord, book: RatingBook): void;
   season?(s: number): void;
+  /** Runs before the match is predicted; it may rewrite stored ratings (e.g. to forget earlier events). */
+  before?(m: MatchRecord, book: RatingBook): void;
 }
+
+/** Pre-prediction hooks of patched books: replay() calls them before predicting each match. */
+const BEFORE = new WeakMap<RatingBook, (m: MatchRecord) => void>();
 
 /** A live RatingBook (settings `params` over the live ones) whose update gain follows `patch`. The engine reads
  *  `gainN ?? n` when it computes the gain, so the patch sets `gainN` on the stored rating right before each update
@@ -60,6 +65,7 @@ export function patchedBook(params: Partial<RatingParams>, patch: GainPatch): Ra
   b.update = (m: MatchRecord) => { current = m; try { update(m); } finally { current = null; } patch.after?.(m, b); };
   const start = b.startSeason.bind(b);
   b.startSeason = (s: number) => { start(s); patch.season?.(s); };
+  if (patch.before) BEFORE.set(b, (m) => patch.before!(m, b));
   return b;
 }
 
@@ -84,7 +90,7 @@ export async function replay(variants: Variant[], seasons = [2023, 2024, 2025], 
     hooks.season?.(s);
     for (const m of matches) {
       if (unrated.has(m.eventCode)) continue;
-      for (const v of variants) v.book.setTime(m.time);
+      for (const v of variants) { v.book.setTime(m.time); BEFORE.get(v.book)?.(m); }
       if (predictable(m)) {
         const ctx = { level: m.level, event: m.eventCode, ...(m.region ? { region: m.region } : {}) };
         const champ = variants[0].book;

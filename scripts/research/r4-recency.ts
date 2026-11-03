@@ -4,9 +4,14 @@
 // forgetting of W (the discounted-least-squares / forgetting-factor Kalman recursion):
 //   per match   W ← W·2^(−1/h) + 1                 (h in matches; kMin 0, so the decay alone sets the floor)
 //   per week    W ← W·2^(−Δweeks/h) at each update  (h in weeks; with the live floor, or with kMin 0)
+// W is an evidence COUNT: the weight an old result keeps in the rating follows the gain it implies, not 2^(−age/h).
+// At steady state the gain is k* = k0 / (1 + W*/n0) and a robot's own result decays by (1 − ½k*) per match (its ½
+// share of the alliance miss); the report gives that "result-weight half-life" next to h.
 // Endpoints: "whole season" (no decay, kMin 0: every match this season counts the same, gain ~1/n) and "last event
-// only" (W back to 0 at a team's first match of each new event). The live engine is W = n with the kMin floor,
-// which at steady state is per-match forgetting with W* = n0·(k0/kMin − 1).
+// only": before a robot's first match at a new event its rating is rebuilt as its season prior (grown as the live
+// rating was) plus only what it learned at its previous event, and W restarts. "Gain reset" variants only restart W
+// at a new event (earlier events stay in the rating). The live engine is W = n with the kMin floor: at steady state
+// W* = n0·(k0/kMin − 1).
 // Every variant is the live engine otherwise (event form 2.9, regional priors, carry-over, overlap, recalibration).
 //
 //   DATABASE_URL=file:.data/research/snap.db npx tsx scripts/research/r4-recency.ts [--out docs/engine/research-2026-11/r4-recency-2026-11-03.json]
@@ -39,6 +44,43 @@ function decay(opts: { perMatch?: number; perWeek?: number; resetAtEvent?: boole
   };
 }
 
+const PHASES = ["auto", "teleop", "endgame", "pen"] as const;
+type Vec4 = Record<(typeof PHASES)[number], number>;
+const pick4 = (r: Vec4): Vec4 => ({ auto: r.auto, teleop: r.teleop, endgame: r.endgame, pen: r.pen });
+
+/** "Last event only": a robot's rating at a new event = its season prior × the growth applied so far + what it learned
+ *  at its previous event (end of that event minus its start there). W counts only matches at the current event. */
+function lastEventOnly(): GainPatch {
+  const g = M.rating as { growthPerWeek: number; growthMaxWeeks: number };
+  interface S { prior: Vec4; G: number; ev: string; start: Vec4; nEv: number; f: number; reset: boolean }
+  const st = new Map<number, S>();
+  const growth = (asOf: number | undefined, at: number) => (asOf == null || at <= asOf ? 1 : 1 + g.growthPerWeek * Math.min(g.growthMaxWeeks, (at - asOf) / WEEK));
+  return {
+    before: (m, book) => {
+      for (const t of [...m.red.teams, ...m.blue.teams]) {
+        const s = st.get(t), r = book.ratings.get(t);
+        if (!s || !r || s.ev === m.eventCode || s.reset) continue;
+        for (const c of PHASES) r[c] = Math.max(0, s.prior[c] * s.G + (r[c] - s.start[c]));
+        s.reset = true;
+      }
+    },
+    gainN: (t, r, m) => {
+      let s = st.get(t);
+      if (!s) { s = { prior: pick4(r), G: 1, ev: "", start: pick4(r), nEv: 0, f: 1, reset: false }; st.set(t, s); }
+      const f = growth(r.asOf, m.time);
+      if (s.ev !== m.eventCode) {
+        // First update at this event: the rating it starts from here (after the growth fold() is about to apply).
+        s.ev = m.eventCode; s.nEv = 0; s.reset = false;
+        s.start = { auto: r.auto * f, teleop: r.teleop * f, endgame: r.endgame * f, pen: r.pen };
+      }
+      s.f = f;
+      return s.nEv;
+    },
+    after: (m) => { for (const t of [...m.red.teams, ...m.blue.teams]) { const s = st.get(t); if (s) { s.G *= s.f; s.f = 1; s.nEv += 1; } } },
+    season: () => st.clear(),
+  };
+}
+
 interface Spec { name: string; family: string; h: number | null; label: string; book: () => RatingBook; legacy?: boolean }
 const PER_MATCH = [2, 3, 4, 5, 6.4, 8, 12, 20, 40];
 const PER_WEEK = [0.5, 1, 2, 4, 8, 16];
@@ -48,8 +90,9 @@ const specs: Spec[] = [
   { name: "season", family: "per-match", h: Infinity, label: "whole season (no decay, kMin 0)", book: () => patchedBook({ kMin: 0 }, decay({})) },
   ...PER_WEEK.map((h) => ({ name: `week-${h}`, family: "per-week+floor", h, label: `per-week half-life ${h}, live floor`, book: () => patchedBook({}, decay({ perWeek: h })) })),
   ...PER_WEEK.map((h) => ({ name: `week0-${h}`, family: "per-week", h, label: `per-week half-life ${h}, kMin 0`, book: () => patchedBook({ kMin: 0 }, decay({ perWeek: h })) })),
-  { name: "last-event", family: "endpoint", h: 0, label: "last event only (W reset at each new event), live floor", book: () => patchedBook({}, decay({ resetAtEvent: true })) },
-  { name: "last-event0", family: "endpoint", h: 0, label: "last event only (W reset at each new event), kMin 0", book: () => patchedBook({ kMin: 0 }, decay({ resetAtEvent: true })) },
+  { name: "last-event", family: "endpoint", h: 0, label: "last event only (rating = prior + previous event's learning; W restarts), live floor", book: () => patchedBook({}, lastEventOnly()) },
+  { name: "gain-reset", family: "endpoint", h: 0, label: "gain reset at each new event (W back to 0; earlier events kept), live floor", book: () => patchedBook({}, decay({ resetAtEvent: true })) },
+  { name: "gain-reset0", family: "endpoint", h: 0, label: "gain reset at each new event (W back to 0; earlier events kept), kMin 0", book: () => patchedBook({ kMin: 0 }, decay({ resetAtEvent: true })) },
   { name: "no-event-form", family: "context", h: null, label: "live without event-local form (eventLambda 0): what the form layer adds", book: () => new RatingBook({ ...LIVE, eventLambdaAuto: 0, eventLambdaTeleop: 0 }) },
   { name: "legacy", family: "context", h: null, label: "Engine 1.x (frozen; the published 72.7% / 0.179)", book: () => new RatingBook(LEGACY_RATING), legacy: true },
 ];
@@ -63,8 +106,11 @@ const bySeason = (s: number) => rows.filter((r) => r.season === s);
 const idx = (name: string) => specs.findIndex((s) => s.name === name);
 
 // Curve: every variant against live, per season and slice.
+/** Steady-state weight half-life of a robot's own past results, in matches, for a per-match evidence half-life h (kMin 0). */
+const resultHalfLife = (h: number) => { const W = 1 / (1 - 2 ** (-1 / h)), k = live.k0 / (1 + W / live.n0); return Math.log(0.5) / Math.log(1 - 0.5 * k); };
 const curve = specs.map((s, i) => ({
   ...s, book: undefined, h: s.h === Infinity ? "inf" : s.h,
+  ...(s.family === "per-match" && s.h != null && Number.isFinite(s.h) ? { resultWeightHalfLife: resultHalfLife(s.h) } : {}),
   seasons: Object.fromEntries(SEASONS.map(([k, season]) => {
     const R = bySeason(season);
     return [k, { summary: summary(R, i), slices: Object.fromEntries(SLICES.map(([name, keep]) => [name, i === 0 ? null : paired(R.filter(keep), 0, i)])) }];
@@ -105,7 +151,7 @@ const out = {
   meta: {
     generated: new Date().toISOString().slice(0, 10), engine: ENGINE_VERSION, dataVersion: await kvGet<string>("data:version"), script: "scripts/research/r4-recency.ts",
     protocol: "Walk-forward replay of the backtest corpus 2023–24 (cold start, warm-up) → 2025–26; served call (predictMatch + contextual model); rated events, 2-robot alliances; DECISIVE matches only (ties out of every metric). Δ = variant − live 3.3.0 on identical matches, 95% intervals from 2000 event bootstraps. Rolling origins: monthly Oct 2024–Jul 2026, each month's member chosen by Brier on the 365 days before it. Gate: Δ Brier interval below zero and neither accuracy nor margin-MAE interval entirely worse, on 2024–25 and 2025–26.",
-    liveFloor: { kMin: live.kMin, steadyStateW: floorW, equivalentPerMatchHalfLife: Math.log(0.5) / Math.log(1 - 1 / floorW) },
+    liveFloor: { kMin: live.kMin, steadyStateW: floorW, equivalentEvidenceHalfLife: Math.log(0.5) / Math.log(1 - 1 / floorW), resultWeightHalfLife: Math.log(0.5) / Math.log(1 - 0.5 * live.kMin) },
     check,
   },
   curve, rolled, fixed,
@@ -116,7 +162,7 @@ console.error(`wrote ${OUT}`);
 
 // Console tables for the note.
 console.log(`check: champion Brier (ties 0.5) 2025 ${check.brierWithTies2025.toFixed(5)}; legacy ${check.legacyBrierWithTies2025.toFixed(5)} / ${(100 * check.legacyAccuracy2025).toFixed(2)}%`);
-console.log(`live floor: W* ${floorW.toFixed(2)}, per-match half-life ${out.meta.liveFloor.equivalentPerMatchHalfLife.toFixed(2)}`);
+console.log(`live floor: W* ${floorW.toFixed(2)}, evidence half-life ${out.meta.liveFloor.equivalentEvidenceHalfLife.toFixed(2)}, result-weight half-life ${out.meta.liveFloor.resultWeightHalfLife.toFixed(2)}`);
 console.log("\n| Variant | 2024–25 Brier | Δ×10⁴ [95%] | q1–10 Δ | 0–5 Δ | Δ acc pp | Δ margin MAE | 2025–26 Brier | Δ×10⁴ [95%] | q1–10 Δ | 0–5 Δ | Δ acc pp | Δ margin MAE |");
 console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
 for (const c of curve) {

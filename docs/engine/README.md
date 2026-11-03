@@ -93,4 +93,4 @@ What the measurements showed:
 
 Walk-forward research notes against the live engine, in `research-2026-11/` (scripts in `scripts/research/`, shared harness `scripts/research/lib.ts`):
 - [R2, shrinkage for low-sample teams](research-2026-11/r2-shrinkage.md): an empirical-Bayes prior strength per prior class. Measured, no change: it improves 2024–25 but not 2025–26.
-- [R4, recency and decay](research-2026-11/r4-recency.md): a per-match / per-week half-life curve with the "last event only" and "whole season" endpoints. The live gain floor already sits at the sweet spot (a half-life of about 6.4 matches). No change.
+- [R4, recency and decay](research-2026-11/r4-recency.md): a per-match / per-week half-life curve with the "last event only" and "whole season" endpoints. The live gain floor already sits at the sweet spot: a robot's past result keeps half its weight for about 4 more matches. No change.
