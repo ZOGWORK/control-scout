@@ -31,8 +31,8 @@ import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
 
-/** `also`: another path that lights the row (How it works: its Predictions page, /methodology). */
-interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean; also?: string }
+/** `children`: a row that opens to its own pages instead of being one (How it works: Predictions, FTC One Search). */
+interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean; children?: NavItem[] }
 
 /** The everyday pages, always in view; everything else sits under `more` (the sidebar folds it under a "More"
  *  toggle; the menu sheet lists it under a "More" heading). Nothing is left out, just out of the way. */
@@ -53,7 +53,10 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/rules", label: "Rules", icon: Gavel },
     { to: "/download", label: "Download", icon: Download },
-    { to: "/how-it-works", label: "How it works", icon: BookOpen, also: "/methodology" },
+    { to: "/methodology", label: "How it works", icon: BookOpen, children: [
+      { to: "/methodology", label: "Predictions", icon: Sparkles },
+      { to: "/how-it-works/search", label: "FTC One Search", icon: Search },
+    ] },
   ] },
 ];
 
@@ -101,8 +104,7 @@ interface RowOpts { collapsed?: boolean; dense?: boolean; onNavigate?: () => voi
 function NavRow({ item, collapsed, dense, onNavigate, active }: RowOpts & { item: NavItem; active?: boolean }) {
   // Matched here, not by NavLink's className/children functions: the rail's tooltip trigger (a Radix Slot) only merges plain strings.
   const match = useMatch({ path: item.to, end: !!item.end });
-  const also = useMatch({ path: item.also ?? item.to, end: !!item.end });
-  const on = active ?? (!!match || !!also);
+  const on = active ?? !!match;
   return (
     <RailTip on={collapsed} label={item.label}>
       <NavLink to={item.to} end={item.end} onClick={onNavigate} aria-current={on ? "page" : false} className={rowClass(on, collapsed, dense)}>
@@ -123,6 +125,7 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
     <>
       {items.map((it) => it.to === FOLLOWED_TEAM_PATH
         ? <YoursNavRow key={it.to} {...opts} />
+        : it.children ? <ParentRow key={it.label} item={it} {...opts} />
         : <NavRow key={it.to} item={it} {...opts} />)}
     </>
   );
@@ -131,12 +134,37 @@ function SectionRows({ items, ...opts }: RowOpts & { items: NavItem[] }) {
 const MORE_KEY = "cs-nav-more";
 const isUnder = (path: string, to: string) => path === to || path.startsWith(`${to}/`);
 
+/** A row that opens to its own pages, listed under it (How it works: Predictions and FTC One Search). Open on one of
+ *  them, so the lit row shows; otherwise opened and closed by hand. In the icon rail its pages show as icons under it. */
+function ParentRow({ item, collapsed, dense, onNavigate }: RowOpts & { item: NavItem }) {
+  const { pathname } = useLocation();
+  const kids = item.children ?? [];
+  const inside = kids.some((k) => isUnder(pathname.toLowerCase(), k.to));
+  const [open, setOpen] = useState(inside);
+  useEffect(() => { if (inside) setOpen(true); }, [inside, pathname]);
+  const id = useId();
+  return (
+    <div className="space-y-(--nav-gap)">
+      <RailTip on={collapsed} label={item.label}>
+        <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={id} className={rowClass(false, collapsed, dense)}>
+          <item.icon className={cn("relative shrink-0", dense ? "size-[18px]" : "size-5", inside && "text-accent")} aria-hidden />
+          <span className={collapsed ? "sr-only" : "flex-1 truncate text-left"}>{item.label}</span>
+          {!collapsed && <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />}
+        </button>
+      </RailTip>
+      <div id={id} role="group" aria-label={item.label} hidden={!open} className={cn("space-y-(--nav-gap)", !collapsed && "ml-4 border-l border-line pl-2")}>
+        {kids.map((k) => <NavRow key={k.to} item={k} collapsed={collapsed} dense={dense} onNavigate={onNavigate} />)}
+      </div>
+    </div>
+  );
+}
+
 /** The sidebar's "More" group: Power rankings, Compare, Shortlist, Rules, Download and How it works, folded away until asked for.
  *  It opens by itself on one of its own pages (so the lit row shows); opening or closing it by hand is remembered. */
 function MoreGroup({ items, collapsed }: { items: NavItem[]; collapsed?: boolean }) {
   const [open, setOpen] = useState(() => { try { return localStorage.getItem(MORE_KEY) === "1"; } catch { return false; } });
   const { pathname } = useLocation();
-  const inside = items.some((it) => isUnder(pathname, it.to));
+  const inside = items.some((it) => [it, ...(it.children ?? [])].some((k) => isUnder(pathname, k.to)));
   // Every arrival on one of its pages (from another of them too) shows the lit row.
   useEffect(() => { if (inside) setOpen(true); }, [inside, pathname]);
   const button = useRef<HTMLButtonElement>(null);

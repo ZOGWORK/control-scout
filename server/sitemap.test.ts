@@ -49,8 +49,8 @@ describe("sitemap", () => {
     expect(e.filter((x) => x.loc.includes("/teams/")).every((x) => !!x.lastmod)).toBe(true);
     // No Compare (empty until teams are picked; a pair is two team pages) and no /search (noindex).
     expect(locs.some((l) => /^https:\/\/[^/]+\/(compare|search)(\?|\/|$)/.test(l))).toBe(false);
-    // The How it works hub and its FTC One Search page are public pages.
-    expect(locs).toEqual(expect.arrayContaining(["https://controlscout.org/how-it-works", "https://controlscout.org/how-it-works/search"]));
+    // The FTC One Search explainer is a public page.
+    expect(locs).toContain("https://controlscout.org/how-it-works/search");
     const { main, chunks } = buildSitemap(e);
     expect(chunks).toHaveLength(0);
     expect(main).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www.sitemaps.org\/schemas\/sitemap\/0.9">/);

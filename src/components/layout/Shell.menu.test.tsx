@@ -120,7 +120,9 @@ describe("the phone's top bar and tab bar", () => {
     const { sheet } = await openMenu();
     expect(button.getAttribute("aria-expanded")).toBe("true");
     const pages = within(sheet).getByRole("navigation", { name: "All pages" });
-    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download", "How it works"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Home", "Events", "Teams", "Rankings", "Power rankings", "Predict", "Compare", "Shortlist", "Scout", "Download"]) expect(within(pages).getByRole("link", { name })).toBeTruthy();
+    // How it works opens to its two pages (Predictions, FTC One Search) instead of being one.
+    expect(within(pages).getByRole("button", { name: "How it works" }).getAttribute("aria-expanded")).toBe("false");
   });
 
   it("the Rules row is there while the rulesReference toggle is on, and gone when the owner switches it off", async () => {
@@ -178,7 +180,8 @@ describe("the desktop sidebar", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     expect(morePages().hidden).toBe(false);
-    for (const name of ["Power rankings", "Compare", "Shortlist", "Download", "How it works"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    for (const name of ["Power rankings", "Compare", "Shortlist", "Download"]) expect(within(morePages()).getByRole("link", { name })).toBeTruthy();
+    expect(within(morePages()).getByRole("button", { name: "How it works" })).toBeTruthy();
     // Settings is the footer's gear alone; What's new sits in the footer, in view with More folded.
     expect(within(morePages()).queryByRole("link", { name: "Settings" })).toBeNull();
     expect(within(morePages()).queryByRole("button", { name: /What's new/ })).toBeNull();
@@ -236,7 +239,7 @@ describe("the desktop sidebar", () => {
     act(() => open.focus());
     fireEvent.click(open);
     const sheet = await screen.findByRole("dialog");
-    expect(within(sheet).getByRole("link", { name: "How it works" })).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: "How it works" })).toBeTruthy();
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(document.activeElement).toBe(open);
@@ -331,5 +334,22 @@ describe("the account footer", () => {
     fireEvent.keyDown(document.activeElement!, { key: "Escape" });
     await waitFor(() => expect(within(sheet).queryByRole("region", { name: "Your account" })).toBeNull());
     expect(screen.getByRole("dialog")).toBe(sheet);
+  });
+});
+
+describe("How it works in the sidebar", () => {
+  it("opens to its two pages, Predictions and FTC One Search, and is open (and lit) on either", () => {
+    shell("/how-it-works/search");
+    const side = screen.getByRole("complementary", { name: "Sidebar" });
+    const row = within(side).getByRole("button", { name: "How it works" });
+    expect(row.getAttribute("aria-expanded")).toBe("true");
+    const group = within(side).getByRole("group", { name: "How it works" });
+    expect(within(group).getByRole("link", { name: "Predictions" }).getAttribute("href")).toBe("/methodology");
+    const search = within(group).getByRole("link", { name: "FTC One Search" });
+    expect(search.getAttribute("href")).toBe("/how-it-works/search");
+    expect(search.getAttribute("aria-current")).toBe("page");
+    fireEvent.click(row);
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+    expect(group.hidden).toBe(true);
   });
 });

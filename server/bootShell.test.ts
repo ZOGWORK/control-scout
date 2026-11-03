@@ -96,7 +96,7 @@ describe("static first paint", () => {
     const meta = { title: "T", description: "D", type: "website" } as const;
     const labels = (html: string) => [...html.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]);
     const side = (path: string) => bootShell(path, meta).match(/<aside class="csb-side">.*?<\/aside>/)![0];
-    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works"]);
+    expect(labels(side("/"))).toEqual(["Control Scout", "Home", "Events", "Teams", "Rankings", "Predict", "My team", "Scout", "More", "Power rankings", "Compare", "Shortlist", "Download", "How it works", "FTC One Search"]);
     // A native <details>: it opens without the app, and is already open on one of its own pages.
     expect(side("/")).toContain('<details class="csb-more"><summary>');
     expect(side("/compare")).toContain('<details class="csb-more" open><summary>');

@@ -1,6 +1,6 @@
 // How FTC One Search works: what you can search for and how a query is
 // answered, step by step, as the code does it (server/api/searchAnswer.ts).
-// A subpage of the How it works hub, built from the prediction page's parts
+// Under How it works in the menu, beside the prediction page, and built from its parts
 // (src/components/howitworks/) so the two read and move alike. The words,
 // steps and examples are data (src/components/howitworks/searchDocs.ts).
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,7 +11,6 @@ import { useTitle } from "../lib/meta";
 import { cn } from "../components/cn";
 import { m } from "../components/motion";
 import "../components/howitworks/howitworks.css";
-import { HubCrumb } from "../components/howitworks/HubCrumb";
 import { SectionNav } from "../components/howitworks/SectionNav";
 import { CleanList, Eyebrow, Figure, Prose, Reveal, SectionHead, Seg, TipLayer, useReduced } from "../components/howitworks/ui";
 import { READINGS, SEARCH_FAMILIES, SEARCH_STEPS, type Role } from "../components/howitworks/searchDocs";
@@ -49,7 +48,6 @@ export default function SearchDocsPage() {
   return (
     <TipLayer>
       <div className={cn("hiw", !reduced && "hiw-anim")}>
-        <HubCrumb here="FTC One Search" />
         <header className="grid items-end gap-8 max-sm:gap-5 pb-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
           <div className="grid min-w-0 gap-5 max-sm:gap-4">
             <Eyebrow>Control Scout · Search, explained</Eyebrow>
