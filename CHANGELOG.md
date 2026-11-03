@@ -25,8 +25,8 @@ How a team's rating is read from alliance scores is now stated where the rating 
 - [speed] "Before the event" odds for a second team at an event load faster
 
 ### Predictions
-- **What a rating assumes.** FTC only records alliance scores. The engine splits each alliance's miss equally between its robots, which separates a team from its partners only because qualification partners are drawn at random. Playoff alliances are fixed, so a playoff match moves a rating half as much. The How it works page (new "What this assumes" part), team pages and the world rankings now say so in one line. The numbers don't change.
-- **Faster "Before the event" views.** The ratings as they stood the day before an event are now worked out once per day for the current data, and shared by every team's odds and partner scenarios at that event and by every event starting that day. Before, each team's view replayed the season again. Same numbers.
+- **What a rating assumes.** FTC only records alliance scores. The engine splits each alliance's miss equally between its robots, which separates a team from its partners only because qualification partners are drawn at random. Playoff alliances are fixed, so a playoff match moves a rating half as much. The How it works page (new "What this assumes" part), team pages and the world rankings now say so in one line. The numbers don't change. (#486)
+- **Faster "Before the event" views.** The ratings as they stood the day before an event are now worked out once per day for the current data, and shared by every team's odds and partner scenarios at that event and by every event starting that day. Before, each team's view replayed the season again. Same numbers. (#486)
 
 ### Engine research notes
 - New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
