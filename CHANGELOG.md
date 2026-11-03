@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.1 — 2026-11-03
+## 2.5.3 — 2026-11-03
 
 FTC One Search answers questions about a team's matches: its best score at Worlds, its Worlds record, its average this season and more, each worked out from the match records with the matches shown.
 
@@ -29,6 +29,32 @@ FTC One Search answers questions about a team's matches: its best score at World
 - **Stat answers.** A question about one team's matches, events or seasons gets its answer at the top of the results: the number asked for, then the matches, a win-loss bar, tables by season and charts. It works for any team and any of these scopes: Worlds ("at worlds"), state championships ("at states"), a season ("2024-25", "this season", a game's name like "into the deep"), every season ("ever"), playoffs or quals, and red or blue. Questions it answers: highest and lowest score, which event it scored highest at, biggest win and loss, closest match, first and most recent match, match wins, record, record by alliance colour, matches played, average score, current and longest win streak, last N matches, blowout wins, losses, playoff and qualification matches, playoff appearances, best and worst event finish, first and most recent event, best OPR event, events played, average event rank, seasons played, first season, best season and most improved season.
 - **How each is counted, said with it.** A highest score is the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events, as in the season records. Records, margins and streaks use the official result and the site's one record rule. "This season" is the team's latest season with matches, and the answer names it. Worlds means FIRST Championship events: its divisions and finals. Each season is a different game, so an every-season best also lists the best of each season. Nothing found says so ("No Worlds matches found for Bad Wolf (6980)."), never another team's numbers.
 - **The dropdown stays quick.** It shows what the question was read as and the team; the answer's tables and charts are worked out on the results page after Enter. (#453)
+
+## 2.5.2 — 2026-11-03
+
+Match videos play in the app: a match's video button no longer sends you off to YouTube.
+
+### Highlights
+- [live] A match's video button plays that match right on the page
+- [live] On an event page it plays in the event's player, prediction on top
+- [live] Anywhere else it opens in a video window, without leaving the page
+
+### Event page
+- **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab. (#445)
+
+## 2.5.1 — 2026-11-03
+
+FTC One Search keeps Bruno AI's overview on every question, and titles a plain name search by what it found.
+
+### Highlights
+- [teams] Bruno AI answers "how good is" a team again, above its standing
+- [fixes] A plain name search is titled by what it found, never your words
+- [teams] Bruno AI knows who won each event listed, for "who won nj states"
+
+### Search
+- **Bruno AI on every question.** Before FTC One Search, Bruno AI wrote a short overview for every question; "how good is simply complex" had lost it when the standing summary arrived. He's back: his overview sits above the standing (on a phone, the numbers first and his writing under "Show AI Analysis"). The record cards and summaries sit beside him and never replace him, and a test now lists every kind of question the page answers (championship trips, states, a team's standing, awards, next match, comparisons, rules, high scores, leaderboards, event awards, and a plain question answered by name matches) so none can lose him again.
+- **Who won.** Bruno AI is now told who won each event in the results (its winning alliance and Inspire Award), so "who won nj states" gets an answer from the records instead of nothing.
+- **No echo in the title.** When search reads no meaning into the words and lists names that match them ("who won nj states"), the title says what it found ("Matching events", "Matching teams and events") instead of repeating the words, and no badge repeats them either. With nothing found the title is just "No matches found" (the words are in the search bar above). A title for a question it understood is unchanged. (#454)
 
 ## 2.5.0 — 2026-11-03
 
