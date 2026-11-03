@@ -262,7 +262,13 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
   // It answered, so this isn't "no signal"; each try gets its own timeout.
   if (res.status === 503 && res.headers.has("Retry-After") && _tries < 8) {
     watch.done(false); // the retry is watched on its own
-    await new Promise((r) => setTimeout(r, Math.min(15, Number(res.headers.get("Retry-After")) || 5) * 1000));
+    // The caller letting go (a newer search, or searchOnline's deadline) ends the wait too.
+    await new Promise<void>((done, fail) => {
+      if (outer?.aborted) { fail(callerAborted()); return; }
+      const t = setTimeout(() => { outer?.removeEventListener("abort", stop); done(); }, Math.min(15, Number(res.headers.get("Retry-After")) || 5) * 1000);
+      const stop = () => { clearTimeout(t); fail(callerAborted()); };
+      outer?.addEventListener("abort", stop, { once: true });
+    });
     return apiFetch<T>(path, { ...(init ?? {}), _tries: _tries + 1 });
   }
   // The server answered: whatever came from saved data goes back to the server's.

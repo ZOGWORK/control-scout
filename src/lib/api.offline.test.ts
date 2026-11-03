@@ -449,6 +449,18 @@ describe("a slow search while the server answers isn't offline (owner bug: 'high
     expect(offlineAnswer).not.toHaveBeenCalled();
     expect(mode.result.current).toBe(false);
   });
+  it("a cold start's Retry-After wait ends at the search's deadline (Greptile on #463)", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    const fetch = vi.fn(async () => new Response("", { status: 503, headers: { "Retry-After": "15" } }));
+    vi.stubGlobal("fetch", fetch);
+    const p = apiFetch("/api/search?q=gear&answer=1");
+    const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS * 2);
+    await settled;
+    // One request a try: each try's 15-second wait was cut at its 10 seconds.
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
   it("a newer search cancelling it fails as cancelled, with no retry", async () => {
     writeSaved([saved]);
     const fetch = hanging();
