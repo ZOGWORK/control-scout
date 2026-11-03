@@ -25,7 +25,7 @@ Teams: a link can name a state, so it opens on exactly the teams a search answer
 - [teams] One chip, "Teams from New Jersey, United States", clears the place
 
 ### Teams
-- **A state in the link.** `/teams?country=US&state=NJ` lists the teams whose home is New Jersey. It's the same place search answers use, so the "View more detail" link under a leaderboard opens on the same teams, in the same order, with the same numbers. FIRST's region codes can't always do this (Kansas teams sit in Missouri's region, California has four). The season, view, sort, region and filter in the link already worked, so a pre-filtered page such as New Jersey sorted by auto OPR for 2025–26 survives a refresh, the back button and a share. The place shows as one chip, "Teams from New Jersey, United States", and removing it clears both the country and the state. Switching between Team-events and Team seasons keeps it. (#PRNUM)
+- **A state in the link.** `/teams?country=US&state=NJ` lists the teams whose home is New Jersey. It's the same place search answers use, so the "View more detail" link under a leaderboard opens on the same teams, in the same order, with the same numbers. FIRST's region codes can't always do this (Kansas teams sit in Missouri's region, California has four). The season, view, sort, region and filter in the link already worked, so a pre-filtered page such as New Jersey sorted by auto OPR for 2025–26 survives a refresh, the back button and a share. The place shows as one chip, "Teams from New Jersey, United States", and removing it clears both the country and the state. Switching between Team-events and Team seasons keeps it. (#451)
 
 ## 2.4.2 — 2026-11-03
 
