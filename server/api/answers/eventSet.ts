@@ -15,6 +15,9 @@ export interface TeamEvent {
   /** The team's OPR at the event, without penalties (as on its pages), and its phases. */
   opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;
   matches: number;
+  /** As the team page's trend chart reads them: the alliance's average score and penalty points it gave away (per
+   *  match, with the team on it), its record there, and its ranking points (none for a league meet). */
+  avgScore: number | null; avgPen: number | null; wins: number | null; losses: number | null; ties: number | null; rp: number | null;
 }
 
 export interface TeamSeason {
@@ -49,7 +52,8 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
     all<any>(
       `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.division_code, et.rank,
               (SELECT COUNT(*) FROM event_teams r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) ranked,
-              s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, COALESCE(s.matches, 0) matches
+              s.opr_np, s.opr_auto, s.opr_teleop, s.opr_endgame, COALESCE(s.matches, 0) matches,
+              s.avg_score, s.avg_pen, s.wins, s.losses, s.ties, et.rp
        FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
        LEFT JOIN team_event_stats s ON s.season = et.season AND s.code = et.code AND s.team = et.team
        WHERE et.team = ? AND COALESCE(e.remote, 0) = 0 AND ${ATTENDED}
@@ -65,6 +69,8 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       // A league meet's stored rank is the league's running standing, not the team's finish there: left out.
       rank: r.type === "LeagueMeet" ? null : num(r.rank), of: r.type === "LeagueMeet" ? null : Number(r.ranked) || null, opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
       matches: Number(r.matches) || 0,
+      avgScore: num(r.avg_score), avgPen: num(r.avg_pen), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
+      rp: r.type === "LeagueMeet" ? null : num(r.rp),
     })),
     seasons: ss.map((r) => ({
       season: Number(r.season), opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
