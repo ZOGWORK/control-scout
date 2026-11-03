@@ -19,10 +19,11 @@ import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../comp
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
+import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, compareSeason, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -211,6 +212,8 @@ function shape(sections: AnswerSection[], f: PageFilters): ViewSection[] {
 }
 
 function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s: ViewSection; summaries: Map<number, SeasonSummary>; covered: number | null; fuzzyWord?: string; twoCol: boolean; onOpen: (h: SearchHit) => void }) {
+  const phone = useMediaQuery("(max-width: 767px)");
+  const current = useCurrentSeason();
   const count = s.rows.filter((r) => !r.sub).length;
   const title = s.id === "fuzzy" && fuzzyWord ? `Other teams matching “${fuzzyWord}”` : s.title;
   const teamish = s.id === "team" || s.id === "top" || s.id === "fuzzy";
@@ -229,7 +232,11 @@ function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s
         <div className="space-y-2">
           {teamGroups.map(({ head, subs }) => (
             <div key={head.key}>
-              <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
+              {phone && /^\d+$/.test(head.hit.ref) ? (
+                <PhoneTeamCard team={Number(head.hit.ref)} name={teamParts(head.hit.title)?.name ?? ""} season={summaries.get(Number(head.hit.ref))?.season ?? head.hit.season ?? current} linkSeason={head.hit.linkSeason}>
+                  <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
+                </PhoneTeamCard>
+              ) : <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />}
               {!!subs.length && (
                 <ul className="mt-1 overflow-hidden rounded-xl border border-border bg-card">
                   {subs.map((r) => <li key={r.key} className="border-b border-border last:border-b-0"><ResultRow h={r.hit} icon="event" sub onOpen={() => onOpen(r.hit)} /></li>)}

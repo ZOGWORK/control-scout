@@ -20,6 +20,10 @@ const summaries: TeamSummary[] = [
 const paths = vi.hoisted(() => [] as (string | null)[]);
 vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
+// The Shortlist a phone's team card adds to (the team page's own list): a plain set here.
+const shortlisted = vi.hoisted(() => new Set<number>());
+vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()),
+  useTeamFlags: (n: number) => ({ bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); } }) }));
 
 const { default: SearchPage } = await import("./SearchPage");
 
@@ -336,5 +340,26 @@ describe("search results page, phone (Part B 3b)", () => {
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
     expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
+  });
+
+  it("Shortlist and Matches are buttons on the card, and a swipe does the same", () => {
+    shortlisted.clear();
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215");
+    const add = screen.getByRole("button", { name: "Shortlist" });
+    expect(add.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(add);
+    expect(shortlisted.has(4215)).toBe(true);
+    shortlisted.clear();
+    // Swipe right: the same Shortlist add.
+    const card = container.querySelector("[data-swipe]")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 140, clientY: 104 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 140, clientY: 104 }] });
+    expect(shortlisted.has(4215)).toBe(true);
+    // A mostly-vertical drag is a scroll, not a swipe.
+    fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 110, clientY: 300 }] });
+    expect(shortlisted.has(4215)).toBe(true);
   });
 });
