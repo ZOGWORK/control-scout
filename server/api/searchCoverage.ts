@@ -581,27 +581,33 @@ const FACT_WORDS: [RegExp, "school" | "place" | "rookie" | "website" | "sponsors
   [/^(?:sponsors?)$/, "sponsors"],
 ];
 
+/** The words that ask for one of a team's listing facts, as the end of a query (longest first). */
+const FACT_PHRASES = "high school|schools|school|organization|organisation|org|location|city|town|hometown|rookie year|rookie season|year founded|founded|website|site|homepage|sponsors?";
+
 /** A team's own facts from FIRST's listing: "4215 school", "where is 4215 from", "4215 rookie year", "4215 website". */
 export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
   const m = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
-    ?? /^(?:what(?:'s| is)\s+)?(.+?)(?:'s)?\s+(school|schools|organization|organisation|org|high school|location|city|town|hometown|rookie year|rookie season|year founded|founded|website|site|homepage|sponsors?)$/.exec(t)
+    ?? new RegExp(`^(?:what(?:'s| is)\\s+)?(.+?)(?:'s)?\\s+(${FACT_PHRASES})$`).exec(t)
     ?? /^when\s+(?:was|did)\s+(.+?)\s+(founded|start|started)$/.exec(t);
   if (!m) return null;
   const last = FACT_WORDS.find(([w]) => w.test(m[2]))?.[1];
   if (!last) return null;
-  // More than one fact asked at once ("4215 sponsors school", "4215 school, website and sponsors"): each is answered.
+  const find = async (who: string) => /^\d{1,6}$/.test(who)
+    ? (await search(String(Number(who)), 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(Number(who)))
+    : (await search(who, 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(who));
+  // More than one fact asked at once ("4215 sponsors school", "4215 rookie year, website and sponsors"): each is
+  // answered. The whole name is tried first, so a team named with a fact word ("River City") is never cut short.
   let who = m[1].replace(/^(?:team|ftc)\s+/, "");
   const facts: (typeof last)[] = [last];
-  for (let p: RegExpExecArray | null; (p = /^(.+?)[\s,]+(?:and\s+|&\s+)?(school|schools|organization|organisation|org|location|city|town|hometown|website|site|homepage|sponsors?)$/.exec(who.replace(/,?\s+(?:and|&)$/, "")));) {
+  let hit = await find(who);
+  for (let p: RegExpExecArray | null; !hit && (p = new RegExp(`^(.+?)[\\s,]+(?:and\\s+|&\\s+)?(${FACT_PHRASES})$`).exec(who.replace(/,?\s+(?:and|&)$/, "")));) {
     const f = FACT_WORDS.find(([w]) => w.test(p![2]))?.[1];
     if (!f) break;
     if (!facts.includes(f)) facts.unshift(f);
     who = p[1];
+    hit = await find(who);
   }
-  const hit = /^\d{1,6}$/.test(who)
-    ? (await search(String(Number(who)), 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(Number(who)))
-    : (await search(who, 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(who));
   if (!hit) return null;
   const row = await get<any>("SELECT school, city, state, country, rookie_year, website, sponsors FROM teams WHERE number = ?", [Number(hit.ref)]);
   if (!row) return null;

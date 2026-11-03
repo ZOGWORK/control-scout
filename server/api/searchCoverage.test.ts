@@ -147,6 +147,14 @@ describe("answers on their own", () => {
       expect(a.card?.lines[1]?.text).toMatch(/Oradell High School/);
     }
     expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
+    // A two-word fact can come first.
+    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and Website");
+    // A team whose name ends in a fact word is read whole first: "Code Site"'s website, not "Code"'s site and website.
+    await run("INSERT INTO teams (number, name, website) VALUES (31010, 'Code', 'https://code.example'), (31011, 'Code Site', 'https://codesite.example')");
+    await rebuildSearch();
+    const s = await ask("code site website");
+    expect(s.card?.team?.number).toBe(31011);
+    expect(s.card?.title).toBe("Website");
   });
   it("when a team last played: its most recent match (failed-search #487)", async () => {
     expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
