@@ -142,7 +142,7 @@ export interface SearchAnswer {
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
 export interface SearchCard {
-  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores";
+  kind: "worlds" | "states" | "wins" | "awards" | "next-event" | "next-match" | "high-scores" | "rule";
   /** "Worlds appearances" */
   title: string;
   /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */
