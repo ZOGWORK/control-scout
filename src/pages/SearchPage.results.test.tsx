@@ -18,12 +18,24 @@ const summaries: TeamSummary[] = [
   { team: 23268, name: "Ultraviolet", place: "Hackettstown, NJ", opr: null, oprRank: null, of: null, rating: null, ratingSd: null, record: null, lastEvent: null, nextEvent: null },
 ];
 const paths = vi.hoisted(() => [] as (string | null)[]);
-vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
+// A team's matches (the phone's Matches sheet): one win and one loss, the loss last.
+const side = (n: number, total: number) => ({ teams: [{ number: n, surrogate: false, dq: false, onField: true }], score: { total, np: total, auto: 0, teleop: 0, endgame: 0, pen: 0 } });
+const teamMatches = { matches: [
+  { season: 2025, code: "USNJQ1", key: "qual:0:3", level: "qual", series: 0, number: 3, label: "Q3", time: null, startsAt: null, played: true, red: side(4215, 120), blue: side(1, 90), video: null, prediction: null },
+  { season: 2025, code: "USNJQ1", key: "qual:0:9", level: "qual", series: 0, number: 9, label: "Q9", time: null, startsAt: null, played: true, red: side(2, 150), blue: side(4215, 101), video: null, prediction: null },
+] };
+vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p?.includes("/matches") ? teamMatches : p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
-// The Shortlist a phone's team card adds to (the team page's own list): a plain set here.
+// The Shortlist a phone's team card adds to (the team page's own list): a set here, and a change re-renders the card.
 const shortlisted = vi.hoisted(() => new Set<number>());
-vi.mock("../lib/personal", async (orig) => ({ ...(await orig<typeof import("../lib/personal")>()),
-  useTeamFlags: (n: number) => ({ bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); } }) }));
+vi.mock("../lib/personal", async (orig) => {
+  const { useState } = await import("react");
+  return { ...(await orig<typeof import("../lib/personal")>()),
+    useTeamFlags: (n: number) => {
+      const [, bump] = useState(0);
+      return { bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); bump((x) => x + 1); } };
+    } };
+});
 
 const { default: SearchPage } = await import("./SearchPage");
 
@@ -357,9 +369,29 @@ describe("search results page, phone (Part B 3b)", () => {
     fireEvent.touchMove(card, { touches: [{ clientX: 140, clientY: 104 }] });
     fireEvent.touchEnd(card, { changedTouches: [{ clientX: 140, clientY: 104 }] });
     expect(shortlisted.has(4215)).toBe(true);
+    // On: it says so, and a second tap takes it off.
+    expect(screen.getByRole("button", { name: "Shortlisted" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Shortlisted" }));
+    expect(shortlisted.has(4215)).toBe(false);
+    expect(screen.getByRole("button", { name: "Shortlist" }).getAttribute("aria-pressed")).toBe("false");
     // A mostly-vertical drag is a scroll, not a swipe.
     fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
     fireEvent.touchEnd(card, { changedTouches: [{ clientX: 110, clientY: 300 }] });
-    expect(shortlisted.has(4215)).toBe(true);
+    expect(shortlisted.has(4215)).toBe(false);
+  });
+
+  it("Matches, tapped or swiped left, lists the team's latest played matches, newest first", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215");
+    fireEvent.click(screen.getByRole("button", { name: "Matches" }));
+    const rows = () => [...document.querySelectorAll("[data-match-history] li")].map((li) => li.textContent);
+    expect(rows()).toEqual(["LQ9 · USNJQ1101–150", "WQ3 · USNJQ1120–90"]);
+    fireEvent.click(within(document.querySelector("[data-matches-sheet]") as HTMLElement).getByRole("button", { name: "Close" }));
+    expect(document.querySelector("[data-match-history]")).toBeNull();
+    const card = container.querySelector("[data-swipe]")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 80, clientY: 102 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80, clientY: 102 }] });
+    expect(rows()).toHaveLength(2);
   });
 });

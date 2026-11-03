@@ -32,6 +32,8 @@ export function PhoneTeamCard({ team, name, season, linkSeason, children }: { te
   const [matches, setMatches] = useState(false);
   const [dx, setDx] = useState(0);
   const start = useRef<{ x: number; y: number } | null>(null);
+  // Closing the matches sheet hands focus back to its button, however it was opened (a swipe focuses nothing).
+  const matchesBtn = useRef<HTMLButtonElement>(null);
   const shortlist = () => {
     const on = !flags.bookmarked;
     flags.toggleBookmark();
@@ -74,12 +76,12 @@ export function PhoneTeamCard({ team, name, season, linkSeason, children }: { te
         <button type="button" onClick={shortlist} aria-pressed={flags.bookmarked} data-shortlist className={cn(btn, flags.bookmarked ? "border-accent/50 bg-accent/[0.1] text-accent-text" : "border-border bg-card text-foreground")}>
           {flags.bookmarked ? <BookmarkCheck className="size-4" aria-hidden /> : <Bookmark className="size-4" aria-hidden />}{flags.bookmarked ? "Shortlisted" : "Shortlist"}
         </button>
-        <button type="button" onClick={() => setMatches(true)} data-matches className={cn(btn, "border-border bg-card text-foreground")}>
+        <button ref={matchesBtn} type="button" onClick={() => setMatches(true)} data-matches className={cn(btn, "border-border bg-card text-foreground")}>
           <ListOrdered className="size-4" aria-hidden />Matches
         </button>
       </div>
       <Sheet open={matches} onOpenChange={setMatches}>
-        <SheetContent side="bottom" className="gap-3 p-4">
+        <SheetContent side="bottom" className="gap-3 p-4" returnFocus={() => matchesBtn.current} data-matches-sheet>
           {matches && <MatchHistory team={team} name={name} season={season} />}
         </SheetContent>
       </Sheet>

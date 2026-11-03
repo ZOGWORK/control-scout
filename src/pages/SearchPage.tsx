@@ -233,7 +233,7 @@ function ResultSection({ s, summaries, covered, fuzzyWord, twoCol, onOpen }: { s
           {teamGroups.map(({ head, subs }) => (
             <div key={head.key}>
               {phone && /^\d+$/.test(head.hit.ref) ? (
-                <PhoneTeamCard team={Number(head.hit.ref)} name={teamParts(head.hit.title)?.name ?? ""} season={summaries.get(Number(head.hit.ref))?.season ?? head.hit.season ?? current} linkSeason={head.hit.linkSeason}>
+                <PhoneTeamCard team={Number(head.hit.ref)} name={teamParts(head.hit.title)?.name ?? ""} season={head.hit.linkSeason ?? summaries.get(Number(head.hit.ref))?.season ?? head.hit.season ?? current} linkSeason={head.hit.linkSeason}>
                   <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />
                 </PhoneTeamCard>
               ) : <TeamCard h={head.hit} summary={summaries.get(Number(head.hit.ref))} bare={Number(head.hit.ref) === covered} onOpen={() => onOpen(head.hit)} />}
