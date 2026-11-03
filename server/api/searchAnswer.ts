@@ -20,6 +20,8 @@ import { conversationQuery, nameWords, singularize } from "../../src/shared/sear
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
+import { ruleAnswer } from "./searchRules.js";
+import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
 import { get } from "../db.js";
@@ -148,7 +150,13 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
 
-  // 0. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
+  // 0. A rules question ("Can robots descore … in autonomous?", "G402", "penalty for pinning"): the Rules quick
+  // reference's matching entries, or a plain "no rule found". Never team names (./searchRules.ts).
+  // A season's best scores ("what was the highest scoring match this season?") stay that question's.
+  const rq = opts.intents === false || parseHighScore(q) ? null : readRuleQuery(q, opts.asked);
+  if (rq) return ruleAnswer(q, rq);
+
+  // 0a. The best scores of a season ("world record score bio buzz"), or of a team when one is named and found.
   const high = opts.intents === false ? null : parseHighScore(q);
   if (high) {
     if (!high.core) return highScoreAnswer(q, high, null, [], pagesFor(q));
