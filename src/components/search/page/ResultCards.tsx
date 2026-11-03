@@ -121,8 +121,8 @@ export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) 
 /** `bare`: the page's summary already shows this team's numbers, so the card shows none (neither the server's facts
  *  nor the season badges): each number once. */
 export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?: SeasonSummary; bare?: boolean; onOpen: () => void }) {
-  // The title's link covers the whole card (the tap target); on phones a VS Compare button sits above it, a second
-  // action of its own (a comparison starting with this team), never a second link to the profile.
+  // The title's link covers the whole card (the tap target). On a phone its own actions (VS Compare, Shortlist,
+  // Matches) sit under it (PhoneTeamActions.tsx).
   return (
     <div data-result="team" className="lift group relative flex min-h-14 items-start gap-3 rounded-xl border border-border bg-card px-3.5 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Shield className="size-4" aria-hidden /></span>
@@ -132,21 +132,23 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
         {bare ? null : h.facts?.length ? <HitFacts facts={h.facts} /> : <TeamBadges summary={summary} />}
       </span>
       <span className="shrink-0 self-center max-sm:hidden"><Cta>View scouting profile</Cta></span>
-      <Link to={`/compare?teams=${h.ref}${h.linkSeason != null ? `&season=${h.linkSeason}` : ""}`} data-vs-compare
-        className="relative z-10 inline-flex min-h-11 shrink-0 items-center self-center rounded-lg border border-accent/50 bg-accent/[0.1] px-3 text-xs font-bold uppercase tracking-wide text-accent-text outline-none focus-visible:ring-2 focus-visible:ring-ring/60 md:hidden">
-        VS Compare
-      </Link>
     </div>
   );
 }
 
 /** "X vs Y": both sides by number, name and place, as an action (volt), never as a team row. */
-export function CompareCard({ h, summaries, onOpen }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void }) {
+/** `preview` (phones): a tap opens the head-to-head over the results instead of leaving them; the card keeps its link
+ *  (open it in a new tab, copy it). */
+export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void; preview?: (from: HTMLElement) => void }) {
   const nums = compareTeams(h);
   const sides = compareSides(h);
   const names = h.title.split(/\s+vs\.?\s+/i);
   return (
-    <Link to={hitHref(h)} onClick={onOpen} data-result="compare"
+    <Link to={hitHref(h)} onClick={(e) => {
+      onOpen();
+      // A plain tap previews; a modified click (new tab, new window) is left to the link.
+      if (preview && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); preview(e.currentTarget); }
+    }} data-result="compare"
       className="lift group flex items-start gap-3 rounded-xl border border-accent/50 bg-accent/[0.08] px-4 py-3.5">
       <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-ink"><ArrowLeftRight className="size-4.5" aria-hidden /></span>
       <span className="min-w-0 flex-1">
@@ -204,7 +206,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   );
 }
 
-const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass, event: CalendarDays, team: Shield } as const;
+const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass, event: CalendarDays, team: Shield, compare: ArrowLeftRight } as const;
 
 /** A plain row (places, matches, a team's events, pages): its name and details, no web address. */
 export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof typeof ROW_ICON; sub?: boolean; onOpen: () => void }) {

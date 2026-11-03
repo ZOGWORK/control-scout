@@ -4,7 +4,7 @@
 // navigation lives in the nav.
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { smoothBehavior } from "../../lib/pageScroll";
-import { ArrowLeftRight, ArrowRight, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, BookOpen, CalendarDays, ChevronDown, Clock, Compass, FileText, Info, Loader2, MapPin, Search, Shield, Sparkles, Swords, Trophy, Users, X } from "lucide-react";
 import { m } from "../motion";
 import { apiFetch } from "../../lib/api";
 import { offlineSource } from "../../lib/offline/saved";
@@ -127,7 +127,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   };
 }
 
-const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event: CalendarDays, match: Swords };
+const ICONS: Record<HitKind, typeof Users> = { compare: ArrowLeftRight, place: MapPin, team: Users, event: CalendarDays, match: Swords };
 export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
 
 /** A row's icon: its kind's, or its section's for pages, browsing and Bruno AI's suggestion. */
@@ -317,7 +317,8 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
   return (
     <div role="note" aria-label={who ? `${card.title}: ${who}` : card.title} className={cn("rounded-xl border border-accent/30 bg-accent/[0.06]", compact ? "mx-1.5 mb-1 mt-1.5 px-3 py-2" : "px-4 py-3")}>
       <p className={cn("flex flex-wrap items-center gap-x-1.5 gap-y-1 font-semibold text-foreground", compact ? "text-xs" : "text-sm")}>
-        <Trophy className="size-3.5 shrink-0 text-accent" />{card.title}{who && ` · ${who}`}
+        {/* A rule's answer (the game manual) has a book; records have the trophy. */}
+        {card.kind === "rule" ? <BookOpen className="size-3.5 shrink-0 text-accent" data-card-icon="rule" /> : <Trophy className="size-3.5 shrink-0 text-accent" />}{card.title}{who && ` · ${who}`}
         {!!card.count && <span className="rounded-full bg-accent/15 px-2 py-px text-[11px] font-semibold tabular-nums text-accent-text">{card.count} {card.count === 1 ? "time" : "times"}</span>}
       </p>
       {card.none && <p className={cn("mt-1 text-foreground/90", compact ? "text-xs" : "text-sm")}>{card.none}</p>}
@@ -329,7 +330,10 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
             {shown.map((l, i) => (
               <li key={i} className={cn(!compact && "py-2.5 first:pt-1 last:pb-0.5")}>
                 {l.href
-                  ? <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline">{l.text}</a>
+                  ? /^https?:\/\//.test(l.href)
+                    // Another site (FIRST's manual): an ordinary link, in a new tab.
+                    ? <a href={l.href} target="_blank" rel="noopener noreferrer" onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} className="font-medium text-accent-text hover:underline">{l.text}</a>
+                    : <a href={l.href} onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.preventDefault(); onOpen(l.href!); }} className="font-medium text-accent-text hover:underline">{l.text}</a>
                   : <span className="font-medium text-foreground">{l.text}</span>}
                 {l.detail && <span className={cn("block text-muted-foreground", !compact && "mt-0.5 text-xs")}>{l.detail}</span>}
                 {!!l.results?.length && (compact

@@ -80,6 +80,14 @@ describe("the facts Bruno is given", () => {
     expect(facts.some((f) => f.includes("New Jersey Championship: 2024–25 · Mar 16, 2025") && f.includes("OPR 117.3"))).toBe(true);
     expect(facts).toContain("Team 4215 in 2025–26: record 26-6-0, OPR 101.6, OPR rank 616 of 8375.");
   });
+  it("say who won each event listed, so \"who won nj states\" has an answer to go on (none for an event with no winner yet)", async () => {
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2024, 'USNJCMP', 'Winner', 1, 4215, 'Winning Alliance'), (2024, 'USNJCMP', 'Inspire', 1, 4215, 'Inspire Award'), (2024, 'USNJCMP', 'Inspire', 2, 9999, 'Inspire Award')");
+    try {
+      const facts = await answerFacts(await searchAnswer("who won the new jersey championship", { learn: false }));
+      expect(facts).toContain("Won New Jersey Championship (2024–25): winning alliance 4215 Hypnotic Robotics; Inspire Award 4215 Hypnotic Robotics.");
+      expect(facts.filter((f) => f.startsWith("Won New Jersey State Championship"))).toEqual([]);
+    } finally { await run("DELETE FROM awards WHERE code = 'USNJCMP'"); }
+  });
 });
 
 describe("grounding", () => {

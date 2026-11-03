@@ -1,7 +1,7 @@
 // Watch live (event page): the event's YouTube stream with the model's calls beside it. Shown only when the
 // event has one (server/videos/recordings.ts: the owner's stream, else FIRST's YouTube link). A match's Watch
 // button jumps the player to its second (lib/streamSeek.ts), within the playing video when it's already open
-// (lib/ytBridge.ts). The model's call shows over the video (components/VideoPredictions.tsx): following the
+// (lib/ytBridge.ts); its official video (FIRST's own, MatchView.video) plays in the same player, with a way back. The model's call shows over the video (components/VideoPredictions.tsx): following the
 // recording's second, or live the match being called; the viewer can hide it. The player is a click-to-play facade (a thumbnail and a
 // play button; the youtube-nocookie iframe loads only on a click, never autoplaying on its own), so the page
 // costs one image for everyone who doesn't watch. The rail (lib/watchRail.ts) follows the event page's own
@@ -10,10 +10,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Play, X } from "lucide-react";
 import type { EventDetail, EventStream, MatchView } from "../shared/api";
-import { thumbnailUrl } from "../shared/stream";
+import { embedUrl, thumbnailUrl } from "../shared/stream";
 import { onStreamSeek } from "../lib/streamSeek";
 import { bridgedSrc, useVideoClock } from "../lib/ytBridge";
-import { videoMoment } from "../lib/videoMoment";
+import { MATCH_S, videoMoment } from "../lib/videoMoment";
 import { VideoPredictions, useVideoPredictions, type OverlayCall } from "./VideoPredictions";
 import { smoothBehavior } from "../lib/pageScroll";
 import { oddsPct } from "../shared/share";
@@ -36,7 +36,7 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
       <div className={cn("grid gap-4", !finished && "lg:grid-cols-3")}>
         <div className={cn("min-w-0", finished ? "max-w-4xl" : "lg:col-span-2")}>
           <Player stream={stream} title={`${d.event.name} live stream`} matches={d.matches} liveCall={liveCall} recording={finished} />
-          {finished && <p className="mt-2 text-sm text-muted-foreground">{d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : "Event finished: this is the recording."}</p>}
+          {finished && <p className="mt-2 text-sm text-muted-foreground">{d.matches.some((m) => m.clip) ? "Event finished: this is the recording. A match's Watch button starts it at that match." : d.matches.some((m) => m.video) ? "Event finished: this is the recording. A match's video button plays that match here." : "Event finished: this is the recording."}</p>}
         </div>
         {!finished && <PredictionRail d={d} rail={rail} />}
       </div>
@@ -46,33 +46,43 @@ export function WatchLive({ d, stream }: { d: EventDetail; stream: EventStream }
 
 function Player({ stream, title, matches, liveCall, recording }: { stream: EventStream; title: string; matches: MatchView[]; liveCall: OverlayCall | null; recording: boolean }) {
   // null: the facade; else playing from that second (0 from the start). n counts the loads, so the same match's Watch
-  // again restarts it when the player can't be moved within the video.
-  const [play, setPlay] = useState<{ t: number; n: number } | null>(null);
+  // again restarts it when the player can't be moved within the video. own: a match's own video instead of the recording.
+  const [play, setPlay] = useState<{ t: number; n: number; own?: { videoId: string; label: string; matchKey?: string } } | null>(null);
   const start = play?.t ?? null;
+  const own = play?.own ?? null;
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const { clock, seek } = useVideoClock(frame, play?.n);
   const { on: overlay, setOn: setOverlay, pos, setPos } = useVideoPredictions();
-  // A match's Watch: move the open video there (no reload), else load it at that second.
+  // A match's Watch: move the open recording there (no reload), else load it at that second. A match's own video
+  // loads in its place.
   const seekRef = useRef(seek);
   seekRef.current = seek;
-  useEffect(() => onStreamSeek((t) => {
-    if (!seekRef.current(t)) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 }));
+  const ownRef = useRef(own);
+  ownRef.current = own;
+  useEffect(() => onStreamSeek(({ videoId, t, label, matchKey }) => {
+    if (videoId !== stream.videoId) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1, own: { videoId, label, matchKey } }));
+    else if (ownRef.current || !seekRef.current(t)) setPlay((p) => ({ t, n: (p?.n ?? 0) + 1 }));
     box.current?.scrollIntoView({ block: "center", behavior: smoothBehavior() });
-  }), []);
+  }), [stream.videoId]);
   // What the overlay shows: a recording follows the player's second; live, the match being called.
+  // A match's own video: that match, its result once the video stops past the match's length (from where its link starts).
   const timed = recording && matches.some((m) => m.clip);
-  const call = start == null || !overlay ? null : timed ? (clock ? videoMoment(matches, clock.t) : null) : recording ? null : liveCall;
-  const offerOverlay = timed || !recording;
+  const ownMatch = own?.matchKey ? matches.find((m) => m.key === own.matchKey) ?? null : null;
+  const call: OverlayCall | null = start == null || !overlay ? null
+    : own ? (ownMatch ? { match: ownMatch, phase: clock && !clock.playing && clock.t - (start ?? 0) >= MATCH_S ? "after" : "playing" } : null)
+    : timed ? (clock ? videoMoment(matches, clock.t) : null) : recording ? null : liveCall;
+  const offerOverlay = timed || !recording || !!ownMatch;
   return (
     <>
     <div ref={box} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
       {start != null ? (
         // Loaded by a click (the facade, or a match's Watch), so autoplay here is the viewer's own choice.
         <>
-          <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(stream.streamUrl, { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={title}
+          <iframe ref={frame} key={play!.n} className="absolute inset-0 size-full" src={bridgedSrc(own ? embedUrl(own.videoId) : stream.streamUrl, { autoplay: 1, rel: 0, ...(start ? { start } : {}) })} title={own ? `${own.label}: official match video` : title}
             allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen" referrerPolicy="strict-origin-when-cross-origin" />
-          <VideoPredictions call={call} live={!recording} pos={pos} />
+          {/* A match's own video is a recording too, even while the event is live. */}
+          <VideoPredictions call={call} live={!recording && !own} pos={pos} />
         </>
       ) : (
         <button type="button" onClick={() => setPlay({ t: 0, n: 1 })} className="group absolute inset-0 grid place-items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60" aria-label={`Play: ${title}`} data-stream-facade>
@@ -82,6 +92,14 @@ function Player({ stream, title, matches, liveCall, recording }: { stream: Event
       )}
     </div>
     <div className="mt-2 flex flex-wrap items-center gap-2">
+      {own && (
+        <>
+          <span className="text-sm font-medium text-foreground" data-own-video>{own.label}: official match video</span>
+          <button type="button" onClick={() => setPlay((p) => ({ t: 0, n: (p?.n ?? 0) + 1 }))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10" data-back-to-recording>
+            <Play className="size-4" aria-hidden /> {recording ? "Back to the recording" : "Back to the stream"}
+          </button>
+        </>
+      )}
       {/* Our own way to stop it, whatever the embedded player does: back to the picture, nothing playing. */}
       {start != null && (
         <button type="button" onClick={() => setPlay(null)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-text-base/[0.06] max-sm:h-10" data-stream-close>

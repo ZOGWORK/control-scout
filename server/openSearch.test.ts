@@ -83,6 +83,8 @@ describe("OpenSearch", () => {
     // Never a bare dead end: what was read, and where to browse.
     expect(none).toContain("No team, event or match matched &quot;zzqx&quot;");
     expect(none).toContain('<a href="/teams">Browse all teams</a>');
+    // The heading never repeats the query (it's in the top bar).
+    expect(none).toMatch(/<h1[^>]*>No matches found<\/h1>/);
     expect(none).not.toContain("<zzqx>");
     expect(none).toContain('"q":"\\u003czzqx>"');
   });

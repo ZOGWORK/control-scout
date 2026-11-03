@@ -1,10 +1,9 @@
 // /search when nothing answers the query: never a bare "nothing matches". It says what search covers and what the
 // query was read as, shows the closest real results under a label that says they're a fallback (never as the
-// answer), and offers places to browse and example searches that work.
-import { Link, useNavigate } from "react-router-dom";
+// answer), and offers places to browse.
+import { Link } from "react-router-dom";
 import { CalendarDays, Info, Shield } from "lucide-react";
 import type { SearchHit } from "../../../shared/api";
-import { ExampleChips } from "../discover";
 import { ResultRow } from "./ResultCards";
 
 export function NoResults({ query, understood, closest, onOpen }: {
@@ -14,7 +13,6 @@ export function NoResults({ query, understood, closest, onOpen }: {
   closest: SearchHit[];
   onOpen: (h: SearchHit) => void;
 }) {
-  const nav = useNavigate();
   return (
     <div className="space-y-5" data-no-results>
       <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm">
@@ -35,12 +33,11 @@ export function NoResults({ query, understood, closest, onOpen }: {
           </ul>
         </section>
       )}
-      <section aria-label="Browse and try" className="space-y-3">
+      <section aria-label="Browse">
         <div className="flex flex-wrap gap-2">
           <Link to="/events" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60"><CalendarDays className="size-4 text-accent" aria-hidden />Browse all events</Link>
           <Link to="/teams" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground hover:border-accent/60"><Shield className="size-4 text-accent" aria-hidden />Browse all teams</Link>
         </div>
-        <ExampleChips label="Or try" onRun={(q) => nav(`/search?q=${encodeURIComponent(q)}`)} />
       </section>
     </div>
   );

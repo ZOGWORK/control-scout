@@ -33,6 +33,10 @@ export function homeHeadlineAt(now: number, count: number = HOME_HEADLINES.lengt
   return Math.floor(now / HOME_HEADLINE_MS) % Math.max(1, count);
 }
 export const HOME_LEAD = "Find your team. Follow the competition. Make your next call with the full picture.";
+/** Home's search block (FTC One Search): its name, its framing and the line under it, in the first paint too. */
+export const HOME_SEARCH_NAME = "FTC One Search";
+export const HOME_SEARCH_TITLE = "Type whatever you want";
+export const HOME_SEARCH_SUB = "Search teams, events, matches, predictions, and records.";
 /** What the site is, in plain words, under the hero's buttons: in the static first paint too, so a crawler
  *  that never runs the app still reads it. */
 export const HOME_ABOUT = "Control Scout is free FTC scouting and match predictions for every team and event. No account needed.";

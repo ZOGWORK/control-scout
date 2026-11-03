@@ -15,16 +15,198 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.1 — 2026-11-03
+## 2.5.3 — 2026-11-03
 
 Match timestamps for recordings that YouTube cut short: a match's Watch button now shows up on more events.
 
 ### Highlights
-- [live] More events get a Watch button on every match
-- [live] A recording that YouTube cut short is checked against its own chapters
+- [live] More events get a Watch button on their matches
+- [live] A recording YouTube cut short is checked against its own chapters
+- [live] The DECODE Preview Event in Texas now has Watch on 47 of 50 matches
 
 ### Event page
-- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters, the clock still holds and they get their Watch. A real gap moves every later match away from its chapter for good, so Watch stops at the match before it. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to 47 of 50.
+- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters, the clock still holds and they get their Watch. A real gap moves every later match away from its chapter for good, so Watch stops at the match before it. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to 47 of 50. (#449)
+
+## 2.5.2 — 2026-11-03
+
+Match videos play in the app: a match's video button no longer sends you off to YouTube.
+
+### Highlights
+- [live] A match's video button plays that match right on the page
+- [live] On an event page it plays in the event's player, prediction on top
+- [live] Anywhere else it opens in a video window, without leaving the page
+
+### Event page
+- **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab. (#445)
+
+## 2.5.1 — 2026-11-03
+
+FTC One Search keeps Bruno AI's overview on every question, and titles a plain name search by what it found.
+
+### Highlights
+- [teams] Bruno AI answers "how good is" a team again, above its standing
+- [fixes] A plain name search is titled by what it found, never your words
+- [teams] Bruno AI knows who won each event listed, for "who won nj states"
+
+### Search
+- **Bruno AI on every question.** Before FTC One Search, Bruno AI wrote a short overview for every question; "how good is simply complex" had lost it when the standing summary arrived. He's back: his overview sits above the standing (on a phone, the numbers first and his writing under "Show AI Analysis"). The record cards and summaries sit beside him and never replace him, and a test now lists every kind of question the page answers (championship trips, states, a team's standing, awards, next match, comparisons, rules, high scores, leaderboards, event awards, and a plain question answered by name matches) so none can lose him again.
+- **Who won.** Bruno AI is now told who won each event in the results (its winning alliance and Inspire Award), so "who won nj states" gets an answer from the records instead of nothing.
+- **No echo in the title.** When search reads no meaning into the words and lists names that match them ("who won nj states"), the title says what it found ("Matching events", "Matching teams and events") instead of repeating the words, and no badge repeats them either. With nothing found the title is just "No matches found" (the words are in the search bar above). A title for a question it understood is unchanged. (#454)
+
+## 2.5.0 — 2026-11-03
+
+FTC One Search on a phone: pick two teams to compare from the results, and preview a head-to-head without leaving them.
+
+### Highlights
+- [teams] VS Compare on a team result picks it for a Compare bar
+- [teams] The Compare bar sits above the tab bar and opens the comparison
+- [teams] A comparison result opens its head-to-head in a panel over the results
+
+### Search
+- **Pick two, compare.** On a phone, VS Compare on a team result picks it for comparing. Picked teams dock in a bar right above the tab bar; "Compare (2) →" opens them side by side (in the season the results are about, when they name one), and with only one picked, "Compare (1) →" opens Compare to add the other. A third pick replaces the first, and × drops a team. The picks belong to that search: a new search starts with none.
+- **Head-to-head without leaving.** Tapping a comparison result ("Hypnotic Robotics vs Ultraviolet") opens a panel from the bottom with both teams' record, OPR and OPR rank, and View full comparison → at the end. Close it and the results are just as you left them. Results and their order are unchanged. (#446)
+
+## 2.4.9 — 2026-11-03
+
+FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
+
+### Highlights
+- [home] New example search: "Top teams in NJ" opens New Jersey's leaderboard
+- [home] New example search: "Highest OPR" lists this season's top OPRs
+- [home] Examples cover places, comparisons, questions, records and leaderboards
+
+### Search
+- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. On Home, "Top teams in NJ" carries a Rankings tag. (#452)
+
+## 2.4.8 — 2026-11-03
+
+FTC One Search reads a misspelled place, and "states" as a state's championship, across every season.
+
+### Highlights
+- [fixes] "new jesey states" finds New Jersey's championships, not a guess
+- [history] A state's championships list every season, newest first
+- [fixes] "NJ states" means the state championship, never "stats"
+
+### Search
+- **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name ("new jesey", "pensylvania", "meets in new jersy") is read as that place. The line above the results says so: "Championships in New Jersey (from "new jesey")". It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
+- **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
+- **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). Divisions are listed with their championship. When there are more than a page holds, the newest come first, the line says how many there are in all, and a link opens the full list on Events. A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
+- **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
+
+## 2.4.7 — 2026-11-03
+
+Teams: a link can name a state, so it opens on exactly the teams a search answer ranked.
+
+### Highlights
+- [teams] A Teams link can name a state, like New Jersey teams only
+- [share] A filtered Teams page survives refresh, back and sharing
+- [teams] One chip, "Teams from New Jersey, United States", clears the place
+
+### Teams
+- **A state in the link.** `/teams?country=US&state=NJ` lists the teams whose home is New Jersey. It's the same place search answers use, so the "View more detail" link under a leaderboard opens on the same teams, in the same order, with the same numbers. FIRST's region codes can't always do this (Kansas teams sit in Missouri's region, California has four). The season, view, sort, region and filter in the link already worked, so a pre-filtered page such as New Jersey sorted by auto OPR for 2025–26 survives a refresh, the back button and a share. The place shows as one chip, "Teams from New Jersey, United States", and removing it clears both the country and the state. Switching between Team-events and Team seasons keeps it. (#451)
+
+## 2.4.6 — 2026-11-03
+
+Compare: the season picker sits with the team controls.
+
+### Highlights
+- [fixes] On Compare, the season picker sits right under Quick add
+- [fixes] The "no results yet" note names the season once
+- [fixes] Phones stack the same order: teams, Quick add, then season
+
+### Compare
+- **Season picker moved.** The season buttons (2026–27, 2025–26, 2024–25, 2023–24, Earlier) now sit directly below the Quick add row, lined up on the left with the team search, instead of at the top right beside the title. Top to bottom: the team search and count, Quick add, the season, then the note and the comparison. Phones stack the same order. The seasons on offer and what picking one does are unchanged.
+- **Season note.** When there are no results yet in the current season, the note reads "No 2026–27 results yet, so this compares 2025–26, the latest season any of these teams has results in." It used to print the season twice. (#447)
+
+## 2.4.5 — 2026-11-03
+
+FTC One Search answers "when" questions latest first, with the year at the front of each card.
+
+### Highlights
+- [teams] A team's Worlds or state trips list the latest season first
+- [teams] Each trip's card starts with its season in bold, then the division
+- [fixes] The empty search page no longer shows example searches
+- [teams] A game-rule answer shows a book icon instead of the trophy
+
+### Search
+- **Latest first.** "When did 23268 go to Worlds" lists 2025–26 before 2024–25, and so on back. The OPR chart above still reads left to right, oldest to newest, and selecting a season still jumps to its card. On a phone the season chips run latest first too.
+- **The year leads.** Each trip's card starts with its season in bold ("2025–26 · Lovelace Division"); the season chip that repeated it is gone.
+- **No example row on an empty page.** When nothing matches, the page explains what search covers, what it understood and links to browse events and teams; the example searches stay in the search box's dropdown.
+- **A book for rules.** An answer from the game manual ("can robots descore…") has a book icon; answers from records keep the trophy. Results and their order are unchanged. (#448)
+
+## 2.4.4 — 2026-11-03
+
+Home's search box says what it can do: type whatever you want.
+
+### Highlights
+- [home] FTC One Search on Home: a bigger, glowing box for any search
+- [home] Example searches cycle in the box, each marked with its kind
+- [home] Tap any example under the box to run it
+
+### Site
+- **FTC One Search on Home.** Home's search block is now the hero of its column: a taller field with a soft volt glow that brightens when you type, under "Type whatever you want" and the line "Search teams, events, matches, predictions, and records." The placeholder cycles through the search's own example searches every few seconds, the same list the empty search box offers. It holds still while the field has focus and never moves with reduced motion on, when the glow is static too. The examples are also chips under the box, one tap each to their results (and kept in your recent searches); on a phone they scroll sideways in one row. With the field empty and focused, the dropdown shows your recent searches. The placeholder is never searched for itself. The results dropdown stays the box's own width, so the globe beside it never moves. The rest of Home is unchanged. (#426)
+
+## 2.4.3 — 2026-11-03
+
+FTC One Search answers more questions: who's on top in a state, who leads a stat, who won an award, and what Predict says.
+
+### Highlights
+- [rankings] "What is the best FTC team right now" shows the world's top five
+- [rankings] "Top teams in New Jersey" shows its top five; team rows show OPR
+- [rankings] "Highest OPR", "best auto team" and "most wins" list the leaders
+- [predict] "Will 4215 win their next match?" opens Predict on its matches
+- [history] "Who won Inspire at …" names the winners from the event's results
+
+### Search
+- **The best team, worldwide.** "What is the best FTC team right now", "best team", "who is the best FTC team" and "top FTC teams" show the season's top five from the world rankings, titled "Top teams · 2025–26", and link the full ranking. "FTC", "right now", "currently" and "in the world" are read as filler, never as names.
+- **Questions don't list stray matches.** A question that matches nothing says what it read and offers the browse links. It no longer lists teams or towns that only share one of its words ("Best", "The Best Friends").
+- **Leaderboards by place.** "Top teams in New Jersey", "NJ rankings" and "best team in NJ" show the region's top five from the live rankings, each with its place in the region and in the world. They also link the region's full ranking.
+- **Stat leaders.** "Highest OPR", "best auto team", "best teleop", "best endgame" and "who has the most wins" list the season's top five by that number (OPR without penalties, or its auto, teleop or endgame part; wins with losses as the tie-break), optionally for a region ("highest OPR in NJ"). Only teams with 3 or more matches count. No other stat is ever inferred.
+- **Predictions and advancement.** "Will 4215 win their next match" shows its next match and opens Predict on its matches. "4215 vs 6980 who wins" shows the Compare and opens Predict with both teams filled in. "Who will win New Jersey Championship" opens the event's odds. "Will 4215 advance to states" and "what does 4215 need to advance" open the advancement simulator for the team.
+- **Event awards.** "Who won Inspire at New Jersey Championship" (and Think, Innovate, Design, Reach, Sustain, Connect, Control, Compass, Judges' Choice) lists the winners from the event's results. For an event that hasn't happened yet, it shows the latest season that gave the award, with that season named.
+- **Team questions.** "When does 4215 play next" shows its next match, or says plainly that none is scheduled yet. "How are predictions calculated" puts the methodology page first in Pages.
+- **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#440)
+
+## 2.4.2 — 2026-11-03
+
+FTC One Search answers rules questions from the Rules quick reference, never with team names.
+
+### Highlights
+- [fixes] "Can robots descore…?" asks the rules, not teams named "Can"
+- [teams] "Penalty for hoarding" and "G402" show the rule, linked to /rules
+- [history] An older game's piece links that season's official manual
+
+### Search
+- **Rules questions go to the rules.** A rule number ("G402", "rule 10.5.1"), a query starting with "penalty", "foul" or "rule", or a question with a rule word (descore, pin, foul, inspection, control, hoard, …) is answered from the season's Rules quick reference (the same data as /rules, the `rulesReference` setting). A rule is listed only when every word asked is in it. Each rule shows its number, summary and penalty, linked to its entry on /rules. When no rule matches, the answer says so and never guesses. No team is ever listed for a rules question. "Can Control" on its own is still a team.
+- **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#437)
+
+## 2.4.1 — 2026-11-03
+
+FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
+
+### Highlights
+- [teams] "4215 vs 6980" is a Compare of its own, above the teams
+- [teams] A Compare names each team's number and place
+- [fixes] "Ultraviolet vs Hypnotic history": extra words keep the versus
+- [fixes] A name several teams share is picked by fixed rules, or asked
+
+### Search
+- **Compare is its own kind.** A versus query ("4215 vs 6980", "hypnotic vs bad wolf", "ultraviolet vs hypnotic history") answers with one Compare row that opens /compare with both teams. It has its own group above Teams and is never counted as a team. Each side is named with its number and place ("Hypnotic Robotics (4215) · Oradell, NJ").
+- **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
+- **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#436)
+
+## 2.4.0 — 2026-11-03
+
+FTC One Search on a phone: shortlist a team or see its matches straight from the results, with a tap or a swipe.
+
+### Highlights
+- [teams] Swipe a team result right to add it to your Shortlist
+- [teams] Swipe it left to see its latest matches without leaving search
+- [teams] Both are also buttons on the card: Shortlist and Matches
+
+### Search
+- **Shortlist from the results.** On a phone each team result has a Shortlist button, the same list as the team page's; swipe the card right for the same. Swipe again or tap Shortlisted to take it off. There's no separate compare tray: the Shortlist is where teams you're considering go.
+- **Matches at a glance.** Tap Matches, or swipe the card left, for the team's latest ten played matches this season in a panel from the bottom: win, loss or tie, the match, the event and the score, each opening the match. Close it and you're back on the same results. Results and their order are unchanged. (#444)
 
 ## 2.3.9 — 2026-11-03
 

@@ -30,6 +30,7 @@ import { isEnabled } from "./flags.js";
 import type { SearchCardLine, TrackRecord } from "../src/shared/api.js";
 import { ensureSearchIndex } from "./api/search.js";
 import { searchAnswer } from "./api/searchAnswer.js";
+import { withTeamStats } from "./api/searchTeamStats.js";
 import { recordIntent } from "./api/searchIntents.js";
 import { answerSections } from "../src/shared/searchSections.js";
 import { rebuildSearch } from "./stats/job.js";
@@ -475,7 +476,9 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   if (!q) return { title: "Search", description: "Search any FTC team, event or match.", type: "website", searchPage: true };
   // The same readiness check as /api/search (typo matches on an upgraded database).
   await ensureSearchIndex(rebuildSearch);
-  const answer = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
+  const found = await searchAnswer(q, { limit: SEARCH_PAGE_LIMIT });
+  // As /api/search sends it: team rows with their season numbers, so the app starts from the same answer.
+  const answer = { ...found, hits: await withTeamStats(found.hits) };
   // A visit here is a whole query (the address bar's, or a shared link): its intent counts, never as it's typed.
   await recordIntent(answer.intent).catch(() => {});
   const { sections, notes } = answerSections(answer);
@@ -498,7 +501,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: n || c || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading: n || c || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : "No matches found", type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

@@ -2,15 +2,15 @@
 // The /search page's results: a Compare is its own card above the teams (never counted as one), team cards carry
 // their season numbers, events are blocks with date and status, no card shows a web address, the filters narrow
 // the results in the address and clear back to all of them, and nothing found is never a bare dead end.
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
 
-const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
+const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined, stale: false }));
 vi.mock("../components/search/SearchBox", async (orig) => ({
   ...(await orig<typeof import("../components/search/SearchBox")>()),
-  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: false, prefer: "" }),
+  useSearchHits: () => ({ hits: state.answer?.hits ?? [], answer: state.answer, busy: false, error: null, retry: () => {}, searchNow: () => {}, logPick: () => {}, stale: state.stale, prefer: "" }),
 }));
 vi.mock("../lib/meta", async (orig) => ({ ...(await orig<typeof import("../lib/meta")>()), useMeta: () => null, useCurrentSeason: () => 2025 }));
 const summaries: TeamSummary[] = [
@@ -18,8 +18,27 @@ const summaries: TeamSummary[] = [
   { team: 23268, name: "Ultraviolet", place: "Hackettstown, NJ", opr: null, oprRank: null, of: null, rating: null, ratingSd: null, record: null, lastEvent: null, nextEvent: null },
 ];
 const paths = vi.hoisted(() => [] as (string | null)[]);
-vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
+// A team's matches (the phone's Matches sheet): one win and one loss, the loss last.
+const side = (n: number, total: number) => ({ teams: [{ number: n, surrogate: false, dq: false, onField: true }], score: { total, np: total, auto: 0, teleop: 0, endgame: 0, pen: 0 } });
+const teamMatches = { matches: [
+  { season: 2025, code: "USNJQ1", key: "qual:0:3", level: "qual", series: 0, number: 3, label: "Q3", time: null, startsAt: null, played: true, red: side(4215, 120), blue: side(1, 90), video: null, prediction: null },
+  { season: 2025, code: "USNJQ1", key: "qual:0:9", level: "qual", series: 0, number: 9, label: "Q9", time: null, startsAt: null, played: true, red: side(2, 150), blue: side(4215, 101), video: null, prediction: null },
+] };
+vi.mock("../lib/api", async (orig) => ({ ...(await orig<typeof import("../lib/api")>()), useApi: (p: string | null) => { paths.push(p); return { data: p?.includes("/matches") ? teamMatches : p ? { teams: summaries } : undefined, error: null, loading: false }; } }));
 vi.mock("../lib/flags", async (orig) => ({ ...(await orig<typeof import("../lib/flags")>()), useServerFlag: () => false }));
+// The privacy choice: made (the Compare bar waits for it), unless a test says otherwise.
+const consent = vi.hoisted(() => ({ decided: true }));
+vi.mock("../lib/consent", async (orig) => ({ ...(await orig<typeof import("../lib/consent")>()), useConsent: () => ({ analytics: false, decided: consent.decided, signal: false, setAnalytics: () => {} }) }));
+// The Shortlist a phone's team card adds to (the team page's own list): a set here, and a change re-renders the card.
+const shortlisted = vi.hoisted(() => new Set<number>());
+vi.mock("../lib/personal", async (orig) => {
+  const { useState } = await import("react");
+  return { ...(await orig<typeof import("../lib/personal")>()),
+    useTeamFlags: (n: number) => {
+      const [, bump] = useState(0);
+      return { bookmarked: shortlisted.has(n), toggleBookmark: () => { if (shortlisted.has(n)) shortlisted.delete(n); else shortlisted.add(n); bump((x) => x + 1); } };
+    } };
+});
 
 const { default: SearchPage } = await import("./SearchPage");
 
@@ -30,7 +49,7 @@ const answer = (hits: SearchHit[], extra: Partial<SearchAnswer> = {}): SearchAns
 let loc = "";
 function Where() { const l = useLocation(); loc = `${l.pathname}${l.search}`; return null; }
 const show = (url: string) => render(<MemoryRouter initialEntries={[url]}><SearchPage /><Where /></MemoryRouter>);
-afterEach(() => { cleanup(); state.answer = undefined; });
+afterEach(() => { cleanup(); state.answer = undefined; state.stale = false; });
 
 describe("search results page", () => {
   it("puts a Compare in its own section above the teams, not counted as a team", () => {
@@ -144,12 +163,15 @@ describe("search results page", () => {
   it("never dead-ends: says what search covers, what was understood, labeled closest matches and places to go", () => {
     state.answer = answer([], { step: "recovery", recovery: { understood: ["Events in New Jersey", "at Nonexistent High School"], closest: [team(4215, "Hypnotic Robotics", "Oradell, NJ")], browse: [] } });
     const { container } = show("/search?q=meets%20at%20Nonexistent%20High%20School%20in%20New%20Jersey");
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No matches for “meets at Nonexistent High School in New Jersey”");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("No matches found");
+    // The query is in the top bar: the heading never repeats it.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).not.toContain("Nonexistent");
     expect(container.textContent).toContain("FTC One Search covers teams, events, matches and places");
     expect(container.querySelector("[data-understood]")!.textContent).toContain("Events in New Jersey");
     expect(screen.getByRole("region", { name: "Closest matches" }).textContent).toContain("not an exact match");
     expect(screen.getByRole("link", { name: /Browse all events/ }).getAttribute("href")).toBe("/events");
-    expect(container.querySelectorAll("[data-example]").length).toBeGreaterThan(0);
+    // No example searches here: the top bar's dropdown offers those.
+    expect(container.querySelectorAll("[data-example]")).toHaveLength(0);
     expect(container.textContent).not.toMatch(/Here's what we found/);
   });
 
@@ -203,6 +225,22 @@ describe("search results page, Phase 2 cards", () => {
   const worlds = (season: string, div: string, rank: number, opr: number) => ({
     text: `FIRST Championship - Houston - World Championship - FIRST Tech Challenge - ${div} Division`,
     detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
+  });
+
+  it("a 'when' answer's cards go newest first, each led by its season; the chart still reads left to right", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
+      lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    const cards = [...container.querySelectorAll("[data-appearance]")];
+    expect(cards.map((c) => c.getAttribute("data-appearance"))).toEqual(["2023", "2022", "2021"]);
+    expect(cards[0].querySelector("[data-card-title]")!.textContent).toBe("2023–24 · Franklin Division");
+    // The season leads the card, so it isn't repeated as a chip.
+    expect(cards[0].textContent!.match(/2023–24/g)).toHaveLength(1);
+    expect([...container.querySelectorAll("[data-node]")].map((n) => n.getAttribute("data-node"))).toEqual(["2021", "2022", "2023"]);
+    // Each node still jumps to its own season's card.
+    Element.prototype.scrollIntoView = vi.fn();
+    fireEvent.click(container.querySelector('[data-node="2022"]')!);
+    expect(container.querySelector('[data-appearance="2022"]')!.getAttribute("data-highlight")).toBe("on");
   });
 
   it("a championship question's records: stats, a timeline whose nodes jump to their cards, short titles and pills", () => {
@@ -327,14 +365,147 @@ describe("search results page, phone (Part B 3b)", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
       lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
-    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2021–22: #20", "2022–23: #3", "2023–24: #10"]);
-    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2023–24: #10", "2022–23: #3", "2021–22: #20"]);
+    expect(container.querySelector("[data-vs-compare]")!.tagName).toBe("BUTTON");
   });
 
-  it("one trip is still a chip, and VS Compare keeps the season the result is about", () => {
+  it("one trip is still a chip, and the Compare picks keep the season the result is about", () => {
     state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
-    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
+    fireEvent.click(container.querySelector("[data-vs-compare]")!);
+    // One team found: its pick still goes on to /compare, where the other team is added.
+    expect(document.querySelector("[data-compare-go]")!.textContent).toContain("Compare (1)");
+    expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
+  });
+
+  it("Shortlist and Matches are buttons on the card, and a swipe does the same", () => {
+    shortlisted.clear();
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215");
+    const add = screen.getByRole("button", { name: "Shortlist" });
+    expect(add.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(add);
+    expect(shortlisted.has(4215)).toBe(true);
+    shortlisted.clear();
+    // Swipe right: the same Shortlist add.
+    const card = container.querySelector("[data-swipe]")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 140, clientY: 104 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 140, clientY: 104 }] });
+    expect(shortlisted.has(4215)).toBe(true);
+    // On: it says so, and a second tap takes it off.
+    expect(screen.getByRole("button", { name: "Shortlisted" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Shortlisted" }));
+    expect(shortlisted.has(4215)).toBe(false);
+    expect(screen.getByRole("button", { name: "Shortlist" }).getAttribute("aria-pressed")).toBe("false");
+    // A mostly-vertical drag is a scroll, not a swipe.
+    fireEvent.touchStart(card, { touches: [{ clientX: 20, clientY: 100 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 110, clientY: 300 }] });
+    expect(shortlisted.has(4215)).toBe(false);
+  });
+
+  it("Matches, tapped or swiped left, lists the team's latest played matches, newest first", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215");
+    fireEvent.click(screen.getByRole("button", { name: "Matches" }));
+    const rows = () => [...document.querySelectorAll("[data-match-history] li")].map((li) => li.textContent);
+    expect(rows()).toEqual(["LQ9 · USNJQ1101–150", "WQ3 · USNJQ1120–90"]);
+    fireEvent.click(within(document.querySelector("[data-matches-sheet]") as HTMLElement).getByRole("button", { name: "Close" }));
+    expect(document.querySelector("[data-match-history]")).toBeNull();
+    const card = container.querySelector("[data-swipe]")!;
+    fireEvent.touchStart(card, { touches: [{ clientX: 200, clientY: 100 }] });
+    fireEvent.touchMove(card, { touches: [{ clientX: 80, clientY: 102 }] });
+    fireEvent.touchEnd(card, { changedTouches: [{ clientX: 80, clientY: 102 }] });
+    expect(rows()).toHaveLength(2);
+  });
+
+  it("two picks dock in a Compare (2) bar that goes straight to /compare; a third replaces the first", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ"), team(23268, "Ultraviolet", "Hackettstown, NJ"), team(6980, "Bad Wolf", "X")]);
+    const { container } = show("/search?q=x");
+    const vs = () => [...container.querySelectorAll("[data-vs-compare]")] as HTMLElement[];
+    fireEvent.click(vs()[0]);
+    fireEvent.click(vs()[1]);
+    expect(vs()[0].getAttribute("aria-pressed")).toBe("true");
+    const go = document.querySelector("[data-compare-go]")!;
+    expect(go.textContent).toContain("Compare (2)");
+    expect(go.getAttribute("href")).toBe("/compare?teams=4215,23268");
+    fireEvent.click(vs()[2]);
+    expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=23268,6980");
+    fireEvent.click(screen.getByRole("button", { name: "Remove 6980 from the comparison" }));
+    expect(document.querySelector("[data-compare-go]")!.getAttribute("href")).toBe("/compare?teams=23268");
+  });
+
+  it("a new search starts with no picks, and going back to the first doesn't bring them back", () => {
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ"), team(23268, "Ultraviolet", "Hackettstown, NJ")]);
+    // One page, searched again in place (the top bar's search navigates within it).
+    let go: (to: string) => void = () => {};
+    function Go() { go = useNavigate(); return null; }
+    const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /><Go /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector("[data-vs-compare]")!);
+    expect(document.querySelector("[data-compare-bar]")).toBeTruthy();
+    const at = (q: string) => act(() => go(`/search?q=${q}`));
+    at("b");
+    expect(document.querySelector("[data-compare-bar]")).toBeNull();
+    at("a");
+    expect(document.querySelector("[data-compare-bar]")).toBeNull();
+  });
+
+  it("an open head-to-head closes when the search changes (Back included)", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    let go: (to: string) => void = () => {};
+    function Go() { go = useNavigate(); return null; }
+    const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /><Go /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
+    expect(document.querySelector("[data-compare-sheet]")).toBeTruthy();
+    act(() => go("/search?q=b"));
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+  });
+
+  it("while a new search loads, the last results can't be picked or previewed, and a preview never outlives its answer", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    state.stale = true;
+    const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+    fireEvent.click(ui.container.querySelector("[data-vs-compare]")!);
+    expect(ui.container.querySelector("[data-vs-compare]")!.getAttribute("aria-pressed")).not.toBe("true");
+    // Loaded: the preview opens; a new answer for the same words (a refresh) closes it rather than refill it.
+    state.stale = false;
+    ui.rerender(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
+    expect(document.querySelector("[data-compare-sheet]")).toBeTruthy();
+    state.answer = answer([compare, team(23268, "Ultraviolet", "Hackettstown, NJ")]);
+    ui.rerender(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+  });
+
+  it("the Compare bar waits for the privacy choice (the banner uses the same strip)", () => {
+    consent.decided = false;
+    try {
+      state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+      const { container } = show("/search?q=x");
+      fireEvent.click(container.querySelector("[data-vs-compare]")!);
+      expect(document.querySelector("[data-compare-bar]")).toBeNull();
+    } finally { consent.decided = true; }
+  });
+
+  it("a Compare result opens its head-to-head over the results, and closing it leaves them as they were", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    const { container } = show("/search?q=4215%20vs%2023268");
+    // A modified click (new tab) is left to the link: no preview.
+    fireEvent.click(container.querySelector('[data-result="compare"]')!, { ctrlKey: true });
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+    fireEvent.click(container.querySelector('[data-result="compare"]')!);
+    expect(loc).toBe("/search?q=4215%20vs%2023268");
+    const sheet = document.querySelector("[data-compare-sheet]")!;
+    expect(sheet.textContent).toContain("Hypnotic Robotics (4215) vs Ultraviolet (23268)");
+    expect(within(sheet as HTMLElement).getByRole("link", { name: /View full comparison/ }).getAttribute("href")).toContain("/compare?teams=4215,23268");
+    fireEvent.click(within(sheet as HTMLElement).getByRole("button", { name: "Close" }));
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+    expect(container.querySelector('[data-result="compare"]')).toBeTruthy();
   });
 });
