@@ -4,6 +4,7 @@
 // the scope words are read once, the same way for every intent (./clauses.ts applies them).
 import type { StatFamily } from "../../../src/shared/searchStat.js";
 import { SEASONS } from "../../data/seasons.js";
+import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
 
 export type IntentId =
   // Family 3: one best (or worst) of a filtered set.
@@ -196,6 +197,68 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp }[] = [
 ];
 
 /** "4215 vs 6980 head to head", "4215 OPR vs 6980", "who has a better record, 4215 or 6980": two teams named, or null. */
+/** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
+ *  New Jersey") or a city's teams ("teams in Oradell"). */
+export interface LeaderboardQuestion {
+  kind: "top" | "rookie" | "improved" | "city";
+  /** BOARD_STATS key (families/leaderboard.ts). */
+  stat: string;
+  n: number;
+  region: Region | null;
+  city: string | null;
+  season: number | null;
+}
+
+const BOARD_STAT_WORDS: [string, RegExp][] = [
+  ["auto", /^auto(?:nomous)?(?: opr| points?| scores?)?$/],
+  ["teleop", /^(?:tele ?op|driver(?:[- ]controlled)?|dc)(?: opr| points?| scores?)?$/],
+  ["endgame", /^end ?game(?: opr| points?| scores?)?$/],
+  ["opr", /^(?:total |overall |season )?opr$/],
+  ["win-rate", /^(?:win(?:ning)? (?:rate|percentage|pct|%)|win%)$/],
+  ["wins", /^(?:(?:most |match )?wins)$/],
+  ["avg-score", /^(?:average|avg|mean) (?:score|points)$/],
+  ["rating", /^(?:prediction |predicted )?(?:rating|strength)$/],
+];
+const boardStat = (s: string) => BOARD_STAT_WORDS.find(([, re]) => re.test(s.trim()))?.[0] ?? null;
+/** A place's words as one region (a name, its start, a code, or one near miss), or null. */
+const regionOf = (s: string): Region | null => { const rs = findRegions(s); return rs.length === 1 ? rs[0] : rs.length ? null : nearRegion(s); };
+const TEAMS = "(?:teams?|robots?|ftc teams?)";
+const PLACE = "(?: (?:in|from) (.+))?";
+
+export function readLeaderboard(raw: string): LeaderboardQuestion | null {
+  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ")} `.replace(/\s+/g, " ");
+  const { scope, rest } = readScope(q);
+  if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
+  const n = (s: string | undefined, def: number) => Math.min(25, Math.max(1, s ? Number(s) : def));
+  const place = (s: string | undefined): Region | null | false => (s ? regionOf(s) ?? false : null);
+  let m: RegExpExecArray | null;
+  // "top 10 teams by opr in nj", "best teams by win rate in new jersey"
+  if ((m = new RegExp(`^(?:the )?(?:top|best|highest(?: ranked)?|strongest)(?: (\\d{1,2}))? ${TEAMS} (?:by|for|in|on|ranked by|with the (?:best|highest|most)) (.+?)${PLACE}$`).exec(rest))) {
+    const stat = boardStat(m[2]), region = place(m[3]);
+    if (stat && region !== false) return { kind: "top", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "top 10 opr teams in nj", "top 5 auto teams"
+  if ((m = new RegExp(`^(?:the )?top (\\d{1,2}) (.+?) ${TEAMS}${PLACE}$`).exec(rest))) {
+    const stat = boardStat(m[2]), region = place(m[3]);
+    if (stat && region !== false) return { kind: "top", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "best rookie team in new jersey", "top 5 rookies in nj"
+  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked)(?: (\\d{1,2}))? rookies?(?: ${TEAMS})?(?: by (.+?))?${PLACE}$`).exec(rest))) {
+    const stat = m[2] ? boardStat(m[2]) : "opr", region = place(m[3]);
+    if (stat && region !== false) return { kind: "rookie", stat, n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "most improved team in new jersey"
+  if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {
+    const region = place(m[2]);
+    if (region !== false) return { kind: "improved", stat: "opr", n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "teams in oradell": a city, never a region (the region's own answers are search's)
+  if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && scope.season == null) {
+    return { kind: "city", stat: "opr", n: 25, region: null, city: m[1].trim(), season: null };
+  }
+  return null;
+}
+
 export function readTwoTeam(raw: string): TwoTeamQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ")} `.replace(/\s+/g, " ");
   // "red vs blue record" is one team's split by colour, not two teams.
