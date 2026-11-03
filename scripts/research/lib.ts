@@ -11,6 +11,7 @@ import { pairedReport, rng, sliceReport, type PairedMetrics, type PairedRow } fr
 export { rng };
 import { FITTED_MODEL } from "@control-scout/predict-engine";
 import { fit, logit, sig } from "../part9/lib.js";
+import { probBand } from "../slices/tags.js";
 
 export { logit, sig };
 export const DAY = 864e5;
@@ -28,7 +29,7 @@ export interface CompRow {
   x: number[] | null; model: string;
 }
 /** One slices-harness row (`engine-slices.ts --rows`), the fields used here (its data tags). */
-export interface SliceRow { key: string; season: number; event: string; level: string; time: number; y: number; rated: boolean; x?: number[]; pRaw?: number; data: Record<string, unknown>; pred: { champion: { p: number; muR: number; muB: number } } }
+export interface SliceRow { key: string; season: number; event: string; level: string; time: number; y: number; rated: boolean; x?: number[]; pRaw?: number; data: Record<string, unknown>; vol?: string; pred: { champion: { p: number; muR: number; muB: number } } }
 /** The joined row: champion call, its 22 contextual inputs, its phase expectations and the result. */
 export interface Row extends CompRow { x: number[]; L: number; pc: number; tags: Record<string, string>; margin: number; muGap: number; gap: Phases }
 
@@ -50,7 +51,8 @@ export function loadRows(componentsFile: string, slicesFile?: string): Row[] {
       pen: c.exp.blue.pen - c.exp.red.pen, // fouls blue is expected to commit are points for red
     };
     const d = s?.data ?? {};
-    const tags = Object.fromEntries(["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "eventSize", "eventType"].map((k) => [k, String(d[k] ?? "")]));
+    // The slices harness's data tags, its volatility tag and the champion's probability band (gate dimensions).
+    const tags: Record<string, string> = { ...Object.fromEntries(["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "eventSize", "eventType"].map((k) => [k, String(d[k] ?? "")])), volatility: String(s?.vol ?? ""), probBand: probBand(c.p) };
     out.push({ ...c, x: c.x, L: logit9(c.pRaw), pc: c.p, tags, margin: c.act.red.total - c.act.blue.total, muGap: c.muR - c.muB, gap });
   }
   return out.sort((a, b) => a.time - b.time);
@@ -105,7 +107,8 @@ export function pairedMAE(rows: { event: string; actual: number; a: number; b: n
   return { mae: tot.d / tot.n, mae95: [bs[Math.floor(0.025 * draws)], bs[Math.floor(0.975 * draws)]] };
 }
 
-export const DIMS = ["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "eventSize", "eventType"];
+/** The slice dimensions every gate checks: the same as engine-slices.ts --challenger (data tags, volatility, the champion's probability band). */
+export const DIMS = ["level", "eventMatch", "teamEvent", "experience", "teamMatches", "density", "volatility", "eventSize", "eventType", "probBand"];
 
 /** Calibration error in the 50–80% bands, match-weighted (the gates' decision bands). */
 export function cal5080(ps: number[], ys: number[]): number {
@@ -125,11 +128,12 @@ export function gate(season: number, rows: { event: string; y: number; tags: Rec
   const sc = (k: "a" | "b", mk: "ma" | "mb") => score(rows.map((r) => r[k]), ys, hasM ? { pred: rows.map((r) => r[mk]!), actual: rows.map((r) => r.margin!) } : undefined);
   const paired = rep.all;
   const champion = sc("a", "ma"), challenger = sc("b", "mb");
+  const cal = { champion: cal5080(rows.map((r) => r.a), ys), challenger: cal5080(rows.map((r) => r.b), ys) };
   return {
-    season, n: rows.length, champion, challenger, paired, marginMAE: mm,
-    cal5080: { champion: cal5080(rows.map((r) => r.a), ys), challenger: cal5080(rows.map((r) => r.b), ys) }, regressions,
-    // Brier better with the interval excluding zero; accuracy and margin MAE not worse beyond noise; no slice regression.
-    pass: paired.brier95[1] < 0 && !(paired.accuracy95[1] < 0) && !(mm && mm.mae95[0] > 0) && regressions.length === 0,
+    season, n: rows.length, champion, challenger, paired, marginMAE: mm, cal5080: cal, regressions,
+    // Brier better with the interval excluding zero; accuracy and margin MAE not worse beyond noise; no slice
+    // regression; 50–80% calibration error no worse (the documented gate, docs/engine/README.md).
+    pass: paired.brier95[1] < 0 && !(paired.accuracy95[1] < 0) && !(mm && mm.mae95[0] > 0) && regressions.length === 0 && cal.challenger <= cal.champion + 1e-12,
   };
 }
 

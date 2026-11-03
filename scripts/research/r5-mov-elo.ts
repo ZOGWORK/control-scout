@@ -87,7 +87,7 @@ const sc = (s: number, e: Eval) => { const idx = seasonIdx(s, e.p); return score
 // ---- Tuning grid on 2024–25.
 const grid: EloParams[] = [];
 const K: Record<Mov, number[]> = { none: [32, 64, 128, 192, 256], "538": [8, 16, 32, 48, 64], "538norm": [8, 16, 32, 48, 64, 96] };
-for (const mov of ["none", "538", "538norm"] as Mov[]) for (const k0 of K[mov]) for (const n0 of [Infinity, 10]) for (const carry of [0.3, 0.5, 0.7, 0.9]) for (const offset of [0, -100]) for (const c of mov === "none" ? [0] : [0.001, 0.0025, 0.005])
+for (const mov of ["none", "538", "538norm"] as Mov[]) for (const k0 of K[mov]) for (const n0 of [Infinity, 10]) for (const carry of [0.3, 0.5, 0.7, 0.9]) for (const offset of [0, -100, -200]) for (const c of mov === "none" ? [0] : [0, 0.0005, 0.001, 0.0025, 0.005])
   grid.push({ mov, k0, n0, carry, offset, c, playoff: 0.5 });
 const tuned: { params: EloParams; brier2024: number; acc2024: number }[] = [];
 for (const g of grid) { const s = sc(2024, evaluate(replay(g))); tuned.push({ params: g, brier2024: s.brier, acc2024: s.accuracy }); }

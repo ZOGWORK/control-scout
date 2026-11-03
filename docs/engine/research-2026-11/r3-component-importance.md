@@ -1,9 +1,12 @@
 # R3: component feature importance (measured; no engine change)
 
 **Verdict: nothing ships. Engine 3.3.0 stays as it is.**
-- The ranking is clear: TeleOp first by a wide margin, then auto, then endgame. Expected fouls add nothing to predicting the winner.
+- Among the scoring phases the ranking is clear: TeleOp first by a wide margin, then auto, then endgame. Expected fouls add nothing to predicting the winner.
+- The contextual extras (reliability, partner balance, experience, form) each add a few ×10⁻⁴ Brier. On DECODE each one is worth slightly more than endgame.
 - The live engine already weights them close to how a free refit does. The one consistent difference is that auto is slightly under-weighted.
-- The reweighting candidate that follows from that (R3a: change three contextual coefficients) passes the gate on 2024–25. On 2025–26 it fails: the Brier interval crosses zero and accuracy drops 0.08 points, an interval entirely below zero.
+- The reweighting candidate that follows from that (R3a: change three contextual coefficients) fails the gate in both seasons.
+  - 2024–25: its Brier gain is significant, but its 50–80% calibration error gets worse (0.73 → 0.77 points).
+  - 2025–26: the Brier interval crosses zero, and accuracy drops 0.08 points, an interval entirely below zero.
 
 Files:
 - Scripts: `scripts/research/component-rows.ts`, `scripts/research/r3-component-importance.ts`, `scripts/research/lib.ts`.
@@ -32,6 +35,7 @@ Every challenger and the champion use the same protocol:
 - **Fitting:** anything fitted is fitted on the 365 days before the origin and scored on that month.
 - **Seasons:** 2024–25 is the tuning season. 2025–26 (DECODE) is judged and labelled **reused**.
 - **Intervals:** paired, resampling whole events (2,000 draws).
+- **Gate:** Brier better with the interval excluding zero; accuracy and margin MAE not worse beyond noise; 50–80% calibration error no worse; no slice regression. The slices are the same as `engine-slices.ts --challenger`: the data tags, volatility and the champion's probability band.
 
 **Champion:** the live engine 3.3.0, exactly as served.
 - It is recomputed from its own inputs (max |Δp| = 0 against the served call).
@@ -69,16 +73,16 @@ Brier cost of removing each group, ×10⁻⁴, with the 95% interval. Positive m
 |---|---|---|---|---|---|---|
 | 1 | **TeleOp** | **+186.9 [173.3, 200.5]** | **+125.1 [113.9, 135.8]** | +265.1 | +706.3 | +6.80 |
 | 2 | **Auto** | +24.8 [20.1, 29.4] | **+51.2 [44.8, 57.9]** | +70.4 | +167.1 | +1.79 |
-| 3 | **Endgame** | +25.2 [20.2, 29.9] | +3.2 [0.9, 5.7] | +5.4 | +11.5 | 0.00 |
-| 4 | Reliability | +3.6 [1.8, 5.5] | +5.2 [3.4, 7.1] | +1.6 | +5.1 | – |
-| 5 | Partner balance | +3.5 [2.1, 5.1] | +4.8 [3.2, 6.4] | +7.5 | +15.9 | – |
-| 6 | Experience | +3.9 [1.7, 6.3] | +4.4 [2.5, 6.5] | +6.1 | +10.7 | – |
-| 7 | Form | +2.7 [0.8, 4.5] | +3.6 [2.1, 5.1] | +11.7 | +20.4 | – |
+| 3 | Reliability | +3.6 [1.8, 5.5] | +5.2 [3.4, 7.1] | +1.6 | +5.1 | – |
+| 4 | Partner balance | +3.5 [2.1, 5.1] | +4.8 [3.2, 6.4] | +7.5 | +15.9 | – |
+| 5 | Experience | +3.9 [1.7, 6.3] | +4.4 [2.5, 6.5] | +6.1 | +10.7 | – |
+| 6 | Form | +2.7 [0.8, 4.5] | +3.6 [2.1, 5.1] | +11.7 | +20.4 | – |
+| 7 | **Endgame** | +25.2 [20.2, 29.9] | +3.2 [0.9, 5.7] | +5.4 | +11.5 | 0.00 |
 | 8 | Data certainty | +4.9 [2.8, 6.9] | +1.7 [−0.2, 3.6] | +5.5 | +8.0 | – |
 | 9 | Match context | +0.3 [−0.1, 0.8] | +0.7 [0.1, 1.4] | +0.9 | +0.9 | – |
 | 10 | **Fouls** | −0.1 [−0.3, +0.1] | +0.1 [−0.6, +0.8] | +0.1 | +0.5 | **−0.13** (better without) |
 
-Ranked by the drop-and-refit cost on 2025–26.
+Ranked by the drop-and-refit cost on 2025–26. On 2024–25 (INTO THE DEEP), endgame ranks third, level with auto.
 
 What the table says:
 - **TeleOp is most of the forecast.**
@@ -95,11 +99,17 @@ What the table says:
 
 ## Results: weights
 
-**How the live engine weights a point.** This is each phase's weight on the final log-odds per unit of expected gap / S, relative to TeleOp. It folds L and the D1–D3 coefficients through the calibration (average 2025–26 row).
+**How the live engine weights a point.** This is each phase's weight on the final log-odds per unit of expected gap / S, relative to TeleOp. Per row, it folds together:
+- L itself;
+- every input of the form L × f (D8–D12, D16, D17, D19), which raise dz/dL to 1.076 on average;
+- the phase's own D1–D3 coefficient;
+- the calibration.
+
+The figures are averaged over 2025–26 rows.
 
 | | Auto | TeleOp | Endgame | Fouls |
 |---|---|---|---|---|
-| Live engine 3.3.0 | 0.95 | 1 | 0.81 | 0.05 |
+| Live engine 3.3.0 | 0.96 | 1 | 0.82 | 0.12 |
 | Per-component logistic, 2024–25 fits (mean of origins) | 1.05 | 1 | 0.86 | −0.01 |
 | Per-component logistic, 2025–26 fits (mean of origins) | **1.28** | 1 | 0.83 | 0.19 |
 
@@ -134,18 +144,19 @@ Both candidates add refitted phase weights to the champion's log-odds. They are 
 
 | Season | n | Δ Brier ×10⁴ [95%] | Δ accuracy, pts [95%] | Δ margin MAE | 50–80% calibration error | Slice regressions | Gate |
 |---|---|---|---|---|---|---|---|
-| 2024–25 (tuning) | 32,974 | **−0.38 [−0.75, −0.02]** | −0.00 [−0.06, +0.05] | 0 | 0.73 → 0.77 pts | none | pass |
+| 2024–25 (tuning) | 32,974 | **−0.38 [−0.75, −0.02]** | −0.00 [−0.06, +0.05] | 0 | **0.73 → 0.77 pts** | none | **fail** (calibration) |
 | 2025–26 (reused) | 36,572 | −0.34 [−1.09, +0.35] | **−0.08 [−0.17, −0.01]** | 0 | 1.04 → 0.67 pts | none | **fail** |
 
 **R3b: Δ on all four phase gaps / S.** This needs one new TeleOp input.
 
 | Season | n | Δ Brier ×10⁴ [95%] | Δ accuracy, pts [95%] | 50–80% calibration error | Slice regressions | Gate |
 |---|---|---|---|---|---|---|
-| 2024–25 | 32,974 | +0.04 [−0.65, +0.72] | −0.05 [−0.12, +0.02] | 0.73 → 0.54 | first event, thin data | fail |
+| 2024–25 | 32,974 | +0.04 [−0.65, +0.72] | −0.05 [−0.12, +0.02] | 0.73 → 0.54 | first event, thin data, volatility not measured | fail |
 | 2025–26 (reused) | 36,572 | −0.74 [−1.88, +0.37] | −0.07 [−0.19, +0.05] | 1.04 → 0.93 | none | fail |
 
 **Why R3a does not ship.**
 - Its Brier gain is under 0.4×10⁻⁴, about a fiftieth of the 2.8–2.11 releases.
+- On 2024–25 its 50–80% calibration error gets worse.
 - On DECODE its interval includes zero, and it costs accuracy beyond noise.
 - The value it would ship, fitted on the last 365 days: D1 −0.030 → +0.081, D2 −0.107 → −0.144, D3 −0.290 → −0.236.
 

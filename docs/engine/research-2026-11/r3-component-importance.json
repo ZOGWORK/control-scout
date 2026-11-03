@@ -45,18 +45,19 @@
  },
  "championWeights": {
   "dLdGapOverS": 1.7588272588433576,
+  "dzdL": 1.0759086235110227,
   "gain": 0.96472327784523,
   "perUnitGapOverS": {
-   "auto": 1.6154421224288937,
-   "teleop": 1.6967815983149048,
-   "endgame": 1.3669785857276593,
-   "fouls": 0.0867840984515593
+   "auto": 1.7448532353651636,
+   "teleop": 1.8261927112511862,
+   "endgame": 1.4963896986639424,
+   "fouls": 0.21619521138784184
   },
   "relativeToTeleop": {
-   "auto": 0.9520624952752963,
+   "auto": 0.9554595331670697,
    "teleop": 1,
-   "endgame": 0.805630251462665,
-   "fouls": 0.05114629869733717
+   "endgame": 0.8194040472534333,
+   "fouls": 0.1183857596494946
   }
  },
  "permutation": {
@@ -3246,7 +3247,7 @@
       "challenger": 0.007670093652636592
      },
      "regressions": [],
-     "pass": true
+     "pass": false
     },
     "2025": {
      "season": 2025,
@@ -3532,7 +3533,8 @@
      },
      "regressions": [
       "teamEvent: 1st",
-      "density: thin"
+      "density: thin",
+      "volatility: not measured"
      ],
      "pass": false
     },

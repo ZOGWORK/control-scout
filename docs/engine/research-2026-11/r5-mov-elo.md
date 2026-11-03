@@ -50,24 +50,27 @@ Identical to R3 and to every challenger and the champion:
 - **Corpus:** the pinned snapshot (data 2026-10-14), seasons 2023–2025, in the slices harness's order and exclusions.
 - **Rows:** rated events, pre-match state, decisive matches only.
 - **Rolling origins:** monthly, October 2024 to July 2026 (19 scored months). Every fit uses the prior 365 days only.
-- **Tuning:** Elo settings were picked on 2024–25 by rolled Brier over a grid of 560 settings: multiplier, K0, n0, carry-over ρ, newcomer offset and the autocorrelation constant c.
+- **Tuning:** Elo settings were picked on 2024–25 by rolled Brier over a grid of 1,440 settings: multiplier, K0, n0, carry-over ρ ∈ {0.3, 0.5, 0.7, 0.9}, newcomer offset ∈ {0, −100, −200} and the autocorrelation constant c ∈ {0, 0.0005, 0.001, 0.0025, 0.005}.
 - **Seasons:** 2025–26 (DECODE) is judged once and labelled **reused**.
 - **Intervals:** paired event-bootstrap 95% intervals.
+- **Gate:** the R3 gate. Brier better with the interval excluding zero; accuracy and margin MAE not worse beyond noise; 50–80% calibration error no worse; no slice regression, on the same slices as `engine-slices.ts --challenger` (volatility and probability band included).
 
 **Champion:** live engine 3.3.0.
 - 2024–25: Brier 0.1579, accuracy 76.53%, margin MAE 38.84.
 - 2025–26: Brier 0.1681, accuracy 74.79%, margin MAE 37.48.
 - The prompt's 72.7% / 0.179 is the pre-2.0 legacy engine and is context only.
 
-Chosen settings (all have constant K, and newcomers start at 1400):
+Chosen settings (all have constant K):
 
-| Variant | K0 | ρ | c |
-|---|---|---|---|
-| Plain Elo | 128 | 0.7 | – |
-| 538 | 32 | 0.5 | 0.001 |
-| 538norm | 64 | 0.5 | 0.001 |
+| Variant | K0 | ρ | c | Newcomers start at |
+|---|---|---|---|---|
+| Plain Elo | 128 | 0.7 | – | 1300 |
+| 538 | 32 | 0.5 | 0.001 | 1400 |
+| 538norm | 64 | 0.5 | 0.001 | 1400 |
 
-None sits at the edge of the grid.
+Edges of the grid:
+- The two MOV-Elo variants sit inside the grid on every setting. That holds for K0, ρ, c (which has 0 and 0.0005 below it) and the offset (−200 was tested).
+- Plain Elo, the win/loss reference, picked the lowest offset tested (−200). An earlier run with offsets of 0 and −100 only differed from it by 0.0001–0.0004 Brier. Plain Elo is a reference, not a candidate.
 
 ## Results
 
@@ -75,8 +78,8 @@ None sits at the edge of the grid.
 
 | Model | Season | Brier | Accuracy | Margin MAE | Δ Brier ×10⁴ [95%] | Δ accuracy, pts [95%] | Δ margin MAE [95%] |
 |---|---|---|---|---|---|---|---|
-| Plain Elo (win/loss) | 2024–25 | 0.1935 | 69.87% | 47.46 | +356.2 [+338.6, +374.7] | −6.66 [−7.18, −6.14] | +8.62 [+8.15, +9.06] |
-| | 2025–26 (reused) | 0.2017 | 68.49% | 44.69 | +335.8 [+320.0, +352.4] | −6.31 [−6.78, −5.85] | +7.22 [+6.86, +7.58] |
+| Plain Elo (win/loss) | 2024–25 | 0.1934 | 69.94% | 47.45 | +354.7 [+337.2, +373.1] | −6.59 [−7.10, −6.08] | +8.60 [+8.14, +9.06] |
+| | 2025–26 (reused) | 0.2021 | 68.44% | 44.82 | +339.9 [+323.6, +356.6] | −6.36 [−6.84, −5.89] | +7.34 [+6.98, +7.71] |
 | MOV-Elo (538) | 2024–25 | 0.1876 | 71.18% | 45.89 | +297.1 [+281.2, +313.7] | −5.35 [−5.82, −4.87] | +7.05 [+6.60, +7.47] |
 | | 2025–26 (reused) | 0.1975 | 69.26% | 43.62 | +293.2 [+278.2, +308.4] | −5.54 [−6.00, −5.07] | +6.14 [+5.83, +6.46] |
 | MOV-Elo (538norm) | 2024–25 | 0.1862 | 71.46% | 45.57 | +283.3 [+267.4, +299.7] | −5.07 [−5.53, −4.60] | +6.73 [+6.29, +7.14] |
@@ -90,12 +93,12 @@ H0 is the control: the champion restretched by its own rolling slope (H1 with γ
 - 2024–25: −0.01 [−0.30, +0.29].
 - 2025–26: **+0.48 [+0.26, +0.72]**, worse. The shipped stretch beats a rolling one.
 
-**H1: P = σ(a × logit p_champion + γ × Elo log-odds)**, fitted on the prior 365 days. γ comes out at about 0.06–0.07 on the Elo log-odds, and a at about 1.0.
+**H1: P = σ(a × logit p_champion + γ × Elo log-odds)**, fitted on the prior 365 days. γ comes out at about 0.05–0.07 on the Elo log-odds, and a at about 1.0.
 
 | Elo input | Season | Δ Brier vs champion ×10⁴ [95%] | Δ accuracy, pts [95%] | Δ Brier vs H0 [95%] | Slice regressions | Gate |
 |---|---|---|---|---|---|---|
-| Plain | 2024–25 | −0.48 [−1.29, +0.31] | −0.01 [−0.11, +0.08] | −0.47 [−1.22, +0.25] | none | fail |
-| | 2025–26 | −0.39 [−1.26, +0.43] | +0.01 [−0.10, +0.12] | −0.87 [−1.71, −0.08] | none | fail |
+| Plain | 2024–25 | −0.29 [−1.04, +0.45] | −0.04 [−0.13, +0.06] | −0.28 [−0.97, +0.42] | none | fail |
+| | 2025–26 | −0.23 [−0.99, +0.50] | −0.01 [−0.11, +0.09] | −0.70 [−1.43, −0.00] | none | fail |
 | 538 | 2024–25 | −0.21 [−0.92, +0.48] | −0.04 [−0.13, +0.05] | −0.20 [−0.83, +0.45] | none | fail |
 | | 2025–26 | −0.27 [−1.00, +0.44] | −0.05 [−0.15, +0.05] | −0.74 [−1.43, −0.08] | none | fail |
 | 538norm | 2024–25 | −0.21 [−0.86, +0.44] | −0.04 [−0.12, +0.05] | −0.20 [−0.80, +0.38] | none | fail |
@@ -107,11 +110,11 @@ H0 is the control: the champion restretched by its own rolling slope (H1 with γ
 |---|---|---|---|---|---|
 | None (refit 22 only) | 2024–25 | +0.54 [−1.13, +2.21] | −0.17 [−0.30, −0.05] | – | fail |
 | | 2025–26 | −1.34 [−3.29, +0.53] | −0.04 [−0.21, +0.11] | – | fail |
-| Plain | 2024–25 | −0.57 [−2.48, +1.21] | −0.07 [−0.23, +0.08] | **−1.11 [−1.89, −0.40]** | fail (first-event slice) |
-| | 2025–26 | **−2.24 [−4.42, −0.22]** | −0.09 [−0.26, +0.07] | −0.89 [−1.95, +0.14] | pass |
-| 538 | 2024–25 | −0.30 [−2.17, +1.51] | −0.08 [−0.23, +0.07] | **−0.84 [−1.54, −0.18]** | fail (first-event slice) |
+| Plain | 2024–25 | −0.41 [−2.30, +1.36] | −0.08 [−0.24, +0.07] | **−0.95 [−1.70, −0.28]** | fail (first event, volatility not measured) |
+| | 2025–26 | **−2.10 [−4.27, −0.09]** | −0.04 [−0.20, +0.12] | −0.75 [−1.73, +0.24] | pass |
+| 538 | 2024–25 | −0.30 [−2.17, +1.51] | −0.08 [−0.23, +0.07] | **−0.84 [−1.54, −0.18]** | fail (first event, volatility not measured) |
 | | 2025–26 | **−2.19 [−4.30, −0.19]** | −0.05 [−0.22, +0.11] | −0.85 [−1.80, +0.07] | pass |
-| 538norm | 2024–25 | −0.23 [−2.11, +1.56] | −0.09 [−0.24, +0.05] | **−0.77 [−1.42, −0.16]** | fail (first-event slice) |
+| 538norm | 2024–25 | −0.23 [−2.11, +1.56] | −0.09 [−0.24, +0.05] | **−0.77 [−1.42, −0.16]** | fail (first event, volatility not measured) |
 | | 2025–26 | **−2.16 [−4.26, −0.13]** | −0.05 [−0.21, +0.11] | −0.82 [−1.77, +0.10] | pass |
 
 **Margin hybrid**, alongside H1: margin = b1 × engine margin + b2 × Δ. It improves margin MAE in both seasons:
@@ -127,10 +130,10 @@ The fit shrinks the engine's margin (b1 ≈ 0.90) and adds a small Elo term.
    - Neither season's interval excludes zero against the champion.
    - Against a fair recalibrated control it helps 2025–26 only.
 3. **H2 (MOV-Elo as a 23rd contextual input): rejected.**
-   - Against the champion it wins on 2025–26 only. On 2024–25 the interval spans zero and the first-event slice regresses.
+   - Against the champion it wins on 2025–26 only. On 2024–25 the interval spans zero and the first-event and volatility-not-measured slices regress.
    - Against its own refit it wins on 2024–25 only.
    - It also inherits the 22-weight refit Part 9 rejected (three sign flips; here D1 flips again).
-4. **The margin multiplier adds nothing the engine lacks.** In every hybrid, plain win/loss Elo adds as much as MOV-Elo or slightly more. What the hybrids pick up is the opponent-relative signal, not the margin: the engine already learns from margins, per phase. That signal is small (≤ 1×10⁻⁴ Brier) and not stable across seasons.
+4. **The margin multiplier adds nothing the engine lacks.** In every hybrid, plain win/loss Elo adds about as much as MOV-Elo. What the hybrids pick up is the opponent-relative signal, not the margin: the engine already learns from margins, per phase. That signal is small (≤ 1×10⁻⁴ Brier) and not stable across seasons.
 5. **Margin hybrid: not shippable on its own.** It gains about 0.1 points of margin MAE, but the gate's primary metric is Brier, and the matching probability hybrid fails. It also mostly shrinks the engine's margin by about 10%, which the score model's own spread fit could be asked to do directly. A score-model question for a later gate, like R3's foul note.
 
 **Follow-up.** An opponent-relative term ("beats strong opponents") is the one thing Elo measures and the engine doesn't. It is worth a targeted test at the 2026–27 rollover, when a fully unseen season exists. As a plain Elo input it does not clear the gate today.

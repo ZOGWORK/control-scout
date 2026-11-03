@@ -94,7 +94,7 @@ What the measurements showed:
 Each topic is a note plus a forward-only test against the live engine. The protocol: monthly rolling origins from October 2024 to July 2026, fits on the prior 365 days, decisive matches, event-bootstrap intervals. The scripts are in `scripts/research/`.
 - [R3: component importance](research-2026-11/r3-component-importance.md):
   - TeleOp ≫ auto > endgame; expected fouls add nothing to the win call.
-  - The auto reweighting candidate fails on 2025–26. No change.
+  - The auto reweighting candidate fails the gate (calibration on 2024–25, Brier and accuracy on 2025–26). No change.
 - [R5: margin-of-victory Elo](research-2026-11/r5-mov-elo.md):
   - Standalone it is about 0.029 Brier behind.
   - As an extra input it doesn't clear the gate in both seasons, and plain Elo adds as much. No change.

@@ -94,14 +94,23 @@ out.correlations = Object.fromEntries(SEASONS.map((s) => {
   return [s, { auto: ph("auto"), teleop: ph("teleop"), endgame: ph("endgame"), fouls: ph("pen"), ...Object.fromEntries([3, 4, 6, 12, 13, 14, 17].map((k) => [`D${k + 1}`, corr(idx.map((i) => rows[i].x[k]), y)])) }];
 }));
 
-// ---- The champion's implied per-point weights (final log-odds per point of expected gap, relative to TeleOp).
+// ---- The champion's implied per-point weights (final log-odds per unit of expected gap / S, relative to TeleOp).
+// Per row: a phase gap moves L (by dL/d(gap/S)), every input of the form L × f with it (D8–D12, D16, D17, D19),
+// and its own input (D1 auto, D2 endgame, D3 fouls). Averaged over 2025–26 rows; the calibration gain folds in.
 {
   const gain = (M.recalibration?.slope ?? 1) * M.calibration.slope;
   const idx = seasonRows(2025, testIdx);
-  const k = idx.reduce((s, i) => { const u = rows[i].muGap / rows[i].S, P = Phi(u); return s + phi1(u) / (P * (1 - P)); }, 0) / idx.length;
-  const per = (c: number, sc: number) => gain * (k + c / sc);
-  const w = { auto: per(M.coefficients[0], M.scale[0]), teleop: per(0, 1), endgame: per(M.coefficients[1], M.scale[1]), fouls: per(M.coefficients[2], M.scale[2]) };
-  out.championWeights = { dLdGapOverS: k, gain, perUnitGapOverS: w, relativeToTeleop: Object.fromEntries(Object.entries(w).map(([n, v]) => [n, v / w.teleop])) };
+  const own: Record<string, number | null> = { auto: 0, teleop: null, endgame: 1, fouls: 2 };
+  const sums: Record<string, number> = { auto: 0, teleop: 0, endgame: 0, fouls: 0 };
+  let kSum = 0, lxSum = 0;
+  for (const i of idx) {
+    const r = rows[i], u = r.muGap / r.S, P = Phi(u), k = phi1(u) / (P * (1 - P));
+    const lx = LX.reduce((t, j) => t + (M.coefficients[j] / M.scale[j]) * fOf(r, j), 0); // dz/dL beyond 1
+    kSum += k; lxSum += 1 + lx;
+    for (const [n, j] of Object.entries(own)) sums[n] += gain * (k * (1 + lx) + (j == null ? 0 : M.coefficients[j] / M.scale[j]));
+  }
+  const w = Object.fromEntries(Object.entries(sums).map(([n, v]) => [n, v / idx.length])) as Record<string, number>;
+  out.championWeights = { dLdGapOverS: kSum / idx.length, dzdL: lxSum / idx.length, gain, perUnitGapOverS: w, relativeToTeleop: Object.fromEntries(Object.entries(w).map(([n, v]) => [n, v / w.teleop])) };
   console.log("champion implied weights", JSON.stringify(out.championWeights));
 }
 function phi1(u: number) { return Math.exp(-0.5 * u * u) / Math.sqrt(2 * Math.PI); }
