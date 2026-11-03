@@ -5,8 +5,8 @@
 // and the match's video.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ClipboardList, PlayCircle, Video } from "lucide-react";
-import { ClipLink } from "./MatchClip";
+import { ChevronLeft, ChevronRight, ClipboardList, Video } from "lucide-react";
+import { ClipLink, MatchVideoLink } from "./MatchClip";
 import { clipTime } from "../shared/recording";
 import type { MatchDetail, MatchView } from "../shared/api";
 import { matchReportHref } from "../shared/matchReport";
@@ -68,8 +68,8 @@ function Body({ d, eventName }: { d: MatchDetail; eventName?: string }) {
         <span className="font-medium text-text-base">{d.description ?? m.label}</span>
         {m.time && <span>{matchTime(m.time)}</span>}
         {eventName !== undefined && <Link to={href(m.key)} className="underline-offset-2 hover:underline">{d.event.name}</Link>}
-        {m.clip && <ClipLink clip={m.clip} className="font-medium text-video hover:text-text-base">Watch in the recording · {clipTime(m.clip.t)}</ClipLink>}
-        {m.video && <a href={m.video} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 hover:text-text-base"><PlayCircle className="size-3.5" /> Official video</a>}
+        {m.clip && <ClipLink clip={m.clip} label={m.label} matchKey={m.key} className="font-medium text-video hover:text-text-base">Watch in the recording · {clipTime(m.clip.t)}</ClipLink>}
+        {m.video && <MatchVideoLink url={m.video} label={m.label} matchKey={m.key} className="hover:text-text-base">Official video</MatchVideoLink>}
         <Link to={matchReportHref(m)} className="inline-flex items-center gap-1 font-medium text-accent-text underline-offset-2 hover:underline"><ClipboardList className="size-3.5" aria-hidden /> Know your match</Link>
         <span className="ml-auto flex items-center gap-1">
           {d.prev && <Link to={href(d.prev.key)} className="inline-flex items-center rounded px-1.5 py-0.5 hover:bg-text-base/[0.06] hover:text-text-base" aria-label={`Previous match, ${d.prev.label}`}><ChevronLeft className="size-3.5" />{d.prev.label}</Link>}
