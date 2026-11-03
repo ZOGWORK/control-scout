@@ -138,6 +138,13 @@ describe("winning alliances", () => {
     expect(a.stat!.headline).toBeDefined();
     expect(a.stat!.blocks.some((b) => b.kind === "links" && b.title === "Inspire Award")).toBe(true);
     expect(readStatQuestion("who won states")?.id === "winning-alliance" ? (await searchAnswer("who won states", { limit: 25 })).stat : undefined).toBeUndefined();
+    // A bare year is when the event was held, as the asks read it: 2026 is the 2025–26 championship, 2025 the one before.
+    expect((await searchAnswer("who won 2026 nj states", { limit: 25 })).stat!.title).toMatch(/2025–26 winning alliance$/);
+    expect((await searchAnswer("who won 2025 nj states", { limit: 25 })).stat).toBeUndefined();
+  });
+  it('"last season" outside a championship question is the season before the current one', () => {
+    expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2025, lastYear: true } });
+    expect(readStatQuestion("4215 average score last season")).toMatchObject({ scope: { season: 2025 } });
   });
   it("a Leadership Award stored as a Winner is never on the winning alliance", async () => {
     expect((await searchAnswer("Pine Barrens Qualifier winning alliance", { limit: 25 })).stat!.headline).toMatchObject({ value: "207 Critical Mass" });
