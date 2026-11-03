@@ -244,6 +244,8 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
   );
 }
 
+// Rounded as the server rounds the headline (half up), so a row and the headline never differ by 0.1.
+const oneDp = (v: number) => (Math.round(v * 10) / 10).toFixed(1);
 const PHASES = [{ key: "auto", label: "Auto", tone: "bg-chart-1" }, { key: "teleop", label: "TeleOp", tone: "bg-chart-2" }, { key: "endgame", label: "Endgame", tone: "bg-chart-3" }] as const;
 
 /** A leaderboard: on a computer a wide table with a bar column (the asked stat scaled to #1, an OPR's auto, TeleOp and
@@ -295,7 +297,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
                 <td className="px-2.5 py-1.5"><Link to={r.team.href} className="font-medium text-foreground hover:text-accent-text hover:underline">{r.team.label}</Link></td>
                 <td className="px-2.5 py-1.5 text-muted-foreground">{r.location ?? "–"}</td>
                 <td className="px-2.5 py-1.5 tabular-nums">{r.record}</td>
-                <td className={cn("px-2.5 py-1.5 text-right tabular-nums", isOpr && asked)}>{r.opr == null ? "–" : r.opr.toFixed(1)}</td>
+                <td className={cn("px-2.5 py-1.5 text-right tabular-nums", isOpr && asked)}>{r.opr == null ? "–" : oneDp(r.opr)}</td>
                 {!isOpr && <td className={cn("px-2.5 py-1.5 text-right tabular-nums", asked)}>{r.display}</td>}
                 <td className="px-2.5 py-1.5">{bar(r)}</td>
               </tr>
@@ -313,7 +315,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
               <span className={cn("shrink-0 text-sm tabular-nums", asked)}>{r.display}</span>
             </div>
             <div className="ml-7 mt-1">{bar(r)}</div>
-            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${r.opr.toFixed(1)}` : ""].filter(Boolean).join(" · ")}</p>
+            <p className="ml-7 mt-0.5 truncate text-[11px] text-muted-foreground">{[r.location, r.record, !isOpr && r.opr != null ? `OPR ${oneDp(r.opr)}` : ""].filter(Boolean).join(" · ")}</p>
           </li>
         ))}
       </ol>
