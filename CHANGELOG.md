@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.5 — 2026-11-03
+## 2.8.7 — 2026-11-03
 
 FTC One Search understands "and", "or" and "not" between teams, and quotes around an exact name: "4215 and 6980" lists the matches both teams played in.
 
@@ -28,6 +28,33 @@ FTC One Search understands "and", "or" and "not" between teams, and quotes aroun
 ### Search
 - **Boolean operators.** `and` (or `&`), `or` (or `|`) and `not` (or `-` before a term) between teams, read like a web search: NOT first, then AND, then OR, no parentheses. What's asked still decides the answer: on its own or with "matches" it's the match list (both teams on the field, on either alliance, newest first, how many as partners and as opponents); with a stat it's the stat side by side (`4215 and 6980 opr`; any other stat, such as `4215 and 6980 record`, in the team table with each team's season OPR, phases, penalties and record). Two teams with no match in common are told so, with each team's own match count and a link to the "or" list. A team name with "and" or "not" in it ("Nuts and Bolts", "Batteries Not Included") stays a name, and `vs`, "compare" and "have … played each other" keep their own answers. Details in docs/search-boolean.md. (#497)
 - **Exact phrases.** A name in double quotes finds the teams named exactly that first, then names holding the words together, never names with the words apart.
+
+## 2.8.6 — 2026-11-03
+
+A team's name with a place ("robo rebels nj") now finds the teams by that name, and says so plainly when none is there.
+
+### Highlights
+- [teams] "Robo rebels nj" lists every Robo Rebels when none is in NJ
+- [teams] A name and a state find that state's team by that name
+- [fixes] No more "No matches found" for a real team name and a place
+
+### Search
+- **A name and a place.** A team's whole name followed by a place ("robo rebels nj", "bad wolf new jersey") lists the teams by that name in that place, or, when none is there, says "No team named Robo Rebels in New Jersey" and lists every team by the name. Every team sharing the name is checked against its stored state and country, accents and case folded as search reads names, never a capped list. (#504)
+
+## 2.8.5 — 2026-11-03
+
+Predictions show more of their working. The track record adds margin error, every prediction says in one line what it learns from and what changes in playoffs, and a few numbers now come with the sum behind them. No prediction changed.
+
+### Highlights
+- [report] Track record shows margin error next to accuracy and Brier
+- [predict] Each prediction says what it learns from, and what playoffs change
+- [predict] The Lab writes each predicted score out from the robots' ratings
+- [predict] Best-of-3 series show the one-game chance behind them
+
+### Predictions
+- **Margin error.** The track record's ledger now shows how many points the predicted margin (red's predicted score minus blue's) missed by on average, against always guessing a tie, with qualifiers and playoffs apart. Live calls and the season replay stay separate, as always. (#488)
+- **Quals and playoffs, stated.** The match drawer, Know your match, the Lab, the factor sheet, projections, advancement odds, simulated rankings and the bracket each carry one short line: ratings learn from every played match, a playoff result counts half, and in playoffs partners add up in full, ranges are tighter and there are no bonus RPs. A new "Quals and playoffs" section on How it works has the details.
+- **Numbers you can check.** The match drawer and the Lab show the predicted margin ("Red by 12 (118 − 106)"). The Lab's ratings table adds each robot's penalties and writes each predicted score out: robots' ratings, minus the overlap cut, plus the other side's penalties. A best-of-3 series shows the one-game chance it comes from.
 
 ## 2.8.4 — 2026-11-03
 

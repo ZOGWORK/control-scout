@@ -11,6 +11,7 @@ import type { EventDetail } from "../shared/api";
 import { DEFAULT_PER_TEAM, PER_TEAM_CHOICES, type SimRankResult } from "../shared/rankingSimView";
 import { Button } from "./ui/button";
 import { cn } from "./cn";
+import { PredictionBasis } from "./PredictionBasis";
 
 type Answer = ({ status: "ok" } & SimRankResult) | { status: "unavailable"; reason: string };
 
@@ -124,6 +125,7 @@ export function SimulatedRankings({ d, team }: { d: EventDetail; team: number | 
             {ok.runs.toLocaleString()} simulated events with the model's own ranking points and tiebreakers.
             The range under each average rank holds 80% of them. Gone once qualification starts: the official ranking takes over.
           </p>
+          <PredictionBasis kind="event" className="mt-1" />
         </>
       )}
     </section>
