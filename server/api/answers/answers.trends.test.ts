@@ -38,6 +38,7 @@ describe("trends", () => {
     expect(readStatQuestion("4215 ranking points")).toMatchObject({ id: "ranking-points" });
     // A scope a trend can't apply is left to search.
     expect(readStatQuestion("4215 win rate at worlds")).toBeNull();
+    for (const q of ["4215 total penalties at New Jersey Championship", "4215 total penalties at worlds", "4215 total penalties in playoffs", "4215 seasonal OPR in 2024-25", "4215 record by season 2024-25", "4215 win rate all time", "4215 OPR history ever"]) expect(readStatQuestion(q), q).toBeNull();
   });
   it("by event in the latest season, rising or falling against the event before", async () => {
     const o = await searchAnswer("4215 OPR history", { limit: 25 });
