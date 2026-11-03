@@ -37,7 +37,7 @@ describe("r1 raters", () => {
 
   it("TrueSkill and Glicko-2 move ratings toward the winner and stay colour-symmetric", () => {
     for (const R of [new TrueSkill({ sigma0: 1, beta: 1, tau: 0.03, rho: 0.6, drawRate: 0.01 }), new Glicko2({ phi0: 1, sigma0: 0.06, tau: 0.5, rho: 0.6 })]) {
-      R.startSeason(2025);
+      R.startSeason();
       expect(R.predict(match([1, 2], [3, 4], [0, 0, 0, 0], [0, 0, 0, 0])).z).toBe(0);
       R.update(match([1, 2], [3, 4], [10, 10, 10, 0], [0, 0, 0, 0]));
       const a = R.predict(match([1, 2], [3, 4], [0, 0, 0, 0], [0, 0, 0, 0])), b = R.predict(match([3, 4], [1, 2], [0, 0, 0, 0], [0, 0, 0, 0]));

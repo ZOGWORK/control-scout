@@ -2,7 +2,8 @@
 //
 //   1. Champion rows, on a COPY of the pinned snapshot:
 //        DATABASE_URL=file:snap.db npx tsx scripts/engine-slices.ts --seasons 2023,2024,2025 --rows champion-rows.json.gz
-//   2. DATABASE_URL=file:snap.db npx tsx scripts/research/r1-rating-systems.ts champion-rows.json.gz [--out r1.json] [--quick]
+//   2. DATABASE_URL=file:snap.db npx tsx scripts/research/r1-rating-systems.ts champion-rows.json.gz [--out r1.json] [--quick] [--context-only]
+//      (--quick: one setting per method; --context-only: the champion's own refit control and its slopes, then stop)
 //
 // Protocol (identical for every model):
 // - Every challenger replays the backtest corpus (scripts/slices/corpus.ts: same loader, exclusions and order as the
@@ -101,10 +102,12 @@ function rolled(calls: Map<string, RaterCall>, phases = false): { model: Model; 
   return { model, slopes, weights };
 }
 /** Champion with its final slope (and a margin slope) re-fitted on the same rolling windows: the control for the hybrids. */
+const refitSlopes: { origin: string; probability: number; margin: number }[] = [];
 function championRefit(): Model {
   const model: Model = new Map();
   for (const f of folds) {
     const [a] = logistic(f.train, (r) => [logit(r.pred.champion.p)], [1]), [b] = lsq(f.train, (r) => [champMargin(r)]);
+    refitSlopes.push({ origin: new Date(f.origin).toISOString().slice(0, 7), probability: +a.toFixed(4), margin: +b.toFixed(4) });
     for (const r of f.test) model.set(r.key, { p: sig(a * logit(r.pred.champion.p)), m: b * champMargin(r) });
   }
   return model;
@@ -213,6 +216,9 @@ for (const s of [2024, 2025]) {
 }
 const refit = championRefit();
 result.context.championRefit = evaluate("champion (refit slope)", refit);
+result.context.championRefitSlopes = refitSlopes;
+console.log(`champion refit slopes (probability, margin) by origin: ${refitSlopes.map((x) => `${x.origin} ${x.probability}/${x.margin}`).join("; ")}`);
+if (args.includes("--context-only")) { if (flag("--out")) writeFileSync(flag("--out")!, JSON.stringify(result.context, null, 1) + "\n"); process.exit(0); }
 
 for (const g of grids) {
   const t0 = Date.now(); const tried: Record<string, unknown>[] = [];
