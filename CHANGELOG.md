@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.7 — 2026-11-03
+
+Search engines now get only the team and event pages that have something on them, and every address in the sitemap opens a real page.
+
+### Highlights
+- [fixes] Empty team and event pages wait for data before being indexed
+- [fixes] Every address in the sitemap opens a real page
+- [speed] Event list and world rankings arrive with their lists
+
+### Search engines
+- **Empty pages wait.** A team that has never played, won an award or entered an event of this season, and an event with no teams and no matches, still opens as usual but asks search engines not to index it, and leaves the sitemap. The day its first data arrives, it's indexed and listed again on its own. (#478)
+- **Every sitemap address opens.** Older events whose codes the site can't open (mixed case or punctuation, mostly 2019–20) are no longer listed. Pages the app draws from a heading alone (the team and match tables, Predict, Download, Rules, Privacy, Terms, Contact, Donate) stay findable from their links but aren't offered in the sitemap. (#478)
+- **Lists in the first HTML.** The event list shows this season's latest events, and the world rankings their teams, before the app has loaded. (#478)
+
 ## 2.7.6 — 2026-11-03
 
 A search about one team's fact names the team once in its heading, and a word after an apostrophe stays lower case.
