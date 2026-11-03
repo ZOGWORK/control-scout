@@ -234,7 +234,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         headline: { value: signed(mean(xs.map(margin))), label: `points a ${unit[0]} in ${seasonLabel(latest)}, over ${xs.length} ${unit[xs.length === 1 ? 0 : 1]}`, sub: seasons.length > 1 ? "Each season is a different game: every season is listed apart" : recText(record(all)) },
         blocks: [
           { kind: "kpis", items: kpis },
-          { kind: "series", title: `Average margin by event, ${seasonLabel(latest)}`, unit: "points", points: [...events.values()].map((ys) => ({ x: ys[0].event, y: Number(mean(ys.map(margin)).toFixed(1)), href: eventHref(ys[0].season, ys[0].code, team.number), note: `${ys.length} matches` })) },
+          { kind: "series", title: `Average ${only === "W" ? "winning " : only === "L" ? "losing " : ""}margin by event, ${seasonLabel(latest)}`, unit: "points", points: [...events.values()].map((ys) => ({ x: ys[0].event, y: Number(mean(ys.map(margin)).toFixed(1)), href: eventHref(ys[0].season, ys[0].code, team.number), note: `${ys.length} matches` })) },
           ...(seasons.length > 1 ? [{ kind: "table" as const, title: "Each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "Average margin", num: true }, { key: "record", label: "W-L-T" }, { key: "n", label: "Matches", num: true }],
             rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: signed(mean(ys.map(margin))), record: recText(record(ms.filter((m) => m.season === s))), n: ys.length }, strong: s === latest })) }] : []),
         ],
