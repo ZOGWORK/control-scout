@@ -120,7 +120,8 @@ export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null
   if (Math.abs(median(offs.slice(0, CHAPTER_MIN_ANCHORS))) > CHAPTER_DRIFT_S) return null;
   let to = anchors.length - CHAPTER_TAIL;
   for (let p = 1; p <= anchors.length - CHAPTER_TAIL; p++) {
-    const before = median(offs.slice(0, p));
+    // At least the first CHAPTER_MIN_ANCHORS set what "before" is: one stray early chapter is no gap after it.
+    const before = median(offs.slice(0, Math.max(p, CHAPTER_MIN_ANCHORS)));
     const jumps = (xs: number[]) => Math.abs(median(xs) - before) > CHAPTER_DRIFT_S;
     if (jumps(offs.slice(p, p + CHAPTER_TAIL)) && jumps(offs.slice(p))) { to = p - 1; break; }
   }

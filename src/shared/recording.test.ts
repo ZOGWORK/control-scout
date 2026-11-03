@@ -131,6 +131,13 @@ describe("a recording cut short, its chapters checked", () => {
     const drift = chapters.map(([t, title], i): Chapter => [i >= 12 && i <= 15 ? t - 720 : t, title]);
     expect(chaptersConfirm(timing, drift, quals)).toBe(clock(27));
   });
+  it("one stray early chapter is no gap after it, but a gap among the first few still is", () => {
+    // Only Q1's chapter 12 min early: the rest agree.
+    const stray = chapters.map(([t, title], i): Chapter => [i === 1 ? t - 720 : t, title]);
+    expect(chaptersConfirm(timing, stray, quals)).toBe(clock(27));
+    // 40 min lost after Q4: too little before it to vouch for.
+    expect(chaptersConfirm(timing, shift(5, 2400), quals)).toBeNull();
+  });
   it("a drop-out stops it at the match before, wherever it falls, however much a cut at the end also took", () => {
     // 40 min lost after Q15, in this video that's also 6 h short at the end: in the video, Q16 on come that much sooner.
     const mid = chaptersConfirm(timing, shift(16, 2400), quals)!;
