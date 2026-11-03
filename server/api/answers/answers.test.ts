@@ -136,6 +136,12 @@ describe("the answers", () => {
     const high = await searchAnswer("4215 highest score in worlds", { limit: 25 });
     expect(high.stat!.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []))[0]).toMatchObject({ own: 275, ownNp: 260 });
   });
+  it("never one number across seasons: every season's average apart", async () => {
+    const a = await searchAnswer("4215 average score ever", { limit: 25 });
+    expect(a.stat!.headline!.label).toMatch(/in 2025–26/);
+    const t = a.stat!.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.map((r) => r.cells.season)).toEqual(["2025–26", "2024–25"]);
+  });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });
     expect(a.stat).toBeUndefined();
