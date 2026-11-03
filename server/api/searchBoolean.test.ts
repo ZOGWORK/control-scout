@@ -21,7 +21,7 @@ beforeAll(async () => {
   await migrate(c);
   const teams: [number, string, number][] = [
     [4215, "Hypnotic Robotics", 101.6], [6980, "Bad Wolf", 130], [23268, "Ultraviolet", 157.9], [14270, "Quantum Robotics", 200],
-    [15461, "Nuts and Bolts", 40], [5110, "Wingus & Dingus", 30],
+    [15461, "Nuts and Bolts", 40], [5110, "Wingus & Dingus", 30], [7418, "Batteries Not Included", 25],
     [16762, "Raider Robotics", 50], [16774, "Raider Robotics", 45], [12655, "North Cross Raider Robotics", 90], [4360, "Raider Robotics - Gold", 20], [3333, "Robotics Raiders United", 10],
   ];
   for (const [n, name, opr] of teams) {
@@ -111,8 +111,23 @@ describe("the brief's ten cases", () => {
   it("10. a team name holding and, or or & stays a name", async () => {
     expect(await readBoolean("nuts and bolts")).toBeNull();
     expect(await readBoolean("wingus & dingus")).toBeNull();
+    expect(await readBoolean("batteries not included")).toBeNull();
+    expect((await readBoolean("4215 -batteries not included"))?.groups).toEqual([[{ team: 4215, neg: false }, { team: 7418, neg: true }]]);
     expect((await readBoolean("nuts and bolts and 4215"))?.groups).toEqual([[{ team: 15461, neg: false }, { team: 4215, neg: false }]]);
     expect(rowsOf(await ask("Nuts and Bolts and 4215")).map((r) => r.label)).toEqual(["Q7"]);
+  });
+});
+
+describe("failed searches filed against this reader", () => {
+  it("#483 4215 and 6980 matches together: the AND match list", async () => {
+    expect(sig(await ask("4215 and 6980 matches together"))).toBe(sig(await ask("4215 and 6980")));
+  });
+  it("#490 4215 not opr: declined plainly, never the team page as if answered", async () => {
+    const a = await ask("4215 not opr");
+    expect(a.stat?.intent).toBe("boolean-not");
+    expect(a.stat?.none).toContain("\"opr\" isn't a team, so there's nothing to leave out");
+    expect(a.understood?.label).not.toContain("isn't answered directly yet");
+    expect(a.stat?.blocks[0]).toMatchObject({ kind: "links", items: [{ label: "4215 opr" }, { label: "4215 matches" }] });
   });
 });
 
@@ -128,6 +143,11 @@ describe("precedence and parsing", () => {
   });
   it("a group only of NOTs, a dangling operator or an unknown team is no expression", async () => {
     for (const q of ["4215 or not 6980", "4215 and", "and 4215 6980", "4215 and 99999", "4215 and the bees"]) expect(await readBoolean(q), q).toBeNull();
+  });
+  it("a season or a match type can follow a match list", async () => {
+    expect((await ask("4215 and 6980 matches 2025-26")).stat?.headline?.value).toBe("4");
+    expect((await ask("4215 and 6980 matches 2024-25")).stat?.none).toContain("no shared matches in 2024–25");
+    expect((await ask("4215 or 6980 in playoffs")).stat?.none).toContain("No matches");
   });
   it("a quoted full name is one term", async () => {
     expect((await readBoolean("\"bad wolf\" and 4215"))?.groups).toEqual([[{ team: 6980, neg: false }, { team: 4215, neg: false }]]);

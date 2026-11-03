@@ -218,9 +218,9 @@ async function ownStat(read: Reader, team: number, rest: string, full: boolean):
 export async function booleanAnswer(raw: string, read: Reader, full: boolean): Promise<SearchAnswer | null> {
   const phrase = await phraseAnswer(raw, read);
   if (phrase) return phrase;
-  const b = await readBoolean(raw);
-  if (!b) return null;
   const q = String(raw ?? "").replace(/\s+/g, " ").trim();
+  const b = await readBoolean(raw);
+  if (!b) return notStatAnswer(raw, q, read, full);
   const wanted = [...new Set(b.groups.flat().filter((l) => !l.neg).map((l) => l.team))];
   const left = [...new Set(b.groups.flat().filter((l) => l.neg).map((l) => l.team))].filter((t) => !wanted.includes(t));
   const { scope: rs, rest } = readScope(` ${b.rest} `);
@@ -312,4 +312,33 @@ async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | n
   const hits = [...kept.filter(isExact), ...kept.filter((h) => !isExact(h))].map((h) => ({ ...h, match: "exact" as const }));
   const label = exact.length ? `Exact name "${phrase}": ${exact.length} team${exact.length === 1 ? "" : "s"} named exactly that${hits.length > exact.length ? ", then names holding the phrase" : ""}` : `Names holding "${phrase}" word for word`;
   return { ...a, q, hits, step: "deterministic", weak: false, didYouMean: undefined, understood: { kind: "names", label } };
+}
+
+/** "4215 not opr": NOT before a word that isn't a team. NOT leaves a team out of a list; it can't leave out a stat, so
+ *  the answer says so plainly and offers what was likely meant, never the team page as if it had answered. */
+async function notStatAnswer(raw: string, q: string, read: Reader, full: boolean): Promise<SearchAnswer | null> {
+  const toks = await protectNames(tokenize(String(raw ?? "").slice(0, 120)));
+  const at = toks.findIndex(isOp);
+  if (at < 1 || !isOp(toks[at]) || toks[at].op !== "not" || toks.slice(at + 1).some(isOp) || toks.length === at + 1) return null;
+  const team = await teamOf(toks.slice(0, at));
+  const after = toks.slice(at + 1);
+  if (team == null || (await teamOf(after)) != null || after.some((t) => !("word" in t))) return null;
+  const words = after.map((t) => (t as { word: string }).word).join(" ");
+  const hit = (await read(String(team))).hits.find((h) => h.kind === "team" && h.ref === String(team));
+  if (!hit || hit.href) return null;
+  const who = whoOf({ number: team, name: teamNameOf(hit.title) || null });
+  const line = `"not" leaves a team out ("${team} not 6980"); "${words}" isn't a team, so nothing was left out`;
+  const a: SearchAnswer = {
+    q, hits: [{ ...hit, facts: undefined, events: undefined }], pages: pagesFor(q), step: "deterministic", weak: false,
+    understood: { kind: "question", label: `${who} · ${line}` }, intent: { kind: "boolean-not", pattern: "[team] not [word]", met: false, understood: [`Team ${who}`, line] },
+  };
+  if (!full) return a;
+  const ask = (x: string) => ({ label: x, href: `/search?q=${encodeURIComponent(x)}` });
+  const stat: StatAnswer = {
+    family: "stat", intent: "boolean-not", title: `${team} not ${words}`, team: { number: team, name: teamNameOf(hit.title) || null }, scope: [],
+    none: `"Not" leaves a team out of a list, as in "${team} not 6980" (${team}'s matches without 6980). "${words}" isn't a team, so there's nothing to leave out.`,
+    definition: RULE, source: "No numbers read: the query names no team after \"not\"",
+    blocks: [{ kind: "links", title: "Did you mean", items: [ask(`${team} ${words}`), ask(`${team} matches`)] }],
+  };
+  return { ...a, stat };
 }
