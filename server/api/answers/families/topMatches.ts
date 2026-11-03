@@ -8,7 +8,7 @@ import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { all, get } from "../../../db.js";
-import { SEASONS } from "../../../data/seasons.js";
+import { SEASONS, ownScorePenalties } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
@@ -28,7 +28,7 @@ export interface TopMatchesQuestion {
 
 // A season-wide high score ("highest scoring games", "top scores", "highest score in decode"); a team's, or a world
 // record ("world record score", the season records' own card), is not this.
-const ASKED = /\b(?:highest[\s-]+scoring\s+(?:games?|matches?)|(?:highest|top|best|biggest|max(?:imum)?)\s+(?:match\s+|alliance\s+|combined\s+)?scores?)\b/;
+const ASKED = /\b(?:highest[\s-]+scoring\s+(?:games?|match(?:es)?)|(?:highest|top|best|biggest|max(?:imum)?)\s+(?:match\s+|alliance\s+|combined\s+)?scores?)\b/;
 const FILLER = /\b(?:the|in|of|for|during|all|ftc|first|tech|challenge|what|whats|which|were|was|are|is|games?|matches?|scores?|scoring|highest|top|best|ever|time|history|so|far|this|season|year|official)\b/g;
 
 /** The question `q` asks, or null. */
@@ -90,6 +90,9 @@ const keyOf = (r: Row, side: string) => `${r.season}|${r.code}|${r.level}|${r.se
 
 const RULE = "An alliance score is the alliance's own points without penalties (fouls the other alliance committed aren't its points), the score with penalties beside it; a combined score is both alliances' points without penalties. Only official events count (qualifiers, league play, championships, premier events), never scrimmages or off-season events.";
 
+// 2020–21 and 2021–22 took penalties off the alliance's own score instead.
+const RULE_OWN = RULE.replace("the alliance's own points without penalties (fouls the other alliance committed aren't its points), the score with penalties beside it", "the alliance's points before its own penalties (in this season penalties came off the alliance's own score), the score after them beside it");
+
 /** The answer. Null when the event named isn't found. */
 export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words: string, season: number | null) => Promise<{ season: number; code: string; name: string; type: string | null } | null>): Promise<StatAnswer | null> {
   const ev = t.event ? await findEvent(t.event, t.season) : null;
@@ -105,10 +108,10 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const links = await teamLinks([...ups.values()].flat());
   const named = (r: Row, side: string) => (ups.get(keyOf(r, side)) ?? []).map((n) => links.get(n)!).filter(Boolean);
   const scopeWords = `${gameOf(season)} ${seasonLabel(season)}${place ? ` · ${place}` : ""}`;
-  const title = `Highest-scoring matches${place ? ` in ${place}` : ""}, ${gameOf(season)} ${seasonLabel(season)}`;
+  const title = `Highest-scoring matches${place ? ` ${ev ? "at" : "in"} ${place}` : ""}, ${gameOf(season)} ${seasonLabel(season)}`;
   const base = {
     family: "superlative" as const, intent: "season-top-matches", title, scope: [seasonLabel(season), ...(place ? [place] : []), "Official events"],
-    definition: `${RULE}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
+    definition: `${ownScorePenalties(season) ? RULE_OWN : RULE}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""} in ${seasonLabel(season)} yet.` };
@@ -123,7 +126,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   };
   const best = top.alliances[0];
   const blocks: StatBlock[] = [
-    { kind: "bars", title: `Top ${top.alliances.length} alliance scores`, groups: [{ label: "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label} ${shortEvent(r.name, r.type).replace(/^Worlds · /, "")}`, value: r.score, tone: r.side === "red" ? "d" : "a" })) }] },
+    { kind: "bars", title: `Top ${top.alliances.length} alliance scores`, groups: [{ label: "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label}`, value: r.score, tone: r.side === "red" ? "d" : "a" })) }] },
     { kind: "matches", title: "Highest alliance scores", rows: top.alliances.map(row) },
     { kind: "table", title: "Highest combined scores (both alliances)", columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
       rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })) },

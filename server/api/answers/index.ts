@@ -115,10 +115,11 @@ async function findEvent(words: string, season: number | null) {
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const board = readLeaderboard(q);
-  if (board) return boardSearch(q, board, opts);
+  // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
+  const board = readLeaderboard(q);
+  if (board) return boardSearch(q, board, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   const it = readStatQuestion(q);
