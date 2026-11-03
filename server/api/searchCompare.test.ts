@@ -103,3 +103,17 @@ describe("Greptile on #436, round 2", () => {
     expect((await ask("cafe robotics vs hypnotic")).hits[0]).toMatchObject({ ref: "4215,55552", compare: { resolved: [{ candidates: [55551, 55552] }] } });
   });
 });
+
+describe("Greptile on #436, round 3", () => {
+  it("the shared-name question is in the notes every surface shows", async () => {
+    const { notes } = answerSections(await ask("ultraviolet vs dominican ultraviolet"));
+    expect(notes.understood).toContain('Which "ultraviolet"? 2 teams have that name: 20245 (Norton Shores, MI), 23268 (Hackettstown, NJ)');
+  });
+  it("no stored state is never 'the same state'", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (66661, 'Nowhere', 'X', NULL, 'Romania'), (66662, 'Twins', 'A', NULL, 'Romania'), (66663, 'Twins', 'B', 'TX', 'USA')");
+    await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'X', 66661, 40, 5), (2025, 'X', 66662, 40, 5), (2025, 'X', 66663, 40, 5)");
+    await rebuildSearch();
+    const a = await ask("twins vs nowhere");
+    expect(a.understood?.label).toMatch(/^Which "twins"?/);
+  });
+});
