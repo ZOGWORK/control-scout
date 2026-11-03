@@ -500,6 +500,9 @@ const recordsSeason = (query: Record<string, unknown>) => {
   const n = Number(qstr(query.season));
   return SEASON_NUMBERS.includes(n) ? n : CURRENT_SEASON;
 };
+/** An address that narrows or reorders a records table (a filter, sort, page, region …): its first HTML lists no
+ *  rows, since the preview reads the table as it opens, and those would not be the rows asked for. */
+const recordsNarrowed = (query: Record<string, unknown>, own: string[]) => Object.keys(query).some((k) => !own.includes(k) && !/^utm_/.test(k));
 const n1 = (v: number | string | null | undefined) => (typeof v === "number" ? fmt1(v) : "–");
 
 /**
@@ -511,7 +514,7 @@ async function teamsTableMeta(query: Record<string, unknown>): Promise<PageMeta>
   const s = STATIC["/teams"], season = recordsSeason(query), view = qstr(query.view);
   const base = { title: s.title, description: fitDescription(s.description), type: "website" as const };
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  if (view === "listed") return { ...base, bodyHtml: `<p>${h(s.description)}</p>` };
+  if (view === "listed" || recordsNarrowed(query, ["season", "view"])) return { ...base, bodyHtml: `<p>${h(s.description)}</p>` };
   const perSeason = view === "season";
   const r = await listRecords(season, recordsQuery(perSeason ? "teamSeason" : "teamEvent", { sort: "totalPointsNpOpr", pageSize: String(RECORD_ROWS) }));
   const items = (r.rows as unknown as { team: number; eventName?: string; stats: Record<string, number | string | null> }[]).map((x) => {
@@ -527,6 +530,7 @@ async function teamsTableMeta(query: Record<string, unknown>): Promise<PageMeta>
  *  its API answers), each linked to its match on the event page. */
 async function matchesTableMeta(query: Record<string, unknown>): Promise<PageMeta> {
   const s = STATIC["/matches"], season = recordsSeason(query);
+  if (recordsNarrowed(query, ["season"])) return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml: `<p>${s.description.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>` };
   const r = await listRecords(season, recordsQuery("match", { sort: "highScore", pageSize: String(RECORD_ROWS) }));
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const items = (r.rows as unknown as { eventCode: string; eventName: string; key: string; label: string; stats: Record<string, number | string | null> }[]).map((x) =>
@@ -706,8 +710,9 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // The plain content pages (privacy, terms, contact, donate, rules): the whole page in the first paint too,
   // prerendered from the real page component at build time (src/prerender/staticPages.tsx).
   if (PRERENDERED_PAGES[p]) {
-    // The rules reference switched off by the owner (flag rulesReference): the page says so, so none of its text, and noindex.
-    if (p === "/rules" && !(await isEnabled("rulesReference").catch(() => false))) return { title: STATIC[p].title, description: fitDescription(STATIC[p].description), type: "website", noindex: true };
+    // The rules reference switched off by the owner (flag rulesReference): the page says so, so none of its text, and
+    // noindex marked as a no-data page's, so the app drops it once the visitor moves on (src/lib/meta.tsx NoDataRobotsSync).
+    if (p === "/rules" && !(await isEnabled("rulesReference").catch(() => false))) return { title: STATIC[p].title, description: fitDescription(STATIC[p].description), type: "website", noData: true };
     const s = STATIC[p], body = prerenderedHtml(PRERENDERED_PAGES[p]);
     return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
   }

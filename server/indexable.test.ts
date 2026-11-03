@@ -211,6 +211,12 @@ describe("the sitemap", () => {
     expect((await pageMeta("/teams", { season: String(P) })).bodyHtml).toContain("Played qualifier · OPR 90.0");
     expect((await pageMeta("/matches")).bodyHtml).toContain(`<a href="/events/${S}/LGM1?match=qual:0:1">Q1 at League meet</a>`);
     expect((await pageMeta("/matches", { season: String(P) })).bodyHtml).toContain(`<a href="/events/${P}/PLAYED?match=qual:0:1">Q1 at Played qualifier</a>`);
+    // An address that filters, sorts or pages the table lists no rows (they wouldn't be the ones asked for); tracking
+    // tags don't count.
+    for (const [path, q] of [["/teams", { country: "US" }], ["/teams", { sort: "autoPointsOpr" }], ["/matches", { region: "USTX" }], ["/matches", { page: "2" }]] as const) {
+      expect((await pageMeta(path, q)).bodyHtml).not.toContain("<ol>");
+    }
+    expect((await pageMeta("/teams", { utm_source: "x" })).bodyHtml).toContain("<ol>");
   });
 });
 
@@ -228,13 +234,14 @@ describe("the rules reference switched off", () => {
     await setFlag("rulesReference", false, "test");
     try {
       const m = await pageMeta("/rules");
-      expect(m.noindex).toBe(true);
+      expect(m.noData).toBe(true);
+      expect(headTags("/rules", m)).toContain(`<meta name="robots" content="noindex" data-no-data />`); // dropped on the next page
       expect(m.bodyHtml).toBeUndefined();
       expect((await sitemapEntries()).map((e) => e.loc)).not.toContain("https://controlscout.org/rules");
     } finally {
       await setFlag("rulesReference", true, "test");
     }
-    expect((await pageMeta("/rules")).noindex).toBeUndefined();
+    expect((await pageMeta("/rules")).noData).toBeUndefined();
     expect((await sitemapEntries()).map((e) => e.loc)).toContain("https://controlscout.org/rules");
   });
 });
