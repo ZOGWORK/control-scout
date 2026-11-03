@@ -120,5 +120,4 @@ export function standing(s: TeamSummary, season: number): Standing {
 /** Whether a standing has anything to show (a record, an OPR or a rank). */
 export const hasNumbers = (s: Standing) => !!s.record || s.opr != null || (s.rank != null && !!s.of);
 
-/** "how good is simply complex", "how strong are the enforcers": a question about one team's quality. */
-export const isQualityQuestion = (q: string) => /^\s*how\s+(?:good|strong)\s+(?:is|are)\b/i.test(q);
+export { isQualityQuestion } from "../../../shared/searchPage";

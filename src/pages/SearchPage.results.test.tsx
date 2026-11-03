@@ -4,7 +4,7 @@
 // the results in the address and clear back to all of them, and nothing found is never a bare dead end.
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SearchAnswer, SearchHit, TeamSummary } from "../shared/api";
 
 const state = vi.hoisted(() => ({ answer: undefined as SearchAnswer | undefined }));
@@ -40,7 +40,7 @@ describe("search results page", () => {
     const cmp = container.querySelector('[data-section="compare"]')!;
     const teams = container.querySelector('[data-section="team"]')!;
     expect(cmp.compareDocumentPosition(teams) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(teams as HTMLElement).getAllByRole("link")).toHaveLength(2);
+    expect(teams.querySelectorAll('[data-result="team"]')).toHaveLength(2);
     expect(within(teams as HTMLElement).getByText("2")).toBeTruthy();
     const card = within(cmp as HTMLElement).getByRole("link");
     expect(card.getAttribute("href")).toBe("/compare?teams=4215,23268");
@@ -106,10 +106,10 @@ describe("search results page", () => {
     const fuzzy = (h: SearchHit) => ({ ...h, match: "fuzzy" as const, matched: ["good"] });
     state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ"), fuzzy(team(7100, "Good Enough", "X")), fuzzy(team(16215, "Goodfellas", "Y"))]);
     const { container } = show("/search?q=x");
-    expect(within(container.querySelector('[data-section="top"]') as HTMLElement).getAllByRole("link")).toHaveLength(1);
+    expect(container.querySelector('[data-section="top"]')!.querySelectorAll('[data-result="team"]')).toHaveLength(1);
     const other = container.querySelector('[data-section="fuzzy"]') as HTMLElement;
     expect(other.textContent).toContain("Other teams matching “good”");
-    expect(within(other).getAllByRole("link")).toHaveLength(2);
+    expect(other.querySelectorAll('[data-result="team"]')).toHaveLength(2);
   });
 
   it("a query that names a site page is answered, not a dead end", () => {
@@ -298,5 +298,43 @@ describe("search results page, Phase 3 layout", () => {
     const { container } = show("/search?q=x");
     expect(container.querySelector("[data-layout]")!.getAttribute("data-layout")).toBe("single");
     expect(container.querySelector("[data-panel]")).toBeNull();
+  });
+});
+
+describe("search results page, phone (Part B 3b)", () => {
+  // A phone-width screen: every (max-width) query matches.
+  const real = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = ((q: string) => ({ matches: /max-width/.test(q), media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  });
+  afterEach(() => { window.matchMedia = real; });
+  const worlds = (season: string, div: string, rank: number, opr: number) => ({
+    text: `FIRST Championship - Houston - World Championship - FIRST Tech Challenge - ${div} Division`,
+    detail: `${season} · Apr 19–23, 2022 · Houston, TX`, results: [`Ranked #${rank}`, "4-4-0 in quals", `OPR ${opr.toFixed(1)}`], href: `/events/${season.slice(0, 4)}/X?team=7149`,
+  });
+
+  it("a search bar holding the query with a clear button, and a short Results header", () => {
+    state.answer = answer([team(18061, "Simply Complex", "Plainsboro, NJ")]);
+    const { container } = show("/search?q=how%20good%20is%20simply%20complex");
+    const bar = container.querySelector("[data-phone-search]")!;
+    expect(bar.textContent).toContain("how good is simply complex");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Results: Simply Complex (18061)");
+    fireEvent.click(screen.getByRole("button", { name: "Clear the search" }));
+    expect(loc).toBe("/search");
+  });
+
+  it("every season as a chip, and each team card a VS Compare of its own", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
+      lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2021–22: #20", "2022–23: #3", "2023–24: #10"]);
+    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149");
+  });
+
+  it("one trip is still a chip, and VS Compare keeps the season the result is about", () => {
+    state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
+    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
+    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
+    expect(container.querySelector("[data-vs-compare]")!.getAttribute("href")).toBe("/compare?teams=7149&season=2024");
   });
 });

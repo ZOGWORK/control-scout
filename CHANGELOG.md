@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.8 — 2026-11-02
+## 2.3.9 — 2026-11-03
 
 FTC One Search: a team number, a team's name or an event code takes you straight to its page.
 
@@ -27,6 +27,22 @@ FTC One Search: a team number, a team's name or an event code takes you straight
 ### Search
 - **Straight to the page.** Enter (or the magnifier) on a search that names exactly one thing opens its page directly: a team number ("6980", "team 6980", "ftc 6980"), one team's whole name ("Bad Wolf", "simply complex") or an event code ("USNJNEM2"). Back returns to the page you searched from, and the search is still kept in your recent searches. Everything else still opens the full results page: questions, places, "vs", topics like "6980 record", part of a name, and names shared by more than one team (there are two teams called "Ultraviolet"). The choice is made from search's own answer, the same one the dropdown shows. Pressing Enter before the dropdown has loaded asks for that answer straight away and goes as soon as it arrives.
 - **Example search.** The versus example is now "6980 vs 16461": both teams have this season's record and OPR, so the head-to-head shows numbers on both sides. (#443)
+
+## 2.3.8 — 2026-11-03
+
+FTC One Search on a phone: the search stays at the top as you scroll, the numbers come first, and every result is easy to tap.
+
+### Highlights
+- [teams] On a phone, your search stays in a bar at the top, with an × to clear it
+- [teams] Stats sit in one row you swipe; each season is a tap-to-jump chip
+- [teams] Bruno AI's written answer folds behind "Show AI Analysis" on a phone
+- [teams] Team results have a VS Compare button; event links are big enough to tap
+
+### Search
+- **The search at the top.** On a phone the search page shows your search in a bar that stays under the top bar while you scroll, and slims down once you do. Tap it to change the search; tap × to clear it. The title reads "Results: …" without the big heading.
+- **Numbers first.** A summary's stats are one row of blocks you swipe sideways, three to a screen. A team's championship trips are a line of chips ("2022–23: #3"), every season shown, each jumping to that trip's card.
+- **AI analysis folded.** When Bruno AI answers, his writing is behind "Show AI Analysis" on a phone, so the results stay near the top. On a wider screen it shows as before.
+- **Made for thumbs.** A whole team card is one tap target, with a VS Compare button that starts a comparison with that team. An event card's quick links are full-size buttons. Results and their order are unchanged. (#442)
 
 ## 2.3.7 — 2026-11-02
 

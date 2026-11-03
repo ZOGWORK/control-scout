@@ -4,10 +4,11 @@
 // he's off, unreachable or has nothing to add, so the page never waits on him. His answer streams in as he writes it
 // (lib/brunoStream.ts), each part already checked; the note says it's his only once he's done.
 import { useEffect, useState, type ReactNode } from "react";
-import { Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 import { streamBrunoAnswer, type BrunoAnswerBody } from "../../lib/brunoStream";
 import { useServerFlag } from "../../lib/flags";
+import { useMediaQuery } from "../../lib/meta";
 import { isBrunoQuestion } from "../../shared/search";
 import { cn } from "../cn";
 
@@ -43,6 +44,7 @@ ${prefer}`;
     }, BRUNO_SETTLE_MS);
     return () => { live = false; clearTimeout(t); stop.abort(); };
   }, [asks, query, prefer, key]);
+  const phone = useMediaQuery("(max-width: 767px)");
   if (!asks || state.key !== key || (!state.busy && !state.text)) {
     if (!children) return null;
     return (
@@ -53,26 +55,42 @@ ${prefer}`;
       </div>
     );
   }
+  const said = !state.text
+    ? <div className="mt-2.5 space-y-1.5" aria-label="Bruno is reading the results"><div className="h-3 w-11/12 animate-pulse rounded bg-violet-400/20" /><div className="h-3 w-7/12 animate-pulse rounded bg-violet-400/20" /></div>
+    : (
+      <>
+        <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">{state.text}</p>
+        {/* With a summary (below), it stands in for his bullets: they'd repeat the same records. */}
+        {!children && !!state.points.length && (
+          <ul className="mt-2.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90 marker:text-violet-500 dark:marker:text-violet-300">
+            {state.points.map((p, i) => <li key={i} className="pl-0.5">{p}</li>)}
+          </ul>
+        )}
+      </>
+    );
   return (
     <div role="note" aria-label="Bruno AI's answer" aria-busy={state.busy || undefined} data-bruno-answer
       className={cn("rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5", className)}>
       <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
         <Sparkles className={cn("size-3.5 shrink-0", state.busy && "animate-pulse")} />Bruno AI
       </p>
-      {!state.text
-        ? <div className="mt-2.5 space-y-1.5" aria-label="Bruno is reading the results"><div className="h-3 w-11/12 animate-pulse rounded bg-violet-400/20" /><div className="h-3 w-7/12 animate-pulse rounded bg-violet-400/20" /></div>
-        : (
-          <>
-            <p className="mt-2 text-sm font-medium leading-relaxed text-foreground">{state.text}</p>
-            {/* With a summary (below), it stands in for his bullets: they'd repeat the same records. */}
-            {!children && !!state.points.length && (
-              <ul className="mt-2.5 list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90 marker:text-violet-500 dark:marker:text-violet-300">
-                {state.points.map((p, i) => <li key={i} className="pl-0.5">{p}</li>)}
-              </ul>
-            )}
-          </>
-        )}
-      {children && <div className="mt-3" data-search-summary>{children}</div>}
+      {phone ? (
+        // Phones: the numbers first; his writing folded away, so the results below stay near the top of the screen.
+        <>
+          {children && <div className="mt-3" data-search-summary>{children}</div>}
+          <details className="group mt-2" data-ai-analysis>
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-sm font-medium text-violet-700 dark:text-violet-300 [&::-webkit-details-marker]:hidden">
+              Show AI Analysis<ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+            </summary>
+            {said}
+          </details>
+        </>
+      ) : (
+        <>
+          {said}
+          {children && <div className="mt-3" data-search-summary>{children}</div>}
+        </>
+      )}
       {!state.busy && <p className="mt-3 border-t border-violet-400/20 pt-2 text-[11px] text-muted-foreground">Written by Bruno AI from the records below. Check them before relying on it.</p>}
     </div>
   );
