@@ -13,6 +13,7 @@ import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { eventWon, readAsk } from "../searchAsks.js";
+import { eventHit } from "../searchEvents.js";
 import { namedTeam } from "../searchCompare.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
@@ -224,7 +225,9 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   if (opts.full && !stat) return null;
   const season = named?.season ?? it.scope.season;
   const label = named ? `${shortEvent(named.name, named.type)} · Winning alliance` : `${season != null ? `${seasonLabel(season)} ` : ""}FIRST Championship · Winning alliances`;
-  const hits: SearchHit[] = named ? [{ kind: "event", ref: `${named.season}:${named.code}`, title: named.name, subtitle: [named.code, dateRange(named.start, named.end)].filter(Boolean).join(" · "), season: named.season, section: "playoffs" }] : [];
+  // The event as event sets show it (its dates, place and status), as the asks' "who won" does.
+  const row = named ? await get<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [named.season, named.code]) : null;
+  const hits: SearchHit[] = row ? [{ ...eventHit(row), section: "playoffs" }] : [];
   return {
     q, hits, pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label: stat?.title ?? label, ...(season != null ? { season } : {}) },
