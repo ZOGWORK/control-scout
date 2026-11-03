@@ -18,6 +18,8 @@ import { ATTENDED, teamKnown } from "./api/teams.js";
 import { eventFirstPaint, teamFirstPaint, type FirstPaint } from "./firstPaint.js";
 import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
+import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
+import { listEvents } from "./api/events.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
@@ -54,6 +56,10 @@ export interface PageMeta {
   path?: string;
   /** Personal pages (your own data, nothing to index). */
   noindex?: boolean;
+  /** A team or event page with nothing on it yet (server/indexable.ts): served as usual, but "noindex" (marked
+   *  data-no-data: the app drops it on moving to another page, src/lib/meta.tsx NoDataRobotsSync) and out of the
+   *  sitemap, until its first data arrives. Never a 404: the page is real, only empty. */
+  noData?: boolean;
   /** /search: crawled but never indexed ("noindex, follow"), so engines index the pages its results link to, never a
    *  query URL. Marked data-search: the app keeps it only while on /search (SearchRobotsSync in src/lib/meta.tsx). */
   searchPage?: boolean;
@@ -170,7 +176,7 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
   // The team API's test (teamProfile): a team we've never seen is a 404 there and here.
   if (!t && !(await teamKnown(n))) return NOT_FOUND;
   if (!hasTeamPage(n, t?.name)) return NOT_FOUND; // a placeholder (src/shared/teamPages.ts): the API answers 404 too
-  const [s, seasons, listed, recRows] = await Promise.all([
+  const [s, seasons, listed, recRows, data] = await Promise.all([
     get<{ season: number; opr_np: number | null; rank_np: number | null; ranked_teams: number | null; wins: number; losses: number; ties: number; matches: number }>(
       "SELECT season, opr_np, rank_np, ranked_teams, wins, losses, ties, matches FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC LIMIT 1", [n]),
     get<{ n: number }>("SELECT COUNT(DISTINCT season) n FROM team_season_stats WHERE team = ? AND matches > 0", [n]),
@@ -184,6 +190,8 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
        ORDER BY e.start DESC, e.code LIMIT ${TEAM_EVENTS}`, [n, new Date().toISOString().slice(0, 10)]),
     // Each event's record from its matches, playoffs included (src/shared/eventRecord.ts), as the team page shows it.
     all<any>(recordSql("mt.team = ?"), [n]),
+    // Anything on the page besides the name (the sitemap's rule): none, and the page is noindex until there is.
+    get<{ ok: number }>(`SELECT ${teamHasDataSql("q.n")} ok FROM (SELECT ? n) q`, [n]),
   ]);
   const recs = new Map(recRows.map((r) => [`${r.season}|${r.code}`, recordOf(r)]));
   const events = listed.map((e) => {
@@ -232,7 +240,7 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
   // One URL for the page (/teams/004215 → /teams/4215 everywhere); structured data only for a team we know.
   // The page itself as its first paint, when this server can draw it (a production build); bodyHtml otherwise.
   const firstPaint = await teamFirstPaint(n, seasonRaw);
-  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(moreHtml ? { moreHtml } : {}), ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
+  return { title: teamTitle(n, name), heading, description, type: "profile", path: `/teams/${n}`, bodyHtml, ...(data?.ok ? {} : { noData: true }), ...(moreHtml ? { moreHtml } : {}), ...(firstPaint ? { firstPaint } : {}), ...(t ? { jsonLd: [profile, crumbs] } : {}) };
 }
 
 async function eventMeta(season: number, code: string): Promise<PageMeta | null> {
@@ -240,7 +248,11 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   const e = await get<{ name: string; type: string | null; venue: string | null; city: string | null; state: string | null; country: string | null; start: string | null; end: string | null; remote: number; hybrid: number }>(
     "SELECT name, type, venue, city, state, country, start, end, remote, hybrid FROM events WHERE season = ? AND code = ?", [season, code]);
   if (!e) return null;
-  const teams = (await get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${ROSTER} et WHERE et.season = ? AND et.code = ?`, [season, code]))?.n ?? 0;
+  const [teams, data] = await Promise.all([
+    get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${ROSTER} et WHERE et.season = ? AND et.code = ?`, [season, code]).then((r) => r?.n ?? 0),
+    // Teams or a played match (the sitemap's rule): neither, and the page is noindex until it has.
+    get<{ ok: number }>(`SELECT ${eventHasDataSql("e")} ok FROM events e WHERE e.season = ? AND e.code = ?`, [season, code]),
+  ]);
   const when = dateLong(e.start) + (e.end && e.end !== e.start ? `–${dateLong(e.end)}` : "");
   const kind = eventTypeLabel(e.type).toLowerCase();
   const tail = `${teams ? ` ${teams} teams:` : ""} rankings, match results, OPR and advancement odds.`;
@@ -283,7 +295,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   }).join("");
   const moreHtml = standings ? `<h2>${rows.some((r) => r.rank != null) ? "Rankings" : "Teams"}</h2><ol>${standings}</ol>` : "";
   const bodyHtml = `<p>${x(description)}</p>` + moreHtml;
-  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev], bodyHtml, ...(moreHtml ? { moreHtml } : {}) };
+  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev], bodyHtml, ...(data?.ok ? {} : { noData: true }), ...(moreHtml ? { moreHtml } : {}) };
 }
 
 /** At most this many teams in an event page's first HTML (the biggest championships run past it). */
@@ -463,7 +475,41 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
     "@context": "https://schema.org", "@type": "ItemList", name: title, url: canonicalUrl(path), numberOfItems: r.total,
     itemListElement: r.rows.slice(0, 10).map((t) => ({ "@type": "ListItem", position: t.rank, name: `${t.team}${t.name ? ` ${t.name}` : ""}`, url: canonicalUrl(`/teams/${t.team}`) })),
   }] : undefined;
-  return { title, description, type: "website", path, ...(list ? { jsonLd: list } : {}) };
+  // The first paint's words: the page's teams as links, ranked as the table ranks them, and the way to the next page.
+  const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const items = r.rows.map((t) => {
+    const who = h(teamHeading(t.team, t.name));
+    return `<li>${hasTeamPage(t.team, t.name) ? `<a href="/teams/${t.team}">${who}</a>` : who} <small>rating ${t.rating.toFixed(1)}</small></li>`;
+  }).join("");
+  const next = new URLSearchParams(q);
+  next.set("page", String(r.page + 1));
+  const bodyHtml = `<p>${h(description)}</p>` + (items ? `<ol start="${r.rows[0].rank}">${items}</ol>` : "")
+    + (r.page < r.pages ? `<p><a href="/rankings?${h(next.toString())}">Next page</a></p>` : "");
+  return { title, description, type: "website", path, bodyHtml, ...(list ? { jsonLd: list } : {}) };
+}
+
+/** How many events /events names in its first HTML. */
+const EVENT_LIST_ROWS = 200;
+
+/**
+ * /events: the current season's events with teams or results (server/indexable.ts), the latest started first (and
+ * those starting within two weeks), as links in the first paint, so a crawler reaches the event pages from the list as
+ * a visitor does. The app's own list (its filters and other seasons) replaces it once it loads.
+ */
+async function eventsListMeta(): Promise<PageMeta> {
+  const s = STATIC["/events"];
+  const soon = new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10);
+  const rows = (await listEvents({ season: CURRENT_SEASON, hideNoMatch: true, limit: 3000 }))
+    .filter((e) => (e.teams > 0 || e.matchesPlayed > 0) && isReachableEventCode(e.code) && e.start != null && e.start <= soon)
+    .sort((a, b) => (b.start ?? "").localeCompare(a.start ?? "") || a.code.localeCompare(b.code))
+    .slice(0, EVENT_LIST_ROWS);
+  const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const items = rows.map((e) => {
+    const facts = [dateLong(e.start), place(e.city, e.state, e.country === "USA" ? null : e.country), e.teams ? `${e.teams} teams` : ""].filter(Boolean).join(" · ");
+    return `<li><a href="/events/${e.season}/${encodeURIComponent(e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
+  }).join("");
+  const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(CURRENT_SEASON).label)} events</h2><ul>${items}</ul>` : "");
+  return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml };
 }
 
 /**
@@ -559,6 +605,7 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
       return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: `/events/${Number(m[1])}/${m[2].toUpperCase()}`, jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
+    if (p === "/events") return await eventsListMeta();
     if (/^\/search$/i.test(p)) return await searchMeta(sp.get("q") ?? "");
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
@@ -615,6 +662,7 @@ export function headTags(path: string, m: PageMeta): string {
     `<meta name="description" content="${esc(m.description)}" />`,
     // A 404's noindex is marked, so the app removes it on moving to a real page (CanonicalSync in src/lib/meta.tsx).
     ...(m.noindex ? [`<meta name="robots" content="noindex"${m.notFound ? " data-not-found" : ""} />`] : []),
+    ...(m.noData && !m.noindex ? [`<meta name="robots" content="noindex" data-no-data />`] : []),
     ...(m.searchPage ? [`<meta name="robots" content="noindex, follow" data-search />`] : []),
     // A 404 names no canonical URL (there's no page to point at).
     ...(m.notFound ? [] : [`<link rel="canonical" href="${esc(url)}" />`]),
