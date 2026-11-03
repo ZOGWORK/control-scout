@@ -131,7 +131,7 @@ export default function SearchPage() {
       {phone && <PhoneSearchBar query={query} />}
       <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
-        {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : <>No matches for “{query}”</>}
+        {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>

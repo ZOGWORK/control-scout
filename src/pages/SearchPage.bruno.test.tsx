@@ -42,6 +42,8 @@ const QUESTIONS: [string, string, () => SearchAnswer][] = [
   ["a states history", "how many times did 23268 go to states", () => answer("how many times did 23268 go to states", [team(23268, "Ultraviolet")], { card: card("states", "State championships", 23268, [champ("2024–25")]) })],
   ["how good is a team (standing summary)", "how good is simply complex", () => answer("how good is simply complex", [team(18061, "Simply Complex")])],
   ["a team's awards", "has bad wolf won anything", () => answer("has bad wolf won anything", [team(6980, "Bad Wolf")], { card: card("awards", "Awards won", 6980) })],
+  ["a team's event wins", "what events did hypnotic win", () => answer("what events did hypnotic win", [team(4215, "Hypnotic Robotics")], { card: card("wins", "Event wins", 4215) })],
+  ["a team's next event", "when is hypnotic's next event", () => answer("when is hypnotic's next event", [team(4215, "Hypnotic Robotics")], { card: card("next-event", "Next event", 4215) })],
   ["a team's next match", "when is 4215's next match", () => answer("when is 4215's next match", [team(4215, "Hypnotic Robotics")], { card: card("next-match", "Next match", 4215) })],
   ["a free question answered by name matches", "who won nj states", () => answer("who won nj states", [ev("NJW1", "FTC NJ Multi-Track Workshops (North)"), ev("NJW2", "FTC NJ Multi-Track Workshops (South)")], { understood: { kind: "names", label: 'Teams, events and matches matching "won nj states"' } } as Partial<SearchAnswer>)],
   ["a comparison (head-to-head panel)", "is 4215 better than 6980?", () => answer("is 4215 better than 6980?", [{ ...team(4215, "Hypnotic Robotics vs 6980 Bad Wolf"), href: "/compare?teams=4215,6980" }, team(4215, "Hypnotic Robotics"), team(6980, "Bad Wolf")])],
