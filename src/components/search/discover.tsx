@@ -5,8 +5,8 @@ import { useSyncExternalStore } from "react";
 import { cn } from "../cn";
 
 /** Real, runnable examples across different kinds of question. Only queries search answers now (checked against the
- *  live answer API before each is added): a versus, a question, a prediction, a record. */
-export const SEARCH_EXAMPLES: readonly string[] = ["4215 vs 6980", "when did 4215 go to worlds", "will 4215 win their next match", "4215 record"];
+ *  live answer API before each is added): a set of events, a versus, a question, a prediction, a record. */
+export const SEARCH_EXAMPLES: readonly string[] = ["meets in New Jersey", "4215 vs 6980", "when did 4215 go to worlds", "will 4215 win their next match", "4215 record"];
 
 /** Example queries as chips: tapping one runs it. The press keeps focus where it is (a chip inside the search
  *  dropdown mustn't close it before the tap lands). */
