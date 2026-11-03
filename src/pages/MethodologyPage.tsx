@@ -6,7 +6,7 @@
 // held-out test.
 import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
-import { DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
+import { DEFAULT_BAND, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
 import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
@@ -120,7 +120,7 @@ export default function MethodologyPage() {
             <p>Every prediction learns from the same ratings, and the ratings learn from every played match: qualifications and playoffs. Remote and hybrid events are left out. A playoff result moves a rating {Math.round(RATING.playoffWeight * 100)}% as much as a qualification result, because teams play differently in eliminations. What changes in a playoff call:</p>
             <CleanList items={[
               <><strong>Partners add up in full.</strong> The overlap cut above is for qualification alliances only.</>,
-              <><strong>Tighter score ranges.</strong> Playoff scores swing less, so the game-noise part of a range is {Math.round(MODEL.band.playoff * 100)}% as large (in points², before rating uncertainty is added).</>,
+              <><strong>Tighter score ranges.</strong> Playoff scores swing less, so the game-noise part of a range is {Math.round((MODEL.band ?? DEFAULT_BAND).playoff * 100)}% as large (in points², before rating uncertainty is added).</>,
               <><strong>The win model knows it's a playoff.</strong> One of its inputs is whether the match is a playoff, so the same score gap can give slightly different odds.</>,
               <><strong>No bonus RP odds.</strong> Playoffs give no ranking points, and the bonus model learns from qualification matches only. OPR and the reliability index also use qualification matches only.</>,
               <><strong>Event simulations</strong> draw each robot's strength once per run from its current rating and don't update it inside the run. Simulated playoffs use the playoff settings above; a three-robot alliance fields its two strongest.</>,
