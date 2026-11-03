@@ -21,13 +21,13 @@ FTC One Search answers ranked lists as a chart: the top teams in the world or an
 
 ### Highlights
 - [rankings] "Top teams in the world": the top 10, each with a bar against the leader
-- [rankings] OPR lists split each bar into auto, TeleOp and endgame
+- [rankings] OPR lists name each team's best auto, TeleOp and endgame under its bar
 - [rankings] "Top 10 teams by OPR in NJ" links to the same list on the Teams page
 - [rankings] Best rookie teams and most improved teams in any state
 - [teams] "Teams in Oradell" lists every team from that city
 
 ### Search
-- **Ranked lists as a chart.** "Top teams in the world", "best auto team", "top 10 teams by OPR in NJ", "top 5 win rate teams in Texas": the top 10 by default (up to 25 when asked), ranked by one season number (prediction rating as on Rankings, OPR, auto, TeleOp or endgame OPR, win rate, wins or average score), in one state or province or worldwide. On a computer each team is a row (rank, team, location, W-L-T, OPR and the number asked for, highlighted) with a bar scaled to the #1 team. On an OPR list the bar is split into auto, TeleOp and endgame. On a phone each team is a compact row with its bar under the name. A note says the season, how many teams are ranked and by what (for example "2025–26 · 193 ranked teams in New Jersey · by OPR"). "View more detail" opens the same list on the Teams page (OPR lists) or Rankings (rating lists). A team is ranked once it has played 3 matches that season, as on Rankings. The search box's quick answer stays the short list.
+- **Ranked lists as a chart.** "Top teams in the world", "best auto team", "top 10 teams by OPR in NJ", "top 5 win rate teams in Texas": the top 10 by default (up to 25 when asked), ranked by one season number (prediction rating as on Rankings, OPR, auto, TeleOp or endgame OPR, win rate, wins or average score), in one state or province or worldwide. On a computer each team is a row (rank, team, location, W-L-T, OPR and the number asked for, highlighted) with a bar scaled to the #1 team. On an OPR list each team's best auto, TeleOp and endgame that season are named under its bar. On a phone each team is a compact row with its bar under the name. A note says the season, how many teams are ranked and by what (for example "2025–26 · 193 ranked teams in New Jersey · by OPR"). "View more detail" opens the list on the Teams page (OPR lists, which count qualification matches only) or Rankings (rating lists). A team is ranked once it has played 3 matches that season, as on Rankings. The search box links to the full answer.
 - **Rookies and the most improved.** "Best rookie team in New Jersey" ranks teams whose rookie year is that season. "Most improved team in New Jersey" ranks the biggest climbs in worldwide OPR standing from the season before. OPR in points isn't compared across seasons, since every game is different.
 - **A city's teams.** "Teams in Oradell" lists every team from that city, the newest season played first, with that season's OPR. A city no team lists is left to the usual search. (#458)
 
