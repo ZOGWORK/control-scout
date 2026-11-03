@@ -21,7 +21,7 @@ Match videos play in the app: a match's video button no longer sends you off to 
 
 ### Highlights
 - [live] A match's video button plays that match right on the page
-- [live] On an event page it plays in the event's own player, with the prediction over it
+- [live] On an event page it plays in the event's player, prediction on top
 - [live] Anywhere else it opens in a video window, without leaving the page
 
 ### Event page
