@@ -37,12 +37,18 @@ describe("a box holding the page's query (syncQuery)", () => {
     const input = screen.getByRole("combobox", { name: "Search" }) as HTMLInputElement;
     act(() => input.focus());
     fireEvent.keyDown(input, { key: "Enter" });
+    // Pressed, the page's query is asked for (it might name one team), with no typing pause.
+    expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=meets%20in%20New%20Jersey")]);
+    await act(async () => { pending.splice(0, 1)[0].resolve({ q: "meets in New Jersey", hits: [], pages: [], step: "deterministic", weak: false }); });
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=meets%20in%20New%20Jersey" }));
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    expect(pending).toHaveLength(0); // back to holding the page's query: not asked again
     expect(input.value).toBe("meets in New Jersey"); // kept: the page it lands on is the same query
     fireEvent.change(input, { target: { value: "upcoming meets in New Jersey" } });
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     expect(pending.map((p) => p.url)).toEqual([expect.stringContaining("q=upcoming%20meets%20in%20New%20Jersey")]);
     fireEvent.keyDown(input, { key: "Enter" });
+    await act(async () => { pending.splice(0, 1)[0].resolve({ q: "upcoming meets in New Jersey", hits: [], pages: [], step: "deterministic", weak: false }); });
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ href: "/search?q=upcoming%20meets%20in%20New%20Jersey" }));
   });
 });
