@@ -84,6 +84,8 @@ export interface StatQuestion {
   leadEvent: boolean;
   /** "last 5 matches": how many. */
   n: number | null;
+  /** "closest win", "current losing streak": the result asked about (null: any). */
+  outcome: "W" | "L" | null;
   /** What names the team. */
   core: string;
 }
@@ -93,6 +95,11 @@ const STATES = /\b(?:(?:at|in|during)\s+)?(?:the\s+)?(?:states|state\s+champ(?:i
 // The question's own words: never part of a team's name here.
 const FRAME = /\b(?:how|many|much|what|whats|which|who|when|where|is|was|were|are|has|have|had|did|does|do|the|a|an|of|in|at|on|for|by|to|team|teams|their|its|his|her|ever|all|time|career|so|far|total|number|score|scored|scores|points|match|matches|game|games|event|events|played|play|won|win|wins|been|show|me|tell|list|get|give|stats?|statistics)\b/g;
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/** Answered from season rows: no event, match-type or colour scope applies to a season's numbers. */
+const SEASON_ROWS = new Set<IntentId>(["seasons-played", "seasons-count", "first-season", "best-season", "most-improved-season"]);
+/** Answered from event rows: an event-level scope (Worlds, states, a season) applies, a match type or colour doesn't. */
+const EVENT_ROWS = new Set<IntentId>(["best-finish", "worst-finish", "first-event", "last-event", "best-opr-event", "total-events", "average-rank"]);
 
 /** The scope phrases in `q` (lower case), and `q` without them. */
 export function readScope(q: string): { scope: ReadScope; rest: string } {
@@ -130,8 +137,13 @@ export function readStatQuestion(raw: string): StatQuestion | null {
   for (const r of RULES) {
     const m = r.re.exec(q);
     if (!m) continue;
-    const { scope, rest } = readScope(q.replace(m[0], " "));
+    // The intent's own words go; a team named inside them ("how many matches has 4215 in 2024-25 played") stays, so
+    // its scope words are read like any other.
+    const { scope, rest } = readScope(q.replace(m[0], ` ${m.groups?.team ?? ""} `));
     if (r.needsScope && !hasScope(scope)) return null;
+    // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
+    if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
+    if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
     if (r.id === "red-blue-record") scope.alliance = null;
     // An "at <event>" scope belongs to the event family (not built yet): left to search's team-at-event answer.
@@ -142,11 +154,10 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // states, every season, which event, playoffs or quals, a colour).
     if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance)) return null;
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : null;
-    // A phrase with the team inside it ("how many matches has 4215 won") names it in its own group.
-    const named = m.groups?.team ? `${m.groups.team} ${rest}` : rest;
-    const core = squash(named.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
+    const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null) : null;
+    const core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     if (!core) return null;
-    return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, core };
+    return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, core };
   }
   return null;
 }

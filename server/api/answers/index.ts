@@ -74,5 +74,5 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
 
 async function build(it: StatQuestion, team: { number: number; name: string | null }, scope: Scope): Promise<StatAnswer | null> {
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope);
-  return matchAnswer(it.id, team, await teamMatches(team.number), scope, { leadEvent: it.leadEvent, n: it.n });
+  return matchAnswer(it.id, team, await teamMatches(team.number), scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
 }

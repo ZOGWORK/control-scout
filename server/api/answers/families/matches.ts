@@ -57,12 +57,15 @@ function pool(id: IntentId, all: TeamMatch[], scope: Scope): TeamMatch[] {
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
-export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null }): Promise<StatAnswer | null> {
+export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], scope: Scope, opts: { leadEvent?: boolean; n?: number | null; outcome?: "W" | "L" | null }): Promise<StatAnswer | null> {
   const ms = pool(id, all, scope);
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
   const links = await teamLinks(ms.flatMap((m) => [...m.partners, ...m.opponents]).slice(0, 2000));
-  const row = (m: TeamMatch) => matchRow(m, links, team.number);
+  // A score answer ranks by the points without penalties, so its rows show them; a result answer shows the official
+  // totals only, so a win never reads as a lower score than the other alliance's.
+  const scores = id === "highest-score" || id === "lowest-score" || id === "average-score";
+  const row = (m: TeamMatch) => { const r = matchRow(m, links, team.number); return scores ? r : { ...r, ownNp: undefined }; };
   const none = (what: string) => `No ${what}${where} found for ${who} in the recorded matches.`;
   const matchesBlock = (title: string, xs: TeamMatch[], more?: string): StatBlock => ({ kind: "matches", title, rows: xs.slice(0, LIST_CAP).map(row), ...(xs.length > LIST_CAP ? { more: more ?? `Showing ${LIST_CAP} of ${xs.length}` } : {}) });
 
@@ -102,15 +105,16 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const margin = (m: TeamMatch) => m.own - m.opp;
       const xs = id === "biggest-win" ? ms.filter((m) => m.result === "W").sort((a, b) => margin(b) - margin(a))
         : id === "biggest-loss" ? ms.filter((m) => m.result === "L").sort((a, b) => margin(a) - margin(b))
-        : [...ms].sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
-      const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `Closest match${where}`;
+        : ms.filter((m) => !opts.outcome || m.result === opts.outcome).sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
+      const closest = opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
+      const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
       const top = xs[0];
       const def = `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}`;
-      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(id === "biggest-win" ? "wins" : id === "biggest-loss" ? "losses" : "matches") };
+      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches") };
       return {
         ...base, family: "superlative", intent: id, title,
         headline: { value: `${Math.abs(margin(top))} point${Math.abs(margin(top)) === 1 ? "" : "s"}`, label: `${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
-        blocks: [matchesBlock(id === "closest-match" ? "Closest matches" : id === "biggest-win" ? "Biggest wins" : "Biggest losses", xs.slice(0, 5))],
+        blocks: [matchesBlock(id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses", xs.slice(0, 5))],
         definition: def,
       };
     }
@@ -171,7 +175,8 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
 
     case "current-streak":
     case "longest-streak": {
-      const title = id === "current-streak" ? `Current streak${where}` : `Longest win streak${where}`;
+      const want = opts.outcome ?? null;
+      const title = id === "current-streak" ? `Current ${want === "W" ? "win " : want === "L" ? "losing " : ""}streak${where}` : `Longest win streak${where}`;
       const def = `A streak: matches in a row with the same result, in date order across events and seasons (a tie ends it). ${RESULT_RULE}`;
       if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
       let run: TeamMatch[] = [];
@@ -179,6 +184,11 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         const last = ms[ms.length - 1];
         for (let i = ms.length - 1; i >= 0 && ms[i].result === last.result; i--) run.unshift(ms[i]);
         if (last.result === "T") run = [last];
+        // A win (or losing) streak asked about that the latest match broke: none now, said so with the latest match.
+        if (want && last.result !== want) {
+          const kind = want === "W" ? "win" : "losing";
+          return { ...base, family: "aggregate", intent: id, title, headline: { value: "0", label: `no ${kind} streak now: the latest match was a ${last.result === "W" ? "win" : last.result === "L" ? "loss" : "tie"}`, sub: `${last.label} at ${last.event}`, href: row(last).href }, blocks: [matchesBlock("Latest matches", newestFirst(ms).slice(0, 5))], definition: def };
+        }
       } else {
         let cur: TeamMatch[] = [];
         for (const m of ms) { if (m.result === "W") { cur.push(m); if (cur.length > run.length) run = [...cur]; } else cur = []; }

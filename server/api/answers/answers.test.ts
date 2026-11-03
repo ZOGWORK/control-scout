@@ -51,6 +51,14 @@ describe("what's read as a stat question", () => {
     expect(readStatQuestion("4215 average score this season")).toMatchObject({ id: "average-score", core: "4215", scope: { latest: true } });
     expect(readStatQuestion("hypnotic robotics last 3 matches")).toMatchObject({ id: "last-matches", n: 3, core: "hypnotic robotics" });
     expect(readStatQuestion("4215 red vs blue record")).toMatchObject({ id: "red-blue-record", scope: { alliance: null } });
+    // A team named inside the intent's words keeps its scope words.
+    expect(readStatQuestion("How many matches has 4215 in 2024-25 played")).toMatchObject({ id: "total-matches", core: "4215", scope: { season: 2024 } });
+    expect(readStatQuestion("4215 closest win")).toMatchObject({ id: "closest-match", outcome: "W" });
+    expect(readStatQuestion("4215 current losing streak")).toMatchObject({ id: "current-streak", outcome: "L" });
+  });
+  it("never drops a scope its answer can't apply: those are left to search", () => {
+    for (const q of ["4215 seasons played at worlds", "4215 best season in playoffs", "4215 total events on red", "4215 best event finish in playoffs"]) expect(readStatQuestion(q), q).toBeNull();
+    expect(readStatQuestion("4215 total events at worlds")).toMatchObject({ id: "total-events", scope: { championship: true } });
   });
   it("leaves to search what it doesn't answer: a plain record, a season's high scores, a team at an event, no team", () => {
     for (const q of ["4215 record", "4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "4215 record at New Jersey Championship", "hypnotic robotics", "average score"]) {
@@ -105,6 +113,20 @@ describe("the answers", () => {
     expect((await searchAnswer("4215 last 3 matches", { limit: 25 })).stat!.headline).toMatchObject({ value: "2-1-0", sub: "W L W" });
     const c = await searchAnswer("4215 red vs blue record", { limit: 25 });
     expect(c.stat!.headline!.value).toBe("5-1-0 red · 0-2-0 blue");
+    // The latest match was a win: no losing streak now, said so.
+    expect((await searchAnswer("4215 current losing streak", { limit: 25 })).stat!.headline).toMatchObject({ value: "0", label: "no losing streak now: the latest match was a win" });
+  });
+  it("closest win and closest loss keep the result asked for", async () => {
+    // Wins by 260-200 (60), 180-120 (60), 340-100, 100-60 (40), 140-40; losses 90-120 (30), 150-210 (60), 80-120 (40).
+    expect((await searchAnswer("4215 closest win", { limit: 25 })).stat!.headline).toMatchObject({ value: "40 points", label: "100–60 in Q1 at New Jersey Qualifier" });
+    expect((await searchAnswer("4215 closest loss", { limit: 25 })).stat!.headline).toMatchObject({ value: "30 points", label: "90–120 in Q2 at New Jersey Championship" });
+  });
+  it("a result answer shows the official totals; a score answer the points without penalties", async () => {
+    const win = await searchAnswer("4215 biggest win", { limit: 25 });
+    const rows = win.stat!.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []));
+    expect(rows.every((r) => r.ownNp === undefined)).toBe(true);
+    const high = await searchAnswer("4215 highest score in worlds", { limit: 25 });
+    expect(high.stat!.blocks.flatMap((b) => (b.kind === "matches" ? b.rows : []))[0]).toMatchObject({ own: 275, ownNp: 260 });
   });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });

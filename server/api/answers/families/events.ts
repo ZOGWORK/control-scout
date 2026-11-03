@@ -16,7 +16,7 @@ import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
 
 const FINISH_RULE = "Finish: the team's qualification rank at the event, out of the teams ranked there. League meets are left out (their rank is the league's running standing). On equal ranks, the latest event.";
-const SEASON_RULE = "Seasons are compared by OPR rank among that season's ranked teams (3 or more matches), as a top-percent share: each season is a different game, so its OPR numbers aren't comparable across seasons.";
+const SEASON_RULE = "Seasons are compared by OPR rank among that season's ranked teams (as the team page shows it), as a top-percent share: each season is a different game, so its OPR numbers aren't comparable across seasons.";
 const EVENT_RULE = "Events the team attended (on the field at a played match, or on the roster of an event not played yet) at official events: qualifiers, league play, championships and premier events.";
 
 const top = (s: TeamSeason) => (s.rank != null && s.of ? s.rank / s.of : null);
@@ -144,7 +144,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       if (id === "best-season") {
         const ranked = ss.filter((s) => top(s) != null).sort((a, b) => top(a)! - top(b)!);
         const s = ranked[0];
-        if (!s) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: SEASON_RULE, source: ssSource, none: `No ranked season found for ${who} (3 or more matches in a season).` };
+        if (!s) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: SEASON_RULE, source: ssSource, none: `No season with an OPR rank found for ${who}.` };
         return {
           ...base, family: "superlative", intent: id, title, source: ssSource, definition: SEASON_RULE,
           headline: { value: seasonLabel(s.season), label: `OPR ${topText(s)}`, sub: `${rec(s)} · OPR ${opr(s.opr)}`, href: teamHref(team.number, s.season) },

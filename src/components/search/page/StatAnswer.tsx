@@ -200,6 +200,15 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
         <span className="truncate">{b.points[0].x}</span>{b.points.length > 1 && <span className="truncate text-right">{b.points[b.points.length - 1].x}</span>}
       </p>
       <p className="text-[11px] text-muted-foreground">Low {lo}{b.unit ? ` ${b.unit}` : ""} · high {hi}{b.unit ? ` ${b.unit}` : ""} · {pts.length} on the chart</p>
+      {/* Every point's value in words too: readable without hovering (phones), and by screen readers. */}
+      <ol className="mt-1.5 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2" data-series-values>
+        {b.points.map((p, i) => (
+          <li key={i} className="flex min-w-0 items-baseline justify-between gap-2 border-b border-border/60 py-0.5">
+            {p.href ? <Link to={p.href} className="min-w-0 truncate text-muted-foreground hover:text-accent-text hover:underline">{p.x}</Link> : <span className="min-w-0 truncate text-muted-foreground">{p.x}</span>}
+            <span className="shrink-0 tabular-nums text-foreground">{p.y ?? "–"}{p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}</span>
+          </li>
+        ))}
+      </ol>
     </figure>
   );
 }
@@ -207,7 +216,9 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
 const TONE: Record<string, string> = { a: "bg-chart-1", b: "bg-chart-2", c: "bg-chart-3", d: "bg-chart-4" };
 
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
-  const max = Math.max(1, ...b.groups.flatMap((g) => g.items.map((i) => i.value ?? 0)));
+  // Scaled to the largest size either way: a negative value (an OPR part can be below zero) is drawn in the danger
+  // colour from the left, its sign on the number.
+  const max = Math.max(1, ...b.groups.flatMap((g) => g.items.map((i) => Math.abs(i.value ?? 0))));
   return (
     <figure data-block="bars">
       <figcaption className={H3}>{b.title}</figcaption>
@@ -219,7 +230,7 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
               {g.items.map((i) => (
                 <li key={i.label} className="grid grid-cols-[5.5rem_1fr_3.5rem] items-center gap-2 text-xs">
                   <span className="truncate text-muted-foreground">{i.label}</span>
-                  <span className="h-2.5 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", TONE[i.tone ?? "a"])} style={{ width: `${((i.value ?? 0) / max) * 100}%` }} /></span>
+                  <span className="h-2.5 overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", (i.value ?? 0) < 0 ? "bg-danger/70" : TONE[i.tone ?? "a"])} style={{ width: `${(Math.abs(i.value ?? 0) / max) * 100}%` }} /></span>
                   <span className="text-right tabular-nums text-foreground">{i.value == null ? "–" : `${Number.isInteger(i.value) ? i.value : i.value.toFixed(1)}${b.unit === "%" ? "%" : ""}`}</span>
                 </li>
               ))}
