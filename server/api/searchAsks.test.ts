@@ -213,3 +213,19 @@ describe("Greptile on #440, round 2", () => {
     expect(hrefs(await ask("show me top teams in NJ"))[0]).toBe("/rankings?season=2025&region=USA%3ANJ");
   });
 });
+
+describe("Greptile on #440, round 3", () => {
+  it("a shared name still tied asks which team, with no schedule or Predict guessed", async () => {
+    for (const q of ["will ultraviolet win their next match", "will ultraviolet advance"]) {
+      const a = await ask(q);
+      expect(a.understood?.label, q).toMatch(/^Which "ultraviolet"\? 2 teams have that name: 20245 \(Norton Shores, MI\), 23268 \(Hackettstown, NJ\)/);
+      expect(a.hits.map((h) => h.ref), q).toEqual(["20245", "23268"]);
+      expect(hrefs(a).some((h) => h.startsWith("/predict")), q).toBe(false);
+    }
+  });
+  it("your own team settles it", async () => {
+    const a = await searchAnswer("will ultraviolet advance", { limit: 25, learn: false, prefer: new Set(["team:23268"]) });
+    expect(a.hits[0]).toMatchObject({ ref: "23268" });
+    expect(hrefs(a)).toContain("/predict?mode=advancement&season=2025&team=23268");
+  });
+});

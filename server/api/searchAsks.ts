@@ -22,7 +22,7 @@ import { FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
 import { defaultRankingsSeason, rankings } from "./rankings.js";
 import { search } from "./search.js";
-import { versusAnswer } from "./searchCompare.js";
+import { namedTeam, versusAnswer } from "./searchCompare.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
 export type Ask =
@@ -110,11 +110,20 @@ const fmt = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 1
 const answer = (q: string, a: Omit<SearchAnswer, "q" | "step" | "weak">): SearchAnswer => ({ q, step: "deterministic", weak: false, ...a });
 const withPage = (q: string, first: SearchPageLink[]): SearchPageLink[] => [...first, ...pagesFor(q).filter((p) => !first.some((f) => f.href === p.href))];
 
-/** The best team the words name (a number or a name), as search finds it. */
-async function teamOf(words: string, prefer: ReadonlySet<string>): Promise<SearchHit | null> {
-  const hits = await search(words, 5, prefer, new Set(["team"]));
-  return hits.find((h) => h.kind === "team" && (!/^\d+$/.test(words.trim()) || h.ref === words.trim())) ?? null;
+type Named = { hit: SearchHit } | { tied: SearchHit[]; question: string };
+
+/** The team the words name (a number or a name) by Compare's fixed rules, as search shows it; or, for a name several
+ *  teams share and still tied, those teams and the question which one. */
+async function teamOf(words: string, prefer: ReadonlySet<string>): Promise<Named | null> {
+  const named = await namedTeam(words.trim(), prefer);
+  if (!named) return null;
+  const hitOf = async (n: number) => (await search(String(n), 3, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(n)) ?? null;
+  if ("team" in named) { const hit = await hitOf(named.team); return hit ? { hit } : null; }
+  const tied = (await Promise.all(named.tied.map(hitOf))).filter((h): h is SearchHit => h != null);
+  return tied.length ? { tied, question: named.question } : null;
 }
+/** A shared name still tied: its teams and the question; no schedule or Predict link is guessed. */
+const whichAnswer = (q: string, t: { tied: SearchHit[]; question: string }) => answer(q, { hits: t.tied, pages: pagesFor(q), understood: { kind: "question", label: t.question } });
 
 async function eventOf(words: string, prefer: ReadonlySet<string>): Promise<SearchHit | null> {
   return (await search(words, 3, prefer, new Set(["event"]))).find((h) => h.kind === "event") ?? null;
@@ -173,8 +182,10 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "predict-next": {
-      const team = await teamOf(ask.team, opts.prefer);
-      if (!team) return null;
+      const named = await teamOf(ask.team, opts.prefer);
+      if (!named) return null;
+      if ("tied" in named) return whichAnswer(q, named);
+      const team = named.hit;
       const base = await opts.ask(`when is ${team.ref}'s next match`);
       const name = cleanTeamName(Number(team.ref), team.title.replace(/^\d+\s*\|\s*/, "")) ?? team.ref;
       const href = predictHref({ mode: "scheduled", pick: { kind: "team", team: Number(team.ref) } });
@@ -205,8 +216,10 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "advance": {
-      const team = await teamOf(ask.team, opts.prefer);
-      if (!team) return null;
+      const named = await teamOf(ask.team, opts.prefer);
+      if (!named) return null;
+      if ("tied" in named) return whichAnswer(q, named);
+      const team = named.hit;
       const season = await defaultRankingsSeason();
       const name = cleanTeamName(Number(team.ref), team.title.replace(/^\d+\s*\|\s*/, "")) ?? team.ref;
       const href = predictHref({ mode: "advancement", team: Number(team.ref), season });
