@@ -83,7 +83,8 @@ export const INTENTS: Intent[] = [
     // A named stat before "teams" ("teams with the highest win rate" is the win-rate board).
     canonical: (f) => { const stat = LEADER_STAT_ORDER.find((w) => f.extra.has(w)); return stat ? `${LEADER_STATS[stat](f)}${f.place ? ` in ${f.place}` : ""}` : null; } },
   { id: "count", family: "counts", words: ["how many", "number of", "count"], team: "forbidden", scope: ["place", "season"],
-    canonical: (f) => { const n = f.extra.has("teams") ? "teams" : f.extra.has("events") ? "events" : null; return n && (f.place || !f.season) ? `how many ${n}${f.place ? ` in ${f.place}` : ""}` : null; } },
+    // Counts are of the current season only (countAnswer): a season named isn't dropped, it isn't answered here.
+    canonical: (f) => { const n = f.extra.has("teams") ? "teams" : f.extra.has("events") ? "events" : null; return n && !f.season ? `how many ${n}${f.place ? ` in ${f.place}` : ""}` : null; } },
   { id: "winners", family: "winners", words: ["won", "winner", "winners", "champion", "champions", "who won"], team: "forbidden", scope: ["event", "season"],
     canonical: (f) => (f.event ? `who won ${f.award ? `${f.award} at ` : ""}${f.event}${f.season ? ` ${f.season}` : ""}` : f.extra.has("worlds") ? `who won worlds${f.season ? ` ${f.season}` : ""}` : null) },
   { id: "meaning", family: "meanings", words: ["define", "definition", "meaning", "means", "mean"], team: "forbidden", scope: [], canonical: () => null },

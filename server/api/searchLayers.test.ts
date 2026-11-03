@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, WEAK_SIGNALS } from "./searchCatalog";
-import { extract, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens } from "./searchLayers";
+import { extract, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens, traceOf } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
 
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -231,6 +231,21 @@ describe("the outcome failed-search reporting reads", () => {
     // Filler variants of one failing query share the key, and the key keeps a reporter's placeholders.
     expect(await searchKey("Please  #4215 [email] not OPR rn")).toBe("4215 [email] not opr");
     expect(searchOutcome(await ask("please 4215 not opr"))?.normalized).toBe(f.normalized);
+  });
+  it("the trace reporting reads: layers by number, ambiguity carried, the failure classified from it", async () => {
+    const t = traceOf(searchOutcome(await ask("4215 sponsors school")))!;
+    expect(t).toMatchObject({ won: null, team: "4215", ambiguous: ["sponsors", "school"] });
+    expect(t.layers[0]).toBe("0");
+    expect(t.layers.at(-1)).toBe("6");
+    expect(traceOf(searchOutcome(await ask("4215 opr rn")))).toMatchObject({ won: "2", filler: ["rn"] });
+    const { failureOf } = await import("../searchFailures");
+    const a = await ask("4215 sponsors school");
+    // Reporting classifies it as the user saw it: ambiguous, not a plain team fallback.
+    expect(failureOf("4215 sponsors school", a, traceOf(searchOutcome(a)))).toMatchObject({ type: "ambiguous" });
+  });
+  it("a count with a season isn't read as the current count", async () => {
+    expect((await extract("number of teams new jersey 2024-25")).canonical).toBeNull();
+    expect((await extract("number of teams new jersey")).canonical).toBe("how many teams in New Jersey");
   });
   it("only a top-level search has an outcome, and the answer's JSON has nothing new", async () => {
     const a = await ask("4215 opr rn");

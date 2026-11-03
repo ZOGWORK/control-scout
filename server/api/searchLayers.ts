@@ -40,6 +40,18 @@ export interface SearchOutcome {
 }
 
 const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
+
+const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
+/** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,
+ *  scope as its tokens, and the tied intents when it was ambiguous. */
+export function traceOf(o: SearchOutcome | undefined) {
+  if (!o) return null;
+  return {
+    layers: o.layers.map((l) => LAYER_NUMBER[l]), won: o.won ? LAYER_NUMBER[o.won] : null, team: o.team, intents: o.intents,
+    scope: [o.scope.place, o.scope.season, o.scope.event].filter((x): x is string => !!x), filler: o.filler,
+    ...(o.result === "ambiguous" ? { ambiguous: o.intents } : {}),
+  };
+}
 /** The outcome of a top-level searchAnswer() call, read from the answer object it returned (before it's copied). */
 export const searchOutcome = (a: SearchAnswer): SearchOutcome | undefined => outcomes.get(a);
 
