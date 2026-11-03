@@ -584,6 +584,28 @@ describe("/methodology (How it works)", () => {
     }
   });
 
+  it("How FTC One Search works is prerendered into its first paint the same way", async () => {
+    const { resetMethodologyHtml } = await import("./seoMeta");
+    const dir = mkdtempSync(join(tmpdir(), "cs-seo-search-docs-"));
+    const file = join(dir, "index.html");
+    writeFileSync(file, '<html><head><title>x</title></head><body><div id="root"></div></body></html>');
+    writeFileSync(join(dir, "search-docs.html"), '<header><h1>How FTC One Search works</h1></header><section id="steps"><h2>Six steps</h2></section>');
+    const prev = process.env.CS_PRERENDER_DIR;
+    process.env.CS_PRERENDER_DIR = dir;
+    resetMethodologyHtml();
+    try {
+      const page = await renderPage(file, "/how-it-works/search");
+      expect(page.status).toBe(200);
+      expect(page.html).toContain("<title>How FTC One Search works · Control Scout</title>");
+      expect(page.html).toContain('<link rel="canonical" href="https://controlscout.org/how-it-works/search"');
+      expect(page.html).toContain('<section id="steps"><h2>Six steps</h2></section>');
+      expect(page.html.match(/<h1[\s>]/g)).toHaveLength(1);
+    } finally {
+      if (prev === undefined) delete process.env.CS_PRERENDER_DIR; else process.env.CS_PRERENDER_DIR = prev;
+      resetMethodologyHtml();
+    }
+  });
+
   it("carries the track record's headline figure with its as-of date, in the description and the accuracy section", async () => {
     const { methodologyRecord, withRecordLine, fitDescription: fit } = await import("./seoMeta");
     const block = { n: 41743, decided: 41405, accuracy: 30554 / 41405 };

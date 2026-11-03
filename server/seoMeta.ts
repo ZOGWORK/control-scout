@@ -579,6 +579,11 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     const html = body && rec ? withRecordLine(body, rec) : body;
     return { title: s.title, description, type: "website", ...(html ? { bodyHtml: html } : {}) };
   }
+  // How FTC One Search works: the whole page in the first paint too, prerendered the same way.
+  if (p === "/how-it-works/search") {
+    const s = STATIC[p], body = searchDocsHtml();
+    return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
+  }
   // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).
   if (p === "/faq") return { title: STATIC["/faq"].title, description: fitDescription(STATIC["/faq"].description), type: "website", jsonLd: [faqJsonLd(canonicalOrigin())], bodyHtml: faqHtml() };
   // The supporters list names people: never indexed, at any spelling of the address. Marked like /search's, so the
@@ -631,15 +636,19 @@ export function headTags(path: string, m: PageMeta): string {
   return tags.join("\n    ");
 }
 
-/** The prerendered How it works page (build/prerender/methodology.html, outside the public dist/, or CS_PRERENDER_DIR), read once; null before a build. */
-let methodologyCache: string | null | undefined;
-export function methodologyHtml(): string | null {
-  if (methodologyCache === undefined) {
-    const f = join(process.env.CS_PRERENDER_DIR ?? join(process.cwd(), "build", "prerender"), "methodology.html");
-    methodologyCache = existsSync(f) ? readFileSync(f, "utf8") : null;
+/** A prerendered page (build/prerender/<file>, outside the public dist/, or CS_PRERENDER_DIR), read once; null before a build. */
+const prerendered = new Map<string, string | null>();
+function prerenderedHtml(file: string): string | null {
+  if (!prerendered.has(file)) {
+    const f = join(process.env.CS_PRERENDER_DIR ?? join(process.cwd(), "build", "prerender"), file);
+    prerendered.set(file, existsSync(f) ? readFileSync(f, "utf8") : null);
   }
-  return methodologyCache;
+  return prerendered.get(file)!;
 }
+/** The prerendered How it works page (scripts/prerender.mjs). */
+export const methodologyHtml = () => prerenderedHtml("methodology.html");
+/** The prerendered How FTC One Search works page. */
+export const searchDocsHtml = () => prerenderedHtml("search-docs.html");
 /** The track record's headline in one sentence with its as-of date (UTC day), for How it works' first HTML; null with no headline. */
 export function methodologyRecord(t: Pick<TrackRecord, "headline" | "seasons" | "generatedAt"> | null): { text: string; iso: string; date: string } | null {
   const h = t?.headline;
@@ -661,7 +670,7 @@ export function withRecordLine(body: string, rec: { text: string; iso: string; d
 }
 
 /** Tests: forget the cached page. */
-export function resetMethodologyHtml(): void { methodologyCache = undefined; }
+export function resetMethodologyHtml(): void { prerendered.clear(); }
 
 /** The FAQ as static HTML for the first paint (crawlers and link previews read it without the app). */
 function faqHtml(): string {
