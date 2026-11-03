@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.1 — 2026-11-03
+
+FTC One Search answers a team's numbers one by one: OPR and each phase with the world rank, the prediction rating, the engine's report card, its events in a season or a state, its OPR against an average, reliability, schedule difficulty and league standing.
+
+### Highlights
+- [teams] "4215 OPR": the season OPR, each phase and the world rank
+- [teams] "4215 prediction rating" with its spread, phases and world rank
+- [teams] "4215 OPR vs New Jersey average", the world's or an event's
+- [teams] Reliability, schedule difficulty and league standing in one search
+
+### Search
+- **OPR and its phases.** "4215 OPR", "4215 auto OPR", "4215 teleop OPR", "4215 endgame OPR": the season number with the team's world rank and share, every phase beside it, and for OPR a line over the season's events. Each phase is its own best that season, so the phases don't add up to the OPR. (#471)
+- **The engine on a team.** "4215 prediction rating" (its ± spread, phases, penalty points given away and matches rated, ranked as on Rankings), "4215 prediction report card" (the live calls on its matches, right and wrong, by event) and "4215 predicted score next match" (the logged prediction once a schedule is posted).
+- **Events.** "4215 events in 2025-26" lists that season's events with rank, record and OPR; "4215 events in New Jersey" lists every event in that state, each season apart.
+- **Against an average.** "4215 OPR vs world average", "4215 OPR vs New Jersey average", "4215 OPR vs New Jersey Championship average": the team's OPR against the average of that season's teams there (or its division's field at an event), with its place among them. Never across seasons.
+- **Reliability, schedule, league.** "4215 reliability", "4215 schedule difficulty" and "4215 league rank" read what the team page shows.
+
 ## 2.7.0 — 2026-11-03
 
 FTC One Search lists a season's highest-scoring matches: the top alliance scores and the top combined scores, worldwide, in a state or at one event, with every team, the event, the date and a link to each match.

@@ -21,6 +21,7 @@ import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer } from "./families/awards.js";
 import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
+import { factAnswer, readTeamFact, type FactQuestion } from "./families/facts.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
@@ -136,7 +137,10 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   const it = readStatQuestion(q);
-  if (!it) return null;
+  if (!it) {
+    const f = readTeamFact(q);
+    return f ? factSearch(q, f, resolve, opts) : null;
+  }
   if (it.noTeam) return winnersSearch(q, it, opts);
   const base = await resolve(it.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
@@ -209,6 +213,33 @@ async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean
   if (!stat) return null;
   return { ...answer, understood: { ...answer.understood!, label: stat.title }, stat };
 }
+
+/** "4215 auto OPR", "4215 reliability", "4215 school": one team's stored fact. The team is found as search finds it;
+ *  the answer is worked out for the page only. */
+async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const base = await resolve(f.core);
+  const top = base.step !== "recovery" ? base.hits[0] : undefined;
+  if (!top || top.kind !== "team" || top.href) return null;
+  const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  const label = `${whoOf(team)} · ${FACT_TITLES[f.id]}`;
+  const guessed = base.step === "did-you-mean";
+  const answer: SearchAnswer = {
+    q, hits: [{ ...top, ...(f.season != null ? { linkSeason: f.season } : {}) }, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages,
+    step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
+    ...(guessed && base.didYouMean ? { didYouMean: q.toLowerCase().includes(f.core) ? q.toLowerCase().replace(f.core, base.didYouMean) : base.didYouMean } : {}),
+    understood: { kind: "question", label, ...(f.season != null ? { season: f.season } : {}) },
+    intent: { kind: `stat-${f.id}`, pattern: `[team] ${f.id}${f.region ? " [place]" : f.event ? " [event]" : ""}${f.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, FACT_TITLES[f.id]] },
+  };
+  if (!opts.full) return answer;
+  const stat = await factAnswer(f, team, (words, season) => findEvent(words, season, { anyPlayed: true }));
+  return stat ? { ...answer, understood: { ...answer.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat } : null;
+}
+
+const FACT_TITLES: Record<FactQuestion["id"], string> = {
+  opr: "OPR", "auto-opr": "Auto OPR", "teleop-opr": "TeleOp OPR", "endgame-opr": "Endgame OPR", rating: "Prediction rating", "report-card": "Prediction report card",
+  "next-match": "Predicted score, next match", "events-season": "Events in a season", "events-place": "Events in a place", "opr-vs-average": "OPR vs the average",
+  reliability: "Reliability", schedule: "Schedule difficulty", "league-rank": "League standing",
+};
 
 /** "ftc decode winning alliance", "New Jersey Championship winning alliance": no team, an event's (or the season's
  *  championship's) winners. The event is the hit; its answer is worked out for the page only. */
