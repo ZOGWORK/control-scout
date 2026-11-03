@@ -11,6 +11,8 @@ export type ScoutSection = (typeof SCOUT_SECTIONS)[number];
  *  The pick helper reads only public ratings, so everyone has it. */
 export const PERSONAL_SECTIONS: readonly ScoutSection[] = ["event", "entries", "picks"];
 export const SECTION_LABEL: Record<ScoutSection, string> = { event: "Event day", entries: "Entries", planning: "Pick list & planning", picks: "Pick helper" };
+/** Shorter names for a phone's tab row. */
+export const SECTION_SHORT: Partial<Record<ScoutSection, string>> = { picks: "Picks" };
 
 /** A link to the pick helper at one event (the event page's Playoffs tab). */
 export function pickHelperQuery(season: number, eventCode: string): URLSearchParams {

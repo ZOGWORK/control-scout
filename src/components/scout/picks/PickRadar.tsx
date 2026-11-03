@@ -26,7 +26,7 @@ export function PickRadar({ current, result, label, className }: {
 }) {
   const filled = result ?? current;
   return (
-    <svg viewBox="-24 0 248 200" role="img" aria-label={label} className={className}>
+    <svg viewBox="-50 0 300 200" role="img" aria-label={label} className={className}>
       {[0.25, 0.5, 0.75, 1].map((r) => (
         <polygon key={r} points={PICK_AXES.map((_, i) => at(i, r).join(",")).join(" ")} fill="none" className="stroke-border" strokeWidth={1} />
       ))}

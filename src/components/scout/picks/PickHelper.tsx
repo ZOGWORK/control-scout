@@ -11,13 +11,14 @@ import { EmptyState } from "../../page";
 import { LoadingBlock } from "../../states";
 import { Button } from "../../ui/button";
 import { Badge, Card } from "../../ui/basic";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, ToggleGroup, ToggleGroupItem } from "../../ui/controls";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, ToggleGroup, ToggleGroupItem } from "../../ui/controls";
 import { PickRadar } from "./PickRadar";
 import {
   allianceOf, alliancePicked, PICK_AXES, PICK_AXIS_LABEL, PICK_LIMIT, pts, suggestPartners,
   type Axes, type PickRatings, type PickSuggestion, type PickTeam,
 } from "../../../shared/pickRadar";
 
+const NONE: PickRatings["alliances"] = [];
 const list = (v: string | null) => [...new Set((v ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0))];
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const r1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
@@ -58,16 +59,18 @@ function PickBoard({ d, myTeam, sp, setSp }: {
   const asked = Number(sp.get("pteam"));
   const me = by.has(asked) ? asked : myTeam != null && by.has(myTeam) ? myTeam : null;
   const size = sp.get("psize") === "3" ? 3 : sp.get("psize") === "2" ? 2 : d.size;
-  const posted = me != null ? allianceOf(d.alliances, me) : null;
-  const picked = useMemo(() => alliancePicked(d.alliances), [d.alliances]);
+  // Posted alliances count unless switched off (to plan as before selection, or replay a past event).
+  const usePosted = sp.get("pposted") !== "0";
+  const alliances = usePosted ? d.alliances : NONE;
+  const posted = me != null ? allianceOf(alliances, me) : null;
+  const picked = useMemo(() => alliancePicked(alliances), [alliances]);
   const taken = list(sp.get("ptaken")).filter((t) => by.has(t));
   // Partners you added (not posted yet): only teams still free.
   const added = posted ? [] : list(sp.get("pwith")).filter((t) => by.has(t) && t !== me && !picked.has(t)).slice(0, size - 1);
   const members = me == null ? [] : posted ?? [me, ...added];
   const set = (k: string, v: string | null) => setSp((x) => { if (v) x.set(k, v); else x.delete(k); return x; }, { replace: true });
-  const view = useMemo(() => (me == null ? null : suggestPartners({ teams: d.teams, members, unavailable: [...picked, ...taken], size })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [d.teams, me, members.join(), [...picked].join(), taken.join(), size]);
+  // A few dozen areas at most: cheap enough to work out on every render.
+  const view = me == null ? null : suggestPartners({ teams: d.teams, members, unavailable: [...picked, ...taken], size });
 
   if (!d.teams.length) {
     return <EmptyState icon={Radar} title="No ratings here yet" description={`None of the teams at ${d.name} has a rating for this season yet, so there's nothing to compare.`} />;
@@ -89,7 +92,12 @@ function PickBoard({ d, myTeam, sp, setSp }: {
           <ToggleGroupItem value="2" className="max-sm:h-11">2 teams</ToggleGroupItem>
           <ToggleGroupItem value="3" className="max-sm:h-11">3 teams</ToggleGroupItem>
         </ToggleGroup>
-        <span className="text-xs text-muted-foreground">{d.sizeFrom === "alliances" ? `${d.name}: ${d.size}-team alliances posted` : d.name}</span>
+        {d.alliances.length > 0 ? (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Switch checked={usePosted} onCheckedChange={(on) => set("pposted", on ? null : "0")} />
+            Use the {d.alliances.length} posted alliances
+          </label>
+        ) : <span className="text-xs text-muted-foreground">No alliances posted at {d.name} yet</span>}
       </div>
 
       {me == null || !view ? (
@@ -121,7 +129,9 @@ function PickBoard({ d, myTeam, sp, setSp }: {
           ))}
         </div>
         {!view.suggestions.length && (
-          <p className="text-sm text-muted-foreground">{members.length >= size ? `Your alliance has ${size} teams. Switch to ${size === 2 ? "3" : "2"} teams above to plan another pick.` : "No rated teams left to suggest."}</p>
+          <p className="text-sm text-muted-foreground">{members.length < size ? "No rated teams left to suggest."
+            : posted ? "Your alliance is set as posted. Turn off the posted alliances to plan it from the start."
+            : `Your alliance has ${size} teams. Remove a partner to see others.`}</p>
         )}
         {taken.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 text-sm">

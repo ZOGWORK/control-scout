@@ -54,7 +54,12 @@ describe("PickHelper", () => {
     show();
     expect(await screen.findByText("As posted")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /taken/ })).toBeNull();
-    expect(screen.getByText(/Your alliance has 2 teams/)).toBeTruthy();
+    expect(screen.getByText(/Your alliance is set as posted/)).toBeTruthy();
+    // Posted alliances off: planned from the start, 20 is free again.
+    fireEvent.click(screen.getByRole("switch"));
+    expect(screen.queryByText("As posted")).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark 20 taken" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("switch"));
     // 3 teams: a second pick from who's left (not 20, already on the alliance).
     fireEvent.click(screen.getByRole("radio", { name: "3 teams" }));
     const names = screen.getAllByRole("button", { name: /Mark \d+ taken/ }).map((b) => b.getAttribute("aria-label"));
