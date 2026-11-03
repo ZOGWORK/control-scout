@@ -24,7 +24,7 @@ import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.
 import { all } from "../db.js";
 import { defaultRankingsSeason, rankings } from "./rankings.js";
 import { search } from "./search.js";
-import { eventHit, searchToday } from "./searchEvents.js";
+import { eventHit, localTodays } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
@@ -118,21 +118,34 @@ const fmt = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 1
  *  newest one finished (the event with the most results recorded, so the main event over its divisions); or an event by
  *  name, its newest season finished. A season named ("2024-25 nj states") is that season's. */
 export async function eventWon(words: string, prefer: ReadonlySet<string>, now = Date.now()): Promise<{ season: number; code: string; name: string } | null> {
-  const today = searchToday(now);
+  // "Finished" on each event's own calendar: an event on its last day in Los Angeles isn't over at 02:00 UTC.
+  const dayAt = localTodays(now);
+  type Ev = { season: number; code: string; name: string; start: string | null; end: string | null; timezone: string | null };
+  const finished = (rows: Ev[]) => rows.filter((r) => (r.end ?? r.start ?? "") !== "" && (r.end ?? r.start ?? "") < dayAt(r.timezone));
+  const pick = (r: Ev | undefined) => (r ? { season: Number(r.season), code: r.code, name: r.name } : null);
+  // A season ("2024-25") or a calendar year ("2024") named: only that one.
+  const sm = /(?:^|\s)(20\d\d)(?:\s*[-\u2013/]\s*(\d\d(?:\d\d)?))?(?=\s|$)/.exec(words);
+  const season = sm?.[2] && (sm[2].length === 2 ? (Number(sm[1]) + 1) % 100 : Number(sm[1]) + 1) === Number(sm[2]) ? Number(sm[1]) : null;
+  const year = sm && !sm[2] ? Number(sm[1]) : null;
+  const inScope = (r: Ev) => (season != null ? Number(r.season) === season : year != null ? (r.start ?? "").startsWith(String(year)) : true);
   const e = readEventQuery(words);
   const types = e ? eventTypesOf(e.kinds) : null;
-  if (e?.region && types?.every((t) => t === "Championship" || t === "FIRSTChampionship")) {
-    const rows = await all<{ season: number; code: string; name: string }>(
-      `SELECT season, code, name FROM events ev WHERE type IN ('Championship', 'FIRSTChampionship') AND country = ? AND state = ? AND COALESCE(end, start) < ?${e.season != null ? " AND season = ?" : ""}
-       ORDER BY season DESC, (SELECT COUNT(*) FROM awards a WHERE a.season = ev.season AND a.code = ev.code) DESC, length(code), code LIMIT 1`,
-      [e.region.country, e.region.state, today, ...(e.season != null ? [e.season] : [])]);
-    return rows[0] ? { season: Number(rows[0].season), code: rows[0].code, name: rows[0].name } : null;
+  // A place's championship ("nj states"), with no event named beyond it: its newest finished one of the types asked
+  // ("states": the state's own, never the FIRST Championship held there), the one with the most results first.
+  if (e?.region && !e.words.length && !e.where && types?.every((t) => t === "Championship" || t === "FIRSTChampionship")) {
+    const rows = await all<Ev>(
+      `SELECT season, code, name, start, end, timezone FROM events ev WHERE type IN (${types.map(() => "?").join(", ")}) AND country = ? AND state = ?
+       ORDER BY season DESC, (SELECT COUNT(*) FROM awards a WHERE a.season = ev.season AND a.code = ev.code) DESC, length(code), code`,
+      [...types, e.region.country, e.region.state]);
+    return pick(finished(rows).filter(inScope)[0]);
   }
-  const ev = await eventOf(words, prefer);
+  // An event by name ("New Jersey Championship Parkway Division"): the code search finds, its newest finished season
+  // (or the one named).
+  const ev = await eventOf(sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words, prefer);
   if (!ev) return null;
   const code = ev.ref.split(":")[1];
-  const rows = await all<{ season: number; code: string; name: string }>("SELECT season, code, name FROM events WHERE code = ? AND COALESCE(end, start) < ? ORDER BY season DESC LIMIT 1", [code, today]);
-  return rows[0] ? { season: Number(rows[0].season), code: rows[0].code, name: rows[0].name } : null;
+  const rows = await all<Ev>("SELECT season, code, name, start, end, timezone FROM events WHERE code = ? ORDER BY season DESC", [code]);
+  return pick(finished(rows).filter(inScope)[0]);
 }
 
 const answer = (q: string, a: Omit<SearchAnswer, "q" | "step" | "weak">): SearchAnswer => ({ q, step: "deterministic", weak: false, ...a });

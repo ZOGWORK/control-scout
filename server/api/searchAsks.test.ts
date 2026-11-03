@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { readAsk } from "./searchAsks";
+import { eventWon, readAsk } from "./searchAsks";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -264,5 +264,36 @@ describe("who won an event (owner: \"who won nj states\")", () => {
     const a = await ask("who won ny states");
     expect(a.card?.lines).toEqual([]);
     expect(a.card?.none).toBe("No results are recorded for New York Championship (2025–26) yet.");
+  });
+});
+
+describe("Greptile on #456", () => {
+  beforeAll(async () => {
+    // Last season's Parkway Division results, a FIRST Championship in New Jersey with more results than the state's,
+    // the 2024-25 championship, and a championship ending today in Los Angeles.
+    await run(`INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USNJCMPPKWY', 'Winner', 1, 4215, 'Parkway Division Winning Alliance - Captain')`, [S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'FTCCMPNJ', 'FIRST Championship East', 'FIRSTChampionship', 'Newark', 'NJ', 'USA', '2026-04-01', '2026-04-01', 't')", [S]);
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'FTCCMPNJ', 'Winner', 1, 20265, 'Winning Alliance - Captain'), (?, 'FTCCMPNJ', 'Winner', 2, 14270, 'Winning Alliance - 1st Team Selected'), (?, 'FTCCMPNJ', 'Inspire', 1, 14270, 'Inspire Award'), (?, 'FTCCMPNJ', 'Think', 1, 4215, 'Think Award'), (?, 'FTCCMPNJ', 'Design', 1, 6980, 'Design Award'), (?, 'FTCCMPNJ', 'Reach', 1, 23268, 'Reach Award'), (?, 'FTCCMPNJ', 'Connect', 1, 23268, 'Connect Award')", [S, S, S, S, S, S, S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USNJCMP', 'New Jersey Championship', 'Championship', 'Union', 'NJ', 'USA', '2025-03-15', '2025-03-15', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2024, 'USNJCMP', 'Winner', 1, 6980, 'Winning Alliance - Captain')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USCACMP', 'California Championship', 'Championship', 'Los Angeles', 'CA', 'USA', '2026-11-02', '2026-11-02', 'America/Los_Angeles', 't')", [S]);
+    await rebuildSearch();
+  });
+  const won = (q: string, now?: number) => eventWon(q, new Set(), now);
+  it("'states' never picks the FIRST Championship held in the state", async () => {
+    expect(await won("nj states")).toMatchObject({ code: "USNJCMP", season: S });
+  });
+  it("a year or a season named is the one answered", async () => {
+    expect(await won("2025 nj states")).toMatchObject({ code: "USNJCMP", season: 2024 });
+    expect(await won("2024-25 nj states")).toMatchObject({ code: "USNJCMP", season: 2024 });
+    expect(await won("2025 new jersey championship")).toMatchObject({ code: "USNJCMP", season: 2024 });
+  });
+  it("a division named is that division", async () => {
+    expect(await won("new jersey championship parkway division")).toMatchObject({ code: "USNJCMPPKWY", season: S });
+  });
+  it("an event on its last day at its venue isn't finished yet", async () => {
+    // 2026-11-03 02:00 UTC is still Nov 2 in Los Angeles.
+    expect(await won("CA states", Date.parse("2026-11-03T02:00:00Z"))).toBeNull();
+    expect(await won("CA states", Date.parse("2026-11-03T09:00:00Z"))).toMatchObject({ code: "USCACMP" });
   });
 });
