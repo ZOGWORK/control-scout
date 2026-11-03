@@ -168,8 +168,9 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
 /** The error for a request its caller cancelled (an AbortError, as fetch's own). */
 const callerAborted = () => new DOMException("The request was cancelled", "AbortError");
 
-/** When the server last answered (any status), and when a request last failed for want of a network. */
-let lastAnswerAt = 0, lastFailAt = 0;
+/** When the server last answered (any status), and whether it has answered since a request last failed for want of
+ *  a network (an order, never a comparison of clock times). */
+let lastAnswerAt = 0, answeredSinceFail = false;
 /** A search slower than OFFLINE_TIMEOUT_MS while the server answers everything else is a slow search, not "no
  *  signal": it gets this long, then one more try, then says so (SEARCH_SLOW). Saved data never answers it then. */
 export const SEARCH_SLOW_MS = 10_000;
@@ -177,7 +178,7 @@ export const SEARCH_SLOW = "Search is slow right now. Try again.";
 const SEARCH_PATH = /^\/api\/search(\?|$)/;
 /** The server is up: the browser says it's online and the server answered within the last minute, since the last
  *  request that failed for want of a network. */
-const serverUp = () => navigator.onLine !== false && lastAnswerAt > lastFailAt && Date.now() - lastAnswerAt < 60_000;
+const serverUp = () => navigator.onLine !== false && answeredSinceFail && Math.abs(Date.now() - lastAnswerAt) < 60_000;
 
 /** A search while the server is up: SEARCH_SLOW_MS a try, two tries. Twice no network at all is no signal after all
  *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly. */
@@ -238,16 +239,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     const got = kind && ctrl ? await respond<T>(request, kind, path, ctrl) : await request;
     // The caller let it go (a newer search): nobody waits on an answer, so none is made from saved data either.
     if (outer?.aborted) throw callerAborted();
-    if (!(got instanceof Response)) { lastFailAt = Date.now(); setUsingSaved(true); return got.saved; }
+    if (!(got instanceof Response)) { answeredSinceFail = false; setUsingSaved(true); return got.saved; }
     res = got;
     answered = true;
     lastAnswerAt = Date.now();
+    answeredSinceFail = true;
   } catch (e) {
     if (e instanceof ApiError) throw e;
     // The page let the request go itself (it moved on): not unreachable, and no saved-data answer (or Offline badge).
     if (outer?.aborted) throw callerAborted();
     watch.failed();
-    lastFailAt = Date.now();
+    answeredSinceFail = false;
     if (_online) throw unreachable();
     return offlineOr<T>(path, rest.method, unreachable());
   } finally {

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.6 — 2026-11-03
+## 2.5.8 — 2026-11-03
 
 A slow search no longer looks like being offline, and searches that match nothing answer five times faster.
 
@@ -27,6 +27,37 @@ A slow search no longer looks like being offline, and searches that match nothin
 ### Search
 - **Slow is not offline.** While your browser is online and the server answers everything else, a search that takes more than 4 seconds keeps waiting for the server instead of switching to saved data and the Offline badge. It gets up to 10 seconds, one more try, and then says "Search is slow right now. Try again." with a Try again button. With no network at all, saved data still answers as before.
 - **Faster no-match searches.** Queries that match nothing (like "highest scoring games in decode") took 5–6 seconds on the server, comparing every name's words letter by letter. The scan now skips names missing any word typed and stops comparing as soon as a word is past its allowed typos: about 1 second, with the same results. (#463)
+
+## 2.5.7 — 2026-11-03
+
+FTC One Search finds every meet held at a venue, past seasons too, and its lines say what you typed.
+
+### Highlights
+- [history] "Meets at River Dell High School" lists every season's meets there
+- [fixes] Venues match loosely: "HS", "Regional" and small misspellings
+- [fixes] Search lines repeat your words: "Meets in New Jersey"
+- [rankings] "Best teleop in the world" and "best auto in NJ" show the leaders
+
+### Search
+- **A venue spans every season.** "Meets in River Dell High School" with no year lists its meets from every season in date order (upcoming first, then past, most recent first), so the Past filter has the past ones to show. "Past meets at …" lists only those.
+- **Venues match loosely.** Punctuation, "HS" or "H.S." for "High School", "Regional", and a letter or two off ("River DeHigh School", "River Dale High School") are the same venue. A city counts when the place typed is that city ("meets in Oradel").
+- **Honest fallbacks.** With nothing to show, a time word goes before the venue: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead".
+- **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". Kinds that share no type are each named ("Meets and tournaments").
+- **Stat leaders, any scope.** "Best teleop in the world", "highest OPR this season", "most wins of all time" and "best driver controlled worldwide" show that stat's leaderboard, the same as "best teleop"; "best auto in NJ" or "best auto in New Jersey" shows New Jersey's. "Top", "strongest", "greatest" and "number one" read as "best"; "autonomous" as auto; "driver" or "driver controlled" as teleop. (#461)
+
+## 2.5.6 — 2026-11-03
+
+Searching never waits where you typed: Enter opens the results page straight away, and a loading screen shows while the results arrive.
+
+### Highlights
+- [speed] Enter in any search box opens the results page straight away
+- [speed] A loading screen shows the shape of the results while they arrive
+- [speed] A new search from the results page clears the old results at once
+
+### Search
+- **Enter never waits.** Pressing Enter or the magnifier in a search box (Home, the top bar, the results page) used to wait with a spinner until the answer came back. Now it opens the results page at once. A team number, a team's whole name or an event code still goes to that team or event: from the box when its answer is already in, or from the results page as soon as its answer arrives, replacing itself so Back returns to where you typed. (#464)
+- **A loading screen while results arrive.** The results page shows grey shapes of what's coming: the title, a grid of result cards and, on a computer, the panel on the right. They shimmer gently and stay still if your device asks for reduced motion. A line reads "Searching teams, events and matches…" and your search stays in the search bar. A new search run from the results page replaces the old results with it straight away, so they never look current.
+- **No blank page first.** Clicking into a search box starts loading the results page, so Enter goes straight to its loading screen.
 
 ## 2.5.5 — 2026-11-03
 

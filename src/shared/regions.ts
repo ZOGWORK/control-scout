@@ -71,7 +71,7 @@ export function findRegions(q: string): Region[] {
 }
 
 /** Letters to change, add or drop to turn `a` into `b`. */
-function edits(a: string, b: string): number {
+export function edits(a: string, b: string): number {
   let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
     const cur = [i];
