@@ -112,6 +112,10 @@ describe("answers on their own", () => {
     const a = await ask("4215 school");
     expect(a.card?.kind).toBe("info");
     expect(a.card?.lines[0]?.text).toMatch(/Oradell High School/);
+    // The card names the fact only (its team rides on card.team), so the page title never names the team twice.
+    expect(a.card?.title).not.toMatch(/4215/);
+    expect(a.card?.team?.number).toBe(4215);
+    expect(a.understood?.label).toMatch(/\(4215\) · /);
   });
   it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");

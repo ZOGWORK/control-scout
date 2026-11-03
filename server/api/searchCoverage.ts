@@ -567,10 +567,11 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   if (fact === "website") text = row.website ? String(row.website) : null;
   if (fact === "sponsors") { let s: string[] = []; try { s = JSON.parse(row.sponsors ?? "[]"); } catch { /* not a list */ } text = s.length ? s.join(", ") : null; }
   const what = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors" }[fact];
+  // The card names the fact; its team is on the card already (card.team), so the page never says the team twice.
   const title = `${name} · ${what}`;
   return answer(q, {
     hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-    card: { kind: "info", title, team: { number: Number(hit.ref), name: teamNameOf(hit.title) }, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
+    card: { kind: "info", title: what, team: { number: Number(hit.ref), name: teamNameOf(hit.title) }, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
     understood: { kind: "team", label: title },
   });
 }
