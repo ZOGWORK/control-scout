@@ -330,3 +330,20 @@ describe("stat leaderboards: scope words and places (owner bug: best teleop in t
     expect(readAsk("best teleop in narnia")).toBeNull();
   });
 });
+
+describe("who won: a Leadership Award stored as a Winner isn't a winner (Worlds 2025–26, FTCCMP1)", () => {
+  it("leaves FIRST Leadership Award rows out of the winning alliance", async () => {
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USNJCMP', 'Winner', 3, 14270, 'FIRST Leadership Award')", [S]);
+    // On /search "who won" is the stat answer's card (server/api/answers/families/winners.ts).
+    const a = await ask("who won nj states");
+    expect(a.stat?.headline).toBeDefined();
+    expect(JSON.stringify(a.stat)).not.toContain("14270");
+  });
+  it("keeps winners stored with no award name (event-day bundles store none) (Greptile on #466)", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USDECMP', 'Delaware Championship', 'Championship', 'Dover', 'DE', 'USA', '2026-02-01', '2026-02-01', 't')", [S]);
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USDECMP', 'Winner', 1, 4215, NULL)", [S]);
+    await rebuildSearch();
+    const a = await ask("who won DE states");
+    expect(a.stat?.headline?.value).toContain("4215");
+  });
+});

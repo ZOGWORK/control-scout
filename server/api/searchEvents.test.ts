@@ -298,3 +298,35 @@ describe("Greptile on #461, round 2", () => {
     expect(a.understood?.label).toBe("Meets in Oradell");
   });
 });
+
+describe("a loose venue spelling stays in the venue's own state (River Dell vs Riverdale, IL)", () => {
+  it("New Jersey's misspellings stay; Illinois's Riverdale High School goes", async () => {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USILRD1', 'Illinois Meet', 'LeagueMeet', 'Riverdale High School', 'Port Byron', 'IL', 'USA', '2025-01-18', '2025-01-18', 'test')", [S - 2]);
+    await rebuildSearch();
+    const a = await ask("meets in river dell high school");
+    expect(refs(a.hits)).not.toContain("USILRD1");
+    expect(refs(a.hits)).toEqual(expect.arrayContaining(["USNJRD1", "USNJRD2"]));
+    // Typed as Illinois spells it, it's found (with nothing found as typed elsewhere, every loose match counts).
+    const rd = await ask("meets at riverdale high school");
+    expect(refs(rd.hits)).toContain("USILRD1");
+    // The label keeps the words typed: the spelling found as typed, never River Dell's (more common) one.
+    expect(rd.understood?.label).toBe("Meets at Riverdale High School");
+  });
+  it("a date window that leaves out the venue's own events never lets the other state's school in (Greptile on #466)", async () => {
+    // Season S-2 holds only USNJRD1 (River DeHigh, NJ) and Illinois's Riverdale meet; River Dell is found as typed in NJ in other seasons.
+    const a = await ask(`${S - 2}-${String(S - 1).slice(2)} meets at river dell high school`);
+    expect(refs(a.hits)).not.toContain("USILRD1");
+    expect(refs(a.hits)).toContain("USNJRD1");
+  });
+});
+
+describe("a venue line keeps the spelling found as typed (Greptile on #470)", () => {
+  it("the exact spelling wins over a more common loose one in the same state", async () => {
+    // Two Illinois meets spelled "Riverdal High School" (a letter off), one "Riverdale High School" (USILRD1, as typed).
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USILRD2', 'Illinois Meet 2', 'LeagueMeet', 'Riverdal High School', 'Port Byron', 'IL', 'USA', '2025-02-01', '2025-02-01', 'test'), (?, 'USILRD3', 'Illinois Meet 3', 'LeagueMeet', 'Riverdal High School', 'Port Byron', 'IL', 'USA', '2025-02-08', '2025-02-08', 'test')", [S - 2, S - 2]);
+    await rebuildSearch();
+    const a = await ask("meets at riverdale high school");
+    expect(refs(a.hits)).toEqual(expect.arrayContaining(["USILRD1", "USILRD2", "USILRD3"]));
+    expect(a.understood?.label).toBe("Meets at Riverdale High School");
+  });
+});

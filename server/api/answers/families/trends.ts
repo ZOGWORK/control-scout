@@ -85,7 +85,7 @@ function seasonTrend(id: "opr-by-season" | "record-by-season", team: AnswerTeam,
   const base = {
     family: "trend" as const, intent: id, title, team, scope: ["All seasons"],
     definition: opr
-      ? "OPR standing by season: the team's rank by season OPR (without penalties) among the season's ranked teams (3+ matches), as its team page shows, and the share of them it was ahead of. Each season is a different game, so an OPR number is never compared across seasons; the standing is."
+      ? "OPR standing by season: the team's rank by season OPR (without penalties) among every team with a season OPR, as its team page shows, and the share of them it was ahead of. Each season is a different game, so an OPR number is never compared across seasons; the standing is."
       : "Record by season: the team's wins, losses and ties each season, as its team page shows (every match played, playoffs included).",
     source: ss.length ? `From ${ss.length} season record${ss.length === 1 ? "" : "s"}, ${span}` : "No seasons with matches",
   };
@@ -99,7 +99,7 @@ function seasonTrend(id: "opr-by-season" | "record-by-season", team: AnswerTeam,
       ...base,
       headline: share(latest) != null
         ? { value: `Top ${share(latest)}%`, label: `worldwide by OPR in ${seasonLabel(latest.season)}`, sub: `OPR rank #${latest.rank} of ${latest.of}`, href: teamHref(team.number, latest.season) }
-        : { value: "Not ranked", label: `in ${seasonLabel(latest.season)} (under 3 matches)`, href: teamHref(team.number, latest.season) },
+        : { value: "Not ranked", label: `in ${seasonLabel(latest.season)} (no season OPR yet)`, href: teamHref(team.number, latest.season) },
       blocks: [
         { kind: "series", title: "Ahead of this share of ranked teams, by OPR", unit: "%", points: ss.map((s) => ({ x: seasonLabel(s.season), y: ahead(s), href: teamHref(team.number, s.season), note: s.rank != null ? `#${s.rank} of ${s.of}` : "not ranked" })) },
         { kind: "table", title: "Each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "rank", label: "OPR rank" }, { key: "share", label: "Standing" }],
