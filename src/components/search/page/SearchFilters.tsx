@@ -9,14 +9,15 @@ import { anyFilter, type PageFilters, type When } from "./results";
 
 const WHEN: { v: When; label: string }[] = [{ v: "all", label: "All" }, { v: "upcoming", label: "Upcoming" }, { v: "past", label: "Past" }];
 
-export function SearchFilters({ f, seasons, types, onChange }: { f: PageFilters; seasons: number[]; types: { value: string; label: string }[]; onChange: (f: PageFilters) => void }) {
+/** `counts`: how many events each time tab would show, beside its name ("Past 0"), so an empty tab is plain before it's picked. */
+export function SearchFilters({ f, seasons, types, counts, onChange }: { f: PageFilters; seasons: number[]; types: { value: string; label: string }[]; counts?: Record<When, number>; onChange: (f: PageFilters) => void }) {
   return (
     <div role="group" aria-label="Filter results" className="flex flex-wrap items-center gap-2" data-search-filters>
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-lg border border-border bg-card p-0.5">
         {WHEN.map((w) => (
-          <button key={w.v} type="button" role="radio" aria-checked={f.when === w.v} onClick={() => onChange({ ...f, when: w.v })}
+          <button key={w.v} type="button" role="radio" aria-checked={f.when === w.v} aria-label={counts ? `${w.label}, ${counts[w.v]} ${counts[w.v] === 1 ? "event" : "events"}` : undefined} onClick={() => onChange({ ...f, when: w.v })}
             className={cn("rounded-md px-3 py-1 text-xs font-medium max-sm:py-1.5", f.when === w.v ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>
-            {w.label}
+            {w.label}{counts && <span className={cn("ml-1.5 tabular-nums", f.when === w.v ? "opacity-80" : counts[w.v] === 0 && "opacity-60")} aria-hidden data-count>{counts[w.v]}</span>}
           </button>
         ))}
       </div>
