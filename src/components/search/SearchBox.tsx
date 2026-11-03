@@ -127,7 +127,7 @@ export function useSearchHits(q: string, kinds?: HitKind[], limit = 15, initial?
   };
 }
 
-const ICONS: Record<HitKind, typeof Users> = { place: MapPin, team: Users, event: CalendarDays, match: Swords };
+const ICONS: Record<HitKind, typeof Users> = { compare: ArrowLeftRight, place: MapPin, team: Users, event: CalendarDays, match: Swords };
 export const GROUPS: [HitKind, string, typeof Users][] = SEARCH_GROUPS.map(([k, title]) => [k, title, ICONS[k]]);
 
 /** A row's icon: its kind's, or its section's for pages, browsing and Bruno AI's suggestion. */
