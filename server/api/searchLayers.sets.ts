@@ -89,6 +89,12 @@ export const PARAPHRASE_SETS: ParaphraseSet[] = [
   { intent: "leaderboard (stat and place)", canonical: "top opr in new jersey", members: [
     ["scope", "best opr nj"], ["scope", "nj best opr"], ["filler", "top opr in new jersey please"], ["scope", "new jersey top opr"], ["statement", "highest opr in nj"],
   ] },
+  // A place with no "in" reads as with it (owner report, 11-03: "highest opr california" found nothing). "Leaders"
+  // is also part of a team's name there (Newgen Leaders): the leaderboard, every word read, wins over that guess.
+  { intent: "leaderboard (place, no \"in\")", canonical: "top opr in texas", members: [
+    ["scope", "highest opr texas"], ["scope", "texas highest opr"], ["statement", "opr leaders texas"], ["statement", "opr leaders in texas"],
+    ["statement", "highest scoring team texas"], ["statement", "highest scoring team in texas"], ["scope", "top opr texas"], ["filler", "opr leaders texas please"],
+  ] },
   { intent: "leaderboard (phase)", canonical: "top auto opr", members: [
     ["filler", "top auto opr please"], ["statement", "best auto opr"], ["slang", "best auto rn"],
   ] },

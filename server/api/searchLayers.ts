@@ -73,13 +73,17 @@ export function tokens(q: string): string[] {
 // ---------------------------------------------------------------------------------------------------------------
 // Teams by name: every team's full name, read once and kept for a few minutes.
 
+/** A name or a word as the word layers compare them: apostrophes dropped first ("Don't" is "dont", as typed either
+ *  way), then accents, case and punctuation folded. */
+const nameKey = (s: string) => normalize(s.replace(/[’']/g, ""));
+
 let names: { at: number; byName: Map<string, string[]>; list: [string, string][] } | null = null;
 async function teamNames() {
   if (names && Date.now() - names.at < 10 * 60_000) return names;
   const rows = await all<{ number: number; name: string | null }>("SELECT number, name FROM teams WHERE name IS NOT NULL AND name <> ''");
   const byName = new Map<string, string[]>(), list: [string, string][] = [];
   for (const r of rows) {
-    const n = normalize(r.name!);
+    const n = nameKey(r.name!);
     if (!n) continue;
     byName.set(n, [...(byName.get(n) ?? []), String(r.number)]);
     list.push([n, String(r.number)]);
@@ -359,7 +363,7 @@ export function paraphrase(q: string): { q: string; used: string[] } {
 /** Layer 4: FILLER taken out, on whole words, never inside a team's full name ("Just In Time" keeps "just"). */
 export async function stripFiller(q: string): Promise<{ q: string; dropped: string[] }> {
   const ws = q.split(/\s+/).filter(Boolean);
-  const low = ws.map((w) => normalize(w));
+  const low = ws.map((w) => nameKey(w));
   const keep = new Set<number>();
   const { byName } = await teamNames();
   for (let n = 5; n >= 2; n--) for (let i = 0; i + n <= low.length; i++) if (byName.has(low.slice(i, i + n).join(" "))) for (let k = i; k < i + n; k++) keep.add(k);
@@ -378,6 +382,12 @@ export async function stripFiller(q: string): Promise<{ q: string; dropped: stri
 // What an answer is, for the layers and for reporting.
 
 const FALLBACK_NOTE = "isn't answered directly yet";
+/** The key failures aggregate under: Layer 0, lowercased, spaces folded, FILLER taken out (never inside a team's full
+ *  name). Every other character stays, so a reporter's placeholders ("[email]") come through as they went in. */
+export async function searchKey(q: string): Promise<string> {
+  return (await stripFiller(normalizeQuery(q))).q.toLowerCase();
+}
+
 /** What an answer is: a direct answer, or which kind of failure (SearchOutcome.result). */
 export function resultOf(a: SearchAnswer, asked: { team: boolean; intent: boolean }): OutcomeResult {
   const label = a.understood?.label ?? "";
@@ -388,6 +398,16 @@ export function resultOf(a: SearchAnswer, asked: { team: boolean; intent: boolea
   if (a.understood?.kind === "names" && /^Teams, events and matches matching/.test(label) && asked.intent) return "name-search-only";
   if (!a.hits.length && !a.pages.length && asked.team) return "empty";
   return "answered";
+}
+
+/** The answer is about one team the query didn't name: not its number, not every word of its name. */
+function guessedTeam(a: SearchAnswer, q: string): boolean {
+  const top = a.hits[0];
+  if (!top || top.kind !== "team") return false;
+  const typed = new Set(tokens(q));
+  if (typed.has(top.ref)) return false;
+  const name = nameKey(top.title.replace(/^\d+\s*/, "")).split(" ").filter(Boolean);
+  return !name.every((w) => typed.has(w));
 }
 
 /** Two answers say the same thing (the filler rule): the same card, stat or reading. */
@@ -422,7 +442,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const x0 = await extract(q0);
   const asked = { team: x0.teams.length > 0 || !!x0.found.place || !!x0.found.event, intent: x0.intents.length > 0 || x0.weak.length > 0 || x0.found.extra.has("versus") };
   const strip = await stripFiller(q0);
-  const normalized = tokens(strip.q).join(" ");
+  const normalized = strip.q.toLowerCase();
   const done = (a: SearchAnswer, won: LayerId | null, x: Extracted, result?: OutcomeResult, filler: string[] = []): SearchAnswer => {
     const out = { ...a, q: typed };
     outcomes.set(out, {
@@ -463,6 +483,12 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
         const k = await keywordTry(q0, x0, "keyword", x0.dropped);
         if (k?.card) return k;
       }
+      // So does a leaderboard, count or winners question with every word read, over an answer about a team the query
+      // never named in full ("opr leaders texas" read "leaders" as Newgen Leaders).
+      if (x0.intent?.team === "forbidden" && x0.canonical && !x0.unknown.length && !x0.forbidden.length && guessedTeam(base, q0)) {
+        const k = await keywordTry(q0, x0, "keyword", x0.dropped);
+        if (k && !same(k, base)) return k;
+      }
       // A forbidden word Layer 1 read past ("4215 today opr") is named, never silently dropped.
       const unread = x0.forbidden.filter((w) => !(base!.understood?.label ?? "").toLowerCase().includes(w));
       if (unread.length && base.understood) base = { ...base, understood: { ...base.understood, label: `${base.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
@@ -492,8 +518,11 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   }
   // Layer 5: a weak signal pointing at one intent.
   const xw = p.used.length ? await extract(p.q) : x0;
-  if (keyword && xw.weak.length === 1 && !xw.intents.length && !xw.forbidden.length && !xw.unknown.length) {
-    const it = INTENTS.find((i) => i.id === xw.weak[0])!;
+  const weakIt = xw.weak.length === 1 ? INTENTS.find((i) => i.id === xw.weak[0])! : null;
+  // Scope the weak word's intent can't take blocks it, as for a strong one ("4215 based 2024-25" isn't the listing).
+  const fits = (it: Intent, f: Found) => (!f.season || it.scope.includes("season")) && (!f.place || it.scope.includes("place")) && (!f.event || it.scope.includes("event"));
+  if (keyword && weakIt && fits(weakIt, xw.found) && !xw.intents.length && !xw.forbidden.length && !xw.unknown.length) {
+    const it = weakIt;
     const canonical = it.canonical({ ...xw.found, extra: new Set(xw.found.extra) });
     if (canonical) {
       layers.push("scope");

@@ -35,6 +35,8 @@ export interface Intent {
 
 const T = (f: Found) => f.teams[0];
 const at = (f: Found) => (f.event ? ` at ${f.event}` : "");
+/** A season, when named, after everything else: every filter typed stays in the phrasing handed on. */
+const inSeason = (f: Found) => (f.season ? ` ${f.season}` : "");
 const PHASE_LABEL = { auto: "auto", teleop: "teleop", endgame: "endgame" } as const;
 
 /** The intent catalog. Order is not precedence: precedence is PRECEDENCE below. */
@@ -51,7 +53,7 @@ export const INTENTS: Intent[] = [
   { id: "rating", family: "team stats", words: ["rating", "prediction rating", "predicted rating", "prediction", "predicted"], team: "required", scope: ["season"],
     canonical: (f) => `${T(f)} prediction rating${f.season ? ` ${f.season}` : ""}` },
   { id: "record", family: "record", words: ["record", "wins", "losses", "win loss", "w l", "wins and losses"], team: "required", scope: ["season", "event"],
-    canonical: (f) => (f.event ? `${T(f)} record${at(f)}` : `${T(f)} record${f.season ? ` ${f.season}` : ""}`) },
+    canonical: (f) => `${T(f)} record${at(f)}${inSeason(f)}` },
   { id: "win-rate", family: "record", words: ["win rate", "win percentage"], team: "required", scope: [], canonical: (f) => `${T(f)} win rate` },
   { id: "rank", family: "record", words: ["rank", "ranking", "ranked", "standing"], team: "required", scope: ["place"],
     canonical: (f) => (f.place ? `${T(f)} rank in ${f.place}` : `${T(f)} rank`) },
@@ -63,10 +65,10 @@ export const INTENTS: Intent[] = [
   { id: "last-match", family: "next and last", words: ["last match", "last game", "most recent match", "latest match", "previous match"], team: "required", scope: [], canonical: (f) => `${T(f)} last match` },
   { id: "awards", family: "awards", words: ["awards", "award"], team: "required", scope: ["season", "event"],
     // An award name at an event has no one phrasing the answers read: it isn't guessed.
-    canonical: (f) => (f.event ? (f.award ? null : `${T(f)} awards${at(f)}`) : `${T(f)} ${f.award ? `${f.award} award` : "awards"}${f.season ? ` ${f.season}` : ""}`) },
+    canonical: (f) => (f.event ? (f.award ? null : `${T(f)} awards${at(f)}${inSeason(f)}`) : `${T(f)} ${f.award ? `${f.award} award` : "awards"}${inSeason(f)}`) },
   { id: "events", family: "events", words: ["events", "event"], team: "required", scope: ["season", "place"],
     // No season named: the default (searchLayers.ts) fills in the team's latest season with an event.
-    canonical: (f) => (f.place && !f.season ? `${T(f)} events in ${f.place}` : f.season ? `${T(f)} events in ${f.season}` : null) },
+    canonical: (f) => (f.place ? `${T(f)} events in ${f.place}${inSeason(f)}` : f.season ? `${T(f)} events in ${f.season}` : null) },
   { id: "worlds", family: "worlds and states", words: ["worlds", "world championship", "first championship"], team: "required", scope: [],
     canonical: (f) => `${T(f)} worlds${f.extra.has("record") ? " record" : ""}` },
   { id: "states", family: "worlds and states", words: ["states", "state championship", "state championships"], team: "required", scope: [], canonical: (f) => `${T(f)} states` },
@@ -78,7 +80,8 @@ export const INTENTS: Intent[] = [
     canonical: (f) => (f.teams.length === 2 ? `${f.teams[0]} vs ${f.teams[1]}${f.extra.has("who wins") ? " who wins" : ""}` : null) },
   // No team: a leaderboard, a count, winners, a meaning.
   { id: "leaderboard", family: "leaderboards", words: ["top", "best", "highest", "most", "leaders", "leaderboard", "strongest"], team: "forbidden", scope: ["place"],
-    canonical: (f) => { const stat = [...f.extra].find((w) => LEADER_STATS[w]); return stat ? `${LEADER_STATS[stat](f)}${f.place ? ` in ${f.place}` : ""}` : null; } },
+    // A named stat before "teams" ("teams with the highest win rate" is the win-rate board).
+    canonical: (f) => { const stat = LEADER_STAT_ORDER.find((w) => f.extra.has(w)); return stat ? `${LEADER_STATS[stat](f)}${f.place ? ` in ${f.place}` : ""}` : null; } },
   { id: "count", family: "counts", words: ["how many", "number of", "count"], team: "forbidden", scope: ["place", "season"],
     canonical: (f) => { const n = f.extra.has("teams") ? "teams" : f.extra.has("events") ? "events" : null; return n && (f.place || !f.season) ? `how many ${n}${f.place ? ` in ${f.place}` : ""}` : null; } },
   { id: "winners", family: "winners", words: ["won", "winner", "winners", "champion", "champions", "who won"], team: "forbidden", scope: ["event", "season"],
@@ -95,6 +98,7 @@ const LEADER_STATS: Record<string, (f: Found) => string> = {
   rating: () => "top teams", "prediction rating": () => "top teams", teams: () => "top teams",
 };
 export const LEADER_STAT_WORDS = Object.keys(LEADER_STATS);
+const LEADER_STAT_ORDER = ["win rate", "wins", "auto", "teleop", "endgame", "opr", "prediction rating", "rating", "teams"];
 
 /** A phase is its own stat word: "4215 auto" is the team's Auto OPR, "best auto" the Auto OPR leaderboard. */
 export const PHASES: Record<string, Found["phase"]> = { auto: "auto", autonomous: "auto", teleop: "teleop", endgame: "endgame" };
@@ -158,6 +162,12 @@ export const PARAPHRASES: [string, string][] = [
   ["who would win", "who wins"],
   ["who will win", "who wins"],
   ["leader board", "leaderboard"],
+  // A team that scores the most is read by OPR, the points it adds to its alliance's score (the line says so).
+  ["highest scoring teams", "top opr"],
+  ["highest scoring team", "top opr"],
+  ["top scoring teams", "top opr"],
+  ["top scoring team", "top opr"],
+  ["opr leaders", "top opr"],
   ["what does mean", "meaning"],
 ];
 

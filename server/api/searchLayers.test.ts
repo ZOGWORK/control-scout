@@ -7,7 +7,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { FILLER, FORBIDDEN, INTENTS, PARAPHRASES, WEAK_SIGNALS } from "./searchCatalog";
-import { extract, paraphrase, searchOutcome, setLayersForTest, stripFiller, tokens } from "./searchLayers";
+import { extract, paraphrase, searchKey, searchOutcome, setLayersForTest, stripFiller, tokens } from "./searchLayers";
 import { PARAPHRASE_SETS } from "./searchLayers.sets";
 
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -25,8 +25,9 @@ beforeAll(async () => {
     [23268, "Ultraviolet", "Hackettstown", "NJ", 2023, [90, 12, 8], [157.9, 33, 17]],
     [14270, "Quantum Robotics", "Bucharest", "TX", 2018, [150, 30, 5], [200, 40, 2]],
     [25632, "Mean Green Machine", "Austin", "TX", 2022, [20, 2, 10], [22.6, 10, 10]],
-    [32034, "Please Dont Explode", "Austin", "TX", 2024, [10, 1, 5], [43.7, 4, 8]],
+    [32034, "Please Don't Explode", "Austin", "TX", 2024, [10, 1, 5], [43.7, 4, 8]],
     [11111, "Just In Time", "Austin", "TX", 2015, [30, 3, 3], [55, 6, 6]],
+    [17799, "Newgen Leaders", "Austin", "TX", 2019, [12, 2, 6], [15.6, 3, 9]],
   ];
   for (const [n, name, city, state, rookie, before, now] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year, school, sponsors, website) VALUES (?, ?, ?, ?, 'USA', ?, ?, '[\"Acme\"]', 'https://example.org')", [n, name, city, state, rookie, `${city} High School`]);
@@ -192,6 +193,9 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
     expect((await ask("what does opr mean")).card?.title).toMatch(/^OPR/);
     // "mean" and "please" in a full name stay the name.
     expect((await extract("mean green machine opr")).teams).toEqual(["25632"]);
+    // A name with an apostrophe reads as typed with or without it.
+    for (const q of ["please don't explode opr", "please dont explode opr"]) expect((await extract(q)).teams, q).toEqual(["32034"]);
+    expect((await stripFiller("please don't explode opr")).q).toBe("please don't explode opr");
   });
   it("two intents with no rule between them are named, never guessed", async () => {
     const a = await ask("4215 sponsors school");
@@ -200,6 +204,14 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
     expect(searchOutcome(await ask("4215 awards location"))).toMatchObject({ result: "ambiguous", intents: ["awards", "location"] });
     // A weak word with two meanings is named too.
     expect((await extract("4215 stats")).weak).toEqual(["opr", "record"]);
+  });
+  it("every filter typed stays in the phrasing handed on; scope a weak word's intent can't take blocks it", async () => {
+    expect((await extract("which events of 4215 in new jersey in 2025-26")).canonical).toBe("4215 events in New Jersey 2025-26");
+    expect((await extract("record of 4215 at new jersey championship 2024-25")).canonical).toBe("4215 record at new jersey championship 2024-25");
+    expect((await extract("awards of 4215 at new jersey championship 2024-25")).canonical).toBe("4215 awards at new jersey championship 2024-25");
+    const a = await ask("4215 based 2024-25");
+    expect(searchOutcome(a)?.won).not.toBe("scope");
+    expect(a.card?.title ?? "").not.toMatch(/Where they're from/);
   });
   it("a team's events with no season: its latest season with an event, said so", async () => {
     const a = await ask("4215 events");
@@ -216,7 +228,8 @@ describe("the outcome failed-search reporting reads", () => {
     expect(f).toMatchObject({ result: "team-fallback", won: null, team: "4215" });
     expect(f.layers.at(-1)).toBe("fallback");
     expect(searchOutcome(await ask("zzqx wobble"))).toMatchObject({ result: "no-match", won: null });
-    // Filler variants of one failing query share the key.
+    // Filler variants of one failing query share the key, and the key keeps a reporter's placeholders.
+    expect(await searchKey("Please  #4215 [email] not OPR rn")).toBe("4215 [email] not opr");
     expect(searchOutcome(await ask("please 4215 not opr"))?.normalized).toBe(f.normalized);
   });
   it("only a top-level search has an outcome, and the answer's JSON has nothing new", async () => {

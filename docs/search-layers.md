@@ -28,6 +28,7 @@ The first layer that gives a direct answer wins, and the answer appears once.
 Three rules run alongside the order:
 - **A filler word never decides an answer.** A query Layer 1 answered is also read without its filler. If that reading answers differently and directly, the filler-free reading wins. For example, "what is opr please" read "please" as the team Please Don't Explode; it now gets the OPR definition.
 - **A definition beats a name search** (brief section 10). "what does opr mean" read "mean" as the start of Mean Green Irish Machine; it now gets the OPR definition.
+- **A leaderboard, count or winners question with every word read beats an answer about a team the query never named in full.** "opr leaders texas" read "leaders" as Newgen Leaders, and "top win rate" read "top" as Top Shelf BGS; both now get the leaderboard. This also covers a place typed without "in" ("highest opr california").
 - **A forbidden word Layer 1 read past is named.** "4215 today opr" still gets the OPR card, and the line adds `"today" isn't part of this answer`.
 
 The layers run once per top-level search: `searchAnswer` calls `layeredAnswer`, and every search made inside it is
@@ -127,6 +128,11 @@ Paraphrases (Layer 3, `PARAPHRASES`), each tested:
 | who would win | who wins |
 | who will win | who wins |
 | leader board | leaderboard |
+| highest scoring teams | top opr |
+| highest scoring team | top opr |
+| top scoring teams | top opr |
+| top scoring team | top opr |
+| opr leaders | top opr |
 | what does mean | meaning |
 
 Precedence pairs not in the brief, each with the example that forced it:
@@ -213,6 +219,7 @@ sets on its fixture.
 | winners (event) | ✓ | ✓ |  |  |  | 2/2 |
 | winners (award) | ✓ | ✓ |  |  |  | 1/1 |
 | leaderboard (stat and place) | ✓ | ✓ |  |  |  | 5/5 |
+| leaderboard (place, no "in") | ✓ | ✓ | ✓ |  |  | 8/8 |
 | leaderboard (phase) | ✓ | ✓ |  |  |  | 3/3 |
 | count | ✓ | ✓ |  |  |  | 2/2 |
 | meaning | ✓ | ✓ |  |  |  | 4/4 |
@@ -282,6 +289,7 @@ Every member must return the canonical form's answer: the same card, stat, numbe
 - **winners (event)** (`who won new jersey championship`): filler: "who won new jersey championship please"; statement: "new jersey championship winners"
 - **winners (award)** (`who won inspire at new jersey championship`): filler: "who won inspire at new jersey championship please"
 - **leaderboard (stat and place)** (`top opr in new jersey`): scope: "best opr nj"; scope: "nj best opr"; filler: "top opr in new jersey please"; scope: "new jersey top opr"; statement: "highest opr in nj"
+- **leaderboard (place, no "in")** (`top opr in texas`): scope: "highest opr texas"; scope: "texas highest opr"; statement: "opr leaders texas"; statement: "opr leaders in texas"; statement: "highest scoring team texas"; statement: "highest scoring team in texas"; scope: "top opr texas"; filler: "opr leaders texas please"
 - **leaderboard (phase)** (`top auto opr`): filler: "top auto opr please"; statement: "best auto opr"; slang: "best auto rn"
 - **count** (`how many teams in new jersey`): filler: "how many teams in nj please"; statement: "number of teams in new jersey"
 - **meaning** (`what is opr`): statement: "define opr"; reversed: "opr meaning"; filler: "what is opr please"; question: "what does opr mean"
@@ -300,6 +308,7 @@ Every member must return the canonical form's answer: the same card, stat, numbe
 - **Place.** A state's name or code, a province or a country (`regionOf`). The line says the resolved place when it differs from what was typed ("nj" → "New Jersey").
 - **Event.** A run of words with an event word in it (championship, qualifier, league, meet, division, …), or one after "at". A place next to it is part of its name ("new jersey championship").
 - **Defaults when no scope is given.** Each intent's existing default applies, and the answer's title says it (for example "OPR in 2025–26"). The one new default: a team's events with no season name the team's latest season with an event. The line says `read as "4215 events in 2026-27"`.
+- **Every filter typed stays in the phrasing handed on**: place and season together for events, event and season together for record and awards. A weak word's intent is checked the same way, so "4215 based 2024-25" isn't the current listing.
 - **Scope an intent can't take blocks it**, rather than being dropped: "4215 location 2024-25" isn't read as the location.
 
 ## 7. Precedence and ambiguity
@@ -354,5 +363,4 @@ answer is built; nothing in the layers writes, logs or calls GitHub.
   - "4215 no opr" reads as team 9215 (Team Talos). It now says `"no" isn't part of this answer`.
   - "what is teleop" and "what is endgame" have no definition.
   - "how many teams 2024-25" is read as names.
-  - "top win rate" and "top prediction rating" (with no place) are read as the team Top Shelf BGS.
   - The long-form query takes 4–7 s locally. Almost all of that is Layer 1's existing word-by-word search before it gives up; the layers add about 20 ms.
