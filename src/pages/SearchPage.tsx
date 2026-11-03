@@ -77,12 +77,12 @@ export default function SearchPage() {
   // Phones: teams picked with VS Compare for the Compare (2) bar (this search's own: a new search starts empty), and
   // the Compare result whose head-to-head is open over the results.
   const [picks, setPicks] = useState<number[]>([]);
-  // A new search starts with none (and going back to an earlier one doesn't bring its picks back).
-  const [pickedFor, setPickedFor] = useState(query);
-  if (pickedFor !== query) { setPickedFor(query); setPicks([]); }
   const pick = (t: number) => setPicks((p) => togglePick(p, t));
   // The open head-to-head, and the card it was opened from (focus goes back to it on close).
   const [sheet, setSheet] = useState<{ hit: SearchHit; from: HTMLElement } | null>(null);
+  // A new search (Back included) starts with no picks and no open preview: both belonged to the last one.
+  const [pickedFor, setPickedFor] = useState(query);
+  if (pickedFor !== query) { setPickedFor(query); setPicks([]); setSheet(null); }
   const pickNames = useMemo(() => {
     const m = new Map<number, string>();
     for (const h of hits) if (h.kind === "team" && !isCompare(h)) { const p = teamParts(h.title); if (p?.name) m.set(Number(p.number), p.name); }

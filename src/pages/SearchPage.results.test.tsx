@@ -447,6 +447,18 @@ describe("search results page, phone (Part B 3b)", () => {
     expect(document.querySelector("[data-compare-bar]")).toBeNull();
   });
 
+  it("an open head-to-head closes when the search changes (Back included)", () => {
+    const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
+    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    let go: (to: string) => void = () => {};
+    function Go() { go = useNavigate(); return null; }
+    const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /><Go /></MemoryRouter>);
+    fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);
+    expect(document.querySelector("[data-compare-sheet]")).toBeTruthy();
+    act(() => go("/search?q=b"));
+    expect(document.querySelector("[data-compare-sheet]")).toBeNull();
+  });
+
   it("the Compare bar waits for the privacy choice (the banner uses the same strip)", () => {
     consent.decided = false;
     try {
