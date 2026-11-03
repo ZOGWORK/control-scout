@@ -125,7 +125,7 @@ export function RecordsTable(p: RecordsTableProps) {
   const fetchFields = useMemo(() => (scope === "match" ? [...new Set([...fields, ...SUMMARY_FIELDS, ...(predictable ? [PREDICTION_FIELD] : [])])]
     : fields.includes("scheduleDifficulty") ? [...new Set([...fields, "scheduleOpponents", "schedulePartners"])] : fields), [scope, fields, predictable]);
   // An unreadable filter or unknown country asks nothing: the rows would be broader than the link says.
-  const api = useApi<Resp>(state.filterError || state.countryUnknown ? null : recordsUrl({ ...req, fields: fetchFields }));
+  const api = useApi<Resp>(state.filterError || state.countryUnknown || state.stateUnknown ? null : recordsUrl({ ...req, fields: fetchFields }));
   const last = useRef<Resp | undefined>(undefined);
   if (api.data) last.current = api.data;
   const data = api.data ?? (api.loading ? last.current : undefined);
@@ -287,7 +287,7 @@ export function RecordsTable(p: RecordsTableProps) {
       </Tooltip>
     );
   });
-  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
+  const countLine = data ? <><span className="font-semibold tabular-nums text-text-base">{total.toLocaleString()}</span> {p.noun}</> : state.filterError || state.countryUnknown || state.stateUnknown || api.error ? null : "Loading…"; // a failed load says so below, not "Loading…" too
   // The cap note takes its own line (under the toolbar; under Compare on phones), so it never squeezes the quick filters.
   const capStatus = selectable && (
     <span role="status" className={cn(capNote ? ["order-last inline-flex min-w-0 basis-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium max-sm:order-1", RECORDS_CAP_NOTE_TONE] : "sr-only")}>
@@ -434,6 +434,9 @@ export function RecordsTable(p: RecordsTableProps) {
       ) : state.countryUnknown ? (
         <Problem title={`Unknown country ${state.countryUnknown.slice(0, 40)}`} detail="This link names a country code we don't know, so no teams are shown. Countries use two-letter codes, like US or CA."
           clearLabel="Show every country" onClear={() => setState({ ...state, countryUnknown: null, page: 1 })} />
+      ) : state.stateUnknown ? (
+        <Problem title={`Unknown state ${state.stateUnknown.slice(0, 40)}`} detail={state.country ? "This link names a state we can't read, so no teams are shown. States use their short codes, like NJ or ON." : "This link names a state without its country, so no teams are shown. A state needs a country, like country=US&state=NJ."}
+          clearLabel="Remove the state" onClear={() => setState({ ...state, stateUnknown: null, page: 1 })} />
       ) : api.error && !data ? (
         (api.error as ApiError).offline && p.offlineFallback ? (
           <div className="space-y-3">

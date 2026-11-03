@@ -30,6 +30,9 @@ export interface TableState {
   /** Team records: with `country`, teams whose directory entry gives this state or province ("NJ"), the place
    *  search's leaderboards use (FIRST region codes aren't states: USMOKS is Missouri and Kansas). */
   homeState: string | null;
+  /** A ?state= we can't use (not a plain code, or no known country with it): kept in the URL and shown as a
+   *  problem until cleared, like an unknown country, never silently dropped for broader rows. */
+  stateUnknown: string | null;
 }
 
 /** The URL params a records table owns (cleared when an event page switches tab). */
@@ -65,7 +68,8 @@ export function parseTableState(sp: URLSearchParams, scope: RecordScope, default
   const countryUnknown = countryRaw && !country ? countryRaw : null;
   const stateRaw = sp.get("state")?.trim().toUpperCase();
   const homeState = country && stateRaw && STATE.test(stateRaw) ? stateRaw : null;
-  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to"), country, countryUnknown, homeState };
+  const stateUnknown = scope !== "match" && stateRaw && !homeState ? sp.get("state") : null;
+  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to"), country, countryUnknown, homeState, stateUnknown };
 }
 
 /**
@@ -88,14 +92,14 @@ export function writeTableState(sp: URLSearchParams, s: TableState, scope: Recor
   set("to", s.to);
   // An unknown country stays as it was (like an unreadable filter) until it's cleared.
   set("country", s.country ?? s.countryUnknown);
-  set("state", s.country ? s.homeState : null);
+  set("state", (s.country ? s.homeState : null) ?? s.stateUnknown);
   return out;
 }
 
 /** True when anything narrows the rows (what "Clear Filters" resets). */
-export const hasFilters = (s: TableState) => !!(s.filter?.children.length || s.regions.length || s.eventType || s.from || s.to || s.country || s.countryUnknown);
+export const hasFilters = (s: TableState) => !!(s.filter?.children.length || s.regions.length || s.eventType || s.from || s.to || s.country || s.countryUnknown || s.stateUnknown);
 
-export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, country: null, countryUnknown: null, homeState: null, page: 1 });
+export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, country: null, countryUnknown: null, homeState: null, stateUnknown: null, page: 1 });
 
 /**
  * A query string for the address bar: URLSearchParams.toString(), but with the
