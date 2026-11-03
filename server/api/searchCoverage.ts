@@ -46,6 +46,8 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
     const r = regionOf(m[3].split(" "))!;
     return { q: squash(`${m[1]} ${m[2]} at ${r.name} championship`), pre: true };
   }
+  // "When did hypnotic last play", "when did 4215 play last", "when did they last compete": the team's most recent match.
+  if ((m = new RegExp(`^when\\s+(?:did|was|were)\\s+${TEAM}\\s+(?:last\\s+(?:play|played|compete|competed|playing|competing)|(?:play|compete)\\s+last)$`).exec(t))) return { q: `${m[1]} last match`, pre: true };
   // No-shows and disqualifications are counted in the team's reliability.
   if ((m = /^(\d{1,6})\s+(?:no[\s-]?shows?|dqs?|disqualifications?|disqualified)$/.exec(t))) return { q: `${m[1]} reliability`, note: "no-shows and disqualifications are counted in reliability", pre: true };
   // A team's penalties, said the short way: the points it gave away, event by event.
@@ -579,35 +581,64 @@ const FACT_WORDS: [RegExp, "school" | "place" | "rookie" | "website" | "sponsors
   [/^(?:sponsors?)$/, "sponsors"],
 ];
 
+/** The words that ask for one of a team's listing facts, as the end of a query (longest first). */
+const FACT_PHRASES = "high school|schools|school|organization|organisation|org|location|city|town|hometown|rookie year|rookie season|year founded|founded|website|site|homepage|sponsors?";
+
 /** A team's own facts from FIRST's listing: "4215 school", "where is 4215 from", "4215 rookie year", "4215 website". */
 export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
   const m = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
-    ?? /^(?:what(?:'s| is)\s+)?(.+?)(?:'s)?\s+(school|schools|organization|organisation|org|high school|location|city|town|hometown|rookie year|rookie season|year founded|founded|website|site|homepage|sponsors?)$/.exec(t)
+    ?? new RegExp(`^(?:what(?:'s| is)\\s+)?(.+?)(?:'s)?\\s+(${FACT_PHRASES})$`).exec(t)
     ?? /^when\s+(?:was|did)\s+(.+?)\s+(founded|start|started)$/.exec(t);
   if (!m) return null;
-  const fact = FACT_WORDS.find(([w]) => w.test(m[2]))?.[1];
-  if (!fact) return null;
-  const who = m[1].replace(/^(?:team|ftc)\s+/, "");
-  const hit = /^\d{1,6}$/.test(who)
+  const last = FACT_WORDS.find(([w]) => w.test(m[2]))?.[1];
+  if (!last) return null;
+  const find = async (who: string) => /^\d{1,6}$/.test(who)
     ? (await search(String(Number(who)), 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(Number(who)))
     : (await search(who, 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(who));
+  // More than one fact asked at once ("4215 sponsors school", "4215 rookie year, website and sponsors"): each is
+  // answered. The whole name is tried first, so a team named with a fact word ("River City") is never cut short.
+  let who = m[1].replace(/^(?:team|ftc)\s+/, "");
+  const facts: (typeof last)[] = [last];
+  let hit = await find(who);
+  for (let p: RegExpExecArray | null; !hit && (p = new RegExp(`^(.+?)[\\s,]+(?:and\\s+|&\\s+)?(${FACT_PHRASES})$`).exec(who.replace(/,?\s+(?:and|&)$/, "")));) {
+    const f = FACT_WORDS.find(([w]) => w.test(p![2]))?.[1];
+    if (!f) break;
+    if (!facts.includes(f)) facts.unshift(f);
+    who = p[1];
+    hit = await find(who);
+  }
   if (!hit) return null;
   const row = await get<any>("SELECT school, city, state, country, rookie_year, website, sponsors FROM teams WHERE number = ?", [Number(hit.ref)]);
   if (!row) return null;
   const name = nameOf(hit);
-  let text: string | null = null, detail: string | undefined;
-  if (fact === "school") text = row.school ? String(row.school) : null;
-  if (fact === "place") text = [row.city, row.state, row.country].filter(Boolean).join(", ") || null;
-  if (fact === "rookie" && row.rookie_year) { text = `Rookie season ${seasonLabel(Number(row.rookie_year))}`; detail = `${CURRENT_SEASON - Number(row.rookie_year) + 1} seasons, this one included`; }
-  if (fact === "website") text = row.website ? String(row.website) : null;
-  if (fact === "sponsors") { let s: string[] = []; try { s = JSON.parse(row.sponsors ?? "[]"); } catch { /* not a list */ } text = s.length ? s.join(", ") : null; }
-  const what = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors" }[fact];
+  const LABEL = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors" };
+  const read = (fact: typeof last): { text: string | null; detail?: string } => {
+    if (fact === "school") return { text: row.school ? String(row.school) : null };
+    if (fact === "place") return { text: [row.city, row.state, row.country].filter(Boolean).join(", ") || null };
+    if (fact === "rookie") return row.rookie_year ? { text: `Rookie season ${seasonLabel(Number(row.rookie_year))}`, detail: `${CURRENT_SEASON - Number(row.rookie_year) + 1} seasons, this one included` } : { text: null };
+    if (fact === "website") return { text: row.website ? String(row.website) : null };
+    let s: string[] = [];
+    try { s = JSON.parse(row.sponsors ?? "[]"); } catch { /* not a list */ }
+    return { text: s.length ? s.join(", ") : null };
+  };
+  const team = { number: Number(hit.ref), name: teamNameOf(hit.title) };
+  if (facts.length > 1) {
+    // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
+    const what = facts.map((f) => LABEL[f]).join(" and ");
+    return answer(q, {
+      hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
+      card: { kind: "info", title: what, team, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
+      understood: { kind: "team", label: `${name} · ${what}` },
+    });
+  }
+  const { text, detail } = read(last);
+  const what = LABEL[last];
   // The card names the fact; its team is on the card already (card.team), so the page never says the team twice.
   const title = `${name} · ${what}`;
   return answer(q, {
     hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-    card: { kind: "info", title: what, team: { number: Number(hit.ref), name: teamNameOf(hit.title) }, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
+    card: { kind: "info", title: what, team, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
     understood: { kind: "team", label: title },
   });
 }

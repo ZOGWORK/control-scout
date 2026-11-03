@@ -322,8 +322,8 @@ The brief's precedence, in order: two teams, event scope, award winners, specifi
 
 | Query | Candidates | Outcome |
 |---|---|---|
-| 4215 sponsors school | sponsors, school | Team page; line: `read as 4215 with sponsors or school: say which`. Reported as ambiguous. |
-| 4215 awards location | awards, location | The same. |
+| 4215 awards location | awards, location | Team page; line: `read as 4215 with awards or location: say which`. Reported as ambiguous. |
+| 4215 sponsors school | sponsors, school | Not ambiguous: both are facts from FIRST's listing, so both are answered, each on its own line (teamFactAnswer). |
 | 4215 stats | opr, record (weak word) | Layer 1 already answers it (the team's OPR section), so it never reaches the line. |
 | 4215 win | awards, next-match (weak word) | Layer 1 answers it with the team. |
 | 4215 opr rating | opr, rating | Layer 1 answers it (the prediction rating). Kept: a later layer never overrides an earlier direct answer. |

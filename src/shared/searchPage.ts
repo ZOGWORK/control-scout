@@ -54,8 +54,10 @@ export function teamParts(title: string): { number: string; name: string } | nul
   return m ? { number: m[1], name: m[2] } : null;
 }
 
-/** Each word's first letter in capitals; never one after an apostrophe ("They're", not "They'Re"). */
-export const capWords = (s: string) => s.replace(/(?<![\p{L}\p{N}'’])\p{Ll}/gu, (c) => c.toUpperCase());
+/** Each word's first letter in capitals; never one after an apostrophe ("They're", not "They'Re"), and the small
+ *  joining words stay small unless they start it ("Sponsors and School or Organization"). */
+const SMALL = new Set(["a", "an", "and", "or", "of", "the", "in", "at", "on", "by", "for", "to", "vs"]);
+export const capWords = (s: string) => s.replace(/(?<![\p{L}\p{N}'’])\p{Ll}[\p{L}\p{N}'’]*/gu, (w, at: number) => (at > 0 && SMALL.has(w) ? w : w[0].toUpperCase() + w.slice(1)));
 
 /** The page's heading: what the results are about and what was asked (never the query as typed). "Team 7149 —
  *  Worlds Appearances", "Hypnotic Robotics (4215) vs Bad Wolf (6980)", "Simply Complex (18061)", "Events in New Jersey". */
