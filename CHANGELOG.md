@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.3 — 2026-11-03
+
+Home's search box speaks for itself: the label and heading above it are gone, so the field and its examples lead.
+
+### Highlights
+- [home] Home's search box stands on its own, no heading above it
+- [home] The field keeps its label and its rotating examples
+- [home] The first paint matches, so nothing jumps as the page loads
+
+### Home
+- **Search box.** The "FTC One Search" tag, the "Type whatever you want" heading and the line under it are gone from Home's search block; the field's own label and placeholder say what it does, and the example chips stay. The page's first paint draws it the same way. (#474)
+
 ## 2.7.2 — 2026-11-03
 
 FTC One Search has its own page explaining what you can search for and how each query is answered. In the menu, How it works now opens to its two pages: Predictions and FTC One Search.
