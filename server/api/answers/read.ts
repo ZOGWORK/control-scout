@@ -304,6 +304,8 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
       if (!m) continue;
       const a = side(m[1]), b = side(m[2]);
       if (!a || !b || a === b) break;
+      // "4215 OPR vs New Jersey average": a team against a field's average (families/facts.ts), not two teams.
+      if (/\b(?:average|avg|mean)$/.test(b)) return null;
       // A side still holding a versus word names more than one team: Compare's question, not this one.
       if (new RegExp(String.raw`\b${VS}\b`).test(a) || new RegExp(String.raw`\b${VS}\b`).test(b)) return null;
       // Season numbers are read per team; match-type and colour scopes only apply to the meetings.
