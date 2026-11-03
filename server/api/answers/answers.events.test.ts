@@ -162,6 +162,21 @@ describe("two teams", () => {
     await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'USNJCMPPKWY', 6980, 3)");
     const n = await searchAnswer("4215 teams never played", { limit: 25 });
     expect(n.stat!.none).toBe("Hypnotic Robotics (4215) has played against every NJ team with matches in 2025–26.");
+    // A playoff 4215 sat out (not on the field) never met the other alliance.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Bench Mark', 'Oradell', 'NJ', 'USA')");
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'USNJCMPPKWY', 31000, 3)");
+    await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 31000, 40, 3, 1, 2, 0)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCMPPKWY', 'playoff', 3, 1, 'M3', '2026-03-15T13:00:00Z', 1, 90, 90, 80, 80, 't')");
+    for (const [t, al, on] of [[4215, "red", 0], [207, "red", 1], [31000, "blue", 1]] as const) await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCMPPKWY', 'playoff', 3, 1, ?, ?, ?)", [t, al, on]);
+    clearAllCaches();
+    const sat = await searchAnswer("4215 teams never played", { limit: 25 });
+    expect(JSON.stringify(sat.stat!.blocks)).toContain("31000 Bench Mark");
+  });
+  it("a season before Predict's (2023–24) offers Compare only", async () => {
+    await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2021, 4215, 80, 12, 8, 4, 0), (2021, 6980, 70, 12, 6, 6, 0)");
+    const a = await searchAnswer("4215 OPR vs 6980 in 2021-22", { limit: 25 });
+    const links = a.stat!.blocks.find((b) => b.kind === "links");
+    expect(links && links.kind === "links" && links.items.map((i) => i.label)).toEqual(["Compare side by side"]);
   });
 });
 
