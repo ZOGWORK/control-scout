@@ -4,7 +4,7 @@
 // Presentation only: the box underneath is the same SearchBox, so what it finds is the search's own answer.
 import { useEffect, useState, type ComponentType, type Ref } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeftRight, CalendarDays, ListOrdered, MapPin, Medal, Trophy } from "lucide-react";
+import { ArrowLeftRight, Crown, ListOrdered, MapPin, Medal, Trophy } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { SEARCH_EXAMPLE_SET, addRecentSearch, type SearchExampleKind } from "../search/discover";
@@ -21,7 +21,7 @@ const KINDS: Record<SearchExampleKind, { label: string; icon: ComponentType<{ cl
   question: { label: "Question", icon: Trophy },
   record: { label: "Record", icon: ListOrdered },
   leaderboard: { label: "Leaderboard", icon: Medal },
-  upcoming: { label: "Upcoming", icon: CalendarDays },
+  rankings: { label: "Rankings", icon: Crown },
 };
 
 /** How long each example stays in the placeholder. */

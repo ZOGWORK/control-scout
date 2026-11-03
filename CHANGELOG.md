@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.9 — 2026-11-03
+## 2.5.0 — 2026-11-03
 
 Match videos play in the app: a match's video button no longer sends you off to YouTube.
 
@@ -26,6 +26,18 @@ Match videos play in the app: a match's video button no longer sends you off to 
 
 ### Event page
 - **Match videos play in the app.** FIRST's own video of a match (the play button on a match row and in its details) and a match's Watch (its moment in the event's recording) now play inside Control Scout. On an event page with a recording, they play in that player, with the model's call for the match over the video, and a Back to the recording button. On other pages, such as a team's matches, they open in a video window. Ctrl-click or middle-click still opens YouTube in a new tab. (#445)
+
+## 2.4.9 — 2026-11-03
+
+FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
+
+### Highlights
+- [home] New example search: "Top teams in NJ" opens New Jersey's leaderboard
+- [home] New example search: "Highest OPR" lists this season's top OPRs
+- [home] Examples cover places, comparisons, questions, records and leaderboards
+
+### Search
+- **Example searches.** Now that search answers leaderboards, the examples include two: "Top teams in NJ" (New Jersey's rankings) and "Highest OPR" (this season's highest OPRs, without penalties). They replace "Highest score this season" and "Upcoming meets in Texas", so the set is "Meets in New Jersey", "6980 vs 16461", "When did 7149 go to Worlds", "18061 record", "Top teams in NJ" and "Highest OPR". Each was checked against live search and returns real results. On Home, "Top teams in NJ" carries a Rankings tag. (#452)
 
 ## 2.4.8 — 2026-11-03
 
