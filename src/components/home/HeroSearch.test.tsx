@@ -37,7 +37,9 @@ describe("HeroSearch", () => {
     expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.queryByText("Type whatever you want")).toBeNull();
     expect(screen.queryByText("FTC One Search")).toBeNull();
-    expect(field().getAttribute("aria-label") ?? screen.getByLabelText("Search teams, events and matches")).toBeTruthy();
+    // The field names itself, and the line that used to sit above it is gone too.
+    expect(screen.getByLabelText("Search teams, events and matches")).toBe(field());
+    expect(screen.queryByText("Search teams, events, matches, predictions, and records.")).toBeNull();
   });
 
   it("cycles the placeholder through every example, and holds while the field has focus", () => {
