@@ -95,13 +95,23 @@ describe("the answers", () => {
   });
   it("ever: every season, the best of each season beside it; a scrimmage never counts", async () => {
     const a = await searchAnswer("4215 highest score ever", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "330 points", label: "Q1 at New Jersey Championship" });
+    // Never one record across seasons (owner rule): the latest season's best, every season's own below it.
+    expect(a.stat!.headline).toMatchObject({ value: "140 points", label: "Q3 at New Jersey Qualifier", sub: expect.stringContaining("2025–26") });
+    expect(a.stat!.definition).toContain("points are never compared across seasons: the answer is 2025–26's");
     const per = a.stat!.blocks.find((b) => b.kind === "table");
     expect(per && per.kind === "table" && per.rows.map((r) => r.cells.score)).toEqual([140, 330]);
   });
+  it("a biggest win is one season's too, each season's below it", async () => {
+    const a = await searchAnswer("4215 biggest win", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "100 points", label: "140–40 in Q3 at New Jersey Qualifier" });
+    const per = a.stat!.blocks.find((b) => b.kind === "table");
+    expect(per && per.kind === "table" && per.rows.map((r) => [r.cells.season, r.cells.margin])).toEqual([["2025–26", 100], ["2024–25", 240]]);
+  });
   it("which event: the same rule, the answer leads with the event", async () => {
     const a = await searchAnswer("Which event did 4215 score highest in", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "New Jersey Championship", label: "330 points in Q1", href: "/events/2024/USNJCMP?team=4215" });
+    expect(a.stat!.headline).toMatchObject({ value: "New Jersey Qualifier", label: "140 points in Q3", href: "/events/2025/USNJQ1?team=4215" });
+    // A season named: that season's, as before.
+    expect((await searchAnswer("Which event did 4215 score highest in 2024-25", { limit: 25 })).stat!.headline).toMatchObject({ value: "New Jersey Championship", label: "330 points in Q1" });
   });
   it("wins and the record at Worlds only, with the matches and seasons counted", async () => {
     const w = await searchAnswer("How many matches has 4215 won at worlds", { limit: 25 });
