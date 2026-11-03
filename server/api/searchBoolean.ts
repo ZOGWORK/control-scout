@@ -160,7 +160,7 @@ const RULE = "A match counts when the team's robot was on the field, on either a
 /** The match list for an expression: every match that satisfies it, newest first, capped. */
 async function matchListAnswer(b: BoolQuery, scope: Scope, who: Map<number, AnswerTeam>): Promise<StatAnswer> {
   const sets = new Map<number, TeamMatch[]>();
-  for (const t of new Set(b.groups.flat().map((l) => l.team))) sets.set(t, (await teamMatches(t)).filter(inScope(scope)));
+  for (const t of new Set(b.groups.flat().map((l) => l.team))) { const keep = inScope(scope); sets.set(t, (await teamMatches(t)).filter((m) => m.onField && keep(m))); }
   const seen = new Set<string>(), hits: { m: TeamMatch; team: number }[] = [];
   for (const g of b.groups) {
     // A group's matches are among its first team's.
