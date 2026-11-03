@@ -26,7 +26,7 @@ A slow search no longer looks like being offline, and searches that match nothin
 
 ### Search
 - **Slow is not offline.** While your browser is online and the server answers everything else, a search that takes more than 4 seconds keeps waiting for the server instead of switching to saved data and the Offline badge. It gets up to 10 seconds, one more try, and then says "Search is slow right now. Try again." with a Try again button. With no network at all, saved data still answers as before.
-- **Faster no-match searches.** Queries that match nothing (like "highest scoring games in decode") took 5–6 seconds on the server, comparing every name's words letter by letter. The scan now skips names missing any word typed and stops comparing as soon as a word is past its allowed typos: about 1 second, with the same results.
+- **Faster no-match searches.** Queries that match nothing (like "highest scoring games in decode") took 5–6 seconds on the server, comparing every name's words letter by letter. The scan now skips names missing any word typed and stops comparing as soon as a word is past its allowed typos: about 1 second, with the same results. (#463)
 
 ## 2.5.5 — 2026-11-03
 
