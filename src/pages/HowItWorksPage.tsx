@@ -145,7 +145,7 @@ function Section({ part: p, num, open, onToggle }: { part: Part; num: number; op
           <div>
             <div className="grid gap-5 border-t border-border p-4 sm:p-5" inert={!open}>
               <p className="max-w-3xl text-[0.9375rem] leading-[1.75] text-foreground/85 sm:text-base">{p.summary}</p>
-              <ol className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-4" aria-label={`${p.title}, step by step`}>
+              <ol className={cn("grid grid-cols-1 gap-2.5 sm:grid-cols-2", p.steps.length > 4 ? "hiw-steps-wrap lg:grid-cols-6" : "md:grid-cols-4")} aria-label={`${p.title}, step by step`}>
                 {p.steps.map((s, i) => (
                   <li key={s} className="hiw-stage pop relative grid content-start gap-1 rounded-xl border border-border bg-muted/50 p-3" style={{ ["--i" as string]: i }}>
                     <span className="hiw-gold font-display text-xl font-bold leading-none">{i + 1}</span>

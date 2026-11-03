@@ -275,7 +275,7 @@ function StepsFigure() {
   return (
     <Figure label="Figure 1" title="From what you type to an answer" note="tap a step"
       caption={<>Each step tries to answer; if it can't, the query moves right. The last step is the honest "nothing matched" page.</>}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="hiw-steps-wrap grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {SEARCH_STEPS.map((st, i) => (
           <button
             key={st.title} type="button" aria-expanded={open === i} aria-controls="hiw-search-step" onClick={() => toggle(i)}
