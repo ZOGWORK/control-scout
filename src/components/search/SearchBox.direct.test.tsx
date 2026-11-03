@@ -62,9 +62,11 @@ describe("Enter and the magnifier on a search box", () => {
   function Box() { const nav = useNavigate(); return <SearchBox onPick={(h) => nav(hitHref(h))} placeholder="Search" label="Search" />; }
   function Back() { const nav = useNavigate(); return <button type="button" onClick={() => nav(-1)}>back</button>; }
   // /search's side, as src/pages/SearchPage.tsx wires it.
+  // `boot`: the hits a first paint brought (they outlive the visit, as BOOT_HITS does).
+  let boot: { q: string; hits: SearchHit[] } | null = null;
   function Results() {
     const q = (useSearchParams()[0].get("q") ?? "").trim();
-    const s = useSearchHits(q, undefined, 15, null, false);
+    const s = useSearchHits(q, undefined, 15, boot, false);
     useSubmittedSearch(q, s);
     return <p data-testid="results">{s.busy ? "loading" : s.answer ? "answer" : "none"}</p>;
   }
@@ -144,6 +146,37 @@ describe("Enter and the magnifier on a search box", () => {
     act(() => input.focus());
     fireEvent.keyDown(input, { key: "Enter" });
     expect(at()).toBe("/teams/6980");
+  });
+  it("left before its answer, a submitted search redirects nothing later: \"See all results\" for it shows the results", async () => {
+    const input = mount();
+    fireEvent.change(input, { target: { value: "6980" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(at()).toBe("/search?q=6980");
+    fireEvent.click(screen.getByRole("button", { name: "back" }));
+    expect(at()).toBe("/events");
+    pending.length = 0; // the left page's request (aborted)
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "6980" } });
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await answerWith(one("6980", BAD_WOLF)); // the box's own list
+    fireEvent.keyDown(input, { key: "ArrowUp" }); // "See all results"
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(at()).toBe("/search?q=6980");
+    await answerWith(one("6980", BAD_WOLF));
+    expect(at()).toBe("/search?q=6980");
+  });
+  it("a first paint's hits for the same query don't decide it: the page's own answer does", async () => {
+    boot = { q: "6980", hits: [team("6980", "Bad Wolf", { title: "6980 | Bad Wolf (old)" })] };
+    try {
+      const input = mount();
+      fireEvent.change(input, { target: { value: "6980" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(at()).toBe("/search?q=6980");
+      await act(async () => { vi.advanceTimersByTime(5); });
+      expect(at()).toBe("/search?q=6980"); // still waiting on its own request
+      await answerWith(one("6980", BAD_WOLF));
+      expect(at()).toBe("/teams/6980");
+    } finally { boot = null; }
   });
   it("a slow answer for an earlier query never decides a newer one", async () => {
     const input = mount();

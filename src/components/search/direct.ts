@@ -3,7 +3,7 @@
 // results page with one card on it. Read off the server's own answer for the query (the one the dropdown shows), so
 // the box guesses nothing: one deterministic team hit that is the team typed, or an event whose code was typed.
 // Anything else (a question, a place, a versus, a topic like "6980 record", two teams named alike) opens /search.
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import type { SearchAnswer, SearchHit } from "../../shared/api";
 import { hitHref } from "../../shared/search";
@@ -26,8 +26,9 @@ export function directHit(a: SearchAnswer | undefined, query: string): SearchHit
 
 // Enter never waits on Home (or any page) for the answer: a box whose answer isn't in yet opens /search at once and
 // marks the query here; /search, once its own answer for that query is in, swaps itself for the one page the query
-// names (replace: Back returns to where it was typed, never to a results page that only redirected). Marked for a
-// short while only, so a later visit to the same /search link is never redirected by an old press.
+// names (replace: Back returns to where it was typed, never to a results page that only redirected). The page that
+// lands takes the mark as its own at once, so it belongs to that one visit: left before its answer, it's gone, and a
+// later visit to the same /search link (a link, "See all results") shows the results. Unclaimed, it lapses soon.
 const MARK_MS = 30_000;
 let marked: { q: string; at: number } | null = null;
 const listeners = new Set<() => void>();
@@ -39,21 +40,27 @@ const markedNow = () => marked;
 export function markDirect(query: string) { marked = { q: norm(query), at: Date.now() }; notify(); }
 
 /** /search's side (src/pages/SearchPage.tsx): a new query is asked at once (it was submitted, not typed: no typing
- *  pause), and a query marked by a box goes on to the one page it names once the page's answer for it is in. True
- *  while it's going there: the page keeps its loading screen rather than flash results it's leaving. */
-export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; busy: boolean; stale: boolean; searchNow: () => void }) {
-  const { answer, busy, stale, searchNow } = s;
+ *  pause), and a query marked by a box goes on to the one page it names once the page's own answer for it is in
+ *  (`live`: answered by this page's request, never the first paint's hits it may open with). True while that's
+ *  pending: the page keeps its loading screen rather than flash results it may leave. */
+export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; live: boolean; error: string | null; searchNow: () => void }) {
+  const { answer, live, error, searchNow } = s;
   const nav = useNavigate();
   const mark = useSyncExternalStore(subscribe, markedNow, () => null);
+  const q = norm(query);
+  const [claim, setClaim] = useState<string | null>(null);
   useEffect(() => { searchNow(); }, [searchNow]);
-  const to = mark && mark.q === norm(query) && Date.now() - mark.at <= MARK_MS && !busy && !stale ? directHit(answer, query) : null;
   useEffect(() => {
-    if (!mark || mark.q !== norm(query)) return;
+    if (!mark) return;
     if (Date.now() - mark.at > MARK_MS) { marked = null; return; }
-    if (busy || stale) return;
-    marked = null;
-    const d = directHit(answer, query);
+    if (mark.q === q) { marked = null; setClaim(q); }
+  }, [mark, q]);
+  const mine = claim !== null && claim === q;
+  useEffect(() => {
+    if (!mine || !(live || error)) return;
+    setClaim(null);
+    const d = live ? directHit(answer, query) : null;
     if (d) nav(hitHref(d), { replace: true });
-  }, [mark, query, answer, busy, stale, nav]);
-  return !!to;
+  }, [mine, live, error, answer, query, nav]);
+  return mine && !error && (!live || !!directHit(answer, query));
 }

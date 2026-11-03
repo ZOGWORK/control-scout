@@ -42,12 +42,12 @@ export default function SearchPage() {
   const q = params.get("q") ?? "";
   const query = q.trim();
   const filters = readFilters(params);
-  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  const leaving = useSubmittedSearch(query, { answer, busy, stale, searchNow });
+  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
   const meta = useMeta();
   const season = useCurrentSeason();
