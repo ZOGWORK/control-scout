@@ -12,6 +12,9 @@ import { CURRENT_SEASON } from "../data/seasons";
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
 const hrefs = (a: { pages: { href: string }[] }) => a.pages.map((p) => p.href);
+// On /search a leaderboard is the stat answer's card (server/api/answers/families/leaderboard.ts): its teams in order.
+const board = (a: Awaited<ReturnType<typeof ask>>) => { const b = a.stat?.blocks.find((x) => x.kind === "leaderboard"); return b && b.kind === "leaderboard" ? b : undefined; };
+const teams = (a: Awaited<ReturnType<typeof ask>>, n = 3) => board(a)?.rows.slice(0, n).map((r) => r.team.label);
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -70,16 +73,18 @@ describe("test 16: each intent returns its stated surface", () => {
   it("top teams in New Jersey (and NJ rankings, best team in NJ): the region's ranking, linked", async () => {
     for (const q of ["top teams in New Jersey", "NJ rankings", "best team in NJ"]) {
       const a = await ask(q);
-      expect(a.card?.lines.map((l) => l.text), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
-      expect(hrefs(a), q).toContain("/rankings?season=2025&region=USA%3ANJ");
+      expect(teams(a), q).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+      expect(hrefs(a)[0], q).toBe("/rankings?season=2025&region=USA%3ANJ");
       expect(a.hits, q).toEqual([]);
     }
   });
   it("best auto team: the team first by auto OPR; highest OPR and most wins likewise", async () => {
-    expect((await ask("best auto team")).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["auto OPR 80.2"] });
-    expect((await ask("highest OPR")).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["OPR 267.1"] });
-    expect((await ask("who has the most wins")).card?.lines[0]).toMatchObject({ text: "14270 Quantum Robotics", results: ["91-25-0"] });
-    expect((await ask("highest OPR in NJ")).card?.lines.map((l) => l.text)).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect(board(await ask("best auto team"))?.rows[0]).toMatchObject({ team: { label: "20265 Heart of RoBots" }, display: "80.2" });
+    expect(board(await ask("highest OPR"))?.rows[0]).toMatchObject({ team: { label: "20265 Heart of RoBots" }, display: "267.1" });
+    expect(board(await ask("who has the most wins"))?.rows[0]).toMatchObject({ team: { label: "14270 Quantum Robotics" }, record: "91-25-0" });
+    expect(teams(await ask("highest OPR in NJ"))).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    // The dropdown keeps the short card.
+    expect((await searchAnswer("best auto team", { limit: 8, learn: false })).card?.lines[0]).toMatchObject({ text: "20265 Heart of RoBots", results: ["auto OPR 80.2"] });
   });
   it("will 4215 win their next match: its next match, and Predict opened on its matches", async () => {
     const a = await ask("will 4215 win their next match");
@@ -135,10 +140,9 @@ describe("the best team, worldwide (owner report: \"what is the best ftc team ri
     for (const q of ["what is the best ftc team right now", "best team", "who is the best ftc team", "top ftc teams"]) {
       const a = await ask(q);
       expect(a.step, q).toBe("deterministic");
-      expect(a.card?.title, q).toBe("Top teams · 2025–26");
-      expect(a.card?.lines[0]?.text, q).toBe("20265 Heart of RoBots");
-      expect(a.card?.lines.map((l) => l.text), q).not.toContain("99001 The Best Friends");
-      expect(a.understood?.label, q).toBe("Top teams · 2025–26: the world rankings");
+      expect(a.stat?.title, q).toBe("Top 10 teams by prediction rating worldwide · 2025–26");
+      expect(teams(a, 1), q).toEqual(["20265 Heart of RoBots"]);
+      expect(teams(a, 10), q).not.toContain("99001 The Best Friends");
       expect(hrefs(a)[0], q).toBe("/rankings?season=2025");
       expect(a.hits, q).toEqual([]);
     }
@@ -169,8 +173,8 @@ describe("Greptile on #440", () => {
   });
   it("stat leaders never list a placeholder registration", async () => {
     const a = await ask("highest OPR");
-    expect(a.card?.lines[0].text).toBe("20265 Heart of RoBots");
-    expect(a.card?.lines.map((l) => l.text).join()).not.toMatch(/99990/);
+    expect(teams(a, 1)).toEqual(["20265 Heart of RoBots"]);
+    expect(teams(a, 25)!.join()).not.toMatch(/99990/);
   });
   it("a past-tense qualify question is history, not the simulator", () => {
     expect(readAsk("did 4215 qualify to worlds")).toBeNull();
@@ -210,7 +214,8 @@ describe("Greptile on #440", () => {
 
 describe("Greptile on #440, round 2", () => {
   it("a conversational opening keeps the links the answer added", async () => {
-    expect(hrefs(await ask("show me highest OPR"))[0]).toBe("/rankings?season=2025");
+    // An OPR list's full list is the Teams page, sorted the same way.
+    expect(hrefs(await ask("show me highest OPR"))[0]).toMatch(/^\/teams\?view=season&season=2025&sort=totalPointsNpOpr/);
     expect(hrefs(await ask("show me top teams in NJ"))[0]).toBe("/rankings?season=2025&region=USA%3ANJ");
   });
 });

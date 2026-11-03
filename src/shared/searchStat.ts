@@ -31,6 +31,18 @@ export interface StatMatchRow {
   opponents?: StatLink[];
 }
 
+/** One team on a leaderboard. `value` is the asked stat (as `display` shows it); `parts`, an OPR's split. */
+export interface LeaderboardRow {
+  rank: number;
+  team: StatLink;
+  location: string | null;
+  record: string;
+  opr: number | null;
+  value: number | null;
+  display: string;
+  parts?: { auto: number | null; teleop: number | null; endgame: number | null } | null;
+}
+
 export type StatBlock =
   /** Big numbers side by side ("312 points", "14 wins"). */
   | { kind: "kpis"; items: { label: string; value: string; sub?: string; href?: string; tone?: "accent" | "good" | "bad" }[] }
@@ -44,6 +56,9 @@ export type StatBlock =
   | { kind: "series"; title: string; unit?: string; points: { x: string; y: number | null; href?: string; note?: string }[] }
   /** Values as horizontal bars (phase split, two teams side by side). */
   | { kind: "bars"; title: string; groups: { label: string; items: { label: string; value: number | null; tone?: "a" | "b" | "c" | "d" }[] }[]; unit?: string }
+  /** Teams ranked by one season number: each row's bar is the asked stat scaled to #1, with an OPR's auto, TeleOp and
+   *  endgame split stacked in it. `note`: the season, how many teams are ranked and by what. */
+  | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */

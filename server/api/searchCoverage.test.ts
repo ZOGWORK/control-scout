@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { explainAnswer, rewriteQuery } from "./searchCoverage";
+import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
 
 const S = 2025;
@@ -95,7 +95,8 @@ describe("answers on their own", () => {
     expect(w.card?.lines[0]).toMatchObject({ text: "6980 Bad Wolf", results: ["#1", "100% wins", "20-0-0", "OPR 130.0"], href: `/teams/6980?season=${S}` });
   });
   it("most improved: by OPR standing season to season, never raw OPR", async () => {
-    const a = await ask("most improved teams");
+    // The stat answers (./answers) take "most improved teams" first; this is the list when they don't.
+    const a = (await teamListAnswer("most improved teams"))!;
     // Bad Wolf: 4th of 5 → 3rd of 5; Ultraviolet: 3rd → 2nd. Quantum and 4215 fell or held; Cheetahs held last.
     expect(a.card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf", "23268 Ultraviolet"]);
     expect(a.understood?.label).toMatch(/never raw OPR across seasons/);
@@ -111,9 +112,11 @@ describe("answers on their own", () => {
     expect((await ask("best team")).understood?.label ?? "").not.toMatch(/^Teams in/);
   });
   it("teams in a town", async () => {
-    const a = await ask("teams near oradell");
+    // "near" reads as "in", said so; the stat answers list a town's teams first, this when they don't.
+    expect(rewriteQuery("teams near oradell")).toMatchObject({ q: "teams in oradell", note: expect.stringMatching(/"near" reads as "in"/) });
+    expect((await ask("teams near oradell")).understood?.label).toMatch(/"near" reads as "in"/);
+    const a = (await placeTeamsAnswer("teams in oradell", new Set()))!;
     expect(a.hits.map((h) => h.ref).sort()).toEqual(["4215", "6980"]);
-    expect(a.understood?.label).toMatch(/"near" reads as "in"/);
   });
 });
 
