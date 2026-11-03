@@ -10,6 +10,8 @@ export interface RecordingTiming {
   /** The event's first and last played matches' real starts (UTC ISO), when known: tell a trimmed-off tail from a gap (timingTrusted). */
   firstMatch?: string | null;
   lastMatch?: string | null;
+  /** The video's own chapters line up with the clock (chaptersConfirm): trusted though its length falls short. */
+  confirmed?: boolean;
 }
 
 /** How far the video's length may fall short of the broadcast's start-to-end time before its times can't be trusted. */
@@ -31,6 +33,7 @@ export const TAIL_TRIM_S = 900;
  */
 export function timingTrusted(rec: RecordingTiming): boolean {
   if (!rec.start) return false;
+  if (rec.confirmed) return true;
   if (rec.live || !rec.end || rec.length == null) return true;
   const from = Date.parse(rec.start), span = (Date.parse(rec.end) - from) / 1000;
   if (!Number.isFinite(span)) return false;
@@ -41,6 +44,67 @@ export function timingTrusted(rec: RecordingTiming): boolean {
   const lastAt = (last - from) / 1000;
   const ranOn = (Date.parse(rec.end) - last) / 1000, matches = (last - first) / 1000;
   return lastAt <= rec.length && rec.length - lastAt <= TAIL_TRIM_S && ranOn > matches;
+}
+
+/** A video chapter: its start in seconds and its title (YouTube's own, often generated: "Match five", "Playoff match two"). */
+export type Chapter = [t: number, title: string];
+
+/** Chapter evidence counts only for this much missing time: below it, a chapter's own slack (a minute or more) could hide a gap. */
+export const CHAPTER_MIN_GAP_S = 1800;
+/** How many chapters must name a played match before they say anything. */
+export const CHAPTER_MIN_ANCHORS = 6;
+
+const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+  "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+/** "5", "five", "twenty-one", "thirty one" → the number; anything else null. */
+function numberOf(word: string): number | null {
+  if (/^\d{1,3}$/.test(word)) return Number(word);
+  const [a, b] = word.split(/[-\s]+/);
+  const t = TENS.indexOf(a), o = ONES.indexOf(b ?? a);
+  if (b === undefined) return t >= 2 ? t * 10 : o >= 0 ? o : null;
+  return t >= 2 && o >= 1 && o <= 9 ? t * 10 + o : null;
+}
+
+/** The match a chapter names, as its label (Q5, M2), or null: a chapter naming two matches, or anything else. */
+export function chapterLabel(title: string): string | null {
+  const m = /^\s*(playoff match|qualification(?: match)?|qual(?:s)?|match|q|m)\s*#?\s*([a-z]+(?:[-\s][a-z]+)?|\d{1,3})\s*$/i.exec(title);
+  if (!m) return null;
+  const n = numberOf(m[2].toLowerCase());
+  if (n == null || n < 1) return null;
+  const kind = m[1].toLowerCase();
+  return `${kind === "playoff match" || kind === "m" ? "M" : "Q"}${n}`;
+}
+
+const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+
+/**
+ * Whether the video's chapters say its seconds follow the clock, where its length alone can't (timingTrusted):
+ * YouTube cut the archive short (a stream left running all night, kept to its first part) or the broadcast
+ * dropped out for that long and came back. A drop-out puts every match after it that far from its chapter; a
+ * cut leaves every match near its own. So: enough chapters naming played matches (Q5 at "Match five"), and in
+ * both the earlier and the later half of them (by the clock), the typical distance from match to chapter under
+ * half the missing time. Generated chapters run a little early and now and then skip or merge a match, so only
+ * a large missing time (CHAPTER_MIN_GAP_S) is judged this way. DECODE Preview Event (USTXFMS1) 2025: 6 h 32 min
+ * missing; matches sit 2 min (earlier half) and 5 min (later half) from their chapters.
+ */
+export function chaptersConfirm(rec: RecordingTiming, chapters: Chapter[] | null | undefined, matches: { label: string; startsAt: string | null | undefined }[]): boolean {
+  if (!rec.start || !rec.end || rec.length == null || !chapters?.length) return false;
+  const from = Date.parse(rec.start), missing = (Date.parse(rec.end) - from) / 1000 - rec.length;
+  if (!Number.isFinite(missing) || missing < CHAPTER_MIN_GAP_S) return false;
+  const at = new Map<string, number>();
+  for (const [t, title] of chapters) { const l = chapterLabel(title); if (l && !at.has(l)) at.set(l, t); }
+  const anchors: { clock: number; off: number }[] = [];
+  for (const m of matches) {
+    const c = at.get(m.label), ms = m.startsAt ? Date.parse(m.startsAt) : NaN;
+    if (c == null || !Number.isFinite(ms)) continue;
+    const clock = (ms - from) / 1000;
+    anchors.push({ clock, off: Math.abs(clock - c) });
+  }
+  if (anchors.length < CHAPTER_MIN_ANCHORS) return false;
+  anchors.sort((a, b) => a.clock - b.clock);
+  const half = Math.floor(anchors.length / 2);
+  return [anchors.slice(0, half), anchors.slice(half)].every((h) => median(h.map((a) => a.off)) < missing / 2);
 }
 
 /**

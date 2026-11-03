@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actualStart, CLIP_LEAD_S, clipSecond, clipTime, timingTrusted, watchUrl } from "./recording";
+import { actualStart, chapterLabel, chaptersConfirm, CHAPTER_MIN_GAP_S, CLIP_LEAD_S, clipSecond, clipTime, timingTrusted, watchUrl, type Chapter } from "./recording";
 
 const rec = { start: "2026-05-02T12:58:13Z", length: 4 * 3600, live: false };
 
@@ -94,5 +94,47 @@ describe("labels and links", () => {
   it("links to YouTube at the second", () => {
     expect(watchUrl("WQUBVjbh-hM", 90)).toBe("https://www.youtube.com/watch?v=WQUBVjbh-hM&t=90s");
     expect(watchUrl("WQUBVjbh-hM", 0)).toBe("https://www.youtube.com/watch?v=WQUBVjbh-hM");
+  });
+});
+
+describe("a recording cut short, its chapters checked", () => {
+  // DECODE Preview Event (USTXFMS1) 2025: broadcast 15:49:45 to 06:32:37 (14 h 43 min), video 8 h 10 min 49 s; the
+  // stream ran on overnight and the archive kept its first part. YouTube's generated chapters ("Match five" …) sit a
+  // minute or two before each match, all day.
+  const preview = { start: "2025-10-18T15:49:45.000Z", end: "2025-10-19T06:32:37.000Z", length: 29449, live: false };
+  const t0 = Date.parse(preview.start), at = (s: number) => new Date(t0 + s * 1000).toISOString();
+  const quals = Array.from({ length: 30 }, (_, i) => ({ label: `Q${i + 1}`, startsAt: at(1100 + i * 500) }));
+  const words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+  const word = (n: number) => (n <= 20 ? words[n - 1] : n === 30 ? "thirty" : `twenty-${words[n - 21]}`);
+  const chapters: Chapter[] = [[0, "Opening remarks"], ...quals.map((_, i): Chapter => [1000 + i * 500, `Match ${word(i + 1)}`]), [16000, "Awards ceremony"]];
+  const timing = { ...preview, firstMatch: quals[0].startsAt, lastMatch: quals.at(-1)!.startsAt };
+
+  it("reads the match a chapter names", () => {
+    expect(["Match five", "Match twenty-one", "Qualification 12", "Q7", "Playoff match three", "Match 40"].map(chapterLabel)).toEqual(["Q5", "Q21", "Q12", "Q7", "M3", "Q40"]);
+    expect(["Match seven and eight", "Lunch break", "Showcase match", "Match zero"].map(chapterLabel)).toEqual([null, null, null, null]);
+  });
+  it("chapters near their matches all day confirm the clock, so every match gets its second", () => {
+    expect(timingTrusted(timing)).toBe(false); // the length alone can't tell a cut from a drop-out
+    const confirmed = chaptersConfirm(timing, chapters, quals);
+    expect(confirmed).toBe(true);
+    expect(clipSecond(quals[4].startsAt, { ...timing, confirmed })).toBe(3100 - CLIP_LEAD_S);
+  });
+  it("a drop-out moves every later match away from its chapter: not confirmed", () => {
+    // 40 min dropped after Q15 of a stream that ended soon after: in the video, Q16 on come that much sooner than the clock says.
+    const gap = 2400, ended = { ...timing, length: 17000, end: at(17000 + gap) };
+    const shifted = chapters.map(([t, title], i): Chapter => [i > 15 && i <= 30 ? t - gap : t, title]);
+    expect(chaptersConfirm(ended, shifted, quals)).toBe(false);
+    // Dropped before the first match: every match that far from its chapter.
+    expect(chaptersConfirm(ended, chapters.map(([t, x]): Chapter => [Math.max(0, t - gap), x]), quals)).toBe(false);
+    // The same video without the drop-out (chapters where the clock puts them) is confirmed.
+    expect(chaptersConfirm(ended, chapters, quals)).toBe(true);
+  });
+  it("says nothing without enough chapters naming matches, or for a small shortfall", () => {
+    expect(chaptersConfirm(timing, chapters.slice(0, 6), quals)).toBe(false); // 5 matches named
+    expect(chaptersConfirm(timing, [], quals)).toBe(false);
+    expect(chaptersConfirm(timing, undefined, quals)).toBe(false);
+    expect(chaptersConfirm({ ...timing, length: 52972 - CHAPTER_MIN_GAP_S + 1 }, chapters, quals)).toBe(false);
+    expect(chaptersConfirm({ ...timing, end: null }, chapters, quals)).toBe(false);
   });
 });

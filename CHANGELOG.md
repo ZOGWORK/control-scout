@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.4.1 — 2026-11-03
+
+Match timestamps for recordings that YouTube cut short: a match's Watch button now shows up on more events.
+
+### Highlights
+- [live] More events get a Watch button on every match
+- [live] A recording that YouTube cut short is checked against its own chapters
+
+### Event page
+- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters all day, the clock still holds and every match gets its Watch. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to all 50. A real gap moves every later match away from its chapter, so those recordings still get none.
+
 ## 2.3.9 — 2026-11-03
 
 FTC One Search: a team number, a team's name or an event code takes you straight to its page.

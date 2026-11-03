@@ -3,12 +3,14 @@
 // YouTube video (a channel page or Twitch doesn't: Twitch keeps past broadcasts for days only), or the video
 // a short link there redirects to (server/videos/streamLinks.ts). YouTube's
 // timing for each video (video_meta, migration 43) is read in the background (backfillVideoMeta) and kept;
-// a broadcast still live is read again every few minutes. Reads are a small season map, cached for a minute.
+// a broadcast still live is read again every few minutes. A video much shorter than its broadcast also has its
+// chapters read (from the watch page) and kept: they can show its seconds still follow the clock (chaptersConfirm).
+// Reads are a small season map, cached for a minute.
 import { all, run } from "../db.js";
 import { registerCache } from "../caches.js";
 import { seasonStreams } from "../portal/streams.js";
 import { embedUrl, parseStreamUrl } from "../../src/shared/stream.js";
-import { actualStart, clipSecond, timingTrusted, watchUrl } from "../../src/shared/recording.js";
+import { CHAPTER_MIN_GAP_S, actualStart, chaptersConfirm, clipSecond, timingTrusted, watchUrl, type Chapter } from "../../src/shared/recording.js";
 import { localToUtcMs } from "../../src/shared/time.js";
 import type { EventStream, MatchView } from "../../src/shared/api.js";
 import { env } from "../env.js";
@@ -29,11 +31,24 @@ export function firstVideoId(url: string | null | undefined): string | null {
 }
 
 /** The video_meta columns metaOf reads (all of them). */
-const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at";
+const META_COLUMNS = "video_id, status, start, end, duration, live, checked_at, chapters";
 const metaOf = (r: any): VideoMeta => ({
   videoId: String(r.video_id), status: r.status, start: r.start ?? null, end: r.end ?? null,
   length: r.duration == null ? null : Number(r.duration), live: !!r.live, checkedAt: String(r.checked_at),
+  ...(r.chapters == null ? {} : { chapters: readChapters(r.chapters) }),
 });
+function readChapters(json: string): Chapter[] {
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((c): c is Chapter => Array.isArray(c) && typeof c[0] === "number" && typeof c[1] === "string") : [];
+  } catch { return []; }
+}
+
+/** Whether a finished broadcast's video falls far enough short of it that its chapters are worth reading (chaptersConfirm). */
+export function cutShort(f: { status: string; start: string | null; end: string | null; length: number | null; live: boolean }): boolean {
+  if (f.status !== "ok" || f.live || !f.start || !f.end || f.length == null) return false;
+  return (Date.parse(f.end) - Date.parse(f.start)) / 1000 - f.length >= CHAPTER_MIN_GAP_S;
+}
 
 function seasonData(season: number, now = Date.now()) {
   const hit = cache.get(season);
@@ -95,22 +110,22 @@ export function seasonVideoKinds(season: number, now = Date.now()): Promise<Map<
     const withClip = new Set<string>();
     for (let i = 0; i < timed.length; i += 200) {
       const part = timed.slice(i, i + 200);
-      const rows = await all<{ code: string; time: string; timezone: string | null }>(
-        `SELECT m.code, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+      const rows = await all<{ code: string; label: string; time: string; timezone: string | null }>(
+        `SELECT m.code, m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
          WHERE m.season = ? AND m.played = 1 AND m.time IS NOT NULL AND m.code IN (${part.map(() => "?").join(",")})`, [season, ...part.map(([c]) => c)]);
-      const starts = new Map<string, string[]>();
+      const starts = new Map<string, MatchStart[]>();
       for (const r of rows) {
         if (!actualStart(r.time)) continue;
         const ms = localToUtcMs(r.time, r.timezone);
         if (ms == null) continue;
         const code = String(r.code);
-        (starts.get(code) ?? starts.set(code, []).get(code)!).push(new Date(ms).toISOString());
+        (starts.get(code) ?? starts.set(code, []).get(code)!).push({ label: String(r.label), startsAt: new Date(ms).toISOString() });
       }
       for (const [code, rec] of part) {
         const s = starts.get(code);
         if (!s) continue;
-        const timing = { ...rec.meta!, ...matchSpan(s) };
-        if (timingTrusted(timing) && s.some((at) => clipSecond(at, timing, now) != null)) withClip.add(code);
+        const timing = withConfirmed(rec.meta!, eventSpan(s));
+        if (timingTrusted(timing) && s.some((x) => clipSecond(x.startsAt, timing, now) != null)) withClip.add(code);
       }
     }
     for (const [code] of recs) out.set(code, withClip.has(code) ? "clips" : "recording");
@@ -133,6 +148,18 @@ export async function eventRecording(season: number, code: string): Promise<Reco
 export const recordingStream = (r: Recording): EventStream => ({ videoId: r.videoId, streamUrl: embedUrl(r.videoId), ...(r.source === "first" ? { source: "first" as const } : {}) });
 
 export interface MatchSpan { firstMatch: string | null; lastMatch: string | null }
+export interface MatchStart { label: string; startsAt: string | null | undefined }
+/** An event's played matches with a real start: their span (timingTrusted), and each one, for its chapter (chaptersConfirm). */
+export interface EventSpan extends MatchSpan { starts: MatchStart[] }
+
+const eventSpan = (starts: MatchStart[]): EventSpan => ({ ...matchSpan(starts.map((s) => s.startsAt)), starts });
+
+/** A video's timing for an event: its span, and whether the video's chapters confirm it. */
+function withConfirmed(meta: VideoMeta, span: EventSpan) {
+  const { starts, ...rest } = span;
+  const timing = { ...meta, ...rest };
+  return { ...timing, confirmed: chaptersConfirm(timing, meta.chapters, starts) };
+}
 
 /** The earliest and latest of some UTC ISO match starts. */
 export function matchSpan(times: (string | null | undefined)[]): MatchSpan {
@@ -145,22 +172,22 @@ export function matchSpan(times: (string | null | undefined)[]): MatchSpan {
   return { firstMatch: first, lastMatch: last };
 }
 
-/** An event's first and last played matches with a real start, read on their own (for a route that has one match). */
-export async function eventMatchSpan(season: number, code: string): Promise<MatchSpan> {
-  const rows = await all<{ time: string; timezone: string | null }>(
-    `SELECT m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
+/** An event's played matches with a real start, read on their own (for a route that has one match). */
+export async function eventMatchSpan(season: number, code: string): Promise<EventSpan> {
+  const rows = await all<{ label: string; time: string; timezone: string | null }>(
+    `SELECT m.label, m.time, e.timezone FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code
      WHERE m.season = ? AND m.code = ? AND m.played = 1 AND m.time IS NOT NULL`, [season, code]);
-  return matchSpan(rows.filter((r) => actualStart(r.time)).map((r) => { const ms = localToUtcMs(r.time, r.timezone); return ms == null ? null : new Date(ms).toISOString(); }));
+  return eventSpan(rows.filter((r) => actualStart(r.time)).map((r) => { const ms = localToUtcMs(r.time, r.timezone); return { label: String(r.label), startsAt: ms == null ? null : new Date(ms).toISOString() }; }));
 }
 
 /**
  * The matches with their place in the recording (clip); the given objects are never changed. `span`: the event's
- * first and last played matches (timingTrusted), read from `matches` when they're the whole event.
+ * played matches (timingTrusted, chaptersConfirm), read from `matches` when they're the whole event.
  */
-export function withClips(matches: MatchView[], r: Recording | null, now = Date.now(), span?: MatchSpan): MatchView[] {
+export function withClips(matches: MatchView[], r: Recording | null, now = Date.now(), span?: EventSpan): MatchView[] {
   const meta = r?.meta;
   if (!r || !meta || meta.status !== "ok") return matches;
-  const m = { ...meta, ...(span ?? matchSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => x.startsAt))) };
+  const m = withConfirmed(meta, span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt }))));
   if (!timingTrusted(m)) return matches;
   return matches.map((x) => {
     // Played matches with a real start only: an unplayed one's time, or a result posted without a start, is the schedule.
@@ -171,17 +198,20 @@ export function withClips(matches: MatchView[], r: Recording | null, now = Date.
 
 /** Store one video's facts and drop the season maps that read them. */
 async function saveMeta(videoId: string, f: WatchPageFacts, now: number) {
+  // Chapters not read this time (the Data API, a watch page that failed), or a page served without them, keep the ones read before.
   await run(
-    `INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, start = excluded.start, end = excluded.end, duration = excluded.duration, live = excluded.live, checked_at = excluded.checked_at`,
-    [videoId, f.status, f.start, f.end, f.length, f.live ? 1 : 0, new Date(now).toISOString()]);
+    `INSERT INTO video_meta (video_id, status, start, end, duration, live, checked_at, chapters) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(video_id) DO UPDATE SET status = excluded.status, start = excluded.start, end = excluded.end, duration = excluded.duration, live = excluded.live, checked_at = excluded.checked_at,
+       chapters = COALESCE(NULLIF(excluded.chapters, '[]'), video_meta.chapters, excluded.chapters)`,
+    [videoId, f.status, f.start, f.end, f.length, f.live ? 1 : 0, new Date(now).toISOString(), f.chapters ? JSON.stringify(f.chapters) : null]);
 }
 
 const DAY = 86_400_000;
 /**
  * When a video's facts are due another read: an error after a day (15 minutes with an API key); a live broadcast after 5 minutes; a scheduled
  * one not started yet (live, no start: youtube.ts) after an hour; a broadcast archived within 2 days (its length
- * still settling) after 6 hours.
+ * still settling) after 6 hours. A video cut far short of its broadcast whose chapters were never read: after a day
+ * (at once for one read before chapters were kept); one read with none (none yet, or a page served without them): weekly.
  */
 export function due(m: VideoMeta | null, now: number, withKey = false): boolean {
   if (!m) return true;
@@ -191,6 +221,7 @@ export function due(m: VideoMeta | null, now: number, withKey = false): boolean 
   if (m.status === "error") return age > (withKey ? 15 * 60_000 : DAY);
   if (m.live) return age > (m.start ? 5 * 60_000 : 3600_000);
   if (m.status === "ok" && m.end && now - Date.parse(m.end) < 2 * DAY) return age > 6 * 3600_000;
+  if (cutShort(m) && !m.chapters?.length) return age > (m.chapters ? 7 * DAY : DAY);
   return false;
 }
 
@@ -220,7 +251,15 @@ export async function backfillVideoMeta(log: (s: string) => void, opts: { max?: 
     let n = 0, errors = 0;
     for (const id of todo) {
       if (n && !key) await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
-      const f = fromApi.get(id) ?? await fetchWatchPage(id, opts.fetchImpl);
+      let f = fromApi.get(id) ?? await fetchWatchPage(id, opts.fetchImpl);
+      // Cut far short of its broadcast: its chapters, from the watch page (the API doesn't give them), can confirm its
+      // timing. YouTube now and then serves the page without them, so a read that finds none is tried once more.
+      // A watch page read above counts as the first try.
+      for (let tries = fromApi.has(id) ? 0 : 1; cutShort(f) && !f.chapters?.length && tries < 2; tries++) {
+        await new Promise((r) => setTimeout(r, opts.gapMs ?? 1500));
+        const w = await fetchWatchPage(id, opts.fetchImpl);
+        if (w.status === "ok") f = { ...f, chapters: w.chapters ?? [] };
+      }
       if (f.status === "error") errors++;
       // A page that couldn't be read keeps the facts read before, live included (a broadcast's start doesn't change,
       // and one still live is read again on the live beat).
