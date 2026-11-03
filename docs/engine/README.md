@@ -88,3 +88,8 @@ What the measurements showed:
 - **Carry-over by phase:** last season predicts this season's endgame about half as well as auto and TeleOp (slopes about 0.3 against 0.65). Even so, giving endgame less carry-over made every slice worse, so it stays at 1.
 - **No-history teams vs teams with history:** in early matches, robots with no history beat the prior by about 2 points per robot, and robots with history miss by about 2. Moving the rookie z or the uncertainties doesn't help: the existing settings sit on a plateau.
 - **Region:** the per-region bias of newcomers holds from season to season (r = 0.75). This is the signal 2.7 uses.
+
+## Research brief 2026-11
+
+`research-2026-11/` holds the comparisons the prediction-engine research brief asks for.
+- **Item 11, MLP baseline** (`mlp-baseline.md`): the WPI paper's MLP, on per-alliance skill-category features. It is judged on the same rolling origins as the engine. It loses to engine 3.3.0 on Brier, accuracy, log loss and margin MAE in both seasons, so the engine stays.
