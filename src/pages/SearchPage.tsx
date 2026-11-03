@@ -47,7 +47,7 @@ export default function SearchPage() {
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
-  useSubmittedSearch(query, { answer, busy, stale, searchNow });
+  const leaving = useSubmittedSearch(query, { answer, busy, stale, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
   const meta = useMeta();
   const season = useCurrentSeason();
@@ -127,8 +127,9 @@ export default function SearchPage() {
       {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
-  // A search on its way (just submitted, or a new one run from here): its loading screen, never older results.
-  if (query && !error && busy && (stale || !found)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
+  // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
+  // while going on to the one page a submitted query names.
+  if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.

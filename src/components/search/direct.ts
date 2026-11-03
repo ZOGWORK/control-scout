@@ -39,12 +39,14 @@ const markedNow = () => marked;
 export function markDirect(query: string) { marked = { q: norm(query), at: Date.now() }; notify(); }
 
 /** /search's side (src/pages/SearchPage.tsx): a new query is asked at once (it was submitted, not typed: no typing
- *  pause), and a query marked by a box goes on to the one page it names once the page's answer for it is in. */
+ *  pause), and a query marked by a box goes on to the one page it names once the page's answer for it is in. True
+ *  while it's going there: the page keeps its loading screen rather than flash results it's leaving. */
 export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | undefined; busy: boolean; stale: boolean; searchNow: () => void }) {
   const { answer, busy, stale, searchNow } = s;
   const nav = useNavigate();
   const mark = useSyncExternalStore(subscribe, markedNow, () => null);
   useEffect(() => { searchNow(); }, [searchNow]);
+  const to = mark && mark.q === norm(query) && Date.now() - mark.at <= MARK_MS && !busy && !stale ? directHit(answer, query) : null;
   useEffect(() => {
     if (!mark || mark.q !== norm(query)) return;
     if (Date.now() - mark.at > MARK_MS) { marked = null; return; }
@@ -53,4 +55,5 @@ export function useSubmittedSearch(query: string, s: { answer: SearchAnswer | un
     const d = directHit(answer, query);
     if (d) nav(hitHref(d), { replace: true });
   }, [mark, query, answer, busy, stale, nav]);
+  return !!to;
 }
