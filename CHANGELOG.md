@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.4.3 — 2026-11-03
+
+Teams: a link can name a state, so it opens on exactly the teams a search answer ranked.
+
+### Highlights
+- [teams] Teams links can name a state: New Jersey teams only, sorted however the link says
+- [share] The Teams page you're looking at is its own link: refresh, back and share keep it
+- [teams] One chip, "Teams from New Jersey, United States", clears the place
+
+### Teams
+- **A state in the link.** `/teams?country=US&state=NJ` lists the teams whose home is New Jersey. It's the same place search answers use, so the "View more detail" link under a leaderboard opens on the same teams, in the same order, with the same numbers. FIRST's region codes can't always do this (Kansas teams sit in Missouri's region, California has four). The season, view, sort, region and filter in the link already worked, so a pre-filtered page such as New Jersey sorted by auto OPR for 2025–26 survives a refresh, the back button and a share. The place shows as one chip, "Teams from New Jersey, United States", and removing it clears both the country and the state. Switching between Team-events and Team seasons keeps it. (#PRNUM)
+
 ## 2.4.2 — 2026-11-03
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
