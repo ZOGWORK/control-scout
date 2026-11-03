@@ -48,6 +48,7 @@ describe("rewrites: said the way a reader answers", () => {
     expect(rewriteQuery("4215 worlds")?.q).toBe("when did 4215 go to worlds");
     expect(rewriteQuery("bad wolf states")?.q).toBe("when did bad wolf go to states");
     expect(rewriteQuery("the bad wolf worlds")?.q).toBe("when did the bad wolf go to worlds");
+    for (const q of ["the worlds", "the first championship"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/^when did/);
     // A place's championship, a match at one, and a question with its own verb are left to their readers.
     for (const q of ["nj states", "OR states", "new jesey states", "qual 5 nj states", "will 4215 advance to states", "all state championships"]) expect(rewriteQuery(q)?.q ?? "", q).not.toMatch(/^when did/);
   });
@@ -89,7 +90,8 @@ describe("answers on their own", () => {
   it("undefeated teams and the highest win rate", async () => {
     expect((await ask("undefeated teams")).card?.lines.map((l) => l.text)).toEqual(["6980 Bad Wolf"]);
     const w = await ask("teams with the highest win rate");
-    expect(w.card?.lines[0]).toMatchObject({ text: "6980 Bad Wolf", results: ["#1", "100% wins", "20-0-0", "OPR 130.0"] });
+    // The link opens the season the numbers are from.
+    expect(w.card?.lines[0]).toMatchObject({ text: "6980 Bad Wolf", results: ["#1", "100% wins", "20-0-0", "OPR 130.0"], href: `/teams/6980?season=${S}` });
   });
   it("most improved: by OPR standing season to season, never raw OPR", async () => {
     const a = await ask("most improved teams");
@@ -111,7 +113,9 @@ describe("answers on their own", () => {
 
 describe("Greptile on #465", () => {
   it("a state code keeps its capitals: 'OR' is Oregon", async () => {
-    expect((await ask("how many teams in OR")).understood?.label).toMatch(/Oregon/);
+    const a = await ask("how many teams in OR");
+    expect(a.understood?.label).toMatch(/Oregon/);
+    expect(a.card?.count).toBeUndefined(); // a count of teams, never "N times"
   });
   it("a month's events: its own count, August in the season's second year, and a month with none said so", async () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJQ1', 'March Qualifier', 'Qualifier', 'Union', 'NJ', 'USA', '2026-03-07', '2026-03-07', 't')", [S]);
