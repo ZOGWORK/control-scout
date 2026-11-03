@@ -19,6 +19,9 @@
 // only, never the report or the token) and the app carries on.
 //
 // GET /api/reports/errors lists the stored reports for the owner portal (OWNER_EMAILS); 404 for anyone else.
+//
+// The GitHub client below (gh, GITHUB_REPO, GITHUB_REPORT_TOKEN) is the one GitHub reporting path: failed searches
+// (server/searchFailures.ts, docs/failed-search-reporting.md) file through it too.
 import { createHash } from "node:crypto";
 import express, { type Request, type Response, type Router } from "express";
 import { all, db, get, run } from "./db.js";
@@ -29,7 +32,9 @@ import { ownerOf } from "./owner.js";
 import { isEnabled } from "./flags.js";
 import { fingerprintSource, reportShapeError, sanitizeReport, type ErrorReport } from "../src/shared/errorReport.js";
 
-export const GITHUB_REPO = "Control-Point-FTC/control-scout";
+/** The repository this codebase lives in (git remote origin). It moved from Control-Point-FTC: GitHub forwards the
+ *  old name's REST calls, but its issue search refuses the old name (422), so it's the new one here. */
+export const GITHUB_REPO = "ZOGWORK/control-scout";
 export const ISSUE_LABELS = ["bug", "auto-reported"];
 
 // --- Rate limit -----------------------------------------------------------------------------------
@@ -99,15 +104,26 @@ let fetchImpl: Fetch | null = null;
 /** Tests: replace the HTTP client used for GitHub (null = the real fetch). */
 export function setGithubFetch(f: Fetch | null) { fetchImpl = f; }
 
-class GithubError extends Error { constructor(readonly status: number) { super(`GitHub answered ${status}`); } }
+export class GithubError extends Error {
+  /** Rate-limited (403/429 with Retry-After, or no requests left): when GitHub allows the next one (epoch ms). */
+  readonly retryAt: number | null;
+  constructor(readonly status: number, headers?: Headers) {
+    super(`GitHub answered ${status}`);
+    const after = Number(headers?.get("retry-after"));
+    const reset = Number(headers?.get("x-ratelimit-reset"));
+    this.retryAt = (status === 403 || status === 429) && (after > 0 || (headers?.get("x-ratelimit-remaining") === "0" && reset > 0))
+      ? (after > 0 ? Date.now() + after * 1000 : reset * 1000)
+      : status === 429 ? Date.now() + 60_000 : null;
+  }
+}
 
 /** GitHub definitely refused (a 4xx answer): nothing was created, so it's safe to try again later. Anything
  *  else after a write was sent (no answer, a timeout, a 5xx, or our own failure to save the result) is
  *  uncertain: the write may have gone through. */
-const refused = (e: unknown) => e instanceof GithubError && e.status >= 400 && e.status < 500;
+export const refused = (e: unknown) => e instanceof GithubError && e.status >= 400 && e.status < 500;
 
 /** `path` is under the repository ("/issues"), or absolute from the API root when it starts with "/search/". */
-async function gh<T>(token: string, method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+export async function gh<T>(token: string, method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<T> {
   const url = path.startsWith("/search/") ? `https://api.github.com${path}` : `https://api.github.com/repos/${GITHUB_REPO}${path}`;
   const res = await (fetchImpl ?? fetch)(url, {
     method,
@@ -121,12 +137,12 @@ async function gh<T>(token: string, method: "GET" | "POST", path: string, body?:
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new GithubError(res.status);
+  if (!res.ok) throw new GithubError(res.status, res.headers);
   return (await res.json()) as T;
 }
 
 /** A code fence longer than any run of backticks in the text, so report text can never break out of it. */
-function fenced(text: string): string {
+export function fenced(text: string): string {
   const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((s) => s.length));
   const fence = "`".repeat(Math.max(3, longest + 1));
   return `${fence}text\n${text}\n${fence}`;

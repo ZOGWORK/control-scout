@@ -67,7 +67,7 @@ export const env = {
    *  GET /api/public-usage (docs/public-usage.md). Off unless "1" or "true": the panel then says they aren't published. */
   get publicUsageEnabled() { return /^(1|true)$/i.test(str("PUBLIC_USAGE_ENABLED") ?? ""); },
   /** In-app error reports → GitHub issues (docs/error-reporting.md): a fine-grained PAT, Issues read/write on
-   *  Control-Point-FTC/control-scout only. Unset: reports are only stored. Never sent to the browser or logged. */
+   *  ZOGWORK/control-scout only. Unset: reports are only stored. Never sent to the browser or logged. */
   get githubReportToken() { return str("GITHUB_REPORT_TOKEN"); },
   /** The supporters page (server/sponsors.ts): a GitHub token of the Sponsors profile's owner that may read its
    *  sponsorships, private ones included (only counted, never named). Unset: the page says it isn't set up. Never logged. */
