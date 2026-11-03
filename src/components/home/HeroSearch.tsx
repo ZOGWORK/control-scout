@@ -1,5 +1,5 @@
-// Home's search block, FTC One Search: the field is the hero of its block, with a volt glow, plain words saying
-// any kind of search works, and the search's shared examples. The placeholder cycles through them (paused while
+// Home's search block: the field is the hero of its block, with a volt glow and nothing around it to explain it,
+// then the search's shared examples. The placeholder cycles through them (paused while
 // the field has focus, still under reduced motion) and each one is a chip that runs its query on /search.
 // Presentation only: the box underneath is the same SearchBox, so what it finds is the search's own answer.
 import { useEffect, useState, type ComponentType, type Ref } from "react";
@@ -9,7 +9,6 @@ import { useReducedMotion } from "motion/react";
 import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { SEARCH_EXAMPLE_SET, addRecentSearch, type SearchExampleKind } from "../search/discover";
 import type { SearchHit } from "../../shared/api";
-import { HOME_SEARCH_NAME, HOME_SEARCH_SUB, HOME_SEARCH_TITLE } from "../../shared/boot";
 
 /** The examples: the search's own shared list (queries it answers, varied teams), never a copy of our own. */
 export const HERO_EXAMPLES = SEARCH_EXAMPLE_SET;
@@ -50,17 +49,15 @@ export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRe
   // A chip run counts as a recent search, like one typed and entered.
   const run = (q: string) => { addRecentSearch(q); nav(hitHref(searchPagePick(q))); };
   return (
-    <section aria-labelledby="hero-search-title" className="mt-6 max-sm:mt-4 max-w-[38rem]">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-text">{HOME_SEARCH_NAME}</p>
-      <h2 id="hero-search-title" className="mt-1.5 font-display text-2xl font-semibold tracking-[-0.01em] @lg/home:text-[1.75rem]">{HOME_SEARCH_TITLE}</h2>
-      <p className="mt-1 text-sm text-text-muted">{HOME_SEARCH_SUB}</p>
+    // The field speaks for itself: its label and placeholder, no heading or tag around it.
+    <section aria-label="Search" className="mt-6 max-sm:mt-4 max-w-[38rem]">
       <div onFocus={() => setFocused(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         <SearchBox
           size="lg" inputRef={inputRef} onEscape={onEscape} hint={hint} tour="search" initialQuery={initialQuery} discover
           label="Search teams, events and matches"
           placeholder={heroPlaceholder(shown)}
           onPick={(h: SearchHit) => nav(hitHref(h))}
-          className="cs-hero-search mt-4 w-full"
+          className="cs-hero-search w-full"
         />
       </div>
       {/* Every example, one tap each: they wrap on a wide screen and scroll sideways on a phone. */}
