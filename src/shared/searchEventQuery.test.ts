@@ -42,11 +42,11 @@ describe("reading an event set", () => {
 
 describe("labels", () => {
   it("names the query as understood, never an event", () => {
-    expect(eventSetLabel(readEventQuery("Meets in New Jersey")!)).toBe("League meets in New Jersey");
-    expect(eventSetLabel(readEventQuery("upcoming meets in New Jersey")!)).toBe("Upcoming league meets in New Jersey");
-    expect(eventSetLabel(readEventQuery("meets in New Jersey at River dell high school")!)).toBe("League meets in New Jersey at River Dell High School");
-    expect(eventSetLabel(readEventQuery("meets in Oradell")!, { where: { text: "Oradell", city: true } })).toBe("League meets in Oradell");
-    expect(eventSetLabel(readEventQuery("meets this weekend")!)).toBe("This weekend's league meets");
+    expect(eventSetLabel(readEventQuery("Meets in New Jersey")!)).toBe("Meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("upcoming meets in New Jersey")!)).toBe("Upcoming meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("meets in New Jersey at River dell high school")!)).toBe("Meets in New Jersey at River Dell High School");
+    expect(eventSetLabel(readEventQuery("meets in Oradell")!, { where: { text: "Oradell", city: true } })).toBe("Meets in Oradell");
+    expect(eventSetLabel(readEventQuery("meets this weekend")!)).toBe("This weekend's meets");
     expect(eventSetLabel(readEventQuery("2024 Houston Championship Edison Division")!)).toBe('Championships matching "Houston Edison Division" held in 2024');
   });
 });
@@ -108,12 +108,14 @@ describe("questions about events are not event sets", () => {
 
 describe("place typos and 'states' (owner report)", () => {
   it("reads a near miss of a place's name, said as read", () => {
-    expect(readEventQuery("new jesey states")).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, regionTyped: "new jesey", allSeasons: true, words: [] });
+    expect(readEventQuery("new jesey states")).toMatchObject({ kinds: ["states"], region: { key: "USA:NJ" }, regionTyped: "new jesey", allSeasons: true, words: [] });
     expect(readEventQuery("meets in new jersy")).toMatchObject({ kinds: ["meet"], region: { key: "USA:NJ" }, regionTyped: "new jersy" });
     expect(readEventQuery("pensylvania champs")).toMatchObject({ kinds: ["championship"], region: { key: "USA:PA" } });
   });
   it("'states', 'state champs' and 'champs' with a place are its championship", () => {
-    for (const q of ["nj states", "NJ state champs", "new jersey champs"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [], allSeasons: true });
+    for (const q of ["nj states", "NJ state champs", "new jersey champs"]) expect(readEventQuery(q), q).toMatchObject({ region: { key: "USA:NJ" }, words: [], allSeasons: true });
+    expect(readEventQuery("nj states")?.kinds).toEqual(["states"]); // the state's own championship
+    expect(readEventQuery("NJ state champs")?.kinds).toEqual(["championship"]);
   });
   it("never guesses: no event word, a code, or two places as close", () => {
     expect(readEventQuery("new jesey")).toBeNull();
@@ -130,7 +132,7 @@ describe("place typos and 'states' (owner report)", () => {
 
 describe("Greptile on #450", () => {
   it("'states' before a misspelled place still reads the place", () => {
-    for (const q of ["states in new jesey", "states in NJ", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [], where: null, allSeasons: true });
+    for (const q of ["states in new jesey", "states in NJ", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ kinds: ["states"], region: { key: "USA:NJ" }, words: [], where: null, allSeasons: true });
   });
   it("a generic event word keeps every season", () => {
     for (const q of ["championship events in NJ", "NJ championship events", "championships in NJ"]) expect(readEventQuery(q)?.allSeasons, q).toBe(true);
@@ -138,20 +140,43 @@ describe("Greptile on #450", () => {
   it("time words work with states and champs, and keep their scope", () => {
     for (const q of ["past NJ states", "upcoming NJ champs", "recent NJ states"]) {
       const e = readEventQuery(q);
-      expect(e, q).toMatchObject({ kinds: ["championship"], region: { key: "USA:NJ" }, words: [] });
+      expect(e, q).toMatchObject({ region: { key: "USA:NJ" }, words: [] });
+      expect(e?.kinds, q).toEqual([/states/i.test(q) ? "states" : "championship"]);
       expect(e?.time, q).not.toBeNull();
       expect(e?.allSeasons, q).toBeUndefined();
     }
   });
   it("'states' without a place names nothing; 'united states' is never a championship", () => {
     expect(readEventQuery("states")).toBeNull();
-    expect(readEventQuery("united states meets")?.kinds ?? []).not.toContain("championship");
+    expect(readEventQuery("united states meets")?.kinds ?? []).not.toContain("states");
+    expect(readEventQuery("meets in united states")).toMatchObject({ kinds: ["meet"], where: "united states" });
   });
 });
 
 describe("Greptile on #450, round 2", () => {
   it("'states' beside a generic event word is still the championship, every season", () => {
     for (const q of ["NJ states events", "NJ states competitions", "NJ states"]) expect(readEventQuery(q), q).toMatchObject({ region: { key: "USA:NJ" }, words: [], allSeasons: true });
-    expect(readEventQuery("NJ states events")?.kinds).toContain("championship");
+    expect(readEventQuery("NJ states events")?.kinds).toContain("states");
+  });
+  it("labels the specific kind beside a generic one, and 'states' as state championships", () => {
+    expect(eventSetLabel(readEventQuery("NJ states events")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("NJ championship events")!)).toBe("Championships in New Jersey, every season");
+    expect(eventTypesOf(readEventQuery("tx states")!.kinds)).toEqual(["Championship"]); // never the FIRST Championship held there
+  });
+});
+
+describe("labels echo the words typed (owner bug)", () => {
+  it("never narrows to a type the words didn't say", () => {
+    expect(eventSetLabel(readEventQuery("meets at river dell high school")!)).toBe("Meets at River Dell High School");
+    expect(eventSetLabel(readEventQuery("meets in New Jersey")!)).toBe("Meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("league meets in NJ")!)).toBe("League meets in New Jersey");
+    expect(eventSetLabel(readEventQuery("nj states")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("states in new jersey")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("NJ states events")!)).toBe("State championships in New Jersey, every season");
+    expect(eventSetLabel(readEventQuery("tournaments in NJ")!)).toBe("Tournaments in New Jersey");
+    expect(eventSetLabel(readEventQuery("league tournaments in NJ")!)).toBe("League tournaments in New Jersey");
+    expect(eventSetLabel(readEventQuery("events in NJ")!)).toBe("Events in New Jersey");
+    // Greptile on #461: kinds that share no type are each named, never the last one alone.
+    expect(eventSetLabel(readEventQuery("meets tournaments in NJ")!)).toBe("Meets and tournaments in New Jersey");
   });
 });

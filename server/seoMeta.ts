@@ -511,7 +511,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: n || c || s || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading: n || c || s || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : "No matches found", type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

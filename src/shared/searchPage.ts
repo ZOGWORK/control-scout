@@ -15,6 +15,19 @@ export const readingOf = (a: AnswerExtra | undefined): string | null => a?.under
 const plain = (s: string) => s.replace(/\s*\(did you mean\s.*\)\s*$/i, "").trim();
 const norm = (s: string) => plain(s).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
+/** A reading that only repeats the words typed ("Teams, events and matches matching "won nj states"", "Closest names
+ *  to "hypnotc"", "No match for "zzz""): the server read no meaning into them, so it never titles the page or badges it
+ *  (the page never echoes the query). */
+export const echoesQuery = (label: string) => /^(?:teams, events and matches matching|closest names to|no match for)\s+["“]/i.test(label.trim());
+
+/** What a page of name matches holds, by kind and in the order found: "Matching events", "Matching teams and events". */
+function foundTitle(hits: SearchHit[]): string {
+  const KIND: Record<string, string> = { team: "teams", event: "events", match: "matches" };
+  const kinds = [...new Set(hits.filter((h) => !isCompare(h)).map((h) => KIND[h.kind]).filter(Boolean))];
+  if (!kinds.length) return "Search results";
+  return `Matching ${kinds.length === 1 ? kinds[0] : `${kinds.slice(0, -1).join(", ")} and ${kinds[kinds.length - 1]}`}`;
+}
+
 /** The badge as shown under a title: none when it only repeats the title ("League meets in New Jersey" under
  *  "League meets in New Jersey", "… vs … — Compare" under "… vs …"), so the page never says one thing twice. */
 export function badgeUnder(title: string, badge: string | null): string | null {
@@ -51,6 +64,7 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTe
   // "How good is X": the page is about X, whatever else the reading says ("· OPR").
   if (aboutTeam && top?.kind === "team" && a?.step !== "recovery") { const t = teamName(); if (t) return t; }
   const read = readingOf(a);
+  if (read && echoesQuery(read)) return foundTitle(hits);
   if (read) return plain(read);
   if (top?.kind === "team" && (a?.step === "deterministic" || !a)) { const t = teamName(); if (t) return t; }
   return "Search results";
@@ -63,7 +77,7 @@ export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTe
  *  "showing" its first). */
 export function contextBadge(a: AnswerExtra, understood: string[] = []): string | null {
   const label = readingOf(a);
-  if (label) return label;
+  if (label) return echoesQuery(label) ? null : label;
   const read = understood.map((u) => u.replace(/^Understood:\s*/, "").trim()).filter(Boolean);
   if (read.length) return read.join(" · ");
   const top = a.hits[0];

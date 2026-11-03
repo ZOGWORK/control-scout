@@ -52,8 +52,11 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
 /** Which matches an intent reads: scored ones for scores (the team on the field), counted ones for results. */
 function pool(id: IntentId, all: TeamMatch[], scope: Scope): TeamMatch[] {
   const keep = inScope(scope);
-  const scores = id === "highest-score" || id === "lowest-score" || id === "average-score";
-  return all.filter((m) => keep(m) && (scores ? m.onField : m.counted));
+  return all.filter((m) => keep(m) && counts(id, m));
+}
+/** Whether an intent reads match `m`: a score only with the team on the field, a result when it's on the record. */
+export function counts(id: IntentId, m: TeamMatch): boolean {
+  return id === "highest-score" || id === "lowest-score" || id === "average-score" ? m.onField : m.counted;
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
@@ -68,13 +71,22 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
   const row = (m: TeamMatch) => { const r = matchRow(m, links, team.number); return scores ? r : { ...r, ownNp: undefined }; };
   const none = (what: string) => `No ${what}${where} found for ${who} in the recorded matches.`;
   const matchesBlock = (title: string, xs: TeamMatch[], more?: string): StatBlock => ({ kind: "matches", title, rows: xs.slice(0, LIST_CAP).map(row), ...(xs.length > LIST_CAP ? { more: more ?? `Showing ${LIST_CAP} of ${xs.length}` } : {}) });
+  // Each season is a different game, so points are never compared across seasons: with several seasons and none named,
+  // the answer is the latest season's (said so) and each season's own is listed below it.
+  const latestOnly = (xs: TeamMatch[]) => {
+    const ss = new Set(xs.map((m) => m.season));
+    if (scope.season != null || ss.size < 2) return { xs, note: "" };
+    const s = Math.max(...ss);
+    return { xs: xs.filter((m) => m.season === s), note: ` Each season is a different game, so points are never compared across seasons: the answer is ${seasonLabel(s)}'s, the latest here, and each season's own is listed below.` };
+  };
 
   switch (id) {
     case "highest-score":
     case "lowest-score": {
       const high = id === "highest-score";
       const sorted = [...ms].sort((a, b) => (high ? np(b) - np(a) || b.own - a.own : np(a) - np(b) || a.own - b.own) || String(a.date).localeCompare(String(b.date)));
-      const top = sorted[0];
+      const { xs: pick, note } = latestOnly(sorted);
+      const top = pick[0];
       const title = high ? (opts.leadEvent ? `Event with the highest score${where}` : `Highest score${where}`) : `Lowest score${where}`;
       if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: SCORE_RULE, none: scope.championship ? `No Worlds matches found for ${who}.` : none("matches") };
       const r = row(top);
@@ -83,7 +95,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
           { label: "With penalties", value: String(top.own), href: r.href },
           { label: "Result", value: `${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, tone: top.result === "W" ? "good" : top.result === "L" ? "bad" : undefined },
         ] },
-        matchesBlock(high ? "Best scores" : "Lowest scores", sorted.slice(0, 5)),
+        matchesBlock(`${high ? "Best scores" : "Lowest scores"}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
       ];
       // Each season is a different game: its best (or worst) beside the others, never compared as one record.
       if (scope.season == null) {
@@ -95,7 +107,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         headline: opts.leadEvent
           ? { value: top.event, label: `${np(top)} points in ${top.label}`, sub: [seasonLabel(top.season), r.date].filter(Boolean).join(" · "), href: eventHref(top.season, top.code, team.number) }
           : { value: `${np(top)} points`, label: `${top.label} at ${top.event}`, sub: [seasonLabel(top.season), r.date, `${top.alliance === "red" ? "Red" : "Blue"} alliance`].filter(Boolean).join(" · "), href: r.href },
-        blocks, definition: SCORE_RULE,
+        blocks, definition: `${SCORE_RULE}${note}`,
       };
     }
 
@@ -108,14 +120,21 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         : ms.filter((m) => !opts.outcome || m.result === opts.outcome).sort((a, b) => Math.abs(margin(a)) - Math.abs(margin(b)) || String(b.date).localeCompare(String(a.date)));
       const closest = opts.outcome === "W" ? "Closest win" : opts.outcome === "L" ? "Closest loss" : "Closest match";
       const title = id === "biggest-win" ? `Biggest win${where}` : id === "biggest-loss" ? `Biggest loss${where}` : `${closest}${where}`;
-      const top = xs[0];
-      const def = `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}`;
+      // A biggest margin is points too: one season's, each season's listed below (a closest gap compares fine).
+      const { xs: pick, note } = id === "closest-match" ? { xs, note: "" } : latestOnly(xs);
+      const top = pick[0];
+      const def = `${id === "closest-match" ? "Closest: the smallest gap between the two alliances' scores (a tie is 0); the latest first on equal gaps." : "Margin: the gap between the two alliances' official scores."} ${RESULT_RULE}${note}`;
       if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: def, none: none(id === "biggest-win" || opts.outcome === "W" ? "wins" : id === "biggest-loss" || opts.outcome === "L" ? "losses" : "matches") };
+      const list = id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses";
+      const blocks: StatBlock[] = [matchesBlock(`${list}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5))];
+      if (note) {
+        const per = bySeason(xs).map(([s, ys]) => ({ s, m: ys[0] }));
+        blocks.push({ kind: "table", title: `${id === "biggest-win" ? "Biggest win" : "Biggest loss"} each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "margin", label: "Margin", num: true }, { key: "score", label: "Score" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), margin: Math.abs(margin(m)), score: `${m.own}–${m.opp}`, event: m.event }, href: row(m).href, strong: m === top })) });
+      }
       return {
         ...base, family: "superlative", intent: id, title,
         headline: { value: `${Math.abs(margin(top))} point${Math.abs(margin(top)) === 1 ? "" : "s"}`, label: `${top.own}–${top.opp} in ${top.label} at ${top.event}`, sub: [seasonLabel(top.season), row(top).date].filter(Boolean).join(" · "), href: row(top).href },
-        blocks: [matchesBlock(id === "closest-match" ? (opts.outcome === "W" ? "Closest wins" : opts.outcome === "L" ? "Closest losses" : "Closest matches") : id === "biggest-win" ? "Biggest wins" : "Biggest losses", xs.slice(0, 5))],
-        definition: def,
+        blocks, definition: def,
       };
     }
 
@@ -160,6 +179,18 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const def = "Average score: the mean of the alliance's points without penalties in every match the team was on the field for, at official events (the mean with penalties beside it).";
       if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
       const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+      // Each season is a different game: over several, each season's average, never one number pooled across them.
+      const seasons = bySeason(ms);
+      if (seasons.length > 1) {
+        const [latest, xs] = seasons[0];
+        return {
+          ...base, family: "aggregate", intent: id, title,
+          headline: { value: mean(xs.map(np)).toFixed(1), label: `points a match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
+          blocks: [{ kind: "table", title: "Average each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "No penalties", num: true }, { key: "with", label: "With penalties", num: true }, { key: "n", label: "Matches", num: true }],
+            rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: mean(ys.map(np)).toFixed(1), with: mean(ys.map((m) => m.own)).toFixed(1), n: ys.length }, strong: s === latest })) }],
+          definition: `${def} Each season is a different game, so each season's average is its own and none is pooled across seasons.`,
+        };
+      }
       const events = new Map<string, TeamMatch[]>();
       for (const m of ms) events.set(`${m.season}|${m.code}`, [...(events.get(`${m.season}|${m.code}`) ?? []), m]);
       return {

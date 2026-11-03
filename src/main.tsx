@@ -9,6 +9,7 @@ import { ThemeSync } from "./hooks/useTheme";
 import { Shell } from "./components/layout/Shell";
 import { SearchProvider } from "./components/layout/Search";
 import { Toaster } from "./components/ui/sonner";
+import { VideoDialog } from "./components/VideoDialog";
 import { LoadingBlock } from "./components/states";
 import { CanonicalSync, MetaProvider, SearchRobotsSync } from "./lib/meta";
 import { ConsentBanner } from "./components/layout/ConsentBanner";
@@ -198,6 +199,7 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
               </RouteErrorBoundary>
             </Shell>
             <Toaster />
+            <VideoDialog />
             <CanonicalSync />
             <SearchRobotsSync />
             {/* The pit display (a TV nobody touches) gets no prompts over it: no privacy banner (unanswered, so no analytics), tour, nudge or alerts. */}
