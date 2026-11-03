@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { seasonLabel } from "../lib/format";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
@@ -27,7 +28,7 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -64,6 +65,7 @@ export default function SearchPage() {
   const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card || !!answer?.stat;
   const events = hits.filter((h) => h.kind === "event").length;
   const filtersOn = anyFilter(filters);
+  const counts = useMemo(() => whenCounts(hits, filters), [hits, filters.when, filters.season, filters.type]);
 
   // Season numbers for the teams listed and the Compare's sides, in one request.
   const teamNums = useMemo(() => [...new Set([
@@ -175,7 +177,7 @@ export default function SearchPage() {
                   <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
-              {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} onChange={setFilters} /></div>}
+              {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} onChange={setFilters} /></div>}
               {/* Desktop: results left (65%), at most one panel right (35%), chosen by the query: a versus query's
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
@@ -207,9 +209,17 @@ export default function SearchPage() {
                   )}
                   {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
+                    // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
                     <div className="rounded-xl border border-border bg-card px-4 py-3.5 text-sm" data-filtered-empty>
-                      <p className="text-foreground">No results match these filters.</p>
-                      <button type="button" onClick={() => setFilters({ when: "all", season: null, type: null })} className="mt-1.5 text-sm font-medium text-accent-text hover:underline">Clear filters</button>
+                      <p className="text-foreground">{emptyLine(filters)}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {filterAlternatives(hits, filters).map((a) => (
+                          <Button key={a.label} size="sm" variant="secondary" onClick={() => setFilters(a.f)} data-alternative>
+                            Show {a.label}
+                          </Button>
+                        ))}
+                        <button type="button" onClick={() => setFilters({ when: "all", season: null, type: null })} className="text-sm font-medium text-accent-text hover:underline">Clear filters</button>
+                      </div>
                     </div>
                   )}
                   {panel === "versus" && summary}
@@ -335,4 +345,10 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
       </ul>
     </nav>
   );
+}
+
+/** What a filtered page with nothing left is missing, in words: "No past events in 2024–25 here." */
+function emptyLine(f: PageFilters): string {
+  const when = f.when === "all" ? "" : `${f.when} `;
+  return `No ${when}events${f.season != null ? ` in ${seasonLabel(f.season)}` : ""}${f.type ? " of this type" : ""} in these results.`;
 }

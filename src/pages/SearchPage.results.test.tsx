@@ -105,14 +105,36 @@ describe("search results page", () => {
     const { container } = show("/search?q=meets%20in%20nj");
     const titles = () => [...container.querySelectorAll('[data-result="event"]')].map((e) => e.querySelector("a.line-clamp-2")?.textContent);
     expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
-    fireEvent.click(screen.getByRole("radio", { name: "Upcoming" }));
+    // Each time tab says how many events it holds before it's picked.
+    expect(screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label"))).toEqual(["All, 3 events", "Upcoming, 2 events", "Past, 1 event"]);
+    fireEvent.click(screen.getByRole("radio", { name: /^Upcoming/ }));
     expect(loc).toBe("/search?q=meets+in+nj&when=upcoming");
     expect(titles()).toEqual(["Next Meet", "Later Meet"]);
-    fireEvent.click(screen.getByRole("radio", { name: "Past" }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Past/ }));
     expect(titles()).toEqual(["Old Meet"]);
     fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
     expect(loc).toBe("/search?q=meets+in+nj");
     expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
+  });
+
+  it("a filter with nothing left says what's empty and offers the tab that isn't, never a dead end", () => {
+    state.answer = answer([ev("A", "P2-8 Northeast League Meet", "2099-12-13", 2026), ev("B", "P3-8 Northeast League Meet", "2100-01-24", 2026)]);
+    const { container } = show("/search?q=meets%20in%20river%20dell%20high%20school&when=past");
+    expect(screen.getByRole("radio", { name: /^Past/ }).getAttribute("aria-label")).toBe("Past, 0 events");
+    const empty = container.querySelector("[data-filtered-empty]")!;
+    expect(empty.textContent).toContain("No past events in these results.");
+    fireEvent.click(within(empty as HTMLElement).getByRole("button", { name: "Show 2 upcoming" }));
+    expect(loc).toBe("/search?q=meets+in+river+dell+high+school&when=upcoming");
+    expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(2);
+  });
+
+  it("an empty season offers every season, with its count", () => {
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("B", "Old Meet", "2020-01-11", 2019)]);
+    const { container } = show("/search?q=x&when=upcoming&season=2019");
+    const empty = container.querySelector("[data-filtered-empty]")!;
+    expect(empty.textContent).toContain("No upcoming events in 2019–20 in these results.");
+    // Past in 2019–20 holds one, every season holds one upcoming: both offered, the time tab first.
+    expect([...empty.querySelectorAll("[data-alternative]")].map((b) => b.textContent)).toEqual(["Show 1 past", "Show 1 in every season"]);
   });
 
   it("keeps the filters from the address", () => {
