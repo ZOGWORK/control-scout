@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.7.9 — 2026-11-03
+## 2.8.1 — 2026-11-03
 
 Predictions show more of their working. The track record adds margin error, every prediction says in one line what it learns from and what changes in playoffs, and a few numbers now come with the sum behind them. No prediction changed.
 
@@ -29,6 +29,34 @@ Predictions show more of their working. The track record adds margin error, ever
 - **Margin error.** The track record's ledger now shows how many points the predicted margin (red's predicted score minus blue's) missed by on average, against always guessing a tie, with qualifiers and playoffs apart. Live calls and the season replay stay separate, as always. (#488)
 - **Quals and playoffs, stated.** The match drawer, Know your match, the Lab, the factor sheet, projections, advancement odds, simulated rankings and the bracket each carry one short line: ratings learn from every played match, a playoff result counts half, and in playoffs partners add up in full, ranges are tighter and there are no bonus RPs. A new "Quals and playoffs" section on How it works has the details. (#488)
 - **Numbers you can check.** The match drawer and the Lab show the predicted margin ("Red by 12 (118 − 106)"). The Lab's ratings table adds each robot's penalties and writes each predicted score out: robots' ratings, minus the overlap cut, plus the other side's penalties. A best-of-3 series shows the one-game chance it comes from. (#488)
+
+## 2.8.0 — 2026-11-03
+
+How a team's rating is read from alliance scores is now stated where the rating is shown, and "Before the event" odds load faster.
+
+### Highlights
+- [predict] Ratings say what they assume: random qualification partners
+- [predict] Playoff matches count half, because playoff partners are fixed
+- [speed] "Before the event" odds for a second team at an event load faster
+
+### Predictions
+- **What a rating assumes.** FTC only records alliance scores. The engine splits each alliance's miss equally between its robots, which separates a team from its partners only because qualification partners are drawn at random. Playoff alliances are fixed, so a playoff match moves a rating half as much. The How it works page (new "What this assumes" part), team pages and the world rankings now say so in one line. The numbers don't change. (#486)
+- **Faster "Before the event" views.** The ratings as they stood the day before an event are now worked out once per day for the current data, and shared by every team's odds and partner scenarios at that event and by every event starting that day. Before, each team's view replayed the season again. Same numbers.
+
+### Engine research notes
+- New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
+## 2.7.9 — 2026-11-03
+
+FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
+
+### Highlights
+- [teams] "4215 from where" and "4215 where from" show where they're from
+- [teams] "4215 opr rn" gets the OPR card; filler words never change it
+- [teams] Long questions get the short form's answer, read back to you
+- [rankings] "highest opr california" works without "in", as with it
+
+### Search
+- **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"), and a leaderboard asked with a place but no "in" ("highest opr california", "opr leaders texas") is the leaderboard, not a guess at a team. Details in docs/search-layers.md. (#479)
 
 ## 2.7.8 — 2026-11-03
 
