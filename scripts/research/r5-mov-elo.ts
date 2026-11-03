@@ -86,8 +86,8 @@ const sc = (s: number, e: Eval) => { const idx = seasonIdx(s, e.p); return score
 
 // ---- Tuning grid on 2024–25.
 const grid: EloParams[] = [];
-const K: Record<Mov, number[]> = { none: [16, 32, 48, 64], "538": [4, 8, 12, 16], "538norm": [4, 8, 12, 16] };
-for (const mov of ["none", "538", "538norm"] as Mov[]) for (const k0 of K[mov]) for (const n0 of [Infinity, 10]) for (const carry of [0.5, 0.7, 0.9]) for (const offset of [0, -100]) for (const c of mov === "none" ? [0] : [0.001, 0.0025])
+const K: Record<Mov, number[]> = { none: [32, 64, 96, 128, 192], "538": [8, 16, 24, 32, 48], "538norm": [8, 16, 24, 32, 48] };
+for (const mov of ["none", "538", "538norm"] as Mov[]) for (const k0 of K[mov]) for (const n0 of [Infinity, 10]) for (const carry of [0.3, 0.5, 0.7, 0.9]) for (const offset of [0, -100]) for (const c of mov === "none" ? [0] : [0.001, 0.0025, 0.005])
   grid.push({ mov, k0, n0, carry, offset, c, playoff: 0.5 });
 const tuned: { params: EloParams; brier2024: number; acc2024: number }[] = [];
 for (const g of grid) { const s = sc(2024, evaluate(replay(g))); tuned.push({ params: g, brier2024: s.brier, acc2024: s.accuracy }); }
@@ -116,6 +116,11 @@ out.standalone = variants;
 
 // ---- H1: the champion's log-odds plus the Elo log-odds (two weights, prior 365 days).
 const hybrids: Record<string, unknown> = {};
+// H0, the control: the champion restretched by its own rolling slope (H1 with γ = 0). H1's gain over H0 is the Elo's.
+const h0 = new Map<number, number>();
+for (const f of folds) { const a = slopeFit(f.train.map((i) => logit(rows[i].pc)), f.train.map((i) => rows[i].y)); for (const i of f.test) h0.set(i, sig(a * logit(rows[i].pc))); }
+hybrids["H0 champion restretched"] = { gates: Object.fromEntries(SEASONS.map((s) => { const g = gateOf(s, h0); console.log(`H0: ${gateLine(g)}`); return [s, slim(g)]; })) };
+const vsH0 = (s: number, b: Map<number, number>) => gate(s, seasonIdx(s, b).map((i) => ({ event: rows[i].event, y: rows[i].y, tags: rows[i].tags, a: h0.get(i)!, b: b.get(i)! })));
 for (const mov of ["none", "538", "538norm"] as Mov[]) {
   const d = ds[mov], p = new Map<number, number>(), mh = new Map<number, number>(), w: number[][] = [];
   for (const f of folds) {
@@ -131,7 +136,8 @@ for (const mov of ["none", "538", "538norm"] as Mov[]) {
   const gates = Object.fromEntries(SEASONS.map((s) => [s, gateOf(s, p)]));
   const mg = Object.fromEntries(SEASONS.map((s) => [s, gateOf(s, p, mh).marginMAE]));
   for (const s of SEASONS) console.log(`H1 ${mov}: ${gateLine(gates[s])}  margin hybrid dMAE ${mg[s]!.mae.toFixed(3)} [${mg[s]!.mae95.map((v) => v.toFixed(3)).join(", ")}]`);
-  hybrids[`H1 ${mov}`] = { gates: Object.fromEntries(SEASONS.map((s) => [s, slim(gates[s])])), marginHybrid: mg, weights: w };
+  const overH0 = Object.fromEntries(SEASONS.map((s) => { const g = vsH0(s, p); console.log(`H1 ${mov} vs H0: ${gateLine(g)}`); return [s, slim(g)]; }));
+  hybrids[`H1 ${mov}`] = { gates: Object.fromEntries(SEASONS.map((s) => [s, slim(gates[s])])), vsH0: overH0, marginHybrid: mg, weights: w };
 }
 
 // ---- H2: refitted contextual model with and without the Elo input (MOV-Elo, 538norm, and plain Elo).
