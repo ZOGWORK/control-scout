@@ -493,7 +493,17 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const cardLines = (ls: SearchCardLine[]) => `<ul>${ls.map((l) => `<li>${l.href ? `<a href="${esc(l.href)}">${esc(l.text)}</a>` : esc(l.text)}${l.detail ? `<br><small>${esc(l.detail)}</small>` : ""}${l.results?.length ? `<ul>${l.results.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : ""}</li>`).join("")}</ul>`;
   const card = c ? `<section aria-label="${esc(c.title)}"><h2>${esc([c.title, cardWho(c)].filter(Boolean).join(" · "))}</h2>`
     + (c.none ? `<p>${esc(c.none)}</p>` : "") + (c.lines.length ? cardLines(c.lines) : c.closest?.length ? `<p>Closest records</p>${cardLines(c.closest)}` : "") + "</section>" : "";
-  const body = (badge ? `<p><b>${esc(badge)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + card + sections.map((sec) => {
+  // A stat answer (server/api/answers/): the number asked for (or its plain "none found"), its headline numbers, how
+  // it was counted and from which records; the app draws its tables and charts.
+  const s = answer.stat;
+  const linked = (text: string, href?: string) => (href ? `<a href="${esc(href)}">${esc(text)}</a>` : esc(text));
+  const kpis = s?.blocks.flatMap((b) => (b.kind === "kpis" ? b.items : [])) ?? [];
+  const stat = s ? `<section aria-label="${esc(s.title)}"><h2>${esc(s.title)}</h2>`
+    + (s.none ? `<p>${esc(s.none)}</p>` : "")
+    + (s.headline ? `<p><b>${linked(s.headline.value, s.headline.href)}</b> · ${esc(s.headline.label)}${s.headline.sub ? `<br><small>${esc(s.headline.sub)}</small>` : ""}</p>` : "")
+    + (kpis.length ? `<p>${kpis.map((k) => `${esc(k.label)}: <b>${linked(k.value, k.href)}</b>`).join(" · ")}</p>` : "")
+    + `<p><small>${esc(s.definition)}<br>${esc(s.source)}</small></p></section>` : "";
+  const body = (badge ? `<p><b>${esc(badge)}</b></p>` : "") + (said.length ? `<p>${said.join("<br>")}</p>` : "") + stat + card + sections.map((sec) => {
     const n = sec.rows.filter((r) => !r.sub).length;
     return `<h2>${esc(sec.title)}${sec.id === "pages" || sec.id === "browse" ? "" : ` <small>${n}</small>`}</h2><ul>${sec.rows.map(({ hit: h, sub }) => `<li${sub ? ' style="margin-left:1.5em"' : ""}><a href="${esc(hitHref(h))}">${esc(h.title)}</a>${h.subtitle ? ` · ${esc(h.subtitle)}` : ""}${h.facts?.length ? `<br>${h.facts.map((f) => `${esc(f.label)}: <b>${esc(f.value)}</b>`).join(" · ")}` : ""}</li>`).join("")}</ul>`;
   }).join("");
@@ -501,7 +511,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   const data = `<script type="application/json" id="${SEARCH_HITS_ID}">${JSON.stringify({ ...answer, q }).replace(/</g, "\\u003c")}</script>`;
   const n = answer.hits.length;
   return {
-    title: `Search: ${q}`, heading: n || c || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
+    title: `Search: ${q}`, heading: n || c || s || answer.pages.length ? pageTitle(answer, answer.hits, isQualityQuestion(q)) : `No matches for “${q}”`, type: "website", bodyHtml: body + data, searchPage: true,
     description: n ? `${n === SEARCH_PAGE_LIMIT ? `The top ${n}` : n} FTC team, event and match results for “${q}” on Control Scout.` : `No FTC team, event or match matches “${q}”.`,
   };
 }

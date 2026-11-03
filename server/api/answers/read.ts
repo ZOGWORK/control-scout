@@ -73,6 +73,8 @@ export interface ReadScope {
   alliance: "red" | "blue" | null;
   /** "at <something>" that isn't Worlds or states: an event (left to the event family). */
   at: string | null;
+  /** The season came from a bare year ("2024"), which could also be a team's number. */
+  year?: boolean;
 }
 
 export interface StatQuestion {
@@ -116,6 +118,11 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     const m = new RegExp(`\\b(?:in\\s+|during\\s+)?${[...s.game.replace(/\s+/g, "").toLowerCase()].join("[\\s-]?")}\\b`).exec(rest);
     if (m) { scope.season = s.season; rest = rest.replace(m[0], " "); }
   }
+  // A bare year is its season, as search reads it ("4215 worlds record 2024": 2024–25).
+  if (scope.season == null) {
+    const y = /\b(?:in\s+|during\s+)?(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest);
+    if (y && SEASONS.some((s) => s.season === Number(y[1]))) { scope.season = Number(y[1]); scope.year = true; rest = rest.replace(y[0], " "); }
+  }
   if (take(/\b(?:this|current|the\s+current)\s+(?:season|year)\b|\bthis\s+year'?s?\b/)) scope.latest = true;
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
@@ -155,7 +162,9 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (r.id === "highest-score" && !(scope.championship || scope.states || scope.ever || leadEvent || scope.level || scope.alliance)) return null;
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : null;
     const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null) : null;
-    const core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
+    let core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
+    // Nothing else names a team: the "year" was the team's number ("2024 worlds record").
+    if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }
     if (!core) return null;
     return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, core };
   }

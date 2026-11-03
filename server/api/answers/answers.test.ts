@@ -4,6 +4,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
+import { pageMeta } from "../../seoMeta";
 import { searchAnswer } from "../searchAnswer";
 import { readStatQuestion } from "./read";
 
@@ -55,6 +56,10 @@ describe("what's read as a stat question", () => {
     expect(readStatQuestion("How many matches has 4215 in 2024-25 played")).toMatchObject({ id: "total-matches", core: "4215", scope: { season: 2024 } });
     expect(readStatQuestion("4215 closest win")).toMatchObject({ id: "closest-match", outcome: "W" });
     expect(readStatQuestion("4215 current losing streak")).toMatchObject({ id: "current-streak", outcome: "L" });
+    // A bare year is its season, as search reads it; with nothing else naming a team, it's the team's number.
+    expect(readStatQuestion("4215 worlds record 2024")).toMatchObject({ id: "record", core: "4215", scope: { championship: true, season: 2024 } });
+    expect(readStatQuestion("4215 average score 2024")).toMatchObject({ id: "average-score", core: "4215", scope: { season: 2024 } });
+    expect(readStatQuestion("2024 worlds record")).toMatchObject({ id: "record", core: "2024", scope: { championship: true, season: null } });
   });
   it("never drops a scope its answer can't apply: those are left to search", () => {
     for (const q of ["4215 seasons played at worlds", "4215 best season in playoffs", "4215 total events on red", "4215 best event finish in playoffs"]) expect(readStatQuestion(q), q).toBeNull();
@@ -133,5 +138,11 @@ describe("the answers", () => {
     expect(a.stat).toBeUndefined();
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
     expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · Record at Worlds");
+  });
+  it("the first paint says the answer before the app loads", async () => {
+    const m = await pageMeta("/search", { q: "4215 worlds record" });
+    expect(m.bodyHtml).toMatch(/<h2>Record at Worlds<\/h2>/);
+    expect(m.bodyHtml).toContain("<b>2-1-0</b>");
+    expect(m.heading).not.toMatch(/^No matches/);
   });
 });
