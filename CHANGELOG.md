@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.5.3 — 2026-11-03
+## 2.5.4 — 2026-11-03
 
 FTC One Search answers "who won NJ states": the winning alliance and the Inspire Award, from the event's results.
 
@@ -27,6 +27,18 @@ FTC One Search answers "who won NJ states": the winning alliance and the Inspire
 ### Search
 - **Who won an event.** "Who won NJ states", "who won the New Jersey Championship", "winners of 2024-25 NJ states" and misspellings like "who won new jesey states" answer the newest finished championship of that place (or the event named, its newest finished season). The answer shows the winning alliance as FIRST records it (each division's, at a championship with divisions) and the Inspire Award winner, and opens the event on its playoffs. "Won" is never read as a name word. An event with no results recorded says so plainly. "Who won Inspire at …" still lists that award's winners.
 - **"States" is a state's own championship.** "TX states" lists Texas's state and regional championships, never the FIRST Championship held in Houston, and its line reads "State championships in Texas". "NJ states events" now reads as state championships too, not as all events. (#456)
+
+## 2.5.3 — 2026-11-03
+
+Match timestamps for recordings that YouTube cut short: a match's Watch button now shows up on more events.
+
+### Highlights
+- [live] More events get a Watch button on their matches
+- [live] A recording YouTube cut short is checked against its own chapters
+- [live] The DECODE Preview Event in Texas now has Watch on 47 of 50 matches
+
+### Event page
+- **Recordings that YouTube cut short.** When a stream is left running for hours after the event, YouTube keeps only part of it, and the video then looks shorter than the broadcast. Before, matches got no Watch button unless the cut fell within 15 minutes of the last match, because a gap in the middle would put every later match on the wrong spot. Now the recording's own chapters (YouTube's "Match five" and so on) are read as well. When matches sit by their chapters, the clock still holds and they get their Watch. A real gap moves every later match away from its chapter for good, so Watch stops at the match before it. The DECODE Preview Event (Texas, Oct 18) goes from no Watch buttons to 47 of 50. (#449)
 
 ## 2.5.2 — 2026-11-03
 

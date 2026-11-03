@@ -1832,6 +1832,16 @@ CREATE TABLE web_vitals_daily (
 ) WITHOUT ROWID;
 `,
   },
+  {
+    version: 70,
+    name: "youtube video chapters",
+    sql: `
+-- A recording's chapters (server/videos/youtube.ts parseChapters), read for a video much shorter than its broadcast:
+-- they can confirm its seconds still follow the clock (chaptersConfirm, src/shared/recording.ts). JSON
+-- [[second, title], ...]; null: not read. Public data only.
+ALTER TABLE video_meta ADD COLUMN chapters TEXT;
+`,
+  },
 ];
 
 export type Db = Client;
