@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { apiFacts, fetchFromApi, fetchWatchPage, isoDuration, parseWatchPage } from "./youtube";
+import { apiFacts, fetchFromApi, fetchWatchPage, isoDuration, parseChapters, parseWatchPage } from "./youtube";
 
 // The bits of a real watch page the reader looks at, in the order YouTube sends them.
 const page = (playability: string, extra = "") => `<html><script>var ytInitialPlayerResponse = {"playabilityStatus":{"status":"${playability}","playableInEmbed":true},"videoDetails":{"videoId":"x","lengthSeconds":"16541"},"microformat":{"playerMicroformatRenderer":{${extra}}}};</script></html>`;
@@ -7,7 +7,7 @@ const BROADCAST = `"liveBroadcastDetails":{"isLiveNow":false,"startTimestamp":"2
 
 describe("reading a watch page", () => {
   it("a recorded broadcast: its start, end and length", () => {
-    expect(parseWatchPage(page("OK", BROADCAST))).toEqual({ status: "ok", start: "2026-05-02T12:58:13.000Z", end: "2026-05-02T17:33:56.000Z", length: 16541, live: false });
+    expect(parseWatchPage(page("OK", BROADCAST))).toEqual({ status: "ok", start: "2026-05-02T12:58:13.000Z", end: "2026-05-02T17:33:56.000Z", length: 16541, live: false, chapters: [] });
   });
   it("a broadcast still live", () => {
     const f = parseWatchPage(page("OK", `"liveBroadcastDetails":{"isLiveNow":true,"startTimestamp":"2026-05-02T12:58:13+00:00"}`));
@@ -71,5 +71,14 @@ describe("the YouTube Data API", () => {
       const odd = (async () => new Response(body, { status: 200 })) as unknown as typeof fetch;
       expect([...(await fetchFromApi(["aaaaaaaaaaa"], "KEY", odd)).values()].map((f) => f.status)).toEqual(["error"]);
     }
+  });
+});
+
+describe("a watch page's chapters", () => {
+  it("each start once, in order, with its title (escapes read)", () => {
+    const ch = (title: string, ms: number) => `"chapterRenderer":{"title":{"simpleText":"${title}"},"timeRangeStartMillis":${ms}}`;
+    const html = [ch("Match two", 1431919), ch("Opening remarks", 0), ch("Match one", 866560), ch("Match one", 866560), ch("Kids \\u0026 robots", 2000000)].join(",");
+    expect(parseChapters(html)).toEqual([[0, "Opening remarks"], [867, "Match one"], [1432, "Match two"], [2000, "Kids & robots"]]);
+    expect(parseChapters("<html></html>")).toEqual([]);
   });
 });
