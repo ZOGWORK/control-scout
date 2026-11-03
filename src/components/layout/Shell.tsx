@@ -31,7 +31,8 @@ import { watchTextSize } from "../../lib/textSize";
 import { useFlag } from "../../lib/flags";
 import { PAGE_FRAME } from "../../shared/boot";
 
-interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean }
+/** `also`: another path that lights the row (How it works: its Predictions page, /methodology). */
+interface NavItem { to: string; label: string; icon: ComponentType<{ className?: string }>; end?: boolean; also?: string }
 
 /** The everyday pages, always in view; everything else sits under `more` (the sidebar folds it under a "More"
  *  toggle; the menu sheet lists it under a "More" heading). Nothing is left out, just out of the way. */
@@ -52,7 +53,7 @@ const SECTIONS: { title: string | null; items: NavItem[]; more?: boolean }[] = [
     { to: "/shortlist", label: "Shortlist", icon: Bookmark },
     { to: "/rules", label: "Rules", icon: Gavel },
     { to: "/download", label: "Download", icon: Download },
-    { to: "/methodology", label: "How it works", icon: BookOpen },
+    { to: "/how-it-works", label: "How it works", icon: BookOpen, also: "/methodology" },
   ] },
 ];
 
@@ -100,7 +101,8 @@ interface RowOpts { collapsed?: boolean; dense?: boolean; onNavigate?: () => voi
 function NavRow({ item, collapsed, dense, onNavigate, active }: RowOpts & { item: NavItem; active?: boolean }) {
   // Matched here, not by NavLink's className/children functions: the rail's tooltip trigger (a Radix Slot) only merges plain strings.
   const match = useMatch({ path: item.to, end: !!item.end });
-  const on = active ?? !!match;
+  const also = useMatch({ path: item.also ?? item.to, end: !!item.end });
+  const on = active ?? (!!match || !!also);
   return (
     <RailTip on={collapsed} label={item.label}>
       <NavLink to={item.to} end={item.end} onClick={onNavigate} aria-current={on ? "page" : false} className={rowClass(on, collapsed, dense)}>

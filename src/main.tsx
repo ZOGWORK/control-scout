@@ -70,6 +70,8 @@ const PAGES = {
   DownloadPage: lazyPage(() => import("./pages/DownloadPage")),
   SettingsPage: lazyPage(() => import("./pages/SettingsPage")),
   MethodologyPage: lazyPage(() => import("./pages/MethodologyPage")),
+  HowItWorksPage: lazyPage(() => import("./pages/HowItWorksPage")),
+  SearchDocsPage: lazyPage(() => import("./pages/SearchDocsPage")),
   PrivacyPage: lazyPage(() => import("./pages/PrivacyPage")),
   TermsPage: lazyPage(() => import("./pages/TermsPage")),
   ContactPage: lazyPage(() => import("./pages/ContactPage")),
@@ -87,7 +89,7 @@ const PAGES = {
 } satisfies Record<PageModule, unknown>;
 // Dev only: one piece of the Scout redesign at a time, for screenshots (the import is dropped from production builds).
 const ScoutPreviewPage = import.meta.env.DEV ? lazy(() => import("./pages/ScoutPreviewPage")) : () => null;
-const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, DigestUnsubscribedPage, BundlePage, SearchPage, NotFound } = PAGES;
+const { TeamPage, EventsPage, RecordsPage, RankingsPage, EventPage, PredictPage, ComparePage, MyTeamPage, MyTeamsPage, ShortlistPage, ScoutPage, DownloadPage, SettingsPage, MethodologyPage, HowItWorksPage, SearchDocsPage, PrivacyPage, TermsPage, ContactPage, DonatePage, SupportersPage, FaqPage, RulesPage, MatchReportPage, PowerRankingsPage, EventDisplayPage, DigestUnsubscribedPage, BundlePage, SearchPage, NotFound } = PAGES;
 const BundlePicklistPage = named(() => import("./pages/BundlePage"), "BundlePicklistPage");
 
 // Offline: the service worker precaches the app so it opens with no signal.
@@ -177,6 +179,8 @@ void ready.catch(() => { /* a failed load is retried (and shown) by the page's o
                   <Route path="/bundle/:season/:code/picklist" element={<BundlePicklistPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/methodology" element={<MethodologyPage />} />
+                  <Route path="/how-it-works" element={<HowItWorksPage />} />
+                  <Route path="/how-it-works/search" element={<SearchDocsPage />} />
                   <Route path="/predict/how-it-works" element={<Navigate to="/methodology" replace />} />
                   <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/terms" element={<TermsPage />} />

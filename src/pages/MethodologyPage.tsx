@@ -14,6 +14,7 @@ import { Button } from "../components/ui/button";
 import { cn } from "../components/cn";
 import "../components/howitworks/howitworks.css";
 import { Hero } from "../components/howitworks/Hero";
+import { HubCrumb } from "../components/howitworks/HubCrumb";
 import { SectionNav } from "../components/howitworks/SectionNav";
 import { Pipeline } from "../components/howitworks/Pipeline";
 import { CarryOver, GainChart, LearnSim, RatingChips, WorkedUpdate } from "../components/howitworks/RatingFigures";
@@ -42,6 +43,7 @@ export default function MethodologyPage() {
   return (
     <TipLayer>
       <div className={cn("hiw", !reduced && "hiw-anim")}>
+        <HubCrumb here="Predictions" />
         <Hero />
         <SectionNav />
 

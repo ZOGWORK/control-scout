@@ -21,7 +21,7 @@ export const TAB_OPTIONS: TabDef[] = [
   { id: "myTeam", to: "/my-team", label: "My team", icon: Star },
   { id: "shortlist", to: "/shortlist", label: "Shortlist", icon: Bookmark },
   { id: "scout", to: "/scout", label: "Scout", icon: ClipboardList },
-  { id: "methodology", to: "/methodology", label: "How it works", icon: BookOpen },
+  { id: "methodology", to: "/how-it-works", label: "How it works", icon: BookOpen },
   { id: "settings", to: "/settings", label: "Settings", icon: Settings },
 ];
 

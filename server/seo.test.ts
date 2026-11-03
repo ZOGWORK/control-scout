@@ -497,12 +497,13 @@ describe("IndexNow", () => {
   it("first ping: the main pages; then at most one an hour, with the events re-fetched since and their teams", async () => {
     const { pingIndexNow, ENDPOINT, DEFAULT_KEY } = await import("./indexNow");
     const f = fake();
-    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 9 URLs/);
     expect(f.calls[0].url).toBe(ENDPOINT);
     expect(f.calls[0].body).toMatchObject({ host: "controlscout.org", key: DEFAULT_KEY, keyLocation: `https://controlscout.org/${DEFAULT_KEY}.txt` });
     expect(f.calls[0].body.urlList).toEqual(expect.arrayContaining([
       "https://controlscout.org/", "https://controlscout.org/faq", "https://controlscout.org/power-rankings", "https://controlscout.org/rankings",
       "https://controlscout.org/teams", "https://controlscout.org/methodology",
+      "https://controlscout.org/how-it-works", "https://controlscout.org/how-it-works/search",
     ]));
     // An event re-fetched after the ping (and one before it, which isn't sent again), with their teams.
     const at = (ms: number) => new Date(ms).toISOString();
@@ -520,7 +521,7 @@ describe("IndexNow", () => {
   it("sends each power rankings week once, by its id: one dated the day of an earlier ping still goes", async () => {
     const { pingIndexNow } = await import("./indexNow");
     const f = fake();
-    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent 9 URLs/);
     // Published "2026-10-19", a date that sorts before the ping's own time on that same day.
     await run("INSERT INTO power_rankings_generated (season, week, published, status, packet, generated_at) VALUES (2026, '2026-w42', '2026-10-19', 'published', ?, ?)",
       [JSON.stringify({ season: 2026, week: "2026-w42", teams: [], comparedWith: null }), new Date(T0 + 60_000).toISOString()]);
@@ -550,12 +551,12 @@ describe("IndexNow", () => {
 
   it("fails quietly: a refused or broken request resolves, waits an hour, and loses no change", async () => {
     const { pingIndexNow } = await import("./indexNow");
-    expect(await pingIndexNow({ now: T0, fetchImpl: fake(500).fetchImpl })).toBe("HTTP 500, 7 URLs not sent");
+    expect(await pingIndexNow({ now: T0, fetchImpl: fake(500).fetchImpl })).toBe("HTTP 500, 9 URLs not sent");
     expect(await pingIndexNow({ now: T0 + 60_000, fetchImpl: fake().fetchImpl })).toMatch(/^skipped/);
     const boom = async () => { throw new Error("network down"); };
     await expect(pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: boom })).resolves.toBe("failed: network down");
     // The main pages were never accepted: the next ping still sends them.
-    expect(await pingIndexNow({ now: T0 + 2 * HOUR + 2, fetchImpl: fake().fetchImpl })).toMatch(/^sent 7 URLs/);
+    expect(await pingIndexNow({ now: T0 + 2 * HOUR + 2, fetchImpl: fake().fetchImpl })).toMatch(/^sent 9 URLs/);
   });
 });
 

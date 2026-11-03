@@ -21,7 +21,7 @@ import { publishedWeeks } from "./powerRankings/store.js";
 export const DEFAULT_KEY = "8da88d7fa9ed782383e804ed035f755e";
 export const ENDPOINT = "https://api.indexnow.org/indexnow";
 /** The pages that say what the site is, sent after every deploy. */
-export const MAIN_PAGES = ["/", "/faq", "/power-rankings", "/rankings", "/teams", "/events", "/methodology"];
+export const MAIN_PAGES = ["/", "/faq", "/power-rankings", "/rankings", "/teams", "/events", "/how-it-works", "/how-it-works/search", "/methodology"];
 export const MIN_GAP_MS = 3600_000;
 export const MAX_URLS = 10_000;
 const STATE_KEY = "indexnow";

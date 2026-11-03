@@ -11,7 +11,7 @@ import { teamPageSql } from "../src/shared/teamPages.js";
 // /teams is the team directory and stats tables, /matches the match records (both RecordsPage). /records only
 // redirects to /teams, so it's left out. Compare is left out too: it's empty until teams are picked, and a picked
 // pair (/compare?teams=…) is a view of two team pages, not a page of its own. /search is noindex.
-const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/methodology", "/download", "/privacy", "/terms", "/contact", "/donate", "/faq", "/rules"];
+const STATIC_PAGES = ["/", "/events", "/teams", "/matches", "/rankings", "/predict", "/how-it-works", "/how-it-works/search", "/methodology", "/download", "/privacy", "/terms", "/contact", "/donate", "/faq", "/rules"];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }
