@@ -199,7 +199,8 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp }[] = [
 
 /** "4215 vs 6980 head to head", "4215 OPR vs 6980", "who has a better record, 4215 or 6980": two teams named, or null. */
 export function readTwoTeam(raw: string): TwoTeamQuestion | null {
-  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ")} `.replace(/\s+/g, " ");
+  // A sentence's closing period goes; "vs." inside stays.
+  const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ").replace(/\.+\s*$/, " ")} `.replace(/\s+/g, " ");
   // "red vs blue record" is one team's split by colour, not two teams.
   if (/\b(?:red\s+(?:vs\.?|versus|v\.?|and|or)\s+blue|blue\s+(?:vs\.?|versus|v\.?|and|or)\s+red)\b/.test(q)) return null;
   // A bare year is a season, unless that leaves a side empty: then it's a team's number ("4215 vs 2024 head to head").

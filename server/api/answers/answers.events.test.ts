@@ -156,6 +156,9 @@ describe("two teams", () => {
     expect(p.stat!.none).toBe("No partner played with 3 or more times found for Hypnotic Robotics (4215).");
     const f = await searchAnswer("4215 most frequent partner", { limit: 25 });
     expect(f.stat!.headline!.value).toMatch(/^(207|6980|23268) /);
+    // Only teams with matches at an official event count (a scrimmage-only season isn't one): 6980 played Parkway.
+    expect((await searchAnswer("4215 teams never played", { limit: 25 })).stat!.none).toBe("No other NJ teams with matches in 2025–26.");
+    await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2025, 'USNJCMPPKWY', 6980, 3)");
     const n = await searchAnswer("4215 teams never played", { limit: 25 });
     expect(n.stat!.none).toBe("Hypnotic Robotics (4215) has played against every NJ team with matches in 2025–26.");
   });
@@ -169,6 +172,8 @@ describe("what Greptile found", () => {
     // A scope its rows can't apply is left to search.
     expect(readStatQuestion("4215 seasons played at New Jersey Championship")).toBeNull();
     expect(readStatQuestion("4215 total awards on red")).toBeNull();
+    expect(readStatQuestion("4215 teams never played at New Jersey Championship")).toBeNull();
+    expect(readTwoTeam("4215 vs 6980 head to head.")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
   });
   it("a Worlds division named: that division's winners", async () => {
     const a = await searchAnswer("FIRST Championship - Edison Division winning alliance", { limit: 25 });

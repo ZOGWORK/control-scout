@@ -13,7 +13,7 @@ import { seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
 import { all, get } from "../../../db.js";
-import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
+import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
@@ -34,8 +34,8 @@ const rateOf = (r: Rec) => (played(r) ? r.wins / played(r) : 0);
 const pct = (r: Rec) => (played(r) ? `${Math.round(100 * rateOf(r))}%` : "–");
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
 
-/** A team's counted matches in scope, newest first. */
-const counted = (ms: TeamMatch[], scope: Scope) => { const keep = inScope(scope); return ms.filter((m) => m.counted && keep(m)).reverse(); };
+/** A team's counted matches in scope with its robot on the field (a no-show is no meeting), newest first. */
+const counted = (ms: TeamMatch[], scope: Scope) => { const keep = inScope(scope); return ms.filter((m) => m.counted && m.onField && keep(m)).reverse(); };
 
 /** "A vs B head to head": the matches they met in, the record, and how often they were partners. */
 export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[], scope: Scope): Promise<StatAnswer> {
@@ -204,8 +204,10 @@ export async function neverPlayedAnswer(team: AnswerTeam, msAll: TeamMatch[], sc
   const met = new Set(msAll.flatMap((m) => m.opponents));
   const peers = await all<{ number: number; name: string | null; opr_np: number | null; rank_np: number | null }>(
     `SELECT t.number, t.name, s.opr_np, s.rank_np FROM team_season_stats s JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.matches > 0 AND t.state = ? AND COALESCE(t.country, '') = COALESCE(?, '') AND t.number <> ?
-     ORDER BY s.rank_np IS NULL, s.rank_np, t.number`, [season, home.state, home.country, team.number]);
+     WHERE s.season = ? AND s.matches > 0 AND t.state = ?
+       AND EXISTS (SELECT 1 FROM team_event_stats es JOIN events e ON e.season = es.season AND e.code = es.code
+                   WHERE es.team = s.team AND es.season = s.season AND es.matches > 0 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(",")})) AND COALESCE(t.country, '') = COALESCE(?, '') AND t.number <> ?
+     ORDER BY s.rank_np IS NULL, s.rank_np, t.number`, [season, home.state, ...OFFICIAL_TYPES, home.country, team.number]);
   const never = peers.filter((p) => !met.has(Number(p.number)));
   const out = { ...base, source: `${peers.length} ${home.state} teams with matches in ${seasonLabel(season)}` };
   if (!peers.length) return { ...out, blocks: [], none: `No other ${home.state} teams with matches in ${seasonLabel(season)}.` };
