@@ -44,6 +44,11 @@ export function regionNames(state: string | null | undefined, country: string | 
   return [st, country ? COUNTRY[country] : undefined].filter(Boolean).join(" ");
 }
 
+const BY_ISO: Record<string, string> = { US: "USA", CA: "Canada", AU: "Australia", GB: "United Kingdom" };
+
+/** A state's name from its ISO country and FIRST state code: ("US", "NJ") → "New Jersey" (the code itself when unknown). */
+export const stateName = (iso: string, state: string): string => STATES[BY_ISO[iso.toUpperCase()] ?? ""]?.[state.toUpperCase()]?.split("|")[0] ?? state.toUpperCase();
+
 /** "USA:NJ" → "New Jersey" (the code itself when unknown). */
 export function regionLabel(key: string): string {
   const [country, state] = key.split(":");

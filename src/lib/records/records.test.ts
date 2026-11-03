@@ -189,6 +189,17 @@ describe("country (from the home page's atlas)", () => {
     expect(parseTableState(new URLSearchParams("country=US"), "teamSeason").countryUnknown).toBeNull();
     expect(parseTableState(new URLSearchParams("country=ZZ"), "match").countryUnknown).toBeNull();
   });
+  it("reads a state only with a country, writes it back, and sends it to the API; clearing drops both", () => {
+    const s = parseTableState(new URLSearchParams("country=US&state=nj&sort=autoPointsOpr"), "teamSeason");
+    expect(s.homeState).toBe("NJ");
+    expect(parseTableState(new URLSearchParams("state=NJ"), "teamSeason").homeState).toBeNull();
+    expect(parseTableState(new URLSearchParams("country=US&state=N-J"), "teamSeason").homeState).toBeNull();
+    expect(writeTableState(new URLSearchParams(), s, "teamSeason").get("state")).toBe("NJ");
+    const api = new URL(recordsUrl({ season: 2025, scope: "teamSeason", state: s, fields: [] }), "http://x").searchParams;
+    expect([api.get("country"), api.get("state"), api.get("sort"), api.get("dir")]).toEqual(["US", "NJ", "autoPointsOpr", "desc"]);
+    const cleared = clearFilters(s);
+    expect(writeTableState(new URLSearchParams("country=US&state=NJ"), cleared, "teamSeason").toString()).toBe("sort=autoPointsOpr");
+  });
   it("is sent to the API (and the CSV export) for team records only", () => {
     const s = parseTableState(new URLSearchParams("country=GB"), "teamSeason");
     expect(new URL(recordsUrl({ season: 2026, scope: "teamSeason", state: s, fields: [] }), "http://x").searchParams.get("country")).toBe("GB");

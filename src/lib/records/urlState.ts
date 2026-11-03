@@ -1,6 +1,6 @@
 // A records table's state in the URL, so a link reproduces the same filter,
 // sort, columns and page in a fresh browser:
-//   ?filter=and-…-&sort=autoPointsAvg&dir=desc&cols=rank,rp,…&page=2&region=USTX,USCANO&type=Qualifier&from=2025-11-01&to=2025-12-31&country=US
+//   ?filter=and-…-&sort=autoPointsAvg&dir=desc&cols=rank,rp,…&page=2&region=USTX,USCANO&type=Qualifier&from=2025-11-01&to=2025-12-31&country=US&state=NJ
 // `filter` is the stable filter language (src/shared/filterDsl.ts). Other page
 // params (tab, team, season…) are left alone. Pure, unit tested.
 import { parseFilter, serializeFilter, type FilterGroup } from "../../shared/filterDsl";
@@ -27,12 +27,16 @@ export interface TableState {
   /** A ?country= we don't know (e.g. "ZZ"): kept in the URL and shown as a problem until it's cleared, never
    *  silently dropped (that would show every country under an address that looks filtered). */
   countryUnknown: string | null;
+  /** Team records: with `country`, teams whose directory entry gives this state or province ("NJ"), the place
+   *  search's leaderboards use (FIRST region codes aren't states: USMOKS is Missouri and Kansas). */
+  homeState: string | null;
 }
 
 /** The URL params a records table owns (cleared when an event page switches tab). */
-export const TABLE_PARAMS = ["filter", "sort", "dir", "cols", "page", "region", "type", "from", "to", "country"] as const;
+export const TABLE_PARAMS = ["filter", "sort", "dir", "cols", "page", "region", "type", "from", "to", "country", "state"] as const;
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const STATE = /^[A-Z0-9]{1,6}$/;
 
 export function defaultDir(sort: string, scope: RecordScope): "asc" | "desc" {
   const d = statFor(sort, scope);
@@ -59,7 +63,9 @@ export function parseTableState(sp: URLSearchParams, scope: RecordScope, default
   const countryRaw = scope !== "match" ? sp.get("country") : null;
   const country = countryByCode(countryRaw)?.code ?? null;
   const countryUnknown = countryRaw && !country ? countryRaw : null;
-  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to"), country, countryUnknown };
+  const stateRaw = sp.get("state")?.trim().toUpperCase();
+  const homeState = country && stateRaw && STATE.test(stateRaw) ? stateRaw : null;
+  return { filter, filterError, filterRaw: filterError ? raw : null, sort, dir, cols, page, regions, eventType, from: date("from"), to: date("to"), country, countryUnknown, homeState };
 }
 
 /**
@@ -82,13 +88,14 @@ export function writeTableState(sp: URLSearchParams, s: TableState, scope: Recor
   set("to", s.to);
   // An unknown country stays as it was (like an unreadable filter) until it's cleared.
   set("country", s.country ?? s.countryUnknown);
+  set("state", s.country ? s.homeState : null);
   return out;
 }
 
 /** True when anything narrows the rows (what "Clear Filters" resets). */
 export const hasFilters = (s: TableState) => !!(s.filter?.children.length || s.regions.length || s.eventType || s.from || s.to || s.country || s.countryUnknown);
 
-export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, country: null, countryUnknown: null, page: 1 });
+export const clearFilters = (s: TableState): TableState => ({ ...s, filter: null, filterError: null, filterRaw: null, regions: [], eventType: null, from: null, to: null, country: null, countryUnknown: null, homeState: null, page: 1 });
 
 /**
  * A query string for the address bar: URLSearchParams.toString(), but with the
@@ -131,6 +138,7 @@ export function recordsUrl(r: RecordsRequest, format: "json" | "csv" | "xlsx" = 
   if (r.state.from) p.set("from", r.state.from);
   if (r.state.to) p.set("to", r.state.to);
   if (r.state.country && r.scope !== "match") p.set("country", r.state.country);
+  if (r.state.country && r.state.homeState && r.scope !== "match") p.set("state", r.state.homeState);
   if (r.code) p.set("code", r.code);
   if (format !== "json") p.set("format", format);
   else { p.set("page", String(r.state.page)); p.set("pageSize", String(r.pageSize ?? 50)); }

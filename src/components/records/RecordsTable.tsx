@@ -11,6 +11,7 @@ import type { FilterGroup } from "../../shared/filterDsl";
 import { RECORDS_MAX_PAGE_SIZE, SCHEDULE_STAT_KEYS, STAT_BY_KEY, statFor, type MatchRecordRow, type RecordScope, type RecordsResponse, type TeamEventRecord, type TeamSeasonRecord } from "../../shared/statCatalog";
 import { NoPageTeam } from "./NoPageTeam";
 import { countryByCode } from "../../shared/countries";
+import { stateName } from "../../shared/regions";
 import { clampPage, clearFilters, defaultDir, hasFilters, parseTableState, recordsUrl, searchString, writeTableState, type TableState } from "../../lib/records/urlState";
 import { describeFilter, formatStat, headerOf, TONE_CLASS, toneOf } from "../../lib/records/describe";
 import { RECORDS_CAP_NOTE_TONE } from "../../lib/textTones";
@@ -246,14 +247,16 @@ export function RecordsTable(p: RecordsTableProps) {
   const summary = phoneSummary && layout === "summary";
   const sortOptions = useMemo(() => pickableStats(scope, predictable, scheduleOn).map((s) => ({ key: s.key, label: s.label })), [scope, predictable, scheduleOn]);
   const saved = useSavedFilters(scope);
-  const countryName = state.country ? countryByCode(state.country)?.name ?? state.country : null;
+  // A state narrows the country ("New Jersey, United States"); removing the place clears both.
+  const countryName = state.country ? `${state.homeState ? `${stateName(state.country, state.homeState)}, ` : ""}${countryByCode(state.country)?.name ?? state.country}` : null;
+  const noPlace = { country: null, homeState: null, page: 1 };
   const chips: FilterChip[] = [];
   if (compact) {
     if (c?.region && state.regions.length) {
       const text = regionsText(state.regions, regionNames.label);
       chips.push({ id: "region", label: text, name: `Region: ${text}`, onRemove: () => setState({ ...state, regions: [], page: 1 }) });
     }
-    if (teamScope && countryName) chips.push({ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {countryName}</>, name: `Teams from ${countryName}`, onRemove: () => setState({ ...state, country: null, page: 1 }) });
+    if (teamScope && countryName) chips.push({ id: "country", label: <><MapPin className="inline size-3.5 text-accent" aria-hidden /> {countryName}</>, name: `Teams from ${countryName}`, onRemove: () => setState({ ...state, ...noPlace }) });
     if (c?.eventType && state.eventType) chips.push({ id: "type", label: eventTypeText(state.eventType), name: `Event type: ${eventTypeText(state.eventType)}`, onRemove: () => setState({ ...state, eventType: null, page: 1 }) });
     if (c?.dates && (state.from || state.to)) chips.push({ id: "dates", label: dateRangeText(state.from, state.to), name: `Dates: ${dateRangeText(state.from, state.to)}`, onRemove: () => setState({ ...state, from: null, to: null, page: 1 }) });
     // The stat filter: a chip per quick filter when it's made of them alone, else one chip for the whole of it.
@@ -316,7 +319,7 @@ export function RecordsTable(p: RecordsTableProps) {
                     {c.extra}
                     {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
                     {teamScope && countryName && (
-                      <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, country: null, page: 1 })}
+                      <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, ...noPlace })}
                         aria-label={`Teams from ${countryName}: show every country`}>
                         <MapPin className="text-accent" /> Teams from {countryName} <X className="text-text-muted" />
                       </Button>
@@ -374,10 +377,10 @@ export function RecordsTable(p: RecordsTableProps) {
           {c.onSeason && <SeasonSelect value={season} onChange={c.onSeason} />}
           {c.extra}
           {c.region && <RegionPicker season={season} value={state.regions} onChange={(regions) => setState({ ...state, regions, page: 1 })} />}
-          {teamScope && state.country && (
-            <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, country: null, page: 1 })}
-              aria-label={`Teams from ${countryByCode(state.country)?.name ?? state.country}: show every country`}>
-              <MapPin className="text-accent" /> Teams from {countryByCode(state.country)?.name ?? state.country} <X className="text-text-muted" />
+          {teamScope && countryName && (
+            <Button variant="secondary" size="sm" className="max-sm:h-10" onClick={() => setState({ ...state, ...noPlace })}
+              aria-label={`Teams from ${countryName}: show every country`}>
+              <MapPin className="text-accent" /> Teams from {countryName} <X className="text-text-muted" />
             </Button>
           )}
           {c.eventType && <EventTypeSelect value={state.eventType} onChange={(eventType) => setState({ ...state, eventType, page: 1 })} />}
