@@ -235,3 +235,11 @@ describe("Greptile on #450, round 3", () => {
     expect(a.pages[0]).toEqual({ title: "Championships in Texas, each season: Events", href: "/events?region=USA%3ATX&type=Championship" });
   });
 });
+
+describe("Greptile on #456", () => {
+  it("'states' finds a championship stored with no type by its name", async () => {
+    await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, 'USORCMP', 'Oregon Championship', NULL, 'V', 'Portland', 'OR', 'USA', '2026-02-01', '2026-02-01', 'test')", [S - 1]);
+    await rebuildSearch();
+    expect(refs((await ask("OR states")).hits)).toEqual(["USORCMP"]);
+  });
+});
