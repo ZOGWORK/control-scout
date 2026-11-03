@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.4.1 — 2026-11-03
+## 2.4.2 — 2026-11-03
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
 
@@ -28,7 +28,7 @@ FTC One Search answers rules questions from the Rules quick reference, never wit
 - **Rules questions go to the rules.** A rule number ("G402", "rule 10.5.1"), a query starting with "penalty", "foul" or "rule", or a question with a rule word (descore, pin, foul, inspection, control, hoard, …) is answered from the season's Rules quick reference (the same data as /rules, the `rulesReference` setting). A rule is listed only when every word asked is in it. Each rule shows its number, summary and penalty, linked to its entry on /rules. When no rule matches, the answer says so and never guesses. No team is ever listed for a rules question. "Can Control" on its own is still a team.
 - **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#437)
 
-## 2.4.0 — 2026-11-03
+## 2.4.1 — 2026-11-03
 
 FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
 
@@ -42,6 +42,19 @@ FTC One Search compares teams as a Compare, never as a team, and says which team
 - **Compare is its own kind.** A versus query ("4215 vs 6980", "hypnotic vs bad wolf", "ultraviolet vs hypnotic history") answers with one Compare row that opens /compare with both teams. It has its own group above Teams and is never counted as a team. Each side is named with its number and place ("Hypnotic Robotics (4215) · Oradell, NJ").
 - **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
 - **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#436)
+
+## 2.4.0 — 2026-11-03
+
+FTC One Search on a phone: shortlist a team or see its matches straight from the results, with a tap or a swipe.
+
+### Highlights
+- [teams] Swipe a team result right to add it to your Shortlist
+- [teams] Swipe it left to see its latest matches without leaving search
+- [teams] Both are also buttons on the card: Shortlist and Matches
+
+### Search
+- **Shortlist from the results.** On a phone each team result has a Shortlist button, the same list as the team page's; swipe the card right for the same. Swipe again or tap Shortlisted to take it off. There's no separate compare tray: the Shortlist is where teams you're considering go.
+- **Matches at a glance.** Tap Matches, or swipe the card left, for the team's latest ten played matches this season in a panel from the bottom: win, loss or tie, the match, the event and the score, each opening the match. Close it and you're back on the same results. Results and their order are unchanged. (#444)
 
 ## 2.3.9 — 2026-11-03
 
