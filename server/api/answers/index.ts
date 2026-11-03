@@ -12,6 +12,7 @@ import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
+import { readAsk } from "../searchAsks.js";
 import { namedTeam } from "../searchCompare.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
@@ -19,7 +20,7 @@ import { awardsAnswer } from "./families/awards.js";
 import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { matchAnswer, whoOf } from "./families/matches.js";
-import { BOARD_STATS, leaderboardAnswer, statWords } from "./families/leaderboard.js";
+import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { shortEvent, teamMatches } from "./matchSet.js";
@@ -105,7 +106,7 @@ async function findEvent(words: string, season: number | null) {
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const board = readLeaderboard(q);
+  const board = readLeaderboard(q) ?? boardOfAsk(q);
   if (board) return boardSearch(q, board, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
@@ -213,6 +214,17 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   const stat = two.id === "head-to-head" ? await headToHead(a, b, await teamMatches(a.number), scope) : await seasonSideBySide(two.id, a, b, scope);
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
   return { ...answer, stat };
+}
+
+/** The asks' own leaderboards ("top teams in the world", "best auto team", "highest opr in texas": ../searchAsks.ts
+ *  readAsk) drawn as this leaderboard: the world's or a place's rankings by prediction rating, as Rankings orders
+ *  them, or a stat's leaders; the top 10 unless a number is asked. */
+function boardOfAsk(q: string): LeaderboardQuestion | null {
+  const ask = readAsk(q.replace(/[?!.,]/g, " ").replace(/\s+/g, " ").trim());
+  if (!ask || (ask.kind !== "leaderboard" && ask.kind !== "stat")) return null;
+  const n = Math.min(LEADERBOARD_MAX, Math.max(1, Number(/\btop\s+(\d{1,2})\b/i.exec(q)?.[1] ?? 10)));
+  const stat = ask.kind === "leaderboard" ? BOARD_STATS.rating : BOARD_STATS[ask.stat];
+  return { kind: "top", stat: stat.id, n, region: ask.region, city: null, season: null };
 }
 
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's

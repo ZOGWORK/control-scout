@@ -15,7 +15,7 @@ import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { countryOf } from "../../../../src/shared/countries.js";
 import type { Region } from "../../../../src/shared/regions.js";
-import { all } from "../../../db.js";
+import { all, get } from "../../../db.js";
 import { defaultRankingsSeason } from "../../rankings.js";
 import { teamHref } from "../matchSet.js";
 
@@ -67,28 +67,39 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
   const st = b.stat;
   const rookie = b.kind === "rookie";
-  const rows = await all<{ team: number; name: string | null; city: string | null; v: number | null; wins: number; losses: number; ties: number; matches: number }>(
-    `SELECT s.team, t.name, t.city, ${st.sql} v, s.wins, s.losses, s.ties, s.matches
-     FROM team_season_stats s JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}
-     ORDER BY v DESC, s.wins DESC, s.team LIMIT ?`,
-    [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : []), b.n]);
+  const ranked = `s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}`;
+  const args = [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : [])];
+  const [rows, count] = await Promise.all([
+    all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; wins: number; losses: number; ties: number; matches: number }>(
+      `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.wins, s.losses, s.ties, s.matches
+       FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}
+       ORDER BY v DESC, s.wins DESC, s.team LIMIT ?`, [...args, b.n]),
+    get<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}`, args),
+  ]);
   const title = rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" ? rankingsHref(season, b.region) : null;
   const definition = `${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${why}`;
-  const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers`, ...(href ? { more: { label: st.teamsSort ? "View more on the Teams page" : "View more on Rankings", href } } : {}) };
+  const total = Number(count?.n ?? 0);
+  const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers of ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where}` };
   if (!rows.length) return { ...base, blocks: [], none: `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };
   const top = rows[0];
   const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
-  const table: StatBlock = {
-    kind: "table", title: rookie ? `Rookie teams by ${st.label}` : `Ranked by ${st.label}`,
-    columns: [{ key: "rank", label: "#", num: true }, { key: "team", label: "Team" }, { key: "value", label: st.label, num: true }, { key: "record", label: "W-L-T" }],
-    rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), value: fmt(r.v, st), record: record(r) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
+  const num = (v: number | null) => (v == null ? null : Number(v));
+  const board: StatBlock = {
+    kind: "leaderboard", title: rookie ? `Rookie teams by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
+    note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}`,
+    rows: rows.map((r, i) => ({
+      rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
+      location: [r.city, r.state, r.country && r.country !== "USA" ? r.country : null].filter(Boolean).join(", ") || null,
+      record: record(r), opr: num(r.opr), value: num(r.v), display: fmt(r.v, st),
+      parts: r.auto != null || r.teleop != null || r.endgame != null ? { auto: num(r.auto), teleop: num(r.teleop), endgame: num(r.endgame) } : null,
+    })),
+    ...(href ? { more: { label: `View more detail on ${st.teamsSort ? "the Teams page" : "Rankings"}`, href } } : {}),
   };
   return {
     ...base,
     headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.label} ${fmt(top.v, st)}, ${record(top)}${top.city ? ` · ${top.city}` : ""}`, sub: `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
-    blocks: [table],
+    blocks: [board],
   };
 }
 
