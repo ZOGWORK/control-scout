@@ -213,7 +213,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const fieldName = own.name ? shortEvent(own.name, own.type ?? null) : where;
     const rank = Number(field.above) + 1;
     return { ...b, headline: { value: `${d >= 0 ? "+" : "−"}${dp(Math.abs(d))}`, label: `${d >= 0 ? "above" : "below"} the average: ${dp(own.v)} vs ${dp(field.avg)}`, sub: `#${rank} of ${n(Number(field.n))} by OPR · ${top(rank, Number(field.n))}` },
-      blocks: [{ kind: "bars", title: "OPR against the average", groups: [{ label: AT, items: [{ label: who(team), value: Math.round(Number(own.v) * 10) / 10, tone: "a" }, { label: `${fieldName[0].toUpperCase()}${fieldName.slice(1)} average`, value: Math.round(Number(field.avg) * 10) / 10, tone: "c" }] }] }] };
+      blocks: [{ kind: "bars", title: "OPR against the average", groups: [{ label: `${fieldName[0].toUpperCase()}${fieldName.slice(1)}, ${AT}`, items: [{ label: String(team.number), value: Math.round(Number(own.v) * 10) / 10, tone: "a" }, { label: "Average", value: Math.round(Number(field.avg) * 10) / 10, tone: "c" }] }] }] };
   }
 
   if (f.id === "reliability") {
