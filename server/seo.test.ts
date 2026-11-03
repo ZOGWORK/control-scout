@@ -12,7 +12,7 @@ import { canonicalRedirects, canonicalUrl, coinFlipsHint, renderIndex, renderPag
 import { KV_KEY as RADAR_KEY } from "./api/coinFlips";
 import { localDate } from "../src/shared/eventDay";
 import { fitDescription } from "./seoMeta";
-import { kvSet, migrate, openDb, run, setDb } from "./db";
+import { kvGet, kvSet, migrate, openDb, run, setDb } from "./db";
 import { BOOT_CONSENT_ID } from "../src/shared/boot";
 import { clearAllCaches } from "./caches";
 
@@ -332,6 +332,8 @@ describe("page head in the first HTML", () => {
     expect((await renderPage(file, "/events/2025/usnjnom3/match/QUAL:0:01")).html).toContain('<link rel="canonical" href="https://controlscout.org/events/2025/USNJNOM3/match/qual:0:1" />');
     // The pit display: titled for the event, its canonical the event page, and no noindex (it would stick to
     // the event page after "Back to event": the app keeps no per-page robots tag in step). Unknown event: 404.
+    // (An event with a roster: one with none is noindex everywhere, server/indexable.ts.)
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJNOM3', 4215)");
     const pit = await renderPage(file, "/events/2025/usnjnom3/display");
     expect(pit.status).toBe(200);
     expect(pit.html).toContain("<title>Pit display: ");
@@ -509,6 +511,8 @@ describe("IndexNow", () => {
     const at = (ms: number) => new Date(ms).toISOString();
     await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'NEW1', 'New', '2025-11-08', 'test', ?), (2025, 'OLD1', 'Old', '2025-10-01', 'test', ?)", [at(T0 + 10 * 60_000), at(T0 - HOUR)]);
     await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'NEW1', 4215), (2025, 'NEW1', 18360), (2025, 'OLD1', 999)");
+    // Only teams with something on their page are sent (server/indexable.ts): these have played.
+    await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2025, 4215, 5), (2025, 18360, 5), (2025, 999, 5)");
     expect(await pingIndexNow({ now: T0 + 30 * 60_000, fetchImpl: f.fetchImpl })).toMatch(/^skipped: pinged within the hour/);
     expect(f.calls).toHaveLength(1);
     expect(await pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: f.fetchImpl })).toMatch(/^sent 3 URLs/);
@@ -531,20 +535,41 @@ describe("IndexNow", () => {
     expect(await pingIndexNow({ now: T0 + 3 * HOUR, fetchImpl: f.fetchImpl })).toBe("nothing changed");
   });
 
+  it("events whose pages are left out (no data) are read past, not re-read: the pages changed after them still go", async () => {
+    const { pingIndexNow } = await import("./indexNow");
+    const f = fake();
+    const at = (ms: number) => new Date(ms).toISOString();
+    expect(await pingIndexNow({ now: T0, fetchImpl: f.fetchImpl })).toMatch(/^sent /); // the main pages, accepted
+    // Re-fetched since: two events with no teams and no matches (noindex, server/indexable.ts).
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'EMPTY1', 'Kickoff', '2025-09-06', 'test', ?), (2025, 'EMPTY2', 'Kickoff', '2025-09-06', 'test', ?)", [at(T0 + 60_000), at(T0 + 120_000)]);
+    expect(await pingIndexNow({ now: T0 + HOUR + 1, fetchImpl: f.fetchImpl })).toBe("nothing changed");
+    expect(f.calls).toHaveLength(1);
+    // Read past, and the hour not used up.
+    const saved = await kvGet<{ cursor: { code: string }; tried: string }>("indexnow");
+    expect(saved!.cursor.code).toBe("EMPTY2");
+    expect(saved!.tried).toBe(new Date(T0).toISOString());
+    // An event with a roster, re-fetched after them: the next ping sends it.
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'REAL1', 'Qualifier', '2025-11-08', 'test', ?)", [at(T0 + 180_000)]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'REAL1', 4215)");
+    expect(await pingIndexNow({ now: T0 + HOUR + 2, fetchImpl: f.fetchImpl })).toMatch(/^sent 1 URLs/);
+    expect(f.calls[1].body.urlList).toEqual(["https://controlscout.org/events/2025/REAL1"]);
+  });
+
   it("a batch over the limit goes out across pings, from where the last one stopped: no page is skipped", async () => {
     const { changedEvents } = await import("./indexNow");
     const t = "2026-10-19T12:10:00.000Z"; // all re-fetched at the same moment: the cursor still tells them apart
-    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'A', 'A', '2025-11-08', 'test', ?), (2025, 'B', 'B', '2025-11-08', 'test', ?), (2025, 'C', 'C', '2025-11-08', 'test', ?)", [t, t, t]);
-    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'A', 1), (2025, 'A', 2), (2025, 'B', 3), (2025, 'B', 4), (2025, 'C', 5)");
+    await run("INSERT INTO events (season, code, name, start, source, detail_synced_at) VALUES (2025, 'AA', 'A', '2025-11-08', 'test', ?), (2025, 'BB', 'B', '2025-11-08', 'test', ?), (2025, 'CC', 'C', '2025-11-08', 'test', ?)", [t, t, t]);
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'AA', 1), (2025, 'AA', 2), (2025, 'BB', 3), (2025, 'BB', 4), (2025, 'CC', 5)");
+    for (const t of [1, 2, 3, 4, 5]) await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2025, ?, 5)", [t]);
     const start = { t: "2026-10-19T12:00:00.000Z", season: 0, code: "" };
     // Room for 4 URLs: event A and its two teams (3) fit; B and its teams (3 more) wait whole.
     const first = await changedEvents(start, 4);
-    expect(first.paths).toEqual(["/events/2025/A", "/teams/1", "/teams/2"]);
+    expect(first.paths).toEqual(["/events/2025/AA", "/teams/1", "/teams/2"]);
     expect(first.more).toBe(true);
     const second = await changedEvents(first.cursor, 4);
-    expect(second.paths).toEqual(["/events/2025/B", "/teams/3", "/teams/4"]);
+    expect(second.paths).toEqual(["/events/2025/BB", "/teams/3", "/teams/4"]);
     const third = await changedEvents(second.cursor, 4);
-    expect(third.paths).toEqual(["/events/2025/C", "/teams/5"]);
+    expect(third.paths).toEqual(["/events/2025/CC", "/teams/5"]);
     expect(third.more).toBe(false);
     expect((await changedEvents(third.cursor, 4)).paths).toEqual([]);
   });

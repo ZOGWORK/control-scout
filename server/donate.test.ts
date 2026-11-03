@@ -30,8 +30,8 @@ describe("donate page", () => {
     }
   });
 
-  it("is in the sitemap, indexable, and never called a charity", async () => {
-    expect((await sitemapEntries()).some((e) => new URL(e.loc).pathname === "/donate")).toBe(true);
+  it("is indexable (out of the sitemap: the app draws it, server/sitemap.ts), and never called a charity", async () => {
+    expect((await sitemapEntries()).some((e) => new URL(e.loc).pathname === "/donate")).toBe(false);
     const m = await pageMeta("/donate");
     expect(m.title).toBe("Support Control Scout");
     expect(m.noindex).toBeFalsy();
