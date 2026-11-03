@@ -7,11 +7,13 @@
 //                  "who will win New Jersey Championship" → the event's odds
 //   advancement    "will 4215 advance to states", "what does 4215 need to advance" → Predict's advancement simulator
 //   event awards   "who won Inspire at New Jersey Championship" → that event's award, from its results
+//   event winners  "who won nj states", "who won the New Jersey Championship" → its newest finished one: the winning
+//                  alliance and the Inspire Award, from its results
 //   how it works   "how are predictions calculated"  → the methodology page, in the Pages group
 // Only stats the data holds: OPR without penalties and its auto/teleop/endgame parts, and wins. Never an inferred one.
 import type { SearchAnswer, SearchCardLine, SearchHit, SearchPageLink } from "../../src/shared/api.js";
 import { pagesFor } from "../../src/shared/search.js";
-import { regionOf } from "../../src/shared/searchEventQuery.js";
+import { eventTypesOf, readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
 import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
@@ -22,6 +24,7 @@ import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.
 import { all } from "../db.js";
 import { defaultRankingsSeason, rankings } from "./rankings.js";
 import { search } from "./search.js";
+import { eventHit, searchToday } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
@@ -33,6 +36,7 @@ export type Ask =
   | { kind: "event-winner"; event: string }
   | { kind: "advance"; team: string }
   | { kind: "award"; award: string; event: string }
+  | { kind: "event-won"; event: string }
   | { kind: "how" };
 
 const STAT_LABEL: Record<Stat, string> = { opr: "Highest OPR", auto: "Best auto (auto OPR)", teleop: "Best teleop (teleop OPR)", endgame: "Best endgame (endgame OPR)", wins: "Most wins" };
@@ -100,6 +104,9 @@ export function readAsk(q: string): Ask | null {
     const w = m[1].replace(/['’]/g, ""); // "Judges' Choice", "Judges’ Choice"
     if (Object.hasOwn(AWARDS, w)) return { kind: "award", award: AWARDS[w], event: m[2] };
   }
+  // Who won an event ("who won nj states", "winners of the New Jersey Championship"): never "won" as a name word.
+  m = /^(?:who (?:won|was the winner of|were the winners of)|winners? of) (?:the )?(.+)$/.exec(t);
+  if (m && !Object.hasOwn(AWARDS, m[1].replace(/['’]/g, "").replace(/ award$/, ""))) return { kind: "event-won", event: m[1].split(" ").map((w) => cased.get(w) ?? w).join(" ") };
   return null;
 }
 
@@ -107,6 +114,27 @@ const teamLine = (n: number, name: string | null, results: string[], detail?: st
   text: `${n} ${cleanTeamName(n, name) ?? ""}`.trim(), ...(detail ? { detail } : {}), results, href: `/teams/${n}`,
 });
 const fmt = (x: number | null) => (x == null ? "–" : (Math.round(Number(x) * 10) / 10).toFixed(1));
+/** The event "who won <words>" asks about: a place's championship ("nj states", "new jesey state championship"), its
+ *  newest one finished (the event with the most results recorded, so the main event over its divisions); or an event by
+ *  name, its newest season finished. A season named ("2024-25 nj states") is that season's. */
+export async function eventWon(words: string, prefer: ReadonlySet<string>, now = Date.now()): Promise<{ season: number; code: string; name: string } | null> {
+  const today = searchToday(now);
+  const e = readEventQuery(words);
+  const types = e ? eventTypesOf(e.kinds) : null;
+  if (e?.region && types?.every((t) => t === "Championship" || t === "FIRSTChampionship")) {
+    const rows = await all<{ season: number; code: string; name: string }>(
+      `SELECT season, code, name FROM events ev WHERE type IN ('Championship', 'FIRSTChampionship') AND country = ? AND state = ? AND COALESCE(end, start) < ?${e.season != null ? " AND season = ?" : ""}
+       ORDER BY season DESC, (SELECT COUNT(*) FROM awards a WHERE a.season = ev.season AND a.code = ev.code) DESC, length(code), code LIMIT 1`,
+      [e.region.country, e.region.state, today, ...(e.season != null ? [e.season] : [])]);
+    return rows[0] ? { season: Number(rows[0].season), code: rows[0].code, name: rows[0].name } : null;
+  }
+  const ev = await eventOf(words, prefer);
+  if (!ev) return null;
+  const code = ev.ref.split(":")[1];
+  const rows = await all<{ season: number; code: string; name: string }>("SELECT season, code, name FROM events WHERE code = ? AND COALESCE(end, start) < ? ORDER BY season DESC LIMIT 1", [code, today]);
+  return rows[0] ? { season: Number(rows[0].season), code: rows[0].code, name: rows[0].name } : null;
+}
+
 const answer = (q: string, a: Omit<SearchAnswer, "q" | "step" | "weak">): SearchAnswer => ({ q, step: "deterministic", weak: false, ...a });
 const withPage = (q: string, first: SearchPageLink[]): SearchPageLink[] => [...first, ...pagesFor(q).filter((p) => !first.some((f) => f.href === p.href))];
 
@@ -248,6 +276,26 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
         hits: [{ ...ev, section: "awards" }], pages: pagesFor(q),
         card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
         understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})`, season },
+      });
+    }
+
+    case "event-won": {
+      const won = await eventWon(ask.event, opts.prefer);
+      if (!won) return null;
+      // The winning alliance(s) as FIRST names them (a championship with divisions names each division's), then the
+      // Inspire Award winner. Nothing is inferred from match scores.
+      const rows = await all<any>(
+        `SELECT a.type, a.placement, a.team, a.name award, t.name FROM awards a LEFT JOIN teams t ON t.number = a.team
+         WHERE a.season = ? AND a.code = ? AND (a.type = 'Winner' OR (a.type = 'Inspire' AND a.placement = 1)) ORDER BY a.type = 'Inspire', substr(a.name, 1, instr(a.name, 'Winning')), a.placement, a.team`,
+        [won.season, won.code]);
+      const lines = rows.map((r) => teamLine(Number(r.team), r.name, [String(r.award ?? (r.type === "Inspire" ? "Inspire Award" : "Winning Alliance")).replace(/<[^>]+>/g, "")]));
+      // The event row as event sets show it (its dates, place and status).
+      const [row] = await all<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE season = ? AND code = ?", [won.season, won.code]);
+      const ev = eventHit(row);
+      return answer(q, {
+        hits: [{ ...ev, section: "playoffs" }], pages: pagesFor(q),
+        card: { kind: "event-awards", title: `Who won · ${won.name} · ${seasonLabel(won.season)}`, lines, ...(lines.length ? {} : { none: `No results are recorded for ${won.name} (${seasonLabel(won.season)}) yet.` }) },
+        understood: { kind: "question", label: `Who won ${won.name} (${seasonLabel(won.season)}): the winning alliance and the Inspire Award`, season: won.season },
       });
     }
   }
