@@ -29,7 +29,7 @@ The operators never change the kind of answer; they say which teams it covers.
 | `4215 or 6980` | the matches with either team, each once |
 | `4215 not 6980`, `4215 -6980` | 4215's matches without 6980 in them |
 | `4215 and 6980 opr`, `4215 or 6980 opr` | both teams' OPR side by side, read as `4215 vs 6980 opr` (the same for the prediction rating) |
-| `4215 and 6980 record` (any other stat) | each team's own answer to `<team> record` (this season's, said so, when no season is named and the stat needs one), in one table, with a Compare link; each team's link opens what its own answer opens |
+| `4215 and 6980 record` (any other stat) | each team's own answer to `<team> record` (this season's, said so, when no season is named and the stat needs one), drawn as the search's team table (src/components/search/TeamTable.tsx): each team's season OPR, its phases, penalties and record, the stat asked as its own column, its values as the headline; with a Compare link, and each team's link opens what its own answer opens |
 | `4215 not 6980 opr` | 4215's OPR, saying 6980 was left out |
 | `"Raider Robotics"` | the teams named exactly that first, then names holding the phrase word for word; never a name with the words apart |
 | `"Robotics Raider"` | "No team or event name holds "Robotics Raider" word for word", with the closest names offered; the quotes are never dropped |
