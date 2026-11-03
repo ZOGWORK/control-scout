@@ -119,7 +119,7 @@ export default function SearchPage() {
   const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0" ask={!isQualityQuestion(query)}>
+    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
