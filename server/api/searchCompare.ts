@@ -117,8 +117,9 @@ export async function versusAnswer(q: string, prefer: ReadonlySet<string>, seaso
   // Rule 4: a shared name goes to the team in the same state as a team another side named.
   for (const side of sides) {
     if (side.team || !side.tied.length) continue;
-    const states = new Set(sides.filter((o) => o !== side && o.team).map((o) => `${o.team!.country}:${o.team!.state}`));
-    const local = side.tied.filter((t) => states.has(`${t.country}:${t.state}`));
+    // Only a real state on both sides: two teams with none stored aren't "in the same state".
+    const states = new Set(sides.filter((o) => o !== side && o.team?.state).map((o) => `${o.team!.country}:${o.team!.state}`));
+    const local = side.tied.filter((t) => t.state && states.has(`${t.country}:${t.state}`));
     if (local.length === 1) { side.team = local[0]; side.rule = `the one in the same state as the other team (${local[0].state})`; side.tied = []; }
   }
   const resolved = sides.filter((s) => s.team && s.rule).map((s) => ({ typed: s.typed, number: s.team!.number, rule: s.rule!, candidates: s.candidates }));
