@@ -15,6 +15,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
+import { useSubmittedSearch } from "../components/search/direct";
+import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
 import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
@@ -41,10 +43,12 @@ export default function SearchPage() {
   const q = params.get("q") ?? "";
   const query = q.trim();
   const filters = readFilters(params);
-  const { hits, answer, busy, error, retry, logPick, stale, prefer } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
+  const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
   const nav = useNavigate();
+  // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
+  const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
   const meta = useMeta();
   const season = useCurrentSeason();
@@ -120,10 +124,13 @@ export default function SearchPage() {
   const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0" ask={!isQualityQuestion(query)}>
+    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps)} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
+  // A search on its way (just submitted, or a new one run from here): its loading screen, never older results; and
+  // while going on to the one page a submitted query names.
+  if (query && !error && ((busy && (stale || !found)) || leaving)) return <SearchSkeleton query={query} top={phone ? <PhoneSearchBar query={query} /> : null} />;
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8">
       {/* The feature's name sits above the title; the title names what was found, the badge what the query was read as.
@@ -132,7 +139,7 @@ export default function SearchPage() {
       {phone && <PhoneSearchBar query={query} />}
       <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
-        {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : <>No matches for “{query}”</>}
+        {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>

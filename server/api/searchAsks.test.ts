@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
-import { readAsk } from "./searchAsks";
+import { eventWon, readAsk, type Stat } from "./searchAsks";
 import { withTeamStats } from "./searchTeamStats";
 import { parseQuestion } from "./searchQuestions";
 import { CURRENT_SEASON } from "../data/seasons";
@@ -233,5 +233,101 @@ describe("Greptile on #440, round 3", () => {
     const a = await searchAnswer("will ultraviolet advance", { limit: 25, learn: false, prefer: new Set(["team:23268"]) });
     expect(a.hits[0]).toMatchObject({ ref: "23268" });
     expect(hrefs(a)).toContain(`/predict?mode=advancement&season=${CURRENT_SEASON}&team=23268`);
+  });
+});
+
+describe("who won an event (owner: \"who won nj states\")", () => {
+  // Today is after every finished event in this fixture; next season's NJ Championship (2027) isn't held yet.
+  beforeAll(async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNJCMPPKWY', 'New Jersey Championship - Parkway Division', 'Championship', 'Union', 'NJ', 'USA', '2026-03-14', '2026-03-14', 't')", [S]);
+    await run(`INSERT INTO awards (season, code, type, placement, team, name) VALUES
+      (?, 'USNJCMP', 'Winner', 1, 23268, 'Winning Alliance - Captain'), (?, 'USNJCMP', 'Winner', 2, 6980, 'Winning Alliance - 1st Team Selected'),
+      (?, 'USNJCMP', 'Finalist', 1, 4215, 'Finalist Alliance - Captain')`, [S, S, S]);
+    await rebuildSearch();
+  });
+  it("reads 'who won' an event or a place's states, never 'won' as a name word; an award stays an award", () => {
+    expect(readAsk("who won nj states")).toEqual({ kind: "event-won", event: "nj states" });
+    expect(readAsk("who won the new jersey championship")).toEqual({ kind: "event-won", event: "new jersey championship" });
+    expect(readAsk("winners of nj states")).toEqual({ kind: "event-won", event: "nj states" });
+    expect(readAsk("who won inspire at new jersey championship")).toMatchObject({ kind: "award" });
+    expect(readAsk("who won inspire")).toBeNull();
+  });
+  it("answers the newest finished championship: its winning alliance, then the Inspire Award", async () => {
+    for (const q of ["who won nj states", "who won new jesey states", "who won the New Jersey Championship"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.hits[0], q).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "playoffs" });
+      expect(a.card?.title, q).toBe("Who won · New Jersey Championship · 2025–26");
+      expect(a.card?.lines.map((l) => `${l.text} [${(l.results ?? []).join()}]`), q).toEqual([
+        "23268 Ultraviolet [Winning Alliance - Captain]", "6980 Bad Wolf [Winning Alliance - 1st Team Selected]", "23268 Ultraviolet [Inspire Award]",
+      ]);
+      expect(a.understood?.label, q).toBe("Who won New Jersey Championship (2025–26): the winning alliance and the Inspire Award");
+    }
+  });
+  it("an event with no results recorded says so plainly", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USNYCMP', 'New York Championship', 'Championship', 'Albany', 'NY', 'USA', '2026-03-01', '2026-03-01', 't')", [S]);
+    const a = await ask("who won ny states");
+    expect(a.card?.lines).toEqual([]);
+    expect(a.card?.none).toBe("No results are recorded for New York Championship (2025–26) yet.");
+  });
+});
+
+describe("Greptile on #456", () => {
+  beforeAll(async () => {
+    // Last season's Parkway Division results, a FIRST Championship in New Jersey with more results than the state's,
+    // the 2024-25 championship, and a championship ending today in Los Angeles.
+    await run(`INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'USNJCMPPKWY', 'Winner', 1, 4215, 'Parkway Division Winning Alliance - Captain')`, [S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'FTCCMPNJ', 'FIRST Championship East', 'FIRSTChampionship', 'Newark', 'NJ', 'USA', '2026-04-01', '2026-04-01', 't')", [S]);
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (?, 'FTCCMPNJ', 'Winner', 1, 20265, 'Winning Alliance - Captain'), (?, 'FTCCMPNJ', 'Winner', 2, 14270, 'Winning Alliance - 1st Team Selected'), (?, 'FTCCMPNJ', 'Inspire', 1, 14270, 'Inspire Award'), (?, 'FTCCMPNJ', 'Think', 1, 4215, 'Think Award'), (?, 'FTCCMPNJ', 'Design', 1, 6980, 'Design Award'), (?, 'FTCCMPNJ', 'Reach', 1, 23268, 'Reach Award'), (?, 'FTCCMPNJ', 'Connect', 1, 23268, 'Connect Award')", [S, S, S, S, S, S, S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2024, 'USNJCMP', 'New Jersey Championship', 'Championship', 'Union', 'NJ', 'USA', '2025-03-15', '2025-03-15', 't')");
+    await run("INSERT INTO awards (season, code, type, placement, team, name) VALUES (2024, 'USNJCMP', 'Winner', 1, 6980, 'Winning Alliance - Captain')");
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, timezone, source) VALUES (?, 'USCACMP', 'California Championship', 'Championship', 'Los Angeles', 'CA', 'USA', '2026-11-02', '2026-11-02', 'America/Los_Angeles', 't')", [S]);
+    await rebuildSearch();
+  });
+  const won = (q: string, now?: number) => eventWon(q, new Set(), now);
+  it("'states' never picks the FIRST Championship held in the state", async () => {
+    expect(await won("nj states")).toMatchObject({ code: "USNJCMP", season: S });
+  });
+  it("a year or a season named is the one answered", async () => {
+    expect(await won("2025 nj states")).toMatchObject({ code: "USNJCMP", season: 2024 });
+    expect(await won("2024-25 nj states")).toMatchObject({ code: "USNJCMP", season: 2024 });
+    expect(await won("2025 new jersey championship")).toMatchObject({ code: "USNJCMP", season: 2024 });
+  });
+  it("a division named is that division", async () => {
+    expect(await won("new jersey championship parkway division")).toMatchObject({ code: "USNJCMPPKWY", season: S });
+  });
+  it("a championship stored with no type is found by its name", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'USORCMP', 'Oregon Championship', NULL, 'Portland', 'OR', 'USA', '2026-02-01', '2026-02-01', 't'), (2024, 'USOROLD', 'Oregon Qualifier', 'Championship', 'Salem', 'OR', 'USA', '2025-02-01', '2025-02-01', 't')", [S]);
+    expect(await won("OR states")).toMatchObject({ code: "USORCMP", season: S });
+  });
+  it("an event on its last day at its venue isn't finished yet", async () => {
+    // 2026-11-03 02:00 UTC is still Nov 2 in Los Angeles.
+    expect(await won("CA states", Date.parse("2026-11-03T02:00:00Z"))).toBeNull();
+    expect(await won("CA states", Date.parse("2026-11-03T09:00:00Z"))).toMatchObject({ code: "USCACMP" });
+  });
+});
+
+describe("stat leaderboards: scope words and places (owner bug: best teleop in the world)", () => {
+  const STATS: [string, Stat][] = [
+    ["highest opr", "opr"], ["best auto", "auto"], ["best autonomous", "auto"], ["best teleop", "teleop"], ["best tele op", "teleop"],
+    ["best driver", "teleop"], ["best driver controlled", "teleop"], ["best endgame", "endgame"], ["most wins", "wins"],
+    ["top teleop", "teleop"], ["strongest auto", "auto"], ["greatest endgame", "endgame"], ["number one teleop", "teleop"], ["highest teleop", "teleop"],
+  ];
+  const WORLD = ["", " in the world", " worldwide", " globally", " overall", " of all time", " ever", " right now", " this season", " currently", " in ftc", " in the world right now"];
+  const NJ = [" in NJ", " in New Jersey", " in New Jersey this season", " in NJ right now"];
+  it("every stat with every scope is the world's leaderboard", () => {
+    for (const [w, stat] of STATS) for (const sfx of WORLD) expect(readAsk(w + sfx), w + sfx).toEqual({ kind: "stat", stat, region: null });
+  });
+  it("every stat with a place is that place's leaderboard", () => {
+    for (const [w, stat] of STATS) for (const sfx of NJ) expect(readAsk(w + sfx), w + sfx).toMatchObject({ kind: "stat", stat, region: { key: "USA:NJ" } });
+  });
+  it("the question forms read the same", () => {
+    expect(readAsk("who has the best teleop in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
+    expect(readAsk("what is the best auto in new jersey")).toMatchObject({ kind: "stat", stat: "auto", region: { key: "USA:NJ" } });
+    expect(readAsk("best teleop team in the world")).toEqual({ kind: "stat", stat: "teleop", region: null });
+    expect(readAsk("which team has the most wins this season")).toEqual({ kind: "stat", stat: "wins", region: null });
+  });
+  it("a place that isn't one is never a leaderboard", () => {
+    expect(readAsk("best teleop in narnia")).toBeNull();
   });
 });

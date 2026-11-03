@@ -19,7 +19,7 @@ import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer } from "./families/awards.js";
 import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
-import { matchAnswer, whoOf } from "./families/matches.js";
+import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -65,8 +65,11 @@ export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | 
 }
 
 /** The team's latest season with matches at official events (a season of only scrimmages isn't one). */
-async function latestSeason(team: number): Promise<number | null> {
-  const ms = (await teamMatches(team)).filter(officialClause());
+async function latestSeason(team: number, id?: IntentId): Promise<number | null> {
+  // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
+  // never took the field): the latest season with a match the answer counts.
+  const official = officialClause();
+  const ms = (await teamMatches(team)).filter((m) => official(m) && (!id || counts(id, m)));
   return ms.length ? Math.max(...ms.map((m) => m.season)) : null;
 }
 
@@ -78,14 +81,14 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
     // alike): left to search's team-at-event answer, which lets the visitor pick.
-    const season = s.season ?? (s.latest ? await latestSeason(team) : null);
+    const season = s.season ?? (s.latest ? await latestSeason(team, it.id) : null);
     if (s.latest && season == null) return null;
     const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;
     return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
-    const latest = await latestSeason(team);
+    const latest = await latestSeason(team, it.id);
     scope.season = latest;
     if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
   }
@@ -94,14 +97,20 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null) {
-  const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event" && (season == null || h.season === season));
-  const top = hits[0];
+  const found = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
+  const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
+  // A season named: the first event found that was held that season (search lists an event once, by its newest season,
+  // so an older one is looked up by its code).
+  if (season != null) {
+    for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e) return e; }
+    return null;
+  }
+  const top = found[0];
   if (!top) return null;
   const [s, code] = top.ref.split(":");
   // No season named: the newest season of that event with a played playoff (an event not held yet has no winners).
-  const played = season != null ? null : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
-  const at = played?.s != null ? Number(played.s) : Number(s);
-  return (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [at, code])) ?? null;
+  const played = await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
+  return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
