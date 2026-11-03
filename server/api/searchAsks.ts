@@ -24,7 +24,7 @@ import { versusAnswer } from "./searchCompare.js";
 
 export type Stat = "opr" | "auto" | "teleop" | "endgame" | "wins";
 export type Ask =
-  | { kind: "leaderboard"; region: Region }
+  | { kind: "leaderboard"; region: Region | null }
   | { kind: "stat"; stat: Stat; region: Region | null }
   | { kind: "predict-next"; team: string }
   | { kind: "predict-versus"; rest: string }
@@ -45,14 +45,26 @@ const AWARDS: Record<string, string> = {
 /** A region named by the words `s` (all of them), or null. */
 const regionIn = (s: string): Region | null => regionOf(s.trim().replace(/^(?:the )?(?:state of )?/i, "").split(/\s+/).filter(Boolean));
 
+/** "What is the best FTC team right now" → "best team": the opener, "FTC" and the time words say nothing about which teams. */
+function leaderWords(t: string): { t: string; opened: boolean } {
+  const opener = /^(?:what|who|which)(?: is| are|s)? (?:the )?/;
+  const opened = opener.test(t);
+  t = t.replace(opener, "").replace(/\b(?:ftc|first tech challenge)\b/g, " ")
+    .replace(/(?: (?:right now|currently|now|today|this season|this year|in the world|worldwide|globally|overall))+$/, "")
+    .replace(/\s+/g, " ").trim();
+  return { t, opened };
+}
+
 /** The question `q` asks of a view, or null. `q` is cleaned (no punctuation), any case. */
 export function readAsk(q: string): Ask | null {
   const t = q.trim().toLowerCase().replace(/\s+/g, " ");
   if (/^how (?:are|is|do|does) (?:the )?(?:predictions?|odds|win chances?|forecasts?)(?: (?:calculated|made|worked out|computed|work|working))?$|^how does (?:the )?(?:prediction|predict(?:ion)? engine|simulator) work$|^(?:prediction|predictions) (?:methodology|method)$/.test(t)) return { kind: "how" };
-  // Leaderboards by place.
-  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)? (?:teams?|robots?)(?: in| from| of)? (.+)$/.exec(t);
+  // Leaderboards: the world's ("best team", "what is the best FTC team right now") or a place's.
+  const lw = leaderWords(t);
+  if (/^(?:the )?(?:top|best|highest(?: |-)ranked|strongest|number one|no 1|1)(?: \d+)? (?:teams?|robots?)$/.test(lw.t) || (lw.opened && /^(?:best|top|strongest|number one)$/.test(lw.t))) return { kind: "leaderboard", region: null };
+  let m = /^(?:the )?(?:top|best|highest(?: |-)ranked|strongest)(?: \d+)? (?:teams?|robots?)(?: in| from| of)? (.+)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
-  m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(t);
+  m = /^(.+?) (?:rankings?|standings|leaderboard|top teams|best teams?)$/.exec(lw.t);
   if (m) { const region = regionIn(m[1]); if (region) return { kind: "leaderboard", region }; }
   // Stat leaders, the whole season or a region's.
   m = /^(?:who (?:has|had|is) (?:the )?)?(?:highest|best|top|most|biggest) (opr|auto(?:nomous)?(?: opr)?|tele ?op(?: opr)?|end ?game(?: opr)?|wins)(?: teams?)?(?: in (.+))?$/.exec(t)
@@ -106,10 +118,21 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
 
     case "leaderboard": {
       const season = await defaultRankingsSeason();
-      const place = parsePlaces(ask.region.key)?.[0];
+      if (!ask.region) {
+        const r = await rankings({ season, week: null, places: [], page: 1 });
+        const lines = r.rows.slice(0, 5).map((row) => teamLine(row.team, row.name, [`#${row.rank} worldwide`]));
+        const title = `Top teams · ${seasonLabel(season)}`;
+        return answer(q, {
+          hits: [], pages: withPage(q, [{ title: `World rankings (${r.total} teams)`, href: `/rankings?season=${season}` }]),
+          card: { kind: "leaderboard", title, lines, ...(lines.length ? {} : { none: `No ranked teams for ${seasonLabel(season)} yet.` }) },
+          understood: { kind: "question", label: `${title}: the world rankings`, season },
+        });
+      }
+      const region = ask.region;
+      const place = parsePlaces(region.key)?.[0];
       if (!place) return null;
       const r = await rankings({ season, week: null, places: [place], page: 1 });
-      const lines = r.rows.slice(0, 5).map((row, i) => teamLine(row.team, row.name, [`#${i + 1} in ${ask.region.name}`, `#${row.rank} worldwide`]));
+      const lines = r.rows.slice(0, 5).map((row, i) => teamLine(row.team, row.name, [`#${i + 1} in ${region.name}`, `#${row.rank} worldwide`]));
       const href = `/rankings?season=${season}&region=${encodeURIComponent(ask.region.key)}`;
       const title = `Top teams in ${ask.region.name} · ${seasonLabel(season)}`;
       return answer(q, {

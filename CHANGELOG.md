@@ -15,18 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.3.7 — 2026-11-02
+## 2.3.8 — 2026-11-02
 
 FTC One Search answers more questions: who's on top in a state, who leads a stat, who won an award, and what Predict says.
 
 ### Highlights
-- [rankings] "Top teams in New Jersey" shows the state's top five
+- [rankings] "What is the best FTC team right now" shows the world's top five
+- [rankings] "Top teams in New Jersey" shows the state's top five, with OPR on team rows
 - [rankings] "Highest OPR", "best auto team" and "most wins" list the leaders
 - [predict] "Will 4215 win their next match?" opens Predict on its matches
 - [history] "Who won Inspire at …" names the winners from the event's results
-- [teams] Team rows show their season OPR, record and rank
 
 ### Search
+- **The best team, worldwide.** "What is the best FTC team right now", "best team", "who is the best FTC team" and "top FTC teams" show the season's top five from the world rankings, titled "Top teams · 2025–26", and link the full ranking. "FTC", "right now", "currently" and "in the world" are read as filler, never as names.
+- **Questions don't list stray matches.** A question that matches nothing says what it read and offers the browse links. It no longer lists teams or towns that only share one of its words ("Best", "The Best Friends").
 - **Leaderboards by place.** "Top teams in New Jersey", "NJ rankings" and "best team in NJ" show the region's top five from the live rankings, each with its place in the region and in the world. They also link the region's full ranking.
 - **Stat leaders.** "Highest OPR", "best auto team", "best teleop", "best endgame" and "who has the most wins" list the season's top five by that number (OPR without penalties, or its auto, teleop or endgame part; wins with losses as the tie-break), optionally for a region ("highest OPR in NJ"). Only teams with 3 or more matches count. No other stat is ever inferred.
 - **Predictions and advancement.** "Will 4215 win their next match" shows its next match and opens Predict on its matches. "4215 vs 6980 who wins" shows the Compare and opens Predict with both teams filled in. "Who will win New Jersey Championship" opens the event's odds. "Will 4215 advance to states" and "what does 4215 need to advance" open the advancement simulator for the team.
@@ -34,7 +36,7 @@ FTC One Search answers more questions: who's on top in a state, who leads a stat
 - **Team questions.** "When does 4215 play next" shows its next match, or says plainly that none is scheduled yet. "How are predictions calculated" puts the methodology page first in Pages.
 - **Numbers on team rows.** Every team row the search sends carries its newest season's OPR (without penalties, as on the team page), its record and its OPR rank. A number the data doesn't have is left out. (#440)
 
-## 2.3.6 — 2026-11-02
+## 2.3.7 — 2026-11-02
 
 FTC One Search answers rules questions from the Rules quick reference, never with team names.
 
@@ -47,7 +49,7 @@ FTC One Search answers rules questions from the Rules quick reference, never wit
 - **Rules questions go to the rules.** A rule number ("G402", "rule 10.5.1"), a query starting with "penalty", "foul" or "rule", or a question with a rule word (descore, pin, foul, inspection, control, hoard, …) is answered from the season's Rules quick reference (the same data as /rules, the `rulesReference` setting). A rule is listed only when every word asked is in it. Each rule shows its number, summary and penalty, linked to its entry on /rules. When no rule matches, the answer says so and never guesses. No team is ever listed for a rules question. "Can Control" on its own is still a team.
 - **Older games.** A piece or field part from a past game ("sample", "specimen": INTO THE DEEP; "pixel": CENTERSTAGE; "cone": POWERPLAY, …) makes the question that season's. The answer names the game and links FIRST's official manual for that season, plus its events. It never answers with this season's rules. The list of manuals is in `src/shared/rules/pastManuals.ts` (FIRST's archive, links checked 2026-11-02). (#437)
 
-## 2.3.5 — 2026-11-02
+## 2.3.6 — 2026-11-02
 
 FTC One Search compares teams as a Compare, never as a team, and says which team a shared name means.
 
@@ -61,6 +63,23 @@ FTC One Search compares teams as a Compare, never as a team, and says which team
 - **Compare is its own kind.** A versus query ("4215 vs 6980", "hypnotic vs bad wolf", "ultraviolet vs hypnotic history") answers with one Compare row that opens /compare with both teams. It has its own group above Teams and is never counted as a team. Each side is named with its number and place ("Hypnotic Robotics (4215) · Oradell, NJ").
 - **Trailing words don't break it.** "history", "record", "stats" and other words after the second team are read as what to compare, not as part of the name.
 - **Shared names, picked the same way every time.** When several teams share a name, the pick goes in this order: your own team, then a team that has played, then the one that played most recently, then the one in the same state as the other team. If they are still tied, each candidate gets its own Compare row and the line above asks which one you meant. The pick is never a guess. The answer records which rule chose each team. (#436)
+
+## 2.3.5 — 2026-11-02
+
+FTC One Search: the search dropdown groups what it found, Comparisons first, and says what it understood.
+
+### Highlights
+- [home] "4215 vs 6980" shows a Compare shortcut above the teams in the dropdown
+- [home] The dropdown says what it understood: "League meets in New Jersey"
+- [home] Event rows in the dropdown show their dates and place
+- [fixes] Teams that only share a word with your search are listed apart
+
+### Search
+- **Comparisons first.** A versus search ("4215 vs 6980", "ultraviolet vs hypnotic") puts the comparison in its own Comparisons group at the top of the dropdown, with a side-by-side icon, both teams by name and number, and a Compare button. It is no longer listed (or counted) as one of the teams.
+- **What it understood.** Above the results, the dropdown names what search read your query as ("Understood: Upcoming league meets in New Jersey"), the same words the results page uses. A spelling correction still says "Did you mean …?" instead.
+- **Teams, events, pages.** Team rows have the team badge icon, and show the team's season OPR when the server sends it. Event rows show the season, the dates ("Nov 7, 2026") and the place in place of the event code and a raw date, with Live while an event is on. A set of events counts the whole set ("Events 14 of 26"), so the dropdown and the results page agree. Site pages stay in their own Pages group below.
+- **Exact matches apart.** When some teams only share a word with your search, they're listed under "Other teams matching “…”", below the exact match, as on the results page.
+- **Example searches.** "meets in New Jersey" joins the example searches in the empty box. (#438)
 
 ## 2.3.4 — 2026-11-02
 

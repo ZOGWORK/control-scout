@@ -117,3 +117,34 @@ describe("team rows carry their season numbers", () => {
     expect((await withTeamStats([{ kind: "team", ref: "99999", title: "99999 | Brand New", subtitle: "", season: 2025 }]))[0].team).toBeUndefined();
   });
 });
+
+describe("the best team, worldwide (owner report: \"what is the best ftc team right now\" found nothing)", () => {
+  beforeAll(async () => {
+    // Names and towns that share its words: never the answer to a question.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (99001, 'The Best Friends', 'Best', NULL, 'Netherlands'), (99002, 'the_best', 'Heerbeeck', NULL, 'Netherlands')");
+    await rebuildSearch();
+  });
+  it("reads as the world leaderboard, whatever filler or time words it has", () => {
+    for (const q of ["what is the best ftc team right now", "best team", "who is the best ftc team", "top ftc teams", "whats the best team currently", "strongest team in the world", "who is the best"])
+      expect(readAsk(q), q).toEqual({ kind: "leaderboard", region: null });
+    for (const q of ["best", "the best friends", "best robotics"]) expect(readAsk(q), q).toBeNull();
+  });
+  it("answers with the season's top teams, linked to the world rankings", async () => {
+    for (const q of ["what is the best ftc team right now", "best team", "who is the best ftc team", "top ftc teams"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.card?.title, q).toBe("Top teams · 2025–26");
+      expect(a.card?.lines[0]?.text, q).toBe("20265 Heart of RoBots");
+      expect(a.card?.lines.map((l) => l.text), q).not.toContain("99001 The Best Friends");
+      expect(a.understood?.label, q).toBe("Top teams · 2025–26: the world rankings");
+      expect(hrefs(a)[0], q).toBe("/rankings?season=2025");
+      expect(a.hits, q).toEqual([]);
+    }
+  });
+  it("a question that matches nothing lists no word-by-word matches", async () => {
+    const a = await ask("what is the best way to win friends");
+    expect(a.step).toBe("recovery");
+    expect(a.recovery?.closest).toEqual([]);
+    expect(a.recovery?.browse.length).toBeGreaterThan(0);
+  });
+});

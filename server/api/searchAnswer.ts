@@ -16,7 +16,7 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
-import { conversationQuery, nameWords, singularize } from "../../src/shared/searchQuery.js";
+import { conversationQuery, isQuestionForm, nameWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
@@ -266,6 +266,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // Word by word is never the answer: it's the closest matches, each naming the word it matched (brief Requirement 6).
   if (byWords) {
+    // A question ("what is the best ftc team right now") isn't a list of names: a word of it matching a town
+    // ("Best") or a team ("The Best Friends") is no answer, so it says what it read and offers the browse links.
+    if (opts.asked || isQuestionForm(opts.typed ?? q)) return recovery(q, [`No team, event or match matched "${nameWords(q)}"`]);
     const ws = words(nameWords(rest, opts.asked));
     const closest = uniq(hits).slice(0, 10).map((h): SearchHit => ({ ...h, match: "fuzzy", matched: ws.filter((w) => words(`${h.title} ${h.subtitle}`).some((x) => x.startsWith(w))) }));
     return recovery(q, [`No team, event or match matched all of "${nameWords(q)}"`, "Closest matches: each has some of the words"], closest);
