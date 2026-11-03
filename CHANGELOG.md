@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.7.3 — 2026-11-03
+
+Searches that find no answer are now logged, so they can be fixed. Each one becomes a GitHub issue on the public repository: the query (with emails, phone numbers and keys taken out) and how search read it, nothing about who searched. Search itself works exactly as before.
+
+### Highlights
+- [report] Searches that find no answer are logged, so they can be fixed
+- [report] Only the words searched are kept; never who searched
+- [speed] Logging happens after your answer, so search stays as fast
+- [report] Emails, phone numbers and keys are removed before logging
+
+### Search
+- **Failed searches logged.** A search with no match, or one that lands on a team page without answering what was asked ("4215 opr rn"), is counted and filed as a GitHub issue labelled failed-search, one issue per query however often it fails. The issue holds the query, how it was read and a link to try it again. It's a list to work through: nothing fixes or closes an issue automatically, and a query that fails again after its fix reopens the same issue. (#PR)
+- **Privacy.** The repository is public, so an issue holds the query text and the outcome only. No IP address, account or device is kept, and emails, phone numbers and keys in a query are replaced before anything is stored.
+- **No slower.** Search answers first. The logging is in-memory bookkeeping (about 24 µs a search), written out in batches every minute and sent to GitHub every 10 minutes at most. If GitHub is down, search carries on and the counts catch up later.
+- **Error reports.** In-app error reports point at the repository's new home (ZOGWORK/control-scout), which GitHub's issue search needs to find a report's existing issue.
+
 ## 2.7.2 — 2026-11-03
 
 FTC One Search has its own page explaining what you can search for and how each query is answered. In the menu, How it works now opens to its two pages: Predictions and FTC One Search.
