@@ -8,7 +8,7 @@
 
 export const FLAGS = [
   "livePredictions", "advancementOdds", "bracketOdds", "powerRankings", "coinFlips", "factorSheet", "offlinePacks", "eventBundle", "discordBot", "workspaceScouting", "scoutingAlliances", "scoutingCommons", "rulesReference", "venueLightMode", "scheduleDifficulty",
-  "realtime", "errorReporting", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
+  "realtime", "errorReporting", "failedSearchReports", "photos", "push", "autoPowerRankings", "dailyPowerRankings", "weeklyDigest",
   "seasonRoadMap", "brunoSearch", "brunoAnswers", "searchLearning",
 ] as const;
 export type Flag = (typeof FLAGS)[number];
@@ -44,6 +44,7 @@ export const FLAG_META: Record<Flag, { group: FlagGroup; scope: FlagScope }> = {
   venueLightMode: { group: "feature", scope: "global" },
   realtime: { group: "kill", scope: "global" },
   errorReporting: { group: "kill", scope: "global" },
+  failedSearchReports: { group: "kill", scope: "global" },
   photos: { group: "kill", scope: "global" },
   push: { group: "kill", scope: "global" },
   autoPowerRankings: { group: "kill", scope: "global" },
@@ -182,6 +183,11 @@ export const FLAG_INFO: Record<Flag, { label: string; on: string; off: string; p
     label: "Error reports",
     on: "The app offers to report crashes, and Settings has a bug report box.",
     off: "The app stops asking, and any report that still arrives is accepted and dropped.",
+  },
+  failedSearchReports: {
+    label: "Failed-search reports",
+    on: "Searches that found no answer are counted and logged as GitHub issues (label failed-search) for the owner to work through. Visitors see nothing of it.",
+    off: "Failed searches are no longer counted or logged. Issues already filed stay as they are.",
   },
   rulesReference: {
     label: "Rules quick reference",

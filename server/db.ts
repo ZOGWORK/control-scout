@@ -1842,6 +1842,34 @@ CREATE TABLE web_vitals_daily (
 ALTER TABLE video_meta ADD COLUMN chapters TEXT;
 `,
   },
+  {
+    version: 71,
+    name: "failed searches (GitHub issues work list)",
+    sql: `
+-- One row per failing normalized query (server/searchFailures.ts, docs/failed-search-reporting.md): the query to
+-- issue mapping. Query text only (redacted of emails, phone numbers and tokens) and how search read it: no IP,
+-- account, device or other link to a person. Rebuilt from GitHub's issue search (by hash) if lost.
+-- issue_state: open | dismissed (closed as not planned, or labelled dismissed). reported_count: the count the
+-- issue body last showed. filing_at: a claim held while one server writes to GitHub.
+CREATE TABLE search_failures (
+  key TEXT PRIMARY KEY,
+  hash TEXT NOT NULL,
+  result_type TEXT NOT NULL,
+  intent TEXT,
+  reading TEXT NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  examples TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  first_seen TEXT NOT NULL,
+  last_seen TEXT NOT NULL,
+  issue_number INTEGER,
+  issue_state TEXT,
+  reported_count INTEGER NOT NULL DEFAULT 0,
+  filing_at TEXT
+);
+CREATE INDEX search_failures_issue ON search_failures (issue_number);
+`,
+  },
 ];
 
 export type Db = Client;

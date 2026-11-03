@@ -4,21 +4,21 @@ When the app hits an error it shows a small prompt, "Something broke — report 
 under the top bar. **Report** sends one sanitized report; **Dismiss** sends nothing.
 Visitors can also write a report in **Settings → About → Report a bug**. The server
 groups reports by fingerprint and, when a token is set, files them as GitHub issues on
-`Control-Point-FTC/control-scout`.
+`ZOGWORK/control-scout`.
 
 ## Setup (Sushil)
 
 ### 1. Create the token
 
-1. Sign in to GitHub as an account with write access to `Control-Point-FTC/control-scout`.
+1. Sign in to GitHub as an account with write access to `ZOGWORK/control-scout`.
 2. Open **Settings → Developer settings → Personal access tokens → Fine-grained tokens →
    Generate new token** (https://github.com/settings/personal-access-tokens/new).
 3. **Token name:** `control-scout error reports`. **Expiration:** your choice (a year is fine; put a
    reminder in the calendar to rotate it).
-4. **Resource owner:** `Control-Point-FTC`. If the organization requires approval for fine-grained
+4. **Resource owner:** `ZOGWORK`. If the organization requires approval for fine-grained
    tokens, an org owner approves it under **Organization settings → Personal access tokens → Pending
    requests**.
-5. **Repository access:** **Only select repositories** → `Control-Point-FTC/control-scout`. Nothing else.
+5. **Repository access:** **Only select repositories** → `ZOGWORK/control-scout`. Nothing else.
 6. **Permissions → Repository permissions:**
    - **Issues: Read and write**. This is the only one to set.
    - **Metadata: Read-only** is added automatically and is required. Leave every other permission at
@@ -137,7 +137,7 @@ second after loading, so the prompt appears. Production builds don't contain thi
 { "reports": [{
   "fingerprint": "…", "message": "TypeError: …", "count": 12,
   "firstSeen": "2026-10-15T10:00:00.000Z", "lastSeen": "2026-10-16T08:12:00.000Z",
-  "issueNumber": 101, "issueUrl": "https://github.com/Control-Point-FTC/control-scout/issues/101",
+  "issueNumber": 101, "issueUrl": "https://github.com/ZOGWORK/control-scout/issues/101",
   "issueState": "open", "lastCommentAt": "2026-10-16T08:12:00.000Z",
   "sample": { "message": "…", "stack": "…", "route": "/teams/18360", "appVersion": "0.1.0+4498100", "timestamp": "…", "userAgent": "…" }
 }] }
