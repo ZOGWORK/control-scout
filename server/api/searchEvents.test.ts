@@ -5,6 +5,7 @@ import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
+import { eventHit, venueName } from "./searchEvents";
 import { showingLine } from "../../src/shared/search";
 import { answerSections } from "../../src/shared/searchSections";
 
@@ -72,6 +73,29 @@ describe("event sets (brief Section 3)", () => {
     const past = await ask("past meets in New Jersey");
     expect(refs(past.hits)).toEqual(["USNJNOM1", "USNJSOM1"]);
     expect(past.understood?.label).toBe("Past meets in New Jersey");
+  });
+  it("the place's link, the events listed and the All tab count one set, and the link says which is which", async () => {
+    // New Jersey this season: 5 meets, 8 events of every kind (the scrimmage, championship and tournament too).
+    const a = await ask("meets in New Jersey");
+    expect(a.hits[0]).toMatchObject({ kind: "place", subtitle: "5 meets · 8 events this season" });
+    expect(refs(a.hits)).toHaveLength(5);
+    expect(a.understood?.total).toBe(5);
+    const up = await ask("upcoming meets in New Jersey");
+    expect(up.hits[0]).toMatchObject({ kind: "place", subtitle: "3 upcoming meets · 8 events this season" });
+    expect(up.understood?.total).toBe(refs(up.hits).length);
+    // A venue: its own words ("at River Dell High School"), one meet said as one.
+    expect((await ask("upcoming meets in New Jersey at River Dell High School")).hits[0]).toMatchObject({ subtitle: "1 upcoming meet at River Dell High School · 8 events this season" });
+    // One of a kind is said as one, whatever the kind.
+    expect((await ask("scrimmages in New Jersey")).hits[0]).toMatchObject({ subtitle: "1 scrimmage · 8 events this season" });
+    // Every event of the place is one count, said once.
+    expect((await ask("New Jersey")).hits[0]).toMatchObject({ kind: "place", subtitle: "8 events this season" });
+  });
+  it("a venue FIRST stores with a trailing comma is shown in full, without it", () => {
+    const row = { season: S, code: "USNJNOM5", name: "Northern League Meet", type: "LeagueMeet", venue: "Columbia High School,", city: "Maplewood", state: "NJ", country: "USA", start: "2026-12-06", end: "2026-12-06", timezone: null };
+    expect(eventHit(row, now).event?.venue).toBe("Columbia High School");
+    expect(eventHit({ ...row, venue: "P.A.L. of Atlantic County & EHT, " }, now).event?.venue).toBe("P.A.L. of Atlantic County & EHT");
+    expect(eventHit({ ...row, venue: "Thomas Edison EnergySmart Charter School" }, now).event?.venue).toBe("Thomas Edison EnergySmart Charter School");
+    expect(venueName(",")).toBeNull();
   });
   it("4: a venue composes with the place; a venue with no events falls back, labelled", async () => {
     // A venue with no year is every season: this season's meet there, then last season's.
@@ -328,5 +352,16 @@ describe("a venue line keeps the spelling found as typed (Greptile on #470)", ()
     const a = await ask("meets at riverdale high school");
     expect(refs(a.hits)).toEqual(expect.arrayContaining(["USILRD1", "USILRD2", "USILRD3"]));
     expect(a.understood?.label).toBe("Meets at Riverdale High School");
+  });
+});
+
+describe("more events than a page lists (Greptile on #521)", () => {
+  it("the place's link says how many of the set are listed, the number the events heading and the All tab show", async () => {
+    // Oregon: 30 meets this season, more than the 24 a page lists after the place's link.
+    for (let i = 1; i <= 30; i++) await run("INSERT INTO events (season, code, name, type, venue, city, state, country, start, end, source) VALUES (?, ?, ?, 'LeagueMeet', 'Oregon High', 'Salem', 'OR', 'USA', ?, ?, 'test')", [S, `USORM${i}`, `Oregon Meet ${i}`, `2026-12-${String(i).padStart(2, "0")}`, `2026-12-${String(i).padStart(2, "0")}`]);
+    await rebuildSearch();
+    const a = await ask("meets in Oregon");
+    expect(a.hits[0]).toMatchObject({ kind: "place", subtitle: "24 of 30 meets listed · 30 events this season" });
+    expect(refs(a.hits)).toHaveLength(24);
   });
 });

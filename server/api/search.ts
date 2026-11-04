@@ -16,6 +16,7 @@ import { registerCache } from "../caches.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { searchTeamTitle, teamNameOf } from "../../src/shared/teamTitle.js";
 import { nameWords } from "../../src/shared/searchQuery.js";
+import { placeHit } from "./searchEvents.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -150,9 +151,10 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   const push = (h: SearchHit) => { const k = `${h.kind}:${h.ref}`; if (allow(h.kind) && !seen.has(k)) { seen.add(k); out.push(h); } };
 
   // 0. A state or province ("New Jersey", "NJ"): its events this season, as one link.
+  // Counted as an event set's place link counts them (searchEvents.ts placeHit).
   if (allow("place") && !/\d/.test(query)) for (const r of findRegions(query)) {
-    const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM events WHERE season = ? AND country = ? AND state = ?", [CURRENT_SEASON, r.country, r.state]))?.n ?? 0);
-    if (n) push({ kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${n} this season`, season: CURRENT_SEASON });
+    const h = await placeHit(r);
+    if (h) push(h);
   }
 
   // 1. A specific match ("USNJQ1 Q12").

@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.1 — 2026-11-03
+## 2.9.2 — 2026-11-03
 
 FTC One Search answers read more cleanly: names, rates, captions and headings follow one set of wording rules.
 
@@ -28,6 +28,21 @@ FTC One Search answers read more cleanly: names, rates, captions and headings fo
 
 ### Search
 - **Wording fixes from the v2.8.9 search display audit.** One possessive rule everywhere ("Hypnotic Robotics'", "Bad Wolf's"). Rates read "per match" as Compare has them ("8.4 per match", "points per match"). Charts end with one sentence ("Ranges from 52.4 to 101.6 across 5 values."). "1st-place" is the adjective ("1st-place finishes", "1st-place Inspire") and "1st place" the noun; the Worlds events pill no longer says "Worlds finals finals". A team fact's page title is sentence case with the team named once, in bold ("Where **Hypnotic Robotics (4215)** is from", "Sponsors and school for …"), never "Team 4215 — Where They're From". The head-to-head card is headed "Their meetings and partnerships" and a winning-alliance card "The champions and each division's winners", under page headings that name the teams and event. "This season" before the season in progress has a match now heads the page with the season it answers ("Average score in 2025–26"), the reason in the note. No number changes. (#525)
+
+## 2.9.1 — 2026-11-03
+
+Event searches count one way everywhere, open on the time asked for, and
+show venues in full.
+
+### Highlights
+- [fixes] Place link names both counts: "24 meets · 42 events"
+- [fixes] "upcoming meets in New Jersey" opens on the Upcoming tab
+- [fixes] Venue names in full, no trailing comma or cut-off
+
+### Search
+- **One count for an event search.** The place link ("All events in New Jersey") said "42 this season" while the events heading and the All tab said 24. It now names both and what each is: the set asked for, counted exactly as the list and the tabs count it, then every event in the place this season ("24 meets · 42 events this season"; "22 upcoming meets · …" for the upcoming query). When there are more than the page lists, it says so: "24 of 26 meets listed · 42 events this season". A bare "New Jersey" says "42 events this season", counted the same way (volunteer sign-ups left out, as every event list leaves them out). Which events match is unchanged.
+- **The time tab follows the query.** "upcoming meets in New Jersey" opens on Upcoming, highlighted; "past meets …" on Past. Picking another tab writes it to the address (`when=all`), so a reload or a shared link opens where you left it, and Clear filters goes back to the query's own tab. A fallback that dropped the time asked for ("no past meets there, showing the upcoming ones") opens on All, so its events show.
+- **Venues in full.** FIRST stores some venues with a trailing comma ("Columbia High School,", "P.A.L. of Atlantic County & EHT,"); the event card now ends the name at it, and a long venue wraps onto a second line instead of being cut with an ellipsis. (#521)
 
 ## 2.9.0 — 2026-11-03
 
