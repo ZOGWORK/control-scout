@@ -227,13 +227,14 @@ describe("the outcome failed-search reporting reads", () => {
   it("a direct answer, a fallback and a no-match, with the layers tried", async () => {
     expect(searchOutcome(await ask("4215 opr"))).toMatchObject({ result: "answered", won: "template", team: "4215", intents: ["opr"], layers: ["normalize", "template"] });
     expect(searchOutcome(await ask("4215 opr rn"))).toMatchObject({ result: "answered", won: "keyword", filler: ["rn"], normalized: "4215 opr" });
-    const f = searchOutcome(await ask("4215 not opr"))!;
+    // ("4215 not opr" is the boolean reader's now, declined plainly: ./searchBoolean.test.ts.)
+    const f = searchOutcome(await ask("4215 never opr"))!;
     expect(f).toMatchObject({ result: "team-fallback", won: null, team: "4215" });
     expect(f.layers.at(-1)).toBe("fallback");
     expect(searchOutcome(await ask("zzqx wobble"))).toMatchObject({ result: "no-match", won: null });
     // Filler variants of one failing query share the key, and the key keeps a reporter's placeholders.
     expect(await searchKey("Please  #4215 [email] not OPR rn")).toBe("4215 [email] not opr");
-    expect(searchOutcome(await ask("please 4215 not opr"))?.normalized).toBe(f.normalized);
+    expect(searchOutcome(await ask("please 4215 never opr"))?.normalized).toBe(f.normalized);
   });
   it("the trace reporting reads: layers by number, ambiguity carried, the failure classified from it", async () => {
     const t = traceOf(searchOutcome(await ask("4215 awards location")))!;

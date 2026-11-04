@@ -36,6 +36,7 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { layeredAnswer } from "./searchLayers.js";
+import { booleanAnswer } from "./searchBoolean.js";
 import { countAnswer, eventPageAnswer, explainAnswer, monthAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
@@ -154,7 +155,13 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
-  return layeredAnswer(cleanQuery(raw), (q) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true }));
+  const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true });
+  // Boolean operators and quoted phrases are read from the query as typed, before cleaning drops '"' and '|'
+  // (./searchBoolean.ts); a query without them goes through the layers exactly as before.
+  const bool = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? "")) ? await booleanAnswer(String(raw ?? ""), reader, opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) : null;
+  // Cut to the caller's limit like every other answer (a quoted name adds the teams named exactly that).
+  if (bool) return { ...bool, hits: bool.hits.slice(0, opts.limit ?? 12) };
+  return layeredAnswer(cleanQuery(raw), reader);
 }
 
 /** Layer 1, the readers' answer for `raw`. Plurals are read as their singular first (src/shared/searchQuery.ts),
