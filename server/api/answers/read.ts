@@ -258,10 +258,13 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     const st = STATES.exec(rest);
     if (st) {
       const before = rest.slice(0, st.index).trimEnd().split(" ");
-      const named = (w: string) => findRegions(w).some((r) => r.name.toLowerCase() === w || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === w));
+      const regionOf = (w: string) => findRegions(w).find((r) => r.name.toLowerCase() === w || ((r.country === "USA" || r.country === "Canada") && r.state.toLowerCase() === w));
+      const named = (w: string) => !!regionOf(w);
       // Only beside a team's number: "who won nj states" keeps its state, the event it names.
       const team = /(?:^|\s)(?!(?:19|20)\d\d\b)\d{1,5}(?:\s|$)/.test(rest);
       const k = team ? [3, 2, 1].find((n) => before.length > n && named(before.slice(-n).join(" "))) : undefined;
+      // The state named stays a limit: "10809 new jersey states" is New Jersey's, not the team's own elsewhere.
+      if (k) scope.place = regionOf(before.slice(-k).join(" "));
       rest = `${(k ? before.slice(0, -k) : before).join(" ")} ${rest.slice(st.index + st[0].length)}`;
       scope.states = true;
     }
@@ -574,7 +577,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // At states: the team's own state championship that season (its division and finals), answered as one event.
     if (r.needsEvent && !scope.at && !(r.id === "results" && scope.championship) && !(scope.states && r.id !== "match-lookup")) return null;
     // Awards and event rows take a place too ("4215 awards at New Jersey events"): their clauses read the event's region.
-    if ((scope.place || scope.outOfState) && !PLACE_IDS.has(r.id) && !AWARD_IDS.has(r.id) && !EVENT_ROWS.has(r.id)) return null;
+    // A state's championship is any team question's ("nj states opr").
+    if (((scope.place && !scope.states) || scope.outOfState) && !PLACE_IDS.has(r.id) && !AWARD_IDS.has(r.id) && !EVENT_ROWS.has(r.id)) return null;
     // A rules question about a penalty ("penalty for pinning", "what is a major foul") is the rules' own, never a team's.
     if ((r.id === "penalties" || r.id === "most-penalties") && /\b(?:major|minor|tech(?:nical)?|yellow|red)\s+(?:fouls?|penalt|cards?)|\b(?:penalt(?:y|ies)|fouls?)\s+(?:for|if|when|in\s+the\s+rules)\b|\bwhat\s+(?:is|are|counts)\b|\bcan\s+(?:a|you|robots?)\b/.test(q)) continue;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.

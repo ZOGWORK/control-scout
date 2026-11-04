@@ -8,6 +8,7 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { wordScore } from "../../../src/shared/fuzzy";
 import { eventFit } from "./index";
+import { clearAllCaches } from "../../caches";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
 const ask = async (q: string) => (await searchAnswer(q, { limit: 25, full: true })).stat as StatAnswer;
@@ -176,6 +177,21 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
   it("27, 56: a team with no state championship is told so", async () => {
     expect((await ask("10809 matches at states")).none).toMatch(/^Crow Force \(10809\) has no state championships on record/);
   });
+  it("a state named with states is that state's, not the team's own elsewhere", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USCACMP', 'California Championship', 'Championship', 'Town', 'CA', 'USA', '2026-03-01', '2026-03-01', 't')");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USCACMP', 10809, 4)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USCACMP', 'qual', 0, 1, 'Q1', '2026-03-01T10:00:00Z', 1, 90, 90, 60, 60, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USCACMP', 'qual', 0, 1, 10809, 'red', 1)");
+    clearAllCaches();
+    try {
+      expect((await ask("10809 matches at states")).title).toBe("Results at California Championship");
+      expect((await ask("10809 New Jersey state championship matches")).none).toMatch(/^Crow Force \(10809\) has no New Jersey state championships on record/);
+      expect((await ask("10809 california state championship matches")).title).toBe("Results at California Championship");
+    } finally {
+      for (const t of ["match_teams", "matches", "event_teams", "events"]) await run(`DELETE FROM ${t} WHERE season = 2025 AND code = 'USCACMP'`);
+      clearAllCaches();
+    }
+  });
   it("32, 72, 73: Worlds is the latest completed season's, a division named is that division", async () => {
     for (const q of ["7149 matches at worlds", "7149 matches at worlds Ross division"]) {
       expect((await ask(q)).headline, q).toMatchObject({ value: "1-0-0", label: expect.stringMatching(/Ross Division$/) });
@@ -214,6 +230,22 @@ describe("two teams at an event or a venue", () => {
     // The words after the teams still limit them: their one meeting there was a qualification match.
     const p = await ask("4215 and 207 matches at river dell in playoffs");
     expect(p.headline?.value ?? "0").toBe("0");
+  });
+  it("this season at an event is the season chosen, not an older one both teams played", async () => {
+    // 4215's latest season is now 2026–27, a league meet only: the 2025–26 championship isn't this season's.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2026, 'USNJNOM9', 'Northern League Meet', 'LeagueMeet', 'Town', 'NJ', 'USA', '2026-11-01', '2026-11-01', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2026, 'USNJNOM9', 'qual', 0, 1, 'Q1', '2026-11-01T10:00:00Z', 1, 90, 90, 60, 60, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2026, 'USNJNOM9', 'qual', 0, 1, 4215, 'red', 1)");
+    clearAllCaches();
+    try {
+      const r = await searchAnswer("4215 and 207 matches together at nj championship this season", { limit: 25, full: true });
+      expect(r.stat?.none).toBe("New Jersey Championship has no 2026–27 event on record, so Hypnotic Robotics (4215) and Critical Mass (207) have no matches together there in 2026–27.");
+      expect(r.stat?.blocks[0]).toMatchObject({ queries: ["4215 and 207 matches together at nj championship in 2025–26"] });
+      expect((await ask("4215 and 207 matches together at nj championship in 2025–26")).headline).toMatchObject({ value: "2" });
+    } finally {
+      for (const t of ["match_teams", "matches", "events"]) await run(`DELETE FROM ${t} WHERE season = 2026 AND code = 'USNJNOM9'`);
+      clearAllCaches();
+    }
   });
   it("another school in the same city is another venue", async () => {
     await run("UPDATE events SET venue = 'River Dell Middle School' WHERE season = 2025 AND code = 'USNJNOM3'");

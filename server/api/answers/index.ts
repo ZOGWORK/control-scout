@@ -162,7 +162,7 @@ function teamPick(evs: TeamEvent[], s: StatQuestion["scope"], season: number | n
   const kind = EVENT_KINDS.find(([re]) => re.test(at));
   if (kind) return newest(evs.filter((e) => inSeason(e) && e.type === kind[1] && played(e)), (x) => `its ${seasonLabel(x)} ${kind[2]}`);
   if (at) return pickTeamEvent(evs, at, inSeason);
-  if (s.states) return newest(evs.filter((e) => inSeason(e) && e.type === STATES_TYPE && played(e)));
+  if (s.states) return newest(evs.filter((e) => inSeason(e) && e.type === STATES_TYPE && played(e) && (!s.place || (e.country === s.place.country && e.state === s.place.state))));
   if (s.championship) return newest(evs.filter((e) => e.season === searchSeason() && e.type === CHAMPIONSHIP_TYPE && played(e)));
   return null;
 }
@@ -235,7 +235,10 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     // Worlds with none of the latest season: every season the team went, as before.
     if (!s.at && !s.states) return scope;
     // No state championship of the team's: said so, with the events it did play.
-    if (!s.at) return { ...scope, states: false, event: { season: s.season != null ? (s.year ? s.season - 1 : s.season) : searchSeason(), code: "", name: s.season != null ? "a state championship" : "state championships", absent: s.season != null ? true : "never" } };
+    if (!s.at) {
+      const name = s.season != null ? (s.place ? `the ${s.place.name} state championship` : "a state championship") : `${s.place ? `${s.place.name} ` : ""}state championships`;
+      return { ...scope, place: undefined, states: false, event: { season: s.season != null ? (s.year ? s.season - 1 : s.season) : searchSeason(), code: "", name, absent: s.season != null ? true : "never" } };
+    }
     if (s.at === THEIR_LAST || s.at === THEIR_FIRST || EVENT_KINDS.some(([re]) => re.test(s.at!))) return null;
     // None of the team's events: the event those words name, which the answer says the team didn't play.
     const named = await findEvent(s.at, s.year ? s.season! - 1 : season, { anyPlayed: true, closest: true });
@@ -585,6 +588,7 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   const a = { number: Number(ta.ref), name: teamNameOf(ta.title) || null }, b = { number: Number(tb.ref), name: teamNameOf(tb.title) || null };
   const s = two.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
+  if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
   // "This season" for the meetings: the first team's latest season with matches; for season numbers, the latest both played.
   if (MEETING_IDS.has(two.id) && s.season == null && s.latest) {
     const ms = (await teamMatches(a.number)).filter(officialClause());
@@ -633,7 +637,8 @@ async function meetingsAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sc
   const s = two.scope, words = s.at!;
   // Only events the team took the field at (a kickoff or a roster-only league row is no meeting place).
   const [ea, eb] = (await Promise.all([teamEventSet(a.number), teamEventSet(b.number)])).map((x) => x.events.filter(played));
-  const season = s.year ? null : s.season ?? null;
+  // "This season" is the season the scope already chose.
+  const season = s.year ? null : s.season ?? (s.latest ? scope.season ?? null : null);
   const first = teamPick(ea, s, season) ?? teamPick(eb, s, season);
   const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
   const base = (none: string, chips: string[], queries: string[]): { stat: StatAnswer } => ({ stat: {
@@ -657,7 +662,14 @@ async function meetingsAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sc
   const venue = await venueOf(words, a.number, b.number);
   if (venue) return { scope: { ...scope, venue } };
   const named = await findEvent(words, season, { anyPlayed: true, closest: true });
-  if (!named) return null;
+  if (!named) {
+    // None that season ("this season", before the event is held): the event the words name, said to have none then.
+    const other = season != null ? await findEvent(words, null, { anyPlayed: true, closest: true }) : null;
+    if (!other) return null;
+    const name = shortEvent(other.name, other.type ?? null);
+    return base(`${name} has no ${seasonLabel(season!)} event on record, so ${whoOf(a)} and ${whoOf(b)} have no matches together there in ${seasonLabel(season!)}.`, [name, seasonLabel(season!)],
+      [`${a.number} and ${b.number} matches together at ${words} in ${seasonLabel(Number(other.season))}`]);
+  }
   const S = Number(named.season), name = shortEvent(named.name, named.type ?? null);
   return base(`Neither ${whoOf(a)} nor ${whoOf(b)} played at ${name} in ${seasonLabel(S)}, so there are no matches together there.`, [name, seasonLabel(S)],
     [...ea, ...eb].filter((e) => e.season === S && officialClause()(e)).slice(-6).map((e) => `${ea.includes(e) ? a.number : b.number} matches at ${e.name.toLowerCase()}`));
