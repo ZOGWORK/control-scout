@@ -118,11 +118,11 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const byOfficial = pick.reduce((a, b) => (high ? (b.own > a.own ? b : a) : (b.own < a.own ? b : a)), top);
       const blocks: StatBlock[] = [
         { kind: "kpis", items: [
-          { label: "Without penalties", value: String(np(top)), sub: top.own !== np(top) ? `the score it's ranked by; ${top.own - np(top)} came from the other alliance's fouls` : "the score it's ranked by", href: r.href },
+          { label: "Without penalties", value: String(np(top)), sub: top.own !== np(top) ? `ranked by this; +${top.own - np(top)} from fouls` : "ranked by this", href: r.href },
           { label: "Result", value: `${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, tone: top.result === "W" ? "good" : top.result === "L" ? "bad" : undefined },
-          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `${byOfficial.label} at ${byOfficial.event}: ${np(byOfficial)} of its own, ${byOfficial.own - np(byOfficial)} from the other alliance's fouls`, href: row(byOfficial).href }] : []),
+          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `${byOfficial.label}, ${byOfficial.event}: ${byOfficial.own - np(byOfficial)} from the other alliance's fouls`, href: row(byOfficial).href }] : []),
         ] },
-        matchesBlock(`${high ? "Best scores" : "Lowest scores"}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
+        matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
       ];
       // Each season is a different game: its best (or worst) beside the others, never compared as one record.
       if (scope.season == null) {
