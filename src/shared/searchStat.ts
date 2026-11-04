@@ -49,8 +49,9 @@ export type OprPhase = "np" | "auto" | "teleop" | "endgame";
 
 export type StatBlock =
   /** Big numbers side by side ("312 points", "14 wins"). Items with a `phase` are a team's season OPR and its parts, drawn
-   *  as the team page's OPR tiles (its colours, its rank line and bar from `rank` and `of`). */
-  | { kind: "kpis"; items: { label: string; value: string; sub?: string; href?: string; tone?: "accent" | "good" | "bad"; phase?: OprPhase; rank?: number | null; of?: number | null }[] }
+   *  as the team page's OPR tiles (its colours, its rank line and bar from `rank` and `of`; a match's phase points have no
+   *  rank: `sub` is the line and `pc`, 0 to 100, the bar). */
+  | { kind: "kpis"; items: { label: string; value: string; sub?: string; href?: string; tone?: "accent" | "good" | "bad"; phase?: OprPhase; rank?: number | null; of?: number | null; pc?: number }[] }
   /** A win-loss-tie record as a bar. */
   | { kind: "record"; title?: string; wins: number; losses: number; ties: number }
   /** Matches, best first or newest first as `title` says. */

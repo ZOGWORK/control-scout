@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.1 — 2026-11-04
+## 3.0.2 — 2026-11-04
 
 Search answers a team's OPR and prediction rating the ways people ask: its rank worldwide or in a state, its best and worst events, Worlds, its trend and its rating's ± spread.
 
@@ -31,6 +31,43 @@ Search answers a team's OPR and prediction rating the ways people ask: its rank 
 - **Events and Worlds.** "highest opr ever", "lowest opr", "opr at their best/worst event", "average opr across events this season" and "opr at worlds" (its division named) answer from the team's stored event OPRs. "rating at worlds" is the season rating it finished Worlds on; "best prediction rating ever" names the season and its last event.
 - **Trends and spread.** "opr trend over seasons" shows this season event by event and each season's standing; "rating trend" reads the weekly Rankings snapshot after each event; "prediction rating uncertainty" and "prediction confidence" give the ± and the matches rated; "penalty opr" gives the penalty points given away per match.
 - **Fixes.** "6980 auto opr versus teleop opr" compared 6980 with team 24357 Teleop Tigers; it now sets 6980's own Auto against its TeleOp. "4215 opr compared to the average team" read "the" as an event; it is now the world average over the teams the team page's rank counts, stated on the card. (#558)
+
+## 3.0.1 — 2026-11-04
+
+Search answers more about a team's matches: records in quals or playoffs and by place, score spread, best phases, penalties, form and how it does against top or rookie teams.
+
+### Highlights
+- [teams] Search answers win rate, ties, score range, median and spread
+- [teams] Best Auto, TeleOp and Endgame match, in the team page colours
+- [teams] Penalty points a match, rate, per event, at Worlds or playoffs
+- [teams] Record vs top-rated or rookie teams, and early vs late season
+- [fixes] Quals and playoffs records and averages say so in the title
+
+### Search
+- **Records by scope.** "Playoff record this season", "quals record", "record in quals" and "average score in playoffs" read the match type and say it in the title ("Record in quals in 2025–26"); with no season named they are the latest season's. "Record at New Jersey events" and "record at out-of-state events" read a place of events (outside the team's own state for the second). "Average score at worlds" is every Worlds the team went to unless a season is named. (#575)
+- **Scores at their official value.** A team's highest, lowest and average score lead with the official score, penalties included, as its match list and its "avg alliance score" show it, the score without penalties beside it. The highest and lowest are still picked by the alliance's own points, so a score made by the other alliance's fouls never becomes the record: it's shown beside it, said so ("302: 102 of its own, 200 from fouls"). "Best match", "high score", "highest alliance score" and "highest scoring match this season" all name that same match.
+- **New answers.** Win rate leads with wins out of matches (26 of 32, 81%); ties; score range, median and consistency (the middle half and the spread in points, never a made-up percent); scores over a number with the count; the match with the highest Auto, TeleOp or Endgame (its phases as the team page's coloured tiles) or the most penalty points given away; penalty points per match, the penalty rate, per event, at Worlds or in playoffs, with the robot's own share from its rating; the easiest opponent by rating; the record against top-rated (the season's top 10% by rating) or rookie opponents; early season against late season; the last 5 matches with their scores and trend; and the OPR trend with the season's rating beside it.
+- **Groups are never teams.** "Against top teams", "rookie teams" and "early season" are read as groups of matches, never as a team named "Top Hat" or "Rookie".
+
+## 3.0.0 — 2026-11-04
+
+Searches people tried that found nothing now answer: a match by its event's code, an event's match by the event's name, a leaderboard by a game, and the season's events.
+
+### Highlights
+- [fixes] "usnjcmp q1" finds Q1 in each division of the championship
+- [fixes] "jackson division q12" finds that match at Worlds
+- [teams] "Best auto in decode" lists that season's top Auto OPR
+- [fixes] "Events" lists this season's events, not a team's name
+- [fixes] "4215 matches at worlds" finds the last Worlds they went to
+
+### Search
+- **Failed searches answered.** Each was filed by the failed-search reporter (#536):
+  - A match by its event's code with no year is from the newest season with matches ("usnjcmp q1", not next season's unplayed event). An event split in divisions has its qualification matches in each division, so "USNJCMP Q1" lists both divisions' Q1, and a division's finals are its event's ("usnjcmppkwy f1" is the New Jersey Championship's F1).
+  - A match at an event named by its own name ("jackson division q12", "worlds jackson division q12", "jackson divison q12") is that match.
+  - A leaderboard by a game or a season ("best auto in decode", "best scoring auto in decode", "top auto opr decode", "best auto opr in 2025-26") is that season's, never a team named "We are the best".
+  - "Events", "events this season" and "meets" list the season's events, never the team Event Horizon.
+  - A team's matches at Worlds with no season ("4215 matches at worlds", "… in worlds") are from the last Worlds it went to.
+  - A misspelled game with an event ("jackson division dcode") and a question opened with filler ("so like what was 4215 last game") are read as meant.
 
 ## 2.9.9 — 2026-11-04
 

@@ -25,7 +25,7 @@ export interface TeamSeason {
   opr: number | null; auto: number | null; teleop: number | null; endgame: number | null;
   /** OPR rank among the season's ranked teams (3+ matches), and how many. */
   rank: number | null; of: number | null;
-  rating: number | null; ratingRank: number | null;
+  rating: number | null; ratingSd: number | null; ratingRank: number | null;
   events: number; matches: number; wins: number; losses: number; ties: number;
   avgNp: number | null;
 }
@@ -59,7 +59,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
        WHERE et.team = ? AND COALESCE(e.remote, 0) = 0 AND ${ATTENDED}
        ORDER BY e.start, e.code`, [team]),
     all<any>(
-      `SELECT season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_rank, events, matches, wins, losses, ties, avg_np
+      `SELECT season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_sd, rating_rank, events, matches, wins, losses, ties, avg_np
        FROM team_season_stats WHERE team = ? ORDER BY season`, [team]),
   ]);
   return {
@@ -74,7 +74,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
     })),
     seasons: ss.map((r) => ({
       season: Number(r.season), opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
-      rank: num(r.rank_np), of: num(r.ranked_teams), rating: num(r.rating_np), ratingRank: num(r.rating_rank),
+      rank: num(r.rank_np), of: num(r.ranked_teams), rating: num(r.rating_np), ratingSd: num(r.rating_sd), ratingRank: num(r.rating_rank),
       events: Number(r.events) || 0, matches: Number(r.matches) || 0, wins: Number(r.wins) || 0, losses: Number(r.losses) || 0, ties: Number(r.ties) || 0,
       avgNp: num(r.avg_np),
     })),
