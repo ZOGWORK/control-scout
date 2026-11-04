@@ -259,7 +259,8 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.
-  if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, scope.season ?? null);
+  // Only a season written in the question narrows it ("this season" is the current one, not the team's last played).
+  if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, it.scope.season ?? (it.scope.latest ? CURRENT_SEASON : null));
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);
   if (PARTNER_LIST_INTENTS.has(it.id)) return partnerListAnswer(it.id, team, ms, scope);

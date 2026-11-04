@@ -199,6 +199,8 @@ describe("the answers", () => {
     const past = await ask(`4215 advancement chances in ${S}-${String((S + 1) % 100).padStart(2, "0")}`);
     expect(JSON.stringify(past.stat ?? {})).not.toContain("33%");
     expect(past.stat?.none ?? "").toMatch(/No upcoming event/);
+    // "This season" is the current one, where the upcoming event is (4215 has no matches in it yet).
+    expect((await ask("4215 advancement chances this season")).stat!.headline).toMatchObject({ value: "33%" });
     // Compare's hit opens on the season the card reads.
     const c = await ask("4215 6980 33950 compare");
     expect(c.hits[0]).toMatchObject({ kind: "compare" });
