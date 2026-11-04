@@ -172,6 +172,12 @@ export interface SearchCard {
   facts?: SearchCardFact[];
   /** Questions about the same team that search answers, run as searches under the facts. */
   related?: string[];
+  /** The season `support`'s numbers (and a team profile's) are from: the latest completed one unless the team has
+   *  no matches in it. */
+  season?: number;
+  /** Under the facts asked, the rest of the team's card: where it's from, its region, and the season's record, OPR,
+   *  rating and reliability as the team page shows them (only what `facts` doesn't already hold). */
+  support?: SearchCardFact[];
 }
 /** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */
 export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }

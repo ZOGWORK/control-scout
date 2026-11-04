@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.2 — 2026-11-04
+## 3.0.4 — 2026-11-04
 
 Search answers a team's OPR and prediction rating the ways people ask: its rank worldwide or in a state, its best and worst events, Worlds, its trend and its rating's ± spread.
 
@@ -31,6 +31,44 @@ Search answers a team's OPR and prediction rating the ways people ask: its rank 
 - **Events and Worlds.** "highest opr ever", "lowest opr", "opr at their best/worst event", "average opr across events this season" and "opr at worlds" (its division named) answer from the team's stored event OPRs. "rating at worlds" is the season rating it finished Worlds on; "best prediction rating ever" names the season and its last event.
 - **Trends and spread.** "opr trend over seasons" shows this season event by event and each season's standing; "rating trend" reads the weekly Rankings snapshot after each event; "prediction rating uncertainty" and "prediction confidence" give the ± and the matches rated; "penalty opr" gives the penalty points given away per match.
 - **Fixes.** "6980 auto opr versus teleop opr" compared 6980 with team 24357 Teleop Tigers; it now sets 6980's own Auto against its TeleOp. "4215 opr compared to the average team" read "the" as an event; it is now the world average over the teams the team page's rank counts, stated on the card. (#558)
+
+## 3.0.3 — 2026-11-04
+
+Search answers a team's name, region and profile directly, and
+explains how search, predictions and Worlds qualification work.
+
+### Highlights
+- [teams] "4215 team profile" gives the team page's numbers in one card
+- [teams] Ask a team's name, region, city and state, or school name
+- [teams] A number then its name ("6980 bad wolf city") finds the team
+- [fixes] Explainers for search, predictions and Worlds qualification
+
+### Search
+- **Team profile.** "4215 team profile summary", "4215 scouting profile" and "4215 team page summary" give one card: name, city, region, rookie year and the season's record, OPR (with its world rank), rating ± its uncertainty and reliability, read from the same stored rows as the team page (#562). With no season named it's the latest completed season (2025–26 now), or the team's latest season with matches.
+- **More team facts.** "what is team 4215 called", "what is the name of team 4215", "4215 region", "4215 city and state" and "4215 organization name" are answered directly. A team number followed by that team's own name ("17670 raider robotics location") is that team.
+- **Fuller fact cards.** Every fact answer also carries where the team is from, its region and that season's numbers (card.support), so the card can show the whole team. A school FIRST doesn't list is still said so, now with the team's city.
+- **How it works.** "how does FTC One Search work", "how are predictions made" and "how does worlds qualification work" get short explainers from the site's own pages and the stored 2026–27 Competition Manual rules; the rating and reliability explainers say more. "what does 4215's reliability score mean" gives the team's reliability.
+## 3.0.2 — 2026-11-04
+
+Search answers a team's events, awards and Worlds history more exactly: one award by name, the newest or first award, the events it ranked 1st at, its Worlds divisions and its matches at a given Worlds.
+
+### Highlights
+- [teams] Ask for one award, like "4215 Design award", and get only it
+- [history] "Most recent award" and "first award ever" name the event
+- [history] Events ranked 1st, and the best or worst event by rank
+- [history] Worlds divisions, wins at Worlds and a Worlds year's matches
+- [fixes] "decode championship winning alliance" means Worlds again
+
+### Search
+- **One award.** "4215 Design award", "… Judges Choice award", "… winning alliance awards" list only that award (2nd and 3rd places as such), or say plainly that none was found in any season on record. Award words never become part of the team's name.
+- **Newest and first.** "4215 latest Inspire award", "4215 most recent award" and "4215 first award ever" lead with the award, its event, season and date, and list every award the team won at that event.
+- **Awards at a region's events.** "4215 awards at New Jersey events" keeps only awards from events in that region, and says so.
+- **Events ranked 1st.** "events 4215 won outright" and "events 4215 placed first in" list the events where the team ranked #1 after qualifications, each labelled as a placement. Winning Alliance and Inspire wins stay in "event wins". League meets are left out (their stored rank is the league's running standing).
+- **Best and worst event.** "4215 best event ever" and "… worst event ever" go by rank first and then the record there. Event tables now show a W-L-T column, counted the way the team page's event list counts it (playoffs included).
+- **Worlds.** "4215 worlds divisions", "championship divisions 4215 played in" and "4215 championship appearances count" give one row per Worlds the team went to (its division, season, rank and record) and the count. "4215 worlds wins" is the match-win count. "4215 matches at worlds in 2025" reads the year as when the championship was held (2024–25), and lists the matches or says there were none, naming the seasons it did play.
+- **Event schedule.** "4215 event schedule this season" lists the season's events newest first, with dates, ranks and records.
+- **Winners.** "winning alliance at 4215's last event" answers for the team's latest event played, its division when it played in one. A bare "championship" ("decode championship winning alliance", "who won the ftc championship in 2025") is the FIRST Championship, never a state event with that word in its name.
+- **Event codes.** "USNJNEM6 event" opens that event's card from its record (dates, venue, place, status), like typing the code alone. (#580)
 
 ## 3.0.1 — 2026-11-04
 
