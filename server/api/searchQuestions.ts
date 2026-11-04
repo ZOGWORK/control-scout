@@ -148,7 +148,9 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     // "How many times": the count, read first ("State championships · Hypnotic Robotics (4215) · 3 times").
     if (card.lines.length) card.count = card.lines.length;
     // "When was the first time": that trip, from the records below ("First went to Worlds in 2021–22 (Franklin)").
-    const trip = it.which && asked.length ? (it.which === "first" ? asked[0] : asked[asked.length - 1]) : null;
+    // By season, never by date alone: an undated trip (no start stored) would sort before every dated one.
+    const bySeasonAsked = [...asked].sort((a, b) => a.season - b.season || String(a.line.detail).localeCompare(String(b.line.detail)));
+    const trip = it.which && bySeasonAsked.length ? (it.which === "first" ? bySeasonAsked[0] : bySeasonAsked[bySeasonAsked.length - 1]) : null;
     if (trip) {
       // A Worlds division by its own name ("… - Franklin Division" → "Franklin"); a state championship by the event's.
       const at = worlds ? /-\s*([^-]+?)\s+Division\s*$/i.exec(trip.name)?.[1] ?? trip.name : trip.name.replace(/\s+-\s+/g, ", ");

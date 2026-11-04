@@ -70,7 +70,9 @@ beforeAll(async () => {
   // An earlier Worlds (Franklin, last season: rostered, no matches stored) for 4215 and 207, and a state championship.
   await ev(L, "FTCCMP1FRAN", "FIRST Championship - FIRST Tech Challenge - Franklin Division", "FIRSTChampionship", `${L + 1}-04-17`);
   await ev(S, "USNJCMP", "New Jersey Championship", "Championship", `${S + 1}-03-01`);
-  for (const [s, code, t] of [[L, "FTCCMP1FRAN", 4215], [L, "FTCCMP1FRAN", 207], [S, "USNJCMP", 4215]] as const) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [s, code, t]);
+  // 207's newest Worlds has no dates stored: it is still its last trip (Greptile on #655).
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'FTCCMP1JEMI', 'FIRST Championship - FIRST Tech Challenge - Jemison Division', 'FIRSTChampionship', 'Houston', 'TX', 'USA', NULL, NULL, 't')", [CURRENT_SEASON]);
+  for (const [s, code, t] of [[L, "FTCCMP1FRAN", 4215], [L, "FTCCMP1FRAN", 207], [S, "USNJCMP", 4215], [CURRENT_SEASON, "FTCCMP1JEMI", 207]] as const) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [s, code, t]);
   // 4215's next event, with a stored projection.
   const soon = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
   await ev(CURRENT_SEASON, "USNJNEM2", "Northeast League Meet", "LeagueMeet", soon);
@@ -96,6 +98,8 @@ const PAIRS: [string, string][] = [
   ["what is the highest opr 4215 has ever had", "4215 highest opr ever"],
   ["how has 4215's opr changed over the seasons", "4215 opr trend over seasons"],
   ["where does 4215 rank in opr worldwide", "4215 opr rank worldwide"],
+  // The stat named stays the stat asked about (Greptile on #655).
+  ["can you tell me where does 4215 rank in rating", "4215 rating rank"],
   // Rating
   ["what is team 4215's rating right now", "4215 rating"],
   ["can you show me 4215's rating last season", "4215 rating last season"],
@@ -215,6 +219,7 @@ describe("the first or the last time, by a team's name", () => {
     ["when was the last time hypnotic robotics went to worlds", "4215", `Last went to Worlds in ${label(S)} (Edison)`],
     ["when was the first time enforcers went to worlds", "7149", `First went to Worlds in ${label(S)} (Edison)`],
     ["when did critical mass first go to worlds?", "207", `First went to Worlds in ${label(L)} (Franklin)`],
+    ["when was the last time critical mass went to worlds", "207", `Last went to Worlds in ${label(CURRENT_SEASON)} (Jemison)`],
     ["when did first street kids first go to worlds", "33950", `First went to Worlds in ${label(S)} (Edison)`],
     ["when was the last time 4215 went to states", "4215", `Last went to states in ${label(S)} (New Jersey Championship)`],
   ])("%s → team %s, \"%s\"", async (q, team, headline) => {

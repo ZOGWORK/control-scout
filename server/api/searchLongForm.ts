@@ -58,7 +58,11 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Their events, OPR over time, rank.
   [new RegExp(String.raw`^(?:what|which)\s+(?:events?|meets?|competitions?|tournaments?)\s+(?:has|have|did|does)\s+${T}\s+(?:go(?:ne)?\s+to|went\s+to|compete(?:d)?\s+(?:at|in)|attend(?:ed)?|play(?:ed)?\s+(?:at|in))(.*)$`), (m) => `events ${m[1]} went to${m[2]}`],
   [new RegExp(String.raw`^how\s+(?:has|did|have)\s+${T}\s+opr\s+(?:changed|change|grown|grow|improved|improve|gone|developed)(?:\s+(?:over|across|through)\s+(?:the\s+)?(?:seasons|years))?(.*)$`), (m) => `${m[1]} opr trend over seasons${m[2]}`],
-  [new RegExp(String.raw`^where\s+(?:does|did|do)\s+${T}\s+rank(?:\s+in\s+opr|\s+by\s+opr)?(.*)$`), (m) => `${m[1]} opr rank${m[2]}`],
+  // "Where does 4215 rank": OPR, unless the question names the stat ("in rating", "by auto opr").
+  [new RegExp(String.raw`^where\s+(?:does|did|do)\s+${T}\s+rank(?:\s+(?:in|by|for|on)\s+(?:the\s+)?((?:(?:auto|teleop|endgame|penalty)\s+)?opr|(?:prediction\s+)?rating|reliability))?(.*)$`), (m) => {
+    const stat = m[2] ? (/rating/.test(m[2]) ? "rating" : m[2]) : "opr";
+    return `${m[1]} ${stat} rank${m[3]}`;
+  }],
   [new RegExp(String.raw`^how\s+(?:did|has|does|is)\s+${T}\s+(?:do|done|doing)\b(?:\s+record(?:\s+|-)?wise)?(.*?)(?:\s+record(?:\s+|-)?wise)?$`), (m) => `${m[1]} record${m[2]}`],
   // "what is the highest score 4215 has ever gotten": the stat, then the team, then a verb.
   [new RegExp(String.raw`^(?:what|which)\s+(?:is|was|are|were)\s+(?:the\s+)?(.+?)\s+(?:that\s+)?(?:team\s+)?(\d{1,6})\s+(?:has\s+|have\s+|had\s+)?(?:ever\s+)?(?:gotten|got|had|scored|earned|won|reached|posted|put\s+up|hit)(.*)$`), (m) => `${m[2]} ${m[1]} ever${m[3]}`],
