@@ -338,13 +338,14 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   if (sm && /^how many\s/.test(t)) {
     if (sm[2] && sm[3] && (Number(sm[2]) + 1) % 100 !== Number(sm[3])) return null;
     season = sm[1] ? CURRENT_SEASON - 1 : Number(sm[2]);
-    if (season > CURRENT_SEASON) return null;
     if (sm[2] && !sm[3] && !sm[4]) year = Number(sm[2]);
     t = t.slice(0, sm.index);
   }
   const m =/^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
   if (!m) return null;
   const teams = m[1].startsWith("team");
+  // No season after the current one; a calendar year of events may be ("events in 2027": the current season's spring).
+  if (season > CURRENT_SEASON && (teams || year == null)) return null;
   const place = m[2] ? await placeOf(cased(q, m[2])) : null;
   if (m[2] && !place) return null;
   const where = teams ? placeSql(place) : placeSql(place).replace(/\bt\./g, "e.");

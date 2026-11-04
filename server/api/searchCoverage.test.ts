@@ -321,6 +321,10 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect(y.card?.title).toBe("How many events · 2026");
     expect(y.card?.lines[0]).toMatchObject({ text: `${await held("substr(start, 1, 4) = '2026'", [])} events in 2026`, href: "/search?q=events%20in%202026" });
     expect(y.card?.lines[0].text).not.toBe(`${await held("season = ?", [2026])} events in 2026`);
+    // The current season's spring is the next calendar year: its events count; a season after the current one doesn't.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'YEARNEXT', 'Spring Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, `${CURRENT_SEASON + 1}-02-01`, `${CURRENT_SEASON + 1}-02-01`]);
+    expect((await ask(`how many events in ${CURRENT_SEASON + 1}`)).card?.lines[0].text).toBe(`${await held(`substr(start, 1, 4) = '${CURRENT_SEASON + 1}'`, [])} events in ${CURRENT_SEASON + 1}`);
+    expect((await ask(`how many teams in ${CURRENT_SEASON + 1}`)).card?.title ?? "").not.toMatch(/^How many teams/);
     // A season written as one is that season, January and April included, October not.
     expect((await ask("how many events in 2025-26")).card?.lines[0].text).toBe(`${await held("season = ?", [S])} events in ${seasonLabel(S)}`);
   });
