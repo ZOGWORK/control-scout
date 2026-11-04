@@ -22,9 +22,12 @@ import { matchRow, teamHref, teamLinks, teamMatches, type TeamMatch } from "./an
 import { readScope, readTwoTeam } from "./answers/read.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./answers/families/matches.js";
 import { nameKey, teamExists, teamNames, teamsNamed } from "./searchLayers.js";
+import { search } from "./search.js";
 
 /** Matches listed at most, teams an expression may name at most, words a protected name may span. */
 const LIST_CAP = 25, MAX_TEAMS = 8, NAME_SPAN = 8;
+/** Names a quoted phrase is looked for in. */
+const PHRASE_POOL = 200;
 /** What a boolean query may ask besides its teams: the match list (nothing else asked, or "matches"). */
 const MATCH_WORDS = /^(?:(?:shared|common|joint)\s+)?(?:matches|match|games|game|match list|match history|results)?(?:\s+(?:together|played|in common))?$/;
 /** Words that ask a question the operators don't: left to the readers that answer it. */
@@ -371,9 +374,13 @@ async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | n
   if (!rest && (a.stat || a.card || a.intent || a.understood?.kind === "question" || a.understood?.kind === "compare")) return null;
   const holds = (h: SearchHit) => h.ref === key || ` ${nameKey(h.kind === "team" ? teamNameOf(h.title) : h.title)} `.includes(` ${key} `);
   const isExact = (h: SearchHit) => h.kind === "team" && exact.includes(h.ref);
-  const missing = exact.filter((n) => !a.hits.some((h) => h.kind === "team" && h.ref === n));
+  // The phrase is looked for in a wide list of names (PHRASE_POOL), never only in the caller's few: a name with the words
+  // apart can rank above one that holds them.
+  const pool = [...a.hits, ...(await search(phrase, PHRASE_POOL))];
+  const missing = exact.filter((n) => !pool.some((h) => h.kind === "team" && h.ref === n));
   const extra = (await Promise.all(missing.slice(0, 25).map(async (n) => (await read(n)).hits.find((h) => h.kind === "team" && h.ref === n)))).filter((h): h is SearchHit => !!h);
-  const kept = [...a.hits, ...extra].filter(holds);
+  const seen = new Set<string>();
+  const kept = [...pool, ...extra].filter((h) => holds(h) && !seen.has(`${h.kind}:${h.ref}`) && !!seen.add(`${h.kind}:${h.ref}`));
   const unread = rest ? ` · "${rest}" isn't read: ${exact.length > 1 ? `${exact.length} teams are named "${phrase}", so say which by its number` : `no team is named exactly "${phrase}"`}` : "";
   if (!kept.length) {
     const none = `No team or event name holds "${phrase}" word for word${unread}`;

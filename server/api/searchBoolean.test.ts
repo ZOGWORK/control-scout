@@ -111,6 +111,15 @@ describe("the brief's ten cases", () => {
       expect((await searchAnswer("\"4215\"", { limit, learn: false })).hits[0]?.ref).toBe("4215");
     }
   });
+  it("7e. a name holding the phrase is found below names with the words apart", async () => {
+    // Ten names with "Raider" and "Robotics" apart rank with the ones holding the phrase; the dropdown's 8 still finds them.
+    for (let i = 0; i < 10; i++) await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, 'Oradell', 'NJ', 'USA', 2015)", [30000 + i, `Raider ${i} Robotics`]);
+    await rebuildSearch();
+    const a = await searchAnswer("\"Raider Robotics\"", { limit: 8, learn: false });
+    expect(a.step).not.toBe("recovery");
+    expect(a.hits.every((h) => !/^30\d{3}$/.test(h.ref))).toBe(true);
+    expect(a.hits.map((h) => h.ref)).toEqual(expect.arrayContaining(["16762", "16774", "12655", "4360"]));
+  });
   it("7d. a quoted name keeps to the caller's limit", async () => {
     const a = await searchAnswer("\"Raider Robotics\"", { limit: 1, learn: false });
     expect(a.hits.map((h) => h.ref)).toHaveLength(1);
