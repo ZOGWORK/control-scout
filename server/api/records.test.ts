@@ -455,6 +455,21 @@ describe("one event's records and region options", () => {
     // Without fields at all, every stat comes back as before.
     expect((await get(`/api/records/${S}/matches`)).body.columns.length).toBeGreaterThan(5);
   });
+  it("carries swing (the consistency stat) at the event and over the season, only from 5 counted matches", async () => {
+    const ins = "INSERT OR REPLACE INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES (?, ?, ?, 6, 0, 0, 0, ?, 6, 0, 0, 0, 0, 0, ?, 1, 0, 90, 'x')";
+    await run(ins, [N, "B2", 105, 6, 0.3712]);
+    await run(ins, [N, "B2", 106, 4, 0.25]);
+    const ev = (await get(`/api/records/${N}/teams?code=B2&fields=swing`)).body;
+    const by = new Map(ev.rows.map((x: any) => [x.team, x.stats.swing]));
+    expect(by.get(105)).toBe(0.37); // to the hundredth, as every table shows it
+    expect(by.get(106)).toBeNull(); // 4 counted matches: below the minimum, shown as "—"
+    expect(by.get(107)).toBeNull(); // none stored
+    // Season records: the season row (code '').
+    const team = (await get(`/api/records/${S}/teams?scope=season`)).body.rows[0].team;
+    await run(ins, [S, "", team, 12, 0.41]);
+    const season = (await get(`/api/records/${S}/teams?scope=season&fields=swing`)).body;
+    expect(season.rows.find((x: any) => x.team === team).stats.swing).toBe(0.41);
+  });
   it("lists the season's region codes with the place most of their events are in", async () => {
     const { status, body } = await get(`/api/records/${S}/regions`);
     expect(status).toBe(200);
