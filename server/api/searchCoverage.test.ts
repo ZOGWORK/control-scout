@@ -1,7 +1,7 @@
 // Phrasings that used to end on "no results" (server/api/searchCoverage.ts): each is said the way a reader already
 // answers, or answered on its own. Every number is from the fixture.
 import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { get, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
@@ -304,6 +304,17 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect((await ask("how many teams last season")).card?.title).toBe(`How many teams · ${seasonLabel(CURRENT_SEASON - 1)}`);
     expect((await ask("how many teams in 2024-25")).card?.title).toBe(`How many teams · ${seasonLabel(2024)}`);
   });
+  it("a count of events in a bare year: the calendar year, from both seasons, as event searches read it", async () => {
+    // An event held in January 2026 belongs to 2025–26; one in October 2026 to 2026–27. 2026 counts both.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'YEARJAN', 'January Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-01-10', '2026-01-10', 't'), (?, 'YEAROCT', 'October Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-10-10', '2026-10-10', 't')", [S, S + 1]);
+    const held = async (sql: string, args: unknown[]) => Number((await get<{ n: number }>(`SELECT COUNT(*) n FROM events WHERE ${sql}`, args))?.n);
+    const y = await ask("how many events in 2026");
+    expect(y.card?.title).toBe("How many events · 2026");
+    expect(y.card?.lines[0]).toMatchObject({ text: `${await held("substr(start, 1, 4) = '2026'", [])} events in 2026`, href: "/search?q=events%20in%202026" });
+    expect(y.card?.lines[0].text).not.toBe(`${await held("season = ?", [2026])} events in 2026`);
+    // A season written as one is that season, January and April included, October not.
+    expect((await ask("how many events in 2025-26")).card?.lines[0].text).toBe(`${await held("season = ?", [S])} events in ${seasonLabel(S)}`);
+  });
   it("how OPR is calculated: the definition, never a team with 'calculated' in its name", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (30628, 'CALculated Risk', 'Austin', 'TX', 'USA')");
     await rebuildSearch();
@@ -322,8 +333,14 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
   it("the bottom of a list: said plainly, with the full ranking linked", async () => {
     const a = await ask("lowest opr new jersey");
     expect(a.card).toMatchObject({ kind: "info", title: "Search lists teams from the top, not the bottom" });
-    expect(a.card?.lines[0].href).toMatch(/^\/rankings\?region=/);
-    expect((await ask("worst teams")).card?.title).toBe("Search lists teams from the top, not the bottom");
+    // The stat asked, lowest first: OPR on the Teams page's season table, never Rankings (which is by prediction rating).
+    expect(a.card?.lines[0]).toMatchObject({ text: "Every ranked team in New Jersey by OPR, lowest first" });
+    expect(a.card?.lines[0].href).toMatch(/^\/teams\?view=season&.*sort=totalPointsNpOpr.*&dir=asc$/);
+    expect((await ask("lowest auto opr")).card?.lines[0].href).toMatch(/sort=autoPointsOpr.*&dir=asc$/);
+    // "Worst teams" is the prediction rating's, as "top teams" is: Rankings, said to be by that rating.
+    const w = await ask("worst teams");
+    expect(w.card?.title).toBe("Search lists teams from the top, not the bottom");
+    expect(w.card?.lines[0]).toMatchObject({ text: "Every ranked team, by prediction rating", href: expect.stringMatching(/^\/rankings\?season=/) });
     expect((await ask("4215 lowest score")).card?.title).not.toBe("Search lists teams from the top, not the bottom");
   });
   it("three teams compared: all three, none dropped", async () => {

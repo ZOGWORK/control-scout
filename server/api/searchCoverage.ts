@@ -28,6 +28,7 @@ import { RECORD_TYPES } from "./searchHighScores.js";
 import { normalize } from "./fuzzy.js";
 import { search } from "./search.js";
 import { eventSetAnswer } from "./searchEvents.js";
+import { BOARD_STATS, teamsHref } from "./answers/families/leaderboard.js";
 import { countryOf } from "../../src/shared/countries.js";
 
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -311,13 +312,15 @@ export function explainAnswer(q: string): SearchAnswer | null {
 export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   let t = squash(q.toLowerCase().replace(/[?]/g, ""));
   // A season at the end ("how many teams 2023", "… in 2024-25", "… last season"): that season's count. A bare year is
-  // the season it starts, as search reads one.
-  let season = CURRENT_SEASON;
-  const sm = /\s+(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:(last|previous) (?:season|year)|(20\d\d)(?:\s*[-–/]\s*(\d\d))?(?:\s+season)?)$/.exec(t);
+  // the season it starts for teams (they register by season), and the calendar year for events, as event searches
+  // read it ("events in 2024": held in 2024, from two seasons).
+  let season = CURRENT_SEASON, year: number | null = null;
+  const sm = /\s+(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:(last|previous) (?:season|year)|(20\d\d)(?:\s*[-–/]\s*(\d\d))?(\s+season)?)$/.exec(t);
   if (sm && /^how many\s/.test(t)) {
     if (sm[2] && sm[3] && (Number(sm[2]) + 1) % 100 !== Number(sm[3])) return null;
     season = sm[1] ? CURRENT_SEASON - 1 : Number(sm[2]);
     if (season > CURRENT_SEASON) return null;
+    if (sm[2] && !sm[3] && !sm[4]) year = Number(sm[2]);
     t = t.slice(0, sm.index);
   }
   const m =/^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
@@ -327,20 +330,25 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   if (m[2] && !place) return null;
   const where = teams ? placeSql(place) : placeSql(place).replace(/\bt\./g, "e.");
   const meets = /^meet/.test(m[1]) || /\bleague\b/.test(t);
+  const inYear = !teams && year != null;
   const row = teams
     ? await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons s JOIN teams t ON t.number = s.team WHERE s.season = ?${where}`, [season, ...placeArgs(place)])
-    : await get<{ n: number }>(`SELECT COUNT(*) n FROM events e WHERE e.season = ?${meets ? " AND e.type = 'LeagueMeet'" : ""}${where}`, [season, ...placeArgs(place)]);
+    : await get<{ n: number }>(`SELECT COUNT(*) n FROM events e WHERE ${inYear ? "substr(e.start, 1, 4) = ?" : "e.season = ?"}${meets ? " AND e.type = 'LeagueMeet'" : ""}${where}`, [inYear ? String(year) : season, ...placeArgs(place)]);
   const n = Number(row?.n ?? 0);
   const what = teams ? "teams registered" : meets ? "league meets" : "events";
   const inPlace = place ? ` in ${place.name}` : "";
-  const label = `How many ${teams ? "teams" : meets ? "league meets" : "events"}${inPlace} · ${seasonLabel(season)}`;
+  const when = inYear ? String(year) : seasonLabel(season);
+  const label = `How many ${teams ? "teams" : meets ? "league meets" : "events"}${inPlace} · ${when}`;
   // The teams counted, as Teams filters them: its country (an alpha-2 code) and home state.
   const cc = place ? countryOf(place.country)?.code : null;
   const teamsWhere = cc ? `&country=${cc}${place?.state ? `&state=${encodeURIComponent(place.state)}` : ""}` : "";
-  const href = teams ? `/teams?season=${season}&view=listed${teamsWhere}` : `/events?season=${season}${place?.state ? `&region=${encodeURIComponent(place.key)}` : ""}`;
+  // A calendar year spans two seasons: its events are the event search's ("events in 2024"), not one season's list.
+  const href = teams ? `/teams?season=${season}&view=listed${teamsWhere}`
+    : inYear ? `/search?q=${encodeURIComponent(`${meets ? "meets" : "events"}${inPlace} in ${year}`)}`
+    : `/events?season=${season}${place?.state ? `&region=${encodeURIComponent(place.key)}` : ""}`;
   return answer(q, {
     hits: [], pages: [{ title: teams ? "Browse the teams" : "Browse the events", href }],
-    card: { kind: "info", title: label, lines: [{ text: `${n.toLocaleString("en-US")} ${what}${inPlace} in ${seasonLabel(season)}`, detail: teams ? "Registrations for the season, played or not" : "Every event on FIRST's schedule for the season", href }] },
+    card: { kind: "info", title: label, lines: [{ text: `${n.toLocaleString("en-US")} ${what}${inPlace} in ${when}`, detail: teams ? "Registrations for the season, played or not" : inYear ? `Every event on FIRST's schedule held in ${year}, from either season` : "Every event on FIRST's schedule for the season", href }] },
     understood: { kind: "question", label },
   });
 }
@@ -366,19 +374,30 @@ export function nearMeAnswer(q: string): SearchAnswer | null {
   });
 }
 
-/** "lowest opr in nj", "worst teams": search ranks teams from the top only. It says so and links the full ranking, never
- *  a team whose name has "worst" in it; or null. */
-export function bottomAnswer(q: string): SearchAnswer | null {
+/** "lowest opr in nj", "worst teams": search ranks teams from the top only. It says so and links every ranked team in
+ *  the stat asked, lowest first (the Teams page's season table); a stat that table can't sort by links Rankings, which
+ *  is by prediction rating and says so. Never a team whose name has "worst" in it; or null. */
+export async function bottomAnswer(q: string): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
-  const m = new RegExp(`^(?:the\\s+)?(?:lowest|worst|weakest|bottom)(?:\\s+\\d{1,2})?\\s+(?:(?:${BOARD.slice(1, -1)})(?:\\s+teams?)?|teams?|robots?)(?:\\s+by\\s+${BOARD})?(?:\\s+(?:in\\s+|from\\s+)?(.+))?$`).exec(t);
+  const m = new RegExp(`^(?:the\\s+)?(?:lowest|worst|weakest|bottom)(?:\\s+\\d{1,2})?\\s+(?:${BOARD}(?:\\s+teams?)?|teams?|robots?)(?:\\s+by\\s+${BOARD})?(?:\\s+(?:in\\s+|from\\s+)?(.+))?$`).exec(t);
   if (!m) return null;
-  const region = m[2] ? regionOf(m[2].split(" ")) : null;
-  if (m[2] && !region) return null;
-  const href = `/rankings${region ? `?region=${encodeURIComponent(region.key)}` : ""}`;
+  const region = m[3] ? regionOf(m[3].split(" ")) : null;
+  if (m[3] && !region) return null;
+  // The stat asked ("lowest opr", "worst teams by auto opr"); "worst teams" alone is the prediction rating's, as "top
+  // teams" is.
+  const word = m[2] ?? m[1] ?? "rating";
+  const stat = BOARD_STATS[/rating/.test(word) ? "rating" : word === "win rate" ? "win-rate" : word.replace(/\s+opr$/, "")];
+  const season = await defaultRankingsSeason();
+  const sorted = stat?.teamsSort ? teamsHref(season, stat, region) : null;
+  const where = region ? ` in ${region.name}` : "";
+  const href = sorted ? `${sorted}&dir=asc` : `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
+  const line = sorted
+    ? { text: `Every ranked team${where} by ${stat.label}, lowest first`, detail: `The Teams page's ${seasonLabel(season)} table, sorted from the bottom`, href }
+    : { text: `Every ranked team${where}, by prediction rating`, detail: `Rankings lists them all in ${seasonLabel(season)}, so the end of the list is the lowest`, href };
   const label = "Search lists teams from the top, not the bottom";
   return answer(q, {
-    hits: [], pages: [{ title: region ? `${region.name} rankings` : "Rankings", href }],
-    card: { kind: "info", title: label, lines: [{ text: `Every ranked team${region ? ` in ${region.name}` : ""}, in order`, detail: "Rankings lists them all, so you can read it from the end", href }] },
+    hits: [], pages: [{ title: sorted ? `Teams by ${stat.label}` : region ? `${region.name} rankings` : "Rankings", href }],
+    card: { kind: "info", title: label, lines: [line] },
     understood: { kind: "question", label },
   });
 }

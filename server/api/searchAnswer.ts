@@ -232,7 +232,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
 
   // 0. What a word means ("how is opr calculated"), before the stat answers read a word of it as a team's name
   // ("CALculated Risk"); and the questions that name no team ("teams near me", "lowest opr in nj").
-  const said = opts.intents === false ? null : explainAnswer(q) ?? nearMeAnswer(q) ?? bottomAnswer(q);
+  const said = opts.intents === false ? null : explainAnswer(q) ?? nearMeAnswer(q) ?? (await bottomAnswer(q));
   if (said) return said;
 
   // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
