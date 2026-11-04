@@ -195,6 +195,10 @@ describe("the answers", () => {
     // A place's events aren't one event: no forecast, never the next event's in its place.
     const q1 = await ask("4215 chance to win an event at New Jersey Qualifier");
     expect(JSON.stringify(q1.stat ?? {})).not.toContain("Northeast League Meet");
+    // A season named is the only one looked in: none upcoming in a finished season, said so.
+    const past = await ask(`4215 advancement chances in ${S}-${String((S + 1) % 100).padStart(2, "0")}`);
+    expect(JSON.stringify(past.stat ?? {})).not.toContain("33%");
+    expect(past.stat?.none ?? "").toMatch(/No upcoming event/);
     // Compare's hit opens on the season the card reads.
     const c = await ask("4215 6980 33950 compare");
     expect(c.hits[0]).toMatchObject({ kind: "compare" });

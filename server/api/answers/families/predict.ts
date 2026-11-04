@@ -94,7 +94,7 @@ const NEXT_TITLES: Partial<Record<IntentId, string>> = { "next-event-wins": "Pre
 const NEXT_RULE = "From the engine's stored projection for the event (the event page's Forecast): thousands of simulated runs of the event's qualification schedule and alliance selection from the prediction ratings. Advancement counts competition-performance slots only (no award points). Nothing is simulated for a search.";
 
 /** The team's next event and the engine's stored projection for it, or the honest card when none is stored. */
-export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = new Date(), event?: { season: number; code: string }): Promise<StatAnswer> {
+export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = new Date(), event?: { season: number; code: string }, season: number | null = null): Promise<StatAnswer> {
   const title = NEXT_TITLES[id] ?? "Prediction";
   // The events a team is listed for (a FIRST registration counts), as "when is <team>'s next event" reads them.
   // A day either side in UTC, then the venue's own today: the day after a meet, it's no longer the next event.
@@ -105,9 +105,11 @@ export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = 
     ? (await all<Ev>("SELECT season, code, name, start, end, city, state, timezone FROM events WHERE season = ? AND code = ?", [event.season, event.code]))[0]
     : (await all<Ev>(
       `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state, e.timezone FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
-       WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 10`, [team.number, yesterday]))
+       WHERE et.team = ? AND COALESCE(e.end, e.start) >= ?${season != null ? " AND e.season = ?" : ""} ORDER BY e.start, e.code LIMIT 10`,
+      [team.number, yesterday, ...(season != null ? [season] : [])]))
       .find((x) => (x.end ?? x.start ?? "") >= eventToday(now.getTime(), x.timezone).from);
-  const S = seasonLabel(e ? Number(e.season) : CURRENT_SEASON);
+  // A season named is the only one looked in: no upcoming event in it is said so, never another season's shown.
+  const S = seasonLabel(e ? Number(e.season) : season ?? CURRENT_SEASON);
   const base = { family: "stat" as const, intent: id, title, team, scope: [S, event ? e?.name ?? "Event" : "Next event"], definition: NEXT_RULE, source: e ? `${e.name}, ${S}` : `${team.number}'s published events` };
   if (!e) return { ...base, blocks: [], none: `No upcoming event is published for ${whoOf(team)} in ${S} yet, so there's no projection to show.` };
   const when = [dateRange(e.start, e.end), [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
