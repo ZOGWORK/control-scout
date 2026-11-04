@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.1.1 — 2026-11-04
+## 3.1.2 — 2026-11-04
 
 Search answers about one event work for every team, not only the teams it was first checked with.
 
@@ -31,6 +31,20 @@ Search answers about one event work for every team, not only the teams it was fi
 - **Places.** A team from elsewhere asked its place on New Jersey's lists is told it's from its own state, with that state's question, not that it's short of matches.
 - **Worlds rating.** An off-season event after Worlds isn't rated, so "rating at worlds" now shows the rating a team finished Worlds on instead of "isn't stored".
 - **Team numbers.** A typed number is a typo only of a number as long: team 20205 no longer matches the year 2025, nor 20265 an event named "… 2026 Bishkek", so "when did 20265 start in FTC" finds the team.
+## 3.0.9 — 2026-11-04
+
+Three fixes to the two-team and forecast answers from 3.0.7's last review.
+
+### Highlights
+- [predict] A forecast "this season" is labelled with the current season
+- [teams] Partner OPR at a named event uses that event's season
+- [teams] Compare names no leader when no team has an OPR
+
+### Fixes
+- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season, also when the question names an event ("at Northeast League Meet this season"). (#628)
+- **Partner OPR at an event.** "Partner with the highest combined OPR at" an event asked for a season although the event names one; it now reads that event's season, the meetings still that event's only.
+- **Compare with no OPR.** When none of the compared teams has an OPR (counted matches that were all no-shows), the card shows the table and names no leader, instead of the first team under "Highest OPR: –".
+
 ## 3.0.8 — 2026-11-04
 
 Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
