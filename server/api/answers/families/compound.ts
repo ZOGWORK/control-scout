@@ -103,7 +103,8 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const base = [...where, ...filters].join(" AND ");
   const cap = Math.min(50, c.n ?? 50);
   const select = `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.opr_pen pen, s.wins, s.losses, s.ties${tst ? `, ${tst.sql} tv` : ""} FROM ${from}`;
-  const order = `ORDER BY v DESC, s.wins DESC, s.team`;
+  // Ties broken as the leaderboard and Rankings break them (a rating tie by team number).
+  const order = `ORDER BY v DESC, ${st.id === "rating" ? "" : "s.wins DESC, "}s.team`;
   type Row = { team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; tv?: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null; wins: number; losses: number; ties: number };
   const fullWhere = thSql ? `${base} AND ${thSql}` : base;
   const fullArgs = [...args, ...filterArgs, ...(thArg != null ? [thArg] : [])];
@@ -384,7 +385,8 @@ export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], 
   // A championship (`finals`, its parent event): the finals and every division, so a team from another division is
   // read at its own division.
   const codes = ev && finals ? (await all<{ code: string }>("SELECT code FROM events WHERE season = ? AND (code = ? OR division_code = ?)", [ev.season, finals, finals])).map((r) => r.code) : ev ? [ev.code] : [];
-  const ms = ev && finals ? onRecord(msAll, { ...scope, event: undefined, season: ev.season }).filter((m) => codes.includes(m.code)) : onRecord(msAll, scope);
+  // Only matches its robot took the field in meet partners and opponents.
+  const ms = ev && finals ? onRecord(msAll, { ...scope, event: undefined, season: ev.season }, true).filter((m) => codes.includes(m.code)) : onRecord(msAll, scope, true);
   const tally = new Map<number, TeamMatch[]>();
   for (const m of ms) for (const o of m[side]) tally.set(o, [...(tally.get(o) ?? []), m]);
   const ids = [...tally.keys()];

@@ -3,6 +3,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
+import { clearAllCaches } from "../../caches";
 import { CURRENT_SEASON } from "../../data/seasons";
 import { searchAnswer } from "../searchAnswer";
 import { namedTeam } from "../searchCompare";
@@ -161,6 +162,26 @@ describe("compound answers", () => {
     const a = await ask("4215 partners at NJ championship who had opr over 80");
     expect(a.stat?.headline).toMatchObject({ value: "1 of 2" });
     expect(cells(a, /^Partners with OPR there over 80/)).toEqual([expect.objectContaining({ team: "207 Critical Mass", opr: "114.0" })]);
+  });
+  it("10: the championship takes in the finals, a division named doesn't; a match off the field meets no one", async () => {
+    // A finals match with 1111 (OPR 130) and a division match 4215 sat out with 23268 (OPR 157.9).
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, 'USNJCMP', 'qual', 0, 900, 'F1', NULL, 1, 150, 150, 100, 100, 't'), (?, 'USNJCMPP', 'qual', 0, 901, 'Q901', NULL, 1, 150, 150, 100, 100, 't')", [S, S]);
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, 'USNJCMP', 'qual', 0, 900, 4215, 'red', 1), (?, 'USNJCMP', 'qual', 0, 900, 1111, 'red', 1), (?, 'USNJCMP', 'qual', 0, 900, 7776, 'blue', 1), (?, 'USNJCMPP', 'qual', 0, 901, 4215, 'red', 0), (?, 'USNJCMPP', 'qual', 0, 901, 23268, 'red', 1), (?, 'USNJCMPP', 'qual', 0, 901, 7776, 'blue', 1)", [S, S, S, S, S, S]);
+    await run("INSERT OR IGNORE INTO event_teams (season, code, team) VALUES (?, 'USNJCMP', 4215)", [S]);
+    clearAllCaches();
+    try {
+      const all = await ask("4215 partners at NJ championship who had opr over 80");
+      // 207, 6980 and 1111 (in the finals, no OPR row there); never 23268, met only in a match 4215 sat out.
+      expect(all.stat?.headline).toMatchObject({ value: "1 of 3" });
+      expect(cells(all, /^Partners with OPR there over 80/).map((r: any) => r.team)).not.toContain("23268 Ultraviolet");
+      const div = await ask("4215 partners at New Jersey Championship - Parkway Division who had opr over 80");
+      expect(div.stat?.headline).toMatchObject({ value: "1 of 2" });
+    } finally {
+      await run("DELETE FROM match_teams WHERE season = ? AND number IN (900, 901)", [S]);
+      await run("DELETE FROM matches WHERE season = ? AND number IN (900, 901)", [S]);
+      await run("DELETE FROM event_teams WHERE season = ? AND code = 'USNJCMP'", [S]);
+      clearAllCaches();
+    }
   });
   it("11: a win over a world top-10 team, with the match", async () => {
     const a = await ask("did 4215 ever beat a team ranked top 10 worldwide");

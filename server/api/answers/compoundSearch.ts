@@ -21,7 +21,9 @@ import type { Resolve } from "./index.js";
 /** What index.ts already decides for every stat answer, passed in so both read the same rule. */
 export interface CompoundDeps {
   latestSeason: (team: number) => Promise<{ season: number; own: boolean } | null>;
-  pickTeamEvent: (evs: TeamEvent[], words: string, season: number | null) => TeamEvent | null;
+  /** The event the words name (`primary`) and the events read as it (`events`: a championship named takes in its
+   *  division and the finals; a division named is that division alone). */
+  pickTeamEvent: (evs: TeamEvent[], words: string, season: number | null) => { primary: TeamEvent; events: TeamEvent[] } | null;
 }
 type Opts = { full: boolean; pages: SearchPageLink[] };
 
@@ -107,13 +109,15 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     const evs = (await teamEventSet(team.number)).events;
     // A state's code in the event's words ("nj championship") is also tried as the state's name ("new jersey").
     const named = c.at.replace(/\b[a-z]{2}\b/g, (w) => findRegions(w).find((r) => r.state.toLowerCase() === w)?.name.toLowerCase() ?? w);
-    const e = deps.pickTeamEvent(evs, c.at, c.when.season) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, c.when.season) : null)
-      ?? familyPick(evs, named, c.when.season);
-    if (!e) return noEventAnswer(q, c.at, team, top, evs, c.when.season, opts);
-    // A championship's division and its finals are one event here: the team's matches at both.
-    const parent = e.division ?? e.code;
-    family = evs.filter((x) => x.season === e.season && (x.code === parent || x.division === parent));
-    const finals = family.find((x) => x.code === parent && x.division == null);
+    const fp = familyPick(evs, named, c.when.season);
+    const pick = deps.pickTeamEvent(evs, c.at, c.when.season) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, c.when.season) : null)
+      ?? (fp ? { primary: fp, events: evs.filter((x) => x.season === fp.season && (x.code === fp.code || x.code === fp.division)) } : null);
+    if (!pick) return noEventAnswer(q, c.at, team, top, evs, c.when.season, opts);
+    // The events picked are read as one: a championship named is its division and its finals together, a division
+    // named is that division alone (never the finals with it).
+    const e = pick.primary;
+    family = pick.events;
+    const finals = family.length > 1 ? family.find((x) => x.division == null && family.some((y) => y.division === x.code)) : undefined;
     scope.season = null;
     scope.event = { season: e.season, code: e.code, name: family.length > 1 && finals ? finals.name : e.name };
     s.why = undefined;
@@ -124,7 +128,7 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     case "margin": return done(a, await marginAnswer(team, await teamMatches(team.number), scope, c.result, c.margin), s.why);
     case "win-loss-average": return done(a, winLossAverageAnswer(team, await teamMatches(team.number), scope), s.why);
     case "beat-top": return done(a, await beatTopAnswer(team, await teamMatches(team.number), scope, c.n, c.by), s.why);
-    case "side-threshold": return done(a, await sideThresholdAnswer(team, await teamMatches(team.number), scope, c.side, c.threshold, family.length > 1 ? family.find((x) => x.division == null)?.code ?? null : null), s.why);
+    case "side-threshold": return done(a, await sideThresholdAnswer(team, await teamMatches(team.number), scope, c.side, c.threshold, family.length > 1 ? family.find((x) => x.division == null && family.some((y) => y.division === x.code))?.code ?? null : null), s.why);
     case "event-picks": case "opr-excluding": {
       if (s.season == null) return null;
       const set = await teamEventSet(team.number);
