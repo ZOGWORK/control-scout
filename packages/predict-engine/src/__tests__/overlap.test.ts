@@ -51,7 +51,7 @@ describe("alliance overlap", () => {
 
   it("lowers an alliance's predicted score by its overlap in quals, not in playoffs", () => {
     const b = build(ON);
-    const mean = (level: "qual" | "playoff") => predictMatch(b, [1, 2], [3, 4], undefined, undefined, { context: { level } }).red.mean;
+    const mean = (level: "qual" | "playoff") => predictMatch(b, [1, 2], [3, 4], undefined, undefined, { context: { level } }).red.modelMean;
     const o = b.allianceOverlap([1, 2], "qual");
     expect(o.auto + o.teleop).toBeGreaterThan(0);
     expect(mean("qual")).toBeCloseTo(mean("playoff") - (o.auto + o.teleop + o.endgame), 9);
@@ -62,7 +62,7 @@ describe("alliance overlap", () => {
     const x = explainMatch(b, [1, 2], [3, 4], { context: { level: "qual" } });
     const p = predictMatch(b, [1, 2], [3, 4], undefined, undefined, { context: { level: "qual" } });
     // Factors are rounded to 0.1 and only the largest three are shown; the four parts add up to the margin.
-    const margin = p.red.mean - p.blue.mean, shown = x.factors.reduce((a, f) => a + f.points, 0);
+    const margin = p.red.modelMean - p.blue.modelMean, shown = x.factors.reduce((a, f) => a + f.points, 0);
     const pen = (b.get(3).pen + b.get(4).pen) - (b.get(1).pen + b.get(2).pen);
     const all = x.factors.some((f) => f.id === "pen") ? shown : shown + pen;
     expect(Math.abs(all - margin)).toBeLessThan(0.35);

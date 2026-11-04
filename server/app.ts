@@ -732,7 +732,7 @@ export function createApp(opts: { dist?: string } = {}) {
       season: s, red, blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
       rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, ...((await isEnabled("factorSheet")) ? { factorSheet: compactSheet(x.factorSheet) } : {}), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence, reasons: x.reasons,
       teamsRed: x.teamsA.map((t) => ({ ...t, name: names.get(t.team) ?? null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: names.get(t.team) ?? null })),
-      overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB),
+      overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), marginScale: x.marginScale,
       level, probabilityModel: x.probabilityModel, bonus: bonusView(s, x) ?? null, engineVersion: ENGINE_VERSION,
     };
   }));
