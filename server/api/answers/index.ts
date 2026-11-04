@@ -20,7 +20,7 @@ import { eventWon, readAsk } from "../searchAsks.js";
 import { eventHit } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
-import { officialClause, scopePhrase, type Scope } from "./clauses.js";
+import { officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { eventScopeAnswer, worldsMatchesAnswer } from "./families/eventScope.js";
@@ -83,18 +83,44 @@ const PREDICT_INTENTS = new Set<IntentId>(["next-event-wins", "event-win-chance"
 const EVENT_INTENTS = new Set<IntentId>(["best-finish", "worst-finish", "first-place-events", "worlds-divisions", "first-event", "last-event", "best-opr-event", "best-season", "most-improved-season", "first-season", "total-events", "average-rank", "seasons-played", "seasons-count"]);
 const AWARD_INTENTS = new Set<IntentId>(["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"]);
 
-/** One of the team's events, by the words typed ("New Jersey Championship"): the best name match of every season it
- *  attended, the newest season on a tie (or the season named). Two events of one season matching about as well
- *  ("Northern League Meet"): no pick, never a guess. */
-export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | null): TeamEvent | null {
+/** The events of a team that the words typed name ("New Jersey Championship"), read as one: `primary` is the one whose
+ *  rank and OPR the answer shows, `events` every one it covers (oldest first), `name` what the answer calls them. */
+export interface TeamEventPick { primary: TeamEvent; events: TeamEvent[]; name: string }
+
+/** The team's events the words name: the best name match of every season it attended, the newest season on a tie (or
+ *  the season named). The events of that season matching about as well are the same question asked of each ("Northern
+ *  League Meet", an AM and a PM meet): all of them. A championship's division and its finals are one championship: a
+ *  team that played both gets both, whichever name was typed ("NJ championship": its own division, never another's). */
+export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | null): TeamEventPick | null {
   const scored = evs.filter((e) => season == null || e.season === season)
     .map((e) => ({ e, s: Math.max(fuzzyScore(words, e.name), fuzzyScore(words, e.code)) }))
     .filter((x) => x.s >= 0.75)
     .sort((a, b) => b.s - a.s || b.e.season - a.e.season || String(b.e.start).localeCompare(String(a.e.start)));
-  const [best, next] = scored;
+  const [best] = scored;
   if (!best) return null;
-  if (next && next.e.season === best.e.season && best.s - next.s < 0.05) return null;
-  return best.e;
+  const tied = scored.filter((x) => x.e.season === best.e.season && best.s - x.s < 0.05).map((x) => x.e);
+  const family = (e: TeamEvent) => e.division ?? e.code;
+  const fams = new Set(tied.map(family));
+  const events = evs.filter((e) => e.season === best.e.season && fams.has(family(e)));
+  // A division's rank and OPR are the team's own; its finals rank only the alliances that reached them.
+  const primary = events.length > 1 ? (events.find((e) => e.division != null && fams.size === 1) ?? best.e) : best.e;
+  return { primary, events, name: pickName(events, fams.size) };
+}
+
+/** "New Jersey Championship (Turnpike Division and finals)", "P1-4 AM Northern League Meet and P1-4 PM Northern League
+ *  Meet", "3 events: A, B and C". */
+function pickName(events: TeamEvent[], families: number): string {
+  if (events.length === 1) return events[0].name;
+  if (families === 1) {
+    const finals = events.find((e) => e.division == null), divs = events.filter((e) => e.division != null);
+    if (finals) {
+      const part = (d: TeamEvent) => (d.name.startsWith(finals.name) ? d.name.slice(finals.name.length).replace(/^[\s:–-]+/, "") : d.name);
+      return `${finals.name} (${divs.map(part).join(", ")} and finals)`;
+    }
+  }
+  const names = events.map((e) => e.name);
+  const list = `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return names.length === 2 ? list : `${names.length} events: ${list}`;
 }
 
 /** The season a team's answer reads when none is named: the default season (the latest completed one, ./season.ts)
@@ -138,9 +164,15 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     // alike): left to search's team-at-event answer, which lets the visitor pick.
     const season = s.season ?? (s.latest ? (await latestSeason(team, it.id))?.season ?? null : null);
     if (s.latest && season == null) return null;
-    const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
-    if (!e) return null;
-    return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
+    const p = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
+    if (p) {
+      const codes = p.events.map((e) => e.code);
+      return { ...scope, season: null, event: { season: p.primary.season, code: p.primary.code, name: p.name, ...(codes.length > 1 ? { codes } : {}) } };
+    }
+    // None of the team's events: the event those words name, which the answer says the team didn't play.
+    const named = await findEvent(s.at, season, { anyPlayed: true });
+    if (!named || Math.max(fuzzyScore(s.at, named.name), fuzzyScore(s.at, named.code)) < 0.75) return null;
+    return { ...scope, season: null, event: { season: Number(named.season), code: named.code, name: shortEvent(named.name, named.type ?? null), absent: true } };
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest") && PARTNER_LIST_INTENTS.has(it.id)) {
     // The partner and opponent answers read the latest completed season when the team played it ("this season" too).
@@ -245,7 +277,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     intent: { kind: `stat-${it.id}`, pattern: `[team] ${it.id}${scope.event ? " [event]" : ""}${it.scope.championship ? " [worlds]" : ""}${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, title] },
   };
   if (!opts.full) return answer;
-  const stat = await build(it, team, scope);
+  const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
   // A Worlds answer ends with the season's championship events and the related Worlds questions (never instead of it).
@@ -255,6 +287,23 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     stat.blocks.push(...follow.map((b) => (b.kind === "related" ? { ...b, queries: b.queries.filter((x) => x.toLowerCase() !== q.toLowerCase()) } : b)));
   }
   return { ...answer, stat };
+}
+
+/** A team asked about an event it didn't play ("7149 record at NJ championship"): said so, naming the event checked,
+ *  with the same question asked of the events it did play that season. */
+async function absentAnswer(q: string, it: StatQuestion, team: AnswerTeam, scope: Scope, title: string): Promise<StatAnswer> {
+  const ev = scope.event!, who = whoOf(team), S = seasonLabel(ev.season);
+  const official = officialClause();
+  const theirs = (await teamEventSet(team.number)).events.filter((e) => e.season === ev.season && official(e));
+  const at = (it.scope.at ?? "").toLowerCase(), said = q.toLowerCase();
+  const ask = (name: string) => (at && said.includes(at) ? said.replace(at, name.toLowerCase()) : `${team.number} results at ${name.toLowerCase()}`);
+  return {
+    family: "event", intent: it.id, title, team, scope: scopeChips(scope),
+    blocks: theirs.length ? [{ kind: "related", title: `Its events in ${S}`, queries: [...new Set(theirs.map((e) => ask(e.name)))] }] : [],
+    definition: "An event's answers count only the matches, rank and awards a team has there.",
+    source: `${who}'s ${S} events checked`,
+    none: `${who} didn't play at ${ev.name} in ${S}, so it has no matches, rank or awards there.${theirs.length ? ` Its ${S} events are below.` : ` It has no official events on record in ${S}.`}`,
+  };
 }
 
 /** The season a Worlds answer is about: its headline's (the match or event it names), else the latest in the data. */

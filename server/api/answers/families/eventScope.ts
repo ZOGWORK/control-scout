@@ -65,8 +65,11 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
   if (id === "match-lookup") {
     const n = opts.n ?? 0;
     // A qualification number first ("match 12" is Q12 at most events), else a playoff match with that number.
-    const m = ms.find((x) => x.level === "qual" && x.number === n) ?? ms.find((x) => x.label.toUpperCase() === `M${n}` || x.label.toUpperCase() === `Q${n}`);
+    const quals = ms.filter((x) => x.level === "qual" && x.number === n);
+    const m = quals[0] ?? ms.find((x) => x.label.toUpperCase() === `M${n}` || x.label.toUpperCase() === `Q${n}`);
     const title = `Match ${n} at ${name}`;
+    // Several events read as one (an AM and a PM meet) can each have a match with that number: each one, never a pick.
+    if (quals.length > 1) return { ...base, family: "event", intent: id, title, blocks: [{ kind: "matches", title: `Match ${n} at each event`, rows: quals.map(row) }], definition: `Scores are the official result, penalties included. ${RECORD_RULE}` };
     if (!m) return { ...base, family: "event", intent: id, title, blocks: ms.length ? [{ kind: "matches", title: `${possessive(String(team.name ?? team.number))} matches there`, rows: ms.slice(0, 25).map(row) }] : [], definition: RECORD_RULE, none: `${who} didn't play a match ${n} at ${name}: its own matches there are listed below.` };
     return {
       ...base, family: "event", intent: id, title,

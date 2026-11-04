@@ -60,6 +60,8 @@ export function wordScore(q: string, w: string): number {
   // Only the edits allowed count, so the distance stops as soon as it's past them (none allowed: no distance at all).
   const cap = allowedEdits(q.length);
   if (!cap) return 0;
+  // A number one digit longer or shorter is another number, never a typo of it: team 20205 isn't the year 2025.
+  if (q.length !== w.length && /^\d+$/.test(q) && /^\d+$/.test(w)) return 0;
   const d = editDistance(q, w.slice(0, Math.max(q.length, Math.min(w.length, q.length + 1))), cap);
   const best = d <= cap ? d : editDistance(q, w, cap);
   if (best <= cap) return best === 1 ? 0.8 : 0.65;

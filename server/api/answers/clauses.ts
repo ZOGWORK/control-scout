@@ -22,8 +22,10 @@ export interface Scope {
   championship?: boolean;
   /** Only region (state) championships. */
   states?: boolean;
-  /** One event ("season:CODE"), and its name for the chips. */
-  event?: { season: number; code: string; name: string };
+  /** One event ("season:CODE"), and its name for the chips. `codes`: every event the words named that the team played
+   *  in that season (a championship's division and its finals, an AM and a PM meet), read as one; `code` is the one
+   *  whose rank and OPR the answer shows. `absent`: the team played none of them (the answer says so). */
+  event?: { season: number; code: string; name: string; codes?: string[]; absent?: boolean };
   /** Events in one region (by the event's own state and country), or with `outside`, every event outside it (the
    *  team's home state: "out-of-state events"). */
   place?: { country: string; state: string; name: string; outside?: boolean };
@@ -42,7 +44,7 @@ export const statesClause = (s: Scope) => (e: EventFacts) => !s.states || e.type
 /** Official events only: always on for scores and records. */
 export const officialClause = () => (e: EventFacts) => (OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "");
 /** Event clause. */
-export const eventClause = (s: Scope) => (e: EventFacts) => !s.event || (e.season === s.event.season && e.code === s.event.code);
+export const eventClause = (s: Scope) => (e: EventFacts) => !s.event || (e.season === s.event.season && (s.event.codes ?? [s.event.code]).includes(e.code));
 /** Place clause (the event's region). */
 export const placeClause = (s: Scope) => (e: EventFacts) => !s.place || (e.country === s.place.country && e.state === s.place.state) !== !!s.place.outside;
 /** Match-type clause (qualifications or playoffs). */
@@ -69,7 +71,10 @@ export function eventSql(s: Scope, alias = "e"): { sql: string; args: (string | 
   if (s.season != null) { parts.push(`${alias}.season = ?`); args.push(s.season); }
   if (s.championship) { parts.push(`${alias}.type = ?`); args.push(CHAMPIONSHIP_TYPE); }
   if (s.states) { parts.push(`${alias}.type = ?`); args.push(STATES_TYPE); }
-  if (s.event) { parts.push(`${alias}.season = ? AND ${alias}.code = ?`); args.push(s.event.season, s.event.code); }
+  if (s.event) {
+    const codes = s.event.codes ?? [s.event.code];
+    parts.push(`${alias}.season = ? AND ${alias}.code IN (${codes.map(() => "?").join(", ")})`); args.push(s.event.season, ...codes);
+  }
   if (s.place) { parts.push(`${s.place.outside ? "NOT " : ""}(COALESCE(${alias}.country, '') = ? AND COALESCE(${alias}.state, '') = ?)`); args.push(s.place.country, s.place.state); }
   return { sql: parts.length ? parts.join(" AND ") : "1 = 1", args };
 }
