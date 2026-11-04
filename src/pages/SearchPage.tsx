@@ -16,6 +16,7 @@ import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
+import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
@@ -23,6 +24,7 @@ import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, t
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { FactCard } from "../components/search/page/FactCard";
+import { RelatedQuestions } from "../components/search/page/TeamAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
@@ -136,8 +138,11 @@ export default function SearchPage() {
   // The one right-hand panel (desktop): a versus query's head-to-head, else a question's computed summary.
   const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
+  // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
+  // card and the answer saying the same thing twice.
+  const answered = !!answer && !answer.weak && !!(answer.card || answer.stat);
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -159,6 +164,8 @@ export default function SearchPage() {
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
         </p>
       )}
+      {/* A long or wordy query said the short way: quietly, under the heading, which keeps the answer's own words. */}
+      {found && ax?.understood?.showing && <p className="mt-1.5 break-words text-xs text-muted-foreground" data-showing>Showing: {ax.understood.showing}</p>}
       <div className="mt-5" aria-live="polite">
         {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match with the search bar at the top.</p>
           // A failed search says so and offers the same search again (it never fixes itself while you wait).
@@ -192,6 +199,8 @@ export default function SearchPage() {
                   <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
+              {/* The team was found but not the answer: what search can answer about it, one tap each. */}
+              {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
               {/* Desktop: results left (65%), at most one panel right (35%), chosen by the query: a versus query's
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
@@ -212,8 +221,9 @@ export default function SearchPage() {
                       from the latest), else the answer card as before. */}
                   {apps.length ? (
                     // Worlds or states trips: one card with the team up top, a record card per trip inside.
-                    <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} apps={apps} />
-                  ) : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
+                    <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} headline={answer!.card!.headline} apps={apps} />
+                  ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
+                    : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>

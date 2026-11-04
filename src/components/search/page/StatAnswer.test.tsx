@@ -88,4 +88,16 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(tiles[1].textContent).toContain("Autonomous · Bad Wolf (6980)");
     expect(tiles[1].textContent).toContain("13.2");
   });
+  it("a record with both qualifications and playoffs shows each apart, and no event name is cut off", () => {
+    const c = draw({ ...opr, intent: "record", blocks: [
+      { kind: "record", title: "Wins, losses and ties", wins: 24, losses: 12, ties: 0, split: { quals: { wins: 15, losses: 5, ties: 0 }, playoffs: { wins: 9, losses: 7, ties: 0 } } },
+      { kind: "series", title: "OPR by event", points: [{ x: "East Bergen Conference Northern League Tournament", y: 84.4, href: "/events/2025/USNJNOLT2?team=4215" }, { x: "New Jersey Championship - Parkway Division", y: 101.6 }] },
+    ] });
+    const rows = [...c.querySelectorAll("[data-record-split] [data-split]")];
+    expect(rows.map((r) => r.getAttribute("data-split"))).toEqual(["Qualifications", "Playoffs"]);
+    expect(rows[0].textContent).toContain("15-5-0");
+    expect(rows[1].textContent).toContain("9-7-0");
+    expect(rows[1].textContent).toContain("56%");
+    expect(c.querySelector("[data-block=series]")!.innerHTML).not.toContain("truncate");
+  });
 });

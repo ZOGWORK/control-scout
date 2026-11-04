@@ -219,7 +219,9 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
   it("a team's events with no season: its latest season with an event, said so", async () => {
     const a = await ask("4215 events");
     expect(a.stat?.title).toBe("Events in 2026–27");
-    expect(a.understood?.label).toMatch(/read as "4215 events in 2026-27"/);
+    // The reading goes on the quiet Showing line, never in the heading.
+    expect(a.understood?.showing).toBe("4215 events in 2026-27");
+    expect(a.understood?.label).not.toMatch(/read as/);
   });
 });
 
