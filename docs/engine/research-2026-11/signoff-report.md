@@ -13,8 +13,9 @@ Every number below links to the note that produced it. **No number, no claim.**
   - quals/playoffs labels;
   - the hand-check fixes;
   - the docs.
-- **One decision is waiting on you** (section 6): three changes cut margin error in both seasons and leave
-  win probabilities exactly the same. The gate as written needs a Brier gain, so none of them shipped.
+- **One decision is waiting on you** (section 6): scaling the predicted margin by about 0.92 cuts margin error
+  in both seasons and leaves win probabilities exactly the same. The gate as written needs a Brier gain, so it
+  didn't ship. Two more margin findings need more testing first.
 
 ## 1. Local main checkout: deletions are local-only
 
@@ -40,8 +41,22 @@ Checked with `git ls-tree` after `git fetch` on 2026-11-03:
 - **Same matches for both sides:** the champion's rows are the live engine's served calls
   (`engine-slices --rows`), joined by match key, so champion and challenger score the identical matches.
 - **Intervals:** event-bootstrap 95% (2,000 draws).
+- **The served champion's one in-sample step:** the champion is the engine's served call. Its final
+  calibration stretch (Platt slope 1.0577) was fitted on data through Jul 2026, so it has seen both scored
+  seasons. Every other layer is walk-forward.
+  - This gives the champion a small head start. Two notes measured it with a forward-only rebuild that
+    refits the slope at each origin:
+    - MLP note: served minus forward-only Brier is +0.01e-4 [−0.30, +0.31] on 2024–25 and −0.48e-4 [−0.71, −0.25] on 2025–26.
+    - R6: re-basing its challengers on the forward-only version moves their deltas by at most 0.5e-4.
+  - So the champion's advantage is ≤0.5e-4 Brier. It changes no verdict below, though it is about the size of
+    the smallest deltas, such as R2 on DECODE and R4.
 - **Gate (item 12):** a candidate ships only if Brier improves with the interval excluding zero, with no
   regression in accuracy or margin MAE, in either season. Brier decides first, accuracy second, margin error third.
+  - The same release checks as `engine-slices --challenger`, applied in R3 and R5 and used by the October program:
+    - calibration in the 50–80% bands no worse;
+    - no slice regression beyond noise (first event, thin data, quals 1–10 / 26+, volatility, probability band, playoffs).
+  - The other notes report the slices that bear on their topic. For example, R1 and R2 report robots with 0–5
+    matches, and R2 also reports early and late quals.
 - **Champion = live engine 3.3.0**, as you set in October. On decisive matches:
 
 | Season | Brier | Accuracy | Margin MAE |
@@ -184,18 +199,20 @@ Live at the time of writing:
 
 ## 6. Decision for you: margin-only changes
 
-Three findings cut margin error in both seasons and leave every win probability exactly the same. The gate
-needs a Brier gain, so none shipped.
+Several findings cut margin error. Only one is shown so far in both seasons with win probabilities unchanged.
+The gate needs a Brier gain, so none shipped.
 
-| Finding | Source | Δ margin MAE, 2024–25 | Δ margin MAE, 2025–26 |
-|---|---|---|---|
-| Scale the served expected margin by about 0.92 (it is about 7% too wide; slope 0.90–0.94 on every window) | R1, R6 | −0.12 [−0.17, −0.06] | −0.07 [−0.12, −0.02] |
-| Leave expected fouls out of the score model | R3 | — | −0.13 [−0.18, −0.08] |
-| Add an Elo term to the predicted margin | R5 | −0.12 | −0.08 (both significant) |
+| Finding | Source | Δ margin MAE, 2024–25 | Δ margin MAE, 2025–26 | Win probabilities | Status |
+|---|---|---|---|---|---|
+| Scale the served expected margin by about 0.92 (it is about 7% too wide; slope 0.90–0.94 on every window) | R1; R6's margin map agrees | −0.12 [−0.17, −0.06] (R6: about −0.12) | −0.07 [−0.12, −0.02] (R6: about −0.13) | Unchanged (Brier Δ 0 in R6) | **Ready for a decision** |
+| Leave expected fouls out of the score model | R3 | not measured | −0.13 [−0.18, −0.08] | Change (fouls feed the score gap the win model reads) | Needs a full gate on both seasons first |
+| Add an Elo term to the predicted margin | R5 | −0.12 | −0.08 (both beyond noise) | Unchanged for the margin alone | The engine would need to carry an Elo rating; its matching probability change failed the gate |
 
-- If you allow "margin MAE improves beyond noise in both seasons, with win probabilities bit-identical" as a
-  ship rule for score-only changes, the first one is the simplest: one fitted constant.
-- It would ship as engine 3.5.0 in both apps, through its own head-to-head gate.
+- **The scale is the only one ready to decide.** If you allow "margin MAE improves beyond noise in both
+  seasons, with win probabilities bit-identical" as a ship rule for score-only changes:
+  - it would ship as engine 3.5.0 in both apps, through its own head-to-head gate;
+  - that gate would cover score ranges too, since the bands were fitted around the current margin.
+- The other two need more work before they can be decided.
 
 ## 7. Open follow-ups (not built)
 
