@@ -53,8 +53,8 @@ describe("correctQuery", () => {
     expect((await correctQuery("Hypnotc Robotics"))?.q).toBe("Hypnotic Robotics");
   });
   it("says when every fix is one of search's own words", async () => {
-    expect(await correctQuery("4215 recrod")).toEqual({ q: "4215 record", own: true });
-    expect(await correctQuery("bad wolff")).toEqual({ q: "bad wolf", own: false });
+    expect(await correctQuery("4215 recrod")).toMatchObject({ q: "4215 record", own: true });
+    expect(await correctQuery("bad wolff")).toMatchObject({ q: "bad wolf", own: false });
   });
   it("never corrects numbers, codes, short words, capitals, a word typed on the way to a name, or what is spelled right", async () => {
     for (const q of ["4215", "12345 6980", "USNJCMP", "USNJCPM", "q12", "opr", "hypnotic robotics", "bad wolf", "enforcers",
@@ -64,7 +64,7 @@ describe("correctQuery", () => {
     }
   });
   it("a fix to search's own word that a name's word fits as well is never offered as sure (\"molt\": most, Volt, Bolt)", async () => {
-    expect(await correctQuery("molt bots")).toEqual({ q: "most bots", own: false });
+    expect(await correctQuery("molt bots")).toMatchObject({ q: "most bots", own: false });
     expect(await correctQuery("volf bots")).toBeNull();
   });
 });
@@ -115,6 +115,16 @@ describe("searchAnswer with spelling", () => {
       expect(a.hits.map((h) => h.ref), q).toEqual(right.hits.map((h) => h.ref));
       expect(!!a.stat || !!a.card, q).toBe(!!right.stat || !!right.card);
     }
+  });
+  it("a team whose page had the rest is improved on by the corrected question (\"4215 oper\")", async () => {
+    const a = await searchAnswer("4215 oper", { learn: false, limit: 25 });
+    expect(a).toMatchObject({ step: "did-you-mean", didYouMean: "4215 opr" });
+    expect(a.understood).toEqual((await searchAnswer("4215 opr", { learn: false, limit: 25 })).understood);
+  });
+  it("a one-off spelling of a place in the data reaches the usual one (\"oradel\": Oradell)", async () => {
+    const a = await searchAnswer("oradel", { learn: false, limit: 25 });
+    expect(a).toMatchObject({ step: "did-you-mean", didYouMean: "oradell" });
+    expect(a.hits.filter((h) => /Oradell/.test(h.subtitle)).length).toBeGreaterThan(1);
   });
   it("misspelled event words and places find the events", async () => {
     const champ = await searchAnswer("new jersey champinship", { learn: false });

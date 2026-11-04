@@ -137,6 +137,8 @@ async function vocab(): Promise<Vocab> {
   return v;
 }
 registerCache("Search spelling vocabulary", () => { vocabCache = null; });
+/** Builds the vocabulary ahead of the first search (server start). */
+export const warmSpelling = async (): Promise<void> => { await vocab(); };
 
 /** One word differs from the other only by a plural ending ("gear", "gears"): a different word, never a typo. */
 const pluralPair = (a: string, b: string) => {
