@@ -136,7 +136,8 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   else if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
     // alike): left to search's team-at-event answer, which lets the visitor pick.
-    const season = s.season ?? (s.latest ? (await latestSeason(team, it.id))?.season ?? null : null);
+    // A forecast's "this season" is the current one (its upcoming event), not the team's last played.
+    const season = s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? CURRENT_SEASON : (await latestSeason(team, it.id))?.season ?? null) : null);
     if (s.latest && season == null) return null;
     const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;

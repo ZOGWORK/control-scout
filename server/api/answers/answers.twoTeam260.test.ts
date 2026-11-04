@@ -197,6 +197,10 @@ describe("the answers", () => {
     const at = await ask("4215 advancement chances at Northeast League Meet");
     expect(at.stat!.headline).toMatchObject({ value: "33%" });
     expect(at.stat!.scope).toContain("Northeast League Meet");
+    // An event named and "this season", either order: the current season's event.
+    for (const q of ["4215 advancement chances this season at Northeast League Meet", "4215 advancement chances at Northeast League Meet this season"]) {
+      expect((await ask(q)).stat?.headline).toMatchObject({ value: "33%" });
+    }
     // A place's events aren't one event: no forecast, never the next event's in its place.
     const q1 = await ask("4215 chance to win an event at New Jersey Qualifier");
     expect(JSON.stringify(q1.stat ?? {})).not.toContain("Northeast League Meet");

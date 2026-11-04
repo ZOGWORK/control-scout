@@ -25,7 +25,7 @@ Three fixes to the two-team and forecast answers from 3.0.7's last review.
 - [teams] Compare names no leader when no team has an OPR
 
 ### Fixes
-- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season. (#628)
+- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season, also when the question names an event ("at <event> this season"). (#628)
 - **Partner OPR at an event.** "Partner with the highest combined OPR at <event>" asked for a season although the event names one; it now reads that event's season, the meetings still that event's only.
 - **Compare with no OPR.** When none of the compared teams has an OPR (counted matches that were all no-shows), the card shows the table and names no leader, instead of the first team under "Highest OPR: –".
 
