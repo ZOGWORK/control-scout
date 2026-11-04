@@ -283,6 +283,8 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     // A name may hold "and": never split into teams (Greptile on #513). Two names are the two-team rule's.
     expect(rewriteQuery("compare nuts and bolts and 4215")?.q).not.toBe("nuts vs bolts vs 4215");
     expect(rewriteQuery("compare hypnotic and bad wolf")?.q).toBe("hypnotic vs bad wolf");
+    // Joined by "and", a number like a year is a team: none dropped.
+    expect(rewriteQuery("compare 4215 and 2024 and 6980")?.q).toBe("4215 vs 2024 vs 6980");
     expect(rewriteQuery("top opr last season")).toMatchObject({ q: "top 10 teams by opr last season", pre: true });
     expect(rewriteQuery("best auto opr in nj 2024-25")?.q).toBe("top 10 teams by auto opr in New Jersey 2024-25");
     expect(rewriteQuery("top opr in narnia last season")).toBeNull(); // no such place: never a list of somewhere else

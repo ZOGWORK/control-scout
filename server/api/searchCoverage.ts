@@ -124,7 +124,10 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   // word between them are the rule below's.
   if ((m = /^(?:compare|comparing|comparison of|compare teams?)\s+(\d{1,6}(?:(?:\s*,\s*|\s+)(?:(?:and|with|&|vs\.?|versus)\s+)?\d{1,6})+)$/.exec(t))) {
     const list = m[1].split(/[^\d]+/).filter(Boolean);
-    if ((list.length > 2 || !/[^\d\s]/.test(m[1])) && list.length <= 4 && new Set(list).size === list.length && !list.some((n) => /^(?:19|20)\d\d$/.test(n))) return { q: list.join(" vs ") };
+    // Bare numbers with only spaces may hold a year ("compare 4215 2024" is 4215's 2024 season); a list joined by
+    // "and" or "vs" names teams.
+    const bare = !/[^\d\s]/.test(m[1]);
+    if ((list.length > 2 || bare) && list.length <= 4 && new Set(list).size === list.length && !(bare && list.some((n) => /^(?:19|20)\d\d$/.test(n)))) return { q: list.join(" vs ") };
   }
   // Two teams side by side, however it's asked.
   if ((m = new RegExp(`^(?:compare|comparing|comparison of|compare teams?)\\s+${TEAM}\\s+(?:and|with|to|&|vs\\.?|versus)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
