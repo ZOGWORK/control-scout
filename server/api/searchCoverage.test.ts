@@ -433,4 +433,15 @@ describe("team facts, the profile and how-it-works answers (260-query list, 11-0
     expect(explainAnswer("how does worlds qualification work")?.card?.lines.at(-1)?.detail).toMatch(/Competition Manual/);
     expect(explainAnswer("how is rating calculated")?.card?.lines.map((l) => l.text).join(" ")).toMatch(/playoff match moves a rating 50% as much/);
   });
+  it("a profile for a season named, with other facts asked, and no region guessed (Greptile on #562)", async () => {
+    for (const q of ["4215 profile 2024-25", "4215 2024-25 profile", "4215 team profile last season"]) {
+      const c = await fact(q);
+      expect(c?.title, q).toBe(`Team profile, ${seasonLabel(S - 1)}`);
+      expect(c?.facts?.find((f) => f.label.startsWith("Record"))?.values, q).toEqual(["20-4-0"]);
+    }
+    expect((await fact("4215 profile 2019-20"))?.none).toBe(`Hypnotic Robotics (4215) has no matches on record in ${seasonLabel(2019)}.`);
+    expect((await fact("4215 school and profile"))?.facts?.some((f) => f.label === "School or organization")).toBe(true);
+    // No FIRST region stored: the region is unknown, never read off the address.
+    expect((await fact("23268 region"))?.none).toMatch(/has no region/);
+  });
 });

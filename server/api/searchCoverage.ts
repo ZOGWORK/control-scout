@@ -797,12 +797,12 @@ async function completedSeason(): Promise<number> {
 }
 
 /** A team's FIRST home region, named: "USNJ" for a New Jersey team is "New Jersey"; a region of its own ("USTXHO")
- *  keeps its code beside the state's name. */
+ *  keeps its code beside the state's name. None stored: unknown (a state can hold several regions). */
 function regionText(code: string | null, state: string | null, country: string | null): string | null {
   const iso = country === "USA" ? "US" : country === "Canada" ? "CA" : null;
   const st = state && iso ? stateName(iso, state) : null;
   const named = st && st !== state!.toUpperCase() ? st : null;
-  if (!code) return named;
+  if (!code) return null;
   if (named && iso && code.toUpperCase() === `${iso}${state!.toUpperCase()}`) return named;
   return named ? `${named} (${code})` : code;
 }
@@ -810,7 +810,11 @@ function regionText(code: string | null, state: string | null, country: string |
 /** A team's own facts from FIRST's listing: "4215 school", "where is 4215 from", "4215 rookie year", "4215 website";
  *  its name and region; and its profile ("4215 team profile summary"): the team page's numbers for one season. */
 export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
-  const t = squash(q.toLowerCase().replace(/[?]/g, ""));
+  const raw = squash(q.toLowerCase().replace(/[?]/g, ""));
+  // A season named anywhere ("4215 profile 2024-25", "4215 2024-25 profile", "4215 record this season") is the season of
+  // the card's numbers, and never part of the team's name. "This season" is the latest completed one, "last" the one before.
+  const sm = new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(raw);
+  const t = sm ? squash(raw.replace(sm[0], " ")) : raw;
   const named = /^(?:what(?:'s| is)\s+)?(?:the\s+)?name\s+of\s+(.+)$/.exec(t);
   const said = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
@@ -849,14 +853,17 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const name = nameOf(hit);
   const team = { number, name: teamNameOf(hit.title) };
   // The team page's numbers for one season (seasonStats, ./teams.ts: the same stored row the page reads, nothing
-  // worked out here): the latest completed season, else the team's latest with matches.
+  // worked out here): the season asked, else the latest completed season, else the team's latest with matches.
   const done = await completedSeason();
-  let season = done;
-  let st = await seasonStats(done, number);
-  if (!st?.record.matches) {
+  const asked = !sm ? null : /^(?:this)/.test(sm[1]) ? done : /^(?:last|previous)/.test(sm[1]) ? done - 1 : Number(sm[1].slice(0, 4));
+  let season = asked ?? done;
+  let st = await seasonStats(season, number);
+  if (asked == null && !st?.record.matches) {
     const latest = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [number]);
     st = latest?.s != null ? await seasonStats((season = Number(latest.s)), number) : null;
   }
+  // A season asked that the team didn't play has no numbers: said so, never another season's.
+  if (!st?.record.matches) st = null;
   const S = seasonLabel(season);
   const place = [row.city, row.state, row.country].filter(Boolean).join(", ") || null;
   const region = regionText(row.home_region ?? null, row.state ?? null, row.country ?? null);
@@ -897,15 +904,17 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     const profile: SearchCardFact[] = [
       factOf("name"), factOf("place"), ...(region ? [factOf("region")] : []),
       ...(row.rookie_year ? [{ label: "Rookie year", values: [String(row.rookie_year)], detail: `First season ${seasonLabel(Number(row.rookie_year))}` }] : []),
+      // Anything else asked with it ("4215 school and profile"), each as its own fact.
+      ...facts.filter((f) => !["summary", "name", "place", "region", "rookie"].includes(f)).map(factOf),
       ...numbers,
     ];
-    const why = season === done ? `${S}, the latest completed season` : `${S}, the team's latest season with matches`;
+    const why = asked != null ? `${S}, the season asked` : season === done ? `${S}, the latest completed season` : `${S}, the team's latest season with matches`;
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
       card: {
         kind: "info", title: `Team profile, ${S}`, team, season, facts: profile, related,
         lines: [{ text: read("summary").text!, detail: [row.rookie_year ? `Rookie ${row.rookie_year}` : null, why].filter(Boolean).join(" · "), results: numbers.map((f) => `${f.label.replace(/,.*$/, "")} ${f.values[0]}`), href: `/teams/${hit.ref}?season=${season}` }],
-        ...(st ? {} : { none: `${name} has no matches on record yet, so there are no season numbers.` }),
+        ...(st ? {} : { none: asked != null ? `${name} has no matches on record in ${S}.` : `${name} has no matches on record yet, so there are no season numbers.` }),
       },
       understood: { kind: "team", label: `${name} · team profile, ${S}` },
     });
