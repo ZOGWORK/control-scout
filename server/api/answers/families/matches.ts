@@ -12,6 +12,9 @@
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
+import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
+import { teamPageSql } from "../../../../src/shared/teamPages.js";
+import { get } from "../../../db.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { IntentId } from "../read.js";
@@ -47,6 +50,18 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
     columns: [{ key: "season", label: "Season" }, { key: "record", label: "W-L-T" }, { key: "rate", label: "Win rate", num: true }, { key: "n", label: "Matches", num: true }],
     rows: bySeason(ms).map(([s, xs]) => { const r = record(xs); return { cells: { season: seasonLabel(s), record: recText(r), rate: pct(r), n: xs.length } }; }),
   };
+}
+
+const WIN_RATE_RANK = `World rank by win rate: wins over matches played (a tie counts half), among the season's teams with ${RANKED_MIN_MATCHES} or more matches, as the highest-win-rate list ranks them.`;
+
+/** The team's world rank by win rate in one season (the "highest win rate" list's order), or null when it isn't ranked. */
+async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number } | null> {
+  const rate = "(s.wins + 0.5 * s.ties) * 1.0 / (s.wins + s.losses + s.ties)";
+  const r = await get<{ rank: number; of: number }>(
+    `SELECT rank, of FROM (SELECT s.team, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.opr_np DESC, s.team) rank, COUNT(*) OVER () of
+       FROM team_season_stats s JOIN teams t ON t.number = s.team
+       WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND s.wins + s.losses + s.ties > 0 AND ${teamPageSql("s.team", "t.name")}) WHERE team = ?`, [season, team]);
+  return r ? { rank: Number(r.rank), of: Number(r.of) } : null;
 }
 
 /** Which matches an intent reads: scored ones for scores (the team on the field), counted ones for results. */
@@ -165,13 +180,24 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         blocks.push({ kind: "record", title: "On red", ...red }, { kind: "record", title: "On blue", ...blue },
           { kind: "bars", title: "Win rate by colour", unit: "%", groups: [{ label: "Win rate", items: [{ label: "Red", value: rate(red), tone: "a" }, { label: "Blue", value: rate(blue), tone: "b" }] }] });
       } else blocks.push({ kind: "record", title: "Wins, losses and ties", ...r });
+      // One whole season's record: its win rate, the season and the team's world rank by win rate beside the bar (the
+      // rank is the season's, so it's only shown when nothing narrows the matches).
+      const whole = id === "record" && seasons.length === 1 && !scope.championship && !scope.states && !scope.event && !scope.place && !scope.level && !scope.alliance;
+      const ranked = whole ? await winRateRank(team.number, seasons[0]) : null;
+      if (whole) {
+        blocks.unshift({ kind: "kpis", items: [
+          { label: "Win rate", value: pct(r), sub: `${ms.length} match${ms.length === 1 ? "" : "es"}`, tone: "good" },
+          { label: "Season", value: seasonLabel(seasons[0]) },
+          { label: "World rank by win rate", value: ranked ? `#${ranked.rank.toLocaleString("en-US")}` : "Not ranked", sub: ranked ? `of ${ranked.of.toLocaleString("en-US")} teams` : `under ${RANKED_MIN_MATCHES} matches`, tone: "accent" },
+        ] });
+      }
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));
       if (scope.championship) blocks.push(eventTable(ms, "Worlds events"));
       const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) }
         : id === "total-matches" ? { value: `${ms.length} match${ms.length === 1 ? "" : "es"}`, label: `played${where}`, sub: `${recText(r)} · ${seasonsText(seasons)}` }
         : id === "red-blue-record" ? { value: `${recText(record(ms.filter((m) => m.alliance === "red")))} red · ${recText(record(ms.filter((m) => m.alliance === "blue")))} blue`, label: `${ms.length} matches${where}`, sub: seasonsText(seasons) }
-        : { value: recText(r), label: `${pct(r)} win rate in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) };
-      return { ...base, family: "aggregate", intent: id, title, headline, blocks, definition: RESULT_RULE };
+        : { value: recText(r), label: `${pct(r)} win rate in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, ...(whole ? {} : { sub: seasonsText(seasons) }) };
+      return { ...base, family: "aggregate", intent: id, title, headline, blocks, definition: whole ? `${RESULT_RULE} ${WIN_RATE_RANK}` : RESULT_RULE };
     }
 
     case "average-score": {

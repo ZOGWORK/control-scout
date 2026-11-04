@@ -99,7 +99,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
     const latest = await latestSeason(team, it.id);
     scope.season = latest;
-    if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
+    if (latest != null) scope.seasonWhy = s.latest ? `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.` : `The season is ${seasonLabel(latest)}, the team's latest with matches on record.`;
   }
   return scope;
 }
