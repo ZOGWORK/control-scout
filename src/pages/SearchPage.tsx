@@ -11,7 +11,7 @@
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
@@ -57,6 +57,7 @@ export default function SearchPage() {
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
   // "Did you mean: …" runs the corrected query, as a new search Back returns from.
+  const nav = useNavigate();
   const runFix = (fix: string) => nav(`/search?q=${encodeURIComponent(fix)}`);
   // Each filter change is a step Back can undo.
   const setFilters = (f: PageFilters) => setParams(withFilters(params, f, askedTime));
