@@ -257,12 +257,23 @@ describe("the operator × operand × intent grid", () => {
       const b = await readBoolean(q);
       expect(b?.groups, q).toEqual(kind === "or" ? [[{ team: 4215, neg: false }], [{ team, neg: false }]] : [[{ team: 4215, neg: false }, { team, neg: kind === "not" }]]);
       expect(b?.rest).toBe(intent);
-      const a = await ask(q);
-      expect(a.step, q).not.toBe("recovery");
-      expect(a.stat, q).toBeTruthy();
-      if (!intent || intent === "matches") expect(a.stat?.intent).toBe(`boolean-${kind}`);
-      else if (kind === "not") expect(a.stat?.team?.number).toBe(4215);
-      else expect(["opr-vs", "boolean-compare"]).toContain(a.stat?.intent);
+      // The boolean reader itself answers (never a later reader's rewrite of the query).
+      const a = await booleanAnswer(q, reader, true);
+      expect(a?.stat, q).toBeTruthy();
+      const noSeason = (t = "") => t.replace(/ in \d{4}–\d\d/, "");
+      if (!intent || intent === "matches") expect(a!.stat!.intent).toBe(`boolean-${kind}`);
+      else {
+        // The stat asked, as the first team's own search answers it ("4215 record" alone is the team's card: this season's).
+        const own = (await ask(`4215 ${intent}`)).stat ?? (await ask(`4215 ${intent} this season`)).stat!;
+        if (kind === "not") {
+          expect(a!.stat!.team?.number).toBe(4215);
+          expect([a!.stat!.intent, a!.stat!.title, a!.stat!.headline]).toEqual([own.intent, own.title, own.headline]);
+        } else if (intent === "opr") expect(a!.stat!.intent).toBe("opr-vs");
+        else {
+          expect(a!.stat!.intent).toBe("boolean-compare");
+          expect(noSeason(a!.stat!.title.split(": ")[0])).toBe(noSeason(own.title));
+        }
+      }
     });
   }
 });
