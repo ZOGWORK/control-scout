@@ -277,8 +277,9 @@ const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matc
 const COMPARE_MAX = 4;
 export interface TeamSetQuestion { teams: number[]; season: number | null }
 export function readTeamSet(raw: string): TeamSetQuestion | null {
-  // A bare year in a list of numbers is a team ("4215 6980 2024 compare"); a season is written as one ("2024-25").
-  const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ").replace(/\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
+  // A bare year in a list of numbers is a team ("4215 6980 2024 compare"); a season is written as one ("2024-25") or
+  // named as one ("in 2024", "during 2024").
+  const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ").replace(/(?<!\b(?:in|during|for|from|season|year) )\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
   const { scope, rest: said } = readScope(q);
   if (scope.at || scope.championship || scope.states || scope.level || scope.alliance) return null;
   const rest = said.replace(/\bn(20\d\d)\b/g, "$1");

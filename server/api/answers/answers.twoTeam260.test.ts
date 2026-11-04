@@ -195,6 +195,7 @@ describe("the answers", () => {
     // A bare year in the list is a team; a season is written as one.
     expect(readTeamSet("4215 6980 2024 compare")).toEqual({ teams: [4215, 6980, 2024], season: null });
     expect(readTeamSet("4215 6980 33950 compare 2024-25")).toEqual({ teams: [4215, 6980, 33950], season: 2024 });
+    expect(readTeamSet("4215 6980 33950 compare in 2024")).toEqual({ teams: [4215, 6980, 33950], season: 2024 });
     // Every opponent listed (six here), never cut short.
     const o = await ask("4215 opponents this season");
     expect(o.stat!.blocks[0]).toMatchObject({ kind: "table" });
