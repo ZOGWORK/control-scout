@@ -67,6 +67,10 @@ beforeAll(async () => {
   }
   const rel = (team: number, idx: number) => run("INSERT INTO team_reliability (season, code, team, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio, idx, computed_at) VALUES (?, '', ?, 6, 0, 0, 0, 6, 6, 0, 0, 0, 0, 0, 0.3, 1, 1, ?, 'now')", [S, team, idx]);
   await rel(0, 60); await rel(4215, 84); await rel(6980, 71);
+  // An earlier Worlds (Franklin, last season: rostered, no matches stored) for 4215 and 207, and a state championship.
+  await ev(L, "FTCCMP1FRAN", "FIRST Championship - FIRST Tech Challenge - Franklin Division", "FIRSTChampionship", `${L + 1}-04-17`);
+  await ev(S, "USNJCMP", "New Jersey Championship", "Championship", `${S + 1}-03-01`);
+  for (const [s, code, t] of [[L, "FTCCMP1FRAN", 4215], [L, "FTCCMP1FRAN", 207], [S, "USNJCMP", 4215]] as const) await run("INSERT INTO event_teams (season, code, team) VALUES (?, ?, ?)", [s, code, t]);
   // 4215's next event, with a stored projection.
   const soon = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
   await ev(CURRENT_SEASON, "USNJNEM2", "Northeast League Meet", "LeagueMeet", soon);
@@ -181,11 +185,14 @@ describe("long, conversational queries", () => {
   });
 
   it("says the short form only on the quiet Showing line", async () => {
-    const a = await ask("when was the last time 4215 went worlds");
-    expect(a.card?.kind).toBe("worlds");
-    expect(a.understood?.showing).toBe("4215 worlds appearances");
-    // "last" is what the rule read (the appearances, newest first): never called unread.
-    expect(a.understood?.label).not.toMatch(/isn't part of this answer/);
+    const a = await ask("who did 4215 play with the most this season");
+    expect(a.stat?.intent).toBe("frequent-partner");
+    expect(a.understood?.showing).toBe("4215 most common alliance partner this season");
+    expect(a.understood?.label).not.toMatch(/most common alliance partner this season/);
+    // #630: the trigger is the appearances card with its last trip as the headline; "last" is read, never called unread.
+    const w = await ask("when was the last time 4215 went worlds");
+    expect(w.card).toMatchObject({ kind: "worlds", headline: expect.stringMatching(/^Last went to Worlds in /) });
+    expect(w.understood?.label).not.toMatch(/isn't part of this answer/);
   });
 
   it("keeps a \"like\" that compares (Greptile on #655)", () => {
@@ -198,6 +205,38 @@ describe("long, conversational queries", () => {
 
   it("leaves short queries alone", () => {
     for (const q of ["4215 opr", "4215 worlds appearances", "4215 versus 6980 compare", "hypnotic robotics", "events 4215 went to this season"]) expect(longForm(q)).toBeNull();
+  });
+});
+
+describe("the first or the last time, by a team's name", () => {
+  const label = (s: number) => `${s}–${String(s + 1).slice(2)}`;
+  it.each([
+    ["when was the first time hypnotic robotics went to worlds", "4215", `First went to Worlds in ${label(L)} (Franklin)`],
+    ["when was the last time hypnotic robotics went to worlds", "4215", `Last went to Worlds in ${label(S)} (Edison)`],
+    ["when was the first time enforcers went to worlds", "7149", `First went to Worlds in ${label(S)} (Edison)`],
+    ["when did critical mass first go to worlds?", "207", `First went to Worlds in ${label(L)} (Franklin)`],
+    ["when did first street kids first go to worlds", "33950", `First went to Worlds in ${label(S)} (Edison)`],
+    ["when was the last time 4215 went to states", "4215", `Last went to states in ${label(S)} (New Jersey Championship)`],
+  ])("%s → team %s, \"%s\"", async (q, team, headline) => {
+    const a = await ask(q);
+    expect(a.card?.kind, q).toBe(/states/.test(q) ? "states" : "worlds");
+    expect(a.card?.team?.number).toBe(Number(team));
+    expect(a.card?.headline).toBe(headline);
+    expect(a.understood?.label).not.toMatch(/isn't part of this answer|isn't answered/);
+  });
+
+  it("reads a typo of worlds after the filler is gone", async () => {
+    const a = await ask("when was the first time enforcers went to worldes");
+    expect(a.card).toMatchObject({ kind: "worlds", team: { number: 7149 }, headline: `First went to Worlds in ${label(S)} (Edison)` });
+    expect(a.didYouMean).toMatch(/worlds$/);
+  });
+
+  it("says plainly when there's no trip to name", async () => {
+    const a = await ask("when was the last time bad wolf went to worlds");
+    expect(a.card).toMatchObject({ kind: "worlds", team: { number: 6980 } });
+    expect(a.card?.headline).toBeUndefined();
+    expect(a.card?.none).toMatch(/no last trip to name/);
+    expect(a.understood?.label).not.toMatch(/isn't part of this answer/);
   });
 });
 

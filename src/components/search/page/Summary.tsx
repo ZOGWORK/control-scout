@@ -161,11 +161,13 @@ export function AppearanceCard({ a }: { a: Appearance }) {
 
 /** A team's Worlds or states trips as one answer card: the team's header (from its team page), a card per trip,
  *  newest first (a "when" question reads from the latest). */
-export function AppearancesAnswer({ team, title, heading, apps }: { team?: { number: number; name: string | null }; title: string; heading?: string | null; apps: Appearance[] }) {
+/** `headline`: the trip a "first time" or "last time" question asked about, said first ("First went to Worlds in 2023–24 (Franklin)"). */
+export function AppearancesAnswer({ team, title, heading, headline, apps }: { team?: { number: number; name: string | null }; title: string; heading?: string | null; headline?: string; apps: Appearance[] }) {
   const profile = useTeamProfile(team?.number, useAnswerSeason(null));
   return (
     <AnswerFrame teams={team ? [team] : undefined} profile={profile} title={title} hideTitle={!!heading?.toLowerCase().includes(title.toLowerCase())}
       sub={`${apps.length} ${apps.length === 1 ? "trip" : "trips"} in the team's recorded event history, newest first`} data={{ "data-section": "records" }}>
+      {headline && <p className="mb-3 text-base font-semibold text-foreground" data-headline>{headline}</p>}
       <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
     </AnswerFrame>
   );

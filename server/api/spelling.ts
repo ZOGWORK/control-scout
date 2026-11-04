@@ -164,6 +164,8 @@ function formOfKnown(w: string, keep: Set<string>): boolean {
   const m = /^(.{3,}?)(s|es|ed|d|ing|er|ers|est|ly)$/.exec(w);
   if (!m) return false;
   const stem = m[1];
+  // "worldes" is "worlds" mistyped, not a form of "world": "-es" only follows s, x, z, ch, sh or o.
+  if (m[2] === "es" && keep.has(`${stem}s`) && !/(?:s|x|z|ch|sh|o)$/.test(stem)) return false;
   // "winning" → "win", "placed" → "place", "scouting" → "scout".
   return keep.has(stem) || keep.has(`${stem}e`) || (/(.)\1$/.test(stem) && keep.has(stem.slice(0, -1)));
 }

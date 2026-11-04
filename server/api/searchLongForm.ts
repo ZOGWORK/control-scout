@@ -9,6 +9,7 @@
 const T = String.raw`(?:the\s+)?(?:team\s+)?#?(\d{1,6}|[a-z][a-z0-9 .&'-]*?)`;
 const WORLDS = String.raw`(?:the\s+)?(?:worlds|world\s+championships?|first\s+championship|championship)`;
 /** The verbs a question puts between a team and an event ("went to", "made it to", "qualified for", "competed at"). */
+const STATES = String.raw`(?:the\s+)?(?:states|state\s+championships?|state\s+champs?|state\s+finals?)`;
 const GO = String.raw`(?:went|gone|go|going|been|made\s+it|make\s+it|qualif(?:y|ied)|competed?|attend(?:ed)?|played|play|advanced?)(?:\s+(?:to|for|at|in))?`;
 const PHASE = String.raw`(auto(?:nomous)?|tele-?op|driver(?:\s+controlled)?|end\s?game)`;
 
@@ -30,10 +31,14 @@ const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|curren
 /** Whole-question rules, first match wins: what each long phrasing asks, said as its short form. `$n` are the
  *  captured groups; the scope words after them (a season, a place) are kept by `tail`. */
 const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
-  // Worlds: when, how often, whether, which divisions, how far.
-  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(?:last|latest|most\s+recent|first)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:ever\s+)?${GO}\s+${WORLDS}(.*)$`), // A season or place after it ("… in 2024-25") is read by Worlds divisions, which takes a scope; the appearances
-  // card is every season's.
-  (m) => (m[2].trim() ? `${m[1]} worlds divisions${m[2]}` : `${m[1]} worlds appearances`)],
+  // Worlds and states: when (the first or the last time), how often, whether, which divisions, how far.
+  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(last|latest|most\s+recent|first|earliest)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:ever\s+)?(?:(first|last)\s+)?${GO}\s+(?:(${WORLDS})|(${STATES}))(.*)$`), (m) => {
+    const kind = m[4] ? "worlds" : "states", which = m[1] ?? m[3], tail = m[6];
+    // A season or place after a Worlds question ("… in 2024-25") is read by Worlds divisions, which takes a scope; the
+    // appearances card is every season's, with the first or last trip as its headline.
+    if (tail.trim() && kind === "worlds") return `${m[2]} worlds divisions${tail}`;
+    return `${m[2]} ${which ? `${/^(?:first|earliest)/.test(which) ? "first" : "last"} ` : ""}${kind} appearances${tail}`;
+  }],
   [new RegExp(String.raw`^(?:which|what)\s+(?:worlds\s+)?divisions?\s+(?:has|have|did)\s+${T}\s+(?:ever\s+)?(?:played|play|been|competed?)\s+(?:in\s+)?(?:at\s+)?${WORLDS}(.*)$`), (m) => `${m[1]} worlds divisions${m[2]}`],
   [new RegExp(String.raw`^(?:what\s+(?:is|was)\s+|how\s+(?:far|well)\s+did\s+)${T}\s+(?:best\s+finish|go|do)\s+(?:at|in)\s+${WORLDS}(.*)$`), (m) => `${m[1]} worlds best finish${m[2]}`],
   // Partners and opponents.

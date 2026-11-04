@@ -25,6 +25,8 @@ export interface ParsedQuestion {
   core: string;
   /** "did hypnotic go to worlds in 2025": the year the championship was held in. */
   year: number | null;
+  /** "when was the first time …", "… last worlds appearance": the trip the card's headline names. */
+  which?: "first" | "last";
 }
 
 // The longer names first: "state championship" is one phrase, never "state" and a leftover word.
@@ -41,6 +43,10 @@ const coreOf = (s: string) => squash(s.replace(/['’]s\b/gi, " ").replace(FRAME
  *  team ("when did 2025 go to worlds"). */
 const YEAR = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/i;
 
+/** "the first time", "the last time", "first go", "last worlds appearance": which trip a Worlds or states question asks
+ *  about. Never "first championship" (the FIRST Championship) nor a team's name ("First Street Kids"). */
+const WHICH = /\b(?:the\s+)?(first|earliest|last|latest|most\s+recent)\s+(?:time\b|(?=(?:worlds?|states?|state\s+champ\w*|go|goes|went|made|make|qualified|attended|competed|appearances?)\b))/i;
+
 /** The question `q` asks, or null when it isn't one of these. */
 export function parseQuestion(q: string): ParsedQuestion | null {
   // "when does 4215 play next": its next match.
@@ -52,14 +58,18 @@ export function parseQuestion(q: string): ParsedQuestion | null {
     const core = coreOf(q.replace(next[0], " "));
     return core ? { kind: /match|game/i.test(next[1]) ? "next-match" : "next-event", core, year: null } : null;
   }
+  // "When was the first time …": which trip, and the question without those words (never part of the team's name).
+  const w = WHICH.exec(q);
+  const which = w ? (/^(?:first|earliest)/i.test(w[1]) ? "first" as const : "last" as const) : undefined;
+  const unasked = w ? q.replace(w[0], " ") : q;
   for (const [kind, words] of [["worlds", WORLDS], ["states", STATES]] as const) {
-    if (!words.test(q)) continue;
-    const y = YEAR.exec(q);
-    const core = coreOf((y ? q.replace(y[0], " ") : q).replace(new RegExp(words.source, "gi"), " "));
+    if (!words.test(unasked)) continue;
+    const y = YEAR.exec(unasked);
+    const core = coreOf((y ? unasked.replace(y[0], " ") : unasked).replace(new RegExp(words.source, "gi"), " "));
     // A question needs its frame ("when did … go to worlds", "did … make worlds", "… worlds appearances", "how many
     // times did … go to states"): "worlds" on its own beside a name stays search's ("worlds" is the championship's events).
-    const asked = /\b(?:when|how\s+many|how\s+often|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
-    return core && asked && !OTHER_SEASON.test(core) ? { kind, core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null } : null;
+    const asked = !!w || /\b(?:when|how\s+many|how\s+often|did|does|has|have|was|were|go|went|make|made|qualif\w*|attend\w*|appearances?|history)\b/i.test(q);
+    return core && asked && !OTHER_SEASON.test(core) ? { kind, core: squash(core.replace(/\bappearances?\b|\bhistory\b/gi, " ")), year: y ? Number(y[1]) : null, ...(which ? { which } : {}) } : null;
   }
   // Wins and awards, in a year when one is given ("in 2024": events held that year). A season named any other way
   // ("last season", "2024-25") isn't read here: the question is left to search rather than answered for every season.
@@ -131,17 +141,24 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
       const division = evs.find((e) => e.rank != null && /division/i.test(e.name)) ?? evs.find((e) => /division/i.test(e.name)) ?? evs[0];
       const finals = evs.find((e) => e !== division && !/division/i.test(e.name));
       const line = eventLine(n, division, evs.flatMap((e) => awards.get(`${e.season}|${e.code}`) ?? []));
-      return { year: Number((division.start ?? "").slice(0, 4)) || null, line: finals ? { ...line, results: [...(line.results ?? []), "Played the finals"] } : line };
+      return { year: Number((division.start ?? "").slice(0, 4)) || null, season: division.season, name: division.name, line: finals ? { ...line, results: [...(line.results ?? []), "Played the finals"] } : line };
     });
     const asked = it.year != null ? all_.filter((x) => x.year === it.year) : all_;
     card.lines = asked.map((x) => x.line);
     // "How many times": the count, read first ("State championships · Hypnotic Robotics (4215) · 3 times").
     if (card.lines.length) card.count = card.lines.length;
+    // "When was the first time": that trip, from the records below ("First went to Worlds in 2021–22 (Franklin)").
+    const trip = it.which && asked.length ? (it.which === "first" ? asked[0] : asked[asked.length - 1]) : null;
+    if (trip) {
+      // A Worlds division by its own name ("… - Franklin Division" → "Franklin"); a state championship by the event's.
+      const at = worlds ? /-\s*([^-]+?)\s+Division\s*$/i.exec(trip.name)?.[1] ?? trip.name : trip.name.replace(/\s+-\s+/g, ", ");
+      card.headline = `${it.which === "first" ? "First" : "Last"} went to ${worlds ? "Worlds" : "states"} in ${seasonLabel(trip.season)} (${at})`;
+    }
     if (!card.lines.length) {
       const what = worlds ? "Worlds appearance" : "state championship";
       card.none = it.year != null
         ? `No ${what} in ${it.year} found in ${possessive(who)} recorded event history.`
-        : `No ${what}s found in ${possessive(who)} recorded event history.`;
+        : `No ${what}s found in ${possessive(who)} recorded event history${it.which ? `, so there's no ${it.which} trip to name` : ""}.`;
       // Its other trips when a year was asked; else (Worlds) its state championships, the closest real results.
       if (all_.length) card.closest = all_.map((x) => x.line);
       else if (worlds) {

@@ -167,6 +167,8 @@ export interface SearchCard {
   /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */
   team?: { number: number; name: string | null };
   lines: SearchCardLine[];
+  /** "When was the first (or last) time": that trip in words, from `lines` ("First went to Worlds in 2021–22 (Franklin)"). */
+  headline?: string;
   /** "How many times": how many championships `lines` holds (Worlds and states questions). */
   count?: number;
   /** Nothing found for what was asked, said plainly ("No Worlds appearances found in recorded event history"). */
