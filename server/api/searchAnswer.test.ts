@@ -109,6 +109,19 @@ describe("learning (T30–T35, T65, T67–T69)", () => {
     for (let i = 0; i < 20; i++) await recordClick("gear", team("4215", "Hypnotic Robotics"));
     expect(order(await rerank("gear", hits)).sort()).toEqual(["111", "222", "333"]);
   });
+  it("never picks the team an answer is about: the same question gets the same team, whatever was clicked", async () => {
+    // A misspelt name ("geer") is a close match, so clicks may reorder its results; the answer's team must not move.
+    const about = async () => (await searchAnswer("geer opr")).understood?.label;
+    await setFlag("searchLearning", false, "test");
+    invalidateFlags();
+    const fixed = await about();
+    expect(fixed).toMatch(/Gear Grinders \(111\) · OPR/);
+    await setFlag("searchLearning", true, "test");
+    invalidateFlags();
+    for (let i = 0; i < 50; i++) await recordClick("geer", team("333", "Gear Force"));
+    expect(order((await searchAnswer("geer")).hits)[0]).toBe("333");
+    expect(await about()).toBe(fixed);
+  });
   it("aggregate only: counts by term and result, nothing about who; no network", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     await recordClick("gear", hits[0]);

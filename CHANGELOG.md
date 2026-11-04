@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.2 — 2026-11-03
+## 2.9.3 — 2026-11-03
 
 A team's OPR in search now looks like, and reads the same numbers as,
 its team page.
@@ -28,6 +28,22 @@ its team page.
 ### Search
 - **The OPR answer is the team page's card.** "4215 opr" (and every one-team OPR or phase OPR question) shows Total OPR, Autonomous, TeleOp and Endgame as the team page's tiles: the same names, icons, colours, rank line ("OPR #612 of 8,308 with an OPR · top 8%") and rank bar, from one shared list both pages draw. The value in each tile is in its phase's colour. The yellow band behind the big OPR number is gone, and the card has the team page's plain border and header; the season chip, the rank and the chart stay.
 - **One reader for both.** The card's numbers come from the same function the team page reads its season numbers with, formatted the same way (73 rather than 73.0), so the two can't drift. Nothing is worked out during a search. (#532)
+
+## 2.9.2 — 2026-11-03
+
+How FTC One Search works says plainly what the search does, for people and
+for search engines.
+
+### Highlights
+- [home] FTC One Search page opens with what you can search and how
+- [home] 20 example searches, each checked on the live site
+- [home] "How FTC One Search works" link on Home and on search results
+
+### Search
+- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app (#531).
+- **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
+- **Answers that don't drift.** A question with a misspelt team name ("geer opr") always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
+- **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
 
 ## 2.9.1 — 2026-11-03
 
