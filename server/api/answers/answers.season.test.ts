@@ -124,16 +124,18 @@ describe("how a number changed", () => {
     const a = (await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true })).stat;
     expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2", label: "OPR 144.8 in 2024–25 → 101.6 in 2025–26" } });
   });
-  it("the rating across this season: its earliest stored week, its rating now, the change", async () => {
+  it("the rating across this season: its earliest and last stored weeks, the change, the team page's rating beside", async () => {
     expect(readChange("how much did 4215's rating change this season")).toEqual({ stat: "rating", core: "4215", from: null, to: 2025 });
     const a = (await searchAnswer("how much did 4215's rating change this season", { limit: 25, full: true })).stat;
     expect(a?.title).toBe("Prediction rating change in 2025–26");
     expect(a?.headline).toMatchObject({ value: "−22.4", sub: "3 weeks on record" });
-    expect(a?.headline?.label).toMatch(/^120\.4 \(week of .+\) → 98 \(2025–26 rating now\)$/);
+    expect(a?.headline?.label).toMatch(/^120\.4 \(week of .+\) → 98 \(week of .+\)$/);
+    const k = a?.blocks[0];
+    expect(k?.kind === "kpis" && k.items.map((i) => i.label)).toEqual(["Start", "End", "Change", "Team page rating now"]);
   });
   it("no stored weeks: said so, with the season's rating", async () => {
     const a = (await searchAnswer("how much did 6980's rating change this season", { limit: 25, full: true })).stat;
-    expect(a?.none).toMatch(/No weekly ratings of 6980 Bad Wolf are kept for 2025–26/);
+    expect(a?.none).toMatch(/No weekly ratings of 6980 Bad Wolf are kept for 2025–26.* Its 2025–26 rating on its team page is 50\.1\./);
   });
 });
 

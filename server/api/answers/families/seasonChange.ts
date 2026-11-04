@@ -2,9 +2,9 @@
 //   "how much did 4215's opr improve from last season to this season" → both seasons' OPR (the team page's season
 //     rows), the difference, and the world standing each season (OPR in points is a different game each season, so
 //     the standing is the like-for-like comparison, said so)
-//   "how much did 4215's rating change this season" → the rating in the earliest stored week of the season (the weekly
-//     Rankings snapshots, ranking_snapshots) and the season's rating now (team_season_stats, as the team page shows
-//     it), the difference, and the weeks between
+//   "how much did 4215's rating change this season" → the rating in the earliest and the last stored week of the
+//     season (the weekly Rankings snapshots, ranking_snapshots), the difference, the weeks between, and the team
+//     page's live rating beside them
 // No season named: "this season" is the default season (the latest completed one, ../season.ts), "last season" the one
 // before it.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
@@ -99,31 +99,38 @@ async function seasonsAnswer(c: ChangeQuestion, from: number, team: Team): Promi
   };
 }
 
-/** The rating within one season: its earliest stored week, its rating now, and every stored week between. */
+/** The rating within one season, from the weekly Rankings snapshots alone (one series, so start and end compare): its
+ *  earliest stored week and the season's last (its final standing), and the weeks between. The team page's rating
+ *  today is shown beside it, said to be the engine's live number, which isn't one of the weekly snapshots. */
 async function withinAnswer(season: number, team: Team): Promise<StatAnswer> {
   const S = seasonLabel(season);
-  const [weeks, now] = await Promise.all([
+  const [all_, now] = await Promise.all([
     all<{ week: string; rating: number; rank: number }>("SELECT week, rating, rank FROM ranking_snapshots WHERE season = ? AND team = ? ORDER BY week", [season, team.number]),
     seasonStats(season, team.number),
   ]);
+  // Weeks after the team's last change (the off-season, no matches) repeat the final standing: the first one stays.
+  let last = all_.length - 1;
+  while (last > 0 && Number(all_[last].rating) === Number(all_[last - 1].rating)) last--;
+  const weeks = all_.slice(0, last + 1);
   const base = {
     family: "trend" as const, intent: "rating-change", title: `Prediction rating change in ${S}`, team, scope: [S],
-    definition: `Prediction rating: the engine's points-per-match strength. The start is the team's rating in the earliest week of ${S} kept in the weekly Rankings snapshots (a team is in a week's snapshot once 3 of its matches are rated); the end is its ${S} rating as its team page shows it.${season === searchSeason() ? ` With no other season named, "this season" is ${S}, the latest completed season (its FIRST Championship has finished).` : ""}`,
-    source: `From ${weeks.length} weekly Rankings snapshot${weeks.length === 1 ? "" : "s"} and ${possessive(who(team))} ${S} season numbers`,
+    definition: `Prediction rating: the engine's points-per-match strength, from the weekly Rankings snapshots (a team is in a week's snapshot once 3 of its matches are rated). The start is the earliest week of ${S} kept; the end is the season's last week with a change, its final standing. The team page shows the engine's live ${S} rating, which isn't one of these weekly snapshots, so it is listed beside them and not used for the change.${season === searchSeason() ? ` With no other season named, "this season" is ${S}, the latest completed season (its FIRST Championship has finished).` : ""}`,
+    source: `From ${weeks.length} weekly Rankings snapshot${weeks.length === 1 ? "" : "s"} of ${who(team)}, ${S}`,
   };
-  const end = now?.rating?.np ?? null;
-  if (!weeks.length || end == null) return { ...base, blocks: [], none: end == null ? `${who(team)} has no prediction rating in ${S} on record.` : `No weekly ratings of ${who(team)} are kept for ${S}, so its start of season can't be shown. Its ${S} rating is ${num(end)}.` };
-  const first = weeks[0];
-  const d = Number(end) - Number(first.rating);
+  const live = now?.rating?.np ?? null;
+  if (!weeks.length) return { ...base, blocks: [], none: `No weekly ratings of ${who(team)} are kept for ${S}, so its change over the season can't be shown.${live != null ? ` Its ${S} rating on its team page is ${num(live)}.` : ""}` };
+  const first = weeks[0], end = weeks[weeks.length - 1];
+  const d = Number(end.rating) - Number(first.rating);
   const day = (w: string) => dateRange(w) ?? w;
   return {
     ...base,
-    headline: { value: signed(d), label: `${num(first.rating)} (week of ${day(first.week)}) → ${num(end)} (${S} rating now)`, sub: `${weeks.length} week${weeks.length === 1 ? "" : "s"} on record`, href: teamHref(team.number, season) },
+    headline: { value: signed(d), label: `${num(first.rating)} (week of ${day(first.week)}) → ${num(end.rating)} (week of ${day(end.week)})`, sub: `${weeks.length} week${weeks.length === 1 ? "" : "s"} on record`, href: teamHref(team.number, season) },
     blocks: [
       { kind: "kpis", items: [
         { label: "Start", value: num(first.rating), sub: `Week of ${day(first.week)} · #${first.rank.toLocaleString("en-US")} worldwide` },
-        { label: "End", value: num(end), sub: now?.rating?.rank ? `#${now.rating.rank.toLocaleString("en-US")} worldwide` : S },
+        { label: "End", value: num(end.rating), sub: `Week of ${day(end.week)} · #${end.rank.toLocaleString("en-US")} worldwide` },
         { label: "Change", value: signed(d), tone: d > 0 ? "good" : d < 0 ? "bad" : undefined },
+        ...(live != null ? [{ label: "Team page rating now", value: num(live), sub: now?.rating?.rank ? `#${now.rating.rank.toLocaleString("en-US")} worldwide, live` : "Live", href: teamHref(team.number, season) }] : []),
       ] },
       { kind: "series", title: `Rating by week, ${S}`, points: weeks.map((w) => ({ x: day(w.week), y: Math.round(Number(w.rating) * 10) / 10, note: `#${w.rank.toLocaleString("en-US")} worldwide` })) },
     ],
