@@ -208,7 +208,8 @@ describe("two teams", () => {
     const r = await searchAnswer("Who has a better record, 4215 or 6980", { limit: 25 });
     expect(r.stat!.headline).toMatchObject({ value: "Bad Wolf (6980)", label: "83% win rate against 75%" });
     const w = await searchAnswer("4215 win chance vs 6980", { limit: 25 });
-    expect(w.stat!.headline).toMatchObject({ value: "4215 is stronger" });
+    // No ratings built in a test: the stored ratings said plainly, never a made-up score (the engine's call when built).
+    expect(w.stat!.headline).toMatchObject({ value: "4215 rated higher", label: "by 8.0 points per match" });
     expect(w.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ items: [{ label: "Predict 4215 vs 6980" }, {}] });
   });
   it("opponents and partners, and teams never played", async () => {

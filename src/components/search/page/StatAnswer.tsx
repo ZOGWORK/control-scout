@@ -173,15 +173,15 @@ function Block({ b }: { b: StatBlock }) {
 function OprTiles({ items }: { items: Extract<StatBlock, { kind: "kpis" }>["items"] }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-block="kpis" data-opr-tiles>
-      {OPR_CARDS.map(([k, label, Icon, tone]) => {
-        const it = items.find((i) => i.phase === k);
-        if (!it) return null;
-        return (
-          <StatTile key={k} tone={tone} icon={Icon} label={label}
+      {OPR_CARDS.flatMap(([k, label, Icon, tone]) => {
+        // Two teams' tiles for one phase (a phase side by side) each name their team.
+        const its = items.filter((i) => i.phase === k);
+        return its.map((it, n) => (
+          <StatTile key={`${k}-${n}`} tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
             value={<span className={TONES[tone].text}>{it.value}</span>}
             hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
             bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} />
-        );
+        ));
       })}
     </div>
   );
