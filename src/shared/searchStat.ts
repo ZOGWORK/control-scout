@@ -77,6 +77,8 @@ export interface StatAnswer {
    *  event and season; its card, what it holds). Absent: the page heading is built around `title`. */
   heading?: string;
   team?: { number: number; name: string | null };
+  /** Every team the answer is about, when it's more than `team` (a two-team answer's both sides, `team` first). */
+  teams?: { number: number; name: string | null }[];
   /** What the answer covers, as chips ("FIRST Championship events", "All seasons"). */
   scope: string[];
   /** The one number the question asks for, read first. */

@@ -63,7 +63,7 @@ export default function SearchPage() {
   // A Compare is its own card above the teams, never one of them (nor counted with them).
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
   // The teams the answer already shows get no card of their own under it (each team once), only a profile link.
-  const named = useMemo(() => answerTeams(answer, compares, hits), [answer, compares, hits]);
+  const named = useMemo(() => answerTeams(answer, compares), [answer, compares]);
   const view = useMemo(() => shape(sections, filters, new Set(named)), [sections, filters.when, filters.season, filters.type, named]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
@@ -117,8 +117,8 @@ export default function SearchPage() {
   // team keeps the season badges its card showed; a stat or a Compare already shows its numbers.
   const profiles = named.map((n) => {
     const h = hits.find((x) => x.kind === "team" && !isCompare(x) && Number(x.ref) === n);
-    const own = answer?.stat?.team ?? answer?.card?.team;
-    return { number: n, name: pickNames.get(n) ?? (own?.number === n ? own.name : null), href: h ? hitHref(h) : `/teams/${n}` };
+    const own = [answer?.stat?.team, ...(answer?.stat?.teams ?? []), answer?.card?.team].find((t) => t?.number === n);
+    return { number: n, name: pickNames.get(n) ?? own?.name ?? null, href: h ? hitHref(h) : `/teams/${n}` };
   });
   const profileNumbers = answer?.card && !answer.stat && !compares.length && named.length === 1 ? summaries.get(named[0]) : undefined;
 

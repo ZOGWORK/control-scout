@@ -74,6 +74,14 @@ describe("search results page", () => {
     expect(screen.getByRole("link", { name: /View full comparison/ }).getAttribute("href")).toBe("/compare?teams=4215,23268");
   });
 
+  it("a head-to-head answer names both teams: neither gets a card of its own, both get a profile link", () => {
+    const stat = { family: "two-team", intent: "head-to-head", title: "Their meetings and partnerships", team: { number: 4215, name: "Hypnotic Robotics" }, teams: [{ number: 4215, name: "Hypnotic Robotics" }, { number: 6980, name: "Bad Wolf" }], scope: [], blocks: [], definition: "", source: "" };
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ, USA"), team(6980, "Bad Wolf", "Oradell, NJ, USA")], { stat } as Partial<SearchAnswer>);
+    const { container } = show("/search?q=4215%20vs%206980%20head%20to%20head");
+    expect(container.querySelector('[data-result="team"]')).toBeNull();
+    expect([...container.querySelectorAll("[data-answer-teams] a")].map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["Hypnotic Robotics (4215)", "/teams/4215"], ["Bad Wolf (6980)", "/teams/6980"]]);
+  });
+
   it("shows team badges only from real numbers, and no card shows a web address or nests a control", () => {
     state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ, USA"), team(23268, "Ultraviolet", "Hackettstown, NJ, USA"), ev("USNJNEM6", "P2-8 Northeast League Meet", "2026-12-13")]);
     const { container } = show("/search?q=x");

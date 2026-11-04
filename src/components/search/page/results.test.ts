@@ -15,21 +15,19 @@ describe("Compare links", () => {
 });
 
 describe("answerTeams", () => {
-  const team = (n: number): SearchHit => ({ kind: "team", ref: String(n), title: `${n} Team`, subtitle: "", season: null, href: `/teams/${n}` });
-  const hits = [team(4215), team(6980), team(207)];
   it("a fact or stat answer's team", async () => {
     const { answerTeams } = await import("./results");
-    expect(answerTeams({ card: { team: { number: 4215 } } }, [], hits)).toEqual([4215]);
-    expect(answerTeams({ stat: { family: "single-stat", title: "OPR in 2025–26", team: { number: 4215 } } }, [], hits)).toEqual([4215]);
+    expect(answerTeams({ card: { team: { number: 4215 } } }, [])).toEqual([4215]);
+    expect(answerTeams({ stat: { team: { number: 4215 } } }, [])).toEqual([4215]);
   });
-  it("a two-team answer's other side, named in its title", async () => {
+  it("a two-team answer's both sides, from its teams (its title names neither: \"Their meetings and partnerships\")", async () => {
     const { answerTeams } = await import("./results");
-    expect(answerTeams({ stat: { family: "two-team", title: "4215 vs 6980 head to head", team: { number: 4215 } } }, [], hits)).toEqual([4215, 6980]);
+    expect(answerTeams({ stat: { team: { number: 4215 }, teams: [{ number: 4215 }, { number: 6980 }] } }, [])).toEqual([4215, 6980]);
   });
   it("a Compare's sides; nothing named, nothing hidden", async () => {
     const { answerTeams } = await import("./results");
-    expect(answerTeams(undefined, [cmp("/compare?teams=4215,6980")], hits)).toEqual([4215, 6980]);
-    expect(answerTeams({ card: {} }, [], hits)).toEqual([]);
+    expect(answerTeams(undefined, [cmp("/compare?teams=4215,6980")])).toEqual([4215, 6980]);
+    expect(answerTeams({ card: {} }, [])).toEqual([]);
   });
 });
 
