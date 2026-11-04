@@ -98,8 +98,14 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
     const latest = await latestSeason(team, it.id);
+    // A plain "4215 record" with no match on record is left to search's team answer (its stored season record).
+    if (latest == null && it.id === "record" && !s.latest) return null;
     scope.season = latest;
-    if (latest != null) scope.seasonWhy = `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
+    if (latest != null) scope.seasonWhy = !s.latest
+      ? `The season is ${seasonLabel(latest)}, the team's latest with matches on record.`
+      : latest !== CURRENT_SEASON
+        ? `"This season" here is ${seasonLabel(latest)}: no ${seasonLabel(CURRENT_SEASON)} matches yet, so the team's latest season with matches on record.`
+        : `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
   }
   return scope;
 }
@@ -151,10 +157,9 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // "average winning margin" is titled as asked, not as the plain average margin.
   const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(scope)}`;
-  // "This season" with none of the season in progress played yet reads the team's latest: said in the line itself, so
-  // "record this season" and "record last season" landing on one season never looks like a mistake.
-  const fellBack = it.scope.latest && it.scope.season == null && scope.season != null && scope.season !== CURRENT_SEASON;
-  const label = `${whoOf(team)} · ${title}${fellBack ? ` · no ${seasonLabel(CURRENT_SEASON)} matches yet, so their latest season` : ""}`;
+  // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
+  // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
+  const label = `${whoOf(team)} · ${title}`;
   const section = AWARD_INTENTS.has(it.id) ? "awards" : EVENT_INTENTS.has(it.id) || TREND_INTENTS.has(it.id) ? "history" : "matches";
   const linkSeason = scope.season ?? scope.event?.season;
   const hit: SearchHit = { ...top, section, ...(linkSeason != null ? { linkSeason } : {}), facts: undefined, events: undefined };
@@ -276,7 +281,7 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   const hits: SearchHit[] = row ? [{ ...eventHit(row), section: "playoffs" }] : [];
   return {
     q, hits, pages: opts.pages, step: "deterministic", weak: false,
-    understood: { kind: "question", label: stat?.title ?? label, ...(season != null ? { season } : {}) },
+    understood: { kind: "question", label: stat?.heading ?? stat?.title ?? label, ...(season != null ? { season } : {}) },
     intent: { kind: "stat-winning-alliance", pattern: named ? "[event] winning alliance" : "[season] winning alliance", met: true, understood: [label] },
     ...(stat ? { stat } : {}),
   };

@@ -1,7 +1,7 @@
 // Family 8: a team's awards (the awards table, filtered by the scope clauses: season, event, Worlds, states), as a
 // labelled list or a count.
 //   "Won an event" is two kinds of achievement, never conflated: 1st place (on the event's Winning Alliance: FIRST's
-//   Winner award) and the Inspire Award (1st place Inspire; 2nd and 3rd place Inspire are listed as such, not as wins).
+//   Winner award) and the Inspire Award (1st-place Inspire; 2nd- and 3rd-place Inspire are listed as such, not as wins).
 //   Performance awards are the Winning and Finalist Alliances; individual awards are Dean's List, Compass and
 //   Volunteer; every other award is a judged team award.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
@@ -18,7 +18,7 @@ const kindOf = (type: string) => (PERFORMANCE.has(type) ? "Performance" : INDIVI
 
 interface AwardRow { season: number; code: string; name: string; type: string; placement: number; start: string | null; end: string | null }
 
-const WINS_RULE = "Won an event: two kinds of win, listed apart. 1st place means the team was on the event's Winning Alliance (FIRST's Winning Alliance award); the Inspire Award is the event's top judged award (1st place Inspire). Both from the event's published awards.";
+const WINS_RULE = "Won an event: two kinds of win, listed apart. 1st place means the team was on the event's Winning Alliance (FIRST's Winning Alliance award); the Inspire Award is the event's top judged award (1st-place Inspire). Both from the event's published awards.";
 const KIND_RULE = "Performance awards: Winning and Finalist Alliance. Individual awards: Dean's List, Compass and Volunteer. Every other award is a judged team award. From the events' published awards.";
 
 /** The team's awards in the scope, newest first (one query, on awards_team): all of them, so every count is whole; the
@@ -64,7 +64,7 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
       ...base, family: "awards", intent: id, title,
       headline: { value: count(both.length, "win"), label: `${count(firsts.length, "1st-place finish", "1st-place finishes")} · ${count(inspire.length, "Inspire Award")}`, sub: opts.count ? undefined : "Every one below, newest first" },
       blocks: [
-        { kind: "kpis", items: [{ label: "1st place (Winning Alliance)", value: String(firsts.length), tone: "good" }, { label: "Inspire Award", value: String(inspire.length), tone: "accent" }] },
+        { kind: "kpis", items: [{ label: "1st-place finishes", value: String(firsts.length), sub: "Winning Alliance", tone: "good" }, { label: "Inspire Award", value: String(inspire.length), tone: "accent" }] },
         table(both, team.number, "Each win, labelled"),
       ],
       definition: WINS_RULE,
@@ -75,11 +75,11 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
     const xs = rows.filter((r) => r.type === (inspire ? "Inspire" : "Finalist"));
     const firsts = inspire ? xs.filter((r) => r.placement === 1) : [...new Map(xs.map((r) => [`${r.season}|${r.code}`, r])).values()];
     const title = `${inspire ? "Inspire Awards" : "Finalist finishes"}${where}`;
-    const def = inspire ? "Inspire Award: 1st place Inspire at an event (2nd and 3rd place Inspire are listed and counted apart). From the events' published awards." : "A finalist finish: the team was on the event's Finalist Alliance (one per event). From the events' published awards.";
+    const def = inspire ? "Inspire Award: 1st-place Inspire at an event (2nd- and 3rd-place Inspire are listed and counted apart). From the events' published awards." : "A finalist finish: the team was on the event's Finalist Alliance (one per event). From the events' published awards.";
     if (!xs.length) return { ...base, family: "awards", intent: id, title, blocks: [], definition: def, none: `No ${inspire ? "Inspire Awards" : "finalist finishes"}${where} found for ${who} in the published awards.` };
     return {
       ...base, family: "awards", intent: id, title,
-      headline: { value: count(firsts.length, inspire ? "Inspire Award" : "finalist finish", inspire ? "Inspire Awards" : "finalist finishes"), label: inspire && xs.length > firsts.length ? `plus ${count(xs.length - firsts.length, "2nd or 3rd place Inspire", "2nd or 3rd place Inspires")}` : `at ${count(firsts.length, "event")}` },
+      headline: { value: count(firsts.length, inspire ? "Inspire Award" : "finalist finish", inspire ? "Inspire Awards" : "finalist finishes"), label: inspire && xs.length > firsts.length ? `plus ${count(xs.length - firsts.length, "2nd- or 3rd-place Inspire", "2nd- or 3rd-place Inspires")}` : `at ${count(firsts.length, "event")}` },
       blocks: [table(inspire ? xs : firsts, team.number, "Newest first")], definition: def,
     };
   }
@@ -91,7 +91,18 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
     { kind: "bars", title: id === "award-split" ? "By kind" : "By award", groups: [{ label: "Awards", items: id === "award-split" ? groups.map((g, i) => ({ label: g.k, value: g.xs.length, tone: (["a", "b", "c"] as const)[i] })) : types.slice(0, 8).map((x) => ({ label: awardLabel(x.t, 1).replace(/ Award$/, ""), value: x.n, tone: "a" as const })) }] },
   ];
   if (id === "award-split") blocks.push(...groups.filter((g) => g.xs.length).map((g) => table(g.xs, team.number, `${g.k} awards`)));
-  else blocks.push(table(rows, team.number, "Newest first", true));
+  else {
+    // Every award, grouped by season, newest first: each season's own table (the season is its title, so not a column).
+    const shown = rows.slice(0, 50);
+    for (const season of [...new Set(shown.map((r) => r.season))]) {
+      const xs = shown.filter((r) => r.season === season), all = rows.filter((r) => r.season === season).length;
+      const t = table(xs, team.number, `${seasonLabel(season)} · ${count(all, "award")}`);
+      if (t.kind === "table") t.columns = t.columns.filter((c) => c.key !== "season");
+      blocks.push(t);
+    }
+    const last = blocks[blocks.length - 1];
+    if (rows.length > 50 && last.kind === "table") last.more = `Showing the newest 50 of ${rows.length} awards`;
+  }
   return {
     ...base, family: "awards", intent: id, title,
     headline: { value: count(rows.length, "award"), label: groups.filter((g) => g.xs.length).map((g) => `${g.xs.length} ${g.k.toLowerCase()}`).join(" · "), sub: `at ${count(events, "event")}` },

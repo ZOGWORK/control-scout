@@ -73,7 +73,7 @@ describe("the answer cards", () => {
   it("Worlds in a year it didn't go: says so, and lists its real trips; a team that never went: none, and its state championship", async () => {
     const y = (await searchAnswer("did hypnotic go to worlds in 2025")).card!;
     expect(y.lines).toEqual([]);
-    expect(y.none).toBe("No Worlds appearance in 2025 found in Hypnotic Robotics's recorded event history.");
+    expect(y.none).toBe("No Worlds appearance in 2025 found in Hypnotic Robotics' recorded event history.");
     expect(y.closest!.map((l) => l.text)).toEqual(["2024 FIRST Championship - Edison Division"]);
     // 6980 was listed for a division but never took the field: no appearance (never a made-up one).
     const n = (await searchAnswer("when did bad wolf go to worlds")).card!;
@@ -90,7 +90,7 @@ describe("the answer cards", () => {
     expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX", results: ["Ranked #1", "6-0-0 in quals", "OPR 50.0", "Winning Alliance", "Design 2nd"], href: "/events/2023/USNJCMP?team=4215" });
     // None in a year asked: said plainly, with its real ones under it, and no count.
     const none = (await searchAnswer("did hypnotic go to states in 2025")).card!;
-    expect(none).toMatchObject({ lines: [], none: "No state championship in 2025 found in Hypnotic Robotics's recorded event history." });
+    expect(none).toMatchObject({ lines: [], none: "No state championship in 2025 found in Hypnotic Robotics' recorded event history." });
     expect(none.count).toBeUndefined();
     expect(none.closest!.map((l) => l.text)).toEqual(["New Jersey State Championship"]);
   });
@@ -114,8 +114,8 @@ describe("the answer cards", () => {
     expect(parseQuestion("what events did hypnotic win in 2024")).toEqual({ kind: "wins", core: "hypnotic", year: 2024 });
     expect((await searchAnswer("what events did hypnotic win in 2024")).card!.lines.map((l) => l.text)).toEqual(["Won New Jersey State Championship"]);
     const none = (await searchAnswer("what events did hypnotic win in 2023")).card!;
-    expect(none).toMatchObject({ lines: [], none: "No event wins in 2023 found in Hypnotic Robotics's recorded history." });
-    expect((await searchAnswer("has hypnotic won anything in 2025")).card!.none).toBe("No awards in 2025 found in Hypnotic Robotics's recorded history.");
+    expect(none).toMatchObject({ lines: [], none: "No event wins in 2023 found in Hypnotic Robotics' recorded history." });
+    expect((await searchAnswer("has hypnotic won anything in 2025")).card!.none).toBe("No awards in 2025 found in Hypnotic Robotics' recorded history.");
     for (const q of ["what events did hypnotic win last season", "has hypnotic won anything in 2023-24", "did hypnotic go to worlds last season"]) expect(parseQuestion(q), q).toBeNull();
   });
   it("the first HTML of /search carries the answer: what it shows, the card's records, or its none-found note", async () => {

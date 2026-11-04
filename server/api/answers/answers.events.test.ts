@@ -92,8 +92,17 @@ describe("awards", () => {
     const n = await searchAnswer("1234 event wins", { limit: 25 });
     expect(n.stat!.none).toMatch(/^None found: no 1st-place finishes and no Inspire Awards/);
   });
+  it("1st-place as an adjective, 1st place as a noun, the same everywhere (audit v2.8.9)", async () => {
+    const a = await searchAnswer("Has 4215 ever won an event", { limit: 25 });
+    const k = a.stat!.blocks.find((b) => b.kind === "kpis");
+    expect(k && k.kind === "kpis" && k.items[0]).toMatchObject({ label: "1st-place finishes", sub: "Winning Alliance" });
+    const w = await searchAnswer("ftc decode winning alliance", { limit: 25 });
+    for (const s of [a.stat, w.stat]) expect(JSON.stringify(s)).not.toMatch(/\b(?:1st|2nd|3rd) place (?:Inspire|finish)|\b(?:2nd|3rd) place\b/);
+    const inspire = w.stat!.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award");
+    if (inspire && inspire.kind === "links") for (const i of inspire.items) expect(i.sub).toBe("1st-place Inspire");
+  });
   it("counts and the judged/performance split", async () => {
-    expect((await searchAnswer("4215 Inspire awards count", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 Inspire Award", label: "plus 1 2nd or 3rd place Inspire" });
+    expect((await searchAnswer("4215 Inspire awards count", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 Inspire Award", label: "plus 1 2nd- or 3rd-place Inspire" });
     expect((await searchAnswer("4215 finalist finishes", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 finalist finish" });
     expect((await searchAnswer("4215 total awards", { limit: 25 })).stat!.headline).toMatchObject({ value: "4 awards", label: "1 performance · 3 judged" });
     expect((await searchAnswer("4215 awards at New Jersey Championship", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 awards" });
@@ -114,7 +123,12 @@ describe("winning alliances", () => {
       ["Worlds · Ochoa Division", "Not decided in the data yet"],
     ]);
     // The season's championship events, from the data, as buttons.
-    expect(a.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ title: "Worlds events, 2025–26", items: [{ label: "Edison Division" }, { label: "Ochoa Division" }, { label: "Worlds finals", sub: "finals" }] });
+    expect(a.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ title: "Worlds events, 2025–26", items: [{ label: "Edison Division" }, { label: "Ochoa Division" }, { label: "Worlds finals" }] });
+    // No pill says a word twice ("Worlds finals finals", audit v2.8.9).
+    for (const b of a.stat!.blocks) if (b.kind === "links") for (const i of b.items) expect(`${i.label} ${i.sub ?? ""}`.trim(), i.label).not.toMatch(/\b(\w+) \1\b/i);
+    // The card's heading complements the page's, never repeats it.
+    expect(a.understood!.label).toBe("DECODE 2025–26 FIRST Championship winning alliances");
+    expect(a.stat!.title).toBe("The champions and each division's winners");
   });
   it("a season with no championship results says so, then the latest finished season's champions below it", async () => {
     const a = await searchAnswer("into the deep winning alliance", { limit: 25 });
@@ -136,12 +150,13 @@ describe("winning alliances", () => {
   });
   it("who won a state championship: its winners, each division apart, its Inspire Award and its other seasons", async () => {
     const a = await searchAnswer("who won nj states", { limit: 25 });
-    expect(a.stat!.title).toMatch(/2025–26 winning alliance$/);
+    expect(a.understood!.label).toMatch(/2025–26 winning alliance$/);
+    expect(a.stat!.title).toBe("The winners and their final matches");
     expect(a.stat!.headline).toBeDefined();
     expect(a.stat!.blocks.some((b) => b.kind === "links" && b.title === "Inspire Award")).toBe(true);
     expect(readStatQuestion("who won states")?.id === "winning-alliance" ? (await searchAnswer("who won states", { limit: 25 })).stat : undefined).toBeUndefined();
     // A bare year is when the event was held, as the asks read it: 2026 is the 2025–26 championship, 2025 the one before.
-    expect((await searchAnswer("who won 2026 nj states", { limit: 25 })).stat!.title).toMatch(/2025–26 winning alliance$/);
+    expect((await searchAnswer("who won 2026 nj states", { limit: 25 })).understood!.label).toMatch(/2025–26 winning alliance$/);
     expect((await searchAnswer("who won 2025 nj states", { limit: 25 })).stat).toBeUndefined();
     // "This year" is the current season (2026–27 here, not played): never last season's winners as this year's.
     expect((await searchAnswer("who won nj states this year", { limit: 25 })).stat?.headline).toBeUndefined();
@@ -179,6 +194,9 @@ describe("two teams", () => {
     expect(a.stat!.blocks.find((b) => b.kind === "matches")).toMatchObject({ title: "Meetings, newest first", rows: [{ label: "Q1", result: "W" }] });
     expect(a.stat!.blocks.find((b) => b.kind === "kpis")).toMatchObject({ items: [{ value: "1" }, { value: "0" }, { label: "As partners", value: "2", sub: "0-2-0" }] });
     expect(a.hits.map((h) => h.ref)).toEqual(["4215", "6980"]);
+    // The page names both teams; the card says what it holds (audit v2.8.9: never "4215 vs 6980 head to head" under it).
+    expect(a.understood!.label).toBe("Head to head: Hypnotic Robotics (4215) vs Bad Wolf (6980)");
+    expect(a.stat!.title).toBe("Their meetings and partnerships");
     const n = await searchAnswer("4215 vs 207 head to head", { limit: 25 });
     expect(n.stat!.none).toBe("Hypnotic Robotics (4215) and Critical Mass (207) have never played each other.");
   });

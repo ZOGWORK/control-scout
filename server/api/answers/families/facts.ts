@@ -5,7 +5,7 @@
 // searchCoverage.ts's own answer.) Each season is a different game: a number is only ever set against its own season's.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import type { Region } from "../../../../src/shared/regions.js";
-import { dateRange, num, seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { scheduleRankText, scheduleWord } from "../../../../src/shared/scheduleDifficulty.js";
@@ -120,7 +120,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     if (!p) return { ...b, headline: { value: m.label, label, sub: `On ${own}. The prediction is logged shortly before the match; the match page shows it then.`, href: matchHref(m) } };
     const mine = own === "red" ? p.red_mean : p.blue_mean, theirs = own === "red" ? p.blue_mean : p.red_mean;
     const win = own === "red" ? p.p_red : 1 - p.p_red;
-    return { ...b, headline: { value: `${Math.round(mine)}–${Math.round(theirs)}`, label, sub: `${own === "red" ? "Red" : "Blue"} (${who(team)}'s alliance) ${Math.round(win * 100)}% to win`, href: matchHref(m) },
+    return { ...b, headline: { value: `${Math.round(mine)}–${Math.round(theirs)}`, label, sub: `${own === "red" ? "Red" : "Blue"} (${possessive(who(team))} alliance) ${Math.round(win * 100)}% to win`, href: matchHref(m) },
       blocks: [{ kind: "bars", title: "Predicted scores", groups: [{ label: m.label, items: [{ label: `${own === "red" ? "Red" : "Blue"} (with ${team.number})`, value: Math.round(mine), tone: "a" }, { label: own === "red" ? "Blue" : "Red", value: Math.round(theirs), tone: "b" }] }] }] };
   }
 
@@ -134,7 +134,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     // card and /teams/<n>?season=<s> can't drift apart. Nothing is worked out per request.
     const st = await seasonStats(season, team.number);
     const title = f.id === "opr" ? `OPR in ${S}` : `${PHASE[f.id as keyof typeof PHASE][1]} in ${S}`;
-    const b = base(f.id, title, [S], `${OPR_RULE}${why}`, `From ${who(team)}'s ${S} season numbers`);
+    const b = base(f.id, title, [S], `${OPR_RULE}${why}`, `From ${possessive(who(team))} ${S} season numbers`);
     if (!st || st.opr.np.value == null) return { ...b, none: `${who(team)} has no OPR in ${S} yet.` };
     const of = Number(st.opr.np.of) || 0;
     const ph = [["np", "OPR"], ["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"]] as const;
@@ -155,20 +155,20 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       get<any>("SELECT rating_np, rating_sd, rating_auto, rating_teleop, rating_endgame, rating_pen, rating_matches, rating_rank FROM team_season_stats WHERE team = ? AND season = ?", [team.number, season]),
       get<{ n: number }>("SELECT COUNT(*) n FROM team_season_stats WHERE season = ? AND rating_rank IS NOT NULL", [season]),
     ]);
-    const b = base("rating", `Prediction rating in ${S}`, [S], `The prediction rating is the engine's estimate of the points a team adds to its alliance each match (without penalties), with its ± spread, as Rankings shows it; ranked once ${RANKED_MIN_MATCHES} matches are rated. The phases are its auto, TeleOp and endgame parts; penalty points given away are what its fouls hand the other alliance a match.${why}`, `From ${who(team)}'s ${S} rating`);
+    const b = base("rating", `Prediction rating in ${S}`, [S], `The prediction rating is the engine's estimate of the points a team adds to its alliance each match (without penalties), with its ± spread, as Rankings shows it; ranked once ${RANKED_MIN_MATCHES} matches are rated. The phases are its auto, TeleOp and endgame parts; penalty points given away are what its fouls hand the other alliance per match.${why}`, `From ${possessive(who(team))} ${S} rating`);
     if (!s || s.rating_np == null) return { ...b, none: `${who(team)} has no prediction rating in ${S} yet.` };
     const of = Number(c?.n ?? 0);
     return {
       ...b, headline: { value: `${dp(s.rating_np)} ± ${dp(s.rating_sd)}`, label: s.rating_rank && of ? `#${s.rating_rank} of ${n(of)} worldwide · ${top(s.rating_rank, of)}` : "Not ranked yet", sub: `${s.rating_matches ?? 0} matches rated`, href: `/rankings?season=${season}` },
-      blocks: [{ kind: "kpis", items: [{ label: "Auto", value: dp(s.rating_auto) }, { label: "TeleOp", value: dp(s.rating_teleop) }, { label: "Endgame", value: dp(s.rating_endgame) }, { label: "Penalty points given away", value: dp(s.rating_pen), sub: "a match" }, { label: "Matches rated", value: String(s.rating_matches ?? 0) }] }],
+      blocks: [{ kind: "kpis", items: [{ label: "Auto", value: dp(s.rating_auto) }, { label: "TeleOp", value: dp(s.rating_teleop) }, { label: "Endgame", value: dp(s.rating_endgame) }, { label: "Penalty points given away", value: dp(s.rating_pen), sub: "per match" }, { label: "Matches rated", value: String(s.rating_matches ?? 0) }] }],
     };
   }
 
   if (f.id === "report-card") {
     const rc = await teamReportCards(season, team.number);
-    const b = base("report-card", `Prediction report card, ${S}`, [S], `The engine's live calls on ${who(team)}'s matches, logged before each match: a call is right when the alliance it favoured won (ties and 50/50 calls don't count), and the miss is the alliance's actual score against the predicted one, per robot.${why}`, `From the live calls logged in ${S}`);
+    const b = base("report-card", `Prediction report card, ${S}`, [S], `The engine's live calls on ${possessive(who(team))} matches, logged before each match: a call is right when the alliance it favoured won (ties and 50/50 calls don't count), and the miss is the alliance's actual score against the predicted one, per robot.${why}`, `From the live calls logged in ${S}`);
     const s = rc?.season;
-    if (!s || !s.calls) return { ...b, none: `No live calls on ${who(team)}'s matches in ${S} yet.` };
+    if (!s || !s.calls) return { ...b, none: `No live calls on ${possessive(who(team))} matches in ${S} yet.` };
     const pct = (x: number | null) => (x == null ? "–" : `${Math.round(x * 100)}%`);
     return {
       ...b, headline: { value: `${s.hits} of ${s.decided} right`, label: `${pct(s.decided ? s.hits / s.decided : null)} of decided calls`, sub: `${s.calls} calls, average miss ${dp(s.raw.errAbs)} points a robot` },
@@ -182,7 +182,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
 
   if (f.id === "events-season") {
     const evs = await teamEvents(season, team.number);
-    const b = base("events-season", `Events in ${S}`, [S], "Every event the team is listed for that season, oldest first, with its rank, record and OPR there.", `From ${who(team)}'s ${S} events`);
+    const b = base("events-season", `Events in ${S}`, [S], "Every event the team is listed for that season, oldest first, with its rank, record and OPR there.", `From ${possessive(who(team))} ${S} events`);
     if (!evs.length) return { ...b, none: `${who(team)} has no events in ${S}.` };
     return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: S },
       blocks: [{ kind: "table", title: `Events in ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],
@@ -194,7 +194,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const evs = await all<any>(`SELECT e.season, e.code, e.name, e.type, e.start, e.end, et.rank FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
       WHERE et.team = ? AND e.country = ? AND e.state = ?${f.season != null ? " AND e.season = ?" : ""} AND ${ATTENDED} ORDER BY e.start DESC, e.code`, [team.number, r.country, r.state, ...(f.season != null ? [f.season] : [])]);
     const in_ = f.season != null ? ` in ${seasonLabel(f.season)}` : "";
-    const b = base("events-place", `Events in ${r.name}${in_}`, [r.name, f.season != null ? seasonLabel(f.season) : "All seasons"], `Every event in ${r.name} the team is listed for${in_ || ", every season"}, newest first.`, `From ${who(team)}'s events`);
+    const b = base("events-place", `Events in ${r.name}${in_}`, [r.name, f.season != null ? seasonLabel(f.season) : "All seasons"], `Every event in ${r.name} the team is listed for${in_ || ", every season"}, newest first.`, `From ${possessive(who(team))} events`);
     if (!evs.length) return { ...b, none: `${who(team)} has no events in ${r.name}${in_} on record.` };
     const seasons = new Set(evs.map((e) => Number(e.season)));
     return { ...b, headline: { value: `${evs.length} event${evs.length === 1 ? "" : "s"}`, label: `in ${r.name}, ${seasons.size} season${seasons.size === 1 ? "" : "s"}` },
@@ -209,7 +209,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const AT = seasonLabel(at);
     const where = ev ? shortEvent(ev.name, ev.type) : f.region ? f.region.name : "the world";
     const b = base("opr-vs-average", `OPR vs ${ev ? `the ${where} field` : f.region ? `the ${where}` : "the world"} average, ${AT}`, [AT, ev ? where : f.region?.name ?? "Worldwide"],
-      ev ? "The team's OPR at the event against the average OPR of the teams that played there (without penalties)." : `The team's season OPR against the average season OPR of ${f.region ? `${f.region.name}'s` : "all"} teams with ${RANKED_MIN_MATCHES}+ matches (without penalties). Each season is a different game, so this compares within one season only.${f.season == null ? ` The season is ${AT}, the team's latest with matches.` : ""}`,
+      ev ? "The team's OPR at the event against the average OPR of the teams that played there (without penalties)." : `The team's season OPR against the average season OPR of ${f.region ? `${possessive(f.region.name)}` : "all"} teams with ${RANKED_MIN_MATCHES}+ matches (without penalties). Each season is a different game, so this compares within one season only.${f.season == null ? ` The season is ${AT}, the team's latest with matches.` : ""}`,
       ev ? `From the OPRs at ${where}, ${AT}` : `From the ${AT} season numbers`);
     // At a championship with divisions, the team's own division is its field.
     const own = ev
@@ -230,7 +230,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
 
   if (f.id === "reliability") {
     const r = await teamReliability(season, team.number);
-    const b = base("reliability", `Reliability in ${S}`, [S], `Reliability (0–100, higher = more dependable), from public match data only: no-shows, disqualifications, near-zero matches (under a tenth of a typical alliance share), how much its contribution swings, the penalty points it gives away against the field's, and how far its scores land from the engine's calls. 1.0× is the field's average for each part.${why}`, `From ${who(team)}'s ${S} qualification matches`);
+    const b = base("reliability", `Reliability in ${S}`, [S], `Reliability (0–100, higher = more dependable), from public match data only: no-shows, disqualifications, near-zero matches (under a tenth of a typical alliance share), how much its contribution swings, the penalty points it gives away against the field's, and how far its scores land from the engine's calls. 1.0× is the field's average for each part.${why}`, `From ${possessive(who(team))} ${S} qualification matches`);
     if (!r) return { ...b, none: `No reliability for ${who(team)} in ${S} yet.` };
     const x = (v: number) => `${v.toFixed(2)}×`;
     const pc = (v: number) => `${Math.round(v * 100)}%`;

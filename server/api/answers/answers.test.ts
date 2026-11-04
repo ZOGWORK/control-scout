@@ -68,8 +68,8 @@ describe("what's read as a stat question", () => {
     for (const q of ["4215 seasons played at worlds", "4215 best season in playoffs", "4215 total events on red", "4215 best event finish in playoffs"]) expect(readStatQuestion(q), q).toBeNull();
     expect(readStatQuestion("4215 total events at worlds")).toMatchObject({ id: "total-events", scope: { championship: true } });
   });
-  it("leaves to search what it doesn't answer: a plain record, a season's high scores, an event intent with no event, no team", () => {
-    for (const q of ["4215 record", "4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
+  it("leaves to search what it doesn't answer: a season's high scores, an event intent with no event, no team", () => {
+    for (const q of ["4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
       expect(readStatQuestion(q), q).toBeNull();
     }
   });
@@ -175,9 +175,10 @@ describe("the answers", () => {
     expect(table && table.kind === "table" && table.rows.every((r) => /^\d[\d,]*$/.test(String(r.cells.total)))).toBe(true);
     expect(t.stat!.definition).toMatch(/no total is added up across seasons/);
   });
-  it("\"this season\" with nothing played in the season in progress says so in the line", async () => {
+  it("\"this season\" with nothing played in the season in progress: a clean season heading, the reason in the note", async () => {
     const a = await searchAnswer("4215 record this season", { limit: 25 });
-    expect(a.understood!.label).toMatch(/no 2026–27 matches yet, so their latest season/);
+    expect(a.understood!.label).toBe("Hypnotic Robotics (4215) · Record in 2025–26");
+    expect(a.stat!.definition).toContain(`"This season" here is 2025–26: no 2026–27 matches yet, so the team's latest season with matches on record.`);
   });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });

@@ -77,6 +77,9 @@ export interface StatAnswer {
   intent: string;
   /** "Highest score at Worlds" */
   title: string;
+  /** The page's own heading, when the card's `title` only complements it (a winning-alliance answer's page names the
+   *  event and season; its card, what it holds). Absent: the page heading is built around `title`. */
+  heading?: string;
   team?: { number: number; name: string | null };
   /** What the answer covers, as chips ("FIRST Championship events", "All seasons"). */
   scope: string[];

@@ -12,6 +12,9 @@
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
+import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
+import { teamPageSql } from "../../../../src/shared/teamPages.js";
+import { get } from "../../../db.js";
 import { inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { IntentId } from "../read.js";
@@ -47,6 +50,19 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
     columns: [{ key: "season", label: "Season" }, { key: "record", label: "W-L-T" }, { key: "rate", label: "Win rate", num: true }, { key: "n", label: "Matches", num: true }],
     rows: bySeason(ms).map(([s, xs]) => { const r = record(xs); return { cells: { season: seasonLabel(s), record: recText(r), rate: pct(r), n: xs.length } }; }),
   };
+}
+
+const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches, then most wins, then team number), shown when that list's record for the team is the one above.`;
+
+/** The team's place on the season's win-rate list (leaderboard.ts "win-rate": the stored season numbers, the same
+ *  order), with the record that list holds for it, or null when it isn't ranked. */
+async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number; wins: number; losses: number; ties: number } | null> {
+  const rate = "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))";
+  const r = await get<{ rank: number; of: number; wins: number; losses: number; ties: number }>(
+    `SELECT rank, of, wins, losses, ties FROM (SELECT s.team, s.wins, s.losses, s.ties, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.team) rank, COUNT(*) OVER () of
+       FROM team_season_stats s JOIN teams t ON t.number = s.team
+       WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${rate} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}) WHERE team = ?`, [season, team]);
+  return r ? { rank: Number(r.rank), of: Number(r.of), wins: Number(r.wins), losses: Number(r.losses), ties: Number(r.ties) } : null;
 }
 
 /** Which matches an intent reads: scored ones for scores (the team on the field), counted ones for results. */
@@ -165,13 +181,27 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         blocks.push({ kind: "record", title: "On red", ...red }, { kind: "record", title: "On blue", ...blue },
           { kind: "bars", title: "Win rate by colour", unit: "%", groups: [{ label: "Win rate", items: [{ label: "Red", value: rate(red), tone: "a" }, { label: "Blue", value: rate(blue), tone: "b" }] }] });
       } else blocks.push({ kind: "record", title: "Wins, losses and ties", ...r });
+      // One whole season's record: its win rate, the season and the team's world rank by win rate beside the bar (the
+      // rank is the season's, so it's only shown when nothing narrows the matches).
+      const whole = id === "record" && seasons.length === 1 && !scope.championship && !scope.states && !scope.event && !scope.place && !scope.level && !scope.alliance;
+      const listed = whole ? await winRateRank(team.number, seasons[0]) : null;
+      // The list's rank only beside the same record: one the list counts differently (other events) would rank another rate.
+      const ranked = listed && recText(listed) === recText(r) ? listed : null;
+      if (whole) {
+        blocks.unshift({ kind: "kpis", items: [
+          { label: "Win rate", value: pct(r), sub: `${ms.length} match${ms.length === 1 ? "" : "es"}`, tone: "good" },
+          { label: "Season", value: seasonLabel(seasons[0]) },
+          ...(ranked ? [{ label: "World rank by win rate", value: `#${ranked.rank.toLocaleString("en-US")}`, sub: `of ${ranked.of.toLocaleString("en-US")} teams`, tone: "accent" as const }]
+            : listed ? [] : [{ label: "World rank by win rate", value: "Not ranked", sub: `under ${RANKED_MIN_MATCHES} matches` }]),
+        ] });
+      }
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));
       if (scope.championship) blocks.push(eventTable(ms, "Worlds events"));
       const headline = id === "wins-count" ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) }
         : id === "total-matches" ? { value: `${ms.length} match${ms.length === 1 ? "" : "es"}`, label: `played${where}`, sub: `${recText(r)} · ${seasonsText(seasons)}` }
         : id === "red-blue-record" ? { value: `${recText(record(ms.filter((m) => m.alliance === "red")))} red · ${recText(record(ms.filter((m) => m.alliance === "blue")))} blue`, label: `${ms.length} matches${where}`, sub: seasonsText(seasons) }
-        : { value: recText(r), label: `${pct(r)} win rate in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, sub: seasonsText(seasons) };
-      return { ...base, family: "aggregate", intent: id, title, headline, blocks, definition: RESULT_RULE };
+        : { value: recText(r), label: `${pct(r)} win rate in ${ms.length} match${ms.length === 1 ? "" : "es"}${where}`, ...(whole ? {} : { sub: seasonsText(seasons) }) };
+      return { ...base, family: "aggregate", intent: id, title, headline, blocks, definition: whole ? `${RESULT_RULE} ${WIN_RATE_RANK}` : RESULT_RULE };
     }
 
     case "average-score": {
@@ -185,7 +215,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         const [latest, xs] = seasons[0];
         return {
           ...base, family: "aggregate", intent: id, title,
-          headline: { value: mean(xs.map(np)).toFixed(1), label: `points a match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
+          headline: { value: mean(xs.map(np)).toFixed(1), label: `points per match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
           blocks: [{ kind: "table", title: "Average each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "No penalties", num: true }, { key: "with", label: "With penalties", num: true }, { key: "n", label: "Matches", num: true }],
             rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: mean(ys.map(np)).toFixed(1), with: mean(ys.map((m) => m.own)).toFixed(1), n: ys.length }, strong: s === latest })) }],
           definition: `${def} Each season is a different game, so each season's average is its own and none is pooled across seasons.`,
@@ -195,7 +225,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       for (const m of ms) events.set(`${m.season}|${m.code}`, [...(events.get(`${m.season}|${m.code}`) ?? []), m]);
       return {
         ...base, family: "aggregate", intent: id, title,
-        headline: { value: mean(ms.map(np)).toFixed(1), label: `points a match (no penalties), over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: scope.season != null ? seasonLabel(scope.season) : "All seasons" },
+        headline: { value: mean(ms.map(np)).toFixed(1), label: `points per match (no penalties), over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: scope.season != null ? seasonLabel(scope.season) : "All seasons" },
         blocks: [
           { kind: "kpis", items: [{ label: "With penalties", value: mean(ms.map((m) => m.own)).toFixed(1) }, { label: "Best", value: String(Math.max(...ms.map(np))) }, { label: "Lowest", value: String(Math.min(...ms.map(np))) }] },
           { kind: "series", title: "Average by event", unit: "points", points: [...events.values()].map((xs) => ({ x: xs[0].event, y: Number(mean(xs.map(np)).toFixed(1)), href: eventHref(xs[0].season, xs[0].code, team.number), note: `${xs.length} matches` })) },

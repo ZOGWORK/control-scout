@@ -1,12 +1,13 @@
 // Phrasings that used to end on "no results" (server/api/searchCoverage.ts): each is said the way a reader already
 // answers, or answered on its own. Every number is from the fixture.
 import { beforeAll, describe, expect, it } from "vitest";
-import { migrate, openDb, run, setDb } from "../db";
+import { get, migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
 import { pageMeta } from "../seoMeta";
+import { seasonLabel } from "../../src/shared/format";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -143,13 +144,13 @@ describe("answers on their own", () => {
     // In the order asked.
     for (const q of ["4215 sponsors school", "4215 sponsors, school", "4215 sponsors and school"]) {
       const a = await ask(q);
-      expect(a.card?.title).toBe("Sponsors and School or organization");
+      expect(a.card?.title).toBe("Sponsors and school");
       expect(a.card?.lines.map((l) => l.text.split(":")[0])).toEqual(["Sponsors", "School or organization"]);
       expect(a.card?.lines[1]?.text).toMatch(/Oradell High School/);
     }
-    expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
+    expect((await ask("4215 school, website")).card?.title).toBe("School and website");
     // A two-word fact can come first.
-    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and Website");
+    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and website");
     // A team whose name ends in a fact word is read whole first: "Code Site"'s website, not "Code"'s site and website.
     await run("INSERT INTO teams (number, name, website) VALUES (31010, 'Code', 'https://code.example'), (31011, 'Code Site', 'https://codesite.example')");
     await rebuildSearch();
@@ -270,5 +271,107 @@ describe("a list of teams as a table", () => {
     expect(html).toMatch(/<table aria-label="Teams in New Jersey · best by OPR, [^"]+"><thead><tr><th scope="col">#<\/th><th scope="col">Team<\/th><th scope="col" title="[^"]+">OPR<\/th><th scope="col" title="[^"]+">Auto<\/th><th scope="col" title="Driver-controlled OPR, endgame included[^"]+">TeleOp<\/th><th scope="col" title="[^"]+">Endgame<\/th><th scope="col" title="[^"]+">Pen<\/th><th scope="col" title="[^"]+">W-L-T<\/th><\/tr><\/thead>/);
     expect(html).toContain(`<tr><td>1</td><td><a href="/teams/23268?season=${S}">23268 Ultraviolet</a><br><small>Hackettstown, NJ</small></td><td>157.9</td><td>39.5</td><td>79.0</td><td>10.0</td><td>2.5</td><td>33-17-0</td></tr>`);
     expect(html).toContain("don't add up to the OPR");
+  });
+});
+
+describe("wrong answers from the 92-query probe (11-03)", () => {
+  it("rewrites: three or four teams compared, a season's leaderboard, an event's best score, a rookie list", () => {
+    for (const q of ["compare 4215 6980 23268", "compare 4215 and 6980 and 23268", "compare 4215 6980 and 23268"]) expect(rewriteQuery(q)?.q, q).toBe("4215 vs 6980 vs 23268");
+    expect(rewriteQuery("compare 4215 6980")?.q).toBe("4215 vs 6980");
+    expect(rewriteQuery("compare 4215 2024")).toBeNull(); // a team and a year, never two teams
+    expect(rewriteQuery("compare 1 2 3 4 5")).toBeNull(); // Compare holds four
+    // A name may hold "and": never split into teams (Greptile on #513). Two names are the two-team rule's.
+    expect(rewriteQuery("compare nuts and bolts and 4215")?.q).not.toBe("nuts vs bolts vs 4215");
+    expect(rewriteQuery("compare hypnotic and bad wolf")?.q).toBe("hypnotic vs bad wolf");
+    // Joined by "and", a number like a year is a team: none dropped.
+    expect(rewriteQuery("compare 4215 and 2024 and 6980")?.q).toBe("4215 vs 2024 vs 6980");
+    expect(rewriteQuery("top opr last season")).toMatchObject({ q: "top 10 teams by opr last season", pre: true });
+    expect(rewriteQuery("best auto opr in nj 2024-25")?.q).toBe("top 10 teams by auto opr in New Jersey 2024-25");
+    expect(rewriteQuery("top opr in narnia last season")).toBeNull(); // no such place: never a list of somewhere else
+    expect(rewriteQuery("highest score new jersey championship")).toMatchObject({ q: "highest score at new jersey championship", pre: true });
+    expect(rewriteQuery("nj states highest score")?.q).toBe("highest score at new jersey championship");
+    expect(rewriteQuery("highest score at nj states")?.q).toBe("highest score at new jersey championship");
+    expect(rewriteQuery("highest score at worlds")?.q).toBe("highest score at first championship");
+    expect(rewriteQuery("highest score this season")?.q).not.toMatch(/ at /); // no event named
+    expect(rewriteQuery("4215 highest score")).toBeNull();
+    expect(rewriteQuery("rookie teams new jersey")?.q).toBe("rookie teams in new jersey");
+    expect(rewriteQuery("nj rookie teams")?.q).toBe("rookie teams in new jersey");
+    // An event named with a game's name: that game's season, written as one (Sushil's screenshots, 11-03).
+    expect(rewriteQuery("nj states decode")).toMatchObject({ q: "nj states 2025-26", pre: true });
+    expect(rewriteQuery("decode nj states")?.q).toBe("nj states 2025-26");
+    expect(rewriteQuery("worlds edison division centerstage")?.q).toBe("worlds edison division 2023-24");
+    expect(rewriteQuery("nj states into the deep")?.q).toBe("nj states 2024-25");
+    expect(rewriteQuery("nj states highest score decode")?.q).toBe("highest score at new jersey championship 2025-26");
+    expect(rewriteQuery("highest score at nj states 2024-25")?.q).toBe("highest score at new jersey championship 2024-25");
+    expect(rewriteQuery("what is decode")).toBeNull(); // a game alone is explained, not an event
+    expect(rewriteQuery("4215 decode")?.q).toBe("4215 in DECODE"); // a team's season, as before
+    // "me" is never a place (it read as Maine), and a bare "teams" near me is nearMeAnswer's.
+    expect(rewriteQuery("teams near me")).toBeNull();
+    expect(rewriteQuery("events near me")).toBeNull();
+    expect(rewriteQuery("teams near hackettstown")?.q).toBe("teams in hackettstown");
+  });
+  it("a count of a season named: that season's, never teams named Spark team", async () => {
+    const a = await ask("how many teams 2024");
+    expect(a.card?.title).toBe(`How many teams · ${seasonLabel(2024)}`);
+    expect(a.card?.lines[0].text).toBe(`5 teams registered in ${seasonLabel(2024)}`);
+    expect(a.hits).toEqual([]);
+    expect((await ask("how many teams last season")).card?.title).toBe(`How many teams · ${seasonLabel(CURRENT_SEASON - 1)}`);
+    expect((await ask("how many teams in 2024-25")).card?.title).toBe(`How many teams · ${seasonLabel(2024)}`);
+  });
+  it("a count of events in a bare year: the calendar year, from both seasons, as event searches read it", async () => {
+    // An event held in January 2026 belongs to 2025–26; one in October 2026 to 2026–27. 2026 counts both.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'YEARJAN', 'January Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-01-10', '2026-01-10', 't'), (?, 'YEAROCT', 'October Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-10-10', '2026-10-10', 't')", [S, S + 1]);
+    const held = async (sql: string, args: number[]) => Number((await get<{ n: number }>(`SELECT COUNT(*) n FROM events WHERE ${sql}`, args))?.n);
+    const y = await ask("how many events in 2026");
+    expect(y.card?.title).toBe("How many events · 2026");
+    expect(y.card?.lines[0]).toMatchObject({ text: `${await held("substr(start, 1, 4) = '2026'", [])} events in 2026`, href: "/search?q=events%20in%202026" });
+    expect(y.card?.lines[0].text).not.toBe(`${await held("season = ?", [2026])} events in 2026`);
+    // The current season's spring is the next calendar year: its events count; a season after the current one doesn't.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'YEARNEXT', 'Spring Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, `${CURRENT_SEASON + 1}-02-01`, `${CURRENT_SEASON + 1}-02-01`]);
+    expect((await ask(`how many events in ${CURRENT_SEASON + 1}`)).card?.lines[0].text).toBe(`${await held(`substr(start, 1, 4) = '${CURRENT_SEASON + 1}'`, [])} events in ${CURRENT_SEASON + 1}`);
+    expect((await ask(`how many teams in ${CURRENT_SEASON + 1}`)).card?.title ?? "").not.toMatch(/^How many teams/);
+    // A country's year: counted by country, linked to the event list (the event search reads states, not countries).
+    expect((await ask("how many events in romania in 2026")).card?.lines[0].href).toBe("/events");
+    // A season written as one is that season, January and April included, October not.
+    expect((await ask("how many events in 2025-26")).card?.lines[0].text).toBe(`${await held("season = ?", [S])} events in ${seasonLabel(S)}`);
+  });
+  it("how OPR is calculated: the definition, never a team with 'calculated' in its name", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (30628, 'CALculated Risk', 'Austin', 'TX', 'USA')");
+    await rebuildSearch();
+    const a = await ask("how is opr calculated");
+    expect(a.card).toMatchObject({ kind: "info", title: "OPR: what it is and how it's worked out" });
+    expect(a.hits).toEqual([]);
+  });
+  it("near me: where you are isn't known, said plainly, with no names that happen to match", async () => {
+    for (const q of ["teams near me", "events near me", "events nearby"]) {
+      const a = await ask(q);
+      expect(a.card?.kind, q).toBe("info");
+      expect(a.card?.title, q).toMatch(/^Where you are isn't known/);
+      expect(a.hits, q).toEqual([]);
+    }
+  });
+  it("the bottom of a list: said plainly, with the full ranking linked", async () => {
+    const a = await ask("lowest opr new jersey");
+    expect(a.card).toMatchObject({ kind: "info", title: "Search lists teams from the top, not the bottom" });
+    // The stat asked, lowest first: OPR on the Teams page's season table, never Rankings (which is by prediction rating).
+    expect(a.card?.lines[0]).toMatchObject({ text: "Every ranked team in New Jersey by OPR, lowest first" });
+    expect(a.card?.lines[0].href).toMatch(/^\/teams\?view=season&.*sort=totalPointsNpOpr.*&dir=asc$/);
+    expect((await ask("lowest auto opr")).card?.lines[0].href).toMatch(/sort=autoPointsOpr.*&dir=asc$/);
+    // "Worst teams" is the prediction rating's, as "top teams" is: Rankings, said to be by that rating.
+    const w = await ask("worst teams");
+    expect(w.card?.title).toBe("Search lists teams from the top, not the bottom");
+    expect(w.card?.lines[0]).toMatchObject({ text: "Every ranked team, by prediction rating", href: expect.stringMatching(/^\/rankings\?season=/) });
+    expect((await ask("4215 lowest score")).card?.title).not.toBe("Search lists teams from the top, not the bottom");
+  });
+  it("three teams compared: all three, none dropped", async () => {
+    for (const q of ["compare 4215 6980 23268", "compare 4215, 6980 and 23268", "compare 4215 and 6980 and 23268"]) {
+      expect((await ask(q)).hits[0], q).toMatchObject({ kind: "compare", ref: "4215,6980,23268" });
+    }
+  });
+  it("a past season's leaderboard: that season's numbers", async () => {
+    const a = await ask("top opr in nj 2024-25");
+    // 2024–25: 4215 (120) led New Jersey; the fixture's later season has Ultraviolet first.
+    expect(a.stat?.title).toMatch(new RegExp(`${seasonLabel(2024)}$`));
+    expect(a.stat?.headline?.value).toBe("4215 Hypnotic Robotics");
   });
 });

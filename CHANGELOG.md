@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.7 — 2026-11-03
+## 2.9.7 — 2026-11-04
 
 A team's OPR in search now looks like, and reads the same numbers as,
 its team page.
@@ -28,6 +28,72 @@ its team page.
 ### Search
 - **The OPR answer is the team page's card.** "4215 opr" (and every one-team OPR or phase OPR question) shows Total OPR, Autonomous, TeleOp and Endgame as the team page's tiles: the same names, icons, colours, rank line ("OPR #612 of 8,308 with an OPR · top 8%") and rank bar, from one shared list both pages draw. The value in each tile is in its phase's colour. The yellow band behind the big OPR number is gone, and the card has the team page's plain border and header; the season chip, the rank and the chart stay.
 - **One reader for both.** The card's numbers come from the same function the team page reads its season numbers with, formatted the same way (73 rather than 73.0), so the two can't drift. Nothing is worked out during a search. (#532)
+
+## 2.9.6 — 2026-11-04
+
+FTC One Search answers read more cleanly: names, rates, captions and headings follow one set of wording rules.
+
+### Highlights
+- [fixes] "Hypnotic Robotics'" for a name ending in s, in every answer
+- [fixes] Rates say "per match", and every chart has one plain caption
+- [fixes] One 1st-place spelling, and no "Worlds finals finals" pill
+- [teams] Fact titles read "Where Hypnotic Robotics (4215) is from"
+- [fixes] A card's heading no longer repeats the page heading
+
+### Search
+- **Wording fixes from the v2.8.9 search display audit.** One possessive rule everywhere ("Hypnotic Robotics'", "Bad Wolf's"). Rates read "per match" as Compare has them ("8.4 per match", "points per match"). Charts end with one sentence ("Ranges from 52.4 to 101.6 across 5 values."). "1st-place" is the adjective ("1st-place finishes", "1st-place Inspire") and "1st place" the noun; the Worlds events pill no longer says "Worlds finals finals". A team fact's page title is sentence case with the team named once, in bold ("Where **Hypnotic Robotics (4215)** is from", "Sponsors and school for …"), never "Team 4215 — Where They're From". The head-to-head card is headed "Their meetings and partnerships" and a winning-alliance card "The champions and each division's winners", under page headings that name the teams and event. "This season" before the season in progress has a match now heads the page with the season it answers ("Average score in 2025–26"), the reason in the note. No number changes. (#525)
+
+## 2.9.5 — 2026-11-04
+
+FTC One Search answers "4215 record" and "4215 awards" with full cards, and a team's sponsors, school and hometown read as one team card.
+
+### Highlights
+- [teams] "4215 record" shows the season's record, win rate and rank
+- [teams] "4215 awards" lists every award, grouped by season
+- [teams] Sponsors, school and hometown answers read as one team card
+- [fixes] An Inspire Award is never listed as a 1st place
+
+### Search
+- **"4215 record" answers.** A plain record question gave no answer card, only the team and a Team records link. It now reads the team's latest season with matches: the W-L-T, the win-loss bar, the win rate, the season and the team's world rank by win rate (its place on the season's "top teams by win rate" list: wins over matches played, teams with 3 or more matches, shown when that list holds the same record). The numbers are the team page's: 4215 is 26-6-0 in 2025–26.
+- **"4215 awards" and "awards 4215 has won" answer.** Both gave only the team. They now list every award with its event and date, a table per season, newest first. 1st place (Winning Alliance) and the Inspire Award stay two separate awards; 2nd and 3rd place Inspire are labelled as such.
+- **Listing facts as one team card.** "4215 sponsors", "4215 sponsors and school" and "where is 4215 from" were a thin box of links. They're now one card under the team's name: every sponsor its own bold row, the school and the hometown a bold value with its name small under it, then related questions. Values are shown exactly as FIRST's listing stores them; some school names are already cut short there (4215's is stored as "River Dell Regional High Sch"), and they're never cut further. (#522)
+
+## 2.9.4 — 2026-11-04
+
+How it works shows what the November engine research tried, and why none of it changed a prediction.
+
+### Highlights
+- [predict] Eight new lab notes: every idea tested on the engine in November
+- [predict] Each with its numbers against the current engine, on the same matches
+- [predict] Links to the full research note behind every card
+
+### Predictions
+- **November research in the lab notes.** How it works › Lab notes adds eight cards: three other rating systems (Massey, TrueSkill, Glicko-2), margin-of-victory Elo, a stronger pull toward the average for new robots, forgetting old matches faster or slower, reweighting the match phases, a separate playoff model, how much calibration can still gain, and a neural network. Each says in a line what was tried and why it didn't ship, and its Details give the Brier change on both seasons with the 95% range, next to a link to the full note in docs/engine/research-2026-11. Predictions are unchanged. (#535)
+
+## 2.9.3 — 2026-11-03
+
+Searches that used to give a confident wrong answer now give the right one, or say plainly what search can't do.
+
+### Highlights
+- [teams] "How many teams 2023" counts that season's teams
+- [teams] "Compare 4215 6980 16461" compares all three teams
+- [teams] "Top OPR last season" lists last season's leaders
+- [fixes] "How is OPR calculated" explains OPR, not a team
+- [fixes] "Teams near me" asks for a place, never reads "me" as Maine
+
+### Search
+- **Wrong answers fixed.** A 92-query check against the real data found searches that answered with the wrong thing, usually a team whose name shared a word. Each now answers what was asked (#513):
+  - A count of a named season ("how many teams 2023", "… in 2024-25", "… last season") is that season's count, not teams named "Spark team".
+  - "How is OPR calculated" is the OPR explanation, not the team CALculated Risk.
+  - "Teams near me" and "events near me" say where you are isn't known and suggest adding a place, instead of reading "me" as Maine or listing names with "event" in them.
+  - "Lowest OPR in New Jersey" and "worst teams" say search lists teams from the top, and link the full ranking.
+  - An event's best score without "at" ("highest score new jersey championship", "nj states highest score") is that event's. "NJ states" is New Jersey's championship, never a workshop with NJ in its name, and "worlds" is the FIRST Championship, never a Pre Worlds scrimmage.
+  - Three or four teams compared ("compare 4215 6980 16461", "compare 4215, 6980 and 16461") open Compare with every team, none dropped.
+  - A leaderboard with a season ("top opr last season", "best auto opr in texas 2024-25") is that season's, never the team Top Shelf BGS.
+  - A rookie list without "in" ("rookie teams new jersey", "nj rookie teams") is the place's rookie list.
+  - An event named with a game ("nj states decode", "worlds edison division centerstage", "nj states highest score decode") is that game's season, where it said "No matches found".
+  - A count of events in a bare year ("how many events in 2026") is the events held that calendar year, from either season; a season written as one ("2025-26") is that season.
+  - "Lowest OPR in NJ" links the Teams table sorted by that stat, lowest first.
 
 ## 2.9.2 — 2026-11-03
 

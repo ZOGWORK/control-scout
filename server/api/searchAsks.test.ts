@@ -63,6 +63,7 @@ describe("test 16: each intent returns its stated surface", () => {
   it("4215 record: its record", async () => {
     const a = await ask("4215 record");
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
+    // No match rows here, only the stored season: the team's own record (the record answer needs matches).
     expect(a.hits[0].facts?.find((f) => f.label === "Record")?.value).toBe("26-6-0");
   });
   it("when does 4215 play next: its next match, or plainly none scheduled", async () => {
@@ -259,7 +260,8 @@ describe("who won an event (owner: \"who won nj states\")", () => {
       const a = await ask(q);
       expect(a.step, q).toBe("deterministic");
       expect(a.hits[0], q).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "playoffs" });
-      expect(a.stat?.title, q).toBe("New Jersey Championship 2025–26 winning alliance");
+      expect(a.understood?.label, q).toBe("New Jersey Championship 2025–26 winning alliance");
+      expect(a.stat?.title, q).not.toBe(a.understood?.label);
       expect(a.stat?.headline?.value, q).toBe("23268 Ultraviolet, 6980 Bad Wolf");
       expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award"), q).toMatchObject({ items: [{ label: "23268 Ultraviolet" }] });
     }
