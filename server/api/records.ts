@@ -6,7 +6,7 @@
 // (catalog key → column expression); every value is a bound parameter.
 import type { Response } from "express";
 import { createGzip } from "node:zlib";
-import { EXCLUDED_TYPES, type ConfidenceTier } from "@control-scout/predict-engine";
+import { CONSISTENCY_MIN_MATCHES, EXCLUDED_TYPES, type ConfidenceTier } from "@control-scout/predict-engine";
 import { all } from "../db.js";
 import { registerCache } from "../caches.js";
 import { countryByCode, countryOf } from "../../src/shared/countries.js";
@@ -68,6 +68,12 @@ function scoreCols(r: string): Record<string, string> {
  * exists, otherwise the static pre-event estimate (stats/records.ts fillAdvancementOdds). A projection
  * that lists the team without odds (already qualified elsewhere) stays empty, as the estimate does.
  */
+/**
+ * Swing, Control Scout's consistency stat (the engine's `consistency`, stored by the reliability job): the team's swing at
+ * that event (code) or over its season (''), only from CONSISTENCY_MIN_MATCHES counted matches, as every other table shows it.
+ */
+const swingCol = (code: string) => `(SELECT CASE WHEN tr.contrib_n >= ${CONSISTENCY_MIN_MATCHES} THEN tr.swing END FROM team_reliability tr WHERE tr.season = r.season AND tr.code = ${code} AND tr.team = r.team)`;
+
 const ADVANCEMENT_ODDS = `(CASE WHEN EXISTS (SELECT 1 FROM event_projection_odds pj WHERE pj.season = r.season AND pj.code = r.code AND pj.team = r.team)
   THEN (SELECT pj.p_advance * 100 FROM event_projection_odds pj WHERE pj.season = r.season AND pj.code = r.code AND pj.team = r.team) ELSE r.adv_odds END)`;
 
@@ -82,6 +88,7 @@ function teamEventSource(): Source {
       ...scoreCols("r"),
       predictedWinPctAvg: "r.pred_win_avg", predictedScoreAvg: "r.pred_score_avg", advancementOdds: ADVANCEMENT_ODDS,
       scheduleDifficulty: "r.schedule", scheduleLeft: "r.schedule_left", scheduleOpponents: "r.schedule_opp", schedulePartners: "r.schedule_part",
+      swing: swingCol("r.code"),
     },
     identity: { season: "r.season", team: "r.team", eventCode: "r.code", eventName: "r.event_name", eventType: "r.event_type", eventStart: "r.event_start" },
     tiebreak: "r.team, r.code",
@@ -100,6 +107,7 @@ function teamSeasonSource(): Source {
       ...teamCols("r"), events: "r.events", qualMatchesPlayed: "r.played", wins: "r.wins", losses: "r.losses", ties: "r.ties",
       ...scoreCols("r"),
       predictedWinPctAvg: "r.pred_win_avg", predictedScoreAvg: "r.pred_score_avg",
+      swing: swingCol("''"),
     },
     identity: { season: "r.season", team: "r.team" },
     tiebreak: "r.team",

@@ -486,7 +486,7 @@ function Matches({ d, team, live }: { d: EventDetail; team: number | null; live:
 }
 
 /** Rankings tab columns (FTC Scout's: RS, TBP, played, record, np OPR / AVG / MAX) plus Control Scout's win % and odds. */
-const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "scheduleDifficulty", "totalPointsNpOpr", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
+const RANKING_COLS = ["rank", "rp", "tb1", "qualMatchesPlayed", "wins", "losses", "ties", "scheduleDifficulty", "totalPointsNpOpr", "swing", "totalPointsNpAvg", "totalPointsNpMax", "predictedWinPctAvg", "advancementOdds"];
 const NOTE_NO_RECORDS = "Filters, every stat and CSV export arrive here after the next stats update. Until then, the official ranking:";
 const NOTE_OFFLINE = "You're offline, so here is the ranking saved on this device. Filters, every stat and export need a connection.";
 /** An unofficial event (a scrimmage…): its records are real, but the ratings never learn from them. */
@@ -506,11 +506,14 @@ const EMPTY_COLUMN_NOTES: Partial<Record<string, string>> = {
  *  `refreshKey` is the records table's own: when it reloads the column, the projection behind the note is read again. */
 function RankingNotes({ d, advOdds, refreshKey }: { d: EventDetail; advOdds: boolean; refreshKey: string }) {
   const coverage = rankingCoverage(d.field);
-  if (!coverage && !advOdds) return null;
+  // The Swing column's formula in one line (its header tooltip says the same).
+  const swing = d.field.some((r) => r.swing != null);
+  if (!coverage && !advOdds && !swing) return null;
   return (
     <ul className="mb-3 space-y-1.5 text-xs text-muted-foreground" data-ranking-notes>
       {coverage && <li className="flex items-start gap-2"><Users className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{coverage}</span></li>}
       {advOdds && <AdvOddsBasis season={d.event.season} code={d.event.code} refreshKey={refreshKey} />}
+      {swing && <li className="flex items-start gap-2" data-swing-line><Info className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></span></li>}
     </ul>
   );
 }

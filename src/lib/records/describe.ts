@@ -75,6 +75,7 @@ export function formatStat(def: StatDef | undefined, v: number | string | null |
   if (v == null || v === "") return "—";
   if (typeof v === "string") return v;
   if (def?.percent) return oddsPct(v / 100);
+  if (def?.key === "swing") return `±${v.toFixed(2)}`;
   if (def && (COUNT_KEYS.has(def.key) || def.aggregate === "Tot" || def.aggregate === "Min" || def.aggregate === "Max" || def.category === "Match Scores")) return num(v, 2);
   return num(v, 1);
 }
