@@ -108,6 +108,7 @@ function FactTiles({ facts }: { facts: SearchCardFact[] }) {
       {facts.map((f) => {
         const [icon, tone] = factLook(f.label);
         const many = f.values.length > 1;
+        if (icon === MapPin && f.values.length === 1) return <div key={f.label} data-fact={f.label} className="min-w-0 sm:col-span-2"><LocationTile f={f} /></div>;
         return (
           <div key={f.label} data-fact={f.label} className="min-w-0">
             <StatTile tone={tone} icon={icon}
@@ -119,6 +120,42 @@ function FactTiles({ facts }: { facts: SearchCardFact[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Where a team is from, drawn as a place: a map-like grid with a pin, the place big, and its parts (city, state or
+ *  province, country) as FIRST lists them, each its own chip. Decorative drawing only: the place is the text. */
+function LocationTile({ f }: { f: SearchCardFact }) {
+  const v = f.values[0] ?? "";
+  const parts = v.split(",").map((x) => x.trim()).filter(Boolean);
+  const names = parts.length === 3 ? ["City", "State", "Country"] : parts.length === 2 ? ["City", "Country"] : [];
+  return (
+    <div className="relative isolate overflow-hidden rounded-xl border border-info/30 bg-info/[0.06] p-4" data-location>
+      <svg className="absolute inset-y-0 right-0 -z-10 h-full w-2/3 text-info/20 max-sm:w-full max-sm:opacity-60" viewBox="0 0 200 120" preserveAspectRatio="xMaxYMid slice" aria-hidden>
+        <defs><pattern id="cs-loc-grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="currentColor" strokeWidth="1" /></pattern></defs>
+        <rect width="200" height="120" fill="url(#cs-loc-grid)" />
+        <path d="M0 86 C40 70 70 96 110 78 S170 50 200 62" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" />
+        <circle cx="150" cy="56" r="34" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="150" cy="56" r="18" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+      <span className="flex items-center gap-2 text-sm leading-tight text-muted-foreground">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-info/15 text-info"><MapPin className="size-4" aria-hidden /></span>{f.label}
+      </span>
+      <span className="mt-3 flex items-center gap-3">
+        <span className="grid size-12 shrink-0 place-items-center rounded-full bg-info text-white shadow-sm" aria-hidden><MapPin className="size-6" /></span>
+        <span className="min-w-0 break-words font-display text-3xl font-semibold leading-tight text-foreground max-sm:text-2xl">{v || <span className="text-base font-normal text-muted-foreground">Not in FIRST's listing</span>}</span>
+      </span>
+      {!!names.length && (
+        <span className="mt-3 flex flex-wrap gap-1.5" data-location-parts>
+          {parts.map((x, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-full border border-info/30 bg-card/80 px-2.5 py-0.5 text-xs text-foreground">
+              <span className="text-muted-foreground">{names[i]}</span><b className="font-semibold">{x}</b>
+            </span>
+          ))}
+        </span>
+      )}
+      {f.detail && <span className="mt-2 block break-words text-xs text-muted-foreground">{f.detail}</span>}
     </div>
   );
 }

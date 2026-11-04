@@ -4,7 +4,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
 import { useMemo } from "react";
-import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/searchStat";
+import type { StatAnswer, StatBlock, StatMatchRow, StatRecord } from "../../../shared/searchStat";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
@@ -109,6 +109,7 @@ function Block({ b }: { b: StatBlock }) {
             <span><b className="text-success-text">{b.wins}</b> won</span><span><b className="text-danger-text">{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
             {n > 0 && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
           </p>
+          {b.split && <RecordSplit split={b.split} />}
         </figure>
       );
     }
@@ -127,13 +128,13 @@ function Block({ b }: { b: StatBlock }) {
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
-                <tr>{b.columns.map((c) => { const p = phaseTone(c.label); return <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", p && cn("border-b-2", BORDER[p]))} data-phase={p ?? undefined}>{c.label}</th>; })}</tr>
+                <tr>{b.columns.map((c) => { const p = phaseTone(c.label); return <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== b.columns[0] && "whitespace-nowrap", p && cn("border-b-2", BORDER[p]))} data-phase={p ?? undefined}>{c.label}</th>; })}</tr>
               </thead>
               <tbody>
                 {b.rows.map((r, i) => (
                   <tr key={i} className={cn("border-t border-border", r.strong && "bg-muted/60 font-semibold")}>
                     {b.columns.map((c, j) => (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-top", c.num && "text-right tabular-nums", j === 0 && "min-w-[8rem]")}>
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-top", c.num && "text-right tabular-nums", j === 0 ? "min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5")}>
                         {j === 0 && r.href ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{r.cells[c.key] ?? "–"}</Link> : (r.cells[c.key] ?? "–")}
                       </td>
                     ))}
@@ -187,6 +188,35 @@ function OprTiles({ items }: { items: Extract<StatBlock, { kind: "kpis" }>["item
   );
 }
 
+/** The same record as qualifications and playoffs, a row each: W-L-T, win rate and matches, its own small bar. */
+function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatRecord } }) {
+  const rows: [string, StatRecord][] = [["Qualifications", split.quals], ["Playoffs", split.playoffs]];
+  return (
+    <table className="mt-3 w-full overflow-hidden rounded-lg border border-border text-sm tabular-nums" data-record-split>
+      <thead className="bg-muted/50 text-xs text-muted-foreground">
+        <tr><th scope="col" className="px-3 py-2 text-left font-semibold">Matches</th><th scope="col" className="px-3 py-2 text-right font-semibold">W-L-T</th><th scope="col" className="px-3 py-2 text-right font-semibold">Win rate</th><th scope="col" className="px-3 py-2 text-right font-semibold max-sm:hidden">Played</th></tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, r]) => {
+          const n = r.wins + r.losses + r.ties;
+          const pc = n ? Math.round((100 * r.wins) / n) : 0;
+          return (
+            <tr key={label} className="border-t border-border" data-split={label}>
+              <th scope="row" className="px-3 py-2 text-left font-medium text-foreground">
+                {label}
+                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className="block h-full bg-success" style={{ width: `${pc}%` }} /></span>
+              </th>
+              <td className="px-3 py-2 text-right font-semibold text-foreground">{r.wins}-{r.losses}-{r.ties}</td>
+              <td className="px-3 py-2 text-right text-foreground">{pc}%</td>
+              <td className="px-3 py-2 text-right text-muted-foreground max-sm:hidden">{n}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 function MatchRow({ r }: { r: StatMatchRow }) {
   const tone = r.result === "W" ? "bg-success/15 text-success-text" : r.result === "L" ? "bg-danger/15 text-danger-text" : "bg-muted text-foreground";
   return (
@@ -198,9 +228,9 @@ function MatchRow({ r }: { r: StatMatchRow }) {
             <Link to={r.href} className="font-medium text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{r.label}</Link>
             <span className="tabular-nums"><b className={r.alliance === "red" ? "text-red-alliance-text" : "text-blue-alliance-text"}>{r.ownNp ?? r.own}</b>{r.ownNp != null && r.ownNp !== r.own && <span className="text-[11px] text-muted-foreground"> ({r.own} with penalties)</span>}<span className="text-muted-foreground"> – {r.opp}</span></span>
           </p>
-          <p className="truncate text-xs text-muted-foreground"><Link to={r.event.href} className="hover:text-accent-text hover:underline">{r.event.label}</Link> · {r.season}{r.date ? ` · ${r.date}` : ""}</p>
+          <p className="break-words text-xs text-muted-foreground"><Link to={r.event.href} className="hover:text-accent-text hover:underline">{r.event.label}</Link> · {r.season}{r.date ? ` · ${r.date}` : ""}</p>
           {!!(r.partners?.length || r.opponents?.length) && (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
               {r.partners?.length ? <>With {r.partners.map((p, i) => <span key={p.href}>{i > 0 && ", "}<Link to={p.href} className="hover:text-accent-text hover:underline">{p.label}</Link></span>)}</> : null}
               {r.opponents?.length ? <>{r.partners?.length ? " · " : ""}vs {r.opponents.map((p, i) => <span key={p.href}>{i > 0 && ", "}<Link to={p.href} className="hover:text-accent-text hover:underline">{p.label}</Link></span>)}</> : null}
             </p>
@@ -234,15 +264,13 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
             : <span key={p.i} style={style} title={label} aria-label={label} role="img" className="absolute -translate-x-1/2 -translate-y-1/2 p-1">{dot}</span>;
         })}
       </div>
-      <p className="mt-1 flex justify-between gap-2 text-[11px] tabular-nums text-muted-foreground" aria-hidden>
-        <span className="truncate">{b.points[0].x}</span>{b.points.length > 1 && <span className="truncate text-right">{b.points[b.points.length - 1].x}</span>}
-      </p>
-      <p className="text-[11px] text-muted-foreground">{rangeCaption(lo, hi, pts.length, b.unit)}</p>
+      {/* Every event's full name is in the list below: no cut-off names under the line. */}
+      <p className="mt-1 text-[11px] text-muted-foreground">{rangeCaption(lo, hi, pts.length, b.unit)}</p>
       {/* Every point's value in words too: readable without hovering (phones), and by screen readers. */}
       <ol className="mt-1.5 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2" data-series-values>
         {b.points.map((p, i) => (
-          <li key={i} className="flex min-w-0 items-baseline justify-between gap-2 border-b border-border/60 py-0.5">
-            {p.href ? <Link to={p.href} className="min-w-0 truncate text-muted-foreground hover:text-accent-text hover:underline max-md:min-h-[44px] max-md:leading-[44px] pointer-coarse:min-h-[44px] pointer-coarse:leading-[44px]">{p.x}</Link> : <span className="min-w-0 truncate text-muted-foreground">{p.x}</span>}
+          <li key={i} className="flex min-w-0 items-center justify-between gap-2 border-b border-border/60 py-0.5">
+            {p.href ? <Link to={p.href} className="min-w-0 break-words text-muted-foreground hover:text-accent-text hover:underline max-md:flex max-md:min-h-[44px] max-md:items-center pointer-coarse:flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{p.x}</Link> : <span className="min-w-0 break-words text-muted-foreground">{p.x}</span>}
             <span className="shrink-0 tabular-nums text-foreground">{p.y ?? "–"}{p.note ? <span className="text-muted-foreground"> · {p.note}</span> : null}</span>
           </li>
         ))}
@@ -265,7 +293,7 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
       <div className="space-y-2.5">
         {b.groups.map((g) => (
           <div key={g.label}>
-            {b.groups.length > 1 && <p className="mb-1 truncate text-xs font-medium text-foreground">{g.label}</p>}
+            {b.groups.length > 1 && <p className="mb-1 break-words text-xs font-medium text-foreground">{g.label}</p>}
             <ul className="space-y-1">
               {g.items.map((i) => (
                 <li key={i.label} className="grid grid-cols-[5.5rem_1fr_3.5rem] items-center gap-2 text-xs">

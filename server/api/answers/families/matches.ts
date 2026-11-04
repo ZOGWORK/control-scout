@@ -191,7 +191,11 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         const red = record(ms.filter((m) => m.alliance === "red")), blue = record(ms.filter((m) => m.alliance === "blue"));
         blocks.push({ kind: "record", title: "On red", ...red }, { kind: "record", title: "On blue", ...blue },
           { kind: "bars", title: "Win rate by colour", unit: "%", groups: [{ label: "Win rate", items: [{ label: "Red", value: rate(red), tone: "a" }, { label: "Blue", value: rate(blue), tone: "b" }] }] });
-      } else blocks.push({ kind: "record", title: "Wins, losses and ties", ...r });
+      } else {
+        // Qualifications and playoffs apart, when the matches hold both ("4215 states record": 15-5-0 and 9-7-0).
+        const quals = ms.filter((m) => m.level !== "playoff"), playoffs = ms.filter((m) => m.level === "playoff");
+        blocks.push({ kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) });
+      }
       // One whole season's record: its win rate, the season and the team's world rank by win rate beside the bar (the
       // rank is the season's, so it's only shown when nothing narrows the matches).
       const whole = id === "record" && seasons.length === 1 && !scope.championship && !scope.states && !scope.event && !scope.place && !scope.level && !scope.alliance;
