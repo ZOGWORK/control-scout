@@ -5,13 +5,13 @@
 // searchCoverage.ts's own answer.) Each season is a different game: a number is only ever set against its own season's.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import type { Region } from "../../../../src/shared/regions.js";
-import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, num, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
 import { scheduleRankText, scheduleWord } from "../../../../src/shared/scheduleDifficulty.js";
 import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
-import { ATTENDED, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
+import { ATTENDED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 
@@ -130,21 +130,24 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   const why = f.season == null ? ` The season is ${S}, the team's latest with matches.` : "";
 
   if (f.id === "opr" || f.id in PHASE) {
-    const s = await get<any>(`SELECT opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, matches FROM team_season_stats WHERE team = ? AND season = ?`, [team.number, season]);
+    // The team page's own reader (seasonStats, server/api/teams.ts): the same stored row, ranks and population, so the
+    // card and /teams/<n>?season=<s> can't drift apart. Nothing is worked out per request.
+    const st = await seasonStats(season, team.number);
     const title = f.id === "opr" ? `OPR in ${S}` : `${PHASE[f.id as keyof typeof PHASE][1]} in ${S}`;
     const b = base(f.id, title, [S], `${OPR_RULE}${why}`, `From ${who(team)}'s ${S} season numbers`);
-    if (!s || s.opr_np == null) return { ...b, none: `${who(team)} has no OPR in ${S} yet.` };
-    const of = Number(s.ranked_teams) || 0;
+    if (!st || st.opr.np.value == null) return { ...b, none: `${who(team)} has no OPR in ${S} yet.` };
+    const of = Number(st.opr.np.of) || 0;
     const ph = [["np", "OPR"], ["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"]] as const;
     const key = f.id === "opr" ? "np" : PHASE[f.id as keyof typeof PHASE][0];
-    const v = s[`opr_${key}`], rank = s[`rank_${key}`];
-    const kpis: StatBlock = { kind: "kpis", items: ph.map(([k, label]) => ({ label, value: dp(s[`opr_${k}`]), ...(s[`rank_${k}`] && of ? { sub: `#${n(Number(s[`rank_${k}`]))} of ${n(of)}` } : {}), ...(k === key ? { tone: "accent" as const } : {}) })) };
+    const v = st.opr[key].value, rank = st.opr[key].rank;
+    // Formatted as the team page formats them (num, src/shared/format.ts); each item keeps its rank for the tile's bar.
+    const kpis: StatBlock = { kind: "kpis", items: ph.map(([k, label]) => ({ label, value: num(st.opr[k].value), phase: k, rank: st.opr[k].rank, of: st.opr[k].of, ...(st.opr[k].rank && of ? { sub: `#${n(Number(st.opr[k].rank))} of ${n(of)}` } : {}), ...(k === key ? { tone: "accent" as const } : {}) })) };
     const blocks: StatBlock[] = [kpis];
     if (f.id === "opr") {
       const evs = await all<any>(`SELECT e.code, e.name, e.type, e.start, s.opr_np FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND s.season = ? AND s.opr_np IS NOT NULL AND s.matches > 0 ORDER BY e.start, e.code`, [team.number, season]);
       if (evs.length) blocks.push({ kind: "series", title: `OPR by event, ${S}`, points: evs.map((e) => ({ x: shortEvent(e.name, e.type), y: Math.round(Number(e.opr_np) * 10) / 10, href: eventHref(season, e.code, team.number), note: dateRange(e.start) ?? undefined })) });
     }
-    return { ...b, headline: { value: dp(v), label: rank && of ? `#${n(Number(rank))} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet", sub: S, href: teamHref(team.number, season) }, blocks };
+    return { ...b, headline: { value: num(v), label: rank && of ? `#${n(Number(rank))} of ${n(of)} worldwide · ${top(rank, of)}` : "Not ranked yet", sub: S, href: teamHref(team.number, season) }, blocks };
   }
 
   if (f.id === "rating") {

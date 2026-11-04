@@ -7,6 +7,9 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readTwoTeam } from "./read";
 import { readTeamFact } from "./families/facts";
+import { seasonStats } from "../teams";
+import { num } from "../../../src/shared/format";
+import type { StatBlock } from "../../../src/shared/searchStat";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -61,6 +64,10 @@ describe("team facts", () => {
   it("OPR and its phases, with the world rank; the prediction rating", async () => {
     const o = (await searchAnswer("4215 OPR", { limit: 25 })).stat!;
     expect(o).toMatchObject({ title: "OPR in 2025–26", headline: { value: "101.6", label: "#616 of 8,375 worldwide · top 8%" } });
+    // Every number on the card is the team page's (seasonStats, the reader /teams/4215 uses), formatted as it formats them.
+    const page = (await seasonStats(2025, 4215))!;
+    const kp = o.blocks.find((b) => b.kind === "kpis") as Extract<StatBlock, { kind: "kpis" }>;
+    expect(kp.items.map((i) => [i.phase, i.value, i.rank, i.of])).toEqual((["np", "auto", "teleop", "endgame"] as const).map((k) => [k, num(page.opr[k].value), page.opr[k].rank, page.opr[k].of]));
     const a = (await searchAnswer("4215 auto OPR", { limit: 25 })).stat!;
     expect(a.headline).toMatchObject({ value: "28.3", label: "#900 of 8,375 worldwide · top 11%" });
     const r = (await searchAnswer("4215 prediction rating", { limit: 25 })).stat!;
