@@ -48,7 +48,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
           <li key={a.id} className="flex shrink-0 items-center gap-1">
             {i > 0 && <span aria-hidden className="text-muted-foreground">←</span>}
             <button type="button" onClick={() => jumpTo(a.id)} data-chip={a.season}
-              className="min-h-11 rounded-full border border-border bg-muted/50 px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+              className="min-h-[44px] rounded-full border border-border bg-muted/50 px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
               {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.division ?? "—"}
             </button>
           </li>

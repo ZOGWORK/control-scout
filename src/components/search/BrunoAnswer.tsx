@@ -79,7 +79,7 @@ ${prefer}`;
         <>
           {children && <div className="mt-3" data-search-summary>{children}</div>}
           <details className="group mt-2" data-ai-analysis>
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-1 text-sm font-medium text-violet-700 dark:text-violet-300 [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-1 text-sm font-medium text-violet-700 dark:text-violet-300 [&::-webkit-details-marker]:hidden">
               Show AI Analysis<ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             {said}

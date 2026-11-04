@@ -134,7 +134,7 @@ function Lines({ lines, icon: Icon }: { lines: SearchCardLine[]; icon?: LucideIc
             {l.href && <ArrowRight className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden />}
           </>
         );
-        const cls = "group flex min-h-11 items-start gap-3 px-3.5 py-3";
+        const cls = "group flex min-h-[44px] items-start gap-3 px-3.5 py-3";
         return (
           <li key={i} className="border-t border-border first:border-t-0">
             {!l.href ? <div className={cls}>{body}</div>

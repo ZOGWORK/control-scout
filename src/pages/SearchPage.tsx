@@ -246,7 +246,7 @@ export default function SearchPage() {
       )}
       </div>
       <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
-        <Link to="/how-it-works/search" className="font-medium text-accent-text hover:underline">How FTC One Search works</Link>
+        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
   );
@@ -357,7 +357,7 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
     <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>
       <p className="px-1 text-xs font-semibold text-muted-foreground">Team {team}</p>
       <ul className="mt-1.5">
-        {links.map((l) => <li key={l.to}><Link to={l.to} className="flex items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-accent/[0.08] hover:text-accent-text">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
+        {links.map((l) => <li key={l.to}><Link to={l.to} className="flex min-h-[44px] items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-muted/60">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
       </ul>
     </nav>
   );

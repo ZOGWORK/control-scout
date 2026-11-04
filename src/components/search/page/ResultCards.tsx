@@ -90,7 +90,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
         {e.venue && <p className="flex items-start gap-1.5"><MapPin className="mt-px size-3.5 shrink-0" aria-hidden /><span className="min-w-0 break-words" data-venue>{e.venue}</span></p>}
       </div>
       <nav aria-label={`${title}: pages`} className="relative z-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-quick-links>
-        {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center max-md:rounded-full max-md:border max-md:border-border max-md:px-3.5 max-md:text-sm max-md:text-foreground max-md:hover:no-underline">{l.label}</Link>)}
+        {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center max-md:rounded-full max-md:border max-md:border-border max-md:px-3.5 max-md:text-sm max-md:text-foreground max-md:hover:no-underline">{l.label}</Link>)}
         <Link to={hitHref(cur)} onClick={() => onOpen(cur)} tabIndex={-1} aria-hidden className="ml-auto max-sm:hidden"><Cta>View event</Cta></Link>
       </nav>
     </div>
@@ -168,7 +168,7 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
         </span>
       ) : <span className="mt-2 block break-words font-display text-lg font-semibold text-foreground">{h.title}</span>}
       {nums.length > 2 && <span className="mt-2 block text-sm text-foreground/90">{nums.slice(2).map((n) => `${sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? "Team"} (${n})`).join(", ")}</span>}
-      <span className="mt-4 inline-flex min-h-9 items-center gap-1 rounded-lg border border-border bg-secondary px-3 text-sm font-medium text-foreground max-md:min-h-11" data-cta>View comparison<ArrowRight className="size-4" aria-hidden /></span>
+      <span className="mt-4 inline-flex min-h-9 items-center gap-1 rounded-lg border border-border bg-secondary px-3 text-sm font-medium text-foreground max-md:min-h-[44px]" data-cta>View comparison<ArrowRight className="size-4" aria-hidden /></span>
     </Link>
   );
 }
@@ -210,7 +210,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           ))}
         </dl>
       ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
-      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
 }
@@ -221,7 +221,7 @@ const ROW_ICON = { place: MapPin, match: Swords, page: FileText, browse: Compass
 export function ResultRow({ h, icon, sub, onOpen }: { h: SearchHit; icon: keyof typeof ROW_ICON; sub?: boolean; onOpen: () => void }) {
   const Icon = ROW_ICON[icon];
   return (
-    <Link to={hitHref(h)} onClick={onOpen} className={cn("group flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground/90 hover:bg-accent/[0.08] hover:text-foreground", sub && "pl-9")}>
+    <Link to={hitHref(h)} onClick={onOpen} className={cn("group flex min-h-[44px] items-center gap-2.5 px-3 py-2.5 text-sm text-foreground/90 hover:bg-muted/60 hover:text-foreground", sub && "pl-9")}>
       <Icon className={cn("size-4 shrink-0", icon === "place" && !h.href ? "text-accent" : "text-muted-foreground")} aria-hidden />
       <span className="min-w-0 flex-1">
         <span className="line-clamp-2 break-words">{h.title}</span>

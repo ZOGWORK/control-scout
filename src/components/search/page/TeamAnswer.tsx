@@ -17,7 +17,7 @@ import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
-export const TAP = "max-md:min-h-11 pointer-coarse:min-h-11";
+export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
 
 /** The H3 of a part inside an answer card. */
 export const PART = "mb-2 text-sm font-semibold text-foreground";
@@ -194,7 +194,7 @@ function EventRow({ e, team }: { e: TeamEventRow; team: number }) {
   const where = place(e.city, e.state, e.country);
   return (
     <li className="border-t border-border first:border-t-0">
-      <Link to={`/events/${e.season}/${e.code}?team=${team}`} className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 hover:bg-muted/50">
+      <Link to={`/events/${e.season}/${e.code}?team=${team}`} className="flex min-h-[44px] items-center gap-3 px-3.5 py-2.5 hover:bg-muted/50">
         <span className="min-w-0 flex-1">
           <span className="block break-words text-sm font-medium text-foreground">{e.name}</span>
           <span className="block text-xs text-muted-foreground">{[e.start ? dateRange(e.start, e.end) : null, where].filter(Boolean).join(" · ")}</span>
