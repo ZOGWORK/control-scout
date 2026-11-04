@@ -339,7 +339,9 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
   // "Who wins" keeps what the asks gave it (Compare's hit first, Predict first among the pages), with the call as its card.
   const lead = two.id === "predict" ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), scope.season))?.hits.find((h) => h.kind === "compare") : undefined;
-  const pages = two.id === "predict" ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", ...(scope.season != null ? { season: scope.season } : {}), red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
+  // Predict opens on the season the card's call is for.
+  const predictSeasonOf = two.id === "predict" ? scope.season ?? (await predictionSeason(a.number, b.number)).season : null;
+  const pages = predictSeasonOf != null ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: predictSeasonOf, red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
   const answer: SearchAnswer = {
     q, hits: [...(lead ? [lead] : []), { ...ta, section: "matches", facts: undefined, events: undefined }, { ...tb, section: "matches", facts: undefined, events: undefined }], pages, step: "deterministic", weak: false,
     understood: { kind: "question", label: title, ...(scope.season != null ? { season: scope.season } : {}) },
