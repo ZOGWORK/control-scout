@@ -328,7 +328,7 @@ export function AnswerCard({ card, compact, onOpen }: { card: SearchCard; compac
       {/* A list of teams on the full page: one table of their season numbers (./TeamTable.tsx); the dropdown keeps lines. */}
       {!compact && !!card.table?.rows.length ? <div className="mt-2"><TeamTable table={card.table} label={card.title} /></div> : !!shown.length && (
         <>
-          {card.none && <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Closest records</p>}
+          {card.none && <p className="mt-1.5 text-xs font-semibold text-muted-foreground">Closest records</p>}
           {/* Full page: a row per record, divided by lines, how it went as bullets. The dropdown keeps it to a line. */}
           <ul className={cn(compact ? "mt-1 space-y-1 text-xs" : "mt-2 divide-y divide-accent/15 text-sm")}>
             {shown.map((l, i) => (
@@ -488,10 +488,10 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
     <>
       {recentCount > 0 && (
         <div role="group" aria-label="Recent searches">
-          <p className="flex items-center justify-between px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="flex items-center justify-between px-3 pb-1 pt-1.5 text-xs font-semibold text-muted-foreground">
             Recent searches
             <button type="button" onPointerDown={keep} onMouseDown={keep} onClick={clearRecentSearches}
-              className="rounded px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal text-accent-text hover:underline pointer-coarse:min-h-8">Clear</button>
+              className="rounded px-1.5 py-0.5 text-[11px] font-medium text-accent-text hover:underline pointer-coarse:min-h-11">Clear</button>
           </p>
           {suggestions.slice(0, recentCount).map((x, i) => (
             <div key={x.text} {...suggestion(i)} data-recent
@@ -508,7 +508,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             const i = recentCount + j;
             return (
               <span key={x.text} {...suggestion(i)} data-example
-                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-sm:min-h-9", i === active ? "border-accent bg-accent/[0.12]" : "border-border hover:border-accent/60")}>
+                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-md:min-h-11 pointer-coarse:min-h-11", i === active ? "border-accent bg-accent/[0.12]" : "border-border hover:border-accent/60")}>
                 {x.text}
               </span>
             );
@@ -575,7 +575,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                 {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => { if (remember) addRecentSearch(query); go({ ...searchPagePick(query), href }); }} />}
                 {sections.map((s) => (
                   <div key={s.id} role="group" aria-label={s.title}>
-                    <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
+                    <p className={cn("flex items-center gap-1.5 px-3 pb-1 pt-2 text-xs font-semibold", s.id === "ai" ? "text-accent-text" : "text-muted-foreground")}>
                       {s.id === "ai" && <Sparkles className="size-3" />}{s.title}
                       {s.id !== "pages" && s.id !== "browse" && s.id !== "compare" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80" data-count>{groupCount(s, answer)}</span>}
                     </p>

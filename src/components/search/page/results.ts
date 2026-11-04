@@ -80,6 +80,22 @@ export function compareTeams(h: SearchHit): number[] {
   return (compareQuery(h).get("teams") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
 }
 
+/** The teams an answer already names, in order: a fact or stat answer's team, the other side of a two-team answer
+ *  ("4215 vs 6980 head to head": a team hit its title names) and a Compare's sides. The page shows them in the
+ *  answer, so they get no team card of their own under it, only a link on to their scouting profiles. */
+export function answerTeams(answer: { card?: { team?: { number: number } }; stat?: { family: string; title: string; team?: { number: number } } } | undefined, compares: SearchHit[], hits: SearchHit[]): number[] {
+  const out = new Set<number>();
+  const one = answer?.stat?.team ?? answer?.card?.team;
+  if (one) out.add(one.number);
+  const stat = answer?.stat;
+  if (stat?.family === "two-team") {
+    const said = new Set(stat.title.match(/\d+/g) ?? []);
+    for (const h of hits) if (h.kind === "team" && !isCompare(h) && said.has(h.ref)) out.add(Number(h.ref));
+  }
+  for (const c of compares) for (const n of compareTeams(c)) out.add(n);
+  return [...out];
+}
+
 /** The season a Compare's link asks for (/compare?teams=…&season=2024), or null for the current one. */
 export function compareSeason(h: SearchHit): number | null {
   const s = Number(compareQuery(h).get("season"));

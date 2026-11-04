@@ -68,7 +68,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
         <div role="group" aria-label={`${title}: season`} className="relative z-10 mb-2 flex flex-wrap gap-1" data-season-tabs>
           {seasons.map((x) => (
             <button key={x.ref} type="button" aria-pressed={x.ref === cur.ref} onClick={() => setPick(x.ref)}
-              className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums", x.ref === cur.ref ? "bg-accent text-accent-ink" : "bg-muted text-muted-foreground hover:text-foreground")}>
+              className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums max-md:min-h-11 max-md:px-3 max-md:text-xs pointer-coarse:min-h-11 pointer-coarse:px-3", x.ref === cur.ref ? "bg-accent text-accent-ink" : "bg-muted text-muted-foreground hover:text-foreground")}>
               {x.season != null ? seasonLabel(x.season) : "—"}
             </button>
           ))}
@@ -98,7 +98,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
 }
 
 /** A team's season numbers, each only when the data has it (never a placeholder). */
-export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) {
+export function TeamBadges({ summary, className }: { summary: SeasonSummary | undefined; className?: string }) {
   if (!summary) return null;
   const { s, season } = summary;
   const badges: { label: string; value: string }[] = [];
@@ -108,7 +108,7 @@ export function TeamBadges({ summary }: { summary: SeasonSummary | undefined }) 
   else if (s.lastEvent) badges.push({ label: "Last event", value: s.lastEvent.name });
   if (!badges.length) return null;
   return (
-    <span className="mt-1.5 flex flex-wrap gap-1" data-badges>
+    <span className={cn("mt-1.5 flex flex-wrap gap-1", className)} data-badges>
       {badges.map((b) => (
         <span key={b.label} className="inline-flex max-w-full items-baseline gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] max-md:rounded-full max-md:bg-muted max-md:px-2 max-md:text-xs">
           <span className="shrink-0 text-muted-foreground">{b.label}</span><span className="min-w-0 break-words font-semibold tabular-nums text-foreground">{b.value}</span>
@@ -133,6 +133,31 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
       </span>
       <span className="shrink-0 self-center max-sm:hidden"><Cta>View scouting profile</Cta></span>
     </div>
+  );
+}
+
+/** A small text link that is an action: 44px tall on phones and touch screens, today's size with a mouse. */
+const ACTION_LINK = "inline-flex items-center gap-1 text-xs font-semibold text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-11";
+
+/** Under an answer that names its teams (a fact, a stat, a Compare, a head-to-head): one small row on to their
+ *  scouting profiles, in place of a team card that would repeat them. `numbers`: a fact answer's one team also shows
+ *  the season badges its card had, so a short answer keeps them. */
+export function AnswerTeams({ teams, numbers }: { teams: { number: number; name: string | null; href: string }[]; numbers?: SeasonSummary }) {
+  if (!teams.length) return null;
+  return (
+    <nav aria-label="Scouting profiles" className="-mt-2 mb-5 flex flex-wrap items-center gap-x-4 gap-y-1" data-answer-teams>
+      {teams.length === 1 ? (
+        <>
+          {numbers && <TeamBadges summary={numbers} className="mt-0" />}
+          <Link to={teams[0].href} className={ACTION_LINK}>View scouting profile<ArrowRight className="size-3.5" aria-hidden /></Link>
+        </>
+      ) : (
+        <>
+          <span className="text-xs text-muted-foreground">Scouting profiles</span>
+          {teams.map((t) => <Link key={t.number} to={t.href} className={ACTION_LINK}>{t.name ? `${t.name} (${t.number})` : `Team ${t.number}`}<ArrowRight className="size-3.5" aria-hidden /></Link>)}
+        </>
+      )}
+    </nav>
   );
 }
 
@@ -182,7 +207,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   const shown = rows.filter(([, f]) => sides.some(({ s }) => s && f(s) != null));
   return (
     <aside aria-label="Head-to-head summary" className="rounded-xl border border-border bg-card p-4" data-head-to-head>
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"><ArrowLeftRight className="size-3.5 text-accent" aria-hidden />Head-to-head</p>
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><ArrowLeftRight className="size-3.5 text-accent" aria-hidden />Head-to-head</p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         {sides.map(({ n, s }) => (
           <div key={n} className="min-w-0">
@@ -201,7 +226,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           ))}
         </dl>
       ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
-      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline pointer-coarse:min-h-11">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
 }

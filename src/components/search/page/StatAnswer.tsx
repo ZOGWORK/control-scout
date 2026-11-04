@@ -9,7 +9,7 @@ import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
 
-const H3 = "mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
+const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
 export function StatAnswerCard({ stat }: { stat: StatAnswer }) {
   return (
@@ -33,7 +33,7 @@ export function StatAnswerCard({ stat }: { stat: StatAnswer }) {
       <footer className="mt-4 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground" data-definition>
         <p><span className="font-medium text-foreground">How this is counted: </span>{stat.definition}</p>
         <p data-source>{stat.source}.</p>
-        {stat.more && <p><Link to={stat.more.href} className="text-[11px] text-accent-text hover:underline" data-more>{stat.more.label}</Link></p>}
+        {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-[11px] text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-11" data-more>{stat.more.label}</Link></p>}
       </footer>
     </section>
   );
@@ -134,7 +134,7 @@ function Block({ b }: { b: StatBlock }) {
           {b.items.length ? (
             <ul className="flex flex-wrap gap-2">
               {b.items.map((l) => (
-                <li key={l.href}><Link to={l.href} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-accent/60 hover:text-accent-text">{l.label}{l.sub && <span className="text-[11px] font-normal text-muted-foreground">{l.sub}</span>}<ArrowRight className="size-3.5 text-muted-foreground" aria-hidden /></Link></li>
+                <li key={l.href}><Link to={l.href} className="inline-flex min-h-9 max-md:min-h-11 pointer-coarse:min-h-11 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-accent/60 hover:text-accent-text">{l.label}{l.sub && <span className="text-[11px] font-normal text-muted-foreground">{l.sub}</span>}<ArrowRight className="size-3.5 text-muted-foreground" aria-hidden /></Link></li>
               ))}
             </ul>
           ) : <p className="text-sm text-muted-foreground">{b.none}</p>}
@@ -146,7 +146,7 @@ function Block({ b }: { b: StatBlock }) {
           <h3 className={H3}>{b.title}</h3>
           <ul className="flex flex-wrap gap-1.5">
             {b.queries.map((q) => (
-              <li key={q}><Link to={`/search?q=${encodeURIComponent(q)}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.06] px-3 text-xs font-medium text-foreground hover:border-accent/60"><Search className="size-3.5 text-accent" aria-hidden />{q}</Link></li>
+              <li key={q}><Link to={`/search?q=${encodeURIComponent(q)}`} className="inline-flex min-h-8 max-md:min-h-11 pointer-coarse:min-h-11 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.06] px-3 text-xs font-medium text-foreground hover:border-accent/60"><Search className="size-3.5 text-accent" aria-hidden />{q}</Link></li>
             ))}
           </ul>
         </nav>
@@ -258,7 +258,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
       <TeamTable table={table} label={b.title} />
-      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
+      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-11" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
     </figure>
   );
 }

@@ -54,13 +54,16 @@ afterEach(() => { cleanup(); state.answer = undefined; state.stale = false; });
 describe("search results page", () => {
   it("puts a Compare in its own section above the teams, not counted as a team", () => {
     const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "Compare side by side", season: 2025, href: "/compare?teams=4215,23268" };
-    state.answer = answer([compare, team(23268, "Ultraviolet", "Hackettstown, NJ, USA"), team(4215, "Hypnotic Robotics", "Oradell, NJ, USA")]);
+    state.answer = answer([compare, team(23268, "Ultraviolet", "Hackettstown, NJ, USA"), team(4215, "Hypnotic Robotics", "Oradell, NJ, USA"), team(6980, "Bad Wolf", "Oradell, NJ, USA")]);
     const { container } = show("/search?q=ultraviolet%20vs%20hypnotic%20history");
     const cmp = container.querySelector('[data-section="compare"]')!;
     const teams = container.querySelector('[data-section="team"]')!;
     expect(cmp.compareDocumentPosition(teams) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(teams.querySelectorAll('[data-result="team"]')).toHaveLength(2);
-    expect(within(teams as HTMLElement).getByText("2")).toBeTruthy();
+    // The Compare's two sides aren't listed again as team cards: one row of profile links instead.
+    expect([...teams.querySelectorAll('[data-result="team"]')].map((c) => c.textContent)).toEqual([expect.stringContaining("6980 | Bad Wolf")]);
+    expect(within(teams as HTMLElement).getByText("1")).toBeTruthy();
+    const profiles = container.querySelector("[data-answer-teams]")!;
+    expect([...profiles.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/teams/4215", "/teams/23268"]);
     const card = within(cmp as HTMLElement).getByRole("link");
     expect(card.getAttribute("href")).toBe("/compare?teams=4215,23268");
     expect(card.textContent).toContain("Hypnotic Robotics (4215)");
@@ -409,18 +412,27 @@ describe("search results page, phone (Part B 3b)", () => {
     expect(loc).toBe("/search");
   });
 
-  it("every season as a chip, and each team card a VS Compare of its own", () => {
+  it("every season as a chip; the team the answer is about gets no card of its own, its pages are in the summary", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 3,
       lines: [worlds("2021–22", "Franklin", 20, 124.8), worlds("2022–23", "Ochoa", 3, 114.8), worlds("2023–24", "Franklin", 10, 127.2)] } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
     expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2023–24: #10", "2022–23: #3", "2021–22: #20"]);
-    expect(container.querySelector("[data-vs-compare]")!.tagName).toBe("BUTTON");
+    expect(container.querySelector('[data-result="team"]')).toBeNull();
+    expect(container.querySelector("[data-answer-teams]")).toBeNull();
+    expect(within(container.querySelector("[data-team-links]") as HTMLElement).getByRole("link", { name: /Scouting profile/ }).getAttribute("href")).toBe("/teams/7149");
   });
 
-  it("one trip is still a chip, and the Compare picks keep the season the result is about", () => {
-    state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
-    const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
-    expect([...container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
+  it("each team card a VS Compare of its own, and one trip is still a chip", () => {
+    state.answer = answer([team(7149, "ENFORCERS", "X")]);
+    expect(show("/search?q=7149").container.querySelector("[data-vs-compare]")!.tagName).toBe("BUTTON");
+    cleanup();
+    state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, count: 1, lines: [worlds("2022–23", "Ochoa", 3, 114.8)] } });
+    expect([...show("/search?q=when%20did%20enforcers%20go%20to%20worlds").container.querySelectorAll("[data-timeline-chips] button")].map((b) => b.textContent)).toEqual(["2022–23: #3"]);
+  });
+
+  it("the Compare picks keep the season the result is about", () => {
+    state.answer = answer([{ ...team(7149, "ENFORCERS", "X"), linkSeason: 2024 }]);
+    const { container } = show("/search?q=enforcers%202024");
     fireEvent.click(container.querySelector("[data-vs-compare]")!);
     // One team found: its pick still goes on to /compare, where the other team is added.
     expect(document.querySelector("[data-compare-go]")!.textContent).toContain("Compare (1)");
@@ -513,7 +525,7 @@ describe("search results page, phone (Part B 3b)", () => {
 
   it("while a new search loads, the last results can't be picked or previewed, and a preview never outlives its answer", () => {
     const compare: SearchHit = { kind: "team", ref: "4215", title: "4215 Hypnotic Robotics vs 23268 Ultraviolet", subtitle: "", season: 2025, href: "/compare?teams=4215,23268" };
-    state.answer = answer([compare, team(4215, "Hypnotic Robotics", "Oradell, NJ")]);
+    state.answer = answer([compare, team(6980, "Bad Wolf", "Oradell, NJ")]);
     state.stale = true;
     const ui = render(<MemoryRouter initialEntries={["/search?q=a"]}><SearchPage /></MemoryRouter>);
     fireEvent.click(ui.container.querySelector('[data-result="compare"]')!);

@@ -19,7 +19,7 @@ import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
-import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
+import { AnswerTeams, CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
@@ -28,8 +28,8 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
-import { SEARCH_PAGE_LIMIT } from "../shared/search";
+import { answerTeams, anyFilter, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { SEARCH_PAGE_LIMIT, hitHref } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
@@ -59,7 +59,9 @@ export default function SearchPage() {
 
   // A Compare is its own card above the teams, never one of them (nor counted with them).
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
-  const view = useMemo(() => shape(sections, filters), [sections, filters.when, filters.season, filters.type]);
+  // The teams the answer already shows get no card of their own under it (each team once), only a profile link.
+  const named = useMemo(() => answerTeams(answer, compares, hits), [answer, compares, hits]);
+  const view = useMemo(() => shape(sections, filters, new Set(named)), [sections, filters.when, filters.season, filters.type, named]);
   const choices = useMemo(() => filterChoices(hits), [hits]);
   // Site pages a query names ("rules", "rankings") are an answer too.
   const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card || !!answer?.stat;
@@ -108,6 +110,14 @@ export default function SearchPage() {
     for (const h of hits) if (h.kind === "team" && h.linkSeason != null && h.linkSeason !== base) m.delete(Number(h.ref));
     return m;
   }, [now.data, before.data, base, asked, hits]);
+  // The named teams' way on to their profiles (a team hit's own link, which keeps its season). A fact answer's one
+  // team keeps the season badges its card showed; a stat or a Compare already shows its numbers.
+  const profiles = named.map((n) => {
+    const h = hits.find((x) => x.kind === "team" && !isCompare(x) && Number(x.ref) === n);
+    const own = answer?.stat?.team ?? answer?.card?.team;
+    return { number: n, name: pickNames.get(n) ?? (own?.number === n ? own.name : null), href: h ? hitHref(h) : `/teams/${n}` };
+  });
+  const profileNumbers = answer?.card && !answer.stat && !compares.length && named.length === 1 ? summaries.get(named[0]) : undefined;
 
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
   const title = found ? pageTitle(ax, hits, isQualityQuestion(query)) : null;
@@ -139,7 +149,7 @@ export default function SearchPage() {
           The query itself lives in the top bar (refine there): the page never repeats it. */}
       {/* Phones: the query in a bar that stays under the top bar, then a short header ("Results: …"), no eyebrow. */}
       {phone && <PhoneSearchBar query={query} />}
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
+      <p className="text-xs font-semibold text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
         {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
@@ -197,16 +207,18 @@ export default function SearchPage() {
                       from the latest), else the answer card as before. */}
                   {apps.length ? (
                     <section aria-label={answer!.card!.title} className="mb-5" data-section="records">
-                      <h2 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{answer!.card!.title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{apps.length}</span></h2>
+                      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">{answer!.card!.title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{apps.length}</span></h2>
                       <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
                     </section>
                   ) : answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
-                      <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Compare</h2>
+                      <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
                     </section>
                   )}
+                  {/* The summary's own team links already lead to the profile. */}
+                  {!(panel === "summary" && aboutTeam) && <AnswerTeams teams={profiles} numbers={profileNumbers} />}
                   {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
@@ -244,11 +256,16 @@ export default function SearchPage() {
 type ViewSection = Omit<AnswerSection, "id"> & { id: AnswerSection["id"] | "top" | "fuzzy" };
 
 /** The sections as the page lists them: no Compare among the teams, the filters applied (a team's events go with
- *  it), and, when some teams only share a word with the query, the exact ones apart from them. */
-function shape(sections: AnswerSection[], f: PageFilters): ViewSection[] {
+ *  it), and, when some teams only share a word with the query, the exact ones apart from them. A team the answer
+ *  already names (`named`) is left out, with its events. */
+function shape(sections: AnswerSection[], f: PageFilters, named: Set<number>): ViewSection[] {
   const out: ViewSection[] = [];
   for (const s of sections) {
-    const rows = s.rows.filter((r) => !isCompare(r.hit) && (r.sub || !RESULT_KINDS.has(s.id) || keeps(r.hit, f)));
+    let dropped = false;
+    const rows = s.rows.filter((r) => {
+      if (!r.sub) dropped = s.id === "team" && r.hit.kind === "team" && named.has(Number(r.hit.ref));
+      return !dropped && !isCompare(r.hit) && (r.sub || !RESULT_KINDS.has(s.id) || keeps(r.hit, f));
+    });
     if (!rows.some((r) => !r.sub)) continue;
     if (s.id === "team" && rows.some((r) => !r.sub && isFuzzy(r.hit))) {
       const exact: AnswerRow[] = [], fuzzy: AnswerRow[] = [];
@@ -274,7 +291,7 @@ function ResultSection({ s, summaries, covered, picks, onPick, fuzzyWord, twoCol
   if (teamish) for (const r of s.rows) { if (!r.sub || !teamGroups.length) teamGroups.push({ head: r, subs: [] }); else teamGroups[teamGroups.length - 1].subs.push(r); }
   return (
     <section aria-label={title} className="mb-5" data-section={s.id}>
-      <h2 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         {title}
         {s.id !== "pages" && s.id !== "browse" && <span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{count}</span>}
       </h2>
@@ -339,7 +356,7 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
   ];
   return (
     <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>
-      <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Team {team}</p>
+      <p className="px-1 text-xs font-semibold text-muted-foreground">Team {team}</p>
       <ul className="mt-1.5">
         {links.map((l) => <li key={l.to}><Link to={l.to} className="flex items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-accent/[0.08] hover:text-accent-text">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
       </ul>
