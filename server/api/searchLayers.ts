@@ -469,8 +469,9 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
     // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match". A long
     // question's rule reads its words itself ("when was the last time 4215 went worlds": the appearances, newest first).
+    // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
     const consumed = won === "longform" ? x0.forbidden.filter((w) => !tokens(a.understood?.showing ?? "").includes(w)) : [];
-    const unread = won ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
+    const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
     if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
     const out = { ...a, q: typed };
     outcomes.set(out, {

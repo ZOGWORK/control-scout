@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.4 — 2026-11-04
+
+Search answers questions that join filters or ask two things at once, each filter it read named on the card and applied.
+
+### Highlights
+- [rankings] Team lists by place, award, Worlds and OPR, filters joined
+- [teams] Losses by under 10, partners with OPR over 80, wins vs top 10
+- [teams] Best event by rank, worst by OPR, OPR without the worst event
+- [teams] "Awards and record", "where is Bad Wolf from and their record"
+- [fixes] "When they lose" is never read as a team called Lost or Loose
+
+### Search
+- **Team lists with filters.** A place (a state, or a home city), an award won that season, Worlds in a season ("went to worlds in 2025" is the 2024–25 championship) and an OPR, rating, win-rate or reliability threshold combine, sorted by the stat asked and cut to the top N. The list is the leaderboard, with where each team won the award or its Worlds division, rank and OPR. With nothing over a threshold, the card says how many teams were checked and the closest one. (#667)
+- **One team, filtered.** Wins or losses by a margin, partners or opponents at an event (a championship's division and finals together) with an OPR there over a number, wins over a world top-N team (by rating, with the OPR count beside it), average score in wins against losses, and OPR at the first or last event of two seasons.
+- **Events picked and averaged.** Best event by rank and worst by OPR in one season, and the stored per-event OPRs averaged with the worst (or best) event left out, beside the stored season OPR. Nothing is recomputed.
+- **Two answers on one card.** "Awards and record" (or OPR), and "where is … from and what is their record", which also finds a team by its name. Three or four teams' reliability side by side names the most reliable.
+- **Fixes.** A compare side made only of words like "when they lose" no longer matches a team's name by spelling.
+
 ## 3.1.3 — 2026-11-04
 
 Search answers about one event work for every team, not only the teams it was first checked with.
