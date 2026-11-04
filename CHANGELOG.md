@@ -26,8 +26,9 @@ for search engines.
 - [home] "How FTC One Search works" link on Home and on search results
 
 ### Search
-- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app.
+- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app (#531).
 - **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
+- **Answers that don't drift.** A question with a misspelt team name ("geer opr") always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
 - **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
 
 ## 2.9.1 — 2026-11-03

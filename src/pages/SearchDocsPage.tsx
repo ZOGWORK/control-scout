@@ -192,7 +192,7 @@ export default function SearchDocsPage() {
         <section id="rules" className="scroll-mt-bar-20 pt-20">
           <SectionHead num="09" eyebrow="Fixed rules" title="No AI decides what you meant" />
           <Prose>
-            <p>FTC One Search follows fixed rules written in code: the steps above, in that order, with the word lists and patterns described on this page. It doesn't guess what you meant the way a person would. The same query gives the same answer every time, and when a rule doesn't fit, it says so rather than filling the gap. The order of a results list can follow which results people open most (counted clicks), but that only reorders what the rules found: it never adds a result or changes an answer.</p>
+            <p>FTC One Search follows fixed rules written in code: the steps above, in that order, with the word lists and patterns described on this page. It doesn't guess what you meant the way a person would. The same query gives the same answer every time, and when a rule doesn't fit, it says so rather than filling the gap. The order of a results list can follow which results people open most (counted clicks), but that only reorders the list: it never adds a result, and it never decides which team an answer is about.</p>
             <p>On some results pages a separate card labelled <strong>Bruno AI</strong> offers a short written summary of the results. It's only for questions, it's written from the records already on the page, it checks its own numbers against them (any number it can't back up drops its summary), and it says to check it before relying on it. It's an extra on top of the results. It never changes what the search found.</p>
           </Prose>
         </section>
