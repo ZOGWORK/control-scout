@@ -11,7 +11,7 @@
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
@@ -56,6 +56,9 @@ export default function SearchPage() {
   const meta = useMeta();
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
+  // "Did you mean: …" runs the corrected query, as a new search Back returns from.
+  const nav = useNavigate();
+  const runFix = (fix: string) => nav(`/search?q=${encodeURIComponent(fix)}`);
   // Each filter change is a step Back can undo.
   const setFilters = (f: PageFilters) => setParams(withFilters(params, f, askedTime));
 
@@ -169,16 +172,20 @@ export default function SearchPage() {
             busy ? <p className="text-sm text-muted-foreground">Searching…</p>
               : meta && !meta.dataLoaded ? <p className="text-sm text-muted-foreground">No FTC data has been loaded on this server yet, so there's nothing to search.</p>
               : (
-                <NoResults
-                  query={query} onOpen={open}
-                  understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
-                  closest={sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? []}
-                />
+                <>
+                  {/* Nothing for the corrected query either: the correction is still said, as a tap. */}
+                  {notes.didYouMean && <AnswerNotesView notes={{ didYouMean: notes.didYouMean, corrected: false, understood: [] }} className="mb-4 text-sm" onDidYouMean={runFix} />}
+                  <NoResults
+                    query={query} onOpen={open}
+                    understood={readingOf(ax) ? [readingOf(ax)!] : notes.understood}
+                    closest={sections.find((s) => s.id === "closest")?.rows.filter((r) => !r.sub).map((r) => r.hit) ?? []}
+                  />
+                </>
               )
           ) : (
             <div className={cn("transition-opacity", stale && "opacity-60")} aria-busy={stale || undefined}>
               {/* The badge carries what was understood; a correction ("Did you mean …") and a gap still say so here. */}
-              <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" />
+              <AnswerNotesView notes={{ ...notes, understood: [] }} query={query} className="mb-4 text-sm" onDidYouMean={runFix} />
               {/* The server found nothing for all of it and shows the nearest set instead: said plainly, above that set. */}
               {ax?.understood?.fallback && (
                 <p className="mb-4 flex items-start gap-1.5 rounded-lg border border-warning/40 bg-warning/[0.08] px-3 py-2 text-sm text-foreground" data-fallback-label>

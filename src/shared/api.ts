@@ -134,6 +134,9 @@ export interface SearchAnswer {
   hits: SearchHit[];
   pages: SearchPageLink[];
   step: "deterministic" | "did-you-mean" | "ai" | "closest" | "recovery";
+  /** The query read another way, shown as "Did you mean: …" and run when tapped. Step "did-you-mean": the results are
+   *  its (a near name, or a spelling fix: server/api/spelling.ts). Step "deterministic": a spelling fix offered beside
+   *  the results for the query as typed. */
   didYouMean?: string;
   /** "ai": Bruno AI's reading of the query. */
   refined?: string;
