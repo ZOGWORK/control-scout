@@ -79,7 +79,7 @@ function switcher(id: IntentId, team: AnswerTeam, events: TeamEvent[], season: n
 }
 const SWITCH_WORDS: Partial<Record<IntentId, string>> = { "opr-history": "opr history", "win-rate": "win rate by event", "avg-penalties": "penalties trend", "avg-score-by-event": "average score by event", "ranking-points": "ranking points by event" };
 
-function seasonTrend(id: "opr-by-season" | "record-by-season", team: AnswerTeam, all: TeamSeason[]): StatAnswer {
+export function seasonTrend(id: "opr-by-season" | "record-by-season", team: AnswerTeam, all: TeamSeason[]): StatAnswer {
   const ss = all.filter((s) => s.matches > 0);
   const who = whoOf(team);
   const opr = id === "opr-by-season";

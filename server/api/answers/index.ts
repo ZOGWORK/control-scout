@@ -22,7 +22,8 @@ import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { eventScopeAnswer, worldsMatchesAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
-import { factAnswer, readTeamFact, type FactQuestion } from "./families/facts.js";
+import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
+import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
@@ -164,6 +165,13 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
+  // One team's OPR or rating asked a particular way (its rank in a place, its best event, Auto against TeleOp)
+  // before the two-team reader takes "auto opr versus teleop opr" for two teams.
+  const or = readOprRating(q);
+  if (or) {
+    const a = await oprRatingSearch(q, or, resolve, opts);
+    if (a) return a;
+  }
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   const it = readStatQuestion(q);
@@ -270,6 +278,34 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
   };
   if (!opts.full) return answer;
   const stat = await factAnswer(f, team, (words, season) => findEvent(words, season, { anyPlayed: true }));
+  return stat ? { ...answer, understood: { ...answer.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat } : null;
+}
+
+/** "4215 opr rank in New Jersey", "4215 highest opr ever", "6980 auto opr versus teleop opr": one team's OPR or
+ *  rating, read from what its team page (or the place's filtered list) holds; worked out for the page only. */
+async function oprRatingSearch(q: string, f: OprRatingQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const base = await resolve(f.core);
+  const top = base.step !== "recovery" ? base.hits[0] : undefined;
+  if (!top || top.kind !== "team" || top.href) return null;
+  const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  const label = `${whoOf(team)} · ${OPR_RATING_TITLES[f.id]}`;
+  const guessed = base.step === "did-you-mean";
+  const answer: SearchAnswer = {
+    q, hits: [{ ...top, ...(f.season != null ? { linkSeason: f.season } : {}) }, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages,
+    step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
+    ...(guessed && base.didYouMean ? { didYouMean: q.toLowerCase().includes(f.core) ? q.toLowerCase().replace(f.core, base.didYouMean) : base.didYouMean } : {}),
+    understood: { kind: "question", label, ...(f.season != null ? { season: f.season } : {}), ...(f.region ? { place: { key: f.region.key, name: f.region.name } } : {}) },
+    intent: { kind: `stat-${f.id}`, pattern: `[team] ${f.id}${f.region ? " [place]" : ""}${f.season != null ? " [season]" : ""}`, met: true, understood: [`Team ${whoOf(team)}`, OPR_RATING_TITLES[f.id]] },
+  };
+  if (!opts.full) return answer;
+  const fact = (id: FactQuestion["id"], season: number | null, region: FactQuestion["region"] = null) =>
+    factAnswer({ id, core: f.core, season, region, world: id === "opr-vs-average" && !region, event: null }, team, (words, s) => findEvent(words, s, { anyPlayed: true }));
+  const stat = await oprRatingAnswer(f, team, {
+    set: () => teamEventSet(team.number),
+    season: () => factSeason(team.number, null),
+    oprCard: (s) => fact("opr", s),
+    worldAverage: (s, region) => fact("opr-vs-average", s, region),
+  });
   return stat ? { ...answer, understood: { ...answer.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat } : null;
 }
 
