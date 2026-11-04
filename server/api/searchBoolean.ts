@@ -99,7 +99,8 @@ async function teamOf(t: Tok | Tok[]): Promise<number | null> {
   const ws = ts.map((x) => ("word" in x ? x.word : null));
   if (ws.some((w) => w == null)) return null;
   if (ws.length === 1 && /^\d{1,6}$/.test(ws[0]!)) return (await teamExists(ws[0]!)) ? Number(ws[0]) : null;
-  const named = await teamsNamed(ws.map((w) => nameKey(w!)));
+  // Read as one name: a word that folds to nothing ("-" in "Raider Robotics - Gold") leaves no gap.
+  const named = await teamsNamed(nameKey(ws.join(" ")).split(" ").filter(Boolean));
   return named.length === 1 ? Number(named[0]) : null;
 }
 
@@ -282,16 +283,21 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
       if (a.intent?.kind === `stat-${two.id}` && (!full || a.stat)) return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label} · read as "${vs}"${note}` } };
     }
   }
-  // Any other stat: each team's own answer, its headline in one table. Every team is read for one season, so the
-  // values compare: the one named, else the latest season every team played ("this season" included).
-  const named = readScope(` ${b.rest} `).scope;
-  const shared = named.season != null || named.ever ? named.season : await sharedSeason(teams);
-  if (shared == null && !named.ever) return null;
-  const asked = shared != null && named.season == null
-    ? `${b.rest.replace(/\b(?:this|current|the current)\s+(?:season|year)\b/g, " ").replace(/\s+/g, " ").trim()} ${shared}-${String((shared + 1) % 100).padStart(2, "0")}`
-    : b.rest;
-  const own = await Promise.all(teams.map((t) => ownStat(read, t, asked, full)));
-  if (own.some((a) => !a) || new Set(own.map((a) => a!.intent!.kind)).size !== 1) return null;
+  // Any other stat: each team's own answer, its headline in one table, read as each team's own search reads it (a
+  // total keeps every season). An answer about one season that came out for different seasons (each team's own
+  // latest) is read again for the latest season every team played, so the values compare.
+  const kindsOk = (xs: (SearchAnswer | null)[]) => !xs.some((x) => !x) && new Set(xs.map((x) => x!.intent!.kind)).size === 1;
+  let own = await Promise.all(teams.map((t) => ownStat(read, t, b.rest, full)));
+  if (!kindsOk(own)) return null;
+  const seasons = () => [...new Set(own.map((x) => x!.understood?.season ?? null))];
+  let shared: number | null = seasons().length === 1 ? seasons()[0] : null;
+  if (seasons().length > 1) {
+    shared = await sharedSeason(teams);
+    if (shared == null) return null;
+    const asked = `${b.rest.replace(/\b(?:this|current|the current|last|previous|past)\s+(?:season|year)\b/g, " ").replace(/\s+/g, " ").trim()} ${shared}-${String((shared + 1) % 100).padStart(2, "0")}`;
+    own = await Promise.all(teams.map((t) => ownStat(read, t, asked, full)));
+    if (!kindsOk(own)) return null;
+  }
   const hits = own.map((a) => a!.hits.find((h) => h.kind === "team")!).filter(Boolean);
   if (hits.length !== teams.length) return null;
   const what = own[0]!.stat?.title ?? own[0]!.intent!.understood[own[0]!.intent!.understood.length - 1] ?? b.rest;
@@ -299,7 +305,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
   const a = base(hits, label, `boolean-compare`);
   if (!full) return a;
   const stats = own.map((x) => x!.stat!);
-  return { ...a, stat: await sideBySide(what, teams, stats, shared) };
+  return { ...a, stat: await sideBySide(what, teams, stats, shared ?? (await sharedSeason(teams))) };
 }
 
 /** The latest season every team has matches in, or null. */

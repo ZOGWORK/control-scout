@@ -154,6 +154,7 @@ describe("the brief's ten cases", () => {
     expect(await readBoolean("nuts and bolts")).toBeNull();
     expect(await readBoolean("wingus & dingus")).toBeNull();
     expect(await readBoolean("batteries not included")).toBeNull();
+    expect((await readBoolean("4215 and Raider Robotics - Gold"))?.groups).toEqual([[{ team: 4215, neg: false }, { team: 4360, neg: false }]]);
     expect((await readBoolean("4215 -batteries not included"))?.groups).toEqual([[{ team: 4215, neg: false }, { team: 7418, neg: true }]]);
     expect((await readBoolean("nuts and bolts and 4215"))?.groups).toEqual([[{ team: 15461, neg: false }, { team: 4215, neg: false }]]);
     expect(rowsOf(await ask("Nuts and Bolts and 4215")).map((r) => r.label)).toEqual(["Q7"]);
@@ -213,6 +214,13 @@ describe("precedence and parsing", () => {
     expect(a.stat?.title).toContain("2024–25");
     const t = a.stat?.blocks.find((b) => b.kind === "leaderboard") as Extract<StatBlock, { kind: "leaderboard" }>;
     expect(t.note).toBe("2024–25 season numbers");
+  });
+  it("a total keeps every season, as each team's own search counts it", async () => {
+    const a = await ask("6980 and 8888 total matches");
+    const own = await ask("6980 total matches");
+    expect(a.stat?.intent).toBe("boolean-compare");
+    expect(own.understood?.season).toBeUndefined();
+    expect(a.stat?.headline?.value.split(" vs ")[0]).toBe(own.stat?.headline?.value);
   });
   it("an untimed final stays at the top of its event, above the timed qualifications", async () => {
     const rows = rowsOf(await ask("23268 or 14270"));
