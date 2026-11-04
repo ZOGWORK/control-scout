@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.7 — 2026-11-03
+## 2.8.8 — 2026-11-03
 
 Every event opens now, whatever its code looks like, and the policy, help and record pages arrive with their words in place.
 
@@ -30,6 +30,21 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 
 ### Pages
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
+
+## 2.8.7 — 2026-11-03
+
+Swing, Control Scout's consistency stat, has its own column wherever teams are compared: how far a robot's estimated points move from match to match. The formula sits next to it, and Control Point shows the same number for the same matches.
+
+### Highlights
+- [rankings] A Swing column in event and world rankings: lower is steadier
+- [teams] Compare has a Swing row, best (steadiest) marked
+- [report] A one-line formula under each table, the full one on How it works
+- [fixes] Fewer than 5 counted matches shows "—" and says why
+
+### Teams
+- **Swing (consistency).** sd of (alliance non-penalty score − the partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the season's field as if 10 more matches. It's the same number as the reliability index's swing part, now computed by the prediction engine (3.4.0) so both apps use one function (#499). Event rankings show the team's swing at that event, the world ranking and Compare its season swing. Below 5 counted matches the cell reads "—", and its tooltip gives the reason.
+- **How it works.** A new "Swing" section works the formula step by step, so it can be checked by hand.
+- **Engine 3.4.0.** Predictions are unchanged: the replay of every predicted match since 2023–24 serves exactly what 3.3.0 did.
 
 ## 2.8.6 — 2026-11-03
 

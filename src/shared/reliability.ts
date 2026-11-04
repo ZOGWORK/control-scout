@@ -24,8 +24,35 @@
 //   index = 100 − Σ weight × part      (clamped to 0..100)
 // with the weights in RELIABILITY_WEIGHTS.
 
-/** Prior weight (matches) pulling every part toward the season's field value. */
-export const RELIABILITY_PRIOR = 10;
+import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, shownConsistency } from "@control-scout/predict-engine";
+
+/** Prior weight (matches) pulling every part toward the season's field value (swing's is the engine's consistency prior). */
+export const RELIABILITY_PRIOR = CONSISTENCY_PRIOR;
+
+// ---------------------------------------------------------------------------
+// Swing: Control Scout's consistency stat (the engine's `consistency`, packages/predict-engine/src/consistency.ts),
+// the same number as the reliability index's swing part, shown on its own from CONSISTENCY_MIN_MATCHES matches.
+// ---------------------------------------------------------------------------
+
+/** One line, next to the number wherever it's shown. */
+export const SWING_LINE = `Swing (consistency): sd of (alliance non-penalty score − partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the field as if ${CONSISTENCY_PRIOR} more matches. Lower = steadier; shown from ${CONSISTENCY_MIN_MATCHES} matches.`;
+
+/** The stat as a table cell: the value (null below the minimum) and why not. */
+export interface SwingCell { value: number | null; matches: number; reason: string | null }
+
+/** Stored swing + contribution count → the cell (the engine's minimum-match rule). */
+export const swingCell = (swing: number | null, matches: number): SwingCell => shownConsistency(swing, matches);
+
+/** "±0.42", or "—". */
+export const swingText = (c: SwingCell | null | undefined) => (c?.value == null ? "—" : `±${c.value.toFixed(2)}`);
+
+/** A cell's tooltip: the value's basis or the reason it's missing, then the formula. */
+export const swingTitle = (c: SwingCell | null | undefined) =>
+  `${c == null ? "Not computed yet. " : c.value == null ? `${c.reason}. ` : `From ${c.matches} qualification matches. `}${SWING_LINE}`;
+
+/** kv key of a season's exact field variance (ConsistencyField), the prior every stored swing is shrunk toward. */
+export const consistencyFieldKey = (season: number) => `consistency:field:${season}`;
+export interface ConsistencyField { variance: number; matches: number }
 /** A match is near-zero when the estimated contribution is at most this share of an average robot's. */
 export const NEAR_ZERO_SHARE = 0.1;
 /** Caps, so one huge part can't stand for the whole index. */
@@ -66,12 +93,18 @@ export interface Reliability {
   /** In the latest RECENT matches listed: no-shows and near-zero matches. */
   recent: { matches: number; noShows: number; nearZero: number };
   parts: ReliabilityParts;
+  /** Swing shown on its own (consistency): parts.swing once it rests on enough matches. Only where teams are
+   *  compared (season stats, GET /api/reliability): reliabilityFromRow(…, { consistency: true }). */
+  consistency?: SwingCell;
   /** The season's field average index, for comparison. */
   fieldIndex: number | null;
 }
 
-/** GET /api/reliability?season=&teams=: public, match data only (never any workspace's notes). */
-export interface ReliabilityResponse { season: number; fieldIndex: number | null; teams: { team: number; reliability: Reliability | null }[] }
+/**
+ * GET /api/reliability?season=&teams=: public, match data only (never any workspace's notes). consistencyField:
+ * the season's exact field variance behind every swing (Control Point passes it to the engine's `consistency`).
+ */
+export interface ReliabilityResponse { season: number; fieldIndex: number | null; consistencyField: ConsistencyField | null; teams: { team: number; reliability: Reliability | null }[] }
 
 /** How many of the latest matches "recent" covers. */
 export const RECENT = 10;
@@ -95,14 +128,15 @@ export const shrinkTo = (x: number | null, n: number, f: number, k = RELIABILITY
 
 /** Stored row (team_reliability) → Reliability. */
 /** The team_reliability columns reliabilityFromRow reads, and the team (0: the field). */
-export const RELIABILITY_COLUMNS = "team, idx, matches, no_shows, dqs, near_zero, recent_matches, recent_no_shows, recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio";
+export const RELIABILITY_COLUMNS = "team, idx, matches, no_shows, dqs, near_zero, contrib_n, recent_matches, recent_no_shows, recent_near_zero, no_show_rate, dq_rate, near_zero_rate, swing, penalty_ratio, predictability_ratio";
 
-export function reliabilityFromRow(r: Record<string, unknown>, fieldIndex: number | null): Reliability {
+export function reliabilityFromRow(r: Record<string, unknown>, fieldIndex: number | null, opts: { consistency?: boolean } = {}): Reliability {
   const n = (k: string) => Number(r[k] ?? 0);
   return {
     index: n("idx"), matches: n("matches"), noShows: n("no_shows"), dqs: n("dqs"), nearZero: n("near_zero"),
     recent: { matches: n("recent_matches"), noShows: n("recent_no_shows"), nearZero: n("recent_near_zero") },
     parts: { noShowRate: n("no_show_rate"), dqRate: n("dq_rate"), nearZeroRate: n("near_zero_rate"), swing: n("swing"), penaltyRatio: n("penalty_ratio"), predictabilityRatio: n("predictability_ratio") },
+    ...(opts.consistency ? { consistency: swingCell(r.swing == null ? null : n("swing"), n("contrib_n")) } : {}),
     fieldIndex,
   };
 }

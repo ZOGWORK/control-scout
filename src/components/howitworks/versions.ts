@@ -13,6 +13,7 @@ export interface EngineVersionNote {
 }
 
 export const ENGINE_VERSIONS: EngineVersionNote[] = [
+  { version: "3.4.0", date: "2026-11-03", numbers: false, line: "Swing, a team's consistency: how far its estimated points move from match to match, one formula in both apps. Win odds and scores unchanged." },
   { version: "3.3.0", date: "2026-10-30", numbers: false, line: "Every prediction carries its full why: each factor behind the call with its share of it. Win odds and scores unchanged." },
   { version: "3.2.0", date: "2026-10-23", numbers: true, line: "Score ranges are about 10 points narrower and hold 8 in 10 real scores again (they held about 85%). Win odds unchanged." },
   { version: "3.1.0", date: "2026-10-23", numbers: false, line: "Ties count: expected ranking points and event simulations give a tie's 1 RP to both alliances. Win odds unchanged." },

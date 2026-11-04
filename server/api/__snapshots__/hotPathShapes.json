@@ -1715,7 +1715,7 @@
  },
  "/api/teams/101?season=2026": {
   "status": 200,
-  "bytes": 1936,
+  "bytes": 1991,
   "body": {
    "team": {
     "number": 101,
@@ -1801,6 +1801,11 @@
       "swing": 12.5,
       "penaltyRatio": 0.2,
       "predictabilityRatio": 0.9
+     },
+     "consistency": {
+      "value": 12.5,
+      "matches": 8,
+      "reason": null
      },
      "fieldIndex": 50
     }
@@ -2436,7 +2441,7 @@
  },
  "/api/compare?season=2026&teams=101,102": {
   "status": 200,
-  "bytes": 4413,
+  "bytes": 4523,
   "body": {
    "season": 2026,
    "teams": [
@@ -2521,6 +2526,11 @@
         "swing": 12.5,
         "penaltyRatio": 0.2,
         "predictabilityRatio": 0.9
+       },
+       "consistency": {
+        "value": 12.5,
+        "matches": 8,
+        "reason": null
        },
        "fieldIndex": 50
       }
@@ -2637,6 +2647,11 @@
         "swing": 12.5,
         "penaltyRatio": 0.2,
         "predictabilityRatio": 0.9
+       },
+       "consistency": {
+        "value": 12.5,
+        "matches": 8,
+        "reason": null
        },
        "fieldIndex": 50
       }

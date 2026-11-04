@@ -1,6 +1,8 @@
 // Reliability index: tallies from match data, shrinkage toward the field, stored rows, and that it reads
 // public tables only (packs ship only public tables; the job never touches workspace scouting).
 import { beforeEach, describe, expect, it } from "vitest";
+import { eventConsistency } from "@control-scout/predict-engine";
+import { ALLIANCES, FIELD_VAR, OPR, PINNED } from "../../packages/predict-engine/src/__tests__/fixtures/consistencyFixture";
 import { all, migrate, openDb, run, setDb } from "../db";
 import { computeReliability, partsOf, fieldOf, fieldParts, playOrder, tallyReliability } from "./reliability";
 import { loadSeason, type DbEvent, type DbMatch } from "./load";
@@ -16,6 +18,26 @@ const m = (red: DbMatch["red"], blue: DbMatch["blue"], r: number, b: number, o: 
   code: "E", level: "qual", series: 0, number: ++n, label: `Q${n}`, time: null, played: true, red, blue, redScore: sc(r), blueScore: sc(b), video: null, ...o,
 });
 const ev = (matches: DbMatch[]): DbEvent => ({ season: 2025, code: "E", name: "E", type: "Qualifier", region: null, start: "2025-11-01", end: "2025-11-01", remote: false, hybrid: false, matches, ranks: new Map(), teams: [], awards: [] });
+
+describe("swing is the engine's consistency stat", () => {
+  it("the job's event swing equals eventConsistency (what Control Point calls) on the engine's pinned fixture", () => {
+    const ms: DbMatch[] = [];
+    for (let i = 0; i < ALLIANCES.length; i += 2) {
+      const side = (a: (typeof ALLIANCES)[number], all: number[]) => all.map((x) => t(x, { onField: a.onField.includes(x) }));
+      // The no-show (4) is listed with its alliance, as FIRST lists it.
+      const blue = ALLIANCES[i + 1].onField.length === 1 ? [...ALLIANCES[i + 1].onField, 4] : [...ALLIANCES[i + 1].onField];
+      ms.push(m(side(ALLIANCES[i], [...ALLIANCES[i].onField]), side(ALLIANCES[i + 1], blue), ALLIANCES[i].np, ALLIANCES[i + 1].np));
+    }
+    const tallies = tallyReliability([ev(ms)], (_c, team) => OPR[team] ?? null).get("E")!;
+    const engine = eventConsistency(ALLIANCES, (team) => OPR[team] ?? null, FIELD_VAR);
+    const f = { ...fieldOf([...tallies.values()]), swingVar: FIELD_VAR };
+    for (const team of [1, 2, 3, 4]) {
+      expect(partsOf(tallies.get(team)!, f, null, null).swing).toBe(engine.get(team)!.swing);
+      expect(tallies.get(team)!.contribs.length).toBe(engine.get(team)!.matches);
+    }
+    for (const team of [1, 2, 3, 4]) expect(engine.get(team)!.swing.toFixed(12)).toBe(PINNED[team][1]);
+  });
+});
 
 describe("tallies", () => {
   it("counts qual no-shows (never playoffs), DQs and near-zero matches from the partner's OPR", () => {
@@ -84,7 +106,7 @@ describe("tallies", () => {
     expect(reliabilityIndex(clean)).toBe(100);
     expect(reliabilityIndex({ ...clean, noShowRate: 0.1 })).toBe(85);
     expect(reliabilityIndex({ ...clean, noShowRate: 1 })).toBe(0);
-    const r = { index: 100, matches: 10, noShows: 0, dqs: 0, nearZero: 0, recent: { matches: 10, noShows: 0, nearZero: 0 }, parts: clean, fieldIndex: 70 };
+    const r = { index: 100, matches: 10, noShows: 0, dqs: 0, nearZero: 0, recent: { matches: 10, noShows: 0, nearZero: 0 }, parts: clean, consistency: { value: 0, matches: 10, reason: null }, fieldIndex: 70 };
     expect(blendedIndex(r, { matchEntries: 10, flagged: 0 })).toBe(100);
     expect(blendedIndex(r, { matchEntries: 10, flagged: 5 })).toBe(75); // 5/10 shrunk with 10 at 0 → 0.25
   });

@@ -5,7 +5,7 @@
 // honestly: no logged predictions (played matches show none), no advancement
 // odds. Pure functions over a small database interface, so tests run them on
 // a fixture.
-import { reliabilityFromRow, type Reliability } from "../../shared/reliability";
+import { reliabilityFromRow, swingCell, type Reliability, type SwingCell } from "../../shared/reliability";
 import type { Database, SqlValue } from "sql.js";
 import type { EventDetail, EventSummary, FieldRow, MatchPredictionView, MatchView, SearchHit, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats } from "../../shared/api";
 import { SCHEDULE_TABLE } from "../../shared/packSchema";
@@ -91,7 +91,7 @@ function packReliability(db: Db, season: number, team: number): Reliability | nu
     const own = one(db, "SELECT * FROM team_reliability WHERE season = ? AND code = '' AND team = ?", [season, team]);
     if (!own || team === 0) return null;
     const field = one(db, "SELECT idx FROM team_reliability WHERE season = ? AND code = '' AND team = 0", [season]);
-    return reliabilityFromRow(own, field ? Number(field.idx) : null);
+    return reliabilityFromRow(own, field ? Number(field.idx) : null, { consistency: true });
   } catch { return null; }
 }
 
@@ -258,6 +258,11 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
   // Season OPR for the "At a glance" card before the event starts (as server/api/events.ts).
   const seasonOprBy = new Map(db.all("SELECT s.team, s.opr_np FROM team_season_stats s JOIN event_teams et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?", [season, code])
     .map((o) => [Number(o.team), o.opr_np == null ? null : Number(o.opr_np)]));
+  // Swing at this event, as server/api/events.ts reads it (packs built before the reliability index have no table: none).
+  const swingBy = new Map<number, SwingCell>();
+  try {
+    for (const x of db.all("SELECT team, swing, contrib_n FROM team_reliability WHERE season = ? AND code = ?", [season, code])) swingBy.set(Number(x.team), swingCell(x.swing == null ? null : Number(x.swing), Number(x.contrib_n)));
+  } catch { /* an older pack */ }
   const matches = readMatchViews(sdb, { code }, opts);
   // As server/api/events.ts: a league meet's own standing, and no league W-L-T that doesn't add up.
   const bonus = r.type === "LeagueMeet" ? new Map(db.all("SELECT series, number, red_bonus, blue_bonus FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND played = 1", [season, code]).map((b) => [`${b.series}:${b.number}`, b])) : null;
@@ -273,6 +278,7 @@ export function readEventDetail(sdb: SeasonDb, code: string, opts: ReadOpts = {}
       avgNp: o?.avg_np ?? null,
       rating: opts.rating?.(season, Number(e.team)) ?? null,
       seasonOpr: seasonOprBy.get(Number(e.team)) ?? null,
+      ...(swingBy.has(Number(e.team)) ? { swing: swingBy.get(Number(e.team))! } : {}),
       ...(meet ? { meet: meet.get(Number(e.team)) ?? null } : {}),
     };
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);

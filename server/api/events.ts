@@ -16,6 +16,7 @@ import { hasTeamPage } from "../../src/shared/teamPages.js";
 import { eventOver, eventScheduleDifficulty, postedQuals } from "../../src/shared/scheduleDifficulty.js";
 import { eventBracket } from "./bracket.js";
 import { LEAGUE_TYPES, recordAddsUp } from "../../src/shared/eventStanding.js";
+import { swingCell } from "../../src/shared/reliability.js";
 
 function summary(r: any): EventSummary {
   const played = Number(r.played ?? 0), total = Number(r.total ?? 0);
@@ -93,7 +94,7 @@ const LEGACY_NOTE ="Seasons before 2023–24 are shown for history: results and 
 export async function eventDetail(season: number, code: string): Promise<EventDetail | null> {
   const r = await get<any>(`${SUMMARY_SQL} WHERE e.season = ? AND e.code = ?`, [season, code]);
   if (!r) return null;
-  const [entries, oprs, alliances, awards, adv, matches, seasonOprs] = await Promise.all([
+  const [entries, oprs, alliances, awards, adv, matches, seasonOprs, swings] = await Promise.all([
     all<any>(`SELECT et.team, et.rank, et.rp, et.tbp, et.wins, et.losses, et.ties, et.qual_played, et.registered, et.fetched_at, t.name, t.city, t.state FROM ${ROSTER} et LEFT JOIN teams t ON t.number = et.team WHERE et.season = ? AND et.code = ?`, [season, code]),
     all<any>("SELECT team, opr_np, opr_auto, opr_teleop, opr_endgame, opr_pen, avg_np FROM team_event_stats WHERE season = ? AND code = ?", [season, code]),
     all<any>("SELECT number, name, captain, pick1, pick2, backup FROM alliances WHERE season = ? AND code = ? ORDER BY number", [season, code]),
@@ -102,7 +103,10 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
     matchViews({ season, code }, { predictUnplayed: true }),
     // Season OPR for the "At a glance" card before the event starts (the event's own OPR is empty then).
     all<any>(`SELECT s.team, s.opr_np FROM team_season_stats s JOIN ${ROSTER} et ON et.season = s.season AND et.team = s.team WHERE et.season = ? AND et.code = ?`, [season, code]),
+    // Swing at this event (the consistency stat, shrunk toward the season's field like every stored row).
+    all<any>("SELECT team, swing, contrib_n FROM team_reliability WHERE season = ? AND code = ?", [season, code]),
   ]);
+  const swingBy = new Map(swings.map((x) => [Number(x.team), swingCell(x.swing == null ? null : Number(x.swing), Number(x.contrib_n))]));
   const seasonOprBy = new Map(seasonOprs.map((o) => [Number(o.team), o.opr_np == null ? null : Number(o.opr_np)]));
   const meet = r.type === "LeagueMeet" && !isLegacy(season) ? await meetOf(season, code, matches) : null;
   const oprBy = new Map(oprs.map((o) => [Number(o.team), o]));
@@ -121,6 +125,7 @@ export async function eventDetail(season: number, code: string): Promise<EventDe
       avgNp: o?.avg_np ?? null,
       rating: rt ? { np: Math.round((rt.auto + rt.teleop + rt.endgame) * 10) / 10, sd: Math.round(Math.sqrt(rt.uncertainty) * 10) / 10, matches: rt.n } : null,
       seasonOpr: seasonOprBy.get(Number(e.team)) ?? null,
+      ...(swingBy.has(Number(e.team)) ? { swing: swingBy.get(Number(e.team))! } : {}),
       ...(meet ? { meet: meet.get(Number(e.team)) ?? null } : {}),
     };
   }).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.team - b.team);
