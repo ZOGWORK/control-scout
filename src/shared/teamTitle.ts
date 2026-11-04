@@ -9,9 +9,9 @@ export const teamHeading = (n: number, name?: string | null) => (name?.trim() ? 
  *  is added after it by siteTitle). */
 export const teamTitle = (n: number, name?: string | null) => `${teamHeading(n, name)} | FTC Team Stats, OPR & Rankings`;
 
-/** A page title with the site's name: "… | Control Scout" after a title already in "|" parts (a team's), else
- *  "… · Control Scout". */
-export const siteTitle = (title: string) => `${title}${title.includes(" | ") ? " | " : " · "}Control Scout`;
+/** A page title with the site's name: "… | Control Scout" after a title already in parts, split by "|" (a team's) or
+ *  " — " (FTC One Search's), else "… · Control Scout". */
+export const siteTitle = (title: string) => `${title}${/ [|—] /.test(title) ? " | " : " · "}Control Scout`;
 
 /** A team's name without its own number repeated at either end ("Simply Complex 18061" → "Simply Complex"; FIRST
  *  stores some names that way), so a title never shows the number twice. Null when the name is only its number. */
