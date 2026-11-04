@@ -9,7 +9,7 @@ import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES, WEEK_MS, weekOf } from "../../../../src/shared/rankings.js";
-import { RECORDS_MAX_PAGE_SIZE } from "../../../../src/shared/statCatalog.js";
+import { RECORDS_MAX_PAGE_SIZE, type TeamSeasonRecord } from "../../../../src/shared/statCatalog.js";
 import { all, get } from "../../../db.js";
 import { regionPlace } from "../../rankings.js";
 import { listRecords, recordsQuery } from "../../records.js";
@@ -165,7 +165,7 @@ async function regionOprPlace(season: number, team: number, r: Region): Promise<
   const rows: { team: number; name: string | null; v: number }[] = [];
   for (let page = 1; ; page++) {
     const res = await ask(page);
-    rows.push(...res.rows.map((x) => ({ team: Number(x.team), name: (x.stats.teamName as string | null) ?? null, v: Number(x.stats[opr]) })));
+    rows.push(...(res.rows as TeamSeasonRecord[]).map((x) => ({ team: Number(x.team), name: (x.stats.teamName as string | null) ?? null, v: Number(x.stats[opr]) })));
     // Stop once the team and the two below it are read, or the list ends.
     const i = rows.findIndex((x) => x.team === team);
     if ((i >= 0 && rows.length >= i + 3) || rows.length >= res.total || !res.rows.length) {

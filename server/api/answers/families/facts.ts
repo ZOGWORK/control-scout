@@ -217,7 +217,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
       ev ? `From the OPRs at ${where}, ${AT}` : `From the ${AT} season numbers`);
     // At a championship with divisions, the team's own division is its field.
     const own = ev
-      ? await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number }>("SELECT s.opr_np v, s.code, e.name, e.type FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.season = ? AND (e.code = ? OR e.division_code = ?) AND s.team = ? AND s.matches > 0 ORDER BY e.division_code IS NULL LIMIT 1", [at, ev.code, ev.code, team.number])
+      ? await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number; r?: number | null }>("SELECT s.opr_np v, s.code, e.name, e.type FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.season = ? AND (e.code = ? OR e.division_code = ?) AND s.team = ? AND s.matches > 0 ORDER BY e.division_code IS NULL LIMIT 1", [at, ev.code, ev.code, team.number])
       : await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number; r?: number | null }>("SELECT opr_np v, '' code, NULL name, NULL type, matches m, rank_np r FROM team_season_stats WHERE season = ? AND team = ?", [at, team.number]);
     if (own?.v == null) return { ...b, none: ev ? `${who(team)} has no OPR at ${where}.` : `${who(team)} has no OPR in ${AT}.` };
     const field = ev
