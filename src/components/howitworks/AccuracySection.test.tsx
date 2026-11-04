@@ -114,3 +114,16 @@ describe("methodology ledger", () => {
     expect(card.queryByText("0.0%")).toBeNull();
   });
 });
+
+describe("current engine table", () => {
+  it("shows today's engine per season, apart from the engine 1.x test", async () => {
+    data = RECORD;
+    await mount();
+    const fig = within(document.getElementById("current-engine")!);
+    expect(fig.getByText(/Engine 3\.5 · rolling monthly test/)).toBeTruthy();
+    const rows = fig.getAllByRole("row").slice(1).map((r) => r.textContent);
+    expect(rows[0]).toMatch(/2024–25tuning season · 32,974 matches76\.5%0\.157838\.64was 38\.75/);
+    expect(rows[1]).toMatch(/2025–26reused season · 36,572 matches74\.8%0\.168137\.26was 37\.36/);
+    expect(screen.getByText(/First held-out test · engine 1\.x/)).toBeTruthy();
+  });
+});

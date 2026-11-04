@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.0 — 2026-11-04
+
+How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.
+
+### Highlights
+- [report] How it works › Accuracy shows engine 3.5's accuracy, Brier and margin error per season
+- [report] The 72.7% figure is now labelled as the first engine 1.x test
+- [predict] Margin error per season shows engine 3.5's drop next to the previous engine
+
+### Changes
+- **Today's engine.** How it works › Accuracy opens its engine results with a table of engine 3.5 on the rolling monthly test: 76.5% called right, Brier 0.1578 and margin error 38.64 points on 2024–25; 74.8%, 0.1681 and 37.26 on 2025–26. The margin column shows 3.5's smaller error next to the previous one.
+- **Engine 1.x test, named.** The 72.7% headline, its baselines (Figure 8) and the learning curve come from the engine's first held-out test; they now say engine 1.x. The ledger's season replay (73.8% on 2025–26) is unchanged: 3.5 moved no win chance.
+
 ## 3.0.9 — 2026-11-04
 
 Three fixes to the two-team and forecast answers from 3.0.7's last review.
