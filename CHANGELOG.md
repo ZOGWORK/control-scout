@@ -32,7 +32,7 @@ Search answers look like the team page all the way down: an award at an event is
 - **Records.** A record over both qualifications and playoffs ("4215 states record") shows each apart under the win-loss bar: W-L-T, win rate and matches, with its own bar.
 - **Place card.** "where is 4215 from" draws the place over a map-style grid with a pin, the place big, and its city, state and country as FIRST lists them.
 - **Leaderboards.** The top three's rank badges are coloured (green, blue, orange).
-- **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#PR)
+- **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#648)
 
 ## 3.0.8 — 2026-11-04
 
