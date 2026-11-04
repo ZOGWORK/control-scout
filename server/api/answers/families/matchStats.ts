@@ -266,9 +266,10 @@ export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: Team
       const { rating, rated } = await ratingsOf(pool.flatMap((m) => m.opponents.map((t) => ({ team: t, season: m.season }))));
       if (id === "easiest-opponent") {
         const title = `Easiest opponent${where}`;
-        const def = `Easiest opponent: the opponent with the lowest prediction rating that season (as its team page shows it), of every team met on the other alliance at official events. ${RESULT_RULE}`;
+        // A rating is in its game's points, so opponents are only compared within one season (the latest, said so).
+        const def = `Easiest opponent: the opponent with the lowest prediction rating that season (as its team page shows it), of every team met on the other alliance at official events. ${RESULT_RULE}${several ? ` Each season is a different game, so ratings are never compared across seasons: the answer is ${seasonLabel(pointsSeason!)}'s, the latest here.` : ""}`;
         const met = new Map<string, { team: number; season: number; ms: TeamMatch[] }>();
-        for (const m of pool) for (const t of m.opponents) { const k = `${t}|${m.season}`; met.set(k, { team: t, season: m.season, ms: [...(met.get(k)?.ms ?? []), m] }); }
+        for (const m of several ? pool.filter((x) => x.season === pointsSeason) : pool) for (const t of m.opponents) { const k = `${t}|${m.season}`; met.set(k, { team: t, season: m.season, ms: [...(met.get(k)?.ms ?? []), m] }); }
         const ranked = [...met.values()].filter((x) => rating.has(`${x.team}|${x.season}`)).sort((a, b) => rating.get(`${a.team}|${a.season}`)!.rating - rating.get(`${b.team}|${b.season}`)!.rating || a.team - b.team);
         const top = ranked[0];
         if (!top) return { ...base, family: "two-team", intent: id, title, blocks: [], definition: def, none: none("rated opponents") };

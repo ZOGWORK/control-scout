@@ -96,6 +96,8 @@ describe("what's read", () => {
     expect(readTwoTeam("4215 record against top teams")).toBeNull();
     expect(readTwoTeam("4215 record vs rookie teams")).toBeNull();
     expect(readTwoTeam("4215 record against 6980")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
+    // "Biggest improvement" stays the season-over-season answer; only an improvement trend is the OPR trend.
+    expect(readStatQuestion("4215 biggest improvement")).toMatchObject({ id: "most-improved-season" });
   });
 
   it("a rules question about a penalty is left to the rules", () => {
@@ -139,6 +141,10 @@ describe("records", () => {
     expect(top).toMatchObject({ intent: "vs-top", headline: { value: "2-2-0" } });
     expect((await stat("4215 performance against rookie teams"))?.headline).toMatchObject({ value: "2-0-1" });
     expect((await stat("4215 easiest opponent this season"))?.headline).toMatchObject({ value: "23268 Rookie Robots" });
+    // Ratings are never compared across seasons: "ever" is the latest season's, said so.
+    const ever = await stat("4215 easiest opponent ever");
+    expect(ever).toMatchObject({ title: "Easiest opponent", headline: { value: "23268 Rookie Robots", label: expect.stringContaining("in 2025–26") } });
+    expect(ever?.definition).toContain("ratings are never compared across seasons");
   });
 });
 

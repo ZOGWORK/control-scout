@@ -75,7 +75,7 @@ const RULES: IntentRule[] = [
   { id: "vs-top", family: "aggregate", season: "latest", re: GROUP_TOP },
   { id: "vs-rookies", family: "aggregate", season: "latest", re: GROUP_ROOKIE },
   { id: "easiest-opponent", family: "aggregate", season: "latest", re: /\b(?:easiest|weakest|lowest[\s-]rated)\s+(?:opponents?|matchups?|rivals?)\b/ },
-  { id: "opr-history", family: "trend", season: "all", re: /\bopr\s+(?:history|trend|over\s+time|by\s+event|progression|graph|chart)\b|\bimprovement(?:\s+trend)?\b/ },
+  { id: "opr-history", family: "trend", season: "all", re: /\bopr\s+(?:history|trend|over\s+time|by\s+event|progression|graph|chart)\b|\bimprovement\s+(?:trend|over\s+the\s+season|this\s+season)\b/ },
   { id: "avg-score-by-event", family: "trend", season: "all", re: /\b(?:average|avg|mean)\s+(?:alliance\s+)?score\s+(?:by|per|each|at\s+each)\s+event\b/ },
   { id: "total-penalties", family: "aggregate", season: "all", re: /\btotal\s+penalt(?:y|ies)(?:\s+points)?\b|\bpenalt(?:y|ies)\s+total\b/ },
   // "Average penalties per event" is the match rows' per-event figure ("penalties" below), not this trend.
