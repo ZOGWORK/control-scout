@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.4 — 2026-11-03
+## 2.9.5 — 2026-11-04
 
 FTC One Search answers "4215 record" and "4215 awards" with full cards, and a team's sponsors, school and hometown read as one team card.
 
@@ -29,6 +29,18 @@ FTC One Search answers "4215 record" and "4215 awards" with full cards, and a te
 - **"4215 record" answers.** A plain record question gave no answer card, only the team and a Team records link. It now reads the team's latest season with matches: the W-L-T, the win-loss bar, the win rate, the season and the team's world rank by win rate (the same order as the highest-win-rate list: wins over matches played, a tie counting half, teams with 3 or more matches). The numbers are the team page's: 4215 is 26-6-0 in 2025–26.
 - **"4215 awards" and "awards 4215 has won" answer.** Both gave only the team. They now list every award with its event and date, a table per season, newest first. 1st place (Winning Alliance) and the Inspire Award stay two separate awards; 2nd and 3rd place Inspire are labelled as such.
 - **Listing facts as one team card.** "4215 sponsors", "4215 sponsors and school" and "where is 4215 from" were a thin box of links. They're now one card under the team's name: every sponsor its own bold row, the school and the hometown a bold value with its name small under it, then related questions. Values are shown exactly as FIRST's listing stores them; some school names are already cut short there (4215's is stored as "River Dell Regional High Sch"), and they're never cut further. (#522)
+
+## 2.9.4 — 2026-11-04
+
+How it works shows what the November engine research tried, and why none of it changed a prediction.
+
+### Highlights
+- [predict] Eight new lab notes: every idea tested on the engine in November
+- [predict] Each with its numbers against the current engine, on the same matches
+- [predict] Links to the full research note behind every card
+
+### Predictions
+- **November research in the lab notes.** How it works › Lab notes adds eight cards: three other rating systems (Massey, TrueSkill, Glicko-2), margin-of-victory Elo, a stronger pull toward the average for new robots, forgetting old matches faster or slower, reweighting the match phases, a separate playoff model, how much calibration can still gain, and a neural network. Each says in a line what was tried and why it didn't ship, and its Details give the Brier change on both seasons with the 95% range, next to a link to the full note in docs/engine/research-2026-11. Predictions are unchanged. (#535)
 
 ## 2.9.3 — 2026-11-03
 
