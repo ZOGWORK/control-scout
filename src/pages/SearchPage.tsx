@@ -114,7 +114,7 @@ export default function SearchPage() {
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
   const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
   const shownTitle = strong && title!.includes(strong)
-    ? <>{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</>
+    ? <span className="font-medium">{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</span>
     : title;
   const badge = !found || !ax ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
