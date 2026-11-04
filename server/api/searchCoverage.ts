@@ -56,8 +56,13 @@ function seasonWord(t: string, typos = false): { season: string; rest: string; g
   if (typos) for (const s of SEASONS) {
     const game = s.game.toLowerCase();
     if (/\s/.test(game)) continue;
-    const w = t.split(" ").find((x) => x.length >= 5 && x !== game && editDistance(x, game) <= allowedEdits(game.length));
-    if (w) { const g = new RegExp(`(?:^|\\s)(?:in\\s+|during\\s+)?${w}(?=\\s|$)`).exec(t)!; return { season: label(s.season), rest: cut(g), game: true }; }
+    // By word position, never as a pattern: the typed word may hold "$" or "(".
+    const ws = t.split(" ");
+    const i = ws.findIndex((x) => x.length >= 5 && x !== game && /^[a-z]+$/.test(x) && editDistance(x, game) <= allowedEdits(game.length));
+    if (i >= 0) {
+      const from = i > 0 && /^(?:in|during)$/.test(ws[i - 1]) ? i - 1 : i;
+      return { season: label(s.season), rest: squash([...ws.slice(0, from), ...ws.slice(i + 1)].join(" ")), game: true };
+    }
   }
   const y = /(?:^|\s)(?:in\s+)?(20\d\d)\s*[-–/]\s*(\d\d)(?=\s|$)/.exec(t);
   return y && (Number(y[1]) + 1) % 100 === Number(y[2]) ? { season: `${y[1]}-${y[2]}`, rest: cut(y), game: false } : null;
@@ -498,8 +503,15 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   // An event by its own name ("jackson division q12", "worlds jackson division q12"), when the words name a kind of
   // event and the event readers found none: search's events by name.
   const read = set ? set.hits.filter((h) => h.kind === "event") : [];
-  const events = read.length || !mm || !EVENT_WORDS.test(rest) || /\d/.test(rest) ? read
-    : (await search(rest.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((h) => h.kind === "event");
+  const byName = !read.length && !!mm && EVENT_WORDS.test(rest) && !/\d/.test(rest);
+  // Search lists each code once, from its newest season, undated; each is dated here by the newest season it has
+  // matches in (a code's next season is listed before it's played), so an unplayed season never hides a played one.
+  const events: SearchHit[] = byName ? [] : read;
+  if (byName) for (const h of (await search(rest.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((x) => x.kind === "event")) {
+    const c = h.ref.split(":")[1];
+    const r = await get<{ season: number; start: string | null }>("SELECT e.season, e.start FROM events e WHERE e.code = ? AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code) ORDER BY e.season DESC LIMIT 1", [c]);
+    events.push(r ? { ...h, ref: `${r.season}:${c}`, season: Number(r.season), event: { ...(h.event ?? {}), start: r.start ?? "" } as SearchHit["event"] } : h);
+  }
   if (!events.length && !set) return null;
   // The event asked about: the latest that has started (its pages have something), else the next one.
   const startOf = (h: SearchHit) => h.event?.start ?? "";

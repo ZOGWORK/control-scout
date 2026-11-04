@@ -47,7 +47,7 @@ export async function teamSeason(team: number, asked?: number | null): Promise<{
  * `eventWords` (its event OPR, rank and ranking score). Null when no event of the team's matches: the caller then
  * lists its events for the visitor to pick, never a guess.
  */
-export async function teamAtEvent(team: number, eventWords: string, asked?: number | null): Promise<{ event: SearchEventPick; facts: SearchFact[] } | { ambiguous: true } | null> {
+export async function teamAtEvent(team: number, eventWords: string, asked?: number | null): Promise<{ event: SearchEventPick; facts: SearchFact[] } | { ambiguous: true; season: number } | null> {
   const { season: latest } = await teamSeason(team, asked);
   if (latest == null) return null;
   // With no season named, the newest season one of its events matches ("4215 matches at worlds": the last Worlds it
@@ -61,7 +61,7 @@ export async function teamAtEvent(team: number, eventWords: string, asked?: numb
   }
   if (!best || best.s < 0.75) return null;
   // Two events match about as well ("Northern League Meet" names every meet): not a pick to make for the visitor.
-  if (next && next.s >= 0.75 && best.s - next.s < 0.05) return { ambiguous: true };
+  if (next && next.s >= 0.75 && best.s - next.s < 0.05) return { ambiguous: true, season };
   const at = await get<any>(`SELECT ${RANK} rank, ${RP} rp ${ROWS.replace("AND et.season = ?", "AND et.season = ? AND et.code = ?")}`, [team, season, best.e.code]);
   return {
     event: best.e,

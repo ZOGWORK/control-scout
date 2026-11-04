@@ -393,10 +393,18 @@ describe("failed-search issues (11-04)", () => {
     expect(rewriteQuery("4215 matches in worlds")?.q).toBe("4215 matches at worlds"); // #526
   });
   it("an event by its own name and a match number: that match, typo'd 'division' too (#533)", async () => {
+    // The division's Q1 this season, and next season's division listed but not yet played (Greptile on #536: an
+    // unplayed season never hides the played one).
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'FTCCMP1EDIS', 'qual', 0, 1, 'Q1', 1, 't')", [S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'FTCCMP1EDIS', 'FIRST Championship - Edison Division', 'FIRSTChampionship', 'Houston', 'TX', 'USA', '2027-04-29', '2027-05-01', 't')", [S + 1]);
+    await rebuildSearch();
     for (const q of ["edison division q1", "edison divison q1", "worlds edison division q1"]) {
       const a = await ask(q);
       expect(a.step, q).toBe("deterministic");
-      expect(a.understood?.label, q).toMatch(/FIRST Championship - Edison Division/);
+      expect(a.hits.find((h) => h.kind === "match")?.ref, q).toBe(`${S}:FTCCMP1EDIS:qual:0:1`);
+      expect(a.understood?.label, q).toMatch(/^Qualification match 1 at FIRST Championship - Edison Division/);
     }
+    // A misspelled game with "$" left on it is read by position, never as a pattern (Greptile on #536).
+    expect(() => rewriteQuery("jackson division decode$")).not.toThrow();
   });
 });

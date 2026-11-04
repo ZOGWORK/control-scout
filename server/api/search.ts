@@ -147,7 +147,9 @@ export async function teamAtEventAnswer(q: string, limit: number, prefer: Readon
   if (!intent?.topic && (!pick || (fuzzyScore(named, teamNameOf(team.title)) < 0.75 && !named.split(" ").includes(team.ref)))) return null;
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
   if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts }, ...others];
-  const { season } = await teamSeason(Number(team.ref), asked);
+  // Several events matched in an older season ("4215 at northern league meet" from last season): that season's events,
+  // never this season's unrelated ones.
+  const season = found && "ambiguous" in found ? found.season : (await teamSeason(Number(team.ref), asked)).season;
   const events = season == null ? [] : await teamEvents(Number(team.ref), season);
   // Several of its events match equally ("Northern League Meet"): the visitor picks; search never guesses one.
   const note = vague ? "Pick an event below" : found ? `Several of its events match "${where}": pick one below` : `None of its events matches "${where}": pick one below`;
