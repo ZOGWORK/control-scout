@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.4 — 2026-11-04
+## 3.0.5 — 2026-11-04
 
 Search answers a team's OPR and prediction rating the ways people ask: its rank worldwide or in a state, its best and worst events, Worlds, its trend and its rating's ± spread.
 
@@ -31,6 +31,27 @@ Search answers a team's OPR and prediction rating the ways people ask: its rank 
 - **Events and Worlds.** "highest opr ever", "lowest opr", "opr at their best/worst event", "average opr across events this season" and "opr at worlds" (its division named) answer from the team's stored event OPRs. "rating at worlds" is the season rating it finished Worlds on; "best prediction rating ever" names the season and its last event.
 - **Trends and spread.** "opr trend over seasons" shows this season event by event and each season's standing; "rating trend" reads the weekly Rankings snapshot after each event; "prediction rating uncertainty" and "prediction confidence" give the ± and the matches rated; "penalty opr" gives the penalty points given away per match.
 - **Fixes.** "6980 auto opr versus teleop opr" compared 6980 with team 24357 Teleop Tigers; it now sets 6980's own Auto against its TeleOp. "4215 opr compared to the average team" read "the" as an event; it is now the world average over the teams the team page's rank counts, stated on the card. (#558)
+
+## 3.0.4 — 2026-11-04
+
+Every search answer is now one card in the team page's look, with the
+team up top, big numbers and its season at a glance, and no gold boxes.
+
+### Highlights
+- [teams] A search answer shows its team like the team page does
+- [teams] Short answers add the team's season tiles and events
+- [appearance] No gold boxes or pills in search answers
+- [appearance] Auto, TeleOp and Endgame use the team page colours
+- [fixes] The Bruno AI card says "Bruno AI from Control Point"
+
+### Search
+- **One card system.** A fact ("where is 4215 from"), a records card (Worlds trips, awards, next event, high scores, a rule) and a stat answer are drawn in one card in the My Teams card's treatment: the team's number big and bold, its name, home, school and rookie year, the season it's about and a Full team page button, then the answer's title and what it covers. A two-team answer shows both teams side by side. The card's title is left to screen readers when the page heading already says it.
+- **Short answers fill the page.** A one-line answer adds the team's season at a glance (the team page's OPR, prediction rating, record and events tiles) and that season's events with rank and record, all from the team page's own data, so the footer no longer sits under a two-line card. A fact card that carries the season of its numbers and the rest of the team's card (region, reliability) uses that season and shows those facts too.
+- **Big bold values.** Facts and stat numbers are team page tiles: the value big and bold, its name above, a note under, each in a team page colour.
+- **No gold.** Answer cards, headline bands, scope chips, related-question pills, the Compare card, event and trip badges, the query badge and the team table's rank badges and OPR bar are no longer gold; the yellow-bordered box is gone.
+- **Phase colours.** Auto, TeleOp and Endgame bars and table columns use the team page's phase colours (sky, emerald, violet), with a thin bar in that colour.
+- **Compare.** The Compare card shows both teams' numbers big and bold with no gold box or button; the head-to-head adds the prediction rating and states its season once, and phones show it under the Compare. No team cards repeat the two sides.
+- **Bruno AI credit.** The Bruno AI card is headed "Bruno AI from Control Point". (#566)
 
 ## 3.0.3 — 2026-11-04
 

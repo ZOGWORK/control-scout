@@ -42,7 +42,9 @@ describe("Bruno's answer on /search", () => {
     const note = screen.getByRole("note", { name: "Bruno AI's answer" });
     expect(note.textContent).toContain("Bruno AI");
     expect(note.textContent).toContain("went to states 3 times since 2023–24.");
-    expect(note.textContent).toContain("Written by Bruno AI from the records below");
+    expect(note.textContent).toContain("Written by Bruno AI from Control Point, from the records below");
+    // The credit sits on the card itself, in its header.
+    expect(note.querySelector("p")!.textContent).toBe("Bruno AI from Control Point");
   });
   it("shows his points as a bulleted list under the sentence", async () => {
     render(<BrunoAnswer q={Q} ready />);

@@ -22,7 +22,7 @@ export function swipeOf(dx: number, dy: number): "right" | "left" | null {
   return dx > 0 ? "right" : "left";
 }
 
-const btn = "inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
+const btn = "inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
 /** The card with its actions underneath, and the swipe on the whole card. */
 /** `picked` / `onPick`: VS Compare picks this team for the page's Compare (2) bar (PhoneCompare.tsx). */
@@ -110,7 +110,7 @@ function MatchHistory({ team, name, season }: { team: number; name: string; seas
               const res = us > them ? "W" : us < them ? "L" : "T";
               return (
                 <li key={`${m.code}:${m.key}`}>
-                  <Link to={`/events/${m.season}/${m.code}?match=${m.key}`} className="flex min-h-11 items-center gap-3 px-3 py-2 text-sm">
+                  <Link to={`/events/${m.season}/${m.code}?match=${m.key}`} className="flex min-h-[44px] items-center gap-3 px-3 py-2 text-sm">
                     <span className={cn("grid size-7 shrink-0 place-items-center rounded-md text-xs font-bold", res === "W" ? "bg-success/15 text-success" : res === "L" ? "bg-danger/15 text-danger" : "bg-muted text-muted-foreground")}>{res}</span>
                     <span className="min-w-0 flex-1 truncate"><span className="font-medium text-foreground">{m.label}</span> <span className="text-muted-foreground">· {m.code}</span></span>
                     <span className="shrink-0 tabular-nums text-foreground">{us}–{them}</span>
@@ -120,7 +120,7 @@ function MatchHistory({ team, name, season }: { team: number; name: string; seas
             })}
           </ul>
         )}
-      <Link to={`/teams/${team}?season=${season}#matches`} className="inline-flex min-h-11 items-center text-sm font-semibold text-accent-text">All matches →</Link>
+      <Link to={`/teams/${team}?season=${season}#matches`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-accent-text">All matches →</Link>
     </>
   );
 }
