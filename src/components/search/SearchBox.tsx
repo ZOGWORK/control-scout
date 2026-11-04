@@ -578,7 +578,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                 : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
               <>
-                <AnswerNotesView notes={notes} refining={refining} query={stale ? undefined : query} className="px-3 pb-1 pt-1.5" onDidYouMean={setQ} />
+                <AnswerNotesView notes={notes} refining={refining} query={stale ? undefined : query} className="px-3 pb-1 pt-1.5" onDidYouMean={(fix) => { setQ(fix); field.current?.focus(); }} />
                 {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => { if (remember) addRecentSearch(query); go({ ...searchPagePick(query), href }); }} />}
                 {sections.map((s) => (
                   <div key={s.id} role="group" aria-label={s.title}>
