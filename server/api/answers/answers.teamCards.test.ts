@@ -46,6 +46,8 @@ describe("\"4215 record\": the latest season's record", () => {
     expect(readStatQuestion("4215 record")).toMatchObject({ id: "record", core: "4215", defaultSeason: "latest" });
     expect(readStatQuestion("hypnotic robotics record")).toMatchObject({ id: "record", defaultSeason: "latest" });
     expect(readStatQuestion("4215 worlds record")).toMatchObject({ id: "record", defaultSeason: "all", scope: { championship: true } });
+    // A bare year left as the team's number is no scope: still that team's latest season.
+    expect(readStatQuestion("2024 record")).toMatchObject({ id: "record", core: "2024", defaultSeason: "latest", scope: { season: null } });
   });
   it("big W-L-T, the split bar, win rate, season and the world rank by win rate", async () => {
     const a = await page("4215 record");

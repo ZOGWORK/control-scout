@@ -372,13 +372,14 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       : r.id === "average-margin" ? (/\blosing\b/.test(m[0]) ? "L" : /\b(?:winning|victory)\b/.test(m[0]) ? "W" : null) : null;
     const count = /\b(?:count|how\s+many|number\s+of|total)\b/.test(q);
     // A team-less question: what's left names an event (or nothing: the season's championship).
-    const defaultSeason = r.alone && !hasScope(scope) ? r.alone : r.season;
-    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason, scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
+    // Chosen once the scope is final: a bare year can still turn out to be the team ("2024 record").
+    const defaultOf = () => (r.alone && !hasScope(scope) ? r.alone : r.season);
+    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
     let core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     // Nothing else names a team: the "year" was the team's number ("2024 worlds record").
     if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }
     if (!core) return null;
-    return { id: r.id, family: r.family, defaultSeason, scope, leadEvent, n, outcome, count, noTeam: false, core };
+    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: false, core };
   }
   return null;
 }

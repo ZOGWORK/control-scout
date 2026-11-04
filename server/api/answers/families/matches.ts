@@ -52,11 +52,12 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
   };
 }
 
-const WIN_RATE_RANK = `World rank by win rate: wins over matches played (a tie counts half), among the season's teams with ${RANKED_MIN_MATCHES} or more matches, as the highest-win-rate list ranks them.`;
+const WIN_RATE_RANK = `World rank by win rate: the season's teams with ${RANKED_MIN_MATCHES} or more matches, ordered by the win rate shown (wins over matches played), then by wins.`;
 
-/** The team's world rank by win rate in one season (the "highest win rate" list's order), or null when it isn't ranked. */
+/** The team's world rank by win rate in one season (wins over matches played, the rate the card shows), or null when
+ *  it isn't ranked. */
 async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number } | null> {
-  const rate = "(s.wins + 0.5 * s.ties) * 1.0 / (s.wins + s.losses + s.ties)";
+  const rate = "s.wins * 1.0 / (s.wins + s.losses + s.ties)";
   const r = await get<{ rank: number; of: number }>(
     `SELECT rank, of FROM (SELECT s.team, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.opr_np DESC, s.team) rank, COUNT(*) OVER () of
        FROM team_season_stats s JOIN teams t ON t.number = s.team

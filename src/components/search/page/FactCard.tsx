@@ -40,6 +40,14 @@ export function FactCard({ card }: { card: SearchCard & { facts: SearchCardFact[
   );
 }
 
+/** A listed website as a link: FIRST lists some with no scheme ("www.example.org"); only http(s) ever links. */
+export function hrefOf(raw: string): string | null {
+  try {
+    const u = new URL(/^[a-z][a-z\d+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.href : null;
+  } catch { return null; }
+}
+
 function Fact({ f }: { f: SearchCardFact }) {
   // One value: the value, its name under it. Several (sponsors): the name with the count, then a row each.
   if (f.values.length > 1) {
@@ -56,7 +64,7 @@ function Fact({ f }: { f: SearchCardFact }) {
       <dt className="mt-0.5 text-[11px] text-muted-foreground">{f.label}{f.detail ? ` · ${f.detail}` : ""}</dt>
       <dd className="break-words text-base font-semibold text-foreground">
         {v == null ? <span className="font-normal text-muted-foreground">Not in FIRST's listing</span>
-          : f.link && /^https?:\/\//.test(v) ? <a href={v} target="_blank" rel="noopener noreferrer" className="text-accent-text hover:underline">{v}</a> : v}
+          : f.link && hrefOf(v) ? <a href={hrefOf(v)!} target="_blank" rel="noopener noreferrer" className="text-accent-text hover:underline">{v}</a> : v}
       </dd>
     </div>
   );
