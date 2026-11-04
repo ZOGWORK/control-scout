@@ -7,6 +7,7 @@
 // worked out only for /search and its first paint (`full`), never per keystroke.
 import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
+import type { AnswerTeam } from "./families/matches.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
@@ -26,10 +27,12 @@ import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
-import { headToHead, neverPlayedAnswer, opponentsAnswer, seasonSideBySide } from "./families/twoTeam.js";
+import { nextEventPrediction, pairPrediction } from "./families/predict.js";
+import { answerSeason, awardsSideBySide, compareAnswer, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
+import { sharedMatchList } from "../searchBoolean.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { shortEvent, teamMatches } from "./matchSet.js";
-import { readLeaderboard, readStatQuestion, readTwoTeam, type LeaderboardQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
+import { readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
 
 /** Search's own answer for the part of a query that names the team (searchAnswer with intents off). */
 export type Resolve = (core: string) => Promise<SearchAnswer>;
@@ -47,13 +50,25 @@ const TITLES: Record<IntentId, string> = {
   "opr-history": "OPR by event", "opr-by-season": "OPR by season", "record-by-season": "Record by season", "win-rate": "Win rate by event", "avg-penalties": "Penalty points given by event",
   "avg-score-by-event": "Average alliance score by event", "ranking-points": "Ranking points by event", "total-penalties": "Penalty points given",
   "most-played-opponent": "Most played opponent", "toughest-opponent": "Toughest opponent", "best-partner": "Best alliance partner", "frequent-partner": "Most frequent partner", "never-played": "Teams never played",
+  "worst-partner": "Worst alliance partner", partners: "Alliance partners", opponents: "Opponents", "beat-most": "Teams beaten most often", "lost-to-most": "Teams lost to most often",
+  "partner-top-opr": "Partner with the highest combined OPR", "opponent-top-opr": "Highest-OPR opponent", "partner-win-rate": "Win rate with alliance partners", "opponent-win-rate": "Opponents' win rate against them",
+  "pick-partner": "Who to pick as an alliance partner",
+  "next-event-wins": "Predicted wins, next event", "event-win-chance": "Chance to win their next event", "advance-chance": "Advancement chance", "playoff-chance": "Playoff chance, next event",
 };
-const TWO_TEAM_TITLES: Record<TwoTeamId, string> = { "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record" };
+const TWO_TEAM_TITLES: Record<TwoTeamId, string> = {
+  "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record",
+  predict: "Prediction", "h2h-wins": "Wins against", "shared-matches": "Shared matches", compare: "Compare", "phase-vs": "Phase side by side", "reliability-vs": "Reliability side by side", "awards-vs": "Awards side by side",
+};
+/** Read from the matches the two teams met in ("this season" is the first team's latest season with matches). */
+const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
 
 /** The intents about the team's opponents and partners (family 6, one team named). */
 /** One number over the team's events or seasons (family 2), and a season's penalty total. */
 const TREND_INTENTS = new Set<IntentId>(["opr-history", "opr-by-season", "record-by-season", "win-rate", "avg-penalties", "avg-score-by-event", "ranking-points", "total-penalties"]);
 const OPPONENT_INTENTS = new Set<IntentId>(["most-played-opponent", "toughest-opponent", "best-partner", "frequent-partner"]);
+const PARTNER_LIST_INTENTS = new Set<IntentId>(["worst-partner", "partners", "opponents", "beat-most", "lost-to-most", "partner-top-opr", "opponent-top-opr", "partner-win-rate", "opponent-win-rate", "pick-partner"]);
+/** The engine's stored projection for the team's next event (families/predict.ts): no season scope applies. */
+const PREDICT_INTENTS = new Set<IntentId>(["next-event-wins", "event-win-chance", "advance-chance", "playoff-chance"]);
 
 /** The intents read from event and season rows; the rest from matches (or awards). */
 const EVENT_INTENTS = new Set<IntentId>(["best-finish", "worst-finish", "first-event", "last-event", "best-opr-event", "best-season", "most-improved-season", "first-season", "total-events", "average-rank", "seasons-played", "seasons-count"]);
@@ -95,6 +110,16 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;
     return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
+  }
+  if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest") && PARTNER_LIST_INTENTS.has(it.id)) {
+    // The partner and opponent answers read the latest completed season when the team played it ("this season" too).
+    const def = answerSeason();
+    const official = officialClause();
+    if ((await teamMatches(team)).some((m) => m.season === def && official(m))) {
+      scope.season = def;
+      scope.seasonWhy = `${s.latest ? `"This season" here is` : "The season is"} ${seasonLabel(def)}, the latest completed season.`;
+      return scope;
+    }
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
     const latest = await latestSeason(team, it.id);
@@ -140,6 +165,8 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
+  const set = readTeamSet(q);
+  if (set) return teamSetSearch(q, set, resolve, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   const it = readStatQuestion(q);
@@ -196,8 +223,10 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (it.id === "total-penalties") return penaltyTotalAnswer(team, await teamEventSet(team.number), scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope);
+  if (PREDICT_INTENTS.has(it.id)) return nextEventPrediction(it.id, team);
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);
+  if (PARTNER_LIST_INTENTS.has(it.id)) return partnerListAnswer(it.id, team, ms, scope);
   if (it.id === "never-played") return neverPlayedAnswer(team, ms, scope);
   if (scope.event) {
     const ev = (await teamEventSet(team.number)).events.find((e) => e.season === scope.event!.season && e.code === scope.event!.code);
@@ -301,7 +330,7 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   const s = two.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   // "This season" for the meetings: the first team's latest season with matches; for season numbers, the latest both played.
-  if (two.id === "head-to-head" && s.season == null && s.latest) {
+  if (MEETING_IDS.has(two.id) && s.season == null && s.latest) {
     const ms = (await teamMatches(a.number)).filter(officialClause());
     scope.season = ms.length ? Math.max(...ms.map((m) => m.season)) : null;
     if (scope.season != null) scope.seasonWhy = `"This season" here is ${seasonLabel(scope.season)}, ${a.number}'s latest season with matches on record.`;
@@ -313,9 +342,47 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
     intent: { kind: `stat-${two.id}`, pattern: `[team] ${two.id} [team]${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Teams ${whoOf(a)} and ${whoOf(b)}`, TWO_TEAM_TITLES[two.id]] },
   };
   if (!opts.full) return answer;
-  const stat = two.id === "head-to-head" ? await headToHead(a, b, await teamMatches(a.number), scope) : await seasonSideBySide(two.id, a, b, scope);
+  const stat = await twoTeamStat(two, a, b, scope);
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
   return { ...answer, stat };
+}
+
+async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
+  switch (two.id) {
+    case "head-to-head": return headToHead(a, b, await teamMatches(a.number), scope);
+    case "h2h-wins": return { ...(await headToHead(a, b, await teamMatches(a.number), scope, { wins: true })), intent: "h2h-wins", title: `Wins against ${b.number}${scopePhrase(scope)}` };
+    case "shared-matches": return sharedMatchList(a, b, scope);
+    case "compare": return compareAnswer([a, b], scope);
+    case "phase-vs": return phaseSideBySide(two.phase ?? "auto", a, b, scope);
+    case "reliability-vs": return reliabilitySideBySide(a, b, scope);
+    case "awards-vs": return awardsSideBySide(a, b);
+    case "predict": case "win-chance": {
+      // A prediction is one season's ratings: the season named, else the latest completed one.
+      const season = scope.season ?? answerSeason();
+      const why = scope.season == null ? `The season is ${seasonLabel(season)}, the latest completed season.` : undefined;
+      return pairPrediction(two.id, `${two.id === "win-chance" ? "Win chance" : "Prediction"}: ${a.number} vs ${b.number} in ${seasonLabel(season)}`, a, b, season, why);
+    }
+    default: return seasonSideBySide(two.id, a, b, scope);
+  }
+}
+
+/** "4215 6980 33950 compare": three to six teams' season numbers in one card (compareAnswer). Every team found by its
+ *  number, else left to search. */
+async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const hits = await Promise.all(set.teams.map(async (n) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n) && !h.href)));
+  if (hits.some((h) => !h)) return null;
+  const found = hits as SearchHit[];
+  const teams = found.map((h) => ({ number: Number(h.ref), name: teamNameOf(h.title) || null }));
+  const label = `Compare: ${teams.map(whoOf).join(" vs ")}`;
+  // Compare's own hit for the set leads, as it does for "4215 vs 6980 vs 33950"; the card is the numbers.
+  const compare = (await resolve(set.teams.join(" vs "))).hits.find((h) => h.kind === "compare");
+  const answer: SearchAnswer = {
+    q, hits: [...(compare ? [compare] : []), ...found.map((h) => ({ ...h, facts: undefined, events: undefined }))], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label, ...(set.season != null ? { season: set.season } : {}) },
+    intent: { kind: "stat-compare", pattern: `[team] [team] [team] compare${set.season != null ? " [season]" : ""}`, met: true, understood: [`Teams ${teams.map(whoOf).join(", ")}`, "Compare"] },
+  };
+  if (!opts.full) return answer;
+  return { ...answer, stat: await compareAnswer(teams, { season: set.season }) };
 }
 
 /** The asks' own leaderboards ("top teams in the world", "best auto team", "highest opr in texas": ../searchAsks.ts
