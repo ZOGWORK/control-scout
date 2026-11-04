@@ -109,6 +109,10 @@ describe("test 16: each intent returns its stated surface", () => {
     const a = await ask("who won Inspire at New Jersey Championship");
     expect(a.card?.lines.map((l) => [l.text, l.results?.[0]])).toEqual([["23268 Ultraviolet", "Winner"], ["4215 Hypnotic Robotics", "2nd place"]]);
     expect(a.hits[0]).toMatchObject({ ref: "2025:USNJCMP", section: "awards" });
+    // The podium's award, the event (its Awards tab) and every award it gave, in the event page's order.
+    expect(a.card).toMatchObject({ award: "Inspire", event: { season: 2025, code: "USNJCMP" } });
+    expect(a.card!.awards!.filter((x) => x.type === "Inspire").map((x) => [x.placement, x.team])).toEqual([[1, 23268], [2, 4215]]);
+    expect(a.card!.awards![0].type).toBe("Inspire");
   });
   it("how are predictions calculated: the methodology page in the Pages group", async () => {
     const a = await ask("how are predictions calculated");

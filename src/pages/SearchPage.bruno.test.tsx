@@ -2,8 +2,10 @@
 // Bruno AI's overview on /search never gets lost (owner, 2026-11-02): before FTC One Search every question
 // (isBrunoQuestion) got his answer on top of the results, whatever else the page showed. Each kind of question the
 // page answers is listed here and must still show his card, on a desktop (right column or above the results) and on
-// a phone (his card, analysis folded). The deterministic cards and summaries sit alongside him; they never replace
-// him. A new kind of answer (a card, a stat answer) adds its question to QUESTIONS.
+// a phone (his card, analysis folded). The deterministic summaries sit alongside him; they never replace him. One
+// exception (owner, 2026-11-04: never his card and an answer box saying the same thing twice): where search answers
+// the question directly (a card or a stat answer, not a weak guess), its answer card stands alone and he isn't asked.
+// A new kind of answer (a card, a stat answer) adds its question to QUESTIONS.
 import { act, cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -71,7 +73,25 @@ describe.each([
   });
   afterEach(() => { window.matchMedia = real; });
 
-  it.each(QUESTIONS)("%s: \"%s\" shows his card", async (_kind, q, make) => {
+  const direct = (a: SearchAnswer) => !a.weak && !!(a.card || a.stat);
+  it.each(QUESTIONS.filter(([, , make]) => direct(make())))("%s: \"%s\" is search's answer card alone", async (_kind, q, make) => {
+    state.answer = make();
+    const { container } = show(q);
+    await settle();
+    expect(asked).toEqual([]);
+    expect(container.querySelector("[data-bruno-answer]")).toBeNull();
+  });
+
+  it("a weak card still asks him (search's answer is a guess)", async () => {
+    const [, q, make] = QUESTIONS.find(([k]) => k === "a team's awards")!;
+    state.answer = { ...make(), weak: true };
+    const { container } = show(q);
+    await settle();
+    expect(asked).toEqual([`/api/search/bruno?q=${encodeURIComponent(q)}&stream=1`]);
+    expect(container.querySelectorAll("[data-bruno-answer]")).toHaveLength(1);
+  });
+
+  it.each(QUESTIONS.filter(([, , make]) => !direct(make())))("%s: \"%s\" shows his card", async (_kind, q, make) => {
     state.answer = make();
     const { container } = show(q);
     await settle();

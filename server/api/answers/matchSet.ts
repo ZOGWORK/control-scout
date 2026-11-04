@@ -35,7 +35,8 @@ const num = (v: unknown) => (v == null ? null : Number(v));
 const cache = new Map<number, { at: number; rows: Promise<TeamMatch[]> }>();
 registerCache("Search answers: team matches", () => cache.clear());
 
-/** The team's played, scored matches at in-person events, oldest first: by event, then in the event's own match order
+/** The team's played, scored matches at in-person events, oldest first: by event (a division before the finals it
+ *  feeds, held the same day), then in the event's own match order
  *  (qualifications, then playoffs by bracket stage with the final, series 0, last), never by match time, which a played
  *  match may lack. */
 export function teamMatches(team: number): Promise<TeamMatch[]> {
@@ -59,7 +60,7 @@ async function load(team: number): Promise<TeamMatch[]> {
        JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
        JOIN events e ON e.season = x.season AND e.code = x.code
        WHERE x.team = ? AND m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND COALESCE(e.remote, 0) = 0
-       ORDER BY e.start, x.season, x.code, x.level = 'playoff', x.level = 'playoff' AND x.series = 0, x.series, x.number`, [team]),
+       ORDER BY e.start, x.season, COALESCE(e.division_code, e.code), e.division_code IS NULL, x.code, x.level = 'playoff', x.level = 'playoff' AND x.series = 0, x.series, x.number`, [team]),
     all<{ season: number; code: string; level: string; series: number; number: number; team: number; alliance: string }>(
       `SELECT y.season, y.code, y.level, y.series, y.number, y.team, y.alliance FROM match_teams x
        JOIN match_teams y ON y.season = x.season AND y.code = x.code AND y.level = x.level AND y.series = x.series AND y.number = x.number

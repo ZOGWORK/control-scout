@@ -47,13 +47,18 @@ export interface LeaderboardRow {
 /** A season OPR (np, without penalties) or one of its phases, as the team page keys them. */
 export type OprPhase = "np" | "auto" | "teleop" | "endgame";
 
+/** Wins, losses and ties. */
+export type StatRecord = { wins: number; losses: number; ties: number };
+
 export type StatBlock =
   /** Big numbers side by side ("312 points", "14 wins"). Items with a `phase` are a team's season OPR and its parts, drawn
    *  as the team page's OPR tiles (its colours, its rank line and bar from `rank` and `of`; a match's phase points have no
    *  rank: `sub` is the line and `pc`, 0 to 100, the bar). */
   | { kind: "kpis"; items: { label: string; value: string; sub?: string; href?: string; tone?: "accent" | "good" | "bad"; phase?: OprPhase; rank?: number | null; of?: number | null; pc?: number }[] }
   /** A win-loss-tie record as a bar. */
-  | { kind: "record"; title?: string; wins: number; losses: number; ties: number }
+  | { kind: "record"; title?: string; wins: number; losses: number; ties: number;
+      /** The same matches as qualifications and playoffs (only when the matches hold both). */
+      split?: { quals: StatRecord; playoffs: StatRecord } }
   /** Matches, best first or newest first as `title` says. */
   | { kind: "matches"; title: string; rows: StatMatchRow[]; more?: string }
   /** Rows of named columns; a row may link (its first cell is the link text). */

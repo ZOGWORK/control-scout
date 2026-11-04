@@ -19,6 +19,7 @@ The first layer that gives a direct answer wins, and the answer appears once.
 |---|---|---|
 | 0 Normalization | Takes the leading `#` off a team number (`#4215 opr`). Nothing else changes for Layer 1. The word layers fold case, accents and punctuation, read `4215's` as 4215, and keep a season (`2024-25`, `2024 – 25`) as one word. | `normalizeQuery`, `tokens` |
 | 1 Templates | The existing readers, unchanged (`searchAnswer.ts` `readerAnswer`). Every template that passed still passes. | `readerAnswer` |
+| 1L Long form | A long, conversational question said the short way the readers know, then Layer 1 again (see "Long form" below). It runs when Layer 1 has no stat or card for the query, and its answer counts only when it is one. | `searchLongForm.ts` `longForm` |
 | 2 Keywords | The query read as a set of words. It finds the team (a number, a full name, or a unique start of a name such as "hypnotic"), one intent from the catalog, and the scope (season, place, event), in any order. It hands that intent's canonical phrasing to its answer. A team intent the catalog doesn't list ("longest win streak of 4215") uses the team-first phrasing instead: the team, then the other words in typed order, with filler and scaffolding left out. | `extract`, `teamFirst` |
 | 3 Paraphrases | `PARAPHRASES` says a phrasing the catalog's way ("from where" → "from", "trophies" → "awards"), then Layers 1 and 2 run again. | `paraphrase` |
 | 4 Filler | `FILLER` words are taken out, never inside a team's full name, then Layers 1 and 2 run again. | `stripFiller` |
@@ -30,6 +31,14 @@ Three rules run alongside the order:
 - **A definition beats a name search** (brief section 10). "what does opr mean" read "mean" as the start of Mean Green Irish Machine; it now gets the OPR definition.
 - **A leaderboard, count or winners question with every word read beats an answer about a team the query never named in full.** "opr leaders texas" read "leaders" as Newgen Leaders, and "top win rate" read "top" as Top Shelf BGS; both now get the leaderboard. This also covers a place typed without "in" ("highest opr california").
 - **A forbidden word Layer 1 read past is named.** "4215 today opr" still gets the OPR card, and the line adds `"today" isn't part of this answer`.
+
+### Long form
+
+`longForm` (`server/api/searchLongForm.ts`) takes a question's wrapper off and says what it asks as the 260-query list's short form. Fixed rules, first match wins:
+- Openers and closers go: "can you tell me", "i want to know", "show me", "please", "for me", "right now", a trailing "?". "4215's" is 4215, and "the team 4215" is 4215.
+- Whole-question rules map the phrasing to its intent: "when was the last time 4215 went worlds" → `4215 worlds appearances`, "who did 4215 play with the most" → `4215 most common alliance partner`, "is 4215 better than 6980 at auto" → `4215 versus 6980 who is better at auto`, "what is the highest score 4215 has ever gotten" → `4215 highest score ever`, "what is the opr of team 4215" → `4215 opr`.
+- Whatever follows the matched part stays: a season ("last season", "2024-25"), a place, an event's name. It still scopes the answer.
+- A short query is never changed (`longForm` returns null).
 
 The layers run once per top-level search: `searchAnswer` calls `layeredAnswer`, and every search made inside it is
 Layer 1 only (`opts.inner`). A phrasing that two layers reach is read once (a per-search memo).
@@ -333,12 +342,11 @@ two clear readings.
 
 ## 8. The reading line
 
-Any answer reached by a later layer says how it was read, after what the answer understood:
-`Hypnotic Robotics (4215) · OPR in 2025–26 · read as "4215 opr 2025-26", leaving out "what was", "of this team", "called"`.
-- The phrasing in quotes is exactly what the answer read, so the team, intent and resolved scope are visible.
-- The words left out are listed, without connectors such as "the" and "in", up to six.
+An answer reached by a later layer keeps its own label (the page's heading), and the phrasing it read goes in
+`understood.showing`, which /search shows as a quiet line under the heading: `Showing: 4215 opr 2025-26`.
+- The heading never quotes a rewritten query.
 - A rewrite or a dropped word never adds a word to the meaning of the query.
-- Layer 6 keeps its existing line ("… isn't answered directly yet: …"). Failed-search reporting (Track B) reads the same outcome, so the line and the issue agree.
+- Layer 6 says plainly that the question isn't answered directly yet and never quotes it: `Hypnotic Robotics (4215) · This isn't answered directly yet`. Under it, `suggest` holds two or three questions search answers about the team, built from its records (a Worlds trip, an award, a season of matches), the ones nearest what was asked first. Failed-search reporting (Track B) reads the same outcome, so the line and the issue agree.
 
 ## 9. Outcome for failed-search reporting (Track B)
 

@@ -24,6 +24,7 @@ import { ResultChanges } from "../components/ResultChanges";
 import { Button } from "../components/ui/button";
 import { StickyActions } from "../components/StickyActions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
+import { AwardsTabIcon, InsightsTabIcon, MatchesTabIcon, OddsTabIcon, PlayoffsTabIcon, RankingsTabIcon, TeamsTabIcon } from "../components/TabIcons";
 import { ToggleGroup, ToggleGroupItem } from "../components/ui/controls";
 import { MatchList } from "../components/predict";
 import { SortTable, type Col } from "../components/SortTable";
@@ -239,13 +240,13 @@ function Event({ d, path }: { d: EventDetail; path: string }) {
       <div ref={tabsRef} className="scroll-mt-bar-4" />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="matches">Matches</TabsTrigger>
-          <TabsTrigger value="rankings">Rankings</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
-          <TabsTrigger value="teams">Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>
-          <TabsTrigger value="playoffs">Playoffs</TabsTrigger>
-          <TabsTrigger value="awards">Awards</TabsTrigger>
-          {predictable && <TabsTrigger value="odds">Odds</TabsTrigger>}
+          <TabsTrigger value="matches"><MatchesTabIcon />Matches</TabsTrigger>
+          <TabsTrigger value="rankings"><RankingsTabIcon />Rankings</TabsTrigger>
+          <TabsTrigger value="insights"><InsightsTabIcon />Insights</TabsTrigger>
+          <TabsTrigger value="teams"><TeamsTabIcon />Teams <span className="rounded-md bg-current/15 px-1.5 text-[11px] tabular-nums">{eventRoster(d.field).length || registeredCount}</span></TabsTrigger>
+          <TabsTrigger value="playoffs"><PlayoffsTabIcon />Playoffs</TabsTrigger>
+          <TabsTrigger value="awards"><AwardsTabIcon />Awards</TabsTrigger>
+          {predictable && <TabsTrigger value="odds"><OddsTabIcon />Odds</TabsTrigger>}
         </TabsList>
         <TabsContent value="matches" className="mt-5 max-sm:mt-4">
           <Matches d={d} team={teamParam} live={liveMode ? nextMatch(d.matches, null)?.key ?? null : null} />

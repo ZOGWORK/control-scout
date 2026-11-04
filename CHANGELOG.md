@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.1.3 — 2026-11-04
+## 3.1.4 — 2026-11-04
 
 Search answers questions that join filters or ask two things at once, each filter it read named on the card and applied.
 
@@ -33,6 +33,74 @@ Search answers questions that join filters or ask two things at once, each filte
 - **Two answers on one card.** "Awards and record" (or OPR), and "where is … from and what is their record", which also finds a team by its name. Three or four teams' reliability side by side names the most reliable.
 - **Fixes.** A compare side made only of words like "when they lose" no longer matches a team's name by spelling.
 
+## 3.1.3 — 2026-11-04
+
+Search answers about one event work for every team, not only the teams it was first checked with.
+
+### Highlights
+- [teams] "NJ championship" reads the division the team played
+- [teams] A division and the finals it reached count as one event
+- [fixes] A team that didn't play an event is told so, not left blank
+- [fixes] Teams numbered like a year (20205) are found again
+- [teams] "States", Worlds, venues and two teams at one event answer
+
+### Search
+- **The team's own event.** "23268 matches at NJ championship" found two of Ultraviolet's events alike (the Turnpike Division and the finals) and showed an empty page; 4215 only played Parkway, so it never hit this. A championship named now takes in the division the team played and the finals it reached, read as one ("New Jersey Championship (Turnpike Division and finals)"), with the division's rank and OPR. Events of one name it played (an AM and a PM meet) are read together, and one match number at each is listed rather than picked. A division named outright is that division alone. (#665)
+- **Events a team didn't play.** "10809 record at NJ championship" says Crow Force didn't play at New Jersey Championship in 2025–26, naming the event checked, and lists the same question for the events it did play, instead of an empty page.
+- **Places.** A team from elsewhere asked its place on New Jersey's lists is told it's from its own state, with that state's question, not that it's short of matches.
+- **Worlds rating.** An off-season event after Worlds isn't rated, so "rating at worlds" now shows the rating a team finished Worlds on instead of "isn't stored".
+- **States.** "4215 matches at states in 2024" reads the team's own state championship that season (a year picks the season), lists every match, and links its other state championships; "states opr", "states rank" and "states wins and losses" answer directly. A team with none on record is told so.
+- **Worlds, kinds of event, last and first.** "worlds Ross" reads that Worlds division; "league meets this season", "at their last event" and "at their first event" read the team's own events. Won, lost and playoff filters apply at that event, and an event with more than one row gets an "Each event" table.
+- **Two teams at one event or venue.** "4215 and 6980 matches at river dell" finds the venue under any spelling it was stored with and lists their matches there; if one team wasn't there, it says so and names the event it played.
+- **Reused event codes.** "east bergen conference winning alliance" reads the East Bergen event, not the South Essex event that used the same code a season before. The distinctive words in a name decide; words like "league" or "conference" only break ties, and the latest season with that event wins.
+- **Team numbers.** A typed number is a typo only of a number as long: team 20205 no longer matches the year 2025, nor 20265 an event named "… 2026 Bishkek", so "when did 20265 start in FTC" finds the team.
+
+## 3.1.2 — 2026-11-04
+
+Search reads long, conversational questions and answers them like their short form.
+
+### Highlights
+- [teams] Ask in your own words: "when was the last time 4215 went worlds"
+- [teams] The answer keeps its own heading; the short form is a quiet line
+- [fixes] A question search can't answer offers ones it can, for that team
+
+### Search
+- **Long questions.** Search takes the question's wrapper off ("can you tell me", "what was", "how many times has", "please", "?") and reads what's left as the short form it already answers. Spoken fillers such as "like" or "basically" go too. "When was the last time 4215 went worlds" gives Worlds appearances, "is 4215 better than 6980 at auto" the Auto side by side, "who did 4215 play with the most this season" the most frequent partner. Season and place words still scope the answer. It is fixed rules, no AI. (#655)
+- **Showing line.** An answer read from a rewritten query keeps its own heading. The words it read go on a quiet "Showing: …" line under the heading, never in it.
+- **The first or last time.** "When was the first time enforcers went to worlds" (by number or name, Worlds or states, "worldes" corrected) gives the appearances card headlined with that trip: "First went to Worlds in 2023–24 (Franklin)".
+- **Team numbers typed wrong.** "42-5" or "421" isn't a team: search offers "Did you mean: 4215" and the nearest real team numbers, the most recently active first, instead of "No team, event or match matched".
+- **Team fallback.** A team found with a question search can't answer says so plainly. The query is never quoted back. Two or three questions it does answer follow, built from the team's records: Worlds appearances only for a team that went, its season's record and OPR.
+
+## 3.1.1 — 2026-11-04
+
+Each tab on an event page has its own small icon, so the one you want is easy to spot.
+
+### Highlights
+- [appearance] Every event page tab now has its own icon
+- [rankings] Rankings is a podium, Awards a medal, Playoffs a bracket
+- [teams] Matches is the field, Teams two robots, Odds a die
+
+### Appearance
+- **Tab icons.** Matches (the field split into two halves), Rankings (a podium), Insights (a rising chart), Teams (two robot heads), Playoffs (a bracket), Awards (a medal) and Odds (a die) each draw an original icon before the label, in the tab's text colour, on desktop and phone. The labels are unchanged, so screen readers read the same names. (#675)
+
+## 3.1.0 — 2026-11-04
+
+Search answers look like the team page all the way down: an award at an event is a podium with every award the event gave, a record splits qualifications from playoffs, and no name is cut off.
+
+### Highlights
+- [rankings] Who won an award at an event: a podium, 1st in the centre
+- [rankings] Every award the event gave, and its Awards tab, one tap away
+- [teams] Records split qualifications and playoffs, each with its rate
+- [teams] Where a team is from is drawn as a place, city to country
+- [fixes] Event names in match lists and OPR by event are never cut off
+
+### Search
+- **Award podium.** "who won inspire at East Bergen League Tournament 2026" draws the asked award's 1st, 2nd and 3rd places as a podium, 1st in the centre and highest, each team's number big with its name and the award's name as FIRST gives it, each linked to the team's season. Under it, every award the event gave, in the event page's order, and a button to the event's Awards tab. "who won nj states" lists all the event's awards the same way, with no podium. Colours are the team page's tile tones (green, blue, orange), never gold.
+- **One answer, said once.** When search answers a question directly (an answer card or a stat answer, not a guess), Bruno AI is not asked, so his card never repeats the answer beside it. He still answers questions search only lists results for, and his card says "Bruno AI from Control Point".
+- **Records.** A record over both qualifications and playoffs ("4215 states record") shows each apart under the win-loss bar: W-L-T, win rate and matches, with its own bar.
+- **Place card.** "where is 4215 from" draws the place over a map-style grid with a pin, the place big, and its city, state and country as FIRST lists them.
+- **Leaderboards.** The top three's rank badges are coloured (green, blue, orange).
+- **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#648)
 ## 3.0.9 — 2026-11-04
 
 Three fixes to the two-team and forecast answers from 3.0.7's last review.

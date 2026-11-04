@@ -23,7 +23,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   await run(`INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA'), (6980, 'Bad Wolf', 'Oradell', 'NJ', 'USA'),
-    (7000, 'Jersey Top', 'Edison', 'NJ', 'USA'), (8000, 'Texas Top', 'Austin', 'TX', 'USA'), (24357, 'Teleop Tigers', 'Austin', 'TX', 'USA'), (9100, 'Few Matches', 'Trenton', 'NJ', 'USA')`);
+    (7000, 'Jersey Top', 'Edison', 'NJ', 'USA'), (8000, 'Texas Top', 'Austin', 'TX', 'USA'), (24357, 'Teleop Tigers', 'Austin', 'TX', 'USA'), (9100, 'Few Matches', 'Trenton', 'NJ', 'USA'), (9200, 'Sydney Bots', 'Sydney', 'NSW', 'Australia'), (9300, 'Bishkek Bots', 'Bishkek', 'BZ', 'Kyrgyzstan')`);
   const ev = (season: number, code: string, name: string, type: string, start: string, division: string | null = null) =>
     run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (?, ?, ?, ?, ?, 'Edison', 'NJ', 'USA', ?, ?, 't')", [season, code, name, type, division, start, start]);
   await ev(2023, "FTCCMP1EDIS", "2024 FIRST Championship - Edison Division", "FIRSTChampionship", "2024-04-17", "FTCCMP1");
@@ -40,6 +40,10 @@ beforeAll(async () => {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, ?, 4215, 3)", [season, code]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (?, ?, 4215, ?, ?, ?, ?, ?)", [season, code, opr, a, t, e, n]);
   }
+  // An off-season event after its 2023–24 Worlds: not rated, so the season's rating is still the one it finished Worlds on.
+  await ev(2023, "USNJOFF", "Summer Invitational", "OffSeason", "2024-06-01");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2023, 'USNJOFF', 4215, 1)");
+  await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2023, 'USNJOFF', 4215, 5)");
   // season, team, OPR, auto, teleop, endgame, OPR rank, ranked teams, matches, wins, rating, ± , rating rank, rated matches
   const rows = [
     [2023, 4215, 141.4, 47.3, 60, 38.9, 40, 6000, 15, 12, 139.2, 3.2, 84, 52], [2024, 4215, 144.8, 38.6, 106.2, 2, 30, 7600, 5, 5, 167.6, 3.2, 166, 42],
@@ -54,6 +58,7 @@ beforeAll(async () => {
   }
   // On the New Jersey list only with 3+ matches (the Teams list's filter): under 3, never ranked there.
   await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9100, 300, 2, 2, 0, 0)");
+  await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9200, 80, 6, 3, 3, 0), (2025, 9300, 70, 6, 3, 3, 0)");
   // The Teams page's season table (team_season_records), at full precision: what its New Jersey list sorts.
   for (const [team, name, opr, played] of [[4215, "Hypnotic Robotics", 101.64, 26], [6980, "Bad Wolf", 46.91, 24], [7000, "Jersey Top", 120.02, 20], [9100, "Few Matches", 300, 2], [8000, "Texas Top", 150, 20]] as const) {
     await run("INSERT INTO team_season_records (season, team, team_name, events, played, wins, losses, ties, np_opr) VALUES (2025, ?, ?, 2, ?, 10, 0, 0, ?)", [team, name, played, opr]);
@@ -127,6 +132,22 @@ describe("answers", () => {
       expect((await ask(q)).headline, q).toMatchObject({ value: "#2 of 3", label: "in New Jersey by prediction rating", sub: expect.stringContaining("#2 of 3 in New Jersey by OPR") });
     }
     expect((await ask("6980 place on the New Jersey leaderboard")).headline).toMatchObject({ value: "#3 of 3" });
+  });
+  it("34, 55, 206 asked of a team from elsewhere: it's from there, not short of matches; its own place's list answers", async () => {
+    for (const q of ["8000 opr rank in New Jersey", "8000 rating in New Jersey", "8000 rank in New Jersey"]) {
+      const s = await ask(q);
+      expect(s.none, q).toMatch(/isn't on the New Jersey .* for 2025–26: it's a team from Texas, and the New Jersey .* rank teams from New Jersey only\./);
+      expect(s.blocks[0], q).toMatchObject({ kind: "related", queries: [expect.stringMatching(/^8000 .* in Texas in 2025–26$/)] });
+    }
+    expect((await ask("8000 opr rank in Texas in 2025–26")).headline).toMatchObject({ value: "#1 of 1", label: "in Texas by OPR" });
+    // A region stored by its code ("NSW") is named so its own question reads it back.
+    expect((await ask("9200 opr rank in New Jersey")).blocks[0]).toMatchObject({ queries: ["9200 opr rank in New South Wales in 2025–26"] });
+    // A code with no known name ("BZ") is said as its country, with no question that has no list.
+    const kg = await ask("9300 opr rank in New Jersey");
+    expect(kg.none).toMatch(/it's a team from Kyrgyzstan, and/);
+    expect(kg.blocks).toEqual([]);
+    // A New Jersey team under 3 matches is still told why.
+    expect((await ask("9100 opr rank in New Jersey")).none).toMatch(/it needs 3\+ matches that season/);
   });
   it("36: OPR against the world's average team, the average stated", async () => {
     const s = await ask("4215 opr compared to the average team");

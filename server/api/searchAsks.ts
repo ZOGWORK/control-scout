@@ -11,7 +11,7 @@
 //                  alliance and the Inspire Award, from its results
 //   how it works   "how are predictions calculated"  → the methodology page, in the Pages group
 // Only stats the data holds: OPR without penalties and its auto/teleop/endgame parts, and wins. Never an inferred one.
-import type { SearchAnswer, SearchCardLine, SearchHit, SearchPageLink } from "../../src/shared/api.js";
+import type { SearchAnswer, SearchCard, SearchCardAward, SearchCardLine, SearchHit, SearchPageLink } from "../../src/shared/api.js";
 import { pagesFor } from "../../src/shared/search.js";
 import { eventTypesOf, readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
@@ -25,6 +25,7 @@ import { all } from "../db.js";
 import { rankings } from "./rankings.js";
 import { searchSeason } from "./answers/season.js";
 import { search } from "./search.js";
+import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
@@ -117,6 +118,15 @@ export function readAsk(q: string): Ask | null {
   return null;
 }
 
+/** An event's whole award list and the event itself, as its Awards tab has them (server/api/events.ts's order). */
+async function eventAwards(season: number, code: string, name: string): Promise<Pick<SearchCard, "event" | "awards">> {
+  const rows = await all<any>(
+    `SELECT a.type, a.placement, a.team, a.name, t.name team_name FROM awards a LEFT JOIN teams t ON t.number = a.team WHERE a.season = ? AND a.code = ?
+     ORDER BY CASE a.type WHEN 'Inspire' THEN 0 WHEN 'Winner' THEN 1 WHEN 'Finalist' THEN 2 ELSE 3 END, a.type, a.placement`, [season, code]);
+  const awards: SearchCardAward[] = rows.map((r) => ({ type: r.type, placement: Number(r.placement), team: Number(r.team), teamName: r.team_name ?? null, name: r.name ?? null }));
+  return { event: { season, code, name }, awards };
+}
+
 const teamLine = (n: number, name: string | null, results: string[], detail?: string): SearchCardLine => ({
   text: `${n} ${cleanTeamName(n, name) ?? ""}`.trim(), ...(detail ? { detail } : {}), results, href: `/teams/${n}`,
 });
@@ -155,10 +165,16 @@ export async function eventWon(words: string, prefer: ReadonlySet<string>, now =
   }
   // An event by name ("New Jersey Championship Parkway Division"): the code search finds, its newest finished season
   // (or the one named).
-  const ev = await eventOf(sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words, prefer);
-  if (!ev) return null;
-  const code = ev.ref.split(":")[1];
-  const rows = await all<Ev>("SELECT season, code, name, start, end, timezone FROM events WHERE code = ? ORDER BY season DESC", [code]);
+  // A code is reused for other events over the years (USNJNELT2 was a South Essex tournament in 2024–25): a season
+  // counts only while its event still has a name every word typed matches, and the events found that do lead.
+  const named = sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words;
+  const hits = (await search(named, 8, prefer, new Set(["event"]))).filter((h) => h.kind === "event");
+  const fits = (name: string) => fuzzyScore(named, name) >= 0.75;
+  const lead = hits.filter((h) => fits(h.title));
+  if (!hits.length) return null;
+  const pool = lead.length ? lead : [hits[0]];
+  const rows = (await Promise.all(pool.map((h) => all<Ev>("SELECT season, code, name, start, end, timezone FROM events WHERE code = ?", [h.ref.split(":")[1]])))).flat()
+    .filter((r) => !lead.length || fits(r.name)).sort((a, b) => Number(b.season) - Number(a.season));
   return pick(finished(rows).filter(inScope)[0]);
 }
 
@@ -305,7 +321,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const award = rows[0]?.award ?? `${ask.award} Award`;
       return answer(q, {
         hits: [{ ...ev, section: "awards" }], pages: pagesFor(q),
-        card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
+        card: { kind: "event-awards", title: `${award} · ${ev.title} · ${seasonLabel(season)}`, lines, award: ask.award, ...(await eventAwards(season, code, ev.title)), ...(lines.length ? {} : { none: `No ${award} recorded at ${ev.title} in any season on record.` }) },
         understood: { kind: "question", label: `Who won the ${award} at ${ev.title} (${seasonLabel(season)})`, season },
       });
     }
@@ -325,7 +341,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const ev = eventHit(row);
       return answer(q, {
         hits: [{ ...ev, section: "playoffs" }], pages: pagesFor(q),
-        card: { kind: "event-awards", title: `Who won · ${won.name} · ${seasonLabel(won.season)}`, lines, ...(lines.length ? {} : { none: `No results are recorded for ${won.name} (${seasonLabel(won.season)}) yet.` }) },
+        card: { kind: "event-awards", title: `Who won · ${won.name} · ${seasonLabel(won.season)}`, lines, ...(await eventAwards(won.season, won.code, won.name)), ...(lines.length ? {} : { none: `No results are recorded for ${won.name} (${seasonLabel(won.season)}) yet.` }) },
         understood: { kind: "question", label: `Who won ${won.name} (${seasonLabel(won.season)}): the winning alliance and the Inspire Award`, season: won.season },
       });
     }
