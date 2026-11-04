@@ -29,6 +29,21 @@ Search reads long, conversational questions and answers them like their short fo
 - **Showing line.** An answer read from a rewritten query keeps its own heading. The words it read go on a quiet "Showing: …" line under the heading, never in it.
 - **Team fallback.** A team found with a question search can't answer says so plainly. The query is never quoted back. Two or three questions it does answer follow, built from the team's records: Worlds appearances only for a team that went, its season's record and OPR.
 
+## 3.0.8 — 2026-11-04
+
+Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
+
+### Highlights
+- [teams] Mistyped team names reach the team: "hypnotc robotics"
+- [teams] Search shows "Did you mean: …" and runs it on a tap
+- [fixes] Mistyped words like "recrod" or "awrds" still answer
+- [fixes] Two names equally close are both shown, never guessed
+
+### Search
+- **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: "hypnotc robotics", "bad wolff", "enforcrs", "4215 recrod", "4215 awrds", "hypnotic oper", "new jersey champinship", "new jersy", "oradel". Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
+- **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
+- **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
+
 ## 3.0.7 — 2026-11-04
 
 Search answers questions about two or three teams, a team's partners and opponents, and predictions, each in one card from the stored numbers.

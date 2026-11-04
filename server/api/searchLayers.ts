@@ -60,6 +60,12 @@ export function traceOf(o: SearchOutcome | undefined) {
 }
 /** The outcome of a top-level searchAnswer() call, read from the answer object it returned (before it's copied). */
 export const searchOutcome = (a: SearchAnswer): SearchOutcome | undefined => outcomes.get(a);
+/** `to`, a copy of an answer made after it was read (a spelling correction, ./spelling.ts), keeping `from`'s outcome. */
+export function carryOutcome(from: SearchAnswer, to: SearchAnswer): SearchAnswer {
+  const o = outcomes.get(from);
+  if (o) outcomes.set(to, o);
+  return to;
+}
 
 /** Test mode only (never read from a request or a setting): turn a layer off to prove the others reach every intent. */
 let testLayers: { template?: boolean; keyword?: boolean } = {};
@@ -399,7 +405,7 @@ export async function stripFiller(q: string): Promise<{ q: string; dropped: stri
 // ---------------------------------------------------------------------------------------------------------------
 // What an answer is, for the layers and for reporting.
 
-const FALLBACK_NOTE = "isn't answered directly yet";
+export const FALLBACK_NOTE = "isn't answered directly yet";
 /** The key failures aggregate under: Layer 0, lowercased, spaces folded, FILLER taken out (never inside a team's full
  *  name). Every other character stays, so a reporter's placeholders ("[email]") come through as they went in. */
 export async function searchKey(q: string): Promise<string> {
