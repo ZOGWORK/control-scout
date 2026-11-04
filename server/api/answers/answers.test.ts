@@ -126,6 +126,8 @@ describe("the answers", () => {
     const r = await searchAnswer("4215 worlds record", { limit: 25 });
     expect(r.stat!.headline).toMatchObject({ value: "2-1-0" });
     expect(r.stat!.blocks[0]).toMatchObject({ kind: "record", wins: 2, losses: 1, ties: 0 });
+    // Qualifications only: no quals and playoffs split to show.
+    expect(r.stat!.blocks[0]).not.toHaveProperty("split");
   });
   it("this season: the latest completed season, and it says so", async () => {
     const a = await searchAnswer("4215 average score this season", { limit: 25 });

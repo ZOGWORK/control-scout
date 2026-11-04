@@ -19,11 +19,14 @@ export const BRUNO_SETTLE_MS = 600;
 /** `prefer`: the visitor's preferred teams and events, as the page's own search sent them, so Bruno reads the same results.
  *  `children`: a summary computed from the records (timeline, stat banner), shown at the top of the card, and on its
  *  own (as "Summary") while Bruno is off, still writing, or has nothing to add. A summary never stands in for him: every
- *  question (isBrunoQuestion) asks him, whatever cards or summary the page also shows (SearchPage.bruno.test.tsx). */
-export function BrunoAnswer({ q, prefer = "", ready, className, children }: { q: string; prefer?: string; ready: boolean; className?: string; children?: ReactNode }) {
+ *  question (isBrunoQuestion) asks him, whatever summary the page also shows (SearchPage.bruno.test.tsx), unless
+ *  `answered`: search's own answer card (a card or stat answer, not a guess) already says it, and his card beside it
+ *  would say the same thing twice. */
+export function BrunoAnswer({ q, prefer = "", ready, answered = false, className, children }: { q: string; prefer?: string; ready: boolean; answered?: boolean; className?: string; children?: ReactNode }) {
   const on = useServerFlag("brunoAnswers");
   const query = q.trim();
-  const asks = on && ready && isBrunoQuestion(query);
+  // `answered`: search's own answer card already says it; his card would say the same thing twice.
+  const asks = on && ready && !answered && isBrunoQuestion(query);
   // An answer belongs to its question and the preferred teams it was read with: either changing hides it.
   const key = `${query}
 ${prefer}`;

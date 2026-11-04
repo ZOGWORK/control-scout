@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.0 — 2026-11-04
+
+Search answers look like the team page all the way down: an award at an event is a podium with every award the event gave, a record splits qualifications from playoffs, and no name is cut off.
+
+### Highlights
+- [rankings] Who won an award at an event: a podium, 1st in the centre
+- [rankings] Every award the event gave, and its Awards tab, one tap away
+- [teams] Records split qualifications and playoffs, each with its rate
+- [teams] Where a team is from is drawn as a place, city to country
+- [fixes] Event names in match lists and OPR by event are never cut off
+
+### Search
+- **Award podium.** "who won inspire at East Bergen League Tournament 2026" draws the asked award's 1st, 2nd and 3rd places as a podium, 1st in the centre and highest, each team's number big with its name and the award's name as FIRST gives it, each linked to the team's season. Under it, every award the event gave, in the event page's order, and a button to the event's Awards tab. "who won nj states" lists all the event's awards the same way, with no podium. Colours are the team page's tile tones (green, blue, orange), never gold.
+- **One answer, said once.** When search answers a question directly (an answer card or a stat answer, not a guess), Bruno AI is not asked, so his card never repeats the answer beside it. He still answers questions search only lists results for, and his card says "Bruno AI from Control Point".
+- **Records.** A record over both qualifications and playoffs ("4215 states record") shows each apart under the win-loss bar: W-L-T, win rate and matches, with its own bar.
+- **Place card.** "where is 4215 from" draws the place over a map-style grid with a pin, the place big, and its city, state and country as FIRST lists them.
+- **Leaderboards.** The top three's rank badges are coloured (green, blue, orange).
+- **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#648)
 ## 3.0.9 — 2026-11-04
 
 Three fixes to the two-team and forecast answers from 3.0.7's last review.
