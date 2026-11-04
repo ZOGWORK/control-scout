@@ -36,10 +36,11 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
+import { refreshSearchSeason } from "./answers/season.js";
 import { layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
-import { bottomAnswer, countAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -157,6 +158,8 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 /** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  // The season a query naming none means (./answers/season.ts), read before the readers that use it.
+  await refreshSearchSeason();
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   const a = await typedAnswer(raw, opts);
   // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
@@ -264,7 +267,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (rw && rw.q !== q) return rewritten(rw);
   if (opts.intents !== false) {
     const direct = explainAnswer(q) ?? (await countAnswer(q)) ?? (await teamFactAnswer(q, prefer)) ?? (await teamListAnswer(q)) ?? (await placeTeamsAnswer(q, prefer))
-      ?? (await monthAnswer(q, opts.now)) ?? (await worldsAnswer(q, opts.now)) ?? (await eventPageAnswer(q, prefer, opts.now));
+      ?? (await monthAnswer(q, opts.now)) ?? (await worldsAnswer(q, opts.now)) ?? (await eventCodeAnswer(q, opts.now)) ?? (await eventPageAnswer(q, prefer, opts.now));
     if (direct) return direct;
   }
 

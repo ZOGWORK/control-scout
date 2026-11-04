@@ -15,7 +15,8 @@ import { eventHref, teamHref } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
 
-const FINISH_RULE = "Finish: the team's qualification rank at the event, out of the teams ranked there. League meets are left out (their rank is the league's running standing). On equal ranks, the latest event.";
+const FINISH_BASE = "Finish: the team's qualification rank at the event, out of the teams ranked there. League meets are left out (their rank is the league's running standing).";
+const FINISH_RULE = `${FINISH_BASE} On equal ranks, the latest event.`;
 const SEASON_RULE = "Seasons are compared by OPR rank among that season's ranked teams (as the team page shows it), as a top-percent share: each season is a different game, so its OPR numbers aren't comparable across seasons.";
 const EVENT_RULE = "Events the team attended (on the field at a played match, or on the roster of an event not played yet) at official events: qualifiers, league play, championships and premier events.";
 
@@ -23,12 +24,18 @@ const top = (s: TeamSeason) => (s.rank != null && s.of ? s.rank / s.of : null);
 const topText = (s: TeamSeason) => (s.rank != null && s.of ? `#${s.rank} of ${s.of} (top ${Math.max(1, Math.round((100 * s.rank) / s.of))}%)` : "not ranked");
 const rec = (s: { wins: number; losses: number; ties: number }) => `${s.wins}-${s.losses}-${s.ties}`;
 const opr = (v: number | null) => (v == null ? "–" : v.toFixed(1));
+const rankText = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–");
+/** The team's record at the event as its team page shows it, or a dash. */
+const evRec = (e: TeamEvent) => (e.record ? `${e.record.wins}-${e.record.losses}-${e.record.ties}` : "–");
+/** Win share at the event (a tie counts half), for breaking a tie on rank. */
+const evRate = (e: TeamEvent) => { const r = e.record, g = r ? r.wins + r.losses + r.ties : 0; return r && g ? (r.wins + r.ties / 2) / g : 0; };
+const WORLDS_RULE = "Worlds: the FIRST Championship. One appearance per season the team attended it, shown as its division (where it ranked), with the finals noted when it played them.";
 
-function eventRows(evs: TeamEvent[], team: number, title: string): StatBlock {
+function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: boolean } = {}): StatBlock {
   return {
     kind: "table", title,
-    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "opr", label: "OPR", num: true }],
-    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–", opr: opr(e.opr) }, href: eventHref(e.season, e.code, team) })),
+    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
+    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankText(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team) })),
   };
 }
 
@@ -41,11 +48,12 @@ function seasonRows(ss: TeamSeason[], title: string, strong?: TeamSeason): StatB
 }
 
 /** The answer for an event or season intent, or null when `id` isn't one. */
-export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope): StatAnswer | null {
+export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope, opts: { byRecord?: boolean; schedule?: boolean } = {}): StatAnswer | null {
   const keep = eventInScope(scope);
   // Events the team has played at or that have begun: a published roster for a coming event is never its latest.
   const today = new Date().toISOString().slice(0, 10);
-  const evs = set.events.filter((e) => keep(e) && (e.matches > 0 || (e.start != null && e.start.slice(0, 10) <= today)));
+  // A schedule lists the events still to come too (a published roster).
+  const evs = set.events.filter((e) => keep(e) && (opts.schedule || e.matches > 0 || (e.start != null && e.start.slice(0, 10) <= today)));
   const ss = set.seasons.filter((s) => (scope.season == null || s.season === scope.season) && s.matches > 0);
   const who = whoOf(team), where = scopePhrase(scope);
   const evSource = evs.length ? `From ${evs.length} event record${evs.length === 1 ? "" : "s"}, ${seasonLabel(evs[0].season)}${evs[0].season !== evs[evs.length - 1].season ? ` to ${seasonLabel(evs[evs.length - 1].season)}` : ""}` : "No events in this scope";
@@ -58,14 +66,52 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "worst-finish": {
       const ranked = evs.filter((e) => e.rank != null && e.type !== "LeagueMeet");
       const best = id === "best-finish";
-      const sorted = [...ranked].sort((a, b) => (best ? a.rank! - b.rank! : b.rank! - a.rank!) || String(b.start).localeCompare(String(a.start)));
-      const title = `${best ? "Best" : "Worst"} event finish${where}`;
+      // "Best event": on equal ranks, the better record there (the worse for the worst), then the latest.
+      const byRec = (a: TeamEvent, b: TeamEvent) => (opts.byRecord ? (best ? evRate(b) - evRate(a) : evRate(a) - evRate(b)) : 0);
+      const sorted = [...ranked].sort((a, b) => (best ? a.rank! - b.rank! : b.rank! - a.rank!) || byRec(a, b) || String(b.start).localeCompare(String(a.start)));
+      const title = `${best ? "Best" : "Worst"} event${opts.byRecord ? "" : " finish"}${where}`;
+      const rule = opts.byRecord ? `${FINISH_BASE} On equal ranks, the ${best ? "better" : "worse"} record there (win share, a tie counting half), then the latest event.` : FINISH_RULE;
       const e = sorted[0];
-      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: FINISH_RULE, source: evSource, none: none("ranked events") };
+      if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: rule, source: evSource, none: none("ranked events") };
       return {
-        ...base, family: "superlative", intent: id, title, source: evSource, definition: FINISH_RULE,
-        headline: { value: `#${e.rank}${e.of ? ` of ${e.of}` : ""}`, label: e.name, sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        ...base, family: "superlative", intent: id, title, source: evSource, definition: rule,
+        headline: { value: rankText(e), label: e.name, sub: [e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
         blocks: [eventRows(sorted.slice(0, 5), team.number, best ? "Best finishes" : "Lowest finishes")],
+      };
+    }
+    case "first-place-events": {
+      // A placement, never an award: ranked #1 at the end of qualifications (league meets left out: their rank is the
+      // league's running standing). The event's Winning Alliance and Inspire Award are the event wins' answer.
+      // Only finished events: mid-qualifications, rank 1 is a current standing, not a placement.
+      const firsts = evs.filter((e) => e.rank === 1 && e.type !== "LeagueMeet" && String(e.end ?? e.start ?? "").slice(0, 10) < today).reverse();
+      const title = `Events ranked 1st${where}`;
+      const def = `Ranked 1st: the team's qualification rank at the event was #1, a placement, not an award. ${FINISH_BASE} Winning Alliance and Inspire Award wins are a separate answer (${team.number} event wins).`;
+      const related: StatBlock = { kind: "related", title: "Awards, listed apart", queries: [`${team.number} event wins`] };
+      if (!firsts.length) return { ...base, family: "superlative", intent: id, title, blocks: [related], definition: def, source: evSource, none: `${who} wasn't ranked 1st at any event${where} on record (league meets aside).` };
+      const rows = eventRows(firsts, team.number, "Each one, newest first", { opr: false });
+      if (rows.kind === "table") rows.rows = rows.rows.map((r) => ({ ...r, cells: { ...r.cells, rank: `Ranked ${r.cells.rank}` } }));
+      return {
+        ...base, family: "superlative", intent: id, title, source: evSource, definition: def,
+        headline: { value: `${firsts.length} event${firsts.length === 1 ? "" : "s"}`, label: `ranked #1 after qualifications${where}`, sub: `Latest: ${firsts[0].name}, ${seasonLabel(firsts[0].season)}${firsts[0].record ? `, ${evRec(firsts[0])}` : ""}`, href: eventHref(firsts[0].season, firsts[0].code, team.number) },
+        blocks: [rows, related],
+      };
+    }
+    case "worlds-divisions": {
+      // One line per championship season: its division (where the team ranked); the finals noted when played.
+      const seasons = [...new Set(evs.map((e) => e.season))].sort((a, b) => b - a);
+      const apps = seasons.map((s) => {
+        const xs = evs.filter((e) => e.season === s);
+        const division = xs.find((e) => e.division != null && e.rank != null) ?? xs.find((e) => e.division != null) ?? xs[0];
+        return { division, finals: xs.some((e) => e !== division && e.division == null) };
+      });
+      const title = `Worlds divisions${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
+      if (!apps.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: WORLDS_RULE, source: evSource, none: `No Worlds appearances found in ${possessive(who)} recorded event history${scope.season != null ? ` for ${seasonLabel(scope.season)}` : ""}.` };
+      const rows = eventRows(apps.map((a) => a.division), team.number, "Each appearance, newest first", { opr: false });
+      if (rows.kind === "table") rows.rows = rows.rows.map((r, i) => (apps[i].finals ? { ...r, cells: { ...r.cells, event: `${r.cells.event} (played the finals)` } } : r));
+      return {
+        ...base, family: "aggregate", intent: id, title, source: evSource, definition: WORLDS_RULE,
+        headline: { value: `${apps.length} appearance${apps.length === 1 ? "" : "s"}`, label: apps.map((a) => `${a.division.name.replace(/^Worlds · /, "")} ${seasonLabel(a.division.season)}`).join(" · ") },
+        blocks: [rows],
       };
     }
     case "first-event":
@@ -99,7 +145,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       };
     }
     case "total-events": {
-      const title = `Events played${where}`;
+      const title = `${opts.schedule ? "Event schedule" : "Events played"}${where}`;
       if (!evs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
       const per = [...new Set(evs.map((e) => e.season))].sort((a, b) => b - a);
       return {

@@ -461,6 +461,12 @@ export async function liveForecaster(season: number): Promise<ScoutForecaster> {
   return prev.f;
 }
 
+/** The last built forecaster for the season, or null while none is built: for search, which reads the ratings the
+ *  pages already hold and never starts a build. */
+export function readyForecaster(season: number): Promise<ScoutForecaster> | null {
+  return built.get(anchorFor(season))?.f ?? null;
+}
+
 /** The data version of the ratings pages are answering with (for caches of results computed from them). */
 export async function liveVersion(season: number): Promise<string> {
   return built.get(anchorFor(season))?.version ?? dataVersion();

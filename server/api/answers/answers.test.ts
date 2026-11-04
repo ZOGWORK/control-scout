@@ -20,6 +20,8 @@ beforeAll(async () => {
     run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, ?, 'Houston', 'TX', 'USA', ?, ?, 't')", [season, code, name, type, start, start]);
   await ev(2024, "FTCCMP1EDIS", "FIRST Championship - FIRST Tech Challenge - Edison Division", "FIRSTChampionship", "2025-04-16");
   await ev(2024, "USNJCMP", "New Jersey Championship", "Championship", "2025-03-15");
+  // 2025–26's Championship is over too (none of these teams played it): 2025–26 is the latest completed season.
+  await ev(2025, "FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2026-04-29");
   await ev(2025, "USNJQ1", "New Jersey Qualifier", "Qualifier", "2026-01-10");
   await ev(2025, "USNJSCR", "Summer Scrimmage", "Scrimmage", "2026-07-01");
   const match = (season: number, code: string, n: number, time: string, red: [number, number], blue: [number, number], teams: [number, string, number?][], level = "qual") => Promise.all([
@@ -69,9 +71,12 @@ describe("what's read as a stat question", () => {
     expect(readStatQuestion("4215 total events at worlds")).toMatchObject({ id: "total-events", scope: { championship: true } });
   });
   it("leaves to search what it doesn't answer: a season's high scores, an event intent with no event, no team", () => {
-    for (const q of ["4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
+    for (const q of ["highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
       expect(readStatQuestion(q), q).toBeNull();
     }
+    // A team's best score is always this answer, however it's said.
+    expect(readStatQuestion("4215 high score")).toMatchObject({ id: "highest-score", core: "4215" });
+    expect(readStatQuestion("hypnotic best score in decode")).toMatchObject({ id: "highest-score", core: "hypnotic", scope: { season: 2025 } });
   });
 });
 
@@ -80,14 +85,14 @@ describe("the answers", () => {
     const a = await searchAnswer("4215 highest score in worlds", { limit: 25 });
     expect(a.step).toBe("deterministic");
     expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · Highest score at Worlds");
-    expect(a.stat).toMatchObject({ family: "superlative", intent: "highest-score", headline: { value: "260 points", label: "Q1 at Worlds · Edison Division", href: "/events/2024/FTCCMP1EDIS?match=qual:0:1" } });
+    expect(a.stat).toMatchObject({ family: "superlative", intent: "highest-score", headline: { value: "275 points", label: "Q1 at Worlds · Edison Division (official score, penalties included)", sub: expect.stringContaining("260 without penalties"), href: "/events/2024/FTCCMP1EDIS?match=qual:0:1" } });
     expect(a.stat!.scope).toEqual(["FIRST Championship (Worlds)", "All seasons"]);
     expect(a.stat!.definition).toMatch(/without penalties/);
     expect(a.stat!.source).toBe("From 3 match records at 1 event, 2024–25");
   });
   it("no Worlds matches: said plainly, never another team's", async () => {
     const b = await searchAnswer("207 highest score at states", { limit: 25 });
-    expect(b.stat).toMatchObject({ title: "Highest score at state championships", headline: { value: "330 points" } });
+    expect(b.stat).toMatchObject({ title: "Highest score at state championships", headline: { value: "340 points" } });
     await run("INSERT INTO teams (number, name) VALUES (99, 'Newcomers')");
     await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJQ1', 99)");
     const c = await searchAnswer("99 worlds record", { limit: 25 });
@@ -98,10 +103,10 @@ describe("the answers", () => {
   it("ever: every season, the best of each season beside it; a scrimmage never counts", async () => {
     const a = await searchAnswer("4215 highest score ever", { limit: 25 });
     // Never one record across seasons (owner rule): the latest season's best, every season's own below it.
-    expect(a.stat!.headline).toMatchObject({ value: "140 points", label: "Q3 at New Jersey Qualifier", sub: expect.stringContaining("2025–26") });
+    expect(a.stat!.headline).toMatchObject({ value: "140 points", label: expect.stringContaining("Q3 at New Jersey Qualifier"), sub: expect.stringContaining("2025–26") });
     expect(a.stat!.definition).toContain("points are never compared across seasons: the answer is 2025–26's");
     const per = a.stat!.blocks.find((b) => b.kind === "table");
-    expect(per && per.kind === "table" && per.rows.map((r) => r.cells.score)).toEqual([140, 330]);
+    expect(per && per.kind === "table" && per.rows.map((r) => [r.cells.score, r.cells.np])).toEqual([[140, 140], [340, 330]]);
   });
   it("a biggest win is one season's too, each season's below it", async () => {
     const a = await searchAnswer("4215 biggest win", { limit: 25 });
@@ -111,9 +116,9 @@ describe("the answers", () => {
   });
   it("which event: the same rule, the answer leads with the event", async () => {
     const a = await searchAnswer("Which event did 4215 score highest in", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "New Jersey Qualifier", label: "140 points in Q3", href: "/events/2025/USNJQ1?team=4215" });
+    expect(a.stat!.headline).toMatchObject({ value: "New Jersey Qualifier", label: "140 points in Q3 (official score, penalties included)", href: "/events/2025/USNJQ1?team=4215" });
     // A season named: that season's, as before.
-    expect((await searchAnswer("Which event did 4215 score highest in 2024-25", { limit: 25 })).stat!.headline).toMatchObject({ value: "New Jersey Championship", label: "330 points in Q1" });
+    expect((await searchAnswer("Which event did 4215 score highest in 2024-25", { limit: 25 })).stat!.headline).toMatchObject({ value: "New Jersey Championship", label: expect.stringMatching(/^340 points in Q1/), sub: expect.stringContaining("330 without penalties") });
   });
   it("wins and the record at Worlds only, with the matches and seasons counted", async () => {
     const w = await searchAnswer("How many matches has 4215 won at worlds", { limit: 25 });
@@ -122,15 +127,15 @@ describe("the answers", () => {
     expect(r.stat!.headline).toMatchObject({ value: "2-1-0" });
     expect(r.stat!.blocks[0]).toMatchObject({ kind: "record", wins: 2, losses: 1, ties: 0 });
   });
-  it("this season: the team's latest season with matches, and it says so", async () => {
+  it("this season: the latest completed season, and it says so", async () => {
     const a = await searchAnswer("4215 average score this season", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "106.7", sub: "2025–26" });
+    expect(a.stat!.headline).toMatchObject({ value: "106.7", sub: expect.stringMatching(/^2025–26/) });
     expect(a.stat!.definition).toMatch(/"This season" here is 2025–26/);
   });
   it("streaks, the last matches and the record split by colour", async () => {
     expect((await searchAnswer("4215 current streak", { limit: 25 })).stat!.headline).toMatchObject({ value: "1 win" });
     expect((await searchAnswer("4215 longest win streak", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 wins" });
-    expect((await searchAnswer("4215 last 3 matches", { limit: 25 })).stat!.headline).toMatchObject({ value: "2-1-0", sub: "W L W" });
+    expect((await searchAnswer("4215 last 3 matches", { limit: 25 })).stat!.headline).toMatchObject({ value: "2-1-0", label: "in the last 3 matches, oldest to newest W L W" });
     const c = await searchAnswer("4215 red vs blue record", { limit: 25 });
     expect(c.stat!.headline!.value).toBe("5-1-0 red · 0-2-0 blue");
     // The latest match was a win: no losing streak now, said so.
@@ -175,10 +180,10 @@ describe("the answers", () => {
     expect(table && table.kind === "table" && table.rows.every((r) => /^\d[\d,]*$/.test(String(r.cells.total)))).toBe(true);
     expect(t.stat!.definition).toMatch(/no total is added up across seasons/);
   });
-  it("\"this season\" with nothing played in the season in progress: a clean season heading, the reason in the note", async () => {
+  it("\"this season\" while the season in progress isn't completed: a clean season heading, the reason in the note", async () => {
     const a = await searchAnswer("4215 record this season", { limit: 25 });
     expect(a.understood!.label).toBe("Hypnotic Robotics (4215) · Record in 2025–26");
-    expect(a.stat!.definition).toContain(`"This season" here is 2025–26: no 2026–27 matches yet, so the team's latest season with matches on record.`);
+    expect(a.stat!.definition).toContain(`"This season" here is 2025–26, the latest completed season (its FIRST Championship has finished).`);
   });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });

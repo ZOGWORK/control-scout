@@ -71,7 +71,10 @@ describe("team facts", () => {
     const a = (await searchAnswer("4215 auto OPR", { limit: 25 })).stat!;
     expect(a.headline).toMatchObject({ value: "28.3", label: "#900 of 8,375 worldwide · top 11%" });
     const r = (await searchAnswer("4215 prediction rating", { limit: 25 })).stat!;
-    expect(r.headline).toMatchObject({ value: "94.6 ± 3.2", label: "#2 of 3 worldwide · top 67%", sub: "30 matches rated" });
+    // The rating, its ± and its world rank first, as the team page's rating tile (num: "94.6 ± 3.2", "98 ± 3.2").
+    expect(r.headline).toMatchObject({ value: "94.6 ± 3.2", label: "#2 worldwide of 3 rated · top 67%", sub: "30 matches rated · 2025–26" });
+    const rk = r.blocks.find((b) => b.kind === "kpis") as Extract<StatBlock, { kind: "kpis" }>;
+    expect(rk.items[0]).toMatchObject({ label: "Prediction rating", value: `${num(page.rating!.np)} ± ${num(page.rating!.sd)}`, sub: "#2 worldwide of 3" });
   });
   it("a name ending in s owns with an apostrophe alone; a rate is \"per match\" (audit v2.8.9)", async () => {
     const o = (await searchAnswer("4215 OPR", { limit: 25 })).stat!;
@@ -91,7 +94,8 @@ describe("team facts", () => {
     expect(n).toMatchObject({ title: "Events in New Jersey in 2024–25", none: expect.stringContaining("no events in New Jersey in 2024–25") });
   });
   it("OPR against the world's, a state's and an event's division's average", async () => {
-    expect((await searchAnswer("4215 OPR vs world average", { limit: 25 })).stat!.headline).toMatchObject({ value: "−14.6", sub: "#2 of 3 by OPR · top 67%" });
+    // Worldwide: the team page's own world rank, and the average over the teams that rank counts, stated.
+    expect((await searchAnswer("4215 OPR vs world average", { limit: 25 })).stat!.headline).toMatchObject({ value: "−14.6", sub: expect.stringMatching(/^#616 of 3 by OPR · .* · world average 116\.2 across 3 teams$/) });
     expect((await searchAnswer("4215 OPR vs New Jersey average", { limit: 25 })).stat!.headline).toMatchObject({ value: "+27.3" });
     const e = (await searchAnswer("4215 OPR vs New Jersey Championship average", { limit: 25 })).stat!;
     expect(e.headline).toMatchObject({ value: "+30.0", label: "above the average: 110.0 vs 80.0" });
@@ -105,5 +109,13 @@ describe("team facts", () => {
     expect((await searchAnswer("4215 predicted score next match", { limit: 25 })).stat!.none).toContain("no upcoming match");
     expect((await searchAnswer("31000 predicted score next match", { limit: 25 })).stat!.headline).toMatchObject({ value: "Q3", label: expect.stringContaining("Future Qualifier") });
     for (const q of ["will 4215 win its next match", "when is 4215 next match", "when is 4215 next event", "what events did 4215 win in 2025"]) expect(readTeamFact(q), q).toBeNull();
+  });
+});
+
+describe("reliability asked what it means (260-query list, 11-04)", () => {
+  it("reads the team, not the question's words", () => {
+    expect(readTeamFact("what does 4215's reliability score mean")).toMatchObject({ id: "reliability", core: "4215" });
+    expect(readTeamFact("4215 reliability rating")).toMatchObject({ id: "reliability", core: "4215" });
+    expect(readTeamFact("4215 rating")).toMatchObject({ id: "rating", core: "4215" });
   });
 });

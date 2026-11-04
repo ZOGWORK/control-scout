@@ -11,26 +11,26 @@
 // written answer on top, from those same records (./search/BrunoAnswer.tsx). Nothing found is never a dead end
 // (./search/page/NoResults.tsx).
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
-import { AnswerCard, AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
-import { AnswerTeams, CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
+import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
+import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, type SeasonSummary } from "../components/search/page/ResultCards";
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { FactCard } from "../components/search/page/FactCard";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
-import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
+import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { answerTeams, anyFilter, askedWhen, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
-import { SEARCH_PAGE_LIMIT, hitHref } from "../shared/search";
+import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
 import { BOOT_HITS } from "../lib/searchBoot";
@@ -50,7 +50,6 @@ export default function SearchPage() {
   // The time tab follows the query ("upcoming meets …" opens on Upcoming); a pick of another is kept in the address.
   const askedTime = askedWhen(ax);
   const filters = readFilters(params, askedTime);
-  const nav = useNavigate();
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
   const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
   const phone = useMediaQuery("(max-width: 767px)");
@@ -115,15 +114,6 @@ export default function SearchPage() {
     for (const h of hits) if (h.kind === "team" && h.linkSeason != null && h.linkSeason !== base) m.delete(Number(h.ref));
     return m;
   }, [now.data, before.data, base, asked, hits]);
-  // The named teams' way on to their profiles (a team hit's own link, which keeps its season). A fact answer's one
-  // team keeps the season badges its card showed; a stat or a Compare already shows its numbers.
-  const profiles = named.map((n) => {
-    const h = hits.find((x) => x.kind === "team" && !isCompare(x) && Number(x.ref) === n);
-    const own = [answer?.stat?.team, ...(answer?.stat?.teams ?? []), answer?.card?.team].find((t) => t?.number === n);
-    return { number: n, name: pickNames.get(n) ?? own?.name ?? null, href: h ? hitHref(h) : `/teams/${n}` };
-  });
-  const profileNumbers = answer?.card && !answer.stat && !compares.length && named.length === 1 ? summaries.get(named[0]) : undefined;
-
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
   const title = found ? pageTitle(ax, hits, isQualityQuestion(query)) : null;
   // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
@@ -164,8 +154,8 @@ export default function SearchPage() {
         {!query ? "Search" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
       {badge && (
-        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
-          <ScanSearch className="size-3.5 shrink-0 text-accent" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
+        <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>
+          <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
         </p>
       )}
       <div className="mt-5" aria-live="polite">
@@ -216,24 +206,21 @@ export default function SearchPage() {
                 <div className="min-w-0 lg:col-start-1 lg:row-start-1">
                   {!panel && summary}
                   {/* A stat question's answer ("4215 highest score in worlds"): ./search/page/StatAnswer.tsx. */}
-                  {answer?.stat && <StatAnswerCard stat={answer.stat} />}
+                  {answer?.stat && <StatAnswerCard stat={answer.stat} heading={title ?? undefined} />}
                   {/* A question's records: as cards the timeline jumps to (championships, newest first: a "when" question reads
                       from the latest), else the answer card as before. */}
                   {apps.length ? (
-                    <section aria-label={answer!.card!.title} className="mb-5" data-section="records">
-                      <h2 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">{answer!.card!.title}<span className="rounded-full bg-muted px-1.5 py-px text-[10px] tabular-nums text-foreground/80">{apps.length}</span></h2>
-                      <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
-                    </section>
-                  ) : answer?.card?.facts?.length ? <FactCard card={{ ...answer.card, facts: answer.card.facts }} />
-                    : answer?.card && <div className="mb-5"><AnswerCard card={answer.card} onOpen={(href) => nav(href)} /></div>}
+                    // Worlds or states trips: one card with the team up top, a record card per trip inside.
+                    <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} apps={apps} />
+                  ) : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
                       <div className="space-y-2">{compares.map((c) => <CompareCard key={c.href ?? c.ref} h={c} summaries={summaries} onOpen={() => open(c)} preview={phone && compareTeams(c).length >= 2 ? (from) => { if (!stale) setSheet({ hit: c, from, of: answer }); } : undefined} />)}</div>
                     </section>
                   )}
-                  {/* The summary's own team links already lead to the profile. */}
-                  {!(panel === "summary" && aboutTeam) && <AnswerTeams teams={profiles} numbers={profileNumbers} />}
+                  {/* Phones: a versus query's side-by-side numbers under its Compare (desktop has them beside it). */}
+                  {h2h && <div className="mb-5 lg:hidden"><HeadToHead h={h2h} now={now.data?.teams} before={asked == null ? before.data?.teams : undefined} season={base} /></div>}
                   {view.map((s) => <ResultSection key={s.id} s={s} summaries={summaries} covered={covered} picks={picks} onPick={pick} fuzzyWord={fuzzyWords(hits) ?? undefined} twoCol={!!panel} onOpen={open} />)}
                   {filtersOn && !view.some((s) => RESULT_KINDS.has(s.id) || s.id === "top" || s.id === "fuzzy") && (
                     // Never a dead end: what's empty, said plainly, and each choice that isn't, one tap away.
@@ -265,7 +252,7 @@ export default function SearchPage() {
       )}
       </div>
       <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
-        <Link to="/how-it-works/search" className="font-medium text-accent-text hover:underline">How FTC One Search works</Link>
+        <Link to="/how-it-works/search" className="inline-flex items-center font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">How FTC One Search works</Link>
       </p>
     </div>
   );
@@ -376,7 +363,7 @@ function TeamLinks({ team, season }: { team: number; season?: number | null }) {
     <nav aria-label={`Team ${team} pages`} className="rounded-xl border border-border bg-card p-3" data-team-links>
       <p className="px-1 text-xs font-semibold text-muted-foreground">Team {team}</p>
       <ul className="mt-1.5">
-        {links.map((l) => <li key={l.to}><Link to={l.to} className="flex items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-accent/[0.08] hover:text-accent-text">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
+        {links.map((l) => <li key={l.to}><Link to={l.to} className="flex min-h-[44px] items-center justify-between rounded-lg px-2 py-2 text-sm text-foreground hover:bg-muted/60">{l.label}<ArrowRight className="size-4 text-muted-foreground" aria-hidden /></Link></li>)}
       </ul>
     </nav>
   );

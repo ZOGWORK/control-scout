@@ -220,6 +220,12 @@ async function matchListAnswer(b: BoolQuery, scope: Scope, who: Map<number, Answ
   };
 }
 
+/** "4215 and 6980 shared matches" as a list for two teams named another way ("4215 versus 6980 matches together"):
+ *  the same AND list, so both wordings give the one answer. */
+export function sharedMatchList(a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
+  return matchListAnswer({ groups: [[{ team: a.number, neg: false }, { team: b.number, neg: false }]], rest: "", ops: ["and"] }, scope, new Map([[a.number, a], [b.number, b]]));
+}
+
 type Reader = (q: string) => Promise<SearchAnswer>;
 
 /** One team's own answer to what's asked, when it is a stat answer about that team. */

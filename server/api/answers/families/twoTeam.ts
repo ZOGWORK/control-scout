@@ -17,6 +17,8 @@ import { all, get } from "../../../db.js";
 import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
+import { teamReliability } from "../../teams.js";
+import { searchSeason, searchSeasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 
 const LIST_CAP = 25, TOP = 10;
@@ -38,8 +40,9 @@ const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(
 /** A team's counted matches in scope with its robot on the field (a no-show is no meeting), newest first. */
 const counted = (ms: TeamMatch[], scope: Scope) => { const keep = inScope(scope); return ms.filter((m) => m.counted && m.onField && keep(m)).reverse(); };
 
-/** "A vs B head to head": the matches they met in, the record, and how often they were partners. */
-export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[], scope: Scope): Promise<StatAnswer> {
+/** "A vs B head to head": the matches they met in, the record, and how often they were partners. `wins`: "4215 wins
+ *  against 6980" leads with the first team's wins in those meetings. */
+export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[], scope: Scope, opts: { wins?: boolean } = {}): Promise<StatAnswer> {
   const ms = counted(msA, scope);
   const met = ms.filter((m) => m.opponents.includes(b.number));
   const together = ms.filter((m) => m.partners.includes(b.number));
@@ -57,7 +60,9 @@ export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[],
   const lead = r.wins === r.losses ? `Even, ${r.wins}–${r.losses}` : r.wins > r.losses ? `${a.number} leads ${r.wins}–${r.losses}` : `${b.number} leads ${r.losses}–${r.wins}`;
   return {
     ...base,
-    headline: { value: lead, label: `${met.length} meeting${met.length === 1 ? "" : "s"}${r.ties ? `, ${r.ties} tied` : ""}`, sub: `Last met ${met[0].label} at ${met[0].event}, ${seasonLabel(met[0].season)}`, href: row(met[0]).href },
+    headline: opts.wins
+      ? { value: `${r.wins} win${r.wins === 1 ? "" : "s"}`, label: `for ${a.number} in ${met.length} meeting${met.length === 1 ? "" : "s"} with ${b.number} (${recText(r)})`, sub: `Last met ${met[0].label} at ${met[0].event}, ${seasonLabel(met[0].season)}`, href: row(met[0]).href }
+      : { value: lead, label: `${met.length} meeting${met.length === 1 ? "" : "s"}${r.ties ? `, ${r.ties} tied` : ""}`, sub: `Last met ${met[0].label} at ${met[0].event}, ${seasonLabel(met[0].season)}`, href: row(met[0]).href },
     blocks: [
       { kind: "kpis", items: [
         { label: `${a.number} wins`, value: String(r.wins), href: teamHref(a.number), tone: r.wins > r.losses ? "good" : undefined },
@@ -71,16 +76,33 @@ export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[],
   };
 }
 
-interface SeasonRow { team: number; season: number; opr_np: number | null; opr_auto: number | null; opr_teleop: number | null; opr_endgame: number | null; rank_np: number | null; ranked_teams: number | null; rating_np: number | null; rating_auto: number | null; rating_teleop: number | null; rating_endgame: number | null; rating_sd: number | null; rating_rank: number | null; matches: number; wins: number; losses: number; ties: number }
+interface SeasonRow { team: number; season: number; opr_np: number | null; opr_auto: number | null; opr_teleop: number | null; opr_endgame: number | null; rank_np: number | null; rank_auto: number | null; rank_teleop: number | null; rank_endgame: number | null; ranked_teams: number | null; rating_np: number | null; rating_auto: number | null; rating_teleop: number | null; rating_endgame: number | null; rating_sd: number | null; rating_rank: number | null; matches: number; wins: number; losses: number; ties: number }
 
-/** Both teams' rows for the season named, else the latest season both played (said so). */
-async function bothSeasons(a: number, b: number, season: number | null): Promise<{ season: number | null; why?: string; ra?: SeasonRow; rb?: SeasonRow }> {
-  const rows = await all<SeasonRow>("SELECT team, season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties FROM team_season_stats WHERE team IN (?, ?) AND matches > 0" + (season != null ? " AND season = ?" : "") + " ORDER BY season DESC", season != null ? [a, b, season] : [a, b]);
+const SEASON_COLS = "team, season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties";
+
+/** The season a compare card reads when none is named (seasonRows' choice). */
+export async function compareSeason(teams: number[]): Promise<number | null> {
+  return (await seasonRows(teams, null)).season;
+}
+
+/** Every team's row for the season named, else for the latest completed season (../season.ts) when all of them played
+ *  it, else the latest season all of them played (said so). */
+async function seasonRows(teams: number[], season: number | null): Promise<{ season: number | null; why?: string; rows: (SeasonRow | undefined)[] }> {
+  const rows = await all<SeasonRow>(`SELECT ${SEASON_COLS} FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(",")}) AND matches > 0${season != null ? " AND season = ?" : ""} ORDER BY season DESC`, season != null ? [...teams, season] : teams);
   const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
-  if (season != null) return { season, ra: of(a, season), rb: of(b, season) };
-  const s = rows.map((r) => Number(r.season)).find((x) => of(a, x) && of(b, x));
-  if (s == null) return { season: null };
-  return { season: s, why: `The season is ${seasonLabel(s)}, the latest season both teams played.`, ra: of(a, s), rb: of(b, s) };
+  const allOf = (s: number) => teams.map((t) => of(t, s));
+  if (season != null) return { season, rows: allOf(season) };
+  const def = searchSeason();
+  if (teams.every((t) => of(t, def))) return { season: def, why: searchSeasonWhy(def), rows: allOf(def) };
+  const s = rows.map((r) => Number(r.season)).find((x) => teams.every((t) => of(t, x)));
+  if (s == null) return { season: null, rows: [] };
+  return { season: s, why: `The season is ${seasonLabel(s)}, the latest season ${teams.length === 2 ? "both" : "all the"} teams played.`, rows: allOf(s) };
+}
+
+/** Both teams' rows (seasonRows for two). */
+async function bothSeasons(a: number, b: number, season: number | null): Promise<{ season: number | null; why?: string; ra?: SeasonRow; rb?: SeasonRow }> {
+  const s = await seasonRows([a, b], season);
+  return { season: s.season, why: s.why, ra: s.rows[0], rb: s.rows[1] };
 }
 
 /** OPR, the prediction rating, the better record, or the win-chance question: two teams' season numbers side by side. */
@@ -224,5 +246,225 @@ export async function neverPlayedAnswer(team: AnswerTeam, msAll: TeamMatch[], sc
       rows: never.slice(0, LIST_CAP).map((p) => ({ cells: { team: p.name ? `${p.number} ${p.name}` : String(p.number), opr: num1(p.opr_np), rank: p.rank_np ? `#${p.rank_np}` : "–" }, href: teamHref(Number(p.number), season) })),
       ...(never.length > LIST_CAP ? { more: `Showing ${LIST_CAP} of ${never.length}` } : {}),
     }],
+  };
+}
+
+const PHASE_NAME = { auto: "Auto", teleop: "TeleOp", endgame: "Endgame" } as const;
+const PHASE_RULE = "Each phase's OPR is the team's season number for that phase (the points it adds to its alliance in that phase, without penalties), as its team page shows it. The better team is the higher one.";
+
+/** "4215 vs 6980 who is better at auto": both teams' season OPR for the phase, the team page's tiles, the higher named. */
+export async function phaseSideBySide(phase: "auto" | "teleop" | "endgame", a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
+  const s = await bothSeasons(a.number, b.number, scope.season);
+  const P = PHASE_NAME[phase];
+  const phrase = s.season != null ? ` in ${seasonLabel(s.season)}` : "";
+  const base = { family: "two-team" as const, intent: "phase-vs", title: `${P}: ${a.number} vs ${b.number}${phrase}`, team: a, teams: [a, b], scope: scopeChips({ ...scope, season: s.season }), definition: `${PHASE_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From both teams' ${seasonLabel(s.season)} season numbers` : "No season both teams played" };
+  const v = (r?: SeasonRow) => (r ? r[`opr_${phase}`] : null), rk = (r?: SeasonRow) => (r ? r[`rank_${phase}`] : null);
+  const va = v(s.ra), vb = v(s.rb);
+  if (va == null || vb == null) return { ...base, blocks: [], none: s.season == null ? `${whoOf(a)} and ${whoOf(b)} have no season they both played.` : `No ${seasonLabel(s.season)} ${P} OPR for ${[va == null ? whoOf(a) : "", vb == null ? whoOf(b) : ""].filter(Boolean).join(" and ")}.` };
+  const d = va - vb, even = Math.abs(d) < 0.05, ahead = d >= 0 ? a : b;
+  const tile = (t: AnswerTeam, r: SeasonRow, x: number) => ({ label: whoOf(t), value: num1(x), phase, rank: rk(r), of: r.ranked_teams, href: teamHref(t.number, s.season), ...(!even && t === ahead ? { tone: "accent" as const } : {}) });
+  return {
+    ...base,
+    headline: { value: even ? "Even" : whoOf(ahead), label: even ? `Both ${num1(va)} ${P} OPR` : `${P} OPR ${num1(Math.max(va, vb))} against ${num1(Math.min(va, vb))}, +${num1(Math.abs(d))}`, href: even ? undefined : teamHref(ahead.number, s.season) },
+    blocks: [
+      { kind: "kpis", items: [tile(a, s.ra!, va), tile(b, s.rb!, vb)] },
+      { kind: "bars", title: `${P} OPR`, unit: "pts", groups: [{ label: P, items: [{ label: String(a.number), value: va, tone: "a" }, { label: String(b.number), value: vb, tone: "b" }] }] },
+    ],
+  };
+}
+
+/** "4215 vs 6980 who has higher reliability": both teams' stored season reliability (the team page's), the higher named. */
+export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
+  const s = await bothSeasons(a.number, b.number, scope.season);
+  const phrase = s.season != null ? ` in ${seasonLabel(s.season)}` : "";
+  const base = { family: "two-team" as const, intent: "reliability-vs", title: `Reliability: ${a.number} vs ${b.number}${phrase}`, team: a, teams: [a, b], scope: scopeChips({ ...scope, season: s.season }),
+    definition: `Reliability (0–100, higher = more dependable), as each team page shows it: from public match data only (no-shows, disqualifications, near-zero matches, how much its contribution swings, penalties given away and how far its scores land from the engine's calls).${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From both teams' ${seasonLabel(s.season)} qualification matches` : "No season both teams played" };
+  if (s.season == null) return { ...base, blocks: [], none: `${whoOf(a)} and ${whoOf(b)} have no season they both played.` };
+  const [ra, rb] = await Promise.all([teamReliability(s.season, a.number), teamReliability(s.season, b.number)]);
+  if (!ra || !rb) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} reliability for ${[!ra ? whoOf(a) : "", !rb ? whoOf(b) : ""].filter(Boolean).join(" and ")} yet.` };
+  type R = NonNullable<typeof ra>;
+  const d = ra.index - rb.index, ahead = d >= 0 ? a : b;
+  const tile = (t: AnswerTeam, r: R) => ({ label: whoOf(t), value: String(r.index), sub: `out of 100 · ${r.matches} qualification matches`, href: teamHref(t.number, s.season), ...(d !== 0 && t === ahead ? { tone: "accent" as const } : {}) });
+  const parts: [string, (r: R) => string | number][] = [["No-shows", (r) => r.noShows], ["Disqualified", (r) => r.dqs], ["Near-zero matches", (r) => r.nearZero], ["Swing", (r) => r.parts.swing.toFixed(2)], ["Penalties given away vs field", (r) => `${r.parts.penaltyRatio.toFixed(2)}×`]];
+  return {
+    ...base,
+    headline: { value: d === 0 ? "Even" : whoOf(ahead), label: d === 0 ? `Both ${ra.index} out of 100` : `${Math.max(ra.index, rb.index)} against ${Math.min(ra.index, rb.index)} out of 100`, sub: ra.fieldIndex != null ? `Field average ${ra.fieldIndex}` : undefined, href: d === 0 ? undefined : teamHref(ahead.number, s.season) },
+    blocks: [
+      { kind: "kpis", items: [tile(a, ra), tile(b, rb)] },
+      { kind: "table", title: "Breakdown", columns: [{ key: "part", label: "Part" }, { key: "a", label: String(a.number), num: true }, { key: "b", label: String(b.number), num: true }],
+        rows: parts.map(([part, f]) => ({ cells: { part, a: f(ra), b: f(rb) } })) },
+    ],
+  };
+}
+
+/** "4215 vs 6980 who has won more awards": every award each team won, every season, as its team page's Awards counts them. */
+export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: number | null = null): Promise<StatAnswer> {
+  const rows = await all<{ team: number; season: number; n: number }>(`SELECT a.team, a.season, COUNT(*) n FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team IN (?, ?)${season != null ? " AND a.season = ?" : ""} GROUP BY a.team, a.season`, season != null ? [a.number, b.number, season] : [a.number, b.number]);
+  const where = season != null ? seasonLabel(season) : "all seasons";
+  const total = (t: number) => rows.filter((r) => Number(r.team) === t).reduce((x, r) => x + Number(r.n), 0);
+  const na = total(a.number), nb = total(b.number), ahead = na >= nb ? a : b;
+  const seasons = [...new Set(rows.map((r) => Number(r.season)))].sort((x, y) => y - x);
+  const of = (t: number, s: number) => Number(rows.find((r) => Number(r.team) === t && Number(r.season) === s)?.n ?? 0);
+  const count = (n: number) => `${n} award${n === 1 ? "" : "s"}`;
+  const tile = (t: AnswerTeam, n: number) => ({ label: whoOf(t), value: String(n), sub: `awards, ${where}`, href: `${teamHref(t.number)}#awards`, ...(na !== nb && t === ahead ? { tone: "accent" as const } : {}) });
+  return {
+    family: "two-team", intent: "awards-vs", title: `Awards: ${a.number} vs ${b.number}${season != null ? ` in ${where}` : ""}`, team: a, teams: [a, b], scope: [season != null ? where : "All seasons"],
+    definition: "Every award in the events' published awards, the season named or every season we cover, as each team page's Awards section counts them (an alliance award counts once for each of its teams).", source: `From ${na + nb} award records`,
+    headline: { value: na === nb ? "Even" : whoOf(ahead), label: na === nb ? `${count(na)} each` : `${count(Math.max(na, nb))} against ${Math.min(na, nb)}`, href: na === nb ? undefined : `${teamHref(ahead.number)}#awards` },
+    blocks: [
+      { kind: "kpis", items: [tile(a, na), tile(b, nb)] },
+      ...(seasons.length > 1 ? [{ kind: "table" as const, title: "By season", columns: [{ key: "season", label: "Season" }, { key: "a", label: String(a.number), num: true }, { key: "b", label: String(b.number), num: true }],
+        rows: seasons.map((x) => ({ cells: { season: seasonLabel(x), a: of(a.number, x), b: of(b.number, x) } })) }] : []),
+    ],
+  };
+}
+
+const COMPARE_RULE = "Each team's stored season numbers, as their team pages show them: OPR (the points a team adds to its alliance without penalties) and its rank among every team with an OPR that season, OPR by phase, the prediction rating (points per match ± its uncertainty) and the season's record.";
+
+/** "4215 vs 6980 compare", "4215 6980 33950 compare": the teams' season numbers in one card. */
+export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<StatAnswer> {
+  const s = await seasonRows(teams.map((t) => t.number), scope.season);
+  const phrase = s.season != null ? `, ${seasonLabel(s.season)}` : "";
+  const base = { family: "two-team" as const, intent: "compare", title: `${teams.map((t) => t.number).join(" vs ")}${phrase}`, team: teams[0], teams, scope: scopeChips({ ...scope, season: s.season }), definition: `${COMPARE_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From the teams' ${seasonLabel(s.season)} season numbers` : "No season every team played" };
+  if (s.season == null) return { ...base, blocks: [], none: `${teams.map(whoOf).join(", ")} have no season they all played.` };
+  const missing = teams.filter((_, i) => !s.rows[i]);
+  if (missing.length) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} matches on record for ${missing.map(whoOf).join(" and ")}.` };
+  const season = s.season;
+  const rows = s.rows as SeasonRow[];
+  const best = rows.reduce((x, r) => ((r.opr_np ?? -Infinity) > (x.opr_np ?? -Infinity) ? r : x));
+  const lead = teams.find((t) => t.number === Number(best.team))!;
+  const rec = (r: SeasonRow): Rec => ({ wins: r.wins, losses: r.losses, ties: r.ties });
+  const tones = ["a", "b", "c", "d"] as const;
+  const compareHref = `/compare?teams=${teams.map((t) => t.number).sort((x, y) => x - y).join(",")}&season=${season}`;
+  const phases = ["np", "auto", "teleop", "endgame"] as const;
+  return {
+    ...base,
+    headline: { value: whoOf(lead), label: `Highest OPR: ${num1(best.opr_np)}${best.rank_np ? ` (#${best.rank_np} of ${best.ranked_teams ?? "?"})` : ""}`, sub: `Prediction rating ${num1(best.rating_np)} · record ${recText(rec(best))}`, href: teamHref(lead.number, season) },
+    blocks: [
+      // Five columns fit a 390 px phone: the team by number (the profiles row names it), the phases in the bars below.
+      { kind: "table", title: `Season numbers, ${seasonLabel(season)}`,
+        columns: [{ key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }, { key: "rank", label: `Rank of ${(best.ranked_teams ?? 0).toLocaleString("en-US")}`, num: true }, { key: "rating", label: "Rating", num: true }, { key: "record", label: "W-L-T" }],
+        rows: rows.map((r, i) => ({ cells: { team: String(teams[i].number), opr: num1(r.opr_np), rank: r.rank_np ? `#${r.rank_np}` : "–", rating: num1(r.rating_np), record: recText(rec(r)) }, href: teamHref(teams[i].number, season), strong: r === best })) },
+      { kind: "bars", title: "OPR by phase", unit: "pts", groups: phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], items: rows.map((r, i) => ({ label: String(teams[i].number), value: r[`opr_${k}`], tone: tones[i % tones.length] })) })) },
+      { kind: "links", title: "Try it", items: [{ label: "Compare side by side", href: compareHref }, ...(teams.length === 2 && !isLegacy(season) ? [{ label: `Predict ${teams[0].number} vs ${teams[1].number}`, href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : [])] },
+    ],
+  };
+}
+
+const PARTNER_IDS = new Set<IntentId>(["worst-partner", "partners", "partner-top-opr", "partner-win-rate", "pick-partner"]);
+/** Season OPR answers: a season is needed. */
+const OPR_IDS = new Set<IntentId>(["partner-top-opr", "opponent-top-opr", "pick-partner"]);
+const LIST_RULES: Partial<Record<IntentId, string>> = {
+  "worst-partner": `Worst alliance partner: of the partners played with ${MIN_MEETINGS} times or more, the one with the worst record together (wins over matches; a tie goes to more matches).`,
+  partners: "Alliance partners: every team played with on the same alliance, most matches first.",
+  opponents: "Opponents: every team met on the other alliance, most meetings first.",
+  "beat-most": "Teams beaten most often: opponents by how many times the team beat them (a tie goes to fewer meetings).",
+  "lost-to-most": "Teams lost to most often: opponents by how many times they beat the team (a tie goes to fewer meetings).",
+  "partner-top-opr": "Partner with the highest combined OPR: each partner's season OPR added to the team's own (both as their team pages show them), highest first.",
+  "opponent-top-opr": "Highest-OPR opponent: the opponents met, by their season OPR as their team pages show it, highest first.",
+  "partner-win-rate": "Win rate with alliance partners: the team's record in the matches it played with a partner, and with each partner.",
+  "opponent-win-rate": "Opponents' win rate against the team: the meetings its opponents won, over all the meetings, and each opponent's own.",
+  "pick-partner": "Pick suggestion: of the partners played with 2 times or more that season, the best record together, then the higher season OPR. It reads past partnerships only: who is at an event, and who is still free to pick, is that event's own.",
+};
+const LIST_TITLES: Partial<Record<IntentId, string>> = { "worst-partner": "Worst alliance partner", partners: "Alliance partners", opponents: "Opponents", "beat-most": "Teams beaten most often", "lost-to-most": "Teams lost to most often", "partner-top-opr": "Partner with the highest combined OPR", "opponent-top-opr": "Highest-OPR opponent", "partner-win-rate": "Win rate with alliance partners", "opponent-win-rate": "Opponents' win rate against them", "pick-partner": "Who to pick as an alliance partner" };
+
+/** Season OPR of each team, read from the stored rows (the team page's). */
+async function oprsOf(season: number, teams: number[]): Promise<Map<number, { opr: number | null; rank: number | null }>> {
+  if (!teams.length) return new Map();
+  const rows = await all<{ team: number; opr_np: number | null; rank_np: number | null }>(`SELECT team, opr_np, rank_np FROM team_season_stats WHERE season = ? AND team IN (${teams.map(() => "?").join(",")})`, [season, ...teams]);
+  return new Map(rows.map((r) => [Number(r.team), { opr: r.opr_np == null ? null : Number(r.opr_np), rank: r.rank_np == null ? null : Number(r.rank_np) }]));
+}
+
+const plural = (k: number, w: string) => `${k} ${w}${k === 1 ? "" : /(?:ch|sh|s|x)$/.test(w) ? "es" : "s"}`;
+
+/** The team's partners and opponents beyond the four above: the lists, the worst partner, teams beaten most and lost
+ *  to most, partners and opponents by season OPR, win rates with partners and against opponents, and a pick. */
+export async function partnerListAnswer(id: IntentId, team: AnswerTeam, msAll: TeamMatch[], scope: Scope): Promise<StatAnswer> {
+  const ms = counted(msAll, scope);
+  const partners = PARTNER_IDS.has(id);
+  const where = scopePhrase(scope);
+  const t = tally(ms, partners ? "partners" : "opponents");
+  const base = { family: "two-team" as const, intent: id, title: `${LIST_TITLES[id]}${where}`, team, scope: scopeChips(scope), definition: `${LIST_RULES[id]} Matches at official events, both robots on the field. ${RECORD_RULE}`, source: sourceOf(ms) };
+  if (OPR_IDS.has(id) && scope.season == null) return { ...base, blocks: [], none: "Season OPR needs one season: name one (for example 2025-26)." };
+  // The team's own record with (or against) each; an opponent's own record against the team is its mirror.
+  const rec = (x: Tally): Rec => recOf(x.ms);
+  const theirs = (x: Tally): Rec => { const r = recOf(x.ms); return partners ? r : { wins: r.losses, losses: r.wins, ties: r.ties }; };
+  const recent = (x: Tally) => String(x.ms[0]?.date ?? "");
+  const oprs = OPR_IDS.has(id) ? await oprsOf(scope.season!, [team.number, ...t.map((x) => x.team)]) : new Map<number, { opr: number | null; rank: number | null }>();
+  const oprOf = (n: number) => oprs.get(n)?.opr ?? null;
+  const own = oprOf(team.number);
+  // Both OPRs or no total: a missing one is never counted as zero.
+  const sum = (n: number) => { const o = oprOf(n); return own != null && o != null ? own + o : null; };
+  const byOpr = (x: Tally, y: Tally) => (oprOf(y.team) ?? -Infinity) - (oprOf(x.team) ?? -Infinity);
+  const ranked =
+    id === "worst-partner" ? t.filter((x) => x.ms.length >= MIN_MEETINGS).sort((x, y) => rateOf(rec(x)) - rateOf(rec(y)) || y.ms.length - x.ms.length || recent(y).localeCompare(recent(x)))
+    : id === "beat-most" ? t.filter((x) => rec(x).wins > 0).sort((x, y) => rec(y).wins - rec(x).wins || x.ms.length - y.ms.length || recent(y).localeCompare(recent(x)))
+    : id === "lost-to-most" ? t.filter((x) => rec(x).losses > 0).sort((x, y) => rec(y).losses - rec(x).losses || x.ms.length - y.ms.length || recent(y).localeCompare(recent(x)))
+    : id === "partner-top-opr" || id === "opponent-top-opr" ? t.filter((x) => oprOf(x.team) != null).sort((x, y) => byOpr(x, y) || y.ms.length - x.ms.length)
+    : id === "pick-partner" ? t.filter((x) => x.ms.length >= 2).sort((x, y) => rateOf(rec(y)) - rateOf(rec(x)) || byOpr(x, y) || y.ms.length - x.ms.length)
+    : t.sort((x, y) => y.ms.length - x.ms.length || rateOf(theirs(y)) - rateOf(theirs(x)) || recent(y).localeCompare(recent(x)));
+  const top = ranked[0];
+  if (!top) {
+    const need = id === "worst-partner" ? ` ${MIN_MEETINGS} or more times` : id === "pick-partner" ? " 2 or more times" : "";
+    const what = id === "beat-most" ? " that it beat" : id === "lost-to-most" ? " that beat it" : "";
+    return { ...base, blocks: [], none: `No ${partners ? "partner played with" : "opponent met"}${need}${what}${where} found for ${whoOf(team)}.` };
+  }
+  const list = id === "partners" || id === "opponents";
+  // The two full lists keep every team (a season's opponents run to a few dozen); the rest show their top rows.
+  const shown = list ? ranked : ranked.slice(0, LIST_CAP);
+  const links = await teamLinks(shown.map((x) => x.team));
+  const name = (n: number) => links.get(n)?.label ?? String(n);
+  const eventsOf = (x: Tally) => { const es = [...new Set(x.ms.map((m) => m.event))]; return es.slice(0, 3).join(", ") + (es.length > 3 ? ", …" : ""); };
+  const last = (x: Tally) => `Last ${partners ? "together" : "met"} ${x.ms[0].label} at ${x.ms[0].event}, ${seasonLabel(x.ms[0].season)}`;
+  const recCol = { key: "record", label: partners ? "W-L-T together" : `W-L-T for ${team.number}` };
+  const nCol = { key: "n", label: partners ? "Together" : "Met", num: true };
+  const more = ranked.length > shown.length ? { more: `Showing ${shown.length} of ${ranked.length}` } : {};
+  const row = (x: Tally, cells: Record<string, string | number | null>) => ({ cells: { team: name(x.team), ...cells }, href: teamHref(x.team, scope.season), strong: x === top });
+
+  if (id === "partner-win-rate" || id === "opponent-win-rate") {
+    const whole = recOf(ms.filter((m) => (partners ? m.partners : m.opponents).length > 0));
+    const said = partners ? whole : { wins: whole.losses, losses: whole.wins, ties: whole.ties };
+    return {
+      ...base,
+      headline: { value: pct(said), label: partners ? `${team.number} won ${whole.wins} of ${plural(played(whole), "match")} with a partner${where}` : `opponents won ${whole.losses} of ${plural(played(whole), "match")} against ${team.number}${where}`, sub: `${team.number}: ${recText(whole)} · ${plural(t.length, partners ? "partner" : "opponent")}` },
+      blocks: [
+        { kind: "record", title: `${team.number}'s record${partners ? " with partners" : " against them"}${where}`, ...whole },
+        { kind: "table", title: partners ? "By partner, most matches first" : "By opponent, most meetings first", columns: [{ key: "team", label: "Team" }, nCol, recCol, { key: "rate", label: partners ? "Win rate together" : "Their win rate", num: true }],
+          rows: shown.map((x) => row(x, { n: x.ms.length, record: recText(rec(x)), rate: pct(theirs(x)) })), ...more },
+      ],
+    };
+  }
+  if (OPR_IDS.has(id)) {
+    const S = seasonLabel(scope.season!);
+    const o = oprOf(top.team);
+    const head = id === "partner-top-opr"
+      ? { value: name(top.team), label: `combined OPR ${num1(sum(top.team))} (${num1(own)} + ${num1(o)}) in ${S}`, sub: `${recText(rec(top))} together in ${plural(top.ms.length, "match")}` }
+      : id === "opponent-top-opr"
+        ? { value: name(top.team), label: `OPR ${num1(o)} in ${S}${oprs.get(top.team)?.rank ? ` (#${oprs.get(top.team)!.rank})` : ""}`, sub: `Met ${plural(top.ms.length, "time")}, ${recText(rec(top))} for ${team.number}` }
+        : { value: name(top.team), label: `${recText(rec(top))} together (${pct(rec(top))} wins) in ${plural(top.ms.length, "match")}${o != null ? ` · OPR ${num1(o)}` : ""}`, sub: `Why: the best record together of ${team.number}'s ${S} partners${ranked[1] ? `; next ${name(ranked[1].team)}, ${recText(rec(ranked[1]))}` : ""}` };
+    return {
+      ...base,
+      headline: { ...head, href: teamHref(top.team, scope.season) },
+      blocks: [{ kind: "table", title: id === "pick-partner" ? "Past partners, best record together first" : id === "partner-top-opr" ? "Partners by combined OPR" : "Opponents by OPR",
+        columns: [{ key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }, ...(id === "partner-top-opr" ? [{ key: "sum", label: "Combined", num: true }] : []), nCol, recCol],
+        rows: shown.map((x) => row(x, { opr: num1(oprOf(x.team)), ...(id === "partner-top-opr" ? { sum: num1(sum(x.team)) } : {}), n: x.ms.length, record: recText(rec(x)) })), ...more }],
+    };
+  }
+  if (list) {
+    return {
+      ...base,
+      headline: { value: String(t.length), label: `${partners ? "alliance partners" : "opponents"} in ${plural(ms.length, "match")}${where}`, sub: `Most often: ${name(top.team)}, ${plural(top.ms.length, partners ? "match" : "meeting")}` },
+      blocks: [{ kind: "table", title: "Most matches first", columns: [{ key: "team", label: "Team" }, nCol, recCol, { key: "events", label: scope.championship ? "Division" : "Events" }],
+        rows: shown.map((x) => row(x, { n: x.ms.length, record: recText(rec(x)), events: eventsOf(x) })), ...more }],
+    };
+  }
+  const lead = id === "beat-most" ? `beaten ${plural(rec(top).wins, "time")} in ${plural(top.ms.length, "meeting")}`
+    : id === "lost-to-most" ? `beat ${team.number} ${plural(rec(top).losses, "time")} in ${plural(top.ms.length, "meeting")}`
+    : `${recText(rec(top))} together in ${plural(top.ms.length, "match")}`;
+  return {
+    ...base,
+    headline: { value: name(top.team), label: lead, sub: last(top), href: teamHref(top.team) },
+    blocks: [{ kind: "table", title: `Top ${Math.min(TOP, ranked.length)}`, columns: [{ key: "team", label: "Team" }, nCol, recCol, { key: "rate", label: partners ? "Win rate together" : `${team.number} win rate`, num: true }],
+      rows: ranked.slice(0, TOP).map((x) => row(x, { n: x.ms.length, record: recText(rec(x)), rate: pct(rec(x)) })) }],
   };
 }

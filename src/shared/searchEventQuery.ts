@@ -100,6 +100,8 @@ export function readEventQuery(raw: string): EventQuery | null {
   let time: SearchTime | null = null;
   const t = timePhrase(q);
   if (t) { time = TIME_OF[t.phrase] ?? null; q = t.rest; }
+  // "Upcoming" beside a window still to come ("upcoming events this weekend") says nothing more: the window is it.
+  if (time && time !== "upcoming" && time !== "past") q = q.replace(/(?:^|\s)(?:upcoming|coming up)(?=\s|$)/gi, " ").replace(/\s+/g, " ").trim();
   let year: number | null = null, season: number | null = null;
   const y = /(?:^|\s)(20\d\d)(?:\s*[-–/]\s*(\d\d(?:\d\d)?))?(?=\s|$)/.exec(q);
   if (y) {
