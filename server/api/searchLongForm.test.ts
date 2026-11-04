@@ -176,7 +176,7 @@ describe("a team found, its question not answered", () => {
   it("says so plainly, never quoting the query, with questions it answers from the team's records", async () => {
     const a = await ask("what colour is 4215's robot");
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
-    expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · That question isn't answered directly yet: their page has the rest");
+    expect(a.understood?.label).toBe("Hypnotic Robotics (4215) · This isn't answered directly yet");
     expect(a.understood?.label).not.toContain("colour");
     expect(a.suggest).toEqual([`4215 record ${S}–${String(S + 1).slice(2)}`, `4215 opr ${S}–${String(S + 1).slice(2)}`, "4215 worlds appearances"]);
     // Each suggestion is answered directly.

@@ -346,7 +346,7 @@ An answer reached by a later layer keeps its own label (the page's heading), and
 `understood.showing`, which /search shows as a quiet line under the heading: `Showing: 4215 opr 2025-26`.
 - The heading never quotes a rewritten query.
 - A rewrite or a dropped word never adds a word to the meaning of the query.
-- Layer 6 says plainly that the question isn't answered directly yet and never quotes it: `Hypnotic Robotics (4215) · That question isn't answered directly yet: their page has the rest`. Under it, `suggest` holds two or three questions search answers about the team, built from its records (a Worlds trip, an award, a season of matches), the ones nearest what was asked first. Failed-search reporting (Track B) reads the same outcome, so the line and the issue agree.
+- Layer 6 says plainly that the question isn't answered directly yet and never quotes it: `Hypnotic Robotics (4215) · This isn't answered directly yet`. Under it, `suggest` holds two or three questions search answers about the team, built from its records (a Worlds trip, an award, a season of matches), the ones nearest what was asked first. Failed-search reporting (Track B) reads the same outcome, so the line and the issue agree.
 
 ## 9. Outcome for failed-search reporting (Track B)
 

@@ -681,7 +681,7 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     const section: SearchSection | undefined = /\b(?:partners?|alliances?|pick|picks|opponents?|played with|played against)\b/i.test(left) ? "matches"
       : /\bevents?\b/i.test(left) ? "history" : /\b(?:matches|match|games?|scores?)\b/i.test(left) ? "matches" : undefined;
     // Never the query echoed back (cleaning has already changed its words): what search can show instead, plainly.
-    const label = `${nameOf(hit)} · That question isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ": their page has the rest"}`;
+    const label = `${nameOf(hit)} · This isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ""}`;
     const suggest = await teamSuggestions(Number(hit.ref), left);
     return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label }, ...(suggest.length ? { suggest } : {}) });
   }
