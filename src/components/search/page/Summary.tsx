@@ -11,6 +11,7 @@ import { seasonLabel } from "../../../lib/format";
 import { smoothBehavior } from "../../../lib/pageScroll";
 import { cn } from "../../cn";
 import type { Appearance, Stat, Standing } from "./records";
+import { AnswerFrame, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
 const nf = new Intl.NumberFormat();
 
@@ -156,4 +157,16 @@ export function AppearanceCard({ a }: { a: Appearance }) {
   return a.href
     ? <Link id={a.id} to={a.href} className={cls} data-appearance={a.season}>{body}</Link>
     : <div id={a.id} tabIndex={-1} className={cls} data-appearance={a.season}>{body}</div>;
+}
+
+/** A team's Worlds or states trips as one answer card: the team's header (from its team page), a card per trip,
+ *  newest first (a "when" question reads from the latest). */
+export function AppearancesAnswer({ team, title, heading, apps }: { team?: { number: number; name: string | null }; title: string; heading?: string | null; apps: Appearance[] }) {
+  const profile = useTeamProfile(team?.number, useAnswerSeason(null));
+  return (
+    <AnswerFrame teams={team ? [team] : undefined} profile={profile} title={title} hideTitle={!!heading?.toLowerCase().includes(title.toLowerCase())}
+      sub={`${apps.length} ${apps.length === 1 ? "trip" : "trips"} in the team's recorded event history, newest first`} data={{ "data-section": "records" }}>
+      <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
+    </AnswerFrame>
+  );
 }

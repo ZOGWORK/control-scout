@@ -65,8 +65,8 @@ describe("search results page", () => {
     expect(container.querySelector("[data-answer-teams]")).toBeNull();
     const card = within(cmp as HTMLElement).getByRole("link");
     expect(card.getAttribute("href")).toBe("/compare?teams=4215,23268");
-    expect(card.textContent).toContain("Hypnotic Robotics (4215)");
-    expect(card.textContent).toContain("Ultraviolet (23268)");
+    expect(card.textContent).toContain("4215Hypnotic Robotics");
+    expect(card.textContent).toContain("23268Ultraviolet");
     expect(card.textContent).toContain("Hackettstown, NJ");
     expect(card.textContent).toContain("View comparison");
     // No gold box: the team page's plain card.
@@ -296,8 +296,8 @@ describe("search results page", () => {
       compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }] } } as SearchHit]);
     const { container } = show("/search?q=x");
     const card = container.querySelector('[data-result="compare"]')!;
-    expect(card.textContent).toContain("Hypnotic Robotics (4215)Oradell, NJ");
-    expect(card.textContent).toContain("Ultraviolet (23268)Hackettstown, NJ");
+    expect(card.textContent).toContain("4215Hypnotic RoboticsOradell, NJ");
+    expect(card.textContent).toContain("23268UltravioletHackettstown, NJ");
   });
 
   it("titles the page by what was found, with no badge that repeats it and no second search box", () => {

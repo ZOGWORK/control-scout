@@ -23,11 +23,10 @@ import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, t
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { FactCard } from "../components/search/page/FactCard";
-import { AnswerFrame } from "../components/search/page/TeamAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
-import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
+import { AppearancesAnswer, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
 import { answerTeams, anyFilter, askedWhen, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
@@ -206,10 +205,7 @@ export default function SearchPage() {
                       from the latest), else the answer card as before. */}
                   {apps.length ? (
                     // Worlds or states trips: one card with the team up top, a record card per trip inside.
-                    <AnswerFrame teams={answer!.card!.team ? [answer!.card!.team] : undefined} title={answer!.card!.title} hideTitle={!!title?.toLowerCase().includes(answer!.card!.title.toLowerCase())}
-                      sub={`${apps.length} ${apps.length === 1 ? "trip" : "trips"} in the team's recorded event history, newest first`} data={{ "data-section": "records" }}>
-                      <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
-                    </AnswerFrame>
+                    <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} apps={apps} />
                   ) : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">

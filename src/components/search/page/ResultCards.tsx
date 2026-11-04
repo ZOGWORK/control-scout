@@ -159,7 +159,7 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
             return (
               <span key={n} className={cn("min-w-0", i === 1 && "col-start-3 text-right")}>
                 <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text sm:text-4xl">{n}</span>
-                <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name} ({n})</span>
+                <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name}</span>
                 {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
               </span>
             );
