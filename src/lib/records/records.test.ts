@@ -300,3 +300,12 @@ describe("preset chips", () => {
     expect(presetsFor("match", true).every((p) => p.kind === "match")).toBe(true);
   });
 });
+
+describe("Swing in the records tables", () => {
+  it("is a score stat, kept in seasons without predictions, shown as ±", async () => {
+    const { pickableStats } = await import("../../components/records/StatPicker");
+    for (const scope of ["teamEvent", "teamSeason"] as const) expect(pickableStats(scope, false).some((s) => s.key === "swing"), scope).toBe(true);
+    expect(STAT_BY_KEY.get("swing")!.category).not.toBe("Control Scout Exclusives");
+    expect(formatStat(STAT_BY_KEY.get("swing"), 0.4234)).toBe("±0.42");
+  });
+});
