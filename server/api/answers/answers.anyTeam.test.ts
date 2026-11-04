@@ -115,6 +115,10 @@ describe("an event phrase reads the events the team played", () => {
       expect(r.headline).toMatchObject({ value: t === 23268 ? "3-0-0" : "1-2-0", label: "in 3 matches at New Jersey Championship (Turnpike Division and finals)" });
       expect(r.none).toBeUndefined();
     }
+    // The division's matches come before the finals it fed, held the same day.
+    const rows = (await ask("23268 matches at NJ championship")).blocks.find((b) => b.kind === "matches") as { rows: { event: { label: string } }[] };
+    expect(rows.rows.at(-1)!.event.label).toBe("New Jersey Championship");
+    expect(rows.rows[0].event.label).toBe("New Jersey Championship - Turnpike Division");
     expect((await ask("23268 record at NJ championship")).headline).toMatchObject({ value: "3-0-0" });
     // Rank and OPR are the division's: the finals rank only the alliances that reached them.
     expect((await ask("23268 rank at NJ championship")).headline).toMatchObject({ value: "#1 of 2" });
