@@ -36,8 +36,8 @@ interface IntentRule {
   re: RegExp;
   /** The season used when none is named: every season, or the team's latest season with matches. */
   season: "all" | "latest";
-  /** Taken only when a scope is named ("4215 record" alone stays search's own team answer). */
-  needsScope?: boolean;
+  /** The season used when the question names no scope at all ("4215 record": the team's latest season). */
+  alone?: "all" | "latest";
   /** Taken only with an event ("4215 rank at New Jersey Championship"). */
   needsEvent?: boolean;
   /** Names no team: what's left names an event, or nothing (the season's championship). */
@@ -107,8 +107,8 @@ const RULES: IntentRule[] = [
   { id: "results", family: "event", season: "all", needsEvent: true, re: /\b(?:results?|matches|how\s+did\s+(?<team>.+?)\s+do)\b/ },
   { id: "event-rank", family: "event", season: "all", needsEvent: true, re: /\b(?:rank(?:ed|ing)?|placement|place|placed|finish(?:ed)?|seed(?:ed)?)\b/ },
   { id: "event-opr", family: "event", season: "all", needsEvent: true, re: /\bopr\b/ },
-  { id: "awards", family: "awards", season: "all", needsScope: true, re: /\bawards?\b/ },
-  { id: "record", family: "aggregate", season: "all", needsScope: true, re: /\b(?:win[\s-]+loss(?:[\s-]+tie)?\s+)?record\b/ },
+  { id: "awards", family: "awards", season: "all", re: /\bawards?\b/ },
+  { id: "record", family: "aggregate", season: "all", alone: "latest", re: /\b(?:win[\s-]+loss(?:[\s-]+tie)?\s+)?record\b/ },
 ];
 
 export interface ReadScope {
@@ -329,7 +329,6 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // The intent's own words go; a team named inside them ("how many matches has 4215 in 2024-25 played") stays, so
     // its scope words are read like any other.
     const { scope, rest } = readScope(q.replace(m[0], ` ${m.groups?.team ?? ""} `));
-    if (r.needsScope && !hasScope(scope)) return null;
     if (r.id === "winning-alliance") {
       if (/^world\s/.test(m[0])) scope.championship = true;
       // An award's winner ("who won inspire at nj states", "4215 inspire winner") is the awards' own question; "winner"
@@ -373,12 +372,14 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       : r.id === "average-margin" ? (/\blosing\b/.test(m[0]) ? "L" : /\b(?:winning|victory)\b/.test(m[0]) ? "W" : null) : null;
     const count = /\b(?:count|how\s+many|number\s+of|total)\b/.test(q);
     // A team-less question: what's left names an event (or nothing: the season's championship).
-    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
+    // Chosen once the scope is final: a bare year can still turn out to be the team ("2024 record").
+    const defaultOf = () => (r.alone && !hasScope(scope) ? r.alone : r.season);
+    if (r.noTeam) return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: true, core: squash(rest.replace(/\b(?:ftc|first|tech|challenge|the|who|won|what|which|was|is|of|in|for|world|winners?|champions?|winning|alliances?)\b/g, " ").replace(/^[\s-]+|[\s-]+$/g, "")) || (scope.at ?? "") };
     let core = squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     // Nothing else names a team: the "year" was the team's number ("2024 worlds record").
     if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }
     if (!core) return null;
-    return { id: r.id, family: r.family, defaultSeason: r.season, scope, leadEvent, n, outcome, count, noTeam: false, core };
+    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: false, core };
   }
   return null;
 }

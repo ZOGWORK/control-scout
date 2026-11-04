@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.5 — 2026-11-04
+## 2.9.6 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
 
@@ -30,6 +30,21 @@ Search answers that already name a team no longer repeat it in a team card below
 - **Sentence-case labels.** Section labels and pills on the results page and in the search box ("Teams", "Top 10 by OPR", "Meetings, newest first", "You may also want to know") are no longer forced into capitals. Game names keep FIRST's own capitals.
 - **Touch-size targets.** On phones and touch screens the time filter, season and type pickers, Clear filters, suggestion pills, link chips, example chips, season tabs, the table's row chevron and the "View scouting profile" links are at least 44px tall. Desktop with a mouse keeps today's compact sizes.
 - **Footer follows the answer.** On the search page a short answer no longer leaves the footer pinned to the bottom of a mostly empty screen.
+
+## 2.9.5 — 2026-11-04
+
+FTC One Search answers "4215 record" and "4215 awards" with full cards, and a team's sponsors, school and hometown read as one team card.
+
+### Highlights
+- [teams] "4215 record" shows the season's record, win rate and rank
+- [teams] "4215 awards" lists every award, grouped by season
+- [teams] Sponsors, school and hometown answers read as one team card
+- [fixes] An Inspire Award is never listed as a 1st place
+
+### Search
+- **"4215 record" answers.** A plain record question gave no answer card, only the team and a Team records link. It now reads the team's latest season with matches: the W-L-T, the win-loss bar, the win rate, the season and the team's world rank by win rate (its place on the season's "top teams by win rate" list: wins over matches played, teams with 3 or more matches, shown when that list holds the same record). The numbers are the team page's: 4215 is 26-6-0 in 2025–26.
+- **"4215 awards" and "awards 4215 has won" answer.** Both gave only the team. They now list every award with its event and date, a table per season, newest first. 1st place (Winning Alliance) and the Inspire Award stay two separate awards; 2nd and 3rd place Inspire are labelled as such.
+- **Listing facts as one team card.** "4215 sponsors", "4215 sponsors and school" and "where is 4215 from" were a thin box of links. They're now one card under the team's name: every sponsor its own bold row, the school and the hometown a bold value with its name small under it, then related questions. Values are shown exactly as FIRST's listing stores them; some school names are already cut short there (4215's is stored as "River Dell Regional High Sch"), and they're never cut further. (#522)
 
 ## 2.9.4 — 2026-11-04
 

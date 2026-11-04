@@ -167,7 +167,14 @@ export interface SearchCard {
   /** A list of teams ("teams in California"): the same teams as `lines`, as a table of their season numbers, which
    *  /search draws in place of the lines (src/components/search/TeamTable.tsx). The dropdown keeps the lines. */
   table?: TeamTable;
+  /** A team's listing facts ("4215 sponsors and school"), each with its values apart (every sponsor its own row), which
+   *  /search draws as one team card (src/components/search/page/FactCard.tsx). The dropdown keeps the lines. */
+  facts?: SearchCardFact[];
+  /** Questions about the same team that search answers, run as searches under the facts. */
+  related?: string[];
 }
+/** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */
+export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
 export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string }
 
