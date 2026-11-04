@@ -447,3 +447,40 @@ describe("team facts, the profile and how-it-works answers (260-query list, 11-0
     expect((await fact("23268 region"))?.none).toMatch(/has no region/);
   });
 });
+
+describe("failed-search issues (11-04)", () => {
+  it("rewrites: a leaderboard by a game, the season's events, a misspelled game, filler, 'in' worlds", () => {
+    expect(rewriteQuery("best auto in decode")).toMatchObject({ q: "top 10 teams by auto 2025-26", pre: true }); // #511
+    expect(rewriteQuery("best scoring auto in decode")?.q).toBe("top 10 teams by auto 2025-26"); // #510
+    expect(rewriteQuery("top auto opr decode")?.q).toBe("top 10 teams by auto opr 2025-26");
+    expect(rewriteQuery("best auto opr in 2025-26")?.q).toBe("top 10 teams by auto opr 2025-26"); // "in" is never a place
+    const now = seasonLabel(CURRENT_SEASON).replace("–", "-");
+    for (const q of ["events", "events this season", "events ths", "all events"]) expect(rewriteQuery(q)?.q, q).toBe(`events in ${now}`); // #515
+    expect(rewriteQuery("meets")?.q).toBe(`meets in ${now}`);
+    expect(rewriteQuery("event horizon")).toBeNull(); // a team's name stays one
+    expect(rewriteQuery("jackson division dcode")?.q).toBe("jackson division 2025-26"); // #518
+    expect(rewriteQuery("dcode")).toBeNull(); // a typo is forgiven only where an event is named
+    expect(rewriteQuery("so like what was 4215 last game")?.q).toBe("what was 4215 last game"); // #509
+    expect(rewriteQuery("so robotics")).toBeNull();
+    expect(rewriteQuery("4215 matches in worlds")?.q).toBe("4215 matches at worlds"); // #526
+  });
+  it("an event by its own name and a match number: that match, typo'd 'division' too (#533)", async () => {
+    // The division's Q1 this season, and next season's division listed but not yet played (Greptile on #536: an
+    // unplayed season never hides the played one).
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (?, 'FTCCMP1EDIS', 'qual', 0, 1, 'Q1', 1, 't')", [S]);
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'FTCCMP1EDIS', 'FIRST Championship - Edison Division', 'FIRSTChampionship', 'Houston', 'TX', 'USA', '2027-04-29', '2027-05-01', 't')", [S + 1]);
+    await rebuildSearch();
+    for (const q of ["edison division q1", "edison divison q1", "worlds edison division q1"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("deterministic");
+      expect(a.hits.find((h) => h.kind === "match")?.ref, q).toBe(`${S}:FTCCMP1EDIS:qual:0:1`);
+      expect(a.understood?.label, q).toMatch(/^Qualification match 1 at FIRST Championship - Edison Division/);
+    }
+    // A season named with it, as a season or a game: that season's event, the season not part of the name.
+    for (const q of [`edison division q1 ${S}-${(S + 1) % 100}`, "edison division q1 decode"]) {
+      expect((await ask(q)).hits.find((h) => h.kind === "match")?.ref, q).toBe(`${S}:FTCCMP1EDIS:qual:0:1`);
+    }
+    // A misspelled game with "$" left on it is read by position, never as a pattern (Greptile on #536).
+    expect(() => rewriteQuery("jackson division decode$")).not.toThrow();
+  });
+});

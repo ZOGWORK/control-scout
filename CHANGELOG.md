@@ -31,6 +31,25 @@ explains how search, predictions and Worlds qualification work.
 - **More team facts.** "what is team 4215 called", "what is the name of team 4215", "4215 region", "4215 city and state" and "4215 organization name" are answered directly. A team number followed by that team's own name ("17670 raider robotics location") is that team.
 - **Fuller fact cards.** Every fact answer also carries where the team is from, its region and that season's numbers (card.support), so the card can show the whole team. A school FIRST doesn't list is still said so, now with the team's city.
 - **How it works.** "how does FTC One Search work", "how are predictions made" and "how does worlds qualification work" get short explainers from the site's own pages and the stored 2026–27 Competition Manual rules; the rating and reliability explainers say more. "what does 4215's reliability score mean" gives the team's reliability.
+## 3.0.0 — 2026-11-04
+
+Searches people tried that found nothing now answer: a match by its event's code, an event's match by the event's name, a leaderboard by a game, and the season's events.
+
+### Highlights
+- [fixes] "usnjcmp q1" finds Q1 in each division of the championship
+- [fixes] "jackson division q12" finds that match at Worlds
+- [teams] "Best auto in decode" lists that season's top Auto OPR
+- [fixes] "Events" lists this season's events, not a team's name
+- [fixes] "4215 matches at worlds" finds the last Worlds they went to
+
+### Search
+- **Failed searches answered.** Each was filed by the failed-search reporter (#536):
+  - A match by its event's code with no year is from the newest season with matches ("usnjcmp q1", not next season's unplayed event). An event split in divisions has its qualification matches in each division, so "USNJCMP Q1" lists both divisions' Q1, and a division's finals are its event's ("usnjcmppkwy f1" is the New Jersey Championship's F1).
+  - A match at an event named by its own name ("jackson division q12", "worlds jackson division q12", "jackson divison q12") is that match.
+  - A leaderboard by a game or a season ("best auto in decode", "best scoring auto in decode", "top auto opr decode", "best auto opr in 2025-26") is that season's, never a team named "We are the best".
+  - "Events", "events this season" and "meets" list the season's events, never the team Event Horizon.
+  - A team's matches at Worlds with no season ("4215 matches at worlds", "… in worlds") are from the last Worlds it went to.
+  - A misspelled game with an event ("jackson division dcode") and a question opened with filler ("so like what was 4215 last game") are read as meant.
 
 ## 2.9.9 — 2026-11-04
 
