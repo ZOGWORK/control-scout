@@ -407,8 +407,8 @@ export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], 
     blocks: [
       { kind: "kpis", items: [{ label: phrase, value: String(hit.length), tone: "accent" as const }, { label: `All ${side}`, value: String(ids.length) }, { label: "Matches", value: String(ms.length), sub: recText(record(ms)) }] },
       { kind: "table", title: hit.length ? phrase : `${word}: none ${opText(t)}`,
-        columns: [{ key: "team", label: "Team" }, { key: "opr", label: ev ? "OPR there" : "OPR", num: true }, ...(ev ? [{ key: "season", label: "Season OPR", num: true }] : []), { key: "n", label: "Matches", num: true }, { key: "record", label: side === "partners" ? "W-L-T together" : "W-L-T against" }],
-        rows: (hit.length ? hit : rows).map((r) => ({ cells: { team: links.get(r.n)?.label ?? String(r.n), opr: num1(r.opr), ...(ev ? { season: num1(seasonOprs.get(r.n)) } : {}), n: r.ms.length, record: recText(record(r.ms)) }, href: teamHref(r.n, season), strong: passes(r.opr, t) })) },
+        columns: [{ key: "team", label: "Team" }, { key: "opr", label: ev ? "OPR there" : "OPR", num: true }, ...(ev ? [{ key: "season", label: "Season OPR", num: true }] : []), { key: "record", label: side === "partners" ? "W-L-T with" : "W-L-T vs" }],
+        rows: (hit.length ? hit : rows).map((r) => ({ cells: { team: links.get(r.n)?.label ?? String(r.n), opr: num1(r.opr), ...(ev ? { season: num1(seasonOprs.get(r.n)) } : {}), record: recText(record(r.ms)) }, href: teamHref(r.n, season), strong: passes(r.opr, t) })) },
     ],
     ...(hit.length ? {} : { none: `None of ${possessive(team)} ${plural(ids.length, side.slice(0, -1), side)}${scopePhrase(scope)} had ${where} ${opText(t)}.` }),
   };
