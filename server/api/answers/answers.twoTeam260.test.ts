@@ -129,7 +129,7 @@ describe("the answers", () => {
     expect(x.stat!.teams!.map((t) => t.number)).toEqual([4215, 6980]);
   });
   it("243: no worlds meeting, said so", async () => {
-    expect((await ask("4215 match against 6980 at worlds")).stat!.none).toMatch(/have never played each other at Worlds\.$/);
+    expect((await ask("4215 match against 6980 at worlds")).stat!.none).toMatch(/have never played each other at Worlds\. Bad Wolf \(6980\) has no matches at Worlds on record\.$/);
   });
   it("236 and 237: one card with OPR, rank, phases, rating and record, the season stated", async () => {
     const a = await ask("4215 versus 6980 compare");
