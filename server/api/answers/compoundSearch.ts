@@ -150,7 +150,7 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
           const row = (await teamEventSet(team.number)).seasons.find((x) => x.season === scope.season);
           const S = seasonLabel(scope.season);
           parts.push({ family: "stat", intent: "opr", title: `OPR in ${S}`, team, scope: [S], definition: "OPR: the season's stored offensive power rating without penalties, by phase, as the team page shows it.", source: `From ${whoOf(team)}'s ${S} season numbers`,
-            blocks: row?.opr != null ? [{ kind: "kpis", items: (["np", "auto", "teleop", "endgame"] as const).map((k) => ({ label: k === "np" ? "OPR" : k === "auto" ? "Auto" : k === "teleop" ? "TeleOp" : "Endgame", value: (Math.round((k === "np" ? row.opr! : row[k] ?? 0) * 10) / 10).toFixed(1), phase: k, ...(k === "np" ? { rank: row.rank, of: row.of } : {}) })) }] : [],
+            blocks: row?.opr != null ? [{ kind: "kpis", items: (["np", "auto", "teleop", "endgame"] as const).map((k) => ({ label: k === "np" ? "OPR" : k === "auto" ? "Auto" : k === "teleop" ? "TeleOp" : "Endgame", value: (Math.round((k === "np" ? row.opr! : row[k] ?? 0) * 10) / 10).toFixed(1), ...(k === "np" ? (row.rank ? { sub: `#${row.rank} of ${row.of ?? "?"} worldwide` } : {}) : { phase: k }) })) }] : [],
             ...(row?.opr != null ? {} : { none: `No ${S} OPR for ${whoOf(team)}.` }) });
           summary.push({ label: "OPR", value: row?.opr != null ? (Math.round(row.opr * 10) / 10).toFixed(1) : "–", ...(row?.rank ? { sub: `#${row.rank} of ${row.of ?? "?"} worldwide` } : {}) });
         }

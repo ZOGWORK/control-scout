@@ -197,8 +197,9 @@ export function eventPairAnswer(team: AnswerTeam, evs: TeamEvent[], seasons: Tea
     headline: { value: `${num1(a.opr)} vs ${num1(b.opr)}`, label: `OPR at their ${word.toLowerCase()} event, ${Sa} against ${Sb}`, sub: `${signed(d)} points (${a.name} against ${b.name})` },
     blocks: [
       { kind: "kpis", items: [{ ...tile(a, Sa), tone: "accent" as const }, tile(b, Sb), { label: "Change", value: signed(d), sub: `${Sb} to ${Sa}` }] },
-      { kind: "table", title: `${word} events`, columns: [{ key: "season", label: "Season" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "auto", label: "Auto", num: true }, { key: "teleop", label: "TeleOp", num: true }, { key: "endgame", label: "Endgame", num: true }, { key: "season-opr", label: "Season OPR", num: true }],
-        rows: [a, b].map((e) => ({ cells: { season: seasonLabel(e.season), event: e.name, date: evDate(e), rank: evRank(e), record: evRec(e), opr: num1(e.opr), auto: num1(e.auto), teleop: num1(e.teleop), endgame: num1(e.endgame), "season-opr": num1(seasonOf(e.season)?.opr) }, href: eventHref(e.season, e.code, team.number), strong: e === a })) },
+      { kind: "bars", title: `OPR by phase, ${word.toLowerCase()} event`, unit: "pts", groups: (["auto", "teleop", "endgame"] as const).map((k) => ({ label: k === "auto" ? "Auto" : k === "teleop" ? "TeleOp" : "Endgame", items: [{ label: Sa, value: a[k] == null ? null : Math.round(a[k]! * 10) / 10, tone: "a" as const }, { label: Sb, value: b[k] == null ? null : Math.round(b[k]! * 10) / 10, tone: "b" as const }] })) },
+      { kind: "table", title: `${word} events`, columns: [{ key: "season", label: "Season" }, { key: "event", label: "Event" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "season-opr", label: "Season OPR", num: true }],
+        rows: [a, b].map((e) => ({ cells: { season: seasonLabel(e.season), event: e.name, record: evRec(e), opr: num1(e.opr), "season-opr": num1(seasonOf(e.season)?.opr) }, href: eventHref(e.season, e.code, team.number), strong: e === a })) },
     ],
   };
 }
@@ -249,11 +250,11 @@ export function oprExcludingAnswer(team: AnswerTeam, evs: TeamEvent[], seasons: 
         { label: `Without ${drop} event`, value: num1(without), sub: `average of ${plural(xs.length - 1, "event")}`, tone: "accent" as const },
         { label: "All events", value: num1(allAvg), sub: `average of ${xs.length} events` },
         { label: `${drop === "worst" ? "Worst" : "Best"} event`, value: num1(pick.opr), sub: pick.name, href: eventHref(pick.season, pick.code, team.number) },
-        ...(seasonOpr != null ? [{ label: `Season OPR, ${S}`, value: num1(seasonOpr), sub: "stored, every match", phase: "np" as const }] : []),
+        ...(seasonOpr != null ? [{ label: `Season OPR, ${S}`, value: num1(seasonOpr), sub: "stored, every match" }] : []),
       ] },
-      { kind: "series", title: `OPR by event, ${S}`, points: xs.map((e) => ({ x: e.name, y: e.opr, href: eventHref(e.season, e.code, team.number), ...(e === pick ? { note: `${drop === "worst" ? "Worst" : "Best"}: left out` } : {}) })) },
-      { kind: "table", title: `Events, ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "kept", label: "Counted" }],
-        rows: xs.map((e) => ({ cells: { event: e.name, date: evDate(e), record: evRec(e), opr: num1(e.opr), kept: e === pick ? `No (${drop})` : "Yes" }, href: eventHref(e.season, e.code, team.number), strong: e === pick })) },
+      { kind: "series", title: `OPR by event, ${S}`, points: xs.map((e) => ({ x: e.name, y: Math.round(e.opr! * 10) / 10, href: eventHref(e.season, e.code, team.number), ...(e === pick ? { note: `${drop === "worst" ? "Worst" : "Best"}: left out` } : {}) })) },
+      { kind: "table", title: `Events, ${S}`, columns: [{ key: "event", label: "Event" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "kept", label: "Counted" }],
+        rows: xs.map((e) => ({ cells: { event: e.name, record: evRec(e), opr: num1(e.opr), kept: e === pick ? `No (${drop})` : "Yes" }, href: eventHref(e.season, e.code, team.number), strong: e === pick })) },
     ],
   };
 }
@@ -284,8 +285,8 @@ export function eventPicksAnswer(team: AnswerTeam, evs: TeamEvent[], season: num
     headline: chosen[0] ? { value: chosen[0].name, label: `${names[0][0].toUpperCase()}${names[0].slice(1)}: ${show(chosen[0], picks[0])}`, sub: chosen[1] ? `${names[1][0].toUpperCase()}${names[1].slice(1)}: ${chosen[1].name}, ${show(chosen[1], picks[1])}` : undefined, href: eventHref(chosen[0].season, chosen[0].code, team.number) } : undefined,
     blocks: [
       { kind: "kpis", items: picks.map((p, i) => ({ label: `${p.pick === "best" ? "Best" : "Worst"} event by ${by(p.by)}`, value: show(chosen[i], p), sub: chosen[i] ? `${chosen[i]!.name} · ${evDate(chosen[i]!)}` : "No event has one", ...(chosen[i] ? { href: eventHref(chosen[i]!.season, chosen[i]!.code, team.number) } : {}), tone: p.pick === "best" ? "good" as const : "bad" as const })) },
-      { kind: "table", title: `Events, ${S}`, columns: [{ key: "event", label: "Event" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "pick", label: "Pick" }],
-        rows: xs.map((e) => ({ cells: { event: e.name, date: evDate(e), rank: evRank(e), record: evRec(e), opr: num1(e.opr), pick: mark(e) || "" }, href: eventHref(e.season, e.code, team.number), strong: !!mark(e) })) },
+      { kind: "table", title: `Events, ${S}`, columns: [{ key: "event", label: "Event" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }, { key: "pick", label: "Pick" }],
+        rows: xs.map((e) => ({ cells: { event: e.name, rank: evRank(e), record: evRec(e), opr: num1(e.opr), pick: mark(e) || "" }, href: eventHref(e.season, e.code, team.number), strong: !!mark(e) })) },
     ],
     ...(chosen.every(Boolean) ? {} : { none: `${picks.filter((_, i) => !chosen[i]).map((p) => `No ${S} event has a ${by(p.by)} to pick by.`).join(" ")}` }),
   };
@@ -295,7 +296,7 @@ export function eventPicksAnswer(team: AnswerTeam, evs: TeamEvent[], season: num
 export function winLossAverageAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope): StatAnswer {
   const ms = onRecord(msAll, scope, true);
   const w = ms.filter((m) => m.result === "W"), l = ms.filter((m) => m.result === "L");
-  const avg = (xs: TeamMatch[], f: (m: TeamMatch) => number) => (xs.length ? xs.reduce((t, m) => t + f(m), 0) / xs.length : null);
+  const avg = (xs: TeamMatch[], f: (m: TeamMatch) => number) => (xs.length ? Math.round((xs.reduce((t, m) => t + f(m), 0) / xs.length) * 10) / 10 : null);
   const out = base("average-score-win-loss", `Average score in wins and losses${scopePhrase(scope)}`, team, scope,
     `Average score: the alliance's official score, penalties included, averaged over the team's wins and then its losses (the other alliance's average beside it). ${RESULT_RULE} ${SCORE_RULE}`, sourceOf(ms));
   if (!w.length && !l.length) return { ...out, blocks: [], none: `${whoOf(team)} has no wins or losses on record${scopePhrase(scope)}.` };
