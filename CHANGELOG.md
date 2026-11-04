@@ -30,6 +30,26 @@ Search fixes spelling: a mistyped team name, stat word, event word or place show
 - **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
 - **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
 
+## 3.0.0 — 2026-11-04
+
+Searches people tried that found nothing now answer: a match by its event's code, an event's match by the event's name, a leaderboard by a game, and the season's events.
+
+### Highlights
+- [fixes] "usnjcmp q1" finds Q1 in each division of the championship
+- [fixes] "jackson division q12" finds that match at Worlds
+- [teams] "Best auto in decode" lists that season's top Auto OPR
+- [fixes] "Events" lists this season's events, not a team's name
+- [fixes] "4215 matches at worlds" finds the last Worlds they went to
+
+### Search
+- **Failed searches answered.** Each was filed by the failed-search reporter (#536):
+  - A match by its event's code with no year is from the newest season with matches ("usnjcmp q1", not next season's unplayed event). An event split in divisions has its qualification matches in each division, so "USNJCMP Q1" lists both divisions' Q1, and a division's finals are its event's ("usnjcmppkwy f1" is the New Jersey Championship's F1).
+  - A match at an event named by its own name ("jackson division q12", "worlds jackson division q12", "jackson divison q12") is that match.
+  - A leaderboard by a game or a season ("best auto in decode", "best scoring auto in decode", "top auto opr decode", "best auto opr in 2025-26") is that season's, never a team named "We are the best".
+  - "Events", "events this season" and "meets" list the season's events, never the team Event Horizon.
+  - A team's matches at Worlds with no season ("4215 matches at worlds", "… in worlds") are from the last Worlds it went to.
+  - A misspelled game with an event ("jackson division dcode") and a question opened with filler ("so like what was 4215 last game") are read as meant.
+
 ## 2.9.9 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
