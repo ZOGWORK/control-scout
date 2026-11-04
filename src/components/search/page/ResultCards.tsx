@@ -87,7 +87,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
       </p>
       <div className="mt-auto space-y-1 pt-3 text-xs max-sm:pt-2 text-muted-foreground">
         <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><CalendarDays className="size-4 shrink-0 text-accent" aria-hidden />{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</p>
-        {e.venue && <p className="flex items-center gap-1.5"><MapPin className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{e.venue}</span></p>}
+        {e.venue && <p className="flex items-start gap-1.5"><MapPin className="mt-px size-3.5 shrink-0" aria-hidden /><span className="min-w-0 break-words" data-venue>{e.venue}</span></p>}
       </div>
       <nav aria-label={`${title}: pages`} className="relative z-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-quick-links>
         {quickLinks(cur, e.status).map((l) => <Link key={l.tab} to={`/events/${s}/${c}?tab=${l.tab}`} onClick={() => onOpen(cur)} className="font-medium text-muted-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-11 max-md:items-center max-md:rounded-full max-md:border max-md:border-border max-md:px-3.5 max-md:text-sm max-md:text-foreground max-md:hover:no-underline">{l.label}</Link>)}
