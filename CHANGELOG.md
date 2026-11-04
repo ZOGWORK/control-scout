@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.1.1 — 2026-11-04
+## 3.1.2 — 2026-11-04
 
 Search reads long, conversational questions and answers them like their short form.
 
@@ -31,6 +31,17 @@ Search reads long, conversational questions and answers them like their short fo
 - **Team numbers typed wrong.** "42-5" or "421" isn't a team: search offers "Did you mean: 4215" and the nearest real team numbers, the most recently active first, instead of "No team, event or match matched".
 - **Team fallback.** A team found with a question search can't answer says so plainly. The query is never quoted back. Two or three questions it does answer follow, built from the team's records: Worlds appearances only for a team that went, its season's record and OPR.
 
+## 3.1.1 — 2026-11-04
+
+Each tab on an event page has its own small icon, so the one you want is easy to spot.
+
+### Highlights
+- [appearance] Every event page tab now has its own icon
+- [rankings] Rankings is a podium, Awards a medal, Playoffs a bracket
+- [teams] Matches is the field, Teams two robots, Odds a die
+
+### Appearance
+- **Tab icons.** Matches (the field split into two halves), Rankings (a podium), Insights (a rising chart), Teams (two robot heads), Playoffs (a bracket), Awards (a medal) and Odds (a die) each draw an original icon before the label, in the tab's text colour, on desktop and phone. The labels are unchanged, so screen readers read the same names. (#675)
 
 ## 3.1.0 — 2026-11-04
 
