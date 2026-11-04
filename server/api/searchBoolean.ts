@@ -274,6 +274,12 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
     return full ? { ...a, stat: await matchListAnswer(b, scope, who) } : a;
   }
 
+  // Two teams' matches at an event or a venue ("4215 and 6980 matches at river dell"): their meetings there, which
+  // the stat answers resolve for both teams (answers/index.ts meetingsAt).
+  if (MATCH_WORDS.test(rest) && rs.at && wanted.length === 2 && !left.length && b.ops.every((o) => o === "and")) {
+    const a = await read(`${wanted[0]} and ${wanted[1]} matches at ${rs.at}`);
+    if (a.intent?.kind.startsWith("stat-") && (!full || a.stat)) return { ...a, q };
+  }
   // A stat: each team's own, side by side; a team after NOT is left out.
   const teams = wanted.filter((t) => !left.includes(t));
   if (!b.rest || teams.length > MAX_TEAMS) return null;

@@ -326,7 +326,7 @@ const H2H = String.raw`(?:head[\s-]?to[\s-]?head|h2h)`;
 const WHO = String.raw`(?:who|which(?: team)?)(?: is|'s| has| had)?`;
 const PHASE = String.raw`(auto(?:nomous)?|tele ?op|driver(?:[- ]controlled)?|end ?game)`;
 /** In order; each names its two teams as groups 1 and 2 (a phase, when asked, as group 3). */
-const TWO_TEAM: { id: TwoTeamId; re: RegExp }[] = [
+const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
   // "4215 vs 6980 prediction", "6980 versus 4215 who wins", "4215 predicted score against 6980", "4215 expected margin
   // against 6980": the engine's call for the two of them (families/predict.ts).
   { id: "predict", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:prediction|predicted (?:score|winner|result|margin)|forecast|who (?:wins|will win|would win|is favou?red)|favou?rite)$`) },
@@ -337,6 +337,10 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp }[] = [
   // "4215 versus 6980 matches together", "4215 and 6980 matches in common": the list both are in (search's AND list).
   { id: "shared-matches", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|with) (.+?) (?:matches|match|games?) (?:together|in common|shared)$`) },
   { id: "shared-matches", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|with) (.+?) (?:shared|common) (?:matches|match|games?)$`) },
+  // "4215 and 6980 matches at river dell": the matches both are in there (an event or a venue named only).
+  { id: "shared-matches", atOnly: true, re: new RegExp(String.raw`^(.+?) (?:${VS}|and|with) (.+?) (?:matches|match|games?)$`) },
+  // "4215 vs 6980 at worlds who scored higher": their meetings there.
+  { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|or) (.+?) (?:${WHO} )?(?:scored|scores|scoring) (?:higher|more|the most)$`) },
   // "4215 versus 6980 who is better at auto", "who is better at endgame 4215 or 6980".
   { id: "phase-vs", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:${WHO} )?(?:better|stronger|best) (?:at|in) ${PHASE}$`) },
   { id: "phase-vs", re: new RegExp(String.raw`^${WHO} (?:better|stronger) (?:at|in) ${PHASE} (.+?) (?:${VS}|or) (.+)$`) },
@@ -487,12 +491,13 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
     // "better at auto" names a phase, not an event called Auto.
     const said = q.replace(new RegExp(String.raw`\b(better|stronger|best) at ${PHASE}\b`, "g"), "$1 in $2");
     const { scope, rest } = readScope(yearIsTeam ? said.replace(/\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1") : said);
-    // "at <event>" isn't read for two teams: left to search.
-    if (scope.at) return null;
+    // "at <event>" is read for their meetings only (an event or a venue); else left to search.
     const side = (s: string) => squash(s.replace(/\b(?:team|teams|the|ftc)\b/g, " ").replace(/\bn(20\d\d)\b/g, "$1"));
     for (const r of TWO_TEAM) {
+      if (r.atOnly && !scope.at) continue;
       const m = r.re.exec(rest);
       if (!m) continue;
+      if (scope.at && !MEETING_IDS.has(r.id)) return null;
       // A phase question's phase is whichever group spells one; the other two are its teams.
       const isPhase = (g: string) => new RegExp(`^${PHASE}$`).test(g);
       const groups = m.slice(1, 4).filter((g): g is string => g != null);

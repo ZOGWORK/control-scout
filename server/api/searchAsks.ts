@@ -25,6 +25,7 @@ import { all } from "../db.js";
 import { rankings } from "./rankings.js";
 import { searchSeason } from "./answers/season.js";
 import { search } from "./search.js";
+import { fuzzyScore } from "./fuzzy.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays } from "./searchEvents.js";
 import { namedTeam, versusAnswer } from "./searchCompare.js";
@@ -155,10 +156,16 @@ export async function eventWon(words: string, prefer: ReadonlySet<string>, now =
   }
   // An event by name ("New Jersey Championship Parkway Division"): the code search finds, its newest finished season
   // (or the one named).
-  const ev = await eventOf(sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words, prefer);
-  if (!ev) return null;
-  const code = ev.ref.split(":")[1];
-  const rows = await all<Ev>("SELECT season, code, name, start, end, timezone FROM events WHERE code = ? ORDER BY season DESC", [code]);
+  // A code is reused for other events over the years (USNJNELT2 was a South Essex tournament in 2024–25): a season
+  // counts only while its event still has a name every word typed matches, and the events found that do lead.
+  const named = sm ? (words.slice(0, sm.index) + " " + words.slice(sm.index + sm[0].length)).trim() : words;
+  const hits = (await search(named, 8, prefer, new Set(["event"]))).filter((h) => h.kind === "event");
+  const fits = (name: string) => fuzzyScore(named, name) >= 0.75;
+  const lead = hits.filter((h) => fits(h.title));
+  if (!hits.length) return null;
+  const pool = lead.length ? lead : [hits[0]];
+  const rows = (await Promise.all(pool.map((h) => all<Ev>("SELECT season, code, name, start, end, timezone FROM events WHERE code = ?", [h.ref.split(":")[1]])))).flat()
+    .filter((r) => !lead.length || fits(r.name)).sort((a, b) => Number(b.season) - Number(a.season));
   return pick(finished(rows).filter(inScope)[0]);
 }
 

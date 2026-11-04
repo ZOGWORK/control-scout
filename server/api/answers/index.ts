@@ -13,14 +13,14 @@ import { findRegions } from "../../../src/shared/regions.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { searchSeason, searchSeasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
-import { get } from "../../db.js";
+import { all, get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { eventWon, readAsk } from "../searchAsks.js";
 import { eventHit } from "../searchEvents.js";
 import { namedTeam, versusAnswer } from "../searchCompare.js";
 import { predictHref } from "../../../src/shared/predictUrl.js";
-import { CHAMPIONSHIP_TYPE, STATES_TYPE, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
+import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
 import { eventScopeAnswer, worldsMatchesAnswer } from "./families/eventScope.js";
@@ -277,26 +277,39 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 /** An event by name for a team-less question (its newest season, or the season named). */
 async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean; closest?: boolean } = {}) {
   const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
-  // `closest`: only the events whose names match the words, the closest first (search may rank a shorter name first).
-  const fit = (h: (typeof hits)[number]) => fuzzyScore(words, h.title);
-  const found = opts.closest ? hits.filter((h) => fit(h) >= 0.75).sort((a, b) => fit(b) - fit(a)) : hits;
+  // Every word typed has to name the event (eventFit): a shared word ("conference") never stands in for the
+  // distinctive ones ("east bergen"). `closest`: only those, the closest first; else they lead, search's order after.
+  const fit = (h: (typeof hits)[number]) => eventFit(words, h.title);
+  const named = hits.filter((h) => fit(h) >= 0.75).sort((a, b) => fit(b) - fit(a));
+  const found = opts.closest ? named : [...named, ...hits.filter((h) => !named.includes(h))];
   const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
   // A season named: the first event found that was held that season (search lists an event once, by its newest season,
   // so an older one is looked up by its code).
   if (season != null) {
-    for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e) return e; }
+    for (const h of found) { const e = await row(season, h.ref.split(":")[1]); if (e && (!named.length || eventFit(words, e.name) >= 0.75)) return e; }
     return null;
   }
   const top = found[0];
   if (!top) return null;
+  // No season named: the newest season with a played playoff (an event not held yet has no winners), or with any played
+  // match when the answer is its matches (its divisions' too), of an event the words name. A code is reused for other
+  // events over the years (USNJNELT2 was a South Essex tournament in 2024–25): a season counts only while its event
+  // still has a name the words match.
+  const playedIn = (code: string) => (opts.anyPlayed
+    ? all<{ s: number; name: string }>("SELECT DISTINCT e.season s, p.name FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code JOIN events p ON p.season = e.season AND p.code = ? WHERE (e.code = ? OR e.division_code = ?) AND m.played = 1", [code, code, code])
+    : all<{ s: number; name: string }>("SELECT DISTINCT m.season s, e.name FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE m.code = ? AND m.level = 'playoff' AND m.played = 1", [code]));
+  const best = named.length ? fit(named[0]) : 0;
+  let pick: { s: number; code: string } | null = null;
+  for (const h of named.length ? named.filter((x) => best - fit(x) < 0.05) : [top]) {
+    const code = h.ref.split(":")[1];
+    for (const r of await playedIn(code)) {
+      if (named.length && eventFit(words, r.name) < 0.75) continue;
+      if (!pick || Number(r.s) > pick.s) pick = { s: Number(r.s), code };
+    }
+  }
+  if (pick) return (await row(pick.s, pick.code)) ?? null;
   const [s, code] = top.ref.split(":");
-  // No season named: the newest season of that event with a played playoff (an event not held yet has no winners), or
-  // with any played match when the answer is its matches.
-  // An answer about its matches counts its divisions' matches too.
-  const played = opts.anyPlayed
-    ? await get<{ s: number | null }>("SELECT MAX(m.season) s FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code WHERE (e.code = ? OR e.division_code = ?) AND m.played = 1", [code, code])
-    : await get<{ s: number | null }>("SELECT MAX(season) s FROM matches WHERE code = ? AND level = 'playoff' AND played = 1", [code]);
-  return (await row(played?.s != null ? Number(played.s) : Number(s), code)) ?? null;
+  return (await row(Number(s), code)) ?? null;
 }
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
@@ -583,9 +596,80 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
     intent: { kind: `stat-${two.id}`, pattern: `[team] ${two.id} [team]${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Teams ${whoOf(a)} and ${whoOf(b)}`, TWO_TEAM_TITLES[two.id]] },
   };
   if (!opts.full) return answer;
-  const stat = await twoTeamStat(two, a, b, scope);
-  if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
-  return { ...answer, stat };
+  // Their meetings at an event or a venue named: the events of it both played, else why there are none.
+  const at = s.at ? await meetingsAt(two, a, b, scope) : null;
+  if (s.at && !at) return null;
+  if (at && "stat" in at) return { ...answer, understood: { kind: "question", label: at.stat.title }, stat: at.stat };
+  const scoped = at ? at.scope : scope;
+  const stat = await twoTeamStat(two, a, b, scoped);
+  if (scoped.seasonWhy) stat.definition = `${stat.definition} ${scoped.seasonWhy}`;
+  if (stat.none) await missingSide(stat, a, b, scoped, s.at);
+  return { ...answer, understood: { kind: "question", label: `${TWO_TEAM_TITLES[two.id]}${scopePhrase(scoped)}: ${whoOf(a)} vs ${whoOf(b)}`, ...(scoped.season != null ? { season: scoped.season } : {}) }, stat };
+}
+
+/** No meetings in a scope (Worlds, states, an event): which team has no matches there is said, with the question to
+ *  ask of each team's own ("6980 has no matches at Worlds on record"). */
+async function missingSide(stat: StatAnswer, a: AnswerTeam, b: AnswerTeam, scope: Scope, words: string | null): Promise<void> {
+  if (!scope.championship && !scope.states && !scope.event && !scope.venue) return;
+  const keep = inScope(scope);
+  const none = [];
+  for (const t of [a, b]) if (!(await teamMatches(t.number)).some((m) => m.counted && keep(m))) none.push(t);
+  const ask = scope.championship ? "at worlds" : scope.states ? "at states" : words ? `at ${words}` : "";
+  if (none.length) stat.none = `${stat.none} ${none.map((t) => `${whoOf(t)} has no matches${scopePhrase(scope)} on record.`).join(" ")}`;
+  stat.blocks.push({ kind: "related", title: "Each team's own", queries: [a, b].map((t) => `${t.number} matches ${ask}`.trim()) });
+}
+
+/** "4215 and 6980 matches together at nj championship", "… at river dell high school": the events the words name that
+ *  both teams played (a championship's division and finals as one), as their meetings' scope; else, when only one (or
+ *  neither) was there, the answer saying so. A venue's events are read when no event of theirs is named so. */
+async function meetingsAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<{ scope: Scope } | { stat: StatAnswer } | null> {
+  const s = two.scope, words = s.at!;
+  // Only events the team took the field at (a kickoff or a roster-only league row is no meeting place).
+  const [ea, eb] = (await Promise.all([teamEventSet(a.number), teamEventSet(b.number)])).map((x) => x.events.filter(played));
+  const season = s.year ? null : s.season ?? null;
+  const first = teamPick(ea, s, season) ?? teamPick(eb, s, season);
+  const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
+  const base = (none: string, chips: string[], queries: string[]): { stat: StatAnswer } => ({ stat: {
+    family: "event", intent: two.id, title, team: a, teams: [a, b], scope: chips, definition: "A meeting is a match both teams played in, as partners or opponents.",
+    source: "Both teams' events checked", none, blocks: queries.length ? [{ kind: "related", title: "Their own events", queries: [...new Set(queries)] }] : [],
+  } });
+  if (first) {
+    const S = first.primary.season, again = { ...s, year: false, season: S };
+    const pa = teamPick(ea, again, S), pb = teamPick(eb, again, S);
+    if (pa && pb) {
+      const codes = pa.events.filter((e) => pb.events.some((x) => x.code === e.code)).map((e) => e.code);
+      if (codes.length) return { scope: { ...scope, season: null, states: false, event: { season: S, code: codes.find((c) => c === pa.primary.code) ?? codes[0], name: codes.length === pa.events.length ? pa.name : pb.name, ...(codes.length > 1 ? { codes } : {}) } } };
+      return base(`${whoOf(a)} played ${pa.name} and ${whoOf(b)} played ${pb.name} in ${seasonLabel(S)}: never the same event, so they have no shared matches there.`, [pa.name, pb.name, seasonLabel(S)],
+        [`${a.number} matches at ${pa.name.toLowerCase()}`, `${b.number} matches at ${pb.name.toLowerCase()}`]);
+    }
+    const here = (pa ?? pb)!, there = pa ? a : b, away = pa ? b : a;
+    const theirs = (pa ? eb : ea).filter((e) => e.season === S && officialClause()(e));
+    return base(`${whoOf(away)} wasn't at ${here.name} in ${seasonLabel(S)}, so there are no matches together there. ${whoOf(there)} played it.`, [here.name, seasonLabel(S)],
+      [`${there.number} matches at ${here.name.toLowerCase()}`, ...theirs.map((e) => `${away.number} matches at ${e.name.toLowerCase()}`)]);
+  }
+  const venue = await venueOf(words, a.number, b.number);
+  if (venue) return { scope: { ...scope, venue } };
+  const named = await findEvent(words, season, { anyPlayed: true, closest: true });
+  if (!named) return null;
+  const S = Number(named.season), name = shortEvent(named.name, named.type ?? null);
+  return base(`Neither ${whoOf(a)} nor ${whoOf(b)} played at ${name} in ${seasonLabel(S)}, so there are no matches together there.`, [name, seasonLabel(S)],
+    [...ea, ...eb].filter((e) => e.season === S && officialClause()(e)).slice(-6).map((e) => `${ea.includes(e) ? a.number : b.number} matches at ${e.name.toLowerCase()}`));
+}
+
+/** A venue the words name ("river dell high", "river dell high schook"), among the venues of either team's events:
+ *  the closest name (or names alike), with every event either team played there, any season. */
+async function venueOf(words: string, a: number, b: number): Promise<{ name: string; keys: string[] } | null> {
+  const rows = await all<{ season: number; code: string; venue: string; city: string | null }>(
+    `SELECT DISTINCT e.season, e.code, e.venue, e.city FROM events e JOIN event_teams t ON t.season = e.season AND t.code = e.code
+     WHERE t.team IN (?, ?) AND e.venue IS NOT NULL AND e.venue <> ''`, [a, b]);
+  const scored = rows.map((r) => ({ r, s: fuzzyScore(words, r.venue) })).filter((x) => x.s >= 0.75);
+  if (!scored.length) return null;
+  const best = scored.reduce((x, y) => (y.s > x.s ? y : x)).r;
+  // One venue can be stored spelled several ways ("River Dell", "River Dale", "River DeHigh High School"): a spelling
+  // in the same city that starts with the same word is that venue too.
+  const first = (v: string) => v.toLowerCase().split(/\s+/)[0];
+  const kept = rows.filter((r) => r.venue === best.venue || (r.city != null && r.city === best.city && first(r.venue) === first(best.venue)));
+  return { name: best.venue, keys: [...new Set(kept.map((r) => `${r.season}:${r.code}`))] };
 }
 
 async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
