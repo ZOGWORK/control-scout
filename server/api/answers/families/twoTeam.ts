@@ -45,7 +45,8 @@ export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[],
   const together = ms.filter((m) => m.partners.includes(b.number));
   const r = recOf(met), rt = recOf(together);
   const where = scopePhrase(scope);
-  const title = `${a.number} vs ${b.number} head to head${where}`;
+  // The page's heading names both teams ("Head to head: … vs …"); the card's says what it holds.
+  const title = `Their meetings and partnerships${where}`;
   const base = { family: "two-team" as const, intent: "head-to-head", title, team: a, scope: scopeChips(scope), definition: H2H_RULE, source: sourceOf(met.length ? met : ms) };
   const links = await teamLinks([...met, ...together].flatMap((m) => [...m.partners, ...m.opponents]).slice(0, 2000));
   const row = (m: TeamMatch) => ({ ...matchRow(m, links, a.number), ownNp: undefined });

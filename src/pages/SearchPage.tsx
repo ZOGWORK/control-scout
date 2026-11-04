@@ -3,7 +3,7 @@
 // matches and places), as a page of cards. The server already lists them in the first paint (server/seoMeta.ts
 // searchMeta) and hands them over (src/lib/searchBoot.ts), and the query lives in the address, so a direct
 // visit never waits on the header's state. Plain Enter in any search box and its "See all results" row land here.
-// Titled by what was found ("Team 7149 — Worlds Appearances", src/shared/searchPage.ts), never the query as typed (that
+// Titled by what was found ("Worlds appearances for ENFORCERS (7149)", src/shared/searchPage.ts), never the query as typed (that
 // stays in the top bar, where it's refined), with one badge for what the query was read as; then the question's direct answer when it asked one (from stored
 // data: server/api/searchQuestions.ts), a Compare as its own card above the teams, then teams (with their season
 // numbers), events (as blocks with date and status), matches and pages. Filters for time, season and event type
@@ -29,7 +29,7 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, askedWhen, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, askedWhen, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, cardTeamName, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -114,6 +114,11 @@ export default function SearchPage() {
 
   // One line for what the query was read as (the server's reading, else the top result's subject and what it opens on).
   const title = found ? pageTitle(ax, hits, isQualityQuestion(query)) : null;
+  // A question card's heading names its team in bold ("Where **Hypnotic Robotics (4215)** is from").
+  const strong = title && ax?.card?.team ? cardTeamName(ax.card.team) : null;
+  const shownTitle = strong && title!.includes(strong)
+    ? <span className="font-medium">{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</span>
+    : title;
   const badge = !found || !ax ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
@@ -144,7 +149,7 @@ export default function SearchPage() {
       {phone && <PhoneSearchBar query={query} />}
       <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text max-md:hidden" data-eyebrow>FTC One Search</p>
       <h1 className="mt-1 font-display text-xl font-semibold tracking-tight text-foreground max-md:mt-0 md:text-2xl lg:text-3xl">
-        {!query ? "Search" : found ? <>{phone && "Results: "}{title}</> : busy || error ? "Search results" : "No matches found"}
+        {!query ? "Search" : found ? <>{phone && "Results: "}{shownTitle}</> : busy || error ? "Search results" : "No matches found"}
       </h1>
       {badge && (
         <p className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.07] px-2.5 py-1 text-xs font-medium text-foreground" data-context-badge>

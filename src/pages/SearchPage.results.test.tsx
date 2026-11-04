@@ -285,7 +285,9 @@ describe("search results page", () => {
   it("titles a question's answer by its team and what was asked", () => {
     state.answer = answer([team(7149, "ENFORCERS", "X")], { card: { kind: "worlds", title: "Worlds appearances", team: { number: 7149, name: "ENFORCERS" }, lines: [], count: 5 } });
     const { container } = show("/search?q=when%20did%20enforcers%20go%20to%20worlds");
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Team 7149 — Worlds Appearances");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Worlds appearances for ENFORCERS (7149)");
+    // The team in bold inside the heading.
+    expect(container.querySelector("h1 [data-title-team]")!.textContent).toBe("ENFORCERS (7149)");
     // The reading "ENFORCERS (7149) · Worlds appearances" only repeats the heading, so no badge says it again.
     expect(container.querySelectorAll("[data-context-badge]")).toHaveLength(0);
   });
