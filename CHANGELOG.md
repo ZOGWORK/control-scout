@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.1 — 2026-11-04
+## 3.0.6 — 2026-11-04
 
 Search reads a query with no season as the latest completed season (2025–26 for now, said on every card), and "last season" as the one before it.
 
@@ -30,6 +30,99 @@ Search reads a query with no season as the latest completed season (2025–26 fo
 - **More leaderboards.** "Top 5 teams by reliability in New Jersey" ranks by the team page's reliability index; "New Jersey leaderboard by record" (or by rating, or by any stat) lists a place's top 25; "best team in New Jersey by OPR" leads with that place's #1; "best team in Oradell" ranks a town's teams by OPR.
 - **How a number changed.** "How much did 4215's OPR improve from last season to this season" shows both seasons' OPR, the difference and each season's world standing. "How much did 4215's rating change this season" shows the rating in the earliest and the last weekly Rankings snapshot kept for the season, the change and the weeks between, with the team page's live rating beside them.
 - **A place's events by season.** "Events this season in New Jersey" and "events last season in New Jersey" list that state's events for the season, not a team called Event Horizon. "Upcoming events this weekend" lists this weekend's events.
+
+## 3.0.5 — 2026-11-04
+
+Search answers a team's OPR and prediction rating the ways people ask: its rank worldwide or in a state, its best and worst events, Worlds, its trend and its rating's ± spread.
+
+### Highlights
+- [teams] Rating answers lead with the rating, its ± and world rank
+- [rankings] "4215 opr rank in New Jersey" gives its place in New Jersey
+- [teams] Best and worst event OPR, OPR at Worlds, OPR trend
+- [fixes] "Auto OPR versus TeleOp OPR" compares one team's own phases
+
+### Search
+- **Rating card.** "4215 rating" leads with the rating and its ± (98 ± 3.2) and its world rank (#525 worldwide), formatted as the team page's rating tile, then its parts.
+- **Ranks and places.** "opr rank worldwide", "rank worldwide" (OPR and rating), "percentile worldwide by opr" and "is 4215 in the top 10 percent" answer from the team page's world rank. "opr rank in New Jersey", "rating in New Jersey", "rank in New Jersey" and "place on the New Jersey leaderboard" give the place on that state's own list: the Teams list filtered to it by OPR, or Rankings filtered to it by rating.
+- **Events and Worlds.** "highest opr ever", "lowest opr", "opr at their best/worst event", "average opr across events this season" and "opr at worlds" (its division named) answer from the team's stored event OPRs. "rating at worlds" is the season rating it finished Worlds on; "best prediction rating ever" names the season and its last event.
+- **Trends and spread.** "opr trend over seasons" shows this season event by event and each season's standing; "rating trend" reads the weekly Rankings snapshot after each event; "prediction rating uncertainty" and "prediction confidence" give the ± and the matches rated; "penalty opr" gives the penalty points given away per match.
+- **Fixes.** "6980 auto opr versus teleop opr" compared 6980 with team 24357 Teleop Tigers; it now sets 6980's own Auto against its TeleOp. "4215 opr compared to the average team" read "the" as an event; it is now the world average over the teams the team page's rank counts, stated on the card. (#558)
+
+## 3.0.4 — 2026-11-04
+
+Every search answer is now one card in the team page's look, with the
+team up top, big numbers and its season at a glance, and no gold boxes.
+
+### Highlights
+- [teams] A search answer shows its team like the team page does
+- [teams] Short answers add the team's season tiles and events
+- [appearance] No gold boxes or pills in search answers
+- [appearance] Auto, TeleOp and Endgame use the team page colours
+- [fixes] The Bruno AI card says "Bruno AI from Control Point"
+
+### Search
+- **One card system.** A fact ("where is 4215 from"), a records card (Worlds trips, awards, next event, high scores, a rule) and a stat answer are drawn in one card in the My Teams card's treatment: the team's number big and bold, its name, home, school and rookie year, the season it's about and a Full team page button, then the answer's title and what it covers. A two-team answer shows both teams side by side. The card's title is left to screen readers when the page heading already says it.
+- **Short answers fill the page.** A one-line answer adds the team's season at a glance (the team page's OPR, prediction rating, record and events tiles) and that season's events with rank and record, all from the team page's own data, so the footer no longer sits under a two-line card. A fact card that carries the season of its numbers and the rest of the team's card (region, reliability) uses that season and shows those facts too.
+- **Big bold values.** Facts and stat numbers are team page tiles: the value big and bold, its name above, a note under, each in a team page colour.
+- **No gold.** Answer cards, headline bands, scope chips, related-question pills, the Compare card, event and trip badges, the query badge and the team table's rank badges and OPR bar are no longer gold; the yellow-bordered box is gone.
+- **Phase colours.** Auto, TeleOp and Endgame bars and table columns use the team page's phase colours (sky, emerald, violet), with a thin bar in that colour.
+- **Compare.** The Compare card shows both teams' numbers big and bold with no gold box or button; the head-to-head adds the prediction rating and states its season once, and phones show it under the Compare. No team cards repeat the two sides.
+- **Bruno AI credit.** The Bruno AI card is headed "Bruno AI from Control Point". (#566)
+
+## 3.0.3 — 2026-11-04
+
+Search answers a team's name, region and profile directly, and
+explains how search, predictions and Worlds qualification work.
+
+### Highlights
+- [teams] "4215 team profile" gives the team page's numbers in one card
+- [teams] Ask a team's name, region, city and state, or school name
+- [teams] A number then its name ("6980 bad wolf city") finds the team
+- [fixes] Explainers for search, predictions and Worlds qualification
+
+### Search
+- **Team profile.** "4215 team profile summary", "4215 scouting profile" and "4215 team page summary" give one card: name, city, region, rookie year and the season's record, OPR (with its world rank), rating ± its uncertainty and reliability, read from the same stored rows as the team page (#562). With no season named it's the latest completed season (2025–26 now), or the team's latest season with matches.
+- **More team facts.** "what is team 4215 called", "what is the name of team 4215", "4215 region", "4215 city and state" and "4215 organization name" are answered directly. A team number followed by that team's own name ("17670 raider robotics location") is that team.
+- **Fuller fact cards.** Every fact answer also carries where the team is from, its region and that season's numbers (card.support), so the card can show the whole team. A school FIRST doesn't list is still said so, now with the team's city.
+- **How it works.** "how does FTC One Search work", "how are predictions made" and "how does worlds qualification work" get short explainers from the site's own pages and the stored 2026–27 Competition Manual rules; the rating and reliability explainers say more. "what does 4215's reliability score mean" gives the team's reliability.
+## 3.0.2 — 2026-11-04
+
+Search answers a team's events, awards and Worlds history more exactly: one award by name, the newest or first award, the events it ranked 1st at, its Worlds divisions and its matches at a given Worlds.
+
+### Highlights
+- [teams] Ask for one award, like "4215 Design award", and get only it
+- [history] "Most recent award" and "first award ever" name the event
+- [history] Events ranked 1st, and the best or worst event by rank
+- [history] Worlds divisions, wins at Worlds and a Worlds year's matches
+- [fixes] "decode championship winning alliance" means Worlds again
+
+### Search
+- **One award.** "4215 Design award", "… Judges Choice award", "… winning alliance awards" list only that award (2nd and 3rd places as such), or say plainly that none was found in any season on record. Award words never become part of the team's name.
+- **Newest and first.** "4215 latest Inspire award", "4215 most recent award" and "4215 first award ever" lead with the award, its event, season and date, and list every award the team won at that event.
+- **Awards at a region's events.** "4215 awards at New Jersey events" keeps only awards from events in that region, and says so.
+- **Events ranked 1st.** "events 4215 won outright" and "events 4215 placed first in" list the events where the team ranked #1 after qualifications, each labelled as a placement. Winning Alliance and Inspire wins stay in "event wins". League meets are left out (their stored rank is the league's running standing).
+- **Best and worst event.** "4215 best event ever" and "… worst event ever" go by rank first and then the record there. Event tables now show a W-L-T column, counted the way the team page's event list counts it (playoffs included).
+- **Worlds.** "4215 worlds divisions", "championship divisions 4215 played in" and "4215 championship appearances count" give one row per Worlds the team went to (its division, season, rank and record) and the count. "4215 worlds wins" is the match-win count. "4215 matches at worlds in 2025" reads the year as when the championship was held (2024–25), and lists the matches or says there were none, naming the seasons it did play.
+- **Event schedule.** "4215 event schedule this season" lists the season's events newest first, with dates, ranks and records.
+- **Winners.** "winning alliance at 4215's last event" answers for the team's latest event played, its division when it played in one. A bare "championship" ("decode championship winning alliance", "who won the ftc championship in 2025") is the FIRST Championship, never a state event with that word in its name.
+- **Event codes.** "USNJNEM6 event" opens that event's card from its record (dates, venue, place, status), like typing the code alone. (#580)
+
+## 3.0.1 — 2026-11-04
+
+Search answers more about a team's matches: records in quals or playoffs and by place, score spread, best phases, penalties, form and how it does against top or rookie teams.
+
+### Highlights
+- [teams] Search answers win rate, ties, score range, median and spread
+- [teams] Best Auto, TeleOp and Endgame match, in the team page colours
+- [teams] Penalty points a match, rate, per event, at Worlds or playoffs
+- [teams] Record vs top-rated or rookie teams, and early vs late season
+- [fixes] Quals and playoffs records and averages say so in the title
+
+### Search
+- **Records by scope.** "Playoff record this season", "quals record", "record in quals" and "average score in playoffs" read the match type and say it in the title ("Record in quals in 2025–26"); with no season named they are the latest season's. "Record at New Jersey events" and "record at out-of-state events" read a place of events (outside the team's own state for the second). "Average score at worlds" is every Worlds the team went to unless a season is named. (#575)
+- **Scores at their official value.** A team's highest, lowest and average score lead with the official score, penalties included, as its match list and its "avg alliance score" show it, the score without penalties beside it. The highest and lowest are still picked by the alliance's own points, so a score made by the other alliance's fouls never becomes the record: it's shown beside it, said so ("302: 102 of its own, 200 from fouls"). "Best match", "high score", "highest alliance score" and "highest scoring match this season" all name that same match.
+- **New answers.** Win rate leads with wins out of matches (26 of 32, 81%); ties; score range, median and consistency (the middle half and the spread in points, never a made-up percent); scores over a number with the count; the match with the highest Auto, TeleOp or Endgame (its phases as the team page's coloured tiles) or the most penalty points given away; penalty points per match, the penalty rate, per event, at Worlds or in playoffs, with the robot's own share from its rating; the easiest opponent by rating; the record against top-rated (the season's top 10% by rating) or rookie opponents; early season against late season; the last 5 matches with their scores and trend; and the OPR trend with the season's rating beside it.
+- **Groups are never teams.** "Against top teams", "rookie teams" and "early season" are read as groups of matches, never as a team named "Top Hat" or "Rookie".
 
 ## 3.0.0 — 2026-11-04
 

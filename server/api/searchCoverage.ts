@@ -12,12 +12,13 @@
 //   Worlds     "where is worlds", "worlds 2026", "worlds divisions"             → the FIRST Championship's events
 //   an event's page  "nj states rankings", "match 12 at nj states"             → that event's tab or match
 //   a team, kept     "4215 alliance partners", "bad wolf robotics"             → the team, never "no results"
-import type { SearchAnswer, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
+import type { SearchAnswer, SearchCardFact, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
 import type { TeamTable } from "../../src/shared/teamTable.js";
 import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
 import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
 import { readEventQuery, regionOf, type EventQuery } from "../../src/shared/searchEventQuery.js";
-import { seasonLabel } from "../../src/shared/format.js";
+import { num, seasonLabel } from "../../src/shared/format.js";
+import { stateName } from "../../src/shared/regions.js";
 import { teamNameOf } from "../../src/shared/teamTitle.js";
 import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
@@ -27,7 +28,11 @@ import { searchSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
-import { eventSetAnswer } from "./searchEvents.js";
+import { seasonStats } from "./teams.js";
+import { REGION_RULESETS, pointsSystem } from "../data/roadmapRules.js";
+import { FORECAST_RUNS } from "../../src/shared/projections.js";
+import { FITTED_MODEL } from "@control-scout/predict-engine";
+import { eventHit, eventSetAnswer } from "./searchEvents.js";
 import { BOARD_STATS, teamsHref } from "./answers/families/leaderboard.js";
 import { countryOf } from "../../src/shared/countries.js";
 
@@ -242,8 +247,40 @@ const titleCase = (s: string) => s.replace(/(^|\s)(\p{L})/gu, (_, a: string, c: 
 const answer = (q: string, a: Omit<SearchAnswer, "q" | "step" | "weak"> & { step?: SearchAnswer["step"] }): SearchAnswer =>
   ({ q, step: "deterministic", weak: false, ...a });
 
+type Explainer = { words: RegExp; label: string; lines: SearchCardLine[]; pages: { title: string; href: string }[] };
+
+/** FIRST's own pages for the rules: lines link straight to them (the page's links and the box open a full URL as is). */
+const OFFICIAL = { manual: "https://ftc-resources.firstinspires.org/ftc/game/manual", events: "https://ftc-events.firstinspires.org" };
+
+/** How teams reach the FIRST Championship: only what the season's curated rules hold (server/data/roadmapRules.ts,
+ *  read from FIRST's Competition Manual), and where to check the rest. A season with none encoded says so. */
+const WORLDS_EXPLAINER: Explainer = (() => {
+  const words = /^(?:how (?:does|do|is|are)\s+)?(?:the\s+)?(?:worlds|first championship|world championships?)\s+(?:qualification|qualifying|advancement|slots?)(?:\s+(?:work|works|decided|calculated|done))?$|^how (?:do|does|can) (?:teams?|you|a team|i|we) (?:qualify|advance|get|go|make it) (?:for|to|into) (?:the\s+)?(?:worlds|first championship|world championships?)$|^(?:how to )?qualify(?:ing)? (?:for|to) (?:the\s+)?(?:worlds|first championship|world championships?)$/;
+  const ps = pointsSystem(CURRENT_SEASON);
+  const S = seasonLabel(CURRENT_SEASON);
+  const pages = [{ title: "How advancement works", href: "/methodology#advancement" }, { title: "Events", href: "/events" }];
+  if (!ps) {
+    return { words, label: "Worlds qualification", pages, lines: [
+      { text: `Control Scout hasn't checked the ${S} advancement rules yet`, detail: "FIRST's Competition Manual (Section 4, Advancement) has the official rules", href: OFFICIAL.manual },
+      { text: "Each event's advancement list is on FTC Events", detail: "FIRST's own results site", href: OFFICIAL.events },
+    ] };
+  }
+  const regions = REGION_RULESETS.filter((r) => r.season === CURRENT_SEASON).map((r) => r.name);
+  const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
+  return {
+    words, label: `Worlds qualification: how teams reach the FIRST Championship (${S} rules)`, pages,
+    lines: [
+      { text: "Teams advance step by step: qualifiers or league tournaments, then a state or regional championship, then the FIRST Championship", detail: regions.length ? `A region's championship sends teams to the FIRST Championship or a Premier event. Control Scout has checked the path for ${list(regions)}` : "Each region sets its own path to its championship", href: "/methodology#advancement" },
+      { text: "At each advancing event, slots go to teams in order of their advancement points", detail: `Inspire ${ps.inspire.join("/")}, other judged awards ${ps.otherAwards.join("/")}, playoff finish ${ps.playoff.first}/${ps.playoff.second}/${ps.playoff.third}/${ps.playoff.fourth}, qualification rank ${ps.qualMax} down to ${ps.qualMin}, plus alliance selection`, href: "/methodology#advancement" },
+      { text: `A team can advance only from its first ${ps.entryEvents} qualifiers or league tournaments`, detail: `League tournament rankings add each team's best ${ps.leagueMeetMatches} league meet matches`, href: "/methodology#advancement" },
+      { text: "How many slots each event has is set by FIRST and differs by region", detail: `Source: ${ps.source.label}, ${ps.where}`, href: ps.source.url },
+      { text: "Each event's advancement list is on FTC Events", detail: "FIRST's own results site: who took each slot", href: OFFICIAL.events },
+    ],
+  };
+})();
+
 /** What a word means on Control Scout, and where it's explained. Only what the site's own pages say. */
-const EXPLAINS: { words: RegExp; label: string; lines: SearchCardLine[]; pages: { title: string; href: string }[] }[] = [
+const EXPLAINS: Explainer[] = [
   {
     words: /^(?:what(?:'s| is| does)?|how (?:is|do you|does)|explain|define|meaning of)?\s*(?:an?\s+)?opr\s*(?:mean|means|calculated|computed|worked out|work|stand for|meaning|definition)?$/,
     label: "OPR: what it is and how it's worked out",
@@ -256,15 +293,51 @@ const EXPLAINS: { words: RegExp; label: string; lines: SearchCardLine[]; pages: 
   {
     words: /^(?:what(?:'s| is| are| does)?|how (?:is|are|does))?\s*(?:the\s+)?(?:prediction\s+)?rating\s*(?:mean|calculated|work|worked out)?$/,
     label: "The prediction rating: how it's worked out",
-    lines: [{ text: "The rating drives every prediction", detail: "It updates after every match and carries over between seasons", href: "/methodology#rating" }],
+    // As the methodology page says it (src/pages/MethodologyPage.tsx #rating, #rating-assumption), with the engine's own settings.
+    lines: [
+      { text: "A rating is the points a robot is expected to add to its alliance's score", detail: "In real game points, split into auto, TeleOp, endgame and the penalty points it gives away", href: "/methodology#rating" },
+      { text: "It learns from alliance scores: after every match, the miss is split between the two robots", detail: "Each rating moves by a share of the miss (the gain), which starts high and shrinks as matches build up", href: "/methodology#rating" },
+      { text: `Qualification matches count in full; a playoff match moves a rating ${Math.round(FITTED_MODEL.rating.playoffWeight * 100)}% as much`, detail: "Playoff partners stay the same every match, so their shares can't be told apart", href: "/methodology#rating-assumption" },
+      { text: "The ± is the rating's uncertainty, and the rating drives every prediction", detail: "It shrinks with each match; last season's rank carries over a little", href: "/methodology#rating" },
+    ],
     pages: [{ title: "How the rating works", href: "/methodology#rating" }],
   },
   {
-    words: /^(?:what(?:'s| is)?|how (?:is|does))?\s*(?:the\s+)?reliability(?: index| score)?\s*(?:mean|calculated|work)?$/,
+    words: /^(?:what(?:'s| is)?|how (?:is|does))?\s*(?:an?\s+|the\s+)?reliability(?: index| score)?\s*(?:mean|calculated|work)?$/,
     label: "The reliability index: how it's worked out",
-    lines: [{ text: "A 0–100 estimate from qualification matches", detail: "No-shows, disqualifications, near-zero matches, swing, penalties and predictability", href: "/methodology#reliability" }],
+    // As the methodology page says it (#reliability).
+    lines: [
+      { text: "A 0–100 estimate of how dependable a robot has been, from qualification matches only", detail: "Higher is more dependable. Every team page shows its parts beside it", href: "/methodology#reliability" },
+      { text: "It starts at 100 and loses points for each problem", detail: "No-shows, disqualifications, near-zero matches, swing, and penalties and misses against the season average", href: "/methodology#reliability" },
+      { text: "Every part is pulled toward the season average, so a few matches can't make a team look perfect or broken", detail: "The weights are a stated rule, not fitted. A near-zero match is a hint, not proof of a dead robot", href: "/methodology#reliability" },
+    ],
     pages: [{ title: "How reliability is worked out", href: "/methodology#reliability" }],
   },
+  {
+    words: /^(?:how (?:are|is|do you|does (?:control scout|the engine|it))\s+(?:the\s+)?(?:match\s+)?predictions?\s+(?:made|calculated|worked out|work|done)|how (?:does|do) (?:the\s+)?(?:predictions?|prediction engine|predictor) work|how (?:are|is) (?:the\s+)?(?:win\s+)?(?:odds|win (?:chances?|probabilit(?:y|ies))) (?:made|calculated|worked out))$/,
+    label: "Predictions: how they're made",
+    // As the methodology page says it (#overview, #matches, #advancement).
+    lines: [
+      { text: "The engine rates every robot from the matches it has played", detail: "Each rating is the points a robot adds to its alliance, updated after every match", href: "/methodology#rating" },
+      { text: "A match's expected score is each alliance's robots added up, plus the penalties the other side tends to give away", detail: "Every expected score has a spread from game noise and how sure the ratings are", href: "/methodology#matches" },
+      { text: "The win chance is how often one alliance's score lands above the other's", detail: "A learned correction (Prediction Engine 2.0) and a calibration step then make 70% mean 70%", href: "/methodology#matches" },
+      { text: `Advancement odds come from playing the whole event ${FORECAST_RUNS.toLocaleString("en-US")} times`, detail: "Rankings, alliance selection, the bracket and the awards, under the season's real rules", href: "/methodology#advancement" },
+      { text: "Every call is logged before the match, and replayed seasons are kept apart from live ones", detail: "The track record shows how often each engine version picked the winner", href: "/methodology#matches" },
+    ],
+    pages: [{ title: "How predictions are calculated", href: "/methodology" }, { title: "Prediction accuracy", href: "/methodology#matches" }],
+  },
+  {
+    words: /^(?:how (?:does|do|is|are)\s+)?(?:the\s+)?(?:ftc\s+)?one\s+search(?:\s+(?:work|works|answer|answers|search))?$|^how (?:does|do|is) (?:this |the |control scout(?:'s)? )?search(?: engine| bar| box)? (?:work|works|answer(?: questions)?)$/,
+    label: "How FTC One Search works",
+    // As its own page says it (src/pages/SearchDocsPage.tsx, src/components/howitworks/searchDocs.ts).
+    lines: [
+      { text: "Fixed rules written in code, tried in a fixed order: the first that fits answers", detail: "Tidy the words, reword common phrasings, answer the question, find the events, find the team, event or match, and say so when nothing fits", href: "/how-it-works/search" },
+      { text: "Answers come from Control Scout's stored FTC data, so the same query gives the same answer every time", detail: "Each answer states its season and what its number means. Search is not a machine-learning model", href: "/how-it-works/search" },
+      { text: "When nothing fits, it says so and lists the closest matches, labelled", detail: "A closest match is never shown as if it were the answer", href: "/how-it-works/search" },
+    ],
+    pages: [{ title: "FTC One Search: how it works", href: "/how-it-works/search" }, { title: "FAQ", href: "/faq" }],
+  },
+  WORLDS_EXPLAINER,
   {
     words: /^(?:what(?:'s| is| are| does)?|how (?:are|do|does))?\s*(?:an?\s+|the\s+)?(?:rp|rps|ranking points?|ranking score)\s*(?:mean|calculated|work|worked out)?$/,
     label: "Ranking points: how they work",
@@ -492,6 +565,18 @@ const SECTION_WORDS: [RegExp, SearchSection | "match"][] = [
 ];
 
 /** "nj states rankings", "match 12 at nj states", "qual 5 nj states": an event read from a place, its tab or match. */
+/** "USNJNEM6 event", "event FTCCMP1": an event's code with the word "event" (or "meet") is that event, its newest
+ *  season, as the event record has it (dates, venue, place, status). A code is letters then a digit (a team's number
+ *  is digits only); one no event has is left to search. */
+export async function eventCodeAnswer(q: string, now?: number): Promise<SearchAnswer | null> {
+  const m = /^(?:(?:the\s+)?(?:event|meet)\s+)?([a-z]{3,}\d[a-z0-9]*)(?:\s+(?:event|meet)(?:\s+page)?)?$/i.exec(squash(q));
+  if (!m || m[1] === squash(q)) return null;
+  const row = await get<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE upper(code) = ? ORDER BY season DESC LIMIT 1", [m[1].toUpperCase()]);
+  if (!row) return null;
+  const hit = eventHit(row, now);
+  return answer(q, { hits: [hit], pages: pagesFor(q), understood: { kind: "names", label: `Event ${row.code} · ${row.name} (${seasonLabel(Number(row.season))})` } });
+}
+
 export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, now?: number): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
   // "q12", "qual 12", "match 12": a qualification match; "m3", as match codes say it, is playoff match 3.
@@ -761,71 +846,174 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   return null;
 }
 
-const FACT_WORDS: [RegExp, "school" | "place" | "rookie" | "website" | "sponsors"][] = [
-  [/^(?:school|schools|organization|organisation|org|high school)$/, "school"],
-  [/^(?:location|city|town|hometown|from|located|based)$/, "place"],
+type Fact = "school" | "place" | "rookie" | "website" | "sponsors" | "name" | "region" | "summary";
+
+const FACT_WORDS: [RegExp, Fact][] = [
+  [/^(?:school|schools|organization|organisation|org|high school|(?:school|organization|organisation|org) name)$/, "school"],
+  [/^(?:location|city|town|hometown|from|located|based|city (?:and|&) state|city state)$/, "place"],
   [/^(?:rookie year|rookie season|founded|year founded|start|started)$/, "rookie"],
   [/^(?:website|site|homepage)$/, "website"],
   [/^(?:sponsors?)$/, "sponsors"],
+  [/^(?:name|team name|called)$/, "name"],
+  [/^(?:region|home region|first region|state)$/, "region"],
+  [/^(?:(?:team |scouting )?profile(?: summary)?|(?:team )?page summary|(?:team )?summary|(?:team )?overview|at a glance)$/, "summary"],
 ];
 
 /** The words that ask for one of a team's listing facts, as the end of a query (longest first). */
-const FACT_PHRASES = "high school|schools|school|organization|organisation|org|location|city|town|hometown|rookie year|rookie season|year founded|founded|website|site|homepage|sponsors?";
+const FACT_PHRASES = [
+  "team profile summary|scouting profile summary|profile summary|team profile|scouting profile|profile|team page summary|page summary|team summary|summary|team overview|overview|at a glance",
+  "high school|school name|organization name|organisation name|org name|schools|school|organization|organisation|org",
+  "city and state|city & state|city state|location|city|town|hometown|rookie year|rookie season|year founded|founded|website|site|homepage|sponsors?",
+  "team name|name|home region|first region|region|state",
+].join("|");
 
-/** A team's own facts from FIRST's listing: "4215 school", "where is 4215 from", "4215 rookie year", "4215 website". */
+/** The season a team card's numbers are from when the query names none: the latest completed one (its FIRST
+ *  Championship played), so a season that has only just started never stands in for the team's last full one. */
+async function completedSeason(): Promise<number> {
+  const r = await get<{ s: number | null }>("SELECT MAX(e.season) s FROM events e WHERE e.type = 'FIRSTChampionship' AND e.season <= ? AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code AND m.played = 1)", [CURRENT_SEASON]);
+  return r?.s != null ? Number(r.s) : CURRENT_SEASON - 1;
+}
+
+/** A team's FIRST home region, named: "USNJ" for a New Jersey team is "New Jersey"; a region of its own ("USTXHO")
+ *  keeps its code beside the state's name. None stored: unknown (a state can hold several regions). */
+function regionText(code: string | null, state: string | null, country: string | null): string | null {
+  const iso = country === "USA" ? "US" : country === "Canada" ? "CA" : null;
+  const st = state && iso ? stateName(iso, state) : null;
+  const named = st && st !== state!.toUpperCase() ? st : null;
+  if (!code) return null;
+  if (named && iso && code.toUpperCase() === `${iso}${state!.toUpperCase()}`) return named;
+  return named ? `${named} (${code})` : code;
+}
+
+/** A team's own facts from FIRST's listing: "4215 school", "where is 4215 from", "4215 rookie year", "4215 website";
+ *  its name and region; and its profile ("4215 team profile summary"): the team page's numbers for one season. */
 export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
-  const t = squash(q.toLowerCase().replace(/[?]/g, ""));
-  const m = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
+  const raw = squash(q.toLowerCase().replace(/[?]/g, ""));
+  // A season named anywhere ("4215 profile 2024-25", "4215 2024-25 profile", "4215 record this season") is the season of
+  // the card's numbers, and never part of the team's name. "This season" is the latest completed one, "last" the one before.
+  const sm = new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(raw);
+  const t = sm ? squash(raw.replace(sm[0], " ")) : raw;
+  const named = /^(?:what(?:'s| is)\s+)?(?:the\s+)?name\s+of\s+(.+)$/.exec(t);
+  const said = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
+    ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
     ?? new RegExp(`^(?:what(?:'s| is)\\s+)?(.+?)(?:'s)?\\s+(${FACT_PHRASES})$`).exec(t)
     ?? /^when\s+(?:was|did)\s+(.+?)\s+(founded|start|started)$/.exec(t);
+  // [who, the fact's words]
+  const m = named ? [named[1], "name"] : said ? [said[1], said[2]] : null;
   if (!m) return null;
-  const last = FACT_WORDS.find(([w]) => w.test(m[2]))?.[1];
+  const last = FACT_WORDS.find(([w]) => w.test(m[1]))?.[1];
   if (!last) return null;
-  const find = async (who: string) => /^\d{1,6}$/.test(who)
-    ? (await search(String(Number(who)), 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(Number(who)))
-    : (await search(who, 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && normalize(teamNameOf(h.title)) === normalize(who));
+  const teamHit = async (n: string) => (await search(String(Number(n)), 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(Number(n)));
+  const find = async (who: string) => {
+    if (/^\d{1,6}$/.test(who)) return teamHit(who);
+    // A number with the team's own name after it ("6980 bad wolf"): that team, when the name is its own.
+    const nm = /^(\d{1,6})\s+(.+)$/.exec(who);
+    const h = nm ? await teamHit(nm[1]) : undefined;
+    if (h && normalize(teamNameOf(h.title)) === normalize(nm![2])) return h;
+    return (await search(who, 5, prefer, new Set(["team"]))).find((x) => x.kind === "team" && normalize(teamNameOf(x.title)) === normalize(who));
+  };
   // More than one fact asked at once ("4215 sponsors school", "4215 rookie year, website and sponsors"): each is
   // answered. The whole name is tried first, so a team named with a fact word ("River City") is never cut short.
-  let who = m[1].replace(/^(?:team|ftc)\s+/, "");
-  const facts: (typeof last)[] = [last];
+  let who = m[0].replace(/^(?:team|ftc)\s+/, "");
+  const facts: Fact[] = [last];
   let hit = await find(who);
   for (let p: RegExpExecArray | null; !hit && (p = new RegExp(`^(.+?)[\\s,]+(?:and\\s+|&\\s+)?(${FACT_PHRASES})$`).exec(who.replace(/,?\s+(?:and|&)$/, "")));) {
     const f = FACT_WORDS.find(([w]) => w.test(p![2]))?.[1];
     if (!f) break;
     if (!facts.includes(f)) facts.unshift(f);
-    who = p[1];
+    who = p[1].replace(/^(?:team|ftc)\s+/, "");
     hit = await find(who);
   }
   if (!hit) return null;
-  const row = await get<any>("SELECT school, city, state, country, rookie_year, website, sponsors FROM teams WHERE number = ?", [Number(hit.ref)]);
+  const number = Number(hit.ref);
+  const row = await get<any>("SELECT school, city, state, country, rookie_year, website, sponsors, home_region FROM teams WHERE number = ?", [number]);
   if (!row) return null;
   const name = nameOf(hit);
-  const LABEL = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors" };
+  const team = { number, name: teamNameOf(hit.title) };
+  // The team page's numbers for one season (seasonStats, ./teams.ts: the same stored row the page reads, nothing
+  // worked out here): the season asked, else the latest completed season, else the team's latest with matches.
+  const done = await completedSeason();
+  const asked = !sm ? null : /^(?:this)/.test(sm[1]) ? done : /^(?:last|previous)/.test(sm[1]) ? done - 1 : Number(sm[1].slice(0, 4));
+  let season = asked ?? done;
+  let st = await seasonStats(season, number);
+  if (asked == null && !st?.record.matches) {
+    const latest = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [number]);
+    st = latest?.s != null ? await seasonStats((season = Number(latest.s)), number) : null;
+  }
+  // A season asked that the team didn't play has no numbers: said so, never another season's.
+  if (!st?.record.matches) st = null;
+  const S = seasonLabel(season);
+  const place = [row.city, row.state, row.country].filter(Boolean).join(", ") || null;
+  const region = regionText(row.home_region ?? null, row.state ?? null, row.country ?? null);
+  const LABEL: Record<Fact, string> = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors", name: "Team name", region: "Region", summary: "Team profile" };
   // Titles name the facts short and in sentence case ("Sponsors and school"); each line keeps its full label.
-  const TITLE = { ...LABEL, school: "School" };
-  const read = (fact: typeof last): { text: string | null; detail?: string } => {
+  const TITLE: Record<Fact, string> = { ...LABEL, school: "School" };
+  const read = (fact: Fact): { text: string | null; detail?: string } => {
     if (fact === "school") return { text: row.school ? String(row.school) : null };
-    if (fact === "place") return { text: [row.city, row.state, row.country].filter(Boolean).join(", ") || null };
+    if (fact === "place") return { text: place };
     if (fact === "rookie") return row.rookie_year ? { text: `Rookie season ${seasonLabel(Number(row.rookie_year))}`, detail: `${CURRENT_SEASON - Number(row.rookie_year) + 1} seasons, this one included` } : { text: null };
     if (fact === "website") return { text: row.website ? String(row.website) : null };
+    if (fact === "name") return { text: team.name || null, detail: `Team ${number}` };
+    if (fact === "region") return region ? { text: region, detail: "FIRST home region" } : { text: null };
+    if (fact === "summary") return { text: [name, place].filter(Boolean).join(" · ") };
     let s: string[] = [];
     try { s = JSON.parse(row.sponsors ?? "[]"); } catch { /* not a list */ }
     return { text: s.length ? s.join(", ") : null };
   };
   // Each fact's values apart, exactly as stored (FIRST's listing cuts some school names short; they're shown as stored).
-  const values = (fact: typeof last): string[] => {
+  const values = (fact: Fact): string[] => {
     if (fact !== "sponsors") { const t = read(fact).text; return t ? [t] : []; }
     try { const s = JSON.parse(row.sponsors ?? "[]"); return Array.isArray(s) ? s.map(String).filter(Boolean) : []; } catch { return []; }
   };
-  const factsOf = (fs: (typeof last)[]) => fs.map((f) => ({ label: LABEL[f], values: values(f), ...(read(f).detail ? { detail: read(f).detail } : {}), ...(f === "website" ? { link: true } : {}) }));
+  const factOf = (f: Fact): SearchCardFact => ({ label: LABEL[f], values: values(f), ...(read(f).detail ? { detail: read(f).detail } : {}), ...(f === "website" ? { link: true } : {}) });
+  // The season's numbers as the team page shows them (num, src/shared/format.ts): record, OPR with its world rank,
+  // rating ± its uncertainty, reliability.
+  const of = Number(st?.opr.np.of) || 0;
+  const numbers: SearchCardFact[] = st ? [
+    { label: `Record, ${S}`, values: [`${st.record.wins ?? 0}-${st.record.losses ?? 0}-${st.record.ties ?? 0}`], detail: `${st.record.matches ?? 0} matches at ${st.record.events ?? 0} event${st.record.events === 1 ? "" : "s"}` },
+    ...(st.opr.np.value != null ? [{ label: `OPR, ${S}`, values: [num(st.opr.np.value)], ...(st.opr.np.rank && of ? { detail: `#${Number(st.opr.np.rank).toLocaleString("en-US")} of ${of.toLocaleString("en-US")} worldwide` } : {}) }] : []),
+    ...(st.rating ? [{ label: `Rating, ${S}`, values: [`${num(st.rating.np)}${st.rating.sd != null ? ` ± ${num(st.rating.sd)}` : ""}`], detail: "The prediction rating, ± its uncertainty" }] : []),
+    ...(st.reliability ? [{ label: `Reliability, ${S}`, values: [`${st.reliability.index} out of 100`], ...(st.reliability.fieldIndex != null ? { detail: `Field average ${st.reliability.fieldIndex}` } : {}) }] : []),
+  ] : [];
   const related = ["record", "awards", "opr"].map((x) => `${hit.ref} ${x}`);
-  const team = { number: Number(hit.ref), name: teamNameOf(hit.title) };
+
+  if (facts.includes("summary")) {
+    // One card, every line the team page's: who and where, rookie year, and the season's numbers.
+    const profile: SearchCardFact[] = [
+      factOf("name"), factOf("place"), ...(region ? [factOf("region")] : []),
+      ...(row.rookie_year ? [{ label: "Rookie year", values: [String(row.rookie_year)], detail: `First season ${seasonLabel(Number(row.rookie_year))}` }] : []),
+      // Anything else asked with it ("4215 school and profile"), each as its own fact.
+      ...facts.filter((f) => !["summary", "name", "place", "region", "rookie"].includes(f)).map(factOf),
+      ...numbers,
+    ];
+    const why = asked != null ? `${S}, the season asked` : season === done ? `${S}, the latest completed season` : `${S}, the team's latest season with matches`;
+    return answer(q, {
+      hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
+      card: {
+        kind: "info", title: `Team profile, ${S}`, team, season, facts: profile, related,
+        lines: [{ text: read("summary").text!, detail: [row.rookie_year ? `Rookie ${row.rookie_year}` : null, why].filter(Boolean).join(" · "), results: numbers.map((f) => `${f.label.replace(/,.*$/, "")} ${f.values[0]}`), href: `/teams/${hit.ref}?season=${season}` }],
+        ...(st ? {} : { none: asked != null ? `${name} has no matches on record in ${S}.` : `${name} has no matches on record yet, so there are no season numbers.` }),
+      },
+      understood: { kind: "team", label: `${name} · team profile, ${S}` },
+    });
+  }
+
+  // Under the facts asked, the rest of the team's card: where it's from, its region and the season's numbers, so
+  // every fact answer can be drawn as a full team card. Only what wasn't asked.
+  // A school FIRST doesn't list is said so, and where the team is from is given with it (it's on the listing).
+  const from = facts.length === 1 && last === "school" && !row.school ? place : null;
+  const support: SearchCardFact[] = [
+    ...(!facts.includes("place") && !from && place ? [factOf("place")] : []),
+    ...(!facts.includes("region") && region ? [factOf("region")] : []),
+    ...numbers,
+  ];
+  const extra = { season, ...(support.length ? { support } : {}) };
   if (facts.length > 1) {
     // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
     const what = facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])).join(" and ");
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-      card: { kind: "info", title: what, team, facts: factsOf(facts), related, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
+      card: { kind: "info", title: what, team, facts: facts.map(factOf), related, ...extra, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
       understood: { kind: "team", label: `${name} · ${what}` },
     });
   }
@@ -835,7 +1023,11 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const title = `${name} · ${what}`;
   return answer(q, {
     hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-    card: { kind: "info", title: what, team, facts: factsOf([last]), related, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
+    card: {
+      kind: "info", title: what, team, facts: [factOf(last), ...(from ? [factOf("place")] : [])], related, ...extra,
+      lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : from ? [{ text: from, detail: "Where they're from", href: `/teams/${hit.ref}` }] : [],
+      ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.${from ? ` The team is from ${place}.` : ""}` }),
+    },
     understood: { kind: "team", label: title },
   });
 }

@@ -37,11 +37,11 @@ export function CompareBar({ picks, names, season, onDrop }: { picks: number[]; 
         {picks.map((t) => (
           <li key={t} className="flex shrink-0 items-center rounded-full border border-border bg-card pl-3 text-sm">
             <span className="max-w-[7.5rem] truncate"><b className="tabular-nums">{t}</b>{names.get(t) ? ` ${names.get(t)}` : ""}</span>
-            <button type="button" onClick={() => onDrop(t)} aria-label={`Remove ${t} from the comparison`} className="grid size-11 place-items-center rounded-full text-muted-foreground"><X className="size-4" aria-hidden /></button>
+            <button type="button" onClick={() => onDrop(t)} aria-label={`Remove ${t} from the comparison`} className="grid size-[44px] place-items-center rounded-full text-muted-foreground"><X className="size-4" aria-hidden /></button>
           </li>
         ))}
       </ul>
-      <Link to={pickHref(picks, season)} data-compare-go className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink">Compare ({picks.length})<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={pickHref(picks, season)} data-compare-go className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-full bg-accent px-4 text-sm font-semibold text-accent-ink">Compare ({picks.length})<ArrowRight className="size-4" aria-hidden /></Link>
     </div>,
     body,
   );

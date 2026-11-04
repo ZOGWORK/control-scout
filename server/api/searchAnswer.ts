@@ -39,7 +39,7 @@ import { statAnswer } from "./answers/index.js";
 import { refreshSearchSeason } from "./answers/season.js";
 import { layeredAnswer } from "./searchLayers.js";
 import { booleanAnswer } from "./searchBoolean.js";
-import { bottomAnswer, countAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -254,7 +254,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (rw && rw.q !== q) return rewritten(rw);
   if (opts.intents !== false) {
     const direct = explainAnswer(q) ?? (await countAnswer(q)) ?? (await teamFactAnswer(q, prefer)) ?? (await teamListAnswer(q)) ?? (await placeTeamsAnswer(q, prefer))
-      ?? (await monthAnswer(q, opts.now)) ?? (await worldsAnswer(q, opts.now)) ?? (await eventPageAnswer(q, prefer, opts.now));
+      ?? (await monthAnswer(q, opts.now)) ?? (await worldsAnswer(q, opts.now)) ?? (await eventCodeAnswer(q, opts.now)) ?? (await eventPageAnswer(q, prefer, opts.now));
     if (direct) return direct;
   }
 
