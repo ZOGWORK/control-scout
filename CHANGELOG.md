@@ -15,6 +15,17 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.1 — 2026-11-04
+
+Each tab on an event page has its own small icon, so the one you want is easy to spot.
+
+### Highlights
+- [appearance] Every event page tab now has its own icon
+- [rankings] Rankings is a podium, Awards a medal, Playoffs a bracket
+- [teams] Matches is the field, Teams two robots, Odds a die
+
+### Appearance
+- **Tab icons.** Matches (the field split into two halves), Rankings (a podium), Insights (a rising chart), Teams (two robot heads), Playoffs (a bracket), Awards (a medal) and Odds (a die) each draw an original icon before the label, in the tab's text colour, on desktop and phone. The labels are unchanged, so screen readers read the same names. (#675)
 ## 3.1.0 — 2026-11-04
 
 Search answers look like the team page all the way down: an award at an event is a podium with every award the event gave, a record splits qualifications from playoffs, and no name is cut off.
