@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.1 — 2026-11-04
+## 3.0.2 — 2026-11-04
 
 Search answers a team's events, awards and Worlds history more exactly: one award by name, the newest or first award, the events it ranked 1st at, its Worlds divisions and its matches at a given Worlds.
 
@@ -36,6 +36,23 @@ Search answers a team's events, awards and Worlds history more exactly: one awar
 - **Event schedule.** "4215 event schedule this season" lists the season's events newest first, with dates, ranks and records.
 - **Winners.** "winning alliance at 4215's last event" answers for the team's latest event played, its division when it played in one. A bare "championship" ("decode championship winning alliance", "who won the ftc championship in 2025") is the FIRST Championship, never a state event with that word in its name.
 - **Event codes.** "USNJNEM6 event" opens that event's card from its record (dates, venue, place, status), like typing the code alone. (#580)
+
+## 3.0.1 — 2026-11-04
+
+Search answers more about a team's matches: records in quals or playoffs and by place, score spread, best phases, penalties, form and how it does against top or rookie teams.
+
+### Highlights
+- [teams] Search answers win rate, ties, score range, median and spread
+- [teams] Best Auto, TeleOp and Endgame match, in the team page colours
+- [teams] Penalty points a match, rate, per event, at Worlds or playoffs
+- [teams] Record vs top-rated or rookie teams, and early vs late season
+- [fixes] Quals and playoffs records and averages say so in the title
+
+### Search
+- **Records by scope.** "Playoff record this season", "quals record", "record in quals" and "average score in playoffs" read the match type and say it in the title ("Record in quals in 2025–26"); with no season named they are the latest season's. "Record at New Jersey events" and "record at out-of-state events" read a place of events (outside the team's own state for the second). "Average score at worlds" is every Worlds the team went to unless a season is named. (#575)
+- **Scores at their official value.** A team's highest, lowest and average score lead with the official score, penalties included, as its match list and its "avg alliance score" show it, the score without penalties beside it. The highest and lowest are still picked by the alliance's own points, so a score made by the other alliance's fouls never becomes the record: it's shown beside it, said so ("302: 102 of its own, 200 from fouls"). "Best match", "high score", "highest alliance score" and "highest scoring match this season" all name that same match.
+- **New answers.** Win rate leads with wins out of matches (26 of 32, 81%); ties; score range, median and consistency (the middle half and the spread in points, never a made-up percent); scores over a number with the count; the match with the highest Auto, TeleOp or Endgame (its phases as the team page's coloured tiles) or the most penalty points given away; penalty points per match, the penalty rate, per event, at Worlds or in playoffs, with the robot's own share from its rating; the easiest opponent by rating; the record against top-rated (the season's top 10% by rating) or rookie opponents; early season against late season; the last 5 matches with their scores and trend; and the OPR trend with the season's rating beside it.
+- **Groups are never teams.** "Against top teams", "rookie teams" and "early season" are read as groups of matches, never as a team named "Top Hat" or "Rookie".
 
 ## 3.0.0 — 2026-11-04
 

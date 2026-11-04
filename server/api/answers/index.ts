@@ -24,6 +24,7 @@ import { eventScopeAnswer, worldsMatchesAnswer } from "./families/eventScope.js"
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, type FactQuestion } from "./families/facts.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
+import { MATCH_STAT_IDS, matchStatAnswer } from "./families/matchStats.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
@@ -48,6 +49,9 @@ const TITLES: Record<IntentId, string> = {
   "opr-history": "OPR by event", "opr-by-season": "OPR by season", "record-by-season": "Record by season", "win-rate": "Win rate by event", "avg-penalties": "Penalty points given by event",
   "avg-score-by-event": "Average alliance score by event", "ranking-points": "Ranking points by event", "total-penalties": "Penalty points given",
   "most-played-opponent": "Most played opponent", "toughest-opponent": "Toughest opponent", "best-partner": "Best alliance partner", "frequent-partner": "Most frequent partner", "never-played": "Teams never played",
+  "ties-count": "Ties", "win-percent": "Win rate", "score-range": "Score range", "median-score": "Median score", "score-consistency": "Score consistency", "scores-over": "Scores over",
+  "highest-auto": "Highest Auto score", "highest-teleop": "Highest TeleOp score", "highest-endgame": "Highest Endgame score", "most-penalties": "Match with the most penalty points given away",
+  penalties: "Penalty points given away", "easiest-opponent": "Easiest opponent", "vs-top": "Against top-rated teams", "vs-rookies": "Against rookie teams", "early-late": "Early season against late season",
 };
 const TWO_TEAM_TITLES: Record<TwoTeamId, string> = { "head-to-head": "Head to head", "opr-vs": "OPR side by side", "rating-vs": "Prediction ratings side by side", "win-chance": "Win chance", "better-record": "Better record" };
 
@@ -95,8 +99,16 @@ function placeOf(at: string) {
 async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
-  // "4215 awards at New Jersey events": a place (the events' own region), not one event.
-  const region = s.at ? placeOf(s.at) : null;
+  if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
+  if (s.outOfState) {
+    // "Out-of-state events": outside the team's own state, as its team page lists it.
+    const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team]);
+    if (!home?.state) return null;
+    const region = findRegions(home.state).find((r) => r.country === (home.country ?? r.country) && r.state === home.state);
+    scope.place = { country: home.country ?? "", state: home.state, name: region?.name ?? home.state, outside: true };
+  }
+  // "4215 awards at New Jersey events" when the place wasn't read already: the events' own region, not one event.
+  const region = !scope.place && s.at ? placeOf(s.at) : null;
   if (region) scope.place = { country: region.country, state: region.state, name: region.name };
   else if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
@@ -107,7 +119,8 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     if (!e) return null;
     return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
   }
-  if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
+  // Worlds with no season named is every season the team went (a team goes to few), unless "this season" says one.
+  if (s.season == null && !s.ever && (s.latest || (it.defaultSeason === "latest" && !s.championship))) {
     const latest = await latestSeason(team, it.id);
     // A plain "4215 record" with no match on record is left to search's team answer (its stored season record).
     if (latest == null && it.id === "record" && !s.latest) return null;
@@ -166,7 +179,8 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
-  const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin`
+  const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
+    : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
@@ -216,6 +230,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     const at = await eventScopeAnswer(it.id, team, ms, ev, scope, { n: it.n });
     if (at) return at;
   }
+  if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
   if (it.id === "results" && scope.championship) return worldsMatchesAnswer(team, ms, scope);
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
 }

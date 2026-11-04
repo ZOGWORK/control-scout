@@ -40,7 +40,7 @@ beforeAll(async () => {
 describe("order", () => {
   it("this season is the latest one the team took the field in, not one it is only on a roster for", async () => {
     const a = await searchAnswer("207 average score this season", { limit: 25 });
-    expect(a.stat!.headline).toMatchObject({ value: "70.0", sub: "2025–26" });
+    expect(a.stat!.headline).toMatchObject({ value: "70.0", sub: expect.stringMatching(/^2025–26/) });
   });
   it("a played match without a time keeps its place in the event", async () => {
     expect((await searchAnswer("4215 most recent match", { limit: 25 })).stat!.headline).toMatchObject({ label: "Q2 at Northern League Meet 1" });

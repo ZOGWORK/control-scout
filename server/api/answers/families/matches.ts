@@ -2,10 +2,12 @@
 //   superlative  one best or worst match (one scan, a different order per intent)
 //   aggregate    a count, a mean, a record or a streak
 // The rules every answer below states:
-//   Highest/lowest score: the alliance's points without penalties (fouls the other alliance committed aren't the
-//     alliance's own points; the score with them is shown beside it), in a match the team was on the field for, at an
-//     official event (qualifiers, league play, championships, premier events; never scrimmages or off-season events).
-//     The same rule as the season records (server/api/searchHighScores.ts).
+//   Scores: the alliance's official score, penalties included, as the team page's match list and its "avg alliance
+//     score" show it (the score without penalties beside it), in a match the team was on the field for, at an official
+//     event (qualifiers, league play, championships, premier events; never scrimmages or off-season events).
+//   Highest/lowest score: the match is picked by the alliance's own points (without penalties, as the season records
+//     in server/api/searchHighScores.ts: another alliance's fouls never make a record), and shown at its official
+//     score. A higher official score made by fouls is shown beside it, said so.
 //   Results, records, margins and streaks: the official result (scores with penalties), counted by the site's one
 //     record rule (src/shared/eventRecord.ts: playoffs included, a qualification surrogate match not).
 //   Blowout: a win by at least double the other alliance's score, and by 20 points or more.
@@ -22,10 +24,11 @@ import type { IntentId } from "../read.js";
 export interface AnswerTeam { number: number; name: string | null }
 export const whoOf = (t: AnswerTeam) => (t.name ? `${t.name} (${t.number})` : `Team ${t.number}`);
 
-const SCORE_RULE = "Highest and lowest scores are the alliance's own points without penalties (the score with penalties beside it), in matches the team was on the field for, at official events: qualifiers, league play, championships and premier events, never scrimmages or off-season events.";
-const RESULT_RULE = `Results use the official scores, penalties included. ${RECORD_RULE}`;
+export const SCORE_RULE = "Scores are the alliance's official score, penalties included, as the team page's match list shows it (the score without penalties beside it), in matches the team was on the field for, at official events: qualifiers, league play, championships and premier events, never scrimmages or off-season events.";
+const HIGH_RULE = "The highest and lowest score are picked by the alliance's own points, without penalties (as the season records are: the other alliance's fouls never make a record), and shown at the official score, penalties included, as the match list shows it. A higher official score that fouls made is shown beside it.";
+export const RESULT_RULE = `Results use the official scores, penalties included. ${RECORD_RULE}`;
 export const BLOWOUT = { factor: 2, min: 20 };
-const LIST_CAP = 25;
+export const LIST_CAP = 25;
 
 /** "214 matches at 31 events, 2023–24 to 2025–26". */
 export function sourceOf(ms: TeamMatch[]): string {
@@ -36,15 +39,15 @@ export function sourceOf(ms: TeamMatch[]): string {
   return `From ${ms.length} match record${ms.length === 1 ? "" : "s"} at ${events} event${events === 1 ? "" : "s"}, ${span}`;
 }
 
-const record = (ms: TeamMatch[]) => ({ wins: ms.filter((m) => m.result === "W").length, losses: ms.filter((m) => m.result === "L").length, ties: ms.filter((m) => m.result === "T").length });
-const recText = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
-const pct = (r: { wins: number; losses: number; ties: number }) => { const n = r.wins + r.losses + r.ties; return n ? `${Math.round((100 * r.wins) / n)}%` : "–"; };
+export const record = (ms: TeamMatch[]) => ({ wins: ms.filter((m) => m.result === "W").length, losses: ms.filter((m) => m.result === "L").length, ties: ms.filter((m) => m.result === "T").length });
+export const recText = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
+export const pct = (r: { wins: number; losses: number; ties: number }) => { const n = r.wins + r.losses + r.ties; return n ? `${Math.round((100 * r.wins) / n)}%` : "–"; };
 const newestFirst = (ms: TeamMatch[]) => [...ms].reverse();
 const np = (m: TeamMatch) => m.ownNp ?? m.own;
-const bySeason = (ms: TeamMatch[]) => { const g = new Map<number, TeamMatch[]>(); for (const m of ms) g.set(m.season, [...(g.get(m.season) ?? []), m]); return [...g.entries()].sort((a, b) => b[0] - a[0]); };
+export const bySeason = (ms: TeamMatch[]) => { const g = new Map<number, TeamMatch[]>(); for (const m of ms) g.set(m.season, [...(g.get(m.season) ?? []), m]); return [...g.entries()].sort((a, b) => b[0] - a[0]); };
 
 /** The per-season record table, newest first. */
-function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
+export function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
   return {
     kind: "table", title,
     columns: [{ key: "season", label: "Season" }, { key: "record", label: "W-L-T" }, { key: "rate", label: "Win rate", num: true }, { key: "n", label: "Matches", num: true }],
@@ -52,11 +55,11 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
   };
 }
 
-const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches, then most wins, then team number), shown when that list's record for the team is the one above.`;
+export const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches, then most wins, then team number), shown when that list's record for the team is the one above.`;
 
 /** The team's place on the season's win-rate list (leaderboard.ts "win-rate": the stored season numbers, the same
  *  order), with the record that list holds for it, or null when it isn't ranked. */
-async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number; wins: number; losses: number; ties: number } | null> {
+export async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number; wins: number; losses: number; ties: number } | null> {
   const rate = "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))";
   const r = await get<{ rank: number; of: number; wins: number; losses: number; ties: number }>(
     `SELECT rank, of, wins, losses, ties FROM (SELECT s.team, s.wins, s.losses, s.ties, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.team) rank, COUNT(*) OVER () of
@@ -70,9 +73,13 @@ function pool(id: IntentId, all: TeamMatch[], scope: Scope): TeamMatch[] {
   const keep = inScope(scope);
   return all.filter((m) => keep(m) && counts(id, m));
 }
+/** The intents that read the alliance's points (a score, a phase, its penalties): only matches the team was on the
+ *  field for. Every other intent reads results: matches on its record. */
+const SCORE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "average-score", "total-points", "score-range", "median-score", "score-consistency", "scores-over",
+  "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties"]);
 /** Whether an intent reads match `m`: a score only with the team on the field, a result when it's on the record. */
 export function counts(id: IntentId, m: TeamMatch): boolean {
-  return id === "highest-score" || id === "lowest-score" || id === "average-score" || id === "total-points" ? m.onField : m.counted;
+  return SCORE_IDS.has(id) ? m.onField : m.counted;
 }
 
 /** The answer for a match-set intent, or null when `id` isn't one of these families' match intents. */
@@ -81,10 +88,11 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
   const who = whoOf(team), where = scopePhrase(scope);
   const base = { team, scope: scopeChips(scope), source: sourceOf(ms) };
   const links = await teamLinks(ms.flatMap((m) => [...m.partners, ...m.opponents]).slice(0, 2000));
-  // A score answer ranks by the points without penalties, so its rows show them; a result answer shows the official
-  // totals only, so a win never reads as a lower score than the other alliance's.
-  const scores = id === "highest-score" || id === "lowest-score" || id === "average-score";
-  const row = (m: TeamMatch) => { const r = matchRow(m, links, team.number); return scores ? r : { ...r, ownNp: undefined }; };
+  // The highest and lowest score rank by the points without penalties, so their rows show them beside the official
+  // score; every other answer shows the official totals only, so a win never reads as a lower score than the other
+  // alliance's.
+  const ranksNp = id === "highest-score" || id === "lowest-score";
+  const row = (m: TeamMatch) => { const r = matchRow(m, links, team.number); return ranksNp ? r : { ...r, ownNp: undefined }; };
   const none = (what: string) => `No ${what}${where} found for ${who} in the recorded matches.`;
   const matchesBlock = (title: string, xs: TeamMatch[], more?: string): StatBlock => ({ kind: "matches", title, rows: xs.slice(0, LIST_CAP).map(row), ...(xs.length > LIST_CAP ? { more: more ?? `Showing ${LIST_CAP} of ${xs.length}` } : {}) });
   // Each season is a different game, so points are never compared across seasons: with several seasons and none named,
@@ -104,26 +112,29 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const { xs: pick, note } = latestOnly(sorted);
       const top = pick[0];
       const title = high ? (opts.leadEvent ? `Event with the highest score${where}` : `Highest score${where}`) : `Lowest score${where}`;
-      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: SCORE_RULE, none: scope.championship ? `No Worlds matches found for ${who}.` : none("matches") };
+      if (!top) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: `${SCORE_RULE} ${HIGH_RULE}`, none: scope.championship ? `No Worlds matches found for ${who}.` : none("matches") };
       const r = row(top);
+      // A higher (or lower) official score in the same set, made by fouls: shown, never hidden.
+      const byOfficial = pick.reduce((a, b) => (high ? (b.own > a.own ? b : a) : (b.own < a.own ? b : a)), top);
       const blocks: StatBlock[] = [
         { kind: "kpis", items: [
-          { label: "With penalties", value: String(top.own), href: r.href },
+          { label: "Without penalties", value: String(np(top)), sub: top.own !== np(top) ? `ranked by this; +${top.own - np(top)} from fouls` : "ranked by this", href: r.href },
           { label: "Result", value: `${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, tone: top.result === "W" ? "good" : top.result === "L" ? "bad" : undefined },
+          ...(byOfficial !== top ? [{ label: `${high ? "Highest" : "Lowest"} official score`, value: String(byOfficial.own), sub: `${byOfficial.label}, ${byOfficial.event}: ${byOfficial.own - np(byOfficial)} from the other alliance's fouls`, href: row(byOfficial).href }] : []),
         ] },
-        matchesBlock(`${high ? "Best scores" : "Lowest scores"}${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
+        matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
       ];
       // Each season is a different game: its best (or worst) beside the others, never compared as one record.
       if (scope.season == null) {
-        const per = bySeason(ms).map(([s, xs]) => ({ s, m: [...xs].sort((a, b) => (high ? np(b) - np(a) : np(a) - np(b)))[0] }));
-        if (per.length > 1) blocks.push({ kind: "table", title: `${high ? "Best" : "Lowest"} score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), score: np(m), match: m.label, event: m.event }, href: row(m).href, strong: m === top })) });
+        const per = bySeason(ms).map(([s, xs]) => ({ s, m: [...xs].sort((a, b) => (high ? np(b) - np(a) || b.own - a.own : np(a) - np(b) || a.own - b.own))[0] }));
+        if (per.length > 1) blocks.push({ kind: "table", title: `${high ? "Best" : "Lowest"} score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "np", label: "Without penalties", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), score: m.own, np: np(m), match: m.label, event: m.event }, href: row(m).href, strong: m === top })) });
       }
       return {
         ...base, family: "superlative", intent: id, title,
         headline: opts.leadEvent
-          ? { value: top.event, label: `${np(top)} points in ${top.label}`, sub: [seasonLabel(top.season), r.date].filter(Boolean).join(" · "), href: eventHref(top.season, top.code, team.number) }
-          : { value: `${np(top)} points`, label: `${top.label} at ${top.event}`, sub: [seasonLabel(top.season), r.date, `${top.alliance === "red" ? "Red" : "Blue"} alliance`].filter(Boolean).join(" · "), href: r.href },
-        blocks, definition: `${SCORE_RULE}${note}`,
+          ? { value: top.event, label: `${top.own} points in ${top.label} (official score, penalties included)`, sub: [seasonLabel(top.season), r.date, `${np(top)} without penalties`].filter(Boolean).join(" · "), href: eventHref(top.season, top.code, team.number) }
+          : { value: `${top.own} points`, label: `${top.label} at ${top.event} (official score, penalties included)`, sub: [seasonLabel(top.season), r.date, `${top.alliance === "red" ? "Red" : "Blue"} alliance`, `${np(top)} without penalties`].filter(Boolean).join(" · "), href: r.href },
+        blocks, definition: `${SCORE_RULE} ${HIGH_RULE}${note}`,
       };
     }
 
@@ -206,7 +217,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
 
     case "average-score": {
       const title = `Average score${where}`;
-      const def = "Average score: the mean of the alliance's points without penalties in every match the team was on the field for, at official events (the mean with penalties beside it).";
+      const def = "Average score: the mean of the alliance's official score, penalties included, in every match the team was on the field for, at official events, as the team page's \"avg alliance score\" (the mean without penalties beside it).";
       if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
       const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
       // Each season is a different game: over several, each season's average, never one number pooled across them.
@@ -215,9 +226,10 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         const [latest, xs] = seasons[0];
         return {
           ...base, family: "aggregate", intent: id, title,
-          headline: { value: mean(xs.map(np)).toFixed(1), label: `points per match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
-          blocks: [{ kind: "table", title: "Average each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "No penalties", num: true }, { key: "with", label: "With penalties", num: true }, { key: "n", label: "Matches", num: true }],
-            rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: mean(ys.map(np)).toFixed(1), with: mean(ys.map((m) => m.own)).toFixed(1), n: ys.length }, strong: s === latest })) }],
+          headline: { value: mean(xs.map((m) => m.own)).toFixed(1), label: `points per match with penalties in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: `${mean(xs.map(np)).toFixed(1)} without penalties · each season is a different game: every season's average is listed apart` },
+          blocks: [{ kind: "table", title: "Average each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "with", label: "With penalties", num: true }, { key: "avg", label: "No penalties", num: true }, { key: "n", label: "Matches", num: true }],
+            rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), with: mean(ys.map((m) => m.own)).toFixed(1), avg: mean(ys.map(np)).toFixed(1), n: ys.length }, strong: s === latest })) },
+            ...(scope.championship ? [eventTable(ms, "Worlds events")] : [])],
           definition: `${def} Each season is a different game, so each season's average is its own and none is pooled across seasons.`,
         };
       }
@@ -225,10 +237,10 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       for (const m of ms) events.set(`${m.season}|${m.code}`, [...(events.get(`${m.season}|${m.code}`) ?? []), m]);
       return {
         ...base, family: "aggregate", intent: id, title,
-        headline: { value: mean(ms.map(np)).toFixed(1), label: `points per match (no penalties), over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: scope.season != null ? seasonLabel(scope.season) : "All seasons" },
+        headline: { value: mean(ms.map((m) => m.own)).toFixed(1), label: `points per match with penalties, over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: [seasonLabel(ms[0].season), events.size === 1 ? ms[0].event : ""].filter(Boolean).join(" · ") },
         blocks: [
-          { kind: "kpis", items: [{ label: "With penalties", value: mean(ms.map((m) => m.own)).toFixed(1) }, { label: "Best", value: String(Math.max(...ms.map(np))) }, { label: "Lowest", value: String(Math.min(...ms.map(np))) }] },
-          { kind: "series", title: "Average by event", unit: "points", points: [...events.values()].map((xs) => ({ x: xs[0].event, y: Number(mean(xs.map(np)).toFixed(1)), href: eventHref(xs[0].season, xs[0].code, team.number), note: `${xs.length} matches` })) },
+          { kind: "kpis", items: [{ label: "Without penalties", value: mean(ms.map(np)).toFixed(1) }, { label: "Best", value: String(Math.max(...ms.map((m) => m.own))) }, { label: "Lowest", value: String(Math.min(...ms.map((m) => m.own))) }] },
+          { kind: "series", title: "Average by event", unit: "points", points: [...events.values()].map((xs) => ({ x: xs[0].event, y: Number(mean(xs.map((m) => m.own)).toFixed(1)), href: eventHref(xs[0].season, xs[0].code, team.number), note: `${xs.length} matches` })) },
         ],
         definition: def,
       };
@@ -322,7 +334,30 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const title = `Last ${n} matches${where}`;
       if (!xs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
       const r = record(xs);
-      return { ...base, family: "aggregate", intent: id, title, headline: { value: recText(r), label: `in the last ${xs.length} matches`, sub: xs.map((m) => m.result).join(" ") }, blocks: [matchesBlock("Newest first", xs)], definition: RESULT_RULE };
+      // The form and its trend: each result oldest to newest, and the scores beside the season's average. Points are
+      // never compared across seasons: when the run reaches back into an earlier season, its scores, average and
+      // trend are the newest season's matches only.
+      const run = [...xs].reverse().filter((m) => m.season === xs[0].season), season = ms.filter((m) => m.season === xs[0].season);
+      const mixed = run.length < xs.length;
+      const avg = (ys: TeamMatch[]) => (ys.reduce((a, m) => a + m.own, 0) / ys.length).toFixed(1);
+      const half = Math.floor(run.length / 2);
+      const early = run.slice(0, half), late = run.slice(run.length - half);
+      const dir = half ? Number(avg(late)) - Number(avg(early)) : 0;
+      return {
+        ...base, family: "aggregate", intent: id, title,
+        headline: { value: recText(r), label: `in the last ${xs.length} matches, oldest to newest ${[...xs].reverse().map((m) => m.result).join(" ")}`, sub: `${seasonLabel(xs[0].season)} · scores ${run.map((m) => m.own).join(", ")}${mixed ? ` (the ${run.length} in ${seasonLabel(xs[0].season)}; each season is a different game)` : ""}` },
+        blocks: [
+          { kind: "kpis", items: [
+            { label: `Average, last ${run.length}`, value: avg(run), sub: `${avg(season)} over the season's ${season.length}` },
+            ...(half ? [{ label: "Trend", value: Math.abs(dir) < 5 ? "Steady" : dir > 0 ? "Rising" : "Falling", sub: `${avg(early)} in the first ${half}, ${avg(late)} in the last ${half}`, tone: Math.abs(dir) < 5 ? undefined : dir > 0 ? "good" as const : "bad" as const }] : []),
+            { label: "Highest", value: String(Math.max(...run.map((m) => m.own))) },
+            { label: "Lowest", value: String(Math.min(...run.map((m) => m.own))) },
+          ] },
+          { kind: "series", title: "Score, match by match", unit: "points", points: run.map((m) => ({ x: `${m.label} · ${m.event}`, y: m.own, href: row(m).href, note: `${m.result === "W" ? "Won" : m.result === "L" ? "Lost" : "Tied"} ${m.own}–${m.opp}` })) },
+          matchesBlock("Newest first", xs),
+        ],
+        definition: `${RESULT_RULE} Scores are the official ones, penalties included; the trend sets the run's first half against its last (under 5 points apart is steady).`,
+      };
     }
 
     case "blowout-wins":
@@ -365,10 +400,10 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
 }
 
 const rate = (r: { wins: number; losses: number; ties: number }) => { const n = r.wins + r.losses + r.ties; return n ? Math.round((100 * r.wins) / n) : null; };
-const seasonsText = (ss: number[]) => (ss.length === 1 ? seasonLabel(ss[0]) : `${ss.length} seasons: ${ss.map(seasonLabel).join(", ")}`);
+export const seasonsText = (ss: number[]) => (ss.length === 1 ? seasonLabel(ss[0]) : `${ss.length} seasons: ${ss.map(seasonLabel).join(", ")}`);
 
 /** Per event: its record (newest first), each a link to the event on the team. */
-function eventTable(ms: TeamMatch[], title: string): StatBlock {
+export function eventTable(ms: TeamMatch[], title: string): StatBlock {
   const evs = new Map<string, TeamMatch[]>();
   for (const m of ms) evs.set(`${m.season}|${m.code}`, [...(evs.get(`${m.season}|${m.code}`) ?? []), m]);
   return {
