@@ -51,6 +51,27 @@ function familyPick(evs: TeamEvent[], words: string, season: number | null): Tea
   return a.e.division === b.e.code ? a.e : b.e.division === a.e.code ? b.e : null;
 }
 
+/** An event named that the team has no match at ("17713 partners at NJ championship"): said so, with its own events
+ *  (the season named, else its latest) to open instead. Never another event's partners. */
+function noEventAnswer(q: string, words: string, team: AnswerTeam, top: SearchHit, evs: TeamEvent[], season: number | null, opts: Opts): SearchAnswer {
+  const played = evs.filter((e) => e.matches > 0 || e.record != null);
+  const s = season ?? (played.length ? Math.max(...played.map((e) => e.season)) : null);
+  const own = played.filter((e) => e.season === s);
+  const title = `No event matching "${words}"`;
+  const stat: StatAnswer = {
+    family: "event", intent: "no-event", title, team, scope: s != null ? [seasonLabel(s)] : ["All seasons"],
+    definition: "An event is one the team played at, found by its name or code, in the season named (else any season).", source: `Checked ${played.length} event${played.length === 1 ? "" : "s"} ${whoOf(team)} played`,
+    none: `${whoOf(team)} has no matches at an event matching "${words}"${season != null ? ` in ${seasonLabel(season)}` : ""}.${own.length && s != null ? ` Its ${seasonLabel(s)} events are below.` : ""}`,
+    blocks: own.length && s != null ? [{ kind: "links", title: `${whoOf(team)}'s events, ${seasonLabel(s)}`, items: own.map((e) => ({ label: e.name, href: `/events/${e.season}/${encodeURIComponent(e.code)}?team=${team.number}`, ...(e.start ? { sub: e.start.slice(0, 10) } : {}) })) }] : [],
+  };
+  return {
+    q, hits: [{ ...top, section: "history", facts: undefined, events: undefined }], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label: `${whoOf(team)} · ${title}` },
+    intent: { kind: "stat-compound-no-event", pattern: "[team] partners at [event]", met: false, understood: [`Team ${whoOf(team)}`, title] },
+    ...(opts.full ? { stat } : {}),
+  };
+}
+
 export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Resolve, opts: Opts, deps: CompoundDeps): Promise<SearchAnswer | null> {
   if (c.kind === "list") return listSearch(q, c, opts);
   if (c.kind === "set-best") return setSearch(q, c, resolve, opts);
@@ -88,13 +109,13 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     const named = c.at.replace(/\b[a-z]{2}\b/g, (w) => findRegions(w).find((r) => r.state.toLowerCase() === w)?.name.toLowerCase() ?? w);
     const e = deps.pickTeamEvent(evs, c.at, c.when.season) ?? (named !== c.at ? deps.pickTeamEvent(evs, named, c.when.season) : null)
       ?? familyPick(evs, named, c.when.season);
-    if (!e) return null;
+    if (!e) return noEventAnswer(q, c.at, team, top, evs, c.when.season, opts);
     // A championship's division and its finals are one event here: the team's matches at both.
     const parent = e.division ?? e.code;
     family = evs.filter((x) => x.season === e.season && (x.code === parent || x.division === parent));
-    const top = family.find((x) => x.code === parent && x.division == null);
+    const finals = family.find((x) => x.code === parent && x.division == null);
     scope.season = null;
-    scope.event = { season: e.season, code: e.code, name: family.length > 1 && top ? top.name : e.name };
+    scope.event = { season: e.season, code: e.code, name: family.length > 1 && finals ? finals.name : e.name };
     s.why = undefined;
   }
   const a = answer(`${whoOf(team)} · ${TITLES[c.kind]}`, scope.season ?? scope.event?.season ?? null, section);

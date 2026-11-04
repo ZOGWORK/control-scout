@@ -5,6 +5,7 @@
 // a question with a clause these rules don't read is left to the readers after this one.
 import type { Region } from "../../../src/shared/regions.js";
 import { findRegions, nearRegion } from "../../../src/shared/regions.js";
+import { countryOf } from "../../../src/shared/countries.js";
 import { SEASONS } from "../../data/seasons.js";
 import { searchSeason } from "./season.js";
 
@@ -18,7 +19,7 @@ export interface SeasonWords { season: number | null; ever: boolean; latest: boo
 
 export type CompoundQuestion =
   /** Teams by place, filtered by an award won, a Worlds season or a stat threshold, sorted by a stat, top N. */
-  | { kind: "list"; n: number | null; stat: ListStat | null; region: Region | null; city: string | null; season: number | null;
+  | { kind: "list"; n: number | null; stat: ListStat | null; region: Region | null; country: { code: string; name: string } | null; city: string | null; season: number | null;
       award: { type: string; label: string } | null; worlds: boolean; threshold: (Threshold & { stat: ListStat }) | null; outputs: ListStat[] }
   /** One team's OPR at its first (or last) event of two seasons, side by side. */
   | { kind: "event-pair"; core: string; which: "first" | "last"; seasons: [number, number] }
@@ -120,14 +121,17 @@ function readList(q: string): CompoundQuestion | null {
   const placeWords = m[4] ?? m[2] ?? null;
   if (m[4] && m[2]) return null;
   const region = placeWords ? regionOf(placeWords) : null;
-  // A place that isn't a region is a home city (checked against the team directory when answered).
-  const city = placeWords && !region ? placeWords : null;
+  // A place that isn't a state or province is a country, else a home city (checked against the team directory when
+  // answered).
+  const c = placeWords && !region ? countryOf(placeWords) : null;
+  const country = c ? { code: c.code, name: c.name } : null;
+  const city = placeWords && !region && !country ? placeWords : null;
   if (city && !/^[a-z][a-z .'-]{1,40}$/.test(city)) return null;
   const outputs = out ? [out[1], out[2]].filter(Boolean).map((s) => statOf(s)).filter((s): s is ListStat => !!s) : [];
   const tStat = th ? statOf(th[1]) : null;
   if (th && !tStat) return null;
   return {
-    kind: "list", n: m[1] ? Number(m[1]) : null, stat, region, city,
+    kind: "list", n: m[1] ? Number(m[1]) : null, stat, region, country, city,
     // A Worlds season named wins; the season words otherwise (else the default season, said on the card).
     season: worldsSeason ?? sw.season,
     award: award ? { type: award[1], label: award[2] } : null, worlds: !!wd,

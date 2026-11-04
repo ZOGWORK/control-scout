@@ -9,6 +9,7 @@
 import type { StatAnswer, StatBlock, LeaderboardRow } from "../../../../src/shared/searchStat.js";
 import { dateRange, possessive as possessiveOf, seasonLabel } from "../../../../src/shared/format.js";
 import { RANKED_MIN_MATCHES } from "../../../../src/shared/rankings.js";
+import { countryOf } from "../../../../src/shared/countries.js";
 import { teamPageSql } from "../../../../src/shared/teamPages.js";
 import { all, get } from "../../../db.js";
 import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
@@ -28,8 +29,9 @@ const OP_WORDS: Record<Threshold["op"], string> = { gt: "over", ge: "of at least
 export const opText = (t: Threshold, unit = "") => `${OP_WORDS[t.op]} ${t.value}${unit}`;
 export const passes = (v: number | null, t: Threshold) => v != null && (t.op === "gt" ? v > t.value : t.op === "ge" ? v >= t.value : t.op === "lt" ? v < t.value : v <= t.value);
 const SQL_OP: Record<Threshold["op"], string> = { gt: ">", ge: ">=", lt: "<", le: "<=" };
-/** The team's own counted matches (on its record, its robot on the field) at official events in the scope. */
-const onRecord = (ms: TeamMatch[], scope: Scope) => { const keep = inScope(scope); return ms.filter((m) => m.counted && m.onField && keep(m)); };
+/** The team's matches at official events in the scope that its record counts (a qualification no-show too), as the
+ *  record answer reads them; `scored`: only those its robot was on the field for, as the score answers read them. */
+const onRecord = (ms: TeamMatch[], scope: Scope, scored = false) => { const keep = inScope(scope); return ms.filter((m) => m.counted && (!scored || m.onField) && keep(m)); };
 /** The team's events in a season with a stored OPR (official events it played). */
 const playedEvents = (evs: TeamEvent[], season: number) => evs.filter((e) => e.season === season && officialClause()(e) && e.matches > 0);
 const evDate = (e: TeamEvent) => (e.start ? dateRange(e.start.slice(0, 10), e.end?.slice(0, 10)) : "–");
@@ -39,7 +41,7 @@ const evRank = (e: TeamEvent) => (e.rank != null ? `#${e.rank}${e.of ? ` of ${e.
 // ---------------------------------------------------------------------------------------------------------------
 // Team lists: a place, an award won, Worlds, a stat threshold, sorted by a stat.
 
-const listPlace = (c: ListQuestion, city: string | null) => (c.region ? `in ${c.region.name}` : city ? `from ${city}` : "worldwide");
+const listPlace = (c: ListQuestion, city: string | null) => (c.region ? `in ${c.region.name}` : c.country ? `in ${c.country.name}` : city ? `from ${city}` : "worldwide");
 function listWords(c: ListQuestion, season: number) {
   const tst = c.threshold ? BOARD_STATS[c.threshold.stat] : null;
   return {
@@ -64,6 +66,12 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const where: string[] = [`s.season = ?`, `s.matches >= ?`, `${st.sql} IS NOT NULL`, teamPageSql("s.team", "t.name")];
   const args: (string | number)[] = [season, RANKED_MIN_MATCHES];
   if (c.region) { where.push("t.country = ? AND t.state = ?"); args.push(c.region.country, c.region.state); }
+  if (c.country) {
+    // The directory's own labels for the country ("USA", "United States"), each one the country's.
+    const labels = (await all<{ country: string }>("SELECT DISTINCT country FROM teams WHERE country IS NOT NULL")).map((r) => r.country).filter((l) => countryOf(l)?.code === c.country!.code);
+    if (!labels.length) return null;
+    where.push(`t.country IN (${labels.map(() => "?").join(",")})`); args.push(...labels);
+  }
   let city: string | null = null;
   if (c.city) {
     const row = await get<{ city: string; state: string | null }>("SELECT city, state FROM teams WHERE lower(city) = lower(?) LIMIT 1", [c.city]);
@@ -106,11 +114,11 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   // The card's words: each filter as a chip, and in the title.
   const { awardWords, worldsWords, thWords } = listWords(c, season);
   const title = listTitle(c, city, season);
-  const chips = [c.region?.name ?? city ?? "Worldwide", S, ...(c.award ? [c.award.type === "Winner" ? "Winning alliance" : `Won the ${c.award.label}`] : []), ...(c.worlds ? [`Went to Worlds (FIRST Championship ${season + 1})`] : []),
+  const chips = [c.region?.name ?? c.country?.name ?? city ?? "Worldwide", S, ...(c.award ? [c.award.type === "Winner" ? "Winning alliance" : `Won the ${c.award.label}`] : []), ...(c.worlds ? [`Went to Worlds (FIRST Championship ${season + 1})`] : []),
     ...(c.threshold && tst ? [`${tst.label} ${opText(c.threshold, unit(tst))}`] : []), `Sorted by ${st.label}`, ...(c.n ? [`Top ${c.n}`] : [])];
   const why = c.season == null ? ` ${searchSeasonWhy(season)}` : c.worlds && /\d/.test(String(c.season)) ? ` Worlds ${season + 1} is the ${S} season's FIRST Championship, so every number is from ${S}.` : "";
   const definition = [
-    `Teams ${placeWords === "worldwide" ? "anywhere" : `whose home is ${c.region ? c.region.name : city}, as FIRST lists it,`} with ${RANKED_MIN_MATCHES}+ matches in ${S}, from the season numbers each team page shows (OPR without penalties).`,
+    `Teams ${placeWords === "worldwide" ? "anywhere" : `whose home is ${c.region?.name ?? c.country?.name ?? city}, as FIRST lists it,`} with ${RANKED_MIN_MATCHES}+ matches in ${S}, from the season numbers each team page shows (OPR without penalties).`,
     c.award ? (c.award.type === "Winner" ? " On a winning alliance: a Winning Alliance award at any event that season." : ` Won the ${c.award.label}: its winner (1st place) at any event that season, from the events' published awards.`) : "",
     c.worlds ? ` Went to Worlds: played at a FIRST Championship division in ${S}.` : "",
     c.threshold && tst ? ` ${tst.label} ${opText(c.threshold, unit(tst))}: the team's stored ${S} ${tst.label}.` : "",
@@ -285,7 +293,7 @@ export function eventPicksAnswer(team: AnswerTeam, evs: TeamEvent[], season: num
 
 /** "4215 average score when they win versus when they lose". */
 export function winLossAverageAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope): StatAnswer {
-  const ms = onRecord(msAll, scope);
+  const ms = onRecord(msAll, scope, true);
   const w = ms.filter((m) => m.result === "W"), l = ms.filter((m) => m.result === "L");
   const avg = (xs: TeamMatch[], f: (m: TeamMatch) => number) => (xs.length ? xs.reduce((t, m) => t + f(m), 0) / xs.length : null);
   const out = base("average-score-win-loss", `Average score in wins and losses${scopePhrase(scope)}`, team, scope,

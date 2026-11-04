@@ -115,6 +115,14 @@ describe("compound answers", () => {
     const none = await ask("teams from Oradell with opr over 200");
     expect(none.stat?.none).toMatch(/No team from Oradell with OPR over 200.*highest OPR among them is 114\.3 \(207 Critical Mass\)/);
   });
+  it("a country is a place too, never a city", () => {
+    expect(readCompound("team in romania that went to worlds in 2026 and their opr")).toMatchObject({ kind: "list", country: { code: "RO" }, city: null, season: 2025 });
+  });
+  it("10: an event the team never played is said so, with its own events", async () => {
+    const a = await ask("1111 partners at NJ championship who had opr over 80");
+    expect(a.intent?.kind).toBe("stat-compound-no-event");
+    expect(a.stat?.none).toMatch(/no matches at an event matching "nj championship"/);
+  });
   it("16: a region and a Worlds season, with OPR from that season", async () => {
     const a = await ask(`teams in NJ that went to worlds in ${S} and their opr`);
     expect((a.stat?.blocks[0] as any).rows.map((r: any) => [r.team.label, r.display])).toEqual([["23268 Ultraviolet", "237.4"], ["7149 ENFORCERS", "175.3"], ["207 Critical Mass", "90.0"], ["6980 Bad Wolf", "40.0"]]);
