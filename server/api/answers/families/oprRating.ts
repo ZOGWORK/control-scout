@@ -37,6 +37,8 @@ export interface OprRatingQuestion {
   region: Region | null;
   /** "ever", "all time": every season. */
   ever: boolean;
+  /** "this season": the team's latest season with matches, even when none is named. */
+  latest?: boolean;
   /** "auto OPR versus TeleOp OPR": the two phases, as asked. */
   phases?: [Phase, Phase];
   /** "in the top 10 percent": the share asked about. */
@@ -58,7 +60,7 @@ const RULES: { id: OprRatingId; re: RegExp }[] = [
   { id: "opr-average-events", re: /\b(?:average|avg|mean)\s+(?:event\s+)?opr\s+(?:across|over|at|per|of)\s+(?:all\s+)?(?:(?:its|their|the)\s+)?events?\b|\b(?:average|avg|mean)\s+opr\s+(?:per|by)\s+event\b/ },
   { id: "opr-breakdown", re: /\b(?:component|phase|part)s?\s+opr(?:\s+(?:breakdown|split))?\b|\bopr\s+(?:breakdown|split|by\s+phase|components?|parts?)\b/ },
   { id: "percentile", re: /\bpercentile\b/ },
-  { id: "top-pct", re: /\b(?:in\s+)?(?:the\s+)?top\s+(\d{1,2})\s*(?:%|percent|per\s+cent|pct)\b/ },
+  { id: "top-pct", re: /\b(?:in\s+)?(?:the\s+)?top\s+(\d{1,2})\s*(?:%(?=\s|$)|(?:percent|per\s+cent|pct)\b)/ },
   { id: "opr-rank", re: /(?<!\b(?:auto(?:nomous)?|tele-?op|end\s?game|controlled)\s)\bopr\s+(?:rank(?:ing)?|place|position|standing)\b|\brank(?:ed|ing)?\s+by\s+opr\b/ },
   { id: "rating-sd", re: /\b(?:prediction|rating|engine)\s+(?:rating\s+)?(?:uncertainty|confidence|spread|error\s+bars?|margin\s+of\s+error)\b|\buncertainty\s+(?:on|of|in)\s+(?:the\s+|its\s+|their\s+)?(?:prediction\s+)?rating\b/ },
   { id: "rating-trend", re: /\b(?:prediction\s+)?rating\s+(?:trend|history|over\s+time|progression|by\s+(?:event|week)|graph|chart)\b/ },
@@ -122,7 +124,7 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
   if (scope.championship && !scope.at && !scope.level && !scope.alliance) {
     const which = /\bopr\b/.test(rest) && !/\b(?:auto|tele-?op|end\s?game|rank|vs|versus)\b/.test(rest) ? "opr-worlds" : /\brating\b/.test(rest) && !/\b(?:rank|vs|versus)\b/.test(rest) ? "rating-worlds" : null;
     const core = which ? squash(rest.replace(FILLER, " ")) : "";
-    if (which && core) return { id: which, core, season: scope.season, region: null, ever: scope.ever };
+    if (which && core) return { id: which, core, season: scope.season, region: null, ever: scope.ever, ...(scope.latest ? { latest: true } : {}) };
   }
   return null;
 }
@@ -216,7 +218,7 @@ export async function oprRatingAnswer(f: OprRatingQuestion, team: Team, deps: Op
   if (f.id === "opr-high" || f.id === "opr-low" || f.id === "opr-average-events" || f.id === "opr-worlds" || f.id === "rating-worlds") {
     const set = await deps.set();
     const played = set.events.filter((e) => e.matches > 0 && e.opr != null);
-    if (f.id === "opr-worlds" || f.id === "rating-worlds") return worldsAnswer(f, team, set, asked, season);
+    if (f.id === "opr-worlds" || f.id === "rating-worlds") return worldsAnswer(f, team, set, asked ?? (f.latest ? season : null), season);
     const every = f.ever && asked == null;
     const evs = every ? played : played.filter((e) => e.season === season);
     const scopeChips = [every ? "All seasons" : S, "Event OPRs"];

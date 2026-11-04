@@ -70,7 +70,9 @@ describe("reading", () => {
     expect(readOprRating("4215 place on the New Jersey leaderboard")).toMatchObject({ id: "rank", region: { state: "NJ" } });
     expect(readOprRating("6980 auto opr versus teleop opr")).toMatchObject({ id: "phase-vs", core: "6980", phases: ["auto", "teleop"] });
     expect(readOprRating("is 4215 in the top 10 percent worldwide")).toMatchObject({ id: "top-pct", core: "4215", pct: 10 });
+    expect(readOprRating("is 4215 in the top 10% worldwide")).toMatchObject({ id: "top-pct", core: "4215", pct: 10 });
     expect(readOprRating("4215 opr at worlds")).toMatchObject({ id: "opr-worlds", core: "4215" });
+    expect(readOprRating("4215 opr at worlds this season")).toMatchObject({ id: "opr-worlds", core: "4215", latest: true });
     expect(readOprRating("4215 rating at first championship")).toMatchObject({ id: "rating-worlds", core: "4215" });
     expect(readOprRating("4215 highest opr ever")).toMatchObject({ id: "opr-high", ever: true });
     // Left to the answers that already read them: the plain OPR and rating, a phase's rank, an event's OPR, two
@@ -158,6 +160,10 @@ describe("answers", () => {
     expect(o.definition).toContain("didn't play the FIRST Championship in 2025–26");
     const r = await ask("4215 rating at worlds");
     expect(r.headline).toMatchObject({ value: "139.2 ± 3.2", label: "after Worlds · Edison Division, 2023–24", sub: expect.stringContaining("#84 worldwide that season") });
+    // "this season" is the latest season only: no older Worlds stands in for it.
+    const now = await ask("4215 opr at worlds this season");
+    expect(now.headline).toBeUndefined();
+    expect(now.none).toContain("in 2025–26");
   });
   it("51: the rating after each event, ending on the team page's; 64: the best season rating, its event named", async () => {
     const t = await ask("4215 rating trend");
