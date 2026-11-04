@@ -25,8 +25,9 @@ Search reads long, conversational questions and answers them like their short fo
 - [fixes] A question search can't answer offers ones it can, for that team
 
 ### Search
-- **Long questions.** Search takes the question's wrapper off ("can you tell me", "what was", "how many times has", "please", "?") and reads what's left as the short form it already answers. "When was the last time 4215 went worlds" gives Worlds appearances, "is 4215 better than 6980 at auto" the Auto side by side, "who did 4215 play with the most this season" the most frequent partner. Season and place words still scope the answer. It is fixed rules, no AI. (#655)
+- **Long questions.** Search takes the question's wrapper off ("can you tell me", "what was", "how many times has", "please", "?") and reads what's left as the short form it already answers. Spoken fillers such as "like" or "basically" go too. "When was the last time 4215 went worlds" gives Worlds appearances, "is 4215 better than 6980 at auto" the Auto side by side, "who did 4215 play with the most this season" the most frequent partner. Season and place words still scope the answer. It is fixed rules, no AI. (#655)
 - **Showing line.** An answer read from a rewritten query keeps its own heading. The words it read go on a quiet "Showing: …" line under the heading, never in it.
+- **Team numbers typed wrong.** "42-5" or "421" isn't a team: search offers "Did you mean: 4215" and the nearest real team numbers, the most recently active first, instead of "No team, event or match matched".
 - **Team fallback.** A team found with a question search can't answer says so plainly. The query is never quoted back. Two or three questions it does answer follow, built from the team's records: Worlds appearances only for a team that went, its season's record and OPR.
 
 ## 3.0.8 — 2026-11-04
