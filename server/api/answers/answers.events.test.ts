@@ -304,3 +304,78 @@ describe("what Greptile found", () => {
     expect(a.stat!.headline).toMatchObject({ value: "207 Critical Mass, 4215 Hypnotic Robotics", sub: "F1 120–80 · F2 130–90" });
   });
 });
+
+describe("events, awards and Worlds history (260-query list)", () => {
+  it("what's read: one award, the newest or first, placements, Worlds divisions, a Worlds year", () => {
+    expect(readStatQuestion("4215 Design award")).toMatchObject({ id: "awards", award: "Design", core: "4215" });
+    expect(readStatQuestion("4215 Judges Choice award")).toMatchObject({ id: "awards", award: "JudgesChoice", core: "4215" });
+    expect(readStatQuestion("4215 winning alliance awards")).toMatchObject({ id: "awards", award: "Winner", core: "4215" });
+    expect(readStatQuestion("4215 latest Inspire award")).toMatchObject({ id: "inspire-awards", pick: "latest", core: "4215" });
+    expect(readStatQuestion("4215 first award ever")).toMatchObject({ id: "awards", pick: "first", core: "4215" });
+    expect(readStatQuestion("4215 most recent award")).toMatchObject({ id: "awards", pick: "latest", core: "4215" });
+    expect(readStatQuestion("events 4215 won outright")).toMatchObject({ id: "first-place-events", core: "4215" });
+    expect(readStatQuestion("events 4215 placed first in")).toMatchObject({ id: "first-place-events", core: "4215" });
+    expect(readStatQuestion("4215 best event ever")).toMatchObject({ id: "best-finish", byRecord: true, core: "4215" });
+    expect(readStatQuestion("4215 worst event ever")).toMatchObject({ id: "worst-finish", byRecord: true, core: "4215" });
+    for (const q of ["championship divisions 4215 played in", "4215 worlds divisions", "4215 championship appearances count"]) expect(readStatQuestion(q)).toMatchObject({ id: "worlds-divisions", scope: { championship: true }, core: "4215" });
+    expect(readStatQuestion("4215 worlds wins")).toMatchObject({ id: "wins-count", scope: { championship: true }, core: "4215" });
+    expect(readStatQuestion("4215 event schedule this season")).toMatchObject({ id: "total-events", scope: { latest: true }, core: "4215" });
+    // Search reads "matches" as "match": the championship held in 2025 is 2024–25's.
+    expect(readStatQuestion("4215 match at worlds in 2025")).toMatchObject({ id: "results", scope: { championship: true, season: 2024 }, core: "4215" });
+    // "wins" and "match" alone, with nothing scoping them, are left as they were.
+    expect(readStatQuestion("4215 wins")).toBeNull();
+    expect(readStatQuestion("4215 match record")).toMatchObject({ id: "record" });
+  });
+  it("one award only, or plainly none of it; the newest and the first award with their event", async () => {
+    const think = await searchAnswer("4215 Think award", { limit: 25 });
+    expect(think.stat).toMatchObject({ title: "Think Award", headline: { value: "Think", label: "New Jersey Championship" } });
+    const t = think.stat!.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.map((r) => r.cells.award)).toEqual(["Think"]);
+    expect((await searchAnswer("4215 Motivate award", { limit: 25 })).stat!.none).toBe("No Motivate Award found for Hypnotic Robotics (4215) in the published awards (every season on record checked).");
+    expect((await searchAnswer("4215 Judges Choice award", { limit: 25 })).stat!.none).toMatch(/^No Judges' Choice Award found/);
+    expect((await searchAnswer("23268 winning alliance awards", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 Winning Alliances", label: "at 2 events" });
+    expect((await searchAnswer("4215 latest Inspire award", { limit: 25 })).stat).toMatchObject({ title: "Most recent Inspire Award" });
+    expect((await searchAnswer("4215 first award ever", { limit: 25 })).stat).toMatchObject({ title: "First award" });
+    const nj = await searchAnswer("4215 awards at New Jersey events", { limit: 25 });
+    expect(nj.stat).toMatchObject({ title: "Awards at events in New Jersey", headline: { value: "4 awards" }, scope: expect.arrayContaining(["Events in New Jersey"]) });
+  });
+  it("events ranked 1st (a placement, never an award), the best event by rank then record, the event schedule", async () => {
+    expect((await searchAnswer("events 4215 placed first in", { limit: 25 })).stat!.none).toMatch(/wasn't ranked 1st at any event/);
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJQ5', 4215, 1)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJQ5', 'qual', 0, 1, 'Q1', '2026-02-01T10:00:00Z', 1, 120, 120, 60, 60, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJQ5', 'qual', 0, 1, 4215, 'red', 1)");
+    clearAllCaches();
+    const a = await searchAnswer("events 4215 won outright", { limit: 25 });
+    expect(a.stat).toMatchObject({ title: "Events ranked 1st", headline: { value: "1 event", label: "ranked #1 after qualifications" } });
+    const t = a.stat!.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows[0].cells).toMatchObject({ event: "Pine Barrens Qualifier", rank: "Ranked #1 of 1", record: "1-0-0" });
+    expect(JSON.stringify(a.stat)).not.toMatch(/Winning Alliance\)|Inspire Award"/);
+    expect((await searchAnswer("4215 best event ever", { limit: 25 })).stat).toMatchObject({ title: "Best event", headline: { value: "#1 of 1", label: "Pine Barrens Qualifier", sub: expect.stringMatching(/^1-0-0 there/) } });
+    expect((await searchAnswer("4215 worst event ever", { limit: 25 })).stat).toMatchObject({ title: "Worst event", headline: { label: "New Jersey Championship - Parkway Division" } });
+    expect((await searchAnswer("4215 event schedule this season", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events" });
+  });
+  it("Worlds divisions with their seasons, wins at Worlds, Worlds matches by the year it was held", async () => {
+    expect((await searchAnswer("4215 worlds divisions", { limit: 25 })).stat!.none).toBe("No Worlds appearances found in Hypnotic Robotics (4215)'s recorded event history.");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1EDIS', 4215, 4)");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'FTCCMP1EDIS', 'qual', 0, 3, 'Q3', '2026-04-29T10:00:00Z', 1, 210, 210, 150, 150, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'FTCCMP1EDIS', 'qual', 0, 3, 4215, 'red', 1)");
+    clearAllCaches();
+    const d = await searchAnswer("championship divisions 4215 played in", { limit: 25 });
+    expect(d.stat).toMatchObject({ title: "Worlds divisions", headline: { value: "1 appearance", label: "Edison Division 2025–26" } });
+    expect((await searchAnswer("4215 worlds wins", { limit: 25 })).stat).toMatchObject({ intent: "wins-count", headline: { value: "1 win" } });
+    const m = await searchAnswer("4215 matches at worlds in 2026", { limit: 25 });
+    expect(m.stat).toMatchObject({ title: "Matches at Worlds in 2025–26", headline: { value: "1-0-0" } });
+    expect((await searchAnswer("4215 matches at worlds in 2025", { limit: 25 })).stat!.none).toBe("No Worlds matches found for Hypnotic Robotics (4215) in 2024–25 (the 2025 FIRST Championship). Its Worlds matches on record are from 2025–26.");
+  });
+  it("the winning alliance at a team's last event; 'championship' alone is the FIRST Championship", async () => {
+    const a = await searchAnswer("winning alliance at 7149's last event", { limit: 25 });
+    expect(a.stat!.headline).toMatchObject({ value: "23268 Ultraviolet, 7149 ENFORCERS, 207 Critical Mass", label: "Won New Jersey Championship - Parkway Division" });
+    const champs = (await searchAnswer("ftc decode winning alliance", { limit: 25 })).stat!.headline;
+    expect((await searchAnswer("decode championship winning alliance", { limit: 25 })).stat!.headline).toEqual(champs);
+  });
+  it("an event's code with the word event is that event, from its record", async () => {
+    const a = await searchAnswer("FTCCMP1EDIS event", { limit: 25 });
+    expect(a.hits[0]).toMatchObject({ kind: "event", ref: "2025:FTCCMP1EDIS", event: { start: "2026-04-29" } });
+    expect(a.understood?.label).toMatch(/^Event FTCCMP1EDIS/);
+  });
+});

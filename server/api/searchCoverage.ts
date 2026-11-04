@@ -27,7 +27,7 @@ import { defaultRankingsSeason } from "./rankings.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { normalize } from "./fuzzy.js";
 import { search } from "./search.js";
-import { eventSetAnswer } from "./searchEvents.js";
+import { eventHit, eventSetAnswer } from "./searchEvents.js";
 import { BOARD_STATS, teamsHref } from "./answers/families/leaderboard.js";
 import { countryOf } from "../../src/shared/countries.js";
 
@@ -453,6 +453,18 @@ const SECTION_WORDS: [RegExp, SearchSection | "match"][] = [
 ];
 
 /** "nj states rankings", "match 12 at nj states", "qual 5 nj states": an event read from a place, its tab or match. */
+/** "USNJNEM6 event", "event FTCCMP1": an event's code with the word "event" (or "meet") is that event, its newest
+ *  season, as the event record has it (dates, venue, place, status). A code is letters then a digit (a team's number
+ *  is digits only); one no event has is left to search. */
+export async function eventCodeAnswer(q: string, now?: number): Promise<SearchAnswer | null> {
+  const m = /^(?:(?:the\s+)?(?:event|meet)\s+)?([a-z]{3,}\d[a-z0-9]*)(?:\s+(?:event|meet)(?:\s+page)?)?$/i.exec(squash(q));
+  if (!m || m[1] === squash(q)) return null;
+  const row = await get<any>("SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE upper(code) = ? ORDER BY season DESC LIMIT 1", [m[1].toUpperCase()]);
+  if (!row) return null;
+  const hit = eventHit(row, now);
+  return answer(q, { hits: [hit], pages: pagesFor(q), understood: { kind: "names", label: `Event ${row.code} · ${row.name} (${seasonLabel(Number(row.season))})` } });
+}
+
 export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, now?: number): Promise<SearchAnswer | null> {
   const t = squash(q.toLowerCase().replace(/[?]/g, ""));
   // "q12", "qual 12", "match 12": a qualification match; "m3", as match codes say it, is playoff match 3.

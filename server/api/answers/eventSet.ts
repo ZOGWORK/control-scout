@@ -3,6 +3,7 @@
 // superlatives (best finish, best OPR event, best season) order these rows; nothing here recomputes OPR or ratings.
 import { all } from "../../db.js";
 import { registerCache } from "../../caches.js";
+import { recordSql } from "../../../src/shared/eventRecord.js";
 import { ATTENDED } from "../teams.js";
 import { shortEvent } from "./matchSet.js";
 
@@ -18,6 +19,8 @@ export interface TeamEvent {
   /** As the team page's trend chart reads them: the alliance's average score and penalty points it gave away (per
    *  match, with the team on it), its record there, and its ranking points (none for a league meet). */
   avgScore: number | null; avgPen: number | null; wins: number | null; losses: number | null; ties: number | null; rp: number | null;
+  /** The record the team page's events list shows there: every counted match, playoffs included (eventRecord.ts). */
+  record: { wins: number; losses: number; ties: number } | null;
 }
 
 export interface TeamSeason {
@@ -48,7 +51,7 @@ export function teamEventSet(team: number): Promise<{ events: TeamEvent[]; seaso
 const num = (v: unknown) => (v == null ? null : Number(v));
 
 async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamSeason[] }> {
-  const [evs, ss] = await Promise.all([
+  const [evs, ss, recs] = await Promise.all([
     all<any>(
       `SELECT e.season, e.code, e.name, e.type, e.start, e.end, e.city, e.state, e.country, e.division_code, et.rank,
               (SELECT COUNT(*) FROM event_teams r WHERE r.season = et.season AND r.code = et.code AND r.rank IS NOT NULL) ranked,
@@ -61,7 +64,9 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
     all<any>(
       `SELECT season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_rank, events, matches, wins, losses, ties, avg_np
        FROM team_season_stats WHERE team = ? ORDER BY season`, [team]),
+    all<any>(recordSql("mt.team = ?"), [team]),
   ]);
+  const rec = new Map(recs.map((r) => [`${r.season}|${r.code}`, { wins: Number(r.wins) || 0, losses: Number(r.losses) || 0, ties: Number(r.ties) || 0 }]));
   return {
     events: evs.map((r) => ({
       season: Number(r.season), code: r.code, name: shortEvent(r.name, r.type ?? null), type: r.type ?? null, start: r.start ?? null, end: r.end ?? null,
@@ -71,6 +76,7 @@ async function load(team: number): Promise<{ events: TeamEvent[]; seasons: TeamS
       matches: Number(r.matches) || 0,
       avgScore: num(r.avg_score), avgPen: num(r.avg_pen), wins: num(r.wins), losses: num(r.losses), ties: num(r.ties),
       rp: r.type === "LeagueMeet" ? null : num(r.rp),
+      record: rec.get(`${r.season}|${r.code}`) ?? null,
     })),
     seasons: ss.map((r) => ({
       season: Number(r.season), opr: num(r.opr_np), auto: num(r.opr_auto), teleop: num(r.opr_teleop), endgame: num(r.opr_endgame),
