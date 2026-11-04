@@ -14,6 +14,8 @@ import { longForm } from "./searchLongForm";
 // The latest completed season, and the one before it ("last season").
 const S = CURRENT_SEASON - 1, L = S - 1;
 const ask = (q: string) => searchAnswer(q, { limit: 40, full: true });
+/** The header dropdown's search: 15 hits, a stat's blocks not built (it carries the stat's intent only). */
+const drop = (q: string) => searchAnswer(q, { limit: 15 });
 /** What an answer is, for comparing: its family and intent (a stat), its kind and title (a card), or a Compare. */
 const what = (a: SearchAnswer) => (a.stat ? `stat ${a.stat.family}/${a.stat.intent} · ${a.stat.title}` : a.card ? `card ${a.card.kind} · ${a.card.title}`
   : a.hits[0]?.href?.startsWith("/compare") ? `compare ${a.hits[0].href}` : null);
@@ -152,10 +154,25 @@ describe("long, conversational queries", () => {
     expect(a.q).toBe(long.replace(/\?$/, ""));
   });
 
+  it.each(PAIRS)("in the dropdown too: %s → %s", async (long, short) => {
+    // What the dropdown reads: the answer's intent (a stat's blocks are built only for /search), else its card or Compare.
+    const key = (a: SearchAnswer) => a.intent?.kind ?? (a.card ? `card ${a.card.kind}` : a.hits[0]?.href?.startsWith("/compare") ? "compare" : null);
+    const s = key(await drop(short));
+    expect(s, `the short form "${short}" answers directly`).not.toBeNull();
+    expect(key(await drop(long))).toBe(s);
+  });
+
   it("keeps season and place words: they still scope the answer", async () => {
     expect((await ask("did 4215 win any awards last season")).stat?.title).toMatch(/2024–25|last season/i);
     expect(longForm("what was 4215's record in 2024-25")).toBe("4215 record in 2024-25");
-    expect(longForm("when was the last time 4215 went to worlds in 2025-26")).toBe("4215 worlds appearances in 2025-26");
+    // A season after a Worlds question: Worlds divisions, which takes one (the appearances card is every season's).
+    expect(longForm("when was the last time 4215 went to worlds in 2025-26")).toBe("4215 worlds divisions in 2025-26");
+    const label = `${S}-${String(S + 1).slice(2)}`;
+    for (const q of [`did 4215 go to worlds in ${label}`, `has 4215 been to worlds in ${label}?`]) {
+      const a = await ask(q);
+      expect(a.stat, q).toMatchObject({ intent: "worlds-divisions" });
+      expect(a.stat?.title, q).toContain(`${S}–${String(S + 1).slice(2)}`);
+    }
     expect(longForm("can you show me 4215's opr in new jersey please")).toBe("4215 opr in new jersey");
   });
 

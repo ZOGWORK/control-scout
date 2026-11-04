@@ -494,7 +494,9 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     return null;
   };
 
-  // Long form: a long question said the short way, once; taken only for a direct answer (a stat or a card).
+  // A direct answer: a card, or a stat (the dropdown's has only its intent: its blocks are built for /search alone).
+  const direct = (a: SearchAnswer) => ok(a) && !!(a.stat || a.card || a.intent?.kind.startsWith("stat-"));
+  // Long form: a long question said the short way, once; taken only for a direct answer.
   let longDone = false;
   const longTry = async () => {
     if (longDone) return null;
@@ -503,10 +505,9 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     if (!lf) return null;
     layers.push("longform");
     const xl = await extract(lf);
-    const direct = (a: SearchAnswer) => !!(a.stat || a.card) && ok(a);
     if (template) { const a = await run(lf); if (direct(a)) return done(showing(a, typed, lf), "longform", xl); }
     const kl = await keywordTry(lf, xl, "longform", xl.dropped);
-    return kl && (kl.stat || kl.card) ? kl : null;
+    return kl && direct(kl) ? kl : null;
   };
 
   // Layer 1.
@@ -534,7 +535,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
       }
       // A long question Layer 1 answered only with names ("is 4215 better than 6980 at auto": the Compare; "who has
       // 4215 played against the most": a team called "Most"): its short form's direct answer wins.
-      if (!base.stat && !base.card) { const lf = await longTry(); if (lf) return lf; }
+      if (!direct(base)) { const lf = await longTry(); if (lf) return lf; }
       return done(base, "template", x0);
     }
   }

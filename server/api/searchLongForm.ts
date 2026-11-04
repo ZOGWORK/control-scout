@@ -27,7 +27,9 @@ const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|curren
  *  captured groups; the scope words after them (a season, a place) are kept by `tail`. */
 const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   // Worlds: when, how often, whether, which divisions, how far.
-  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(?:last|latest|most\s+recent|first)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:ever\s+)?${GO}\s+${WORLDS}(.*)$`), (m) => `${m[1]} worlds appearances${m[2]}`],
+  [new RegExp(String.raw`^(?:when\s+(?:was|is)\s+(?:the\s+)?(?:last|latest|most\s+recent|first)\s+time|when\s+did|how\s+many\s+times\s+(?:has|have|did)|how\s+often\s+(?:has|have|did)|(?:has|have|did)|was)\s+${T}\s+(?:ever\s+)?${GO}\s+${WORLDS}(.*)$`), // A season or place after it ("… in 2024-25") is read by Worlds divisions, which takes a scope; the appearances
+  // card is every season's.
+  (m) => (m[2].trim() ? `${m[1]} worlds divisions${m[2]}` : `${m[1]} worlds appearances`)],
   [new RegExp(String.raw`^(?:which|what)\s+(?:worlds\s+)?divisions?\s+(?:has|have|did)\s+${T}\s+(?:ever\s+)?(?:played|play|been|competed?)\s+(?:in\s+)?(?:at\s+)?${WORLDS}(.*)$`), (m) => `${m[1]} worlds divisions${m[2]}`],
   [new RegExp(String.raw`^(?:what\s+(?:is|was)\s+|how\s+(?:far|well)\s+did\s+)${T}\s+(?:best\s+finish|go|do)\s+(?:at|in)\s+${WORLDS}(.*)$`), (m) => `${m[1]} worlds best finish${m[2]}`],
   // Partners and opponents.
