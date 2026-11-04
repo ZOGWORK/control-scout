@@ -47,14 +47,21 @@ export async function teamSeason(team: number, asked?: number | null): Promise<{
  * `eventWords` (its event OPR, rank and ranking score). Null when no event of the team's matches: the caller then
  * lists its events for the visitor to pick, never a guess.
  */
-export async function teamAtEvent(team: number, eventWords: string, asked?: number | null): Promise<{ event: SearchEventPick; facts: SearchFact[] } | { ambiguous: true } | null> {
-  const { season } = await teamSeason(team, asked);
-  if (season == null) return null;
-  const evs = await teamEvents(team, season);
-  const [best, next] = evs.map((e) => ({ e, s: Math.max(fuzzyScore(eventWords, e.name), fuzzyScore(eventWords, e.code)) })).sort((a, b) => b.s - a.s);
+export async function teamAtEvent(team: number, eventWords: string, asked?: number | null): Promise<{ event: SearchEventPick; facts: SearchFact[] } | { ambiguous: true; season: number } | null> {
+  const { season: latest } = await teamSeason(team, asked);
+  if (latest == null) return null;
+  // With no season named, the newest season one of its events matches ("4215 matches at worlds": the last Worlds it
+  // went to, not this season's, which it may not have played).
+  const seasons = asked != null ? [latest] : [latest, ...(await all<{ season: number }>("SELECT DISTINCT season FROM team_event_stats WHERE team = ? AND season < ? ORDER BY season DESC", [team, latest])).map((r) => Number(r.season))];
+  let season = latest, best: { e: SearchEventPick; s: number } | undefined, next: { e: SearchEventPick; s: number } | undefined;
+  for (const s of seasons) {
+    [best, next] = (await teamEvents(team, s)).map((e) => ({ e, s: Math.max(fuzzyScore(eventWords, e.name), fuzzyScore(eventWords, e.code)) })).sort((a, b) => b.s - a.s);
+    season = s;
+    if (best && best.s >= 0.75) break;
+  }
   if (!best || best.s < 0.75) return null;
   // Two events match about as well ("Northern League Meet" names every meet): not a pick to make for the visitor.
-  if (next && next.s >= 0.75 && best.s - next.s < 0.05) return { ambiguous: true };
+  if (next && next.s >= 0.75 && best.s - next.s < 0.05) return { ambiguous: true, season };
   const at = await get<any>(`SELECT ${RANK} rank, ${RP} rp ${ROWS.replace("AND et.season = ?", "AND et.season = ? AND et.code = ?")}`, [team, season, best.e.code]);
   return {
     event: best.e,
