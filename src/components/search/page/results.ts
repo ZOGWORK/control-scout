@@ -3,7 +3,7 @@
 // and which team hits are exact matches and which only share a word (src/pages/SearchPage.tsx).
 // Presentation only: nothing here adds, drops or reorders a result except the filters the visitor picks.
 import type { SearchHit } from "../../../shared/api";
-import { isCompare } from "../../../shared/searchPage";
+import { isCompare, type AnswerExtra } from "../../../shared/searchPage";
 export { badgeUnder, contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
 import { hitHref } from "../../../shared/search";
 import { eventTypeLabel } from "../../../shared/labels";
@@ -100,19 +100,30 @@ export function fuzzyWords(hits: SearchHit[]): string | null {
 export type When = "all" | "upcoming" | "past";
 export interface PageFilters { when: When; season: number | null; type: string | null }
 
-export function readFilters(p: URLSearchParams): PageFilters {
-  const w = p.get("when");
-  const s = Number(p.get("season"));
-  return { when: w === "upcoming" || w === "past" ? w : "all", season: Number.isInteger(s) && s > 2000 ? s : null, type: p.get("type") || null };
+/** The time tab the query itself asks for: "upcoming meets in New Jersey" opens on Upcoming, "past meets" on Past,
+ *  anything else on All. It's the tab with no trace in the address; any other pick is written there. A fallback ("no
+ *  past meets there, showing the upcoming ones instead") opens on All: the time asked for may be what was dropped. */
+export function askedWhen(a: AnswerExtra | undefined): When {
+  const t = a?.understood?.kind === "events" && !a.understood.fallback ? a.understood.time : undefined;
+  return t === "upcoming" || t === "past" ? t : "all";
 }
 
-export const anyFilter = (f: PageFilters) => f.when !== "all" || f.season != null || f.type != null;
+/** `asked`: the query's own time tab (askedWhen), shown when the address names none. */
+export function readFilters(p: URLSearchParams, asked: When = "all"): PageFilters {
+  const w = p.get("when");
+  const s = Number(p.get("season"));
+  return { when: w === "all" || w === "upcoming" || w === "past" ? w : asked, season: Number.isInteger(s) && s > 2000 ? s : null, type: p.get("type") || null };
+}
 
-/** The address with these filters (and the query kept); "all" and none leave no trace. */
-export function withFilters(p: URLSearchParams, f: PageFilters): URLSearchParams {
+/** Whether the filters narrow the results past what the query asked (its own time tab is no filter). */
+export const anyFilter = (f: PageFilters, asked: When = "all") => f.when !== asked || f.season != null || f.type != null;
+
+/** The address with these filters (and the query kept); the query's own time tab and none leave no trace, so a
+ *  reload or a shared link opens on the same tab. */
+export function withFilters(p: URLSearchParams, f: PageFilters, asked: When = "all"): URLSearchParams {
   const next = new URLSearchParams(p);
   for (const k of ["when", "season", "type"]) next.delete(k);
-  if (f.when !== "all") next.set("when", f.when);
+  if (f.when !== asked) next.set("when", f.when);
   if (f.season != null) next.set("season", String(f.season));
   if (f.type) next.set("type", f.type);
   return next;
