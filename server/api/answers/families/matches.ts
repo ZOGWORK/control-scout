@@ -52,17 +52,17 @@ function seasonTable(ms: TeamMatch[], title = "By season"): StatBlock {
   };
 }
 
-const WIN_RATE_RANK = `World rank by win rate: the season's teams with ${RANKED_MIN_MATCHES} or more matches, ordered by the win rate shown (wins over matches played), then by wins.`;
+const WIN_RATE_RANK = `World rank by win rate: the team's place on the season's "top teams by win rate" list (wins over matches played, teams with ${RANKED_MIN_MATCHES} or more matches, then most wins, then team number), shown when that list's record for the team is the one above.`;
 
-/** The team's world rank by win rate in one season (wins over matches played, the rate the card shows), or null when
- *  it isn't ranked. */
-async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number } | null> {
-  const rate = "s.wins * 1.0 / (s.wins + s.losses + s.ties)";
-  const r = await get<{ rank: number; of: number }>(
-    `SELECT rank, of FROM (SELECT s.team, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.opr_np DESC, s.team) rank, COUNT(*) OVER () of
+/** The team's place on the season's win-rate list (leaderboard.ts "win-rate": the stored season numbers, the same
+ *  order), with the record that list holds for it, or null when it isn't ranked. */
+async function winRateRank(team: number, season: number): Promise<{ rank: number; of: number; wins: number; losses: number; ties: number } | null> {
+  const rate = "(1.0 * s.wins / NULLIF(s.wins + s.losses + s.ties, 0))";
+  const r = await get<{ rank: number; of: number; wins: number; losses: number; ties: number }>(
+    `SELECT rank, of, wins, losses, ties FROM (SELECT s.team, s.wins, s.losses, s.ties, ROW_NUMBER() OVER (ORDER BY ${rate} DESC, s.wins DESC, s.team) rank, COUNT(*) OVER () of
        FROM team_season_stats s JOIN teams t ON t.number = s.team
-       WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND s.wins + s.losses + s.ties > 0 AND ${teamPageSql("s.team", "t.name")}) WHERE team = ?`, [season, team]);
-  return r ? { rank: Number(r.rank), of: Number(r.of) } : null;
+       WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${rate} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}) WHERE team = ?`, [season, team]);
+  return r ? { rank: Number(r.rank), of: Number(r.of), wins: Number(r.wins), losses: Number(r.losses), ties: Number(r.ties) } : null;
 }
 
 /** Which matches an intent reads: scored ones for scores (the team on the field), counted ones for results. */
@@ -184,12 +184,15 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       // One whole season's record: its win rate, the season and the team's world rank by win rate beside the bar (the
       // rank is the season's, so it's only shown when nothing narrows the matches).
       const whole = id === "record" && seasons.length === 1 && !scope.championship && !scope.states && !scope.event && !scope.place && !scope.level && !scope.alliance;
-      const ranked = whole ? await winRateRank(team.number, seasons[0]) : null;
+      const listed = whole ? await winRateRank(team.number, seasons[0]) : null;
+      // The list's rank only beside the same record: one the list counts differently (other events) would rank another rate.
+      const ranked = listed && recText(listed) === recText(r) ? listed : null;
       if (whole) {
         blocks.unshift({ kind: "kpis", items: [
           { label: "Win rate", value: pct(r), sub: `${ms.length} match${ms.length === 1 ? "" : "es"}`, tone: "good" },
           { label: "Season", value: seasonLabel(seasons[0]) },
-          { label: "World rank by win rate", value: ranked ? `#${ranked.rank.toLocaleString("en-US")}` : "Not ranked", sub: ranked ? `of ${ranked.of.toLocaleString("en-US")} teams` : `under ${RANKED_MIN_MATCHES} matches`, tone: "accent" },
+          ...(ranked ? [{ label: "World rank by win rate", value: `#${ranked.rank.toLocaleString("en-US")}`, sub: `of ${ranked.of.toLocaleString("en-US")} teams`, tone: "accent" as const }]
+            : listed ? [] : [{ label: "World rank by win rate", value: "Not ranked", sub: `under ${RANKED_MIN_MATCHES} matches` }]),
         ] });
       }
       if (seasons.length > 1 || id !== "record") blocks.push(seasonTable(ms));

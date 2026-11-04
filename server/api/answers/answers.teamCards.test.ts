@@ -61,6 +61,22 @@ describe("\"4215 record\": the latest season's record", () => {
     expect(a.stat!.definition).toMatch(/World rank by win rate/);
     expect(a.stat!.definition).toMatch(/The season is 2025–26, the team's latest/);
   });
+  it("ties on the win-rate list go to most wins, then the lower team number, as the list orders them", async () => {
+    await run("UPDATE team_season_stats SET wins = 3, losses = 1, matches = 4 WHERE season = 2025 AND team = 207");
+    const a = await page("4215 record");
+    const kpis = a.stat!.blocks.find((b) => b.kind === "kpis");
+    // 207 and 4215 are both 3-1: 207 first by number, so 4215 is #3.
+    expect(kpis && kpis.kind === "kpis" && kpis.items[2]).toMatchObject({ value: "#3", sub: "of 4 teams" });
+    await run("UPDATE team_season_stats SET wins = 2, losses = 2 WHERE season = 2025 AND team = 207");
+  });
+  it("no rank beside a record the list counts differently (its season numbers hold other events)", async () => {
+    await run("UPDATE team_season_stats SET losses = 2, matches = 5 WHERE season = 2025 AND team = 4215");
+    const a = await page("4215 record");
+    expect(a.stat!.headline!.value).toBe("3-1-0");
+    const kpis = a.stat!.blocks.find((b) => b.kind === "kpis");
+    expect(kpis && kpis.kind === "kpis" && kpis.items.map((k) => k.label)).toEqual(["Win rate", "Season"]);
+    await run("UPDATE team_season_stats SET losses = 1, matches = 4 WHERE season = 2025 AND team = 4215");
+  });
   it("a team with no match on record keeps search's own team answer", async () => {
     await run("INSERT INTO teams (number, name) VALUES (31999, 'Fresh Start')");
     await rebuildSearch();
