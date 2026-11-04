@@ -93,8 +93,9 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     const world = WORLD.test(rest);
     rest = rest.replace(WORLD, " ");
     const { scope, rest: left } = readScope(rest);
-    // A match type, a colour, an event or Worlds can't apply to these season numbers: left to the other answers.
-    if (scope.level || scope.alliance || scope.states || scope.at || scope.championship) return null;
+    // A match type, a colour, an event, a place of events or Worlds can't apply to these season numbers: left to the
+    // other answers.
+    if (scope.level || scope.alliance || scope.states || scope.at || scope.championship || scope.place || scope.outOfState) return null;
     const id = r.id;
     let words = left;
     let region: Region | null = null;
@@ -410,9 +411,11 @@ async function worldsAnswer(f: OprRatingQuestion, team: Team, set: { events: Tea
   };
   if (!worlds.length) return { ...b, none: `${who(team)} hasn't played the FIRST Championship${asked != null ? ` in ${seasonLabel(asked)}` : ""} on record.` };
   const rows = await Promise.all([...worlds].reverse().map(async (e) => {
-    const lastOfSeason = set.events.filter((x) => x.season === e.season && x.matches > 0).at(-1);
+    // Every event it played after this division, playoffs counted (the Worlds finals have no qualification matches).
+    const season = set.events.filter((x) => x.season === e.season && (x.matches > 0 || (x.record != null && x.record.wins + x.record.losses + x.record.ties > 0)));
+    const after = season.slice(season.findIndex((x) => x.code === e.code) + 1);
     const st = rating ? await seasonStats(e.season, team.number) : null;
-    return { e, final: lastOfSeason?.code === e.code, r: st?.rating ?? null };
+    return { e, final: after.every((x) => x.type === CHAMPIONSHIP_TYPE), finals: after.length > 0, r: st?.rating ?? null };
   }));
   const top = rows[0];
   if (rating) {
@@ -421,7 +424,7 @@ async function worldsAnswer(f: OprRatingQuestion, team: Team, set: { events: Tea
     const table: StatBlock = { kind: "table", title: "Each FIRST Championship", columns: [{ key: "season", label: "Season" }, { key: "event", label: "Division" }, { key: "rating", label: "Rating after Worlds", num: true }, { key: "rank", label: "World rank" }],
       rows: rows.map((x) => ({ cells: { season: seasonLabel(x.e.season), event: x.e.name, rating: x.final && x.r ? `${num(x.r.np)} ± ${num(x.r.sd)}` : "Not stored", rank: x.final && x.r?.rank ? `#${n(x.r.rank)}` : "–" }, href: eventHref(x.e.season, x.e.code, team.number), strong: x === lead })) };
     if (!lead) return { ...b, none: `The rating ${who(team)} had at Worlds isn't stored (Worlds wasn't its last event that season).`, blocks: [table] };
-    return { ...b, headline: { value: `${num(lead.r!.np)} ± ${num(lead.r!.sd)}`, label: `after ${lead.e.name}, ${seasonLabel(lead.e.season)}`, sub: [dateRange(lead.e.start, lead.e.end), lead.r!.rank ? `#${n(lead.r!.rank)} worldwide that season` : null].filter(Boolean).join(" · "), href: eventHref(lead.e.season, lead.e.code, team.number) }, blocks: [table] };
+    return { ...b, headline: { value: `${num(lead.r!.np)} ± ${num(lead.r!.sd)}`, label: `after ${lead.e.name}${lead.finals ? " and the Worlds finals" : ""}, ${seasonLabel(lead.e.season)}`, sub: [dateRange(lead.e.start, lead.e.end), lead.r!.rank ? `#${n(lead.r!.rank)} worldwide that season` : null].filter(Boolean).join(" · "), href: eventHref(lead.e.season, lead.e.code, team.number) }, blocks: [table] };
   }
   const e = top.e;
   return {

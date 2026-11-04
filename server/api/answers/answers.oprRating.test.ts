@@ -164,6 +164,21 @@ describe("answers", () => {
     const now = await ask("4215 opr at worlds this season");
     expect(now.headline).toBeUndefined();
     expect(now.none).toContain("in 2025–26");
+    // The Worlds finals after the division (playoffs only, no qualification matches): the season rating is after them.
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2023, 'FTCCMP1', '2024 FIRST Championship', 'FIRSTChampionship', 'Houston', 'TX', 'USA', '2024-04-20', '2024-04-20', 't')");
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2023, 'FTCCMP1', 'playoff', 1, 1, 'F1', '2024-04-20T15:00:00Z', 1, 200, 200, 150, 150, 't')");
+    await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2023, 'FTCCMP1', 'playoff', 1, 1, 4215, 'red', 1)");
+    await run("INSERT INTO event_teams (season, code, team) VALUES (2023, 'FTCCMP1', 4215)");
+    clearAllCaches();
+    const fin = await ask("4215 rating at worlds");
+    await run("DELETE FROM match_teams WHERE code = 'FTCCMP1'");
+    await run("DELETE FROM event_teams WHERE code = 'FTCCMP1'");
+    await run("DELETE FROM matches WHERE code = 'FTCCMP1'");
+    await run("DELETE FROM events WHERE code = 'FTCCMP1'");
+    clearAllCaches();
+    expect(fin.headline).toMatchObject({ value: "139.2 ± 3.2", label: "after Worlds · Edison Division and the Worlds finals, 2023–24" });
+    // "at New Jersey events" is a place of events, which these answers don't filter by: left to the other answers.
+    expect(readOprRating("4215 highest opr at New Jersey events")).toBeNull();
   });
   it("51: the rating after each event, ending on the team page's; 64: the best season rating, its event named", async () => {
     const t = await ask("4215 rating trend");
