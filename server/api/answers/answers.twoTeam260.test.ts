@@ -9,6 +9,8 @@ import { setFlag } from "../../flags";
 import { searchAnswer } from "../searchAnswer";
 import { refreshSearchSeason, resetSearchSeason } from "./season";
 import { readStatQuestion, readTeamSet, readTwoTeam } from "./read";
+import { compareAnswer, partnerListAnswer } from "./families/twoTeam";
+import { teamMatches } from "./matchSet";
 
 // The latest completed season: the fixture's Championship below has finished.
 const S = CURRENT_SEASON - 1;
@@ -203,7 +205,21 @@ describe("the answers", () => {
     expect(JSON.stringify(past.stat ?? {})).not.toContain("33%");
     expect(past.stat?.none ?? "").toMatch(/No upcoming event/);
     // "This season" is the current one, where the upcoming event is (4215 has no matches in it yet).
-    expect((await ask("4215 advancement chances this season")).stat!.headline).toMatchObject({ value: "33%" });
+    const now = await ask("4215 advancement chances this season");
+    expect(now.stat!.headline).toMatchObject({ value: "33%" });
+    // Its heading and links name the current season, not the team's last played one.
+    expect(JSON.stringify(now.stat)).not.toContain(`${S}–${String((S + 1) % 100).padStart(2, "0")}`);
+    // A season OPR at a named event (its scope holds the event, not a season) reads that event's season.
+    const team = { number: 4215, name: "Hypnotic Robotics" };
+    const ev = await partnerListAnswer("partner-top-opr", team, await teamMatches(4215), { season: null, event: { season: S, code: "USNJQ1", name: "New Jersey Qualifier" } });
+    expect(ev.none).toBeUndefined();
+    expect(ev.headline).toMatchObject({ value: "23268 Ultraviolet" });
+    // No OPR for any compared team: the table, and no leader named.
+    for (const t of [4215, 6980, 33950]) await run("UPDATE team_season_stats SET opr_np = NULL WHERE season = ? AND team = ?", [S, t]);
+    const none = await compareAnswer([4215, 6980, 33950].map((n) => ({ number: n, name: null })), { season: S });
+    expect(none.headline).toMatchObject({ value: "No OPR" });
+    expect(JSON.stringify(none.blocks)).not.toContain('"strong":true');
+    for (const [t, v] of [[4215, 101.6], [6980, 46.9], [33950, 42.2]]) await run("UPDATE team_season_stats SET opr_np = ? WHERE season = ? AND team = ?", [v, S, t]);
     // Compare's hit opens on the season the card reads.
     const c = await ask("4215 6980 33950 compare");
     expect(c.hits[0]).toMatchObject({ kind: "compare" });
