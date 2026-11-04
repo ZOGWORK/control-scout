@@ -25,7 +25,7 @@ Each tab on an event page has its own small icon, so the one you want is easy to
 - [teams] Matches is the field, Teams two robots, Odds a die
 
 ### Appearance
-- **Tab icons.** Matches (the field split into two halves), Rankings (a podium), Insights (a rising chart), Teams (two robot heads), Playoffs (a bracket), Awards (a medal) and Odds (a die) each draw an original icon before the label, in the tab's text colour, on desktop and phone. The labels are unchanged, so screen readers read the same names.
+- **Tab icons.** Matches (the field split into two halves), Rankings (a podium), Insights (a rising chart), Teams (two robot heads), Playoffs (a bracket), Awards (a medal) and Odds (a die) each draw an original icon before the label, in the tab's text colour, on desktop and phone. The labels are unchanged, so screen readers read the same names. (#675)
 ## 3.1.0 — 2026-11-04
 
 Search answers look like the team page all the way down: an award at an event is a podium with every award the event gave, a record splits qualifications from playoffs, and no name is cut off.
