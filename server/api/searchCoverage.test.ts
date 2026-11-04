@@ -375,3 +375,62 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect(a.stat?.headline?.value).toBe("4215 Hypnotic Robotics");
   });
 });
+
+describe("team facts, the profile and how-it-works answers (260-query list, 11-04)", () => {
+  beforeAll(async () => {
+    await run("UPDATE teams SET home_region = 'USNJ' WHERE number IN (4215, 6980)");
+    // FIRST lists no school for this one.
+    await run("INSERT INTO teams (number, name, city, state, country, home_region) VALUES (33950, 'First Street Kids', 'Ridgewood', 'NJ', 'USA', 'USNJ')");
+    await rebuildSearch();
+  });
+  const fact = async (q: string) => (await ask(q)).card;
+  it("a team's name, said as a question (6, 14)", async () => {
+    for (const [q, name] of [["what is team 4215 called", "Hypnotic Robotics"], ["what is team 6980 called", "Bad Wolf"], ["what is the name of team 4215", "Hypnotic Robotics"]]) {
+      const c = await fact(q);
+      expect(c?.facts?.[0], q).toMatchObject({ label: "Team name", values: [name] });
+    }
+  });
+  it("a number with the team's own name after it, and two facts (8, 12)", async () => {
+    const c = await fact("6980 Bad Wolf school and city");
+    expect(c?.team?.number).toBe(6980);
+    expect(c?.facts?.map((f) => [f.label, f.values[0]])).toEqual([["School or organization", "Oradell High School"], ["Where they're from", "Oradell, NJ, USA"]]);
+    expect((await fact("6980 bad wolf location"))?.facts?.[0]?.values).toEqual(["Oradell, NJ, USA"]);
+    // Another team's name after the number is never read as this team.
+    expect((await ask("6980 hypnotic robotics location")).card?.team?.number).not.toBe(6980);
+  });
+  it("organization name, city and state, region (13, 15, 17, 18)", async () => {
+    expect((await fact("4215 organization name"))?.facts?.[0]).toMatchObject({ label: "School or organization", values: ["Oradell High School"] });
+    expect((await fact("4215 city and state"))?.facts?.[0]).toMatchObject({ label: "Where they're from", values: ["Oradell, NJ, USA"] });
+    for (const q of ["4215 region", "6980 region"]) expect((await fact(q))?.facts?.[0], q).toMatchObject({ label: "Region", values: ["New Jersey"] });
+  });
+  it("every fact carries the rest of the team's card: where, region and the season's numbers", async () => {
+    const c = await fact("where is 4215 from");
+    expect(c?.season).toBe(S);
+    expect(c?.support?.map((f) => [f.label, f.values[0]])).toEqual([["Region", "New Jersey"], [`Record, ${seasonLabel(S)}`, "26-6-0"], [`OPR, ${seasonLabel(S)}`, "101.6"], [`Rating, ${seasonLabel(S)}`, "101.6"]]);
+  });
+  it("the team profile: one card, the team page's numbers (19, 247, 248)", async () => {
+    for (const q of ["4215 team profile summary", "4215 scouting profile", "4215 team page summary"]) {
+      const c = await fact(q);
+      expect(c?.title, q).toBe(`Team profile, ${seasonLabel(S)}`);
+      expect(Object.fromEntries((c?.facts ?? []).map((f) => [f.label, f.values[0]])), q).toMatchObject({
+        "Team name": "Hypnotic Robotics", "Where they're from": "Oradell, NJ, USA", "Rookie year": "2009",
+        [`Record, ${seasonLabel(S)}`]: "26-6-0", [`OPR, ${seasonLabel(S)}`]: "101.6",
+      });
+      expect(c?.lines[0]?.href).toBe(`/teams/4215?season=${S}`);
+    }
+  });
+  it("no school listed: said so, with where the team is from (4)", async () => {
+    const c = await fact("what school is 33950 from");
+    expect(c?.facts?.map((f) => [f.label, f.values])).toEqual([["School or organization", []], ["Where they're from", ["Ridgewood, NJ, USA"]]]);
+    expect(c?.none).toBe("FIRST's listing for First Street Kids (33950) has no school. The team is from Ridgewood, NJ, USA.");
+    expect(c?.support?.some((f) => f.label === "Where they're from")).toBe(false);
+  });
+  it("how-it-works answers: search, predictions, Worlds qualification, the rating (249, 252, 253, 255)", () => {
+    expect(explainAnswer("how does FTC One Search work")?.card?.title).toBe("How FTC One Search works");
+    expect(explainAnswer("how does FTC One Search work")?.card?.lines.map((l) => l.text).join(" ")).not.toMatch(/\bAI\b/);
+    expect(explainAnswer("how are predictions made")?.card?.title).toBe("Predictions: how they're made");
+    for (const q of ["how does worlds qualification work", "how do teams qualify for worlds"]) expect(explainAnswer(q)?.card?.title, q).toMatch(/^Worlds qualification/);
+    expect(explainAnswer("how does worlds qualification work")?.card?.lines.at(-1)?.detail).toMatch(/Competition Manual/);
+    expect(explainAnswer("how is rating calculated")?.card?.lines.map((l) => l.text).join(" ")).toMatch(/playoff match moves a rating 50% as much/);
+  });
+});

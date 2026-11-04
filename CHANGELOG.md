@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.0.0 — 2026-11-04
+
+Search answers a team's name, region and profile directly, and
+explains how search, predictions and Worlds qualification work.
+
+### Highlights
+- [teams] "4215 team profile" gives the team page's numbers in one card
+- [teams] Ask a team's name, region, city and state, or school name
+- [teams] A number then its name ("6980 bad wolf city") finds the team
+- [fixes] Explainers for search, predictions and Worlds qualification
+
+### Search
+- **Team profile.** "4215 team profile summary", "4215 scouting profile" and "4215 team page summary" give one card: name, city, region, rookie year and the season's record, OPR (with its world rank), rating ± its uncertainty and reliability, read from the same stored rows as the team page. With no season named it's the latest completed season (2025–26 now), or the team's latest season with matches.
+- **More team facts.** "what is team 4215 called", "what is the name of team 4215", "4215 region", "4215 city and state" and "4215 organization name" are answered directly. A team number followed by that team's own name ("17670 raider robotics location") is that team.
+- **Fuller fact cards.** Every fact answer also carries where the team is from, its region and that season's numbers (card.support), so the card can show the whole team. A school FIRST doesn't list is still said so, now with the team's city.
+- **How it works.** "how does FTC One Search work", "how are predictions made" and "how does worlds qualification work" get short explainers from the site's own pages and the stored 2026–27 Competition Manual rules; the rating and reliability explainers say more. "what does 4215's reliability score mean" gives the team's reliability.
+
 ## 2.9.9 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
