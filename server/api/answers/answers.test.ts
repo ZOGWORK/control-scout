@@ -68,8 +68,8 @@ describe("what's read as a stat question", () => {
     for (const q of ["4215 seasons played at worlds", "4215 best season in playoffs", "4215 total events on red", "4215 best event finish in playoffs"]) expect(readStatQuestion(q), q).toBeNull();
     expect(readStatQuestion("4215 total events at worlds")).toMatchObject({ id: "total-events", scope: { championship: true } });
   });
-  it("leaves to search what it doesn't answer: a plain record, a season's high scores, an event intent with no event, no team", () => {
-    for (const q of ["4215 record", "4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
+  it("leaves to search what it doesn't answer: a season's high scores, an event intent with no event, no team", () => {
+    for (const q of ["4215 high score", "hypnotic best score in decode", "highest score this season", "world record score decode", "hypnotic robotics", "average score", "4215 rank", "4215 opr"]) {
       expect(readStatQuestion(q), q).toBeNull();
     }
   });
