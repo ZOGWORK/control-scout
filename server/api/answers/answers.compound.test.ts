@@ -118,6 +118,7 @@ describe("compound answers", () => {
   it("keeps a season said with the event, and never reads 'ever' as one season", () => {
     expect(readCompound("4215 partners at NJ championship in 2024-25 who had opr over 80")).toMatchObject({ at: "nj championship", when: { season: 2024 } });
     expect(readCompound("4215 vs 6980 vs 33950 which has highest reliability ever")).toBeNull();
+    expect(readCompound("4215 partners who had opr over 80 ever")).toBeNull();
   });
   it("shows every stat asked beside a list", async () => {
     const a = await ask("teams from Oradell with opr over 100 and their rating");

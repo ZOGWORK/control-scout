@@ -63,7 +63,9 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   const S = seasonLabel(season);
   const sortBy = c.stat ?? c.threshold?.stat ?? c.outputs[0] ?? "opr";
   const st = BOARD_STATS[sortBy], tst = c.threshold ? BOARD_STATS[c.threshold.stat] : null;
-  const where: string[] = [`s.season = ?`, `s.matches >= ?`, `${st.sql} IS NOT NULL`, teamPageSql("s.team", "t.name")];
+  // Ranked as Rankings ranks: by rated matches when the rating orders or filters the list.
+  const rated = st.id === "rating" || tst?.id === "rating";
+  const where: string[] = [`s.season = ?`, `${rated ? "s.rating_matches" : "s.matches"} >= ?`, `${st.sql} IS NOT NULL`, teamPageSql("s.team", "t.name")];
   const args: (string | number)[] = [season, RANKED_MIN_MATCHES];
   if (c.region) { where.push("t.country = ? AND t.state = ?"); args.push(c.region.country, c.region.state); }
   if (c.country) {

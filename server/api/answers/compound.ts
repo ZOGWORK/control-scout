@@ -183,7 +183,8 @@ export function readCompound(raw: string): CompoundQuestion | null {
     // "at <event>" names an event unless its words are only a season ("in 2024-25").
     const at = m[3] ? seasonWords(m[3]) : null;
     const scoped = at && (at.season != null || at.ever) ? { season: at.season, ever: at.ever, latest: at.latest } : null;
-    if (w) return { kind: "side-threshold", core: m[1], side: /^p/.test(m[2]) ? "partners" : "opponents", at: at?.rest || null, threshold: { op: opOf(m[4]), value: Number(m[5]) }, when: scoped && w.season == null ? scoped : w };
+    // An OPR is one season's: "ever" across seasons isn't read here.
+    if (w && !(scoped ?? w).ever) return { kind: "side-threshold", core: m[1], side: /^p/.test(m[2]) ? "partners" : "opponents", at: at?.rest || null, threshold: { op: opOf(m[4]), value: Number(m[5]) }, when: scoped && w.season == null ? scoped : w };
   }
 
   // "did 4215 ever beat a team ranked top 10 worldwide".
