@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.9.2 — 2026-11-03
+
+A team's OPR in search now looks like, and reads the same numbers as,
+its team page.
+
+### Highlights
+- [teams] Search's OPR card uses the team page's coloured OPR tiles
+- [teams] No yellow band behind the OPR in search's answer
+- [fixes] Search's OPR card reads the team page's own season numbers
+
+### Search
+- **The OPR answer is the team page's card.** "4215 opr" (and every one-team OPR or phase OPR question) shows Total OPR, Autonomous, TeleOp and Endgame as the team page's tiles: the same names, icons, colours, rank line ("OPR #612 of 8,308 with an OPR · top 8%") and rank bar, from one shared list both pages draw. The value in each tile is in its phase's colour. The yellow band behind the big OPR number is gone, and the card has the team page's plain border and header; the season chip, the rank and the chart stay.
+- **One reader for both.** The card's numbers come from the same function the team page reads its season numbers with, formatted the same way (73 rather than 73.0), so the two can't drift. Nothing is worked out during a search. (#PR)
+
 ## 2.9.1 — 2026-11-03
 
 Event searches count one way everywhere, open on the time asked for, and
