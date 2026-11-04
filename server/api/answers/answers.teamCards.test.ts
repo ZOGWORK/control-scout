@@ -78,7 +78,7 @@ describe("\"4215 awards\": every award, grouped by season", () => {
       const tables = a.stat!.blocks.filter((b) => b.kind === "table");
       expect(tables.map((t) => t.kind === "table" && t.title)).toEqual(["2025–26 · 2 awards", "2024–25 · 2 awards"]);
       const first = tables[0].kind === "table" ? tables[0] : null;
-      expect(first!.columns.map((c) => c.key)).toEqual(["award", "event", "date", "kind"]);
+      expect(first!.columns.map((c) => c.key)).toEqual(["award", "event", "date"]);
       expect(first!.rows.map((r) => r.cells.award)).toEqual(["1st place (Winning Alliance)", "Inspire Award"]);
       expect(first!.rows[0].cells).toMatchObject({ event: "New Jersey Qualifier", date: expect.stringMatching(/2026/) });
       const awards = tables.flatMap((t) => (t.kind === "table" ? t.rows.map((r) => String(r.cells.award)) : []));

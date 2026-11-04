@@ -96,7 +96,7 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
     const shown = rows.slice(0, 50);
     for (const season of [...new Set(shown.map((r) => r.season))]) {
       const xs = shown.filter((r) => r.season === season), all = rows.filter((r) => r.season === season).length;
-      const t = table(xs, team.number, `${seasonLabel(season)} · ${count(all, "award")}`, true);
+      const t = table(xs, team.number, `${seasonLabel(season)} · ${count(all, "award")}`);
       if (t.kind === "table") t.columns = t.columns.filter((c) => c.key !== "season");
       blocks.push(t);
     }
