@@ -43,7 +43,7 @@ export async function worldsMatchesAnswer(team: AnswerTeam, all: TeamMatch[], sc
 }
 
 /** The answer for an event intent, or null when `id` isn't one. `scope.event` is set. */
-export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null }): Promise<StatAnswer | null> {
+export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null; each?: TeamEvent[] }): Promise<StatAnswer | null> {
   if (!scope.event || !["results", "event-rank", "event-opr", "match-lookup"].includes(id)) return null;
   const keep = inScope(scope);
   // The record counts official results; one match's score is any match the team played on the field (a surrogate too).
@@ -61,6 +61,10 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
     { label: "Record", value: ms.length ? `${r.wins}-${r.losses}-${r.ties}` : "–" },
     { label: "OPR", value: ev?.opr != null ? ev.opr.toFixed(1) : "–" },
   ] };
+
+  // Several events read as one (a division and its finals): each one's record, rank and OPR, as the team page lists them.
+  const each: StatBlock[] = (opts.each?.length ?? 0) > 1 ? [{ kind: "table", title: "Each event", columns: [{ key: "event", label: "Event" }, { key: "record", label: "Record" }, { key: "rank", label: "Rank" }, { key: "opr", label: "OPR", num: true }],
+    rows: opts.each!.map((e) => { const x = rec(ms.filter((m) => m.code === e.code)); return { cells: { event: e.name, record: `${x.wins}-${x.losses}-${x.ties}`, rank: e.rank != null ? `#${e.rank}${e.of ? ` of ${e.of}` : ""}` : "–", opr: e.opr != null ? e.opr.toFixed(1) : "–" }, href: eventHref(e.season, e.code, team.number), strong: e.code === ev?.code }; }) }] : [];
 
   if (id === "match-lookup") {
     const n = opts.n ?? 0;
@@ -84,7 +88,7 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
     return {
       ...base, family: "event", intent: id, title,
       headline: { value: `OPR ${ev.opr.toFixed(1)}`, label: name, sub: where, href },
-      blocks: [kpis, { kind: "bars", title: "By phase", groups: [{ label: name, items: [{ label: "Auto", value: ev.auto, tone: "a" }, { label: "TeleOp", value: ev.teleop, tone: "b" }, { label: "Endgame", value: ev.endgame, tone: "c" }] }] }],
+      blocks: [kpis, { kind: "bars", title: "By phase", groups: [{ label: name, items: [{ label: "Auto", value: ev.auto, tone: "a" }, { label: "TeleOp", value: ev.teleop, tone: "b" }, { label: "Endgame", value: ev.endgame, tone: "c" }] }] }, ...each],
       definition: OPR_RULE,
     };
   }
@@ -94,7 +98,7 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
   return {
     ...base, family: "event", intent: id, title,
     headline: id === "event-rank" ? { value: rankText, label: name, sub: where, href } : { value: `${r.wins}-${r.losses}-${r.ties}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"} at ${name}`, sub: [ev?.rank != null ? `Ranked ${rankText}` : "", where].filter(Boolean).join(" · "), href },
-    blocks: [kpis, { kind: "record", title: "Wins, losses and ties", ...r }, ...(ms.length ? [{ kind: "matches" as const, title: "Matches in order", rows: ms.slice(0, 25).map(row) }] : [])],
+    blocks: [kpis, { kind: "record", title: "Wins, losses and ties", ...r }, ...each, ...(ms.length ? [{ kind: "matches" as const, title: "Matches in order", rows: ms.slice(0, 40).map(row) }] : [])],
     definition: `${RANK_RULE} ${RECORD_RULE}`,
   };
 }

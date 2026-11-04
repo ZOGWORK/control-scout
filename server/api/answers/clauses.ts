@@ -24,8 +24,9 @@ export interface Scope {
   states?: boolean;
   /** One event ("season:CODE"), and its name for the chips. `codes`: every event the words named that the team played
    *  in that season (a championship's division and its finals, an AM and a PM meet), read as one; `code` is the one
-   *  whose rank and OPR the answer shows. `absent`: the team played none of them (the answer says so). */
-  event?: { season: number; code: string; name: string; codes?: string[]; absent?: boolean };
+   *  whose rank and OPR the answer shows. `absent`: the team played none of them (the answer says so; "never": it has
+   *  none of that kind on record, as a state championship). */
+  event?: { season: number; code: string; name: string; codes?: string[]; absent?: boolean | "never" };
   /** Events in one region (by the event's own state and country), or with `outside`, every event outside it (the
    *  team's home state: "out-of-state events"). */
   place?: { country: string; state: string; name: string; outside?: boolean };
