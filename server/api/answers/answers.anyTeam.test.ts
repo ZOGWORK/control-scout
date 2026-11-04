@@ -7,6 +7,7 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { wordScore } from "../../../src/shared/fuzzy";
+import { eventFit } from "./index";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
 const ask = async (q: string) => (await searchAnswer(q, { limit: 25, full: true })).stat as StatAnswer;
@@ -64,6 +65,41 @@ beforeAll(async () => {
   await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USCALAQ1', 10809, 1)");
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USCALAQ1', 10809, 180, 1)");
   await match("USCALAQ1", "qual", "Q1", 190, 100, [10809], [207]);
+  // Any season, any event: [season, code, name, type, start, division].
+  const evAt = (season: number, code: string, name: string, type: string, start: string, division: string | null = null) =>
+    run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (?, ?, ?, ?, ?, 'Town', 'NJ', 'USA', ?, ?, 't')", [season, code, name, type, division, start, start]);
+  const playAt = async (season: number, code: string, level: string, number: number, label: string, red: number, blue: number, reds: number[], blues: number[]) => {
+    await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, ?, 0, ?, ?, ?, 1, ?, ?, ?, ?, 't')", [season, code, level, number, label, `${season + 1}-03-01T10:00:00Z`, red, red, blue, blue]);
+    for (const [t, a] of [...reds.map((t) => [t, "red"] as const), ...blues.map((t) => [t, "blue"] as const)]) {
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, ?, 0, ?, ?, ?, 1)", [season, code, level, number, t, a]);
+    }
+  };
+  // 4215's 2024–25 state championship: the Turnpike Division, rank 7.
+  await evAt(2024, "USNJCMP", "New Jersey Championship", "Championship", "2025-03-16");
+  await evAt(2024, "USNJCMPTRPK", "New Jersey Championship - Turnpike Division", "Championship", "2025-03-16", "USNJCMP");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2024, 'USNJCMPTRPK', 4215, 7)");
+  await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (2024, 'USNJCMPTRPK', 4215, 117.3, 30, 70, 17, 1)");
+  await playAt(2024, "USNJCMPTRPK", "qual", 1, "Q1", 100, 120, [4215], [207]);
+  // 7149's Worlds division, 2025–26.
+  await ev("FTCCMP1ROSS", "FIRST Championship - FIRST Tech Challenge - Ross Division", "FIRSTChampionship", "2026-04-29", "FTCCMP1");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'FTCCMP1ROSS', 7149, 19)");
+  await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'FTCCMP1ROSS', 7149, 115.3, 1)");
+  await match("FTCCMP1ROSS", "qual", "Q1", 180, 170, [7149], [23268]);
+  // One venue stored spelled two ways: 4215 and 207 met at the misspelled one.
+  await run("UPDATE events SET venue = 'River Dell High School', city = 'Oradell' WHERE season = 2025 AND code = 'USNJNOM2'");
+  await run("UPDATE events SET venue = 'River Dale High School', city = 'Oradell' WHERE season = 2025 AND code = 'USNJNOM3'");
+  await run("UPDATE events SET venue = 'River Dell High School', city = 'Oradell' WHERE season = 2025 AND code = 'USCALAQ1'");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USCALAQ1', 207, 2)");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJNOM3', 207, 5)");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJNOM3', 'qual', 0, 1, 207, 'blue', 1)");
+  // One code, two events: USNJNELT2 was South Essex's tournament in 2024–25 and is East Bergen's in 2026–27 (not played
+  // yet); East Bergen's 2025–26 tournament had its own code.
+  await evAt(2024, "USNJNELT2", "South Essex Conference NE Edge League Tournament", "LeagueTournament", "2025-03-01");
+  await evAt(2025, "USNJNOLT2", "East Bergen Conference Northern League Tournament", "LeagueTournament", "2026-02-21");
+  await evAt(2026, "USNJNELT2", "East Bergen Conference Northeast League", "LeagueTournament", "2027-02-20");
+  await playAt(2024, "USNJNELT2", "playoff", 1, "F1", 232, 193, [7149], [23268]);
+  await playAt(2025, "USNJNOLT2", "playoff", 1, "F1", 188, 141, [4215, 207], [23268]);
+  await run("INSERT INTO alliances (season, code, number, captain, pick1) VALUES (2024, 'USNJNELT2', 1, 7149, NULL), (2024, 'USNJNELT2', 2, 23268, NULL), (2025, 'USNJNOLT2', 1, 4215, 207), (2025, 'USNJNOLT2', 2, 23268, NULL)");
   await rebuildSearch();
 });
 
@@ -105,6 +141,86 @@ describe("an event phrase reads the events the team played", () => {
       expect(r.none, q).toBe("Crow Force (10809) didn't play at New Jersey Championship in 2025–26, so it has no matches, rank or awards there. Its 2025–26 events are below.");
       expect(r.headline, q).toBeUndefined();
       expect(r.blocks[0], q).toMatchObject({ kind: "related", queries: [expect.stringContaining("los angeles qualifier")] });
+    }
+  });
+});
+
+describe("states, worlds and a team's own events (complex queries file)", () => {
+  it("1, 45, 50, 51: states is the team's own state championship, the latest it played", async () => {
+    for (const q of ["4215 matches at states", "4215 at states", "4215 state championship matches", "4215 New Jersey state championship matches"]) {
+      const r = await ask(q);
+      expect(r.title, q).toBe("Results at New Jersey Championship - Parkway Division");
+      expect(r.blocks.find((b) => b.kind === "related"), q).toMatchObject({ queries: ["4215 matches at states in 2025"] });
+    }
+    // 55: a division and the finals it reached.
+    expect((await ask("7149 matches at states")).title).toBe("Results at New Jersey Championship (Turnpike Division and finals)");
+  });
+  it("15, 33, 34, 52–54: a year is when the championship was held", async () => {
+    for (const q of ["4215 matches at states in 2025", "4215 states 2025 matches"]) expect((await ask(q)).title, q).toBe("Results at New Jersey Championship - Turnpike Division");
+    for (const q of ["4215 matches at states in 2026", "4215 states 2026 matches"]) expect((await ask(q)).title, q).toBe("Results at New Jersey Championship - Parkway Division");
+  });
+  it("47, 48, 60, 61, 58: states OPR, rank and record answer directly", async () => {
+    expect((await ask("4215 states opr")).headline).toMatchObject({ value: "OPR 101.6" });
+    expect((await ask("4215 state championship rank")).headline).toMatchObject({ value: "#2 of 2" });
+    expect((await ask("4215 states wins and losses")).intent).toBe("record");
+  });
+  it("27, 56: a team with no state championship is told so", async () => {
+    expect((await ask("10809 matches at states")).none).toMatch(/^Crow Force \(10809\) has no state championship on record/);
+  });
+  it("32, 72, 73: Worlds is the latest completed season's, a division named is that division", async () => {
+    for (const q of ["7149 matches at worlds", "7149 matches at worlds Ross division"]) {
+      expect((await ask(q)).headline, q).toMatchObject({ value: "1-0-0", label: expect.stringMatching(/Ross Division$/) });
+    }
+  });
+  it("20, 74: a date or a year with an event picks its season", async () => {
+    expect((await ask("show me 4215's matches at the March 15 2026 NJ championship")).title).toBe("Results at New Jersey Championship - Parkway Division");
+    expect((await ask("4215 matches at nj championship in 2025")).title).toBe("Results at New Jersey Championship - Turnpike Division");
+  });
+  it("42, 43, 44: league meets, and the team's own last and first event", async () => {
+    expect((await ask("4215 matches at league meets this season")).title).toBe("Results at its 2025–26 league meets");
+    expect((await ask("4215 matches at their last event")).title).toBe("Results at New Jersey Championship - Parkway Division");
+    expect((await ask("4215 matches at their first event this season")).title).toMatch(/^Results at P1-4 (?:AM|PM) Northern League Meet$/);
+  });
+  it("19: a match type at an event", async () => {
+    expect((await ask("4215's record in playoffs at nj championship")).title).toBe("Record in playoffs at New Jersey Championship - Parkway Division");
+  });
+});
+
+describe("two teams at an event or a venue", () => {
+  it("2, #622: one of them wasn't there, said so", async () => {
+    const r = await ask("4215 and 10809 matches together at NJ championship");
+    expect(r.none).toBe("Crow Force (10809) wasn't at New Jersey Championship - Parkway Division in 2025–26, so there are no matches together there. Hypnotic Robotics (4215) played it.");
+    expect(r.blocks[0]).toMatchObject({ kind: "related" });
+  });
+  it("75: both there, their shared matches (division and finals)", async () => {
+    const r = await ask("23268 and 7149 matches together at NJ championship");
+    expect(r.headline).toMatchObject({ value: "3" });
+  });
+  it("#617–#620: a venue, partial or misspelled, with its other spellings in the same city", async () => {
+    for (const q of ["4215 and 207 matches at river", "4215 and 207 matches at river dell", "4215 and 207 matches at river dell high schook"]) {
+      const r = await ask(q);
+      expect(r.title, q).toMatch(/River Dell High School/);
+      expect(r.headline, q).toMatchObject({ value: "1" });
+    }
+  });
+  it("4: no meeting at Worlds, the team with no Worlds matches named", async () => {
+    expect((await ask("4215 vs 10809 at worlds who scored higher")).none).toMatch(/Crow Force \(10809\) has no matches at Worlds on record\./);
+  });
+});
+
+describe("an event's distinctive words decide, and a reused code keeps its own name's seasons", () => {
+  it("east bergen conference winning alliance: the East Bergen tournament, never South Essex's under the same code", async () => {
+    const r = await ask("east bergen conference winning alliance");
+    expect(r.scope).toContain("East Bergen Conference Northern League Tournament");
+  });
+  it("shared words never stand in for distinctive ones", () => {
+    for (const [q, right, wrong] of [
+      ["east bergen conference", "East Bergen Conference Northern League Tournament", "South Essex Conference NE Edge League Tournament"],
+      ["northern league meet", "P3-6 Northern League Meet", "P2-8 Northeast League Meet"],
+      ["parkway division", "New Jersey Championship - Parkway Division", "New Jersey Championship - Turnpike Division"],
+    ]) {
+      expect(eventFit(q, right), q).toBeGreaterThanOrEqual(0.75);
+      expect(eventFit(q, wrong), q).toBeLessThan(0.75);
     }
   });
 });

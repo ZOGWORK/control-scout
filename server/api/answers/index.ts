@@ -370,6 +370,13 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const stat = scope.event?.absent ? await absentAnswer(q, it, team, scope, title) : await build(it, team, scope);
   if (!stat) return null;
   if (scope.seasonWhy) stat.definition = `${stat.definition} ${scope.seasonWhy}`;
+  // A state championship read as one season's: the team's other seasons there, each its own question (by the year held).
+  if (it.scope.states && scope.event && !scope.event.absent) {
+    const other = [...new Set((await teamEventSet(team.number)).events.filter((e) => e.type === STATES_TYPE && played(e) && e.season !== scope.event!.season).map((e) => e.season))].sort((x, y) => y - x);
+    const word = it.id === "event-opr" ? "opr" : it.id === "event-rank" ? "rank" : "matches";
+    if (other.length) stat.blocks.push({ kind: "related", title: "Its other state championships", queries: other.map((s) => `${team.number} ${word} at states in ${s + 1}`) });
+    stat.definition = `${stat.definition} States: the team's own state championship, its division and the finals it reached; with no year named, the latest it played.`;
+  }
   // A Worlds answer ends with the season's championship events and the related Worlds questions (never instead of it).
   if (scope.championship) {
     const season = scope.season ?? worldsSeason(stat);
@@ -664,7 +671,9 @@ async function venueOf(words: string, a: number, b: number): Promise<{ name: str
      WHERE t.team IN (?, ?) AND e.venue IS NOT NULL AND e.venue <> ''`, [a, b]);
   const scored = rows.map((r) => ({ r, s: fuzzyScore(words, r.venue) })).filter((x) => x.s >= 0.75);
   if (!scored.length) return null;
-  const best = scored.reduce((x, y) => (y.s > x.s ? y : x)).r;
+  // The closest name; on a tie, the spelling most events use.
+  const uses = (v: string) => rows.filter((r) => r.venue === v).length;
+  const best = scored.reduce((x, y) => (y.s > x.s || (y.s === x.s && uses(y.r.venue) > uses(x.r.venue)) ? y : x)).r;
   // One venue can be stored spelled several ways ("River Dell", "River Dale", "River DeHigh High School"): a spelling
   // in the same city that starts with the same word is that venue too.
   const first = (v: string) => v.toLowerCase().split(/\s+/)[0];
