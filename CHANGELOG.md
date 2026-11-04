@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.7 — 2026-11-03
+## 2.8.8 — 2026-11-03
 
 FTC One Search understands "and", "or" and "not" between teams, and quotes around an exact name: "4215 and 6980" lists the matches both teams played in.
 
@@ -28,6 +28,21 @@ FTC One Search understands "and", "or" and "not" between teams, and quotes aroun
 ### Search
 - **Boolean operators.** `and` (or `&`), `or` (or `|`) and `not` (or `-` before a term) between teams, read like a web search: NOT first, then AND, then OR, no parentheses. What's asked still decides the answer: on its own or with "matches" it's the match list (both teams on the field, on either alliance, newest first, how many as partners and as opponents); with a stat it's the stat side by side (`4215 and 6980 opr`; any other stat, such as `4215 and 6980 record`, in the team table with each team's season OPR, phases, penalties and record). Two teams with no match in common are told so, with each team's own match count and a link to the "or" list. A team name with "and" or "not" in it ("Nuts and Bolts", "Batteries Not Included") stays a name, and `vs`, "compare" and "have … played each other" keep their own answers. Details in docs/search-boolean.md. (#497)
 - **Exact phrases.** A name in double quotes finds the teams named exactly that first, then names holding the words together, never names with the words apart.
+
+## 2.8.7 — 2026-11-03
+
+Swing, Control Scout's consistency stat, has its own column wherever teams are compared: how far a robot's estimated points move from match to match. The formula sits next to it, and Control Point shows the same number for the same matches.
+
+### Highlights
+- [rankings] A Swing column in event and world rankings: lower is steadier
+- [teams] Compare has a Swing row, best (steadiest) marked
+- [report] A one-line formula under each table, the full one on How it works
+- [fixes] Fewer than 5 counted matches shows "—" and says why
+
+### Teams
+- **Swing (consistency).** sd of (alliance non-penalty score − the partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the season's field as if 10 more matches. It's the same number as the reliability index's swing part, now computed by the prediction engine (3.4.0) so both apps use one function (#499). Event rankings show the team's swing at that event, the world ranking and Compare its season swing. Below 5 counted matches the cell reads "—", and its tooltip gives the reason.
+- **How it works.** A new "Swing" section works the formula step by step, so it can be checked by hand.
+- **Engine 3.4.0.** Predictions are unchanged: the replay of every predicted match since 2023–24 serves exactly what 3.3.0 did.
 
 ## 2.8.6 — 2026-11-03
 

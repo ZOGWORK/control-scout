@@ -1,5 +1,5 @@
 // API contract shared by the server and the web app (types only).
-import type { Reliability } from "./reliability";
+import type { Reliability, SwingCell } from "./reliability";
 import type { ScheduleDifficulty, ScheduleDifficultyTeam } from "./scheduleDifficulty";
 import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
@@ -449,6 +449,8 @@ export interface FieldRow {
   rating: { np: number; sd: number; matches: number } | null;
   /** The team's season OPR (np) so far, across all its events: what the field looks like before this event starts. */
   seasonOpr?: number | null;
+  /** Swing at this event: the consistency stat (src/shared/reliability.ts). Absent when not computed. */
+  swing?: SwingCell | null;
   /** A league meet's own standing, from this meet's matches only (src/shared/meetStandings.ts). FIRST's rank and
    *  rp above are the league's running standing there. Absent: not a league meet; null: no counted match yet. */
   meet?: { rank: number; rs: number; tb: number[]; wins: number; losses: number; ties: number; played: number } | null;

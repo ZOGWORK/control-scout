@@ -32,6 +32,21 @@ describe("offline reliability (packs with and without the table)", () => {
     expect({ ...after.stats, reliability: undefined }).toEqual({ ...before.stats, reliability: undefined });
     expect(after.events).toEqual(before.events);
   });
+
+  it("event rankings carry the event's swing as the server does, and an older pack just has none", async () => {
+    const db = await packDb(2025, {
+      events: [{ season: 2025, code: "E1", name: "E1", type: "Qualifier", start: "2025-11-01", end: "2025-11-01" }],
+      teams: [{ number: 100, name: "Gearheads" }, { number: 200, name: "Bolt" }],
+      event_teams: [{ season: 2025, code: "E1", team: 100 }, { season: 2025, code: "E1", team: 200 }],
+      team_reliability: [{ ...rel(100, 68), code: "E1", contrib_n: 6, swing: 0.3712 }, { ...rel(200, 70), code: "E1", contrib_n: 4, swing: 0.25 }],
+    });
+    const d = readEventDetail({ season: 2025, db: wrap(db) }, "E1")!;
+    const by = new Map(d.field.map((f) => [f.team, f.swing]));
+    expect(by.get(100)).toEqual({ value: 0.3712, matches: 6, reason: null });
+    expect(by.get(200)).toMatchObject({ value: null, matches: 4 });
+    db.run("DROP TABLE team_reliability");
+    expect(readEventDetail({ season: 2025, db: wrap(db) }, "E1")!.field.every((f) => !("swing" in f))).toBe(true);
+  });
 });
 
 describe("offline team profile (same shape as /api/teams/:n)", () => {
