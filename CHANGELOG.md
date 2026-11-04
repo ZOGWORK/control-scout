@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.6 — 2026-11-03
+## 2.9.5 — 2026-11-04
 
 FTC One Search answers read more cleanly: names, rates, captions and headings follow one set of wording rules.
 
@@ -28,6 +28,43 @@ FTC One Search answers read more cleanly: names, rates, captions and headings fo
 
 ### Search
 - **Wording fixes from the v2.8.9 search display audit.** One possessive rule everywhere ("Hypnotic Robotics'", "Bad Wolf's"). Rates read "per match" as Compare has them ("8.4 per match", "points per match"). Charts end with one sentence ("Ranges from 52.4 to 101.6 across 5 values."). "1st-place" is the adjective ("1st-place finishes", "1st-place Inspire") and "1st place" the noun; the Worlds events pill no longer says "Worlds finals finals". A team fact's page title is sentence case with the team named once, in bold ("Where **Hypnotic Robotics (4215)** is from", "Sponsors and school for …"), never "Team 4215 — Where They're From". The head-to-head card is headed "Their meetings and partnerships" and a winning-alliance card "The champions and each division's winners", under page headings that name the teams and event. "This season" before the season in progress has a match now heads the page with the season it answers ("Average score in 2025–26"), the reason in the note. No number changes. (#525)
+
+## 2.9.4 — 2026-11-04
+
+How it works shows what the November engine research tried, and why none of it changed a prediction.
+
+### Highlights
+- [predict] Eight new lab notes: every idea tested on the engine in November
+- [predict] Each with its numbers against the current engine, on the same matches
+- [predict] Links to the full research note behind every card
+
+### Predictions
+- **November research in the lab notes.** How it works › Lab notes adds eight cards: three other rating systems (Massey, TrueSkill, Glicko-2), margin-of-victory Elo, a stronger pull toward the average for new robots, forgetting old matches faster or slower, reweighting the match phases, a separate playoff model, how much calibration can still gain, and a neural network. Each says in a line what was tried and why it didn't ship, and its Details give the Brier change on both seasons with the 95% range, next to a link to the full note in docs/engine/research-2026-11. Predictions are unchanged. (#535)
+
+## 2.9.3 — 2026-11-03
+
+Searches that used to give a confident wrong answer now give the right one, or say plainly what search can't do.
+
+### Highlights
+- [teams] "How many teams 2023" counts that season's teams
+- [teams] "Compare 4215 6980 16461" compares all three teams
+- [teams] "Top OPR last season" lists last season's leaders
+- [fixes] "How is OPR calculated" explains OPR, not a team
+- [fixes] "Teams near me" asks for a place, never reads "me" as Maine
+
+### Search
+- **Wrong answers fixed.** A 92-query check against the real data found searches that answered with the wrong thing, usually a team whose name shared a word. Each now answers what was asked (#513):
+  - A count of a named season ("how many teams 2023", "… in 2024-25", "… last season") is that season's count, not teams named "Spark team".
+  - "How is OPR calculated" is the OPR explanation, not the team CALculated Risk.
+  - "Teams near me" and "events near me" say where you are isn't known and suggest adding a place, instead of reading "me" as Maine or listing names with "event" in them.
+  - "Lowest OPR in New Jersey" and "worst teams" say search lists teams from the top, and link the full ranking.
+  - An event's best score without "at" ("highest score new jersey championship", "nj states highest score") is that event's. "NJ states" is New Jersey's championship, never a workshop with NJ in its name, and "worlds" is the FIRST Championship, never a Pre Worlds scrimmage.
+  - Three or four teams compared ("compare 4215 6980 16461", "compare 4215, 6980 and 16461") open Compare with every team, none dropped.
+  - A leaderboard with a season ("top opr last season", "best auto opr in texas 2024-25") is that season's, never the team Top Shelf BGS.
+  - A rookie list without "in" ("rookie teams new jersey", "nj rookie teams") is the place's rookie list.
+  - An event named with a game ("nj states decode", "worlds edison division centerstage", "nj states highest score decode") is that game's season, where it said "No matches found".
+  - A count of events in a bare year ("how many events in 2026") is the events held that calendar year, from either season; a season written as one ("2025-26") is that season.
+  - "Lowest OPR in NJ" links the Teams table sorted by that stat, lowest first.
 
 ## 2.9.2 — 2026-11-03
 
