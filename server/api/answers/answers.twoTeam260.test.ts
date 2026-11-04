@@ -161,7 +161,11 @@ describe("the answers", () => {
     expect(p.stat!.headline).toMatchObject({ value: expect.stringMatching(/^23268 /), sub: expect.stringMatching(/^Why: the best record together.*; next 207 Critical Mass, 2-1-0$/) });
   });
   it("next-event chances from the stored projection, or the event named and nothing guessed", async () => {
-    expect((await ask("4215 chance to win an event")).stat!.headline).toMatchObject({ value: "22%", label: "to win Northeast League Meet" });
+    const win = await ask("4215 chance to win an event");
+    expect(win.stat!.headline).toMatchObject({ value: "22%", label: "to win Northeast League Meet" });
+    // The next event is its own season: no default-season note or heading season from a past one.
+    expect(win.understood!.label).toBe("Hypnotic Robotics (4215) · Chance to win their next event");
+    expect(win.stat!.definition).not.toMatch(/The season is/);
     expect((await ask("4215 predicted to make playoffs at their next event")).stat!.headline).toMatchObject({ value: "71%" });
     expect((await ask("4215 advancement chances")).stat!.headline).toMatchObject({ value: "33%", label: "to advance from Northeast League Meet (2 slots)" });
     expect((await ask("4215 predicted wins at their next event")).stat!.headline).toMatchObject({ value: "#3" });
