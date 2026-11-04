@@ -13,6 +13,7 @@ import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { ATTENDED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
+import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 
 export type FactId = "opr" | "auto-opr" | "teleop-opr" | "endgame-opr" | "rating" | "report-card" | "next-match" | "events-season" | "events-place"
@@ -99,7 +100,7 @@ const n = (x: number) => x.toLocaleString("en-US");
 const OPR_RULE = "OPR: the points a team adds to its alliance's score without penalties, its best event that season (as its team page shows). Each phase's OPR is its own best that season, so the phases don't add up to the OPR. Ranks count every team with an OPR that season; each season is a different game, so a number is only set against its own season's.";
 
 /** The season asked, else the team's newest with matches. */
-async function seasonOf(team: number, asked: number | null): Promise<number | null> {
+export async function seasonOf(team: number, asked: number | null): Promise<number | null> {
   if (asked != null) return asked;
   const r = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [team]);
   return r?.s == null ? null : Number(r.s);
@@ -151,16 +152,19 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   }
 
   if (f.id === "rating") {
-    const [s, c] = await Promise.all([
-      get<any>("SELECT rating_np, rating_sd, rating_auto, rating_teleop, rating_endgame, rating_pen, rating_matches, rating_rank FROM team_season_stats WHERE team = ? AND season = ?", [team.number, season]),
+    // The team page's own reader (seasonStats), formatted as its rating tile formats it (num: "98 ± 3.2"), the rating,
+    // its ± and its world rank first, then its parts.
+    const [st, c] = await Promise.all([
+      seasonStats(season, team.number),
       get<{ n: number }>("SELECT COUNT(*) n FROM team_season_stats WHERE season = ? AND rating_rank IS NOT NULL", [season]),
     ]);
-    const b = base("rating", `Prediction rating in ${S}`, [S], `The prediction rating is the engine's estimate of the points a team adds to its alliance each match (without penalties), with its ± spread, as Rankings shows it; ranked once ${RANKED_MIN_MATCHES} matches are rated. The phases are its auto, TeleOp and endgame parts; penalty points given away are what its fouls hand the other alliance per match.${why}`, `From ${possessive(who(team))} ${S} rating`);
-    if (!s || s.rating_np == null) return { ...b, none: `${who(team)} has no prediction rating in ${S} yet.` };
+    const b = base("rating", `Prediction rating in ${S}`, [S], `The prediction rating is the engine's estimate of the points a team adds to its alliance each match (without penalties), with its ± spread, as the team page and Rankings show it; ranked once ${RANKED_MIN_MATCHES} matches are rated. The phases are its auto, TeleOp and endgame parts; penalty points given away are what its fouls hand the other alliance per match.${why}`, `From ${possessive(who(team))} ${S} rating`);
+    const r = st?.rating;
+    if (!st || !r) return { ...b, none: `${who(team)} has no prediction rating in ${S} yet.` };
     const of = Number(c?.n ?? 0);
     return {
-      ...b, headline: { value: `${dp(s.rating_np)} ± ${dp(s.rating_sd)}`, label: s.rating_rank && of ? `#${s.rating_rank} of ${n(of)} worldwide · ${top(s.rating_rank, of)}` : "Not ranked yet", sub: `${s.rating_matches ?? 0} matches rated`, href: `/rankings?season=${season}` },
-      blocks: [{ kind: "kpis", items: [{ label: "Auto", value: dp(s.rating_auto) }, { label: "TeleOp", value: dp(s.rating_teleop) }, { label: "Endgame", value: dp(s.rating_endgame) }, { label: "Penalty points given away", value: dp(s.rating_pen), sub: "per match" }, { label: "Matches rated", value: String(s.rating_matches ?? 0) }] }],
+      ...b, headline: { value: `${num(r.np)} ± ${num(r.sd)}`, label: r.rank ? `#${n(r.rank)} worldwide${of ? ` of ${n(of)} rated · ${top(r.rank, of)}` : ""}` : "Not ranked yet", sub: `${r.matches ?? 0} matches rated · ${S}`, href: `/rankings?season=${season}` },
+      blocks: [ratingKpis(st, of)],
     };
   }
 
@@ -209,22 +213,24 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
     const AT = seasonLabel(at);
     const where = ev ? shortEvent(ev.name, ev.type) : f.region ? f.region.name : "the world";
     const b = base("opr-vs-average", `OPR vs ${ev ? `the ${where} field` : f.region ? `the ${where}` : "the world"} average, ${AT}`, [AT, ev ? where : f.region?.name ?? "Worldwide"],
-      ev ? "The team's OPR at the event against the average OPR of the teams that played there (without penalties)." : `The team's season OPR against the average season OPR of ${f.region ? `${possessive(f.region.name)}` : "all"} teams with ${RANKED_MIN_MATCHES}+ matches (without penalties). Each season is a different game, so this compares within one season only.${f.season == null ? ` The season is ${AT}, the team's latest with matches.` : ""}`,
+      ev ? "The team's OPR at the event against the average OPR of the teams that played there (without penalties)." : `The team's season OPR against the average season OPR of ${f.region ? `${possessive(f.region.name)} teams with ${RANKED_MIN_MATCHES}+ matches` : "every team the world OPR ranks count (as the team page's rank does)"} (without penalties). Each season is a different game, so this compares within one season only.${f.season == null ? ` The season is ${AT}, the team's latest with matches.` : ""}`,
       ev ? `From the OPRs at ${where}, ${AT}` : `From the ${AT} season numbers`);
     // At a championship with divisions, the team's own division is its field.
     const own = ev
       ? await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number }>("SELECT s.opr_np v, s.code, e.name, e.type FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.season = ? AND (e.code = ? OR e.division_code = ?) AND s.team = ? AND s.matches > 0 ORDER BY e.division_code IS NULL LIMIT 1", [at, ev.code, ev.code, team.number])
-      : await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number }>("SELECT opr_np v, '' code, NULL name, NULL type, matches m FROM team_season_stats WHERE season = ? AND team = ?", [at, team.number]);
+      : await get<{ v: number | null; code: string; name?: string; type?: string | null; m?: number; r?: number | null }>("SELECT opr_np v, '' code, NULL name, NULL type, matches m, rank_np r FROM team_season_stats WHERE season = ? AND team = ?", [at, team.number]);
     if (own?.v == null) return { ...b, none: ev ? `${who(team)} has no OPR at ${where}.` : `${who(team)} has no OPR in ${AT}.` };
     const field = ev
       ? await get<{ avg: number | null; n: number; above: number }>("SELECT AVG(opr_np) avg, COUNT(*) n, SUM(CASE WHEN opr_np > ? THEN 1 ELSE 0 END) above FROM team_event_stats WHERE season = ? AND code = ? AND matches > 0 AND opr_np IS NOT NULL", [own.v, at, own.code])
-      : await get<{ avg: number | null; n: number; above: number }>(`SELECT AVG(s.opr_np) avg, COUNT(*) n, SUM(CASE WHEN s.opr_np > ? THEN 1 ELSE 0 END) above FROM team_season_stats s${f.region ? " JOIN teams t ON t.number = s.team" : ""} WHERE s.season = ? AND s.matches >= ? AND s.opr_np IS NOT NULL${f.region ? " AND t.country = ? AND t.state = ?" : ""}`,
-        [own.v, at, RANKED_MIN_MATCHES, ...(f.region ? [f.region.country, f.region.state] : [])]);
+      : await get<{ avg: number | null; n: number; above: number }>(`SELECT AVG(s.opr_np) avg, COUNT(*) n, SUM(CASE WHEN s.opr_np > ? THEN 1 ELSE 0 END) above FROM team_season_stats s${f.region ? " JOIN teams t ON t.number = s.team" : ""} WHERE s.season = ? AND s.opr_np IS NOT NULL${f.region ? " AND s.matches >= ? AND t.country = ? AND t.state = ?" : " AND s.rank_np IS NOT NULL"}`,
+        // Worldwide: the teams the team page's world rank counts (rank_np), so the rank and its population are its own.
+        [own.v, at, ...(f.region ? [RANKED_MIN_MATCHES, f.region.country, f.region.state] : [])]);
     if (field?.avg == null || !field.n) return { ...b, none: `No OPRs for ${where} in ${AT}.` };
     const d = Number(own.v) - Number(field.avg);
     const fieldName = own.name ? shortEvent(own.name, own.type ?? null) : where;
-    const rank = Number(field.above) + 1;
-    return { ...b, headline: { value: `${d >= 0 ? "+" : "−"}${dp(Math.abs(d))}`, label: `${d >= 0 ? "above" : "below"} the average: ${dp(own.v)} vs ${dp(field.avg)}`, ...(ev || Number(own.m ?? 0) >= RANKED_MIN_MATCHES ? { sub: `#${rank} of ${n(Number(field.n))} by OPR · ${top(rank, Number(field.n))}` } : { sub: `Not ranked among them: under ${RANKED_MIN_MATCHES} matches` }) },
+    const world = !ev && !f.region;
+    const rank = world && own.r != null ? Number(own.r) : Number(field.above) + 1;
+    return { ...b, headline: { value: `${d >= 0 ? "+" : "−"}${dp(Math.abs(d))}`, label: `${d >= 0 ? "above" : "below"} the average: ${dp(own.v)} vs ${dp(field.avg)}`, ...(ev || (world ? own.r != null : Number(own.m ?? 0) >= RANKED_MIN_MATCHES) ? { sub: `#${n(rank)} of ${n(Number(field.n))} by OPR · ${top(rank, Number(field.n))}${world ? ` · world average ${dp(field.avg)} across ${n(Number(field.n))} teams` : ""}` } : { sub: world ? "Not ranked worldwide yet" : `Not ranked among them: under ${RANKED_MIN_MATCHES} matches` }) },
       blocks: [{ kind: "bars", title: "OPR against the average", groups: [{ label: `${fieldName[0].toUpperCase()}${fieldName.slice(1)}, ${AT}`, items: [{ label: String(team.number), value: Math.round(Number(own.v) * 10) / 10, tone: "a" }, { label: "Average", value: Math.round(Number(field.avg) * 10) / 10, tone: "c" }] }] }] };
   }
 
