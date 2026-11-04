@@ -51,6 +51,10 @@ beforeAll(async () => {
   }
   // On the New Jersey list only with 3+ matches (the Teams list's filter): under 3, never ranked there.
   await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9100, 300, 2, 2, 0, 0)");
+  // The Teams page's season table (team_season_records), at full precision: what its New Jersey list sorts.
+  for (const [team, name, opr, played] of [[4215, "Hypnotic Robotics", 101.64, 26], [6980, "Bad Wolf", 46.91, 24], [7000, "Jersey Top", 120.02, 20], [9100, "Few Matches", 300, 2], [8000, "Texas Top", 150, 20]] as const) {
+    await run("INSERT INTO team_season_records (season, team, team_name, events, played, wins, losses, ties, np_opr) VALUES (2025, ?, ?, 2, ?, 10, 0, 0, ?)", [team, name, played, opr]);
+  }
   // The weekly Rankings snapshots: the Monday after each 2025–26 event.
   for (const [week, rating] of [["2025-11-10", 60.5], ["2026-03-09", 88.2], ["2026-03-16", 98.04]] as const) {
     await run("INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (2025, ?, 4215, 1, ?)", [week, rating]);
@@ -71,7 +75,7 @@ describe("reading", () => {
     // Left to the answers that already read them: the plain OPR and rating, a phase's rank, an event's OPR, two
     // teams, a season named after "rating in", league and average rank, a leaderboard.
     for (const q of ["4215 opr", "4215 rating", "4215 endgame opr rank", "4215 opr at the New Jersey championship", "4215 opr vs 6980", "4215 rating in 2024-25",
-      "4215 league rank", "4215 average rank", "4215 best opr event", "top 5 teams by auto opr in New Jersey", "highest opr in nj", "4215 rank at New Jersey Championship"]) {
+      "4215 league rank", "4215 average rank", "4215 best opr event", "4215 percentile by rating", "4215 rating percentile worldwide", "4215 average opr across events ever", "top 5 teams by auto opr in New Jersey", "highest opr in nj", "4215 rank at New Jersey Championship"]) {
       expect(readOprRating(q), q).toBeNull();
     }
     // Before these, "auto opr versus teleop opr" read as two teams and "the average team" as an event called "the".
@@ -158,6 +162,11 @@ describe("answers", () => {
     const t = await ask("4215 rating trend");
     expect(t.headline).toMatchObject({ value: "98 ± 3.2", label: "latest rating, after New Jersey Championship - Parkway Division · Rising from 60.5 after P1-4 PM Northern League Meet" });
     expect(t.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: 60.5 }, { y: 88.2 }, { y: 98 }] });
+    // An event whose Monday snapshot was pruned (older than the retention window) is a gap, never a later week's rating.
+    await run("DELETE FROM ranking_snapshots WHERE week = '2025-11-10'");
+    const g = await ask("4215 rating trend");
+    expect(g.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: null }, { y: 88.2 }, { y: 98 }] });
+    expect(g.headline?.label).toContain("Rising from 88.2 after East Bergen Conference Northern League Tournament");
     expect((await ask("4215 best prediction rating ever")).headline).toMatchObject({ value: "167.6 ± 3.2", label: "2024–25 season rating, after East Bergen Conference Northern League Tournament" });
   });
 });

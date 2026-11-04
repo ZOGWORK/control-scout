@@ -8,10 +8,11 @@ import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js
 import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
-import { RANKED_MIN_MATCHES, weekStartMs } from "../../../../src/shared/rankings.js";
-import { teamPageSql } from "../../../../src/shared/teamPages.js";
+import { RANKED_MIN_MATCHES, WEEK_MS, weekOf } from "../../../../src/shared/rankings.js";
+import { RECORDS_MAX_PAGE_SIZE } from "../../../../src/shared/statCatalog.js";
 import { all, get } from "../../../db.js";
 import { regionPlace } from "../../rankings.js";
+import { listRecords, recordsQuery } from "../../records.js";
 import { seasonStats } from "../../teams.js";
 import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { CHAMPIONSHIP_TYPE } from "../clauses.js";
@@ -84,8 +85,8 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     // rank", "4215 rank at the New Jersey Championship").
     if (r.id === "rank" && (/\b(?:opr|rating|auto|tele-?op|end\s?game|score|record|award|match|qual|finish|average|avg|mean|best|worst|highest|lowest|league|event|seed)/.test(q) || /\bat\s/.test(q))) continue;
     if (r.id === "rating-rank" && /\bat\s/.test(q)) continue;
-    // "Top 10 percent" with no OPR or rating asked is by OPR (the team page's standing); a rating one isn't read.
-    if (r.id === "top-pct" && /\brating\b/.test(q)) continue;
+    // A top share or a percentile with no stat named is by OPR (the team page's standing); a rating one isn't read.
+    if ((r.id === "top-pct" || r.id === "percentile") && /\brating\b/.test(q)) return null;
     let rest = q.replace(m[0], " ");
     const world = WORLD.test(rest);
     rest = rest.replace(WORLD, " ");
@@ -108,6 +109,8 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     if (id === "rating-rank" && !region && !/\b(?:rank|place|position|standing)/.test(m[0])) return null;
     const core = squash(words.replace(FILLER, " ").replace(/\b(?:highest|lowest|best|worst|average|vs|versus|compared|with|percent|top)\b/g, " "));
     if (!core) return null;
+    // An average of event OPRs stays in one season (each is a different game).
+    if (id === "opr-average-events" && scope.ever) return null;
     const phases = r.id === "phase-vs" ? [phaseOf(m[1]), phaseOf(m[2])] as [Phase, Phase] : undefined;
     if (phases && phases[0] === phases[1]) return null;
     const pct = r.id === "top-pct" ? Number(m[1]) : undefined;
@@ -150,16 +153,27 @@ async function ratingPop(season: number): Promise<number> {
   return Number((await get<{ n: number }>("SELECT COUNT(*) n FROM team_season_stats WHERE season = ? AND rating_rank IS NOT NULL", [season]))?.n ?? 0);
 }
 
-/** The team's place on a region's OPR list (the Teams page filtered to it, as families/leaderboard.ts lists it). */
+/** The team's place on a region's OPR list: the Teams page's own season table (../../records.ts listRecords), read
+ *  with the very query the answer links to (its filter, sort and place), so the place, the count and the teams
+ *  around it are that list's. */
 async function regionOprPlace(season: number, team: number, r: Region): Promise<{ rank: number; of: number; near: { rank: number; team: number; name: string | null; v: number }[] } | null> {
-  const ranked = `s.season = ? AND s.matches >= ? AND s.opr_np IS NOT NULL AND ${teamPageSql("s.team", "t.name")} AND t.country = ? AND t.state = ?`;
-  const rows = await all<{ team: number; name: string | null; v: number }>(
-    `SELECT s.team, t.name, s.opr_np v FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked} ORDER BY v DESC, s.wins DESC, s.team`,
-    [season, RANKED_MIN_MATCHES, r.country, r.state]);
-  const i = rows.findIndex((x) => Number(x.team) === team);
-  if (i < 0) return null;
-  const from = Math.max(0, Math.min(i - 2, rows.length - 5));
-  return { rank: i + 1, of: rows.length, near: rows.slice(from, from + 5).map((x, k) => ({ rank: from + k + 1, team: Number(x.team), name: x.name, v: Number(x.v) })) };
+  const href = teamsHref(season, BOARD_STATS.opr, r);
+  if (!href) return null;
+  const p = new URLSearchParams(href.split("?")[1]);
+  const opr = BOARD_STATS.opr.teamsSort!;
+  const ask = (page: number) => listRecords(season, recordsQuery("teamSeason", { filter: p.get("filter"), sort: p.get("sort"), country: p.get("country"), state: p.get("state"), fields: `teamName,${opr}`, page: String(page), pageSize: String(RECORDS_MAX_PAGE_SIZE) }));
+  const rows: { team: number; name: string | null; v: number }[] = [];
+  for (let page = 1; ; page++) {
+    const res = await ask(page);
+    rows.push(...res.rows.map((x) => ({ team: Number(x.team), name: (x.stats.teamName as string | null) ?? null, v: Number(x.stats[opr]) })));
+    // Stop once the team and the two below it are read, or the list ends.
+    const i = rows.findIndex((x) => x.team === team);
+    if ((i >= 0 && rows.length >= i + 3) || rows.length >= res.total || !res.rows.length) {
+      if (i < 0) return null;
+      const from = Math.max(0, Math.min(i - 2, rows.length - 5));
+      return { rank: i + 1, of: res.total, near: rows.slice(from, from + 5).map((x, k) => ({ rank: from + k + 1, team: x.team, name: x.name, v: x.v })) };
+    }
+  }
 }
 
 export interface OprRatingDeps {
@@ -433,8 +447,9 @@ async function ratingTrend(team: Team, season: number, set: { events: TeamEvent[
   if (!r) return { ...b, none: `${who(team)} has no prediction rating in ${S} yet.` };
   const after = (e: TeamEvent, last: boolean): number | null => {
     if (last) return Number(r.np);
-    const end = Date.parse(`${e.end ?? e.start}T23:59:59Z`);
-    const w = weeks.find((x) => weekStartMs(x.week) > end);
+    // That exact Monday's snapshot only: one pruned past the retention window leaves a gap, never a later week's rating.
+    const monday = weekOf(Date.parse(`${e.end ?? e.start}T12:00:00Z`) + WEEK_MS);
+    const w = weeks.find((x) => x.week === monday);
     return w ? Number(w.rating) : null;
   };
   const pts = evs.map((e, i) => ({ e, y: after(e, i === evs.length - 1) }));
