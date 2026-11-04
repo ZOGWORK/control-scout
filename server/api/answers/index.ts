@@ -16,7 +16,8 @@ import { fuzzyScore } from "../fuzzy.js";
 import { search } from "../search.js";
 import { eventWon, readAsk } from "../searchAsks.js";
 import { eventHit } from "../searchEvents.js";
-import { namedTeam } from "../searchCompare.js";
+import { namedTeam, versusAnswer } from "../searchCompare.js";
+import { predictHref } from "../../../src/shared/predictUrl.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer } from "./families/awards.js";
@@ -336,8 +337,11 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
     if (scope.season != null) scope.seasonWhy = `"This season" here is ${seasonLabel(scope.season)}, ${a.number}'s latest season with matches on record.`;
   }
   const title = `${TWO_TEAM_TITLES[two.id]}: ${whoOf(a)} vs ${whoOf(b)}`;
+  // "Who wins" keeps what the asks gave it (Compare's hit first, Predict first among the pages), with the call as its card.
+  const lead = two.id === "predict" ? (await versusAnswer(`${a.number} vs ${b.number}`, new Set(), scope.season))?.hits.find((h) => h.kind === "compare") : undefined;
+  const pages = two.id === "predict" ? [{ title: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", ...(scope.season != null ? { season: scope.season } : {}), red: [a.number], blue: [b.number] }) }, ...opts.pages] : opts.pages;
   const answer: SearchAnswer = {
-    q, hits: [{ ...ta, section: "matches", facts: undefined, events: undefined }, { ...tb, section: "matches", facts: undefined, events: undefined }], pages: opts.pages, step: "deterministic", weak: false,
+    q, hits: [...(lead ? [lead] : []), { ...ta, section: "matches", facts: undefined, events: undefined }, { ...tb, section: "matches", facts: undefined, events: undefined }], pages, step: "deterministic", weak: false,
     understood: { kind: "question", label: title, ...(scope.season != null ? { season: scope.season } : {}) },
     intent: { kind: `stat-${two.id}`, pattern: `[team] ${two.id} [team]${scope.season != null ? " [season]" : ""}`, met: true, understood: [`Teams ${whoOf(a)} and ${whoOf(b)}`, TWO_TEAM_TITLES[two.id]] },
   };
