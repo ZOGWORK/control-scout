@@ -10,6 +10,7 @@ import { CURRENT_SEASON } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { refreshSearchSeason, resetSearchSeason } from "./answers/season";
 import { longForm } from "./searchLongForm";
+import { numberFix } from "./spelling";
 
 // The latest completed season, and the one before it ("last season").
 const S = CURRENT_SEASON - 1, L = S - 1;
@@ -83,6 +84,9 @@ const PAIRS: [string, string][] = [
   // OPR
   ["what is the opr of team 4215 right now", "4215 opr"],
   ["can you tell me what 4215's auto opr is", "4215 auto opr"],
+  // #537: a spoken filler ("like") inside the question.
+  ["what is like the opr for 4215", "4215 opr"],
+  ["um what was basically 4215's record this season", "4215 record this season"],
   ["what was 4215's opr last season", "4215 opr last season"],
   ["i want to know 4215's opr at worlds", "4215 opr at worlds"],
   ["what is the highest opr 4215 has ever had", "4215 highest opr ever"],
@@ -186,6 +190,25 @@ describe("long, conversational queries", () => {
 
   it("leaves short queries alone", () => {
     for (const q of ["4215 opr", "4215 worlds appearances", "4215 versus 6980 compare", "hypnotic robotics", "events 4215 went to this season"]) expect(longForm(q)).toBeNull();
+  });
+});
+
+describe("a team number typed wrong (#621)", () => {
+  it("offers the real team numbers one key away, never \"No team, event or match matched\"", async () => {
+    // "4z15" already reaches 4215 through search's own fuzzy match; a dash or a missing or extra digit doesn't.
+    expect((await ask("4z15")).hits[0]).toMatchObject({ kind: "team", ref: "4215" });
+    for (const q of ["42-5", "421", "42155"]) {
+      const a = await ask(q);
+      expect(a.step, q).toBe("did-you-mean");
+      expect(a.didYouMean, q).toBe("4215");
+      expect(a.hits[0], q).toMatchObject({ kind: "team", ref: "4215" });
+      expect(a.understood?.label, q).not.toMatch(/No team, event or match matched/);
+    }
+    expect((await ask("69-0")).didYouMean).toBe("6980");
+  });
+
+  it("leaves real numbers, match codes and names alone", async () => {
+    for (const q of ["4215", "q12", "m3", "hypnotic", "2024-25 4215"]) expect(await numberFix(q), q).toBeNull();
   });
 });
 

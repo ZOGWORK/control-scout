@@ -10,12 +10,13 @@
 // letters or fewer, search's own words, any word of a team's name, and a plain form of a known word ("winning",
 // "placed"). A word two names' words fit equally is left as typed: search's own fuzzy matching then lists both
 // rather than guessing one.
-import type { SearchAnswer } from "../../src/shared/api.js";
+import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
+import { search } from "./search.js";
 import { all, kvGet } from "../db.js";
 import { registerCache } from "../caches.js";
 import { SEASONS } from "../data/seasons.js";
 import { REGION_PHRASES } from "../../src/shared/regions.js";
-import { SEARCH_FILLER, SEARCH_PAGES, SEARCH_TOPICS } from "../../src/shared/search.js";
+import { SEARCH_FILLER, SEARCH_PAGES, SEARCH_TOPICS, pagesFor } from "../../src/shared/search.js";
 import { CONVERSATIONAL, EVENT_WORDS, PLURALS, QUESTION_WORDS, STOPWORDS, TIME_WORDS } from "../../src/shared/searchQuery.js";
 import { allowedEdits, editDistance, normalize, words } from "./fuzzy.js";
 import { FALLBACK_NOTE, carryOutcome } from "./searchLayers.js";
@@ -252,6 +253,8 @@ const naming = (a: SearchAnswer, w: string) => a.hits.slice(0, 10).filter((h) =>
 export async function spelled(typed: string, a: SearchAnswer, run: (q: string) => Promise<SearchAnswer>): Promise<SearchAnswer> {
   const was = strength(a);
   if (was >= 4) return a;
+  // A team number typed wrong ("42-5", "4z15"): the real team numbers one key away.
+  if (was <= 1) { const n = await numberFix(typed); if (n) return carryOutcome(a, { ...n, q: a.q }); }
   const fix = await correctQuery(typed);
   // A query that matched what it asked can only be improved to a direct answer, which only a question word's fix makes.
   if (!fix || (was >= 3 && !fix.own)) return a;
@@ -267,4 +270,39 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   }
   if (fix.own && now === was && was === 2 && !a.didYouMean) return carryOutcome(a, { ...a, didYouMean: said });
   return a;
+}
+
+/** A team number one key off: 2 to 6 characters starting and ending with a digit, at most one of them not a digit
+ *  ("42-5", "4z15"), or all digits and no team by that number ("42155"). A match code ("q12") is never one. */
+const NUMBERISH = /^\d[\da-z_-]{0,4}\d$/i;
+
+/** "42-5" isn't a team, nor a name: the teams whose number is one edit away (a key changed, added or dropped; a
+ *  non-digit only changed or dropped), the most recently active first, then the most matches played. Null when the
+ *  query isn't a number typed wrong, is a real team, or no team is that close. */
+export async function numberFix(typed: string): Promise<SearchAnswer | null> {
+  const t = typed.trim();
+  if (!NUMBERISH.test(t)) return null;
+  const odd = [...t].filter((c) => !/\d/.test(c)).length;
+  if (odd > 1) return null;
+  if (!odd && (await all("SELECT 1 FROM teams WHERE number = ?", [Number(t)])).length) return null;
+  const near = new Set<string>();
+  const add = (s: string) => { if (/^[1-9]\d{0,5}$/.test(s)) near.add(s); };
+  for (let i = 0; i < t.length; i++) {
+    add(t.slice(0, i) + t.slice(i + 1));
+    for (let d = 0; d <= 9; d++) add(t.slice(0, i) + d + t.slice(i + 1));
+  }
+  if (!odd) for (let i = 0; i <= t.length; i++) for (let d = 0; d <= 9; d++) add(t.slice(0, i) + d + t.slice(i));
+  near.delete(t);
+  if (!near.size) return null;
+  const nums = [...near].map(Number);
+  const rows = await all<{ team: number }>(`SELECT team, MAX(season) AS s, SUM(matches) AS m FROM team_season_stats WHERE matches > 0 AND team IN (${nums.map(() => "?").join(",")}) GROUP BY team ORDER BY s DESC, m DESC LIMIT 3`, nums);
+  if (!rows.length) return null;
+  const hits: SearchHit[] = [];
+  for (const r of rows) {
+    const h = (await search(String(r.team), 5, new Set(), new Set(["team"]))).find((x) => x.kind === "team" && x.ref === String(r.team));
+    if (h) hits.push({ ...h, match: "fuzzy" });
+  }
+  if (!hits.length) return null;
+  const label = `No team ${t}: the closest team number${hits.length > 1 ? "s" : ""}`;
+  return { q: t, hits, pages: pagesFor(t), step: "did-you-mean", didYouMean: hits[0].ref, weak: true, understood: { kind: "names", label } };
 }

@@ -20,6 +20,8 @@ const OPENERS = [
   /^(?:i\s+(?:want|wanna|would\s+like|'d\s+like|need)\s+(?:to\s+)?(?:know|see|find\s+out)\s+)/,
   /^(?:do\s+you\s+know\s+|tell\s+me\s+|show\s+me\s+|give\s+me\s+|find\s+me\s+|please\s+)/,
 ];
+/** Spoken fillers anywhere in a question ("what is like the opr for 4215"): never what is asked. */
+const FILLERS = /\s(?:like|um+|uh+|basically|actually|literally|kinda|kind\s+of|sort\s+of)(?=\s)/g;
 /** Closing fillers: "please", "for me", "right now", "thanks". */
 const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|currently|at\s+the\s+moment)$/;
 
@@ -67,6 +69,8 @@ export function longForm(raw: string): string | null {
   t = t.replace(/(\d)'s\b/g, "$1").replace(/(\w)'s\s/g, "$1 ").replace(/(\w)s'\s/g, "$1s ");
   t = t.trim();
   const start = t;
+  // Inner fillers go once, before the wrappers are read ("what is like the opr for 4215" → "what is the opr for 4215").
+  for (let n = ` ${t} `.replace(FILLERS, ""); n !== ` ${t} `; n = ` ${t} `.replace(FILLERS, "")) t = n.trim();
   for (let changed = true; changed;) {
     changed = false;
     for (const o of OPENERS) { const n = t.replace(o, ""); if (n !== t && n) { t = n; changed = true; } }
