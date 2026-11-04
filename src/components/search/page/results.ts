@@ -101,9 +101,10 @@ export type When = "all" | "upcoming" | "past";
 export interface PageFilters { when: When; season: number | null; type: string | null }
 
 /** The time tab the query itself asks for: "upcoming meets in New Jersey" opens on Upcoming, "past meets" on Past,
- *  anything else on All. It's the tab with no trace in the address; any other pick is written there. */
+ *  anything else on All. It's the tab with no trace in the address; any other pick is written there. A fallback ("no
+ *  past meets there, showing the upcoming ones instead") opens on All: the time asked for may be what was dropped. */
 export function askedWhen(a: AnswerExtra | undefined): When {
-  const t = a?.understood?.kind === "events" ? a.understood.time : undefined;
+  const t = a?.understood?.kind === "events" && !a.understood.fallback ? a.understood.time : undefined;
   return t === "upcoming" || t === "past" ? t : "all";
 }
 

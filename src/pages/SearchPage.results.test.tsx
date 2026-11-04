@@ -140,6 +140,14 @@ describe("search results page", () => {
     expect(checked()).toEqual(["All2"]);
   });
 
+  it("a fallback that dropped the time asked for opens on All, so its events show (Greptile on #521)", () => {
+    const understood = { kind: "events" as const, label: "Past meets at Dumont High School", time: "past" as const, fallback: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead" };
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17")], { understood });
+    const { container } = show("/search?q=past%20meets%20at%20dumont%20high%20school");
+    expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(1);
+    expect(loc).toBe("/search?q=past%20meets%20at%20dumont%20high%20school");
+  });
+
   it("an event's venue is shown in full, never cut to fit", () => {
     const h: SearchHit = { ...ev("USNJNOM5", "Northern League Meet", "2099-12-06"), event: { start: "2099-12-06", end: "2099-12-06", type: "LeagueMeet", venue: "Thomas Edison EnergySmart Charter School", status: "upcoming" } };
     state.answer = answer([h, ev("B", "Old Meet", "2020-01-11", 2019)]);

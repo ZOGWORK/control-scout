@@ -188,12 +188,15 @@ async function placeCount(r: Region): Promise<number> {
 }
 
 /** The "All events in New Jersey" link, with how many events it holds this season (`n`, placeCount). `asked`: the
- *  set the query asked for, named first with its own count (the events listed, the All tab's count) when it is
- *  narrower than every event: "24 meets · 42 events this season". */
-function placeHitOf(r: Region, n: number, asked?: { n: number; label: string }): SearchHit | null {
+ *  set the query asked for, named first with its own count when it is narrower than every event: "24 meets · 42
+ *  events this season". `listed`: how many of them the page lists (what the events heading and the All tab count),
+ *  said when it is fewer: "24 of 26 meets listed · 42 events this season". */
+function placeHitOf(r: Region, n: number, asked?: { n: number; listed: number; label: string }): SearchHit | null {
   if (!n) return null;
   const all = `${n} ${n === 1 ? "event" : "events"} this season`;
-  const set = asked && asked.label !== "events" ? `${asked.n} ${asked.n === 1 ? singular(asked.label) : asked.label} · ` : "";
+  const set = !asked || asked.label === "events" ? ""
+    : asked.listed < asked.n ? `${asked.listed} of ${asked.n} ${asked.label} listed · `
+    : `${asked.n} ${asked.n === 1 ? singular(asked.label) : asked.label} · `;
   return { kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${set}${all}`, season: CURRENT_SEASON };
 }
 
@@ -203,7 +206,7 @@ export async function placeHit(r: Region): Promise<SearchHit | null> {
 }
 
 /** "meets" as one: "meet" (the first event word of a set's label). */
-const singular = (label: string) => label.replace(/\b(meet|event|tournament|championship)s\b/, "$1");
+const singular = (label: string) => label.replace(/\b(meet|event|tournament|championship|qualifier|scrimmage|kickoff)s\b/, "$1");
 
 /** The answer for an event set (`q`: the query as typed). `others`: hits to list after the events (a bare region's
  *  teams). */
@@ -218,10 +221,12 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   };
   const inPlace = e.region ? await placeCount(e.region) : 0;
   // The place's link names the set listed too, in the label's own words with the place left out ("meets", "upcoming
-  // meets"), counted as the list is: one definition for the link, the events heading and the time tabs.
-  const placeFor = (rows: Row[], o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
-  // Every season but more than a page holds: the newest first, how many in all, and the full list one click away.
+  // meets"), counted as the list is: one definition for the link, the events heading and the time tabs. A page holds
+  // `room` events after the link (every answer is cut to SEARCH_PAGE_LIMIT hits), so more than that says how many
+  // are listed.
   const room = SEARCH_PAGE_LIMIT - (inPlace ? 1 : 0);
+  const placeFor = (rows: Row[], o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, listed: Math.min(rows.length, room), label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
+  // Every season but more than a page holds: the newest first, how many in all, and the full list one click away.
   const more = (rows: Row[]) => (e.allSeasons && rows.length > room ? rows.length : 0);
   const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => ({
     q, hits: [...[placeFor(rows, o)].filter((h): h is SearchHit => !!h), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])],
