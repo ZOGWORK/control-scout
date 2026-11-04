@@ -210,6 +210,9 @@ const answer = (q: string, a: Omit<SearchAnswer, "q" | "step" | "weak"> & { step
 
 type Explainer = { words: RegExp; label: string; lines: SearchCardLine[]; pages: { title: string; href: string }[] };
 
+/** FIRST's own pages for the rules: lines link straight to them (the page's links and the box open a full URL as is). */
+const OFFICIAL = { manual: "https://ftc-resources.firstinspires.org/ftc/game/manual", events: "https://ftc-events.firstinspires.org" };
+
 /** How teams reach the FIRST Championship: only what the season's curated rules hold (server/data/roadmapRules.ts,
  *  read from FIRST's Competition Manual), and where to check the rest. A season with none encoded says so. */
 const WORLDS_EXPLAINER: Explainer = (() => {
@@ -218,7 +221,10 @@ const WORLDS_EXPLAINER: Explainer = (() => {
   const S = seasonLabel(CURRENT_SEASON);
   const pages = [{ title: "How advancement works", href: "/methodology#advancement" }, { title: "Events", href: "/events" }];
   if (!ps) {
-    return { words, label: "Worlds qualification", pages, lines: [{ text: `Control Scout hasn't checked the ${S} advancement rules yet`, detail: "FIRST's Competition Manual (Section 4, Advancement) and each event's page on FTC Events have the official rules", href: "/methodology#advancement" }] };
+    return { words, label: "Worlds qualification", pages, lines: [
+      { text: `Control Scout hasn't checked the ${S} advancement rules yet`, detail: "FIRST's Competition Manual (Section 4, Advancement) has the official rules", href: OFFICIAL.manual },
+      { text: "Each event's advancement list is on FTC Events", detail: "FIRST's own results site", href: OFFICIAL.events },
+    ] };
   }
   const regions = REGION_RULESETS.filter((r) => r.season === CURRENT_SEASON).map((r) => r.name);
   const list = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0] ?? "");
@@ -228,7 +234,8 @@ const WORLDS_EXPLAINER: Explainer = (() => {
       { text: "Teams advance step by step: qualifiers or league tournaments, then a state or regional championship, then the FIRST Championship", detail: regions.length ? `A region's championship sends teams to the FIRST Championship or a Premier event. Control Scout has checked the path for ${list(regions)}` : "Each region sets its own path to its championship", href: "/methodology#advancement" },
       { text: "At each advancing event, slots go to teams in order of their advancement points", detail: `Inspire ${ps.inspire.join("/")}, other judged awards ${ps.otherAwards.join("/")}, playoff finish ${ps.playoff.first}/${ps.playoff.second}/${ps.playoff.third}/${ps.playoff.fourth}, qualification rank ${ps.qualMax} down to ${ps.qualMin}, plus alliance selection`, href: "/methodology#advancement" },
       { text: `A team can advance only from its first ${ps.entryEvents} qualifiers or league tournaments`, detail: `League tournament rankings add each team's best ${ps.leagueMeetMatches} league meet matches`, href: "/methodology#advancement" },
-      { text: "How many slots each event has is set by FIRST and differs by region", detail: `Source: ${ps.source.label}, ${ps.where}. Each event's advancement list on FTC Events is official`, href: "/methodology#advancement" },
+      { text: "How many slots each event has is set by FIRST and differs by region", detail: `Source: ${ps.source.label}, ${ps.where}`, href: ps.source.url },
+      { text: "Each event's advancement list is on FTC Events", detail: "FIRST's own results site: who took each slot", href: OFFICIAL.events },
     ],
   };
 })();

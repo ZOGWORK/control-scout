@@ -430,7 +430,9 @@ describe("team facts, the profile and how-it-works answers (260-query list, 11-0
     expect(explainAnswer("how does FTC One Search work")?.card?.lines.map((l) => l.text).join(" ")).not.toMatch(/\bAI\b/);
     expect(explainAnswer("how are predictions made")?.card?.title).toBe("Predictions: how they're made");
     for (const q of ["how does worlds qualification work", "how do teams qualify for worlds"]) expect(explainAnswer(q)?.card?.title, q).toMatch(/^Worlds qualification/);
-    expect(explainAnswer("how does worlds qualification work")?.card?.lines.at(-1)?.detail).toMatch(/Competition Manual/);
+    const w = explainAnswer("how does worlds qualification work")?.card?.lines ?? [];
+    expect(w.find((l) => /Competition Manual/.test(l.detail ?? ""))?.href).toMatch(/^https:\/\/ftc-resources\.firstinspires\.org\//);
+    expect(w.at(-1)?.href).toBe("https://ftc-events.firstinspires.org");
     expect(explainAnswer("how is rating calculated")?.card?.lines.map((l) => l.text).join(" ")).toMatch(/playoff match moves a rating 50% as much/);
   });
   it("a profile for a season named, with other facts asked, and no region guessed (Greptile on #562)", async () => {
