@@ -16,6 +16,17 @@ Verdicts:
 
 No engine number changed. Engine 3.3.0 throughout.
 
+**Engine 3.5.0 (margin calibration).** The shown scores are now the model's sums pulled toward their middle so
+the margin is 0.95 of the gap (total unchanged; `docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md`).
+That changes the formula behind rows 2, 4 and 8:
+- **#2 (Lab):** the score lines now write both steps: each alliance's sum as before, labelled "before
+  calibration", then "Margin calibration: both move toward the middle (113.4) so the margin is 0.95 of the gap",
+  with `113.4 + 0.95 × 7.4 = 120.4 · shown 120` (each step to 0.1; the engine returns `modelScoreA/B` and
+  `marginScale` for it). Still **fixed**.
+- **#4:** "Red by 12 (118 − 106)" is still the difference of the two shown scores, so it still adds up from them.
+- **#8 and the factor sheet:** the phases split the rating gap (the model's margin) exactly, not the shown margin.
+  The Lab line, the factor sheet's note and methodology #factors now say so, and that the shown margin is 0.95 of it.
+
 ## The table
 
 | # | Number | Where it shows | Formula / inputs shown | Verdict |

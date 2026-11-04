@@ -47,7 +47,8 @@ describe("explainMatch", () => {
     const sum = (k: "auto" | "teleop" | "endgame" | "pen", xs: typeof e.teamsA) => xs.reduce((s, t) => s + t[k], 0);
     // Engine 2.11: what each alliance loses to overlap comes off its side.
     const comps = (["auto", "teleop", "endgame"] as const).reduce((s, k) => s + sum(k, e.teamsA) - e.overlapA[k] - (sum(k, e.teamsB) - e.overlapB[k]), 0) + sum("pen", e.teamsB) - sum("pen", e.teamsA);
-    expect(comps).toBeCloseTo(p.red.mean - p.blue.mean, 9);
+    expect(comps).toBeCloseTo(p.red.modelMean - p.blue.modelMean, 9);
+    expect(comps).toBeCloseTo(e.modelScoreA - e.modelScoreB, 9);
     expect(e.factors).toHaveLength(3);
     // Ranked by size.
     for (let i = 1; i < e.factors.length; i++) expect(Math.abs(e.factors[i - 1].points)).toBeGreaterThanOrEqual(Math.abs(e.factors[i].points));
