@@ -9,7 +9,7 @@ import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/share
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import type { AnswerTeam } from "./families/matches.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
-import { findRegions } from "../../../src/shared/regions.js";
+import { edits, findRegions } from "../../../src/shared/regions.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
 import { searchSeason, searchSeasonWhy } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
@@ -23,7 +23,7 @@ import { predictHref } from "../../../src/shared/predictUrl.js";
 import { CHAMPIONSHIP_TYPE, STATES_TYPE, inScope, officialClause, scopeChips, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
 import { awardsAnswer, awardsTitle } from "./families/awards.js";
-import { eventScopeAnswer, worldsMatchesAnswer } from "./families/eventScope.js";
+import { championshipMatchesAnswer, eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, seasonOf as factSeason, type FactQuestion } from "./families/facts.js";
 import { OPR_RATING_TITLES, oprRatingAnswer, readOprRating, type OprRatingQuestion } from "./families/oprRating.js";
@@ -220,7 +220,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const region = !scope.place && s.at ? placeOf(s.at) : null;
   // "At states" and "at worlds" with no season named are one event for a team's results, rank or OPR there: its state
   // championship (the latest it played, or the year's) and its Worlds of the latest completed season.
-  const oneEvent = EVENT_SCOPE_INTENTS.has(it.id) && ((s.states && it.id !== "match-lookup") || (s.championship && it.id === "results" && s.season == null && !s.ever && !s.latest && !s.at));
+  const oneEvent = EVENT_SCOPE_INTENTS.has(it.id) && ((s.states && it.id !== "match-lookup" && !s.ever) || (s.championship && it.id === "results" && s.season == null && !s.ever && !s.latest && !s.at));
   if (region) scope.place = { country: region.country, state: region.state, name: region.name };
   else if (s.at || oneEvent) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches).
@@ -427,7 +427,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     if (at) return at;
   }
   if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
-  if (it.id === "results" && scope.championship) return worldsMatchesAnswer(team, ms, scope);
+  if (it.id === "results" && (scope.championship || scope.states)) return championshipMatchesAnswer(team, ms, scope);
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
 }
 
@@ -665,6 +665,9 @@ async function meetingsAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, sc
 
 /** A venue the words name ("river dell high", "river dell high schook"), among the venues of either team's events:
  *  the closest name (or names alike), with every event either team played there, any season. */
+/** Letters a stored venue spelling may be off by and still be the same place. */
+const VENUE_TYPOS = 4;
+
 async function venueOf(words: string, a: number, b: number): Promise<{ name: string; keys: string[] } | null> {
   const rows = await all<{ season: number; code: string; venue: string; city: string | null }>(
     `SELECT DISTINCT e.season, e.code, e.venue, e.city FROM events e JOIN event_teams t ON t.season = e.season AND t.code = e.code
@@ -675,9 +678,10 @@ async function venueOf(words: string, a: number, b: number): Promise<{ name: str
   const uses = (v: string) => rows.filter((r) => r.venue === v).length;
   const best = scored.reduce((x, y) => (y.s > x.s || (y.s === x.s && uses(y.r.venue) > uses(x.r.venue)) ? y : x)).r;
   // One venue can be stored spelled several ways ("River Dell", "River Dale", "River DeHigh High School"): a spelling
-  // in the same city that starts with the same word is that venue too.
-  const first = (v: string) => v.toLowerCase().split(/\s+/)[0];
-  const kept = rows.filter((r) => r.venue === best.venue || (r.city != null && r.city === best.city && first(r.venue) === first(best.venue)));
+  // in the same city a few letters off is that venue too, while another school there ("Lincoln Middle" beside
+  // "Lincoln High") is not.
+  const fold = (v: string) => v.toLowerCase().replace(/\s+/g, " ").trim();
+  const kept = rows.filter((r) => r.venue === best.venue || (r.city != null && r.city === best.city && edits(fold(r.venue), fold(best.venue)) <= VENUE_TYPOS));
   return { name: best.venue, keys: [...new Set(kept.map((r) => `${r.season}:${r.code}`))] };
 }
 

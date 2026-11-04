@@ -158,6 +158,11 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
     }
     // 55: a division and the finals it reached.
     expect((await ask("7149 matches at states")).title).toBe("Results at New Jersey Championship (Turnpike Division and finals)");
+    // "Ever" is every season it played states, never only the latest.
+    const ever = await ask("4215 matches at states ever");
+    expect(ever.scope).toContain("All seasons");
+    expect(ever.title).toBe("Matches at state championships");
+    expect(ever.headline).toMatchObject({ value: "1-3-0", label: "in 4 matches at state championships" });
   });
   it("15, 33, 34, 52–54: a year is when the championship was held", async () => {
     for (const q of ["4215 matches at states in 2025", "4215 states 2025 matches"]) expect((await ask(q)).title, q).toBe("Results at New Jersey Championship - Turnpike Division");
@@ -205,6 +210,21 @@ describe("two teams at an event or a venue", () => {
       const r = await ask(q);
       expect(r.title, q).toMatch(/River Dell High School/);
       expect(r.headline, q).toMatchObject({ value: "1" });
+    }
+    // The words after the teams still limit them: their one meeting there was a qualification match.
+    const p = await ask("4215 and 207 matches at river dell in playoffs");
+    expect(p.headline?.value ?? "0").toBe("0");
+  });
+  it("another school in the same city is another venue", async () => {
+    await run("UPDATE events SET venue = 'River Dell Middle School' WHERE season = 2025 AND code = 'USNJNOM3'");
+    try {
+      // Their one meeting was at USNJNOM3, now the middle school: the high school no longer takes it in.
+      expect((await ask("4215 and 207 matches at river dell high school")).headline?.value ?? "0").toBe("0");
+      const mid = await ask("4215 and 207 matches at river dell middle school");
+      expect(mid.title).toMatch(/River Dell Middle School/);
+      expect(mid.headline).toMatchObject({ value: "1" });
+    } finally {
+      await run("UPDATE events SET venue = 'River Dale High School' WHERE season = 2025 AND code = 'USNJNOM3'");
     }
   });
   it("4: no meeting at Worlds, the team with no Worlds matches named", async () => {
