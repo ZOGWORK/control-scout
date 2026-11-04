@@ -465,7 +465,8 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it.
     const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""}`.toLowerCase();
     // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match".
-    const unread = won ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own)) : [];
+    // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
+    const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own)) : [];
     if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
     const out = { ...a, q: typed };
     outcomes.set(out, {

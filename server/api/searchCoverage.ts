@@ -892,7 +892,12 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   // A season named anywhere ("4215 profile 2024-25", "4215 2024-25 profile", "4215 record this season") is the season of
   // the card's numbers, and never part of the team's name. "This season" is the latest completed one, "last" the one before.
   const sm = new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(raw);
-  const t = sm ? squash(raw.replace(sm[0], " ")) : raw;
+  const full = sm ? squash(raw.replace(sm[0], " ")) : raw;
+  // A second question about the same team ("where is bad wolf from and what is their record"): its season number is
+  // asked too, and shown with the fact rather than under it.
+  const also = /\s+(?:and|&)\s+(?:what(?:'s| is| are| was| were)\s+|how\s+(?:is|was|are)\s+)?(?:their|its|the\s+team's)\s+(record|opr|rating|reliability)$/.exec(full);
+  const t = also ? full.slice(0, also.index) : full;
+  const alsoLabel: string | null = also ? ({ record: "Record", opr: "OPR", rating: "Rating", reliability: "Reliability" } as Record<string, string>)[also[1]] : null;
   const named = /^(?:what(?:'s| is)\s+)?(?:the\s+)?name\s+of\s+(.+)$/.exec(t);
   const said = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
@@ -976,6 +981,8 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     ...(st.reliability ? [{ label: `Reliability, ${S}`, values: [`${st.reliability.index} out of 100`], ...(st.reliability.fieldIndex != null ? { detail: `Field average ${st.reliability.fieldIndex}` } : {}) }] : []),
   ] : [];
   const related = ["record", "awards", "opr"].map((x) => `${hit.ref} ${x}`);
+  // The number asked with the fact ("… and what is their record"), when the team has one that season.
+  const asked2 = alsoLabel ? numbers.find((f) => f.label.startsWith(`${alsoLabel},`)) ?? null : null;
 
   if (facts.includes("summary")) {
     // One card, every line the team page's: who and where, rookie year, and the season's numbers.
@@ -1005,28 +1012,30 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const support: SearchCardFact[] = [
     ...(!facts.includes("place") && !from && place ? [factOf("place")] : []),
     ...(!facts.includes("region") && region ? [factOf("region")] : []),
-    ...numbers,
+    ...numbers.filter((f) => f !== asked2),
   ];
   const extra = { season, ...(support.length ? { support } : {}) };
   if (facts.length > 1) {
     // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
-    const what = facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])).join(" and ");
+    const what = [...facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])), ...(asked2 ? [asked2.label.replace(/,.*$/, "").toLowerCase().replace(/^opr$/, "OPR")] : [])].join(" and ");
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-      card: { kind: "info", title: what, team, facts: facts.map(factOf), related, ...extra, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
+      card: { kind: "info", title: what, team, facts: [...facts.map(factOf), ...(asked2 ? [asked2] : [])], related, ...extra, lines: [...facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }), ...(asked2 ? [{ text: `${asked2.label}: ${asked2.values[0]}`, href: `/teams/${hit.ref}?season=${season}` }] : [])] },
       understood: { kind: "team", label: `${name} · ${what}` },
     });
   }
   const { text, detail } = read(last);
-  const what = TITLE[last];
+  // A number asked with it names both ("Where they're from and record"); one the team doesn't have that season is said.
+  const what = alsoLabel ? `${TITLE[last]} and ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()}` : TITLE[last];
   // The card names the fact; its team is on the card already (card.team), so the page never says the team twice.
   const title = `${name} · ${what}`;
+  const alsoLine = asked2 ? [{ text: `${asked2.label}: ${asked2.values[0]}`, ...(asked2.detail ? { detail: asked2.detail } : {}), href: `/teams/${hit.ref}?season=${season}` }] : [];
   return answer(q, {
     hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
     card: {
-      kind: "info", title: what, team, facts: [factOf(last), ...(from ? [factOf("place")] : [])], related, ...extra,
-      lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : from ? [{ text: from, detail: "Where they're from", href: `/teams/${hit.ref}` }] : [],
-      ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.${from ? ` The team is from ${place}.` : ""}` }),
+      kind: "info", title: what, team, facts: [factOf(last), ...(from ? [factOf("place")] : []), ...(asked2 ? [asked2] : [])], related, ...extra,
+      lines: [...(text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : from ? [{ text: from, detail: "Where they're from", href: `/teams/${hit.ref}` }] : []), ...alsoLine],
+      ...(text && (!alsoLabel || asked2) ? {} : { none: [text ? "" : `FIRST's listing for ${name} has no ${TITLE[last].toLowerCase()}.${from ? ` The team is from ${place}.` : ""}`, alsoLabel && !asked2 ? `${name} has no ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()} on record in ${S}.` : ""].filter(Boolean).join(" ") }),
     },
     understood: { kind: "team", label: title },
   });

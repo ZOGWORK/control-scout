@@ -38,6 +38,8 @@ import { awardsSideBySide, compareAnswer, compareSeason, headToHead, neverPlayed
 import { sharedMatchList } from "../searchBoolean.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
 import { shortEvent, teamMatches } from "./matchSet.js";
+import { readCompound } from "./compound.js";
+import { compoundSearch } from "./compoundSearch.js";
 import { readLeaderboard, readStatQuestion, readTeamSet, readTwoTeam, type LeaderboardQuestion, type TeamSetQuestion, type IntentId, type StatQuestion, type TwoTeamId, type TwoTeamQuestion } from "./read.js";
 
 /** Search's own answer for the part of a query that names the team (searchAnswer with intents off). */
@@ -100,7 +102,7 @@ export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | 
 /** The season a team's answer reads when none is named: the default season (the latest completed one, ./season.ts)
  *  when the team has matches at official events in it, else the team's latest season with such matches (a season of
  *  only scrimmages isn't one). `own`: the team's latest was used. */
-async function latestSeason(team: number, id?: IntentId): Promise<{ season: number; own: boolean } | null> {
+export async function latestSeason(team: number, id?: IntentId): Promise<{ season: number; own: boolean } | null> {
   // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
   // never took the field): a season with a match the answer counts.
   const official = officialClause();
@@ -192,6 +194,12 @@ async function findEvent(words: string, season: number | null, opts: { anyPlayed
 
 /** The answer for `q`, or null when it isn't a stat question or its team isn't found. */
 export async function statAnswer(q: string, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
+  const comp = readCompound(q);
+  if (comp) {
+    const a = await compoundSearch(q, comp, resolve, opts, { latestSeason, pickTeamEvent });
+    if (a) return a;
+  }
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
   const tm = readTopMatches(q);
   if (tm) return topSearch(q, tm, opts);
