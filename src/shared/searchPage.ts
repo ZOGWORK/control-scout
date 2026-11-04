@@ -34,10 +34,13 @@ export function badgeUnder(title: string, badge: string | null): string | null {
   if (!badge) return null;
   const t = norm(title), b = norm(badge);
   if (!b || b === t || b.startsWith(`${t} `)) return null;
-  // "Team 6980 — Where They're From" over "Bad Wolf (6980) · Where they're from": the same team and the same fact.
-  const m = /^Team (\d+) — (.+)$/.exec(title);
-  const fact = badge.split(" · ").pop()!;
-  if (m && fact !== badge && (badge.includes(`(${m[1]})`) || new RegExp(`\\bTeam ${m[1]}\\b`).test(badge)) && norm(fact) === norm(m[2])) return null;
+  // "Where Bad Wolf (6980) is from" over "Bad Wolf (6980) · Where they're from": the same team and the same fact.
+  const parts = badge.split(" · ");
+  if (parts.length === 2) {
+    const m = /^(?:(.+?) \((\d+)\)|Team (\d+))$/.exec(parts[0].trim());
+    const team = m ? { number: Number(m[2] ?? m[3]), name: m[1] ?? null } : null;
+    if (team && cardTitle({ title: parts[1], team }) === title) return null;
+  }
   return plain(badge);
 }
 
@@ -59,13 +62,26 @@ export function teamParts(title: string): { number: string; name: string } | nul
 const SMALL = new Set(["a", "an", "and", "or", "of", "the", "in", "at", "on", "by", "for", "to", "vs"]);
 export const capWords = (s: string) => s.replace(/(?<![\p{L}\p{N}'’])\p{Ll}[\p{L}\p{N}'’]*/gu, (w, at: number) => (at > 0 && SMALL.has(w) ? w : w[0].toUpperCase() + w.slice(1)));
 
-/** The page's heading: what the results are about and what was asked (never the query as typed). "Team 7149 —
- *  Worlds Appearances", "Hypnotic Robotics (4215) vs Bad Wolf (6980)", "Simply Complex (18061)", "Events in New Jersey". */
+/** A card's team as titles name it: "Hypnotic Robotics (4215)", or "Team 4215" with no name on record. */
+export const cardTeamName = (t: { number: number; name: string | null }) => (t.name ? `${t.name} (${t.number})` : `Team ${t.number}`);
+
+/** A question card's page heading, in sentence case, the team named once: "Where Hypnotic Robotics (4215) is from",
+ *  "Sponsors and school for Hypnotic Robotics (4215)", "Worlds appearances for ENFORCERS (7149)". */
+export function cardTitle(card: { title: string; team?: { number: number; name: string | null } }): string {
+  const label = card.title.trim();
+  const sentence = label ? label[0].toUpperCase() + label.slice(1) : label;
+  if (!card.team) return sentence;
+  const who = cardTeamName(card.team);
+  return /^where they[’']re from$/i.test(label) ? `Where ${who} is from` : `${sentence} for ${who}`;
+}
+
+/** The page's heading: what the results are about and what was asked (never the query as typed). "Worlds appearances
+ *  for ENFORCERS (7149)", "Hypnotic Robotics (4215) vs Bad Wolf (6980)", "Simply Complex (18061)", "Events in New Jersey". */
 /** `aboutTeam`: the query asked about one team ("how good is X"), so its top team names the page even when the
  *  server read the name as a correction. */
 export function pageTitle(a: AnswerExtra | undefined, hits: SearchHit[], aboutTeam = false): string {
   const card = a?.card;
-  if (card) return card.team ? `Team ${card.team.number} — ${capWords(card.title)}` : card.title;
+  if (card) return cardTitle(card);
   const top = hits[0];
   if (top && isCompare(top)) return top.title.split(/\s+vs\.?\s+/i).map((t) => { const p = teamParts(t); return p ? `${p.name} (${p.number})` : t; }).join(" vs ");
   const teamName = () => { const p = teamParts(top.title); return p ? (p.name ? `${p.name} (${p.number})` : `Team ${p.number}`) : null; };

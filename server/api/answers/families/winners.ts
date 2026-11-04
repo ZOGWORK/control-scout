@@ -134,7 +134,7 @@ export async function winnersAnswer(core: string, season: number | null, champio
   const inspire = await all<{ team: number }>("SELECT team FROM awards WHERE season = ? AND code = ? AND type = 'Inspire' AND placement = 1", [parent.season, parent.code]);
   if (inspire.length) {
     const il = await teamLinks(inspire.map((r) => Number(r.team)));
-    blocks.push({ kind: "links", title: "Inspire Award", items: inspire.map((r) => ({ ...il.get(Number(r.team))!, sub: "1st place" })) });
+    blocks.push({ kind: "links", title: "Inspire Award", items: inspire.map((r) => ({ ...il.get(Number(r.team))!, sub: "1st-place Inspire" })) });
   }
   blocks.push(...(await otherSeasons(parent, worlds)));
   if (worlds) {
@@ -145,7 +145,9 @@ export async function winnersAnswer(core: string, season: number | null, champio
     blocks.push(...(await worldsFollowUps(parent.season, null)).filter((b) => b.kind !== "related"));
     if (queries.length) blocks.push({ kind: "related", title: "You may also want to know", queries });
   }
-  const base = { family: "event" as const, intent: "winning-alliance", title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: `${RULE} The Inspire Award shown is the event's 1st place Inspire Award.${why}`, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
+  // The page is headed by `title`; the card says what it holds, so the two never read the same.
+  const card = worlds ? `The champions and each division's winners` : divisions.length ? "The winners and each division's winning alliance" : "The winners and their final matches";
+  const base = { family: "event" as const, intent: "winning-alliance", title: card, heading: title, scope: [worlds ? "FIRST Championship (Worlds)" : shortEvent(parent.name, parent.type), seasonLabel(parent.season)], definition: `${RULE} The Inspire Award shown is the event's 1st-place Inspire Award.${why}`, source: `From the published awards and playoff matches of ${1 + divisions.length} event${divisions.length ? "s" : ""}, ${dateRange(parent.start, parent.end)}` };
   if (!decided && worlds && !core) return notYet(parent.season, findEvent, why);
   if (!decided) return { ...base, blocks, none: worlds ? `No championship results yet for ${gameOf(parent.season)}: no winning alliance is published.` : `No winning alliance is published for ${shortEvent(parent.name, parent.type)} yet.` };
   return {
@@ -160,7 +162,7 @@ async function notYet(s: number, findEvent: (words: string, season: number | nul
   const prev = (await finishedChampionships()).find((x) => x !== s);
   const below = prev != null ? await winnersAnswer("", prev, true, findEvent) : null;
   if (below) return { ...below, none: `${none} Below: the latest finished season's champions, ${gameOf(prev!)} (${seasonLabel(prev!)}).` };
-  return { family: "event", intent: "winning-alliance", title: `${gameOf(s)} ${seasonLabel(s)} FIRST Championship winning alliances`, scope: ["FIRST Championship (Worlds)", seasonLabel(s)], blocks: [], definition: `${RULE}${why}`, source: "No finished championship in the data", none };
+  return { family: "event", intent: "winning-alliance", title: "The champions", heading: `${gameOf(s)} ${seasonLabel(s)} FIRST Championship winning alliances`, scope: ["FIRST Championship (Worlds)", seasonLabel(s)], blocks: [], definition: `${RULE}${why}`, source: "No finished championship in the data", none };
 }
 
 /** The same question for the event's (or Worlds') other finished seasons, newest first: the season switcher. */
@@ -188,7 +190,7 @@ export async function worldsFollowUps(season: number | null, team: { number: num
   const evs = s == null ? [] : await all<Ev>(`SELECT ${evCols} FROM events WHERE season = ? AND type = ? ORDER BY division_code IS NULL, name`, [s, CHAMPIONSHIP_TYPE]);
   const out: StatBlock[] = [{
     kind: "links", title: s != null ? `Worlds events, ${seasonLabel(s)}` : "Worlds events",
-    items: evs.map((e) => ({ label: shortEvent(e.name, e.type).replace(/^Worlds · /, ""), href: eventHref(e.season, e.code), sub: e.division ? undefined : "finals" })),
+    items: evs.map((e) => ({ label: shortEvent(e.name, e.type).replace(/^Worlds · /, ""), href: eventHref(e.season, e.code) })),
     none: s != null ? `No championship events for ${seasonLabel(s)} in the data.` : "No championship events in the data.",
   }];
   const qs = team
