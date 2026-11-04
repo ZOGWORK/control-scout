@@ -6,7 +6,7 @@
 // held-out test.
 import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
-import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, DEFAULT_BAND, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
+import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, DEFAULT_BAND, DEFAULT_MARGIN, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
 import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
@@ -32,6 +32,8 @@ import { FORECAST_RUNS, LOCAL_RUNS, LOCAL_STOP_MS, PROJECTION_FLOOR, PROJECTION_
 /** Event simulations per forecast (server/app.ts forecastFor). */
 const SIM_RUNS = FORECAST_RUNS;
 const n0 = (x: number) => x.toLocaleString("en-US");
+/** Engine 3.5: shown margin = this × the rating gap (FITTED_MODEL.margin). */
+const MARGIN_SCALE = (MODEL.margin ?? DEFAULT_MARGIN).scale;
 
 export default function MethodologyPage() {
   useTitle("How it works");
@@ -103,6 +105,7 @@ export default function MethodologyPage() {
           <SectionHead num="03" eyebrow="Step two" title="From two alliances to one probability" />
           <Prose>
             <p>To predict a match, the engine adds up each alliance's robots, then adds the penalty points the <em>other</em> alliance tends to give away. That's the expected score.</p>
+            <p id="margin-calibration">Replayed, predicted margins ran a little wider than real ones, so since engine 3.5 both expected scores are then pulled toward their middle until the margin is <strong>{MARGIN_SCALE}</strong> of the gap (the total stays the same, and the win probability still reads the gap before this step).</p>
             <p>Ratings add; alliances don't quite. Two robots that are both strong at the same thing get in each other's way: one launch zone, one set of game pieces, one good auto path. Since engine 2.11, in a qualification match an alliance loses {Math.round((RATING.overlapAuto ?? 0) * 100)}% of the weaker partner's auto and {Math.round((RATING.overlapTeleop ?? 0) * 100)}% of its TeleOp, measured from real alliances that scored less together than their ratings added up to. Endgame showed no such effect. Playoff alliances are left as they are: captains pick partners that complement them.</p>
             <p>Fouls are mostly luck and officiating: a team that gave away a lot of penalty points last week usually gives away far fewer this week. So since engine 2.10 a robot's penalty rating learns at only {Math.round((RATING.penGain ?? 1) * 100)}% of the speed its scoring does, staying close to the season average until a pattern really holds. Before that change, the most foul-prone alliances were predicted to give away about half again as many points as they really did.</p>
             <p>FTC scores are noisy, though. A game piece falls out, a robot tips, a driver misses a park. So each expected score comes with a spread. Fitted on 2024–25, the typical miss is about <code>{NOISE.a} + {NOISE.b} × expected</code> points: bigger scores have bigger swings. On top of that goes the uncertainty in each robot's rating. A team the engine barely knows gets a wider curve.</p>
@@ -133,7 +136,7 @@ export default function MethodologyPage() {
           </Prose>
           <Prose id="factors">
             <h3>The top 3 factors</h3>
-            <p>On a prediction, the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
+            <p>On a prediction, the rating gap behind the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story. The shown margin is {MARGIN_SCALE} of that gap (the margin calibration above).</p>
           </Prose>
           <Prose id="history">
             <h3>Earlier matches together</h3>
@@ -306,6 +309,7 @@ function SettingsTable() {
     ["Season growth", `${Math.round(RATING.growthPerWeek * 100)}% / week`, `Up to ${RATING.growthMaxWeeks} weeks between matches`],
     ["Uncertainty", `${RATING.uncKnown} / ${RATING.uncRookie} pts²`, `Known team / no history, ×${RATING.uncDecay} per match`],
     ["Score spread", `${NOISE.a} + ${NOISE.b} × score`, "Typical miss of an alliance score"],
+    ["Margin calibration (3.5)", `× ${MARGIN_SCALE}`, "Shown margin as a share of the rating gap; the total and the win odds are unchanged"],
     ["Event-start extra", `${NOISE.preExtra} pts²`, "Per robot, for predictions frozen at event start"],
     ["Win probability (2.0)", `${MODEL.contextual!.coefficients.length} inputs · slope ${MODEL.contextual!.calibration.slope.toFixed(3)}`, "Contextual correction of the score-gap probability, then its own calibration"],
     ["Final stretch (2.8)", `× ${(MODEL.contextual!.recalibration?.slope ?? 1).toFixed(3)} log-odds`, "Pushes probabilities slightly away from 50%; never changes the favourite"],

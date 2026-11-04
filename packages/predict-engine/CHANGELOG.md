@@ -1,5 +1,41 @@
 # Changelog
 
+## 3.5.0 — 2026-11-04 · Margin calibration of the shown scores
+
+A score-only release under the owner's rule of 2026-11-04 (research sign-off, section 6): margin error must
+improve beyond noise in both seasons, every probability must stay bit-identical, and score ranges and alliance
+score error must not get worse. Gate: `docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md`.
+
+- **Why:** the research (R1's side finding, R6's margin map) found the served expected margin too wide: the real
+  margin's slope on it is 0.90–0.94 on every rolling window.
+- **What:** the served expected scores shrink toward their midpoint m = (red + blue) / 2:
+  red′ = m + s·(red − m), blue′ = m − s·(m − blue). The margin is s × the model's; the total is unchanged.
+  - `s` = `FITTED_MODEL.margin.scale` = `DEFAULT_MARGIN.scale` = **0.95** (new `MarginParams`, `PredictOptions.margin`,
+    `ExplainOptions.margin`, `PredictModel.margin`).
+  - Each 80% range keeps its sd and is recentred on the served score.
+  - Fitted walk-forward on 2024–25 only: each month's s minimises the margin MAE on the 365 days before it; the
+    constant is the median of the nine 2024–25 months (0.94–0.965), frozen before 2025–26 was scored. One slope
+    for quals and playoffs: separate slopes gained −0.001 [−0.010, +0.008].
+- **Only the shown scores move.** `AlliancePrediction.mean`, `explainMatch`'s `predictedScoreA/B`, ranges and
+  `scorePlusMinus`, and `ForecastMatch.redMean/blueMean/redBand/blueBand` are the served values. Every probability
+  reads the model's scores: `AlliancePrediction.modelMean` (new), `modelView(p)` (new). That covers the win chance,
+  the contextual inputs, P(tie), bonus odds, the factor sheet (its phases still split the model's margin exactly)
+  and the simulator. `marginScale.test.ts` runs them at s = 1, 0.95 and 0.3 and fails on any difference.
+- **New on the explanation:** `modelScoreA/B` (unrounded, before calibration) and `marginScale`, so a page can
+  write the shown score out by hand. New export `servedScores`.
+- **Gate (3.5.0 − 3.4.0, identical matches, event-bootstrap 95%):**
+  - Margin MAE: 2024–25 (tuning) 38.75 → 38.64, −0.107 [−0.147, −0.064]; 2025–26 (reused) 37.36 → 37.26,
+    −0.095 [−0.124, −0.066].
+  - Alliance score MAE: −0.018 [−0.031, −0.004] and −0.012 [−0.022, −0.003].
+  - Brier and accuracy: Δ exactly 0 (identical probabilities).
+  - 80% ranges: coverage 81.96 → 82.02% and 81.43 → 81.38% (inside noise); interval score −0.39 [−0.46, −0.33]
+    and −0.12 [−0.16, −0.07]; width +0.05 and +0.02 points. Playoff and fewer-than-6-matches slices also not
+    worse beyond noise, so the 3.2.0 band is not refitted.
+- **Bit-identity:** slice replay `--explain-against` the 3.4.0 build (`--scores-may-move`): every non-score field
+  of `explainMatch` (win odds, shadow, factor sheet, P(tie), bonus odds) identical on all 109,002 matches; the
+  score fields are exactly the transform; row SHA-256 equal 3.4.0's. Event simulator on fixed seeds: 36 events,
+  678 teams' odds, identical.
+
 ## 3.4.0 — 2026-11-03 · Swing, the consistency stat
 
 Research brief item 6. Predictions are identical to 3.3.0: nothing the engine predicts reads the new

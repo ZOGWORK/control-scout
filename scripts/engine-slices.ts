@@ -8,6 +8,8 @@
 //     [--challenger '{"name":"priors","rating":{...}}'] [--gate-out docs/engine/gates]
 //     [--champion '{"rating":{...},"recalibration":false}']  (replay an earlier release as the champion)
 //     [--explain-against <older engine dist dir>]  (every served number of explainMatch must match that build's)
+//     [--scores-may-move]  (with --explain-against: the shown scores and ranges may differ, by exactly the margin
+//                           calibration of engine 3.5; every other field, every probability among them, must not)
 //
 // Models replayed side by side on identical matches:
 //   champion  the live engine (contextual model on the symmetric book)
@@ -27,7 +29,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
-import { ENGINE_VERSION, FITTED_MODEL, RatingBook, contextualFeatures, explainMatch, predictMatch, type RatingParams } from "@control-scout/predict-engine";
+import { ENGINE_VERSION, FITTED_MODEL, RatingBook, contextualFeatures, explainMatch, predictMatch, scoreBand, type RatingParams } from "@control-scout/predict-engine";
 import { all, kvGet, migrate } from "../server/db.js";
 import { matchKey as keyOf, outcome, predictable, rookieYears, seasonCorpus } from "./slices/corpus.js";
 import { PREDICT_SEASONS, seasonInfo } from "../server/data/seasons.js";
@@ -60,6 +62,30 @@ function firstDiff(a: unknown, b: unknown, path = ""): string | null {
   return null;
 }
 let against = 0;
+/** --scores-may-move: a release that changes only the shown scores (engine 3.5's margin calibration). These fields are
+ *  then checked against the transform of the model's scores instead of the old build; all the others bit for bit. */
+const SCORES_MAY_MOVE = args.includes("--scores-may-move");
+const SCORE_FIELDS = ["predictedScoreA", "predictedScoreB", "scoreRangeA", "scoreRangeB", "scoreBandA", "scoreBandB", "scorePlusMinusA", "scorePlusMinusB"] as const;
+let scoresMoved = 0;
+/** The new explanation's shown scores against the old one's: same sd, recentred on the margin-calibrated model scores. */
+function scoreCheck(x: any, o: any): string | null {
+  const m = (x.modelScoreA + x.modelScoreB) / 2, s = x.marginScale;
+  const A = m + s * (x.modelScoreA - m), B = m - s * (m - x.modelScoreB);
+  if (x.predictedScoreA !== Math.round(A) || x.predictedScoreB !== Math.round(B)) return `shown scores ${x.predictedScoreA}-${x.predictedScoreB} are not the calibrated ${A}-${B}`;
+  if (Math.round(x.modelScoreA) !== o.predictedScoreA || Math.round(x.modelScoreB) !== o.predictedScoreB) return "model scores are not the old build's scores";
+  for (const [k, c] of [["scoreBandA", A], ["scoreBandB", B]] as const) {
+    if (!Object.is(x[k].sd, o[k].sd) || x[k].level !== o[k].level) return `${k}: sd or level moved`;
+    const want = scoreBand(c, o[k].sd, o[k].level);
+    if (x[k].lo !== want.lo || x[k].hi !== want.hi) return `${k}: not the old range's sd recentred on the calibrated score`;
+  }
+  // The derived fields: each range is its band's bounds, and "score ± pm" reaches both ends from the shown score.
+  for (const [side, score] of [["A", x.predictedScoreA], ["B", x.predictedScoreB]] as const) {
+    const band = x[`scoreBand${side}`], range = x[`scoreRange${side}`], pm = x[`scorePlusMinus${side}`];
+    if (range[0] !== band.lo || range[1] !== band.hi) return `scoreRange${side}: not its band's bounds`;
+    if (pm !== Math.max(0, band.hi - score, score - band.lo)) return `scorePlusMinus${side}: does not reach the range from the shown score`;
+  }
+  return null;
+}
 /** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
  *  (e.g. '{"rating":{"rho1":0.6,"regionKappa":0}}' replays 2.6.0 as the champion). */
 const CHAMPION = flag("--champion") ? (JSON.parse(flag("--champion")!) as { rating?: Partial<RatingParams>; recalibration?: false }) : null;
@@ -118,8 +144,16 @@ for (const s of [...SEASONS].sort((a, b) => a - b)) {
         checked++;
       }
       if (OLD && !CHAMPION) {
-        const o = { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, shadow: M.contextual.fallback, band: M.band };
-        const d = firstDiff(explainMatch(champion, m.red.teams, m.blue.teams, o), OLD.explainMatch(champion as any, m.red.teams, m.blue.teams, o as any));
+        // With a bonus model for the season (2025+ quals), its odds and P(tie) are compared too.
+        const bonusModel = (M.bonus as Record<string, unknown>)[String(s)];
+        const o = { noise: M.noise, calibration: M.calibration, contextual: M.contextual, context: ctx, shadow: M.contextual.fallback, band: M.band, ...(bonusModel && m.level === "qual" ? { bonus: { season: s, model: { model: bonusModel, source: "fitted", samples: null } } } : {}) };
+        const xNew = explainMatch(champion, m.red.teams, m.blue.teams, o as any), xOld = OLD.explainMatch(champion as any, m.red.teams, m.blue.teams, o as any);
+        let d: string | null;
+        if (SCORES_MAY_MOVE) {
+          const strip = (x: any) => Object.fromEntries(Object.entries(x).filter(([k]) => !(SCORE_FIELDS as readonly string[]).includes(k)));
+          d = firstDiff(strip(xNew), strip(xOld)) ?? scoreCheck(xNew, xOld);
+          if (SCORE_FIELDS.some((k) => firstDiff((xNew as any)[k], (xOld as any)[k]))) scoresMoved++;
+        } else d = firstDiff(xNew, xOld);
         if (d) throw new Error(`explainMatch differs from ${OLD.ENGINE_VERSION} at ${m.eventCode} ${m.level} ${m.series}-${m.number}: ${d}`);
         against++;
       }
@@ -230,7 +264,7 @@ const corpusId = `snapshot-${String(dataVersion ?? "unknown").slice(0, 10)}`;
 const meta = {
   generated: new Date().toISOString().slice(0, 10), engine: ENGINE_VERSION, championModel: M.contextual.id, shadowModel: M.contextual.fallback.id,
   corpus: { id: corpusId, dataVersion, seasons: corpus, rules: "server/stats/job.ts backtest: remote/hybrid events dropped; scrimmage and off-season events predicted but never rated; only 2-robot alliances predicted; matches in start-time order, each predicted from earlier results only." },
-  explainMatchChecks: checked, ...(OLD ? { explainAgainst: { engine: OLD.ENGINE_VERSION, matches: against } } : {}), rowsSha256: rowsSha, baselineCheck, lowConfidenceBelow: 200, primarySeason: PRIMARY,
+  explainMatchChecks: checked, ...(OLD ? { explainAgainst: { engine: OLD.ENGINE_VERSION, matches: against, ...(SCORES_MAY_MOVE ? { scoresMayMove: true, scoreFields: SCORE_FIELDS, matchesWhoseShownScoresMoved: scoresMoved } : {}) } } : {}), rowsSha256: rowsSha, baselineCheck, lowConfidenceBelow: 200, primarySeason: PRIMARY,
 };
 // A --champion run replays something other than the shipped engine: it writes its gate only, never
 // over the shipped engine's slice report.
