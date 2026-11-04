@@ -131,6 +131,9 @@ describe("leaderboards", () => {
 describe("how a number changed", () => {
   it("OPR from last season to this season: both seasons' numbers and the difference", async () => {
     expect(readChange("how much did 4215's opr improve from last season to this season")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2025 });
+    // "from … to …" keeps its direction; "between" is oldest first.
+    expect(readChange("4215 opr change from 2025-26 to 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2025, to: 2024 });
+    expect(readChange("4215 opr change between 2025-26 and 2024-25")).toEqual({ stat: "opr", core: "4215", from: 2024, to: 2025 });
     const a = (await searchAnswer("how much did 4215's opr improve from last season to this season", { limit: 25, full: true })).stat;
     expect(a).toMatchObject({ title: "OPR change, 2024–25 to 2025–26", headline: { value: "−43.2", label: "OPR 144.8 in 2024–25 → 101.6 in 2025–26" } });
   });

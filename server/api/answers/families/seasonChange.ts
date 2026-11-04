@@ -40,11 +40,12 @@ export function readChange(raw: string): ChangeQuestion | null {
   const stat = m[2] === "opr" ? "opr" : "rating";
   const tail = (m[3] ?? "").trim();
   const def = searchSeason();
-  const two = /^(?:from|between) (.+?) (?:to|and) (.+)$/.exec(tail) ?? (/^since (.+)$/.exec(tail) ? [tail, tail.slice(6), "this season"] : null);
+  // "from X to Y" keeps its direction (the change is Y against X); "between X and Y" has none: oldest first.
+  const two = /^(from|between) (.+?) (?:to|and) (.+)$/.exec(tail) ?? (/^since (.+)$/.exec(tail) ? [tail, "from", tail.slice(6), "this season"] : null);
   if (two) {
-    const a = seasonIn(two[1]), b = seasonIn(two[2]);
+    const a = seasonIn(two[2]), b = seasonIn(two[3]);
     if (a == null || b == null || a === b) return null;
-    return { stat, core: m[1], from: Math.min(a, b), to: Math.max(a, b) };
+    return two[1] === "between" ? { stat, core: m[1], from: Math.min(a, b), to: Math.max(a, b) } : { stat, core: m[1], from: a, to: b };
   }
   if (!tail) return stat === "opr" ? { stat, core: m[1], from: def - 1, to: def } : { stat, core: m[1], from: null, to: def };
   const one = seasonIn(tail.replace(/^(?:in|during|over|across) /, ""));
