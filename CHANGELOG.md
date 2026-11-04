@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.0.0 — 2026-11-04
+
+Search answers questions about two or three teams, a team's partners and opponents, and predictions, each in one card from the stored numbers.
+
+### Highlights
+- [predict] "4215 vs 6980 prediction": win chance, score and margin
+- [teams] Compare two or three teams in one card: OPR, rating, record
+- [teams] Partners and opponents: lists, best and worst, win rates
+- [predict] Next-event chances come from the event's stored forecast
+
+### Search
+- **Predictions.** "4215 vs 6980 prediction", "who wins", "predicted score against", "expected margin against" and "win probability against" give the engine's call for one team on each alliance, the same numbers Predict shows for that lineup: who is favoured, the win chance, the predicted score and margin, and both teams' ratings. Nothing is worked out for the search: it uses the ratings the site already holds. (#PR)
+- **Next event.** "4215 chance to win an event", "advancement chances", "chance to advance to worlds", "predicted to make playoffs" and "predicted wins at their next event" read the event's stored forecast. Before one is published, the card names the event and says so; no number is guessed.
+- **Two and three teams.** "4215 vs 6980 compare" and "4215 6980 33950 compare" show OPR, OPR rank, the phases, rating and record for the season in one card. "Who is better at auto / teleop / endgame", "who has higher reliability" and "who has won more awards" name the winner from the team pages' numbers. "4215 wins against 6980" counts the meetings; "matches together" is the same list as "shared matches"; "match against 6980 at worlds" says when there is none.
+- **Partners and opponents.** Worst partner, partners and opponents (this season or at Worlds), teams beaten or lost to most often, the partner with the highest combined OPR, the highest-OPR opponent, win rate with partners and opponents' win rate, and a pick suggestion drawn from past partnerships. With no season named, the latest completed season (2025–26).
+
 ## 2.9.9 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
