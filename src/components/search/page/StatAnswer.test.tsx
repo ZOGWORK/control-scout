@@ -53,4 +53,15 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(c.querySelector("[data-opr-tiles]")).toBeNull();
     expect(c.querySelector("[data-headline]")!.className).toMatch(/bg-accent/);
   });
+  it("two teams' tiles for one phase both show, each naming its team", () => {
+    const c = draw({ ...opr, family: "two-team", intent: "phase-vs", blocks: [{ kind: "kpis", items: [
+      { label: "Hypnotic Robotics (4215)", value: "28.3", phase: "auto", rank: 880, of: 8308 },
+      { label: "Bad Wolf (6980)", value: "13.2", phase: "auto", rank: 5000, of: 8308 },
+    ] }] });
+    const tiles = [...c.querySelectorAll("[data-opr-tiles] > div")];
+    expect(tiles).toHaveLength(2);
+    expect(tiles[0].textContent).toContain("Autonomous · Hypnotic Robotics (4215)");
+    expect(tiles[1].textContent).toContain("Autonomous · Bad Wolf (6980)");
+    expect(tiles[1].textContent).toContain("13.2");
+  });
 });

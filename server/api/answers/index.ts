@@ -27,7 +27,7 @@ import { counts, matchAnswer, whoOf } from "./families/matches.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
-import { nextEventPrediction, pairPrediction } from "./families/predict.js";
+import { nextEventPrediction, pairPrediction, predictionSeason } from "./families/predict.js";
 import { answerSeason, awardsSideBySide, compareAnswer, headToHead, neverPlayedAnswer, opponentsAnswer, partnerListAnswer, phaseSideBySide, reliabilitySideBySide, seasonSideBySide } from "./families/twoTeam.js";
 import { sharedMatchList } from "../searchBoolean.js";
 import { winnersAnswer, worldsFollowUps } from "./families/winners.js";
@@ -355,11 +355,12 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
     case "compare": return compareAnswer([a, b], scope);
     case "phase-vs": return phaseSideBySide(two.phase ?? "auto", a, b, scope);
     case "reliability-vs": return reliabilitySideBySide(a, b, scope);
-    case "awards-vs": return awardsSideBySide(a, b);
+    case "awards-vs": return awardsSideBySide(a, b, scope.season);
     case "predict": case "win-chance": {
       // A prediction is one season's ratings: the season named, else the latest completed one.
-      const season = scope.season ?? answerSeason();
-      const why = scope.season == null ? `The season is ${seasonLabel(season)}, the latest completed season.` : undefined;
+      const s: { season: number; why?: string } = scope.season != null ? { season: scope.season } : await predictionSeason(a.number, b.number);
+      const season = s.season;
+      const why = s.why;
       return pairPrediction(two.id, `${two.id === "win-chance" ? "Win chance" : "Prediction"}: ${a.number} vs ${b.number} in ${seasonLabel(season)}`, a, b, season, why);
     }
     default: return seasonSideBySide(two.id, a, b, scope);

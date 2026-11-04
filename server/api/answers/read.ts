@@ -270,17 +270,20 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp }[] = [
 /** Read from the matches the two teams met in: a match-type, colour, Worlds or states scope applies to them. */
 const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
 
-/** "4215 6980 33950 compare", "compare 4215, 6980 and 33950", "4215 vs 6980 vs 33950": three to six team numbers, side
- *  by side (families/twoTeam.ts compareAnswer). Two teams are readTwoTeam's. Numbers only: names are Compare's. */
+/** "4215 6980 33950 compare", "compare 4215, 6980 and 33950", "4215 vs 6980 vs 33950": three or four team numbers (as
+ *  many as Compare takes), side by side (families/twoTeam.ts compareAnswer). Two teams are readTwoTeam's. Numbers only:
+ *  names are Compare's. */
+/** The most teams Compare shows side by side. */
+const COMPARE_MAX = 4;
 export interface TeamSetQuestion { teams: number[]; season: number | null }
 export function readTeamSet(raw: string): TeamSetQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ");
   const { scope, rest } = readScope(q);
   if (scope.at || scope.championship || scope.states || scope.level || scope.alliance) return null;
-  const m = /^(?:compare )?((?:\d{1,5}(?: (?:vs\.?|versus|and|or))? ){2,5}\d{1,5})(?: (?:compare|comparison|compared|side by side|stats))?$/.exec(rest);
+  const m = /^(?:compare )?((?:\d{1,5}(?: (?:vs\.?|versus|and|or))? ){2,3}\d{1,5})(?: (?:compare|comparison|compared|side by side|stats))?$/.exec(rest);
   if (!m || (!/^compare /.test(rest) && !/ (?:compare|comparison|compared|side by side|stats)$/.test(rest) && !/\b(?:vs\.?|versus)\b/.test(m[1]))) return null;
   const teams = [...new Set(m[1].split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
-  return teams.length >= 3 && teams.length <= 6 ? { teams, season: scope.season } : null;
+  return teams.length >= 3 && teams.length <= COMPARE_MAX ? { teams, season: scope.season } : null;
 }
 
 /** "4215 vs 6980 head to head", "4215 OPR vs 6980", "who has a better record, 4215 or 6980": two teams named, or null. */

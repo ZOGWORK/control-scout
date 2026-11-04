@@ -298,21 +298,22 @@ export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope:
 }
 
 /** "4215 vs 6980 who has won more awards": every award each team won, every season, as its team page's Awards counts them. */
-export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam): Promise<StatAnswer> {
-  const rows = await all<{ team: number; season: number; n: number }>("SELECT a.team, a.season, COUNT(*) n FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team IN (?, ?) GROUP BY a.team, a.season", [a.number, b.number]);
+export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: number | null = null): Promise<StatAnswer> {
+  const rows = await all<{ team: number; season: number; n: number }>(`SELECT a.team, a.season, COUNT(*) n FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team IN (?, ?)${season != null ? " AND a.season = ?" : ""} GROUP BY a.team, a.season`, season != null ? [a.number, b.number, season] : [a.number, b.number]);
+  const where = season != null ? seasonLabel(season) : "all seasons";
   const total = (t: number) => rows.filter((r) => Number(r.team) === t).reduce((x, r) => x + Number(r.n), 0);
   const na = total(a.number), nb = total(b.number), ahead = na >= nb ? a : b;
   const seasons = [...new Set(rows.map((r) => Number(r.season)))].sort((x, y) => y - x);
   const of = (t: number, s: number) => Number(rows.find((r) => Number(r.team) === t && Number(r.season) === s)?.n ?? 0);
   const count = (n: number) => `${n} award${n === 1 ? "" : "s"}`;
-  const tile = (t: AnswerTeam, n: number) => ({ label: whoOf(t), value: String(n), sub: "awards, all seasons", href: `${teamHref(t.number)}#awards`, ...(na !== nb && t === ahead ? { tone: "accent" as const } : {}) });
+  const tile = (t: AnswerTeam, n: number) => ({ label: whoOf(t), value: String(n), sub: `awards, ${where}`, href: `${teamHref(t.number)}#awards`, ...(na !== nb && t === ahead ? { tone: "accent" as const } : {}) });
   return {
-    family: "two-team", intent: "awards-vs", title: `Awards: ${a.number} vs ${b.number}`, team: a, teams: [a, b], scope: ["All seasons"],
-    definition: "Every award in the events' published awards, every season we cover, as each team page's Awards section counts them (an alliance award counts once for each of its teams).", source: `From ${na + nb} award records`,
+    family: "two-team", intent: "awards-vs", title: `Awards: ${a.number} vs ${b.number}${season != null ? ` in ${where}` : ""}`, team: a, teams: [a, b], scope: [season != null ? where : "All seasons"],
+    definition: "Every award in the events' published awards, the season named or every season we cover, as each team page's Awards section counts them (an alliance award counts once for each of its teams).", source: `From ${na + nb} award records`,
     headline: { value: na === nb ? "Even" : whoOf(ahead), label: na === nb ? `${count(na)} each` : `${count(Math.max(na, nb))} against ${Math.min(na, nb)}`, href: na === nb ? undefined : `${teamHref(ahead.number)}#awards` },
     blocks: [
       { kind: "kpis", items: [tile(a, na), tile(b, nb)] },
-      ...(seasons.length ? [{ kind: "table" as const, title: "By season", columns: [{ key: "season", label: "Season" }, { key: "a", label: String(a.number), num: true }, { key: "b", label: String(b.number), num: true }],
+      ...(seasons.length > 1 ? [{ kind: "table" as const, title: "By season", columns: [{ key: "season", label: "Season" }, { key: "a", label: String(a.number), num: true }, { key: "b", label: String(b.number), num: true }],
         rows: seasons.map((x) => ({ cells: { season: seasonLabel(x), a: of(a.number, x), b: of(b.number, x) } })) }] : []),
     ],
   };
@@ -405,14 +406,16 @@ export async function partnerListAnswer(id: IntentId, team: AnswerTeam, msAll: T
     const what = id === "beat-most" ? " that it beat" : id === "lost-to-most" ? " that beat it" : "";
     return { ...base, blocks: [], none: `No ${partners ? "partner played with" : "opponent met"}${need}${what}${where} found for ${whoOf(team)}.` };
   }
-  const shown = ranked.slice(0, LIST_CAP);
+  const list = id === "partners" || id === "opponents";
+  // The two full lists keep every team (a season's opponents run to a few dozen); the rest show their top rows.
+  const shown = list ? ranked : ranked.slice(0, LIST_CAP);
   const links = await teamLinks(shown.map((x) => x.team));
   const name = (n: number) => links.get(n)?.label ?? String(n);
   const eventsOf = (x: Tally) => { const es = [...new Set(x.ms.map((m) => m.event))]; return es.slice(0, 3).join(", ") + (es.length > 3 ? ", …" : ""); };
   const last = (x: Tally) => `Last ${partners ? "together" : "met"} ${x.ms[0].label} at ${x.ms[0].event}, ${seasonLabel(x.ms[0].season)}`;
   const recCol = { key: "record", label: partners ? "W-L-T together" : `W-L-T for ${team.number}` };
   const nCol = { key: "n", label: partners ? "Together" : "Met", num: true };
-  const more = ranked.length > LIST_CAP ? { more: `Showing ${LIST_CAP} of ${ranked.length}` } : {};
+  const more = ranked.length > shown.length ? { more: `Showing ${shown.length} of ${ranked.length}` } : {};
   const row = (x: Tally, cells: Record<string, string | number | null>) => ({ cells: { team: name(x.team), ...cells }, href: teamHref(x.team, scope.season), strong: x === top });
 
   if (id === "partner-win-rate" || id === "opponent-win-rate") {
@@ -444,7 +447,6 @@ export async function partnerListAnswer(id: IntentId, team: AnswerTeam, msAll: T
         rows: shown.map((x) => row(x, { opr: num1(oprOf(x.team)), ...(id === "partner-top-opr" ? { sum: num1((own ?? 0) + (oprOf(x.team) ?? 0)) } : {}), n: x.ms.length, record: recText(rec(x)) })), ...more }],
     };
   }
-  const list = id === "partners" || id === "opponents";
   if (list) {
     return {
       ...base,

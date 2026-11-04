@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { CURRENT_SEASON } from "../../data/seasons";
+import { setFlag } from "../../flags";
 import { searchAnswer } from "../searchAnswer";
 import { answerSeason } from "./families/twoTeam";
 import { readStatQuestion, readTeamSet, readTwoTeam } from "./read";
@@ -168,5 +169,21 @@ describe("the answers", () => {
     expect(none.stat!.headline).toMatchObject({ value: "Not published yet" });
     expect(none.stat!.none).toMatch(/hasn't published a projection for Northeast League Meet yet/);
     expect((await ask("6980 chance to advance to worlds")).stat!.none).toMatch(/^No upcoming event is published for Bad Wolf \(6980\)/);
+    // The forecast's switch off: the event page shows no odds, and nor does search.
+    await setFlag("advancementOdds", false, "test");
+    const off = await ask("4215 chance to win an event");
+    expect(off.stat!.headline).toMatchObject({ value: "Switched off" });
+    expect(JSON.stringify(off.stat)).not.toContain("22%");
+    await setFlag("advancementOdds", true, "test");
+  });
+  it("review fixes: an awards season named, Compare's four-team limit, the full lists", async () => {
+    // Awards in a season with none for either side: counted for that season, not every season.
+    expect((await ask(`4215 awards vs 6980 ${S - 1}-${String(S % 100).padStart(2, "0")}`)).stat!.headline).toMatchObject({ value: "Even", label: "0 awards each" });
+    expect(readTeamSet("4215 6980 33950 207 compare")).toEqual({ teams: [4215, 6980, 33950, 207], season: null });
+    expect(readTeamSet("4215 6980 33950 207 23268 compare")).toBeNull();
+    // Every opponent listed (six here), never cut short.
+    const o = await ask("4215 opponents this season");
+    expect(o.stat!.blocks[0]).toMatchObject({ kind: "table" });
+    expect((o.stat!.blocks[0] as { rows: unknown[] }).rows).toHaveLength(Number(o.stat!.headline!.value));
   });
 });

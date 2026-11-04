@@ -7,11 +7,12 @@
 //     job stored for that event (server/projections/store.ts: event_projections), read as the event page reads it.
 //     No stored projection: the card names the event and says the projection isn't published yet. Never a guess.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
+import { eventToday } from "../../../../src/shared/eventDay.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
 import { advanceStatus } from "../../../../src/shared/projections.js";
-import { CURRENT_SEASON, isLegacy } from "../../../data/seasons.js";
-import { all, get } from "../../../db.js";
+import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../../../data/seasons.js";
+import { all } from "../../../db.js";
 import { ROSTER } from "../../../data/registrations.js";
 import { isEnabled } from "../../../flags.js";
 import { readyForecaster, recentRecords } from "../../../predict/engine.js";
@@ -19,6 +20,7 @@ import { readProjections } from "../../../projections/store.js";
 import { eventHref, teamHref } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
+import { answerSeason } from "./twoTeam.js";
 
 const pct = (p: number) => `${Math.round(100 * p)}%`;
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
@@ -26,6 +28,17 @@ const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(
 const PREDICT_RULE = "The engine's call for one team on each alliance in a qualification match, as Predict makes it for the same lineup: each side's expected score (without penalties, margin-calibrated), the win chance and the predicted margin. It rests on each team's prediction rating (points per match ± its uncertainty) as their team pages show it. A real FTC match is two alliances of two, so a real match's call also needs the partners: Predict works it out for any lineup.";
 
 interface RatingRow { team: number; rating_np: number | null; rating_sd: number | null; rating_rank: number | null }
+
+/** The season a prediction reads when none is named: the latest completed one when both teams have a rating there,
+ *  else the latest predicted season both have one in (said so), else the latest completed one (its card says what's
+ *  missing). */
+export async function predictionSeason(a: number, b: number): Promise<{ season: number; why: string }> {
+  const def = answerSeason();
+  const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (?, ?) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = 2 ORDER BY season DESC`, [a, b, FIRST_PREDICT_SEASON]);
+  const both = rows.map((r) => Number(r.season));
+  if (both.includes(def) || !both.length) return { season: def, why: `The season is ${seasonLabel(def)}, the latest completed season.` };
+  return { season: both[0], why: `The season is ${seasonLabel(both[0])}, the latest season both teams have a prediction rating in.` };
+}
 
 /** "4215 vs 6980 prediction", "who wins", "predicted score", "expected margin", "win probability". */
 export async function pairPrediction(intent: string, title: string, a: AnswerTeam, b: AnswerTeam, season: number, why?: string): Promise<StatAnswer> {
@@ -84,15 +97,21 @@ const NEXT_RULE = "From the engine's stored projection for the event (the event 
 export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = new Date()): Promise<StatAnswer> {
   const title = NEXT_TITLES[id] ?? "Prediction";
   // The events a team is listed for (a FIRST registration counts), as "when is <team>'s next event" reads them.
-  const today = new Date(now.getTime() - 864e5).toISOString().slice(0, 10);
-  const e = await get<{ season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null }>(
-    `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
-     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 1`, [team.number, today]);
+  // A day either side in UTC, then the venue's own today: the day after a meet, it's no longer the next event.
+  const yesterday = new Date(now.getTime() - 864e5).toISOString().slice(0, 10);
+  const e = (await all<{ season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; timezone: string | null }>(
+    `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state, e.timezone FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
+     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 10`, [team.number, yesterday]))
+    .find((x) => (x.end ?? x.start ?? "") >= eventToday(now.getTime(), x.timezone).from);
   const S = seasonLabel(e ? Number(e.season) : CURRENT_SEASON);
   const base = { family: "stat" as const, intent: id, title, team, scope: [S, "Next event"], definition: NEXT_RULE, source: e ? `${e.name}, ${S}` : `${team.number}'s published events` };
   if (!e) return { ...base, blocks: [], none: `No upcoming event is published for ${whoOf(team)} in ${S} yet, so there's no projection to show.` };
   const when = [dateRange(e.start, e.end), [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
   const evLink: StatBlock = { kind: "links", title: "Next event", items: [{ label: e.name, sub: when, href: eventHref(Number(e.season), e.code, team.number) }] };
+  // The forecast's own switch (advancementOdds): off, the event page shows none, so search shows none either.
+  if (!(await isEnabled("advancementOdds").catch(() => false))) {
+    return { ...base, headline: { value: "Switched off", label: `${e.name} · ${when}`, href: eventHref(Number(e.season), e.code, team.number) }, blocks: [evLink], none: "Event forecasts are switched off just now, so no chance is shown." };
+  }
   const run = (await readProjections(Number(e.season), e.code)).current;
   const row = run?.teams.find((t) => t.team === team.number);
   if (!run || !row) {
