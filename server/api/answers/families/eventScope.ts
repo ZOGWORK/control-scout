@@ -3,7 +3,7 @@
 // (../eventSet.ts); families 3 and 4 take an event scope the same way ("4215 record at …", "4215 highest score at …").
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
-import { dateRange, place, seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, place, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { inScope, scopeChips, type Scope } from "../clauses.js";
 import type { TeamEvent } from "../eventSet.js";
 import { eventHref, matchRow, teamLinks, type TeamMatch } from "../matchSet.js";
@@ -40,7 +40,7 @@ export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: Team
     // A qualification number first ("match 12" is Q12 at most events), else a playoff match with that number.
     const m = ms.find((x) => x.level === "qual" && x.number === n) ?? ms.find((x) => x.label.toUpperCase() === `M${n}` || x.label.toUpperCase() === `Q${n}`);
     const title = `Match ${n} at ${name}`;
-    if (!m) return { ...base, family: "event", intent: id, title, blocks: ms.length ? [{ kind: "matches", title: `${team.name ?? team.number}'s matches there`, rows: ms.slice(0, 25).map(row) }] : [], definition: RECORD_RULE, none: `${who} didn't play a match ${n} at ${name}: its own matches there are listed below.` };
+    if (!m) return { ...base, family: "event", intent: id, title, blocks: ms.length ? [{ kind: "matches", title: `${possessive(String(team.name ?? team.number))} matches there`, rows: ms.slice(0, 25).map(row) }] : [], definition: RECORD_RULE, none: `${who} didn't play a match ${n} at ${name}: its own matches there are listed below.` };
     return {
       ...base, family: "event", intent: id, title,
       headline: { value: `${m.result === "W" ? "Won" : m.result === "L" ? "Lost" : "Tied"} ${m.own}–${m.opp}`, label: `${m.label} at ${name}`, sub: [row(m).date, `${m.alliance === "red" ? "Red" : "Blue"} alliance`, m.ownNp != null && m.ownNp !== m.own ? `${m.ownNp} without penalties` : ""].filter(Boolean).join(" · "), href: row(m).href },

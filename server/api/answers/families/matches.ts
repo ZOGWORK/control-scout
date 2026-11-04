@@ -185,7 +185,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         const [latest, xs] = seasons[0];
         return {
           ...base, family: "aggregate", intent: id, title,
-          headline: { value: mean(xs.map(np)).toFixed(1), label: `points a match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
+          headline: { value: mean(xs.map(np)).toFixed(1), label: `points per match (no penalties) in ${seasonLabel(latest)}, over ${xs.length} match${xs.length === 1 ? "" : "es"}`, sub: "Each season is a different game: every season's average is listed apart" },
           blocks: [{ kind: "table", title: "Average each season (a different game each year)", columns: [{ key: "season", label: "Season" }, { key: "avg", label: "No penalties", num: true }, { key: "with", label: "With penalties", num: true }, { key: "n", label: "Matches", num: true }],
             rows: seasons.map(([s, ys]) => ({ cells: { season: seasonLabel(s), avg: mean(ys.map(np)).toFixed(1), with: mean(ys.map((m) => m.own)).toFixed(1), n: ys.length }, strong: s === latest })) }],
           definition: `${def} Each season is a different game, so each season's average is its own and none is pooled across seasons.`,
@@ -195,7 +195,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       for (const m of ms) events.set(`${m.season}|${m.code}`, [...(events.get(`${m.season}|${m.code}`) ?? []), m]);
       return {
         ...base, family: "aggregate", intent: id, title,
-        headline: { value: mean(ms.map(np)).toFixed(1), label: `points a match (no penalties), over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: scope.season != null ? seasonLabel(scope.season) : "All seasons" },
+        headline: { value: mean(ms.map(np)).toFixed(1), label: `points per match (no penalties), over ${ms.length} match${ms.length === 1 ? "" : "es"}`, sub: scope.season != null ? seasonLabel(scope.season) : "All seasons" },
         blocks: [
           { kind: "kpis", items: [{ label: "With penalties", value: mean(ms.map((m) => m.own)).toFixed(1) }, { label: "Best", value: String(Math.max(...ms.map(np))) }, { label: "Lowest", value: String(Math.min(...ms.map(np))) }] },
           { kind: "series", title: "Average by event", unit: "points", points: [...events.values()].map((xs) => ({ x: xs[0].event, y: Number(mean(xs.map(np)).toFixed(1)), href: eventHref(xs[0].season, xs[0].code, team.number), note: `${xs.length} matches` })) },

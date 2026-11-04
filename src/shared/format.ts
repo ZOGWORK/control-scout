@@ -9,6 +9,16 @@ export const pct = (p: number | null | undefined, digits = 0) => (p == null || !
 export const num = (x: number | null | undefined, digits = 1) => (x == null || !Number.isFinite(x) ? "—" : x.toFixed(digits).replace(/\.0+$/, ""));
 export const int = (x: number | null | undefined) => (x == null || !Number.isFinite(x) ? "—" : Math.round(x).toLocaleString());
 
+/** A name as its owner: "Hypnotic Robotics'" for a name ending in s, "Bad Wolf's" (and "4215's") otherwise. */
+export const possessive = (name: string) => (/s$/i.test(name.trim()) ? `${name.trim()}'` : `${name.trim()}'s`);
+
+/** A chart's caption, one sentence: "Ranges from 52.4 to 101.6 across 5 values." (the unit once, after the high). */
+export function rangeCaption(lo: number, hi: number, n: number, unit?: string): string {
+  const u = unit ? ` ${unit}` : "";
+  if (n === 1 || lo === hi) return `${n === 1 ? "One value" : `All ${n} values`}: ${hi}${u}.`;
+  return `Ranges from ${lo} to ${hi}${u} across ${n} values.`;
+}
+
 /**
  * Where a rank out of n sits, as the share of teams ranked at or above it: "top 4%", and further
  * down "top 69%". Always "top", never "bottom": a team's own page shouldn't call it the bottom of
