@@ -31,6 +31,20 @@ Search answers about one event work for every team, not only the teams it was fi
 - **Places.** A team from elsewhere asked its place on New Jersey's lists is told it's from its own state, with that state's question, not that it's short of matches.
 - **Worlds rating.** An off-season event after Worlds isn't rated, so "rating at worlds" now shows the rating a team finished Worlds on instead of "isn't stored".
 - **Team numbers.** A typed number is a typo only of a number as long: team 20205 no longer matches the year 2025, nor 20265 an event named "… 2026 Bishkek", so "when did 20265 start in FTC" finds the team.
+## 3.0.8 — 2026-11-04
+
+Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
+
+### Highlights
+- [teams] Mistyped team names reach the team: "hypnotc robotics"
+- [teams] Search shows "Did you mean: …" and runs it on a tap
+- [fixes] Mistyped words like "recrod" or "awrds" still answer
+- [fixes] Two names equally close are both shown, never guessed
+
+### Search
+- **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: "hypnotc robotics", "bad wolff", "enforcrs", "4215 recrod", "4215 awrds", "hypnotic oper", "new jersey champinship", "new jersy", "oradel". Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
+- **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
+- **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
 
 ## 3.0.7 — 2026-11-04
 

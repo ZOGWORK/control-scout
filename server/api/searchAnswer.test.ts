@@ -118,8 +118,9 @@ describe("learning (T30–T35, T65, T67–T69)", () => {
     expect(fixed).toMatch(/Gear Grinders \(111\) · OPR/);
     await setFlag("searchLearning", true, "test");
     invalidateFlags();
+    // The near match itself, as typed (alone, "geer" is read as its spelling fix "gear": ./spelling.ts).
     for (let i = 0; i < 50; i++) await recordClick("geer", team("333", "Gear Force"));
-    expect(order((await searchAnswer("geer")).hits)[0]).toBe("333");
+    expect(order((await searchAnswer("geer", { spell: false })).hits)[0]).toBe("333");
     expect(await about()).toBe(fixed);
   });
   it("aggregate only: counts by term and result, nothing about who; no network", async () => {
