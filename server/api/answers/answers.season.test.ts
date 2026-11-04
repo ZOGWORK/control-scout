@@ -119,6 +119,8 @@ describe("leaderboards", () => {
     const a = await searchAnswer("best team in Oradell", { limit: 25, full: true });
     expect(a.stat).toMatchObject({ title: "Best team in Oradell, NJ by OPR · 2025–26", headline: { value: "4215 Hypnotic Robotics", label: "OPR 101.6, 26-6-0" } });
     expect((await searchAnswer("best team in atlantis", { limit: 25, full: true })).stat?.intent).not.toBe("city-best");
+    // "Top 1" still counts every ranked team of the city.
+    expect((await searchAnswer("top 1 teams in Oradell", { limit: 25, full: true })).stat?.headline).toMatchObject({ value: "4215 Hypnotic Robotics", sub: "#1 of 2 ranked in Oradell, NJ" });
     // A city name two states share names no one state.
     const sp = (await searchAnswer("best team in Springfield", { limit: 25, full: true })).stat;
     expect(sp).toMatchObject({ title: "Best team in Springfield by OPR · 2025–26", headline: { value: "22222 Spring Two" } });

@@ -145,10 +145,16 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
 
 /** "Best team in Oradell": the city's teams ranked by OPR in the season (3+ matches), the best first. */
 async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Promise<StatAnswer> {
-  const rows = await all<{ team: number; name: string | null; city: string; state: string | null; opr: number; wins: number; losses: number; ties: number }>(
-    `SELECT s.team, t.name, t.city, t.state, s.opr_np opr, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team
-     WHERE s.season = ? AND s.matches >= ? AND s.opr_np IS NOT NULL AND lower(t.city) = lower(?) AND ${teamPageSql("s.team", "t.name")}
-     ORDER BY s.opr_np DESC, s.wins DESC, s.team LIMIT ?`, [season, RANKED_MIN_MATCHES, b.city, b.n]);
+  const ranked = `s.season = ? AND s.matches >= ? AND s.opr_np IS NOT NULL AND lower(t.city) = lower(?) AND ${teamPageSql("s.team", "t.name")}`;
+  const args = [season, RANKED_MIN_MATCHES, b.city];
+  const [rows, count] = await Promise.all([
+    all<{ team: number; name: string | null; city: string; state: string | null; opr: number; wins: number; losses: number; ties: number }>(
+      `SELECT s.team, t.name, t.city, t.state, s.opr_np opr, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team
+       WHERE ${ranked} ORDER BY s.opr_np DESC, s.wins DESC, s.team LIMIT ?`, [...args, b.n]),
+    get<{ n: number }>(`SELECT COUNT(*) n FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE ${ranked}`, args),
+  ]);
+  // Every ranked team of the city counts, not only the rows shown ("top 5 teams in Oradell").
+  const total = Number(count?.n ?? rows.length);
   const name = rows[0]?.city ?? b.city!;
   // A city name several states share ("Springfield") is every one of them, so the heading names a state only when one.
   const states = [...new Set(rows.map((r) => r.state).filter(Boolean))];
@@ -157,18 +163,18 @@ async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Pr
   const base = {
     family: "leaderboard" as const, intent: "city-best", title: `Best team${where} by OPR · ${S}`, scope: [name, S],
     definition: `Teams whose home city is ${name}, as FIRST lists it${states.length > 1 ? ` (in ${states.join(", ")})` : ""}, by their ${S} OPR. ${RANKED}${why}`,
-    source: `From the ${S} season numbers of ${rows.length} ranked team${rows.length === 1 ? "" : "s"}${where}`,
+    source: `From the ${S} season numbers of ${total} ranked team${total === 1 ? "" : "s"}${where}`,
   };
   if (!rows.length) return { ...base, blocks: [], none: `No team from ${name} has played ${RANKED_MIN_MATCHES}+ matches in ${S}.` };
   const top = rows[0];
   const st = BOARD_STATS.opr;
   return {
     ...base,
-    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `OPR ${fmt(top.opr, st)}, ${record(top)}`, sub: `#1 of ${rows.length} ranked${where}`, href: teamHref(Number(top.team), season) },
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `OPR ${fmt(top.opr, st)}, ${record(top)}`, sub: `#1 of ${total} ranked${where}`, href: teamHref(Number(top.team), season) },
     blocks: [{
       kind: "leaderboard", title: `Teams${where} by OPR`, stat: { id: "opr", label: "OPR" },
       ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
-      note: `${S} · ${rows.length} ranked team${rows.length === 1 ? "" : "s"}${where} · by OPR`,
+      note: `${S} · ${total} ranked team${total === 1 ? "" : "s"}${where} · by OPR`,
       rows: rows.map((r, i) => ({ rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) }, location: [r.city, r.state].filter(Boolean).join(", ") || null, record: record(r), opr: Number(r.opr), value: Number(r.opr), display: fmt(r.opr, st), parts: null })),
     }],
   };
