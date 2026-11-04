@@ -61,6 +61,8 @@ describe("the brief's ten cases", () => {
   it("1. 4215 and 6980: the matches both teams played in, on either alliance", async () => {
     const a = await ask("4215 and 6980");
     expect(a.stat?.intent).toBe("boolean-and");
+    // Both teams as data, so the page doesn't list them again as team cards (src/components/search/page/results.ts answerTeams).
+    expect(a.stat?.teams?.map((t) => t.number)).toEqual([4215, 6980]);
     expect(rowsOf(a).map((r) => r.label)).toEqual(["Q4", "Q3", "Q2", "Q1"]);
     for (const r of rowsOf(a)) expect(teamsIn(r, "4215")).toEqual(expect.arrayContaining(["4215", "6980"]));
     expect(a.stat?.headline).toMatchObject({ value: "4", label: expect.stringContaining("1 as partners, 3 as opponents") });
@@ -196,6 +198,7 @@ describe("precedence and parsing", () => {
   it("any other stat: each team's own answer in one table, opening the section that answer opens", async () => {
     const a = await ask("4215 and 6980 record");
     expect(a.stat?.intent).toBe("boolean-compare");
+    expect(a.stat?.teams?.map((t) => t.number)).toEqual([4215, 6980]);
     // The search's team table: each team's season numbers, the stat asked as its own column.
     const t = a.stat?.blocks.find((b) => b.kind === "leaderboard") as Extract<StatBlock, { kind: "leaderboard" }>;
     expect(t.rows.map((r) => r.team.label)).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);

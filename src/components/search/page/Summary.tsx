@@ -41,7 +41,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
     <>
     {/* Phones: every season as a chip in one sideways line, newest first like the cards, each jumping to its card. */}
     <nav aria-label="Seasons" className="mt-3 md:hidden" data-timeline-chips>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">By season</p>
+      <p className="text-xs font-semibold text-muted-foreground">By season</p>
       <ol className="-mx-1 mt-1.5 flex items-center gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
         {[...apps].reverse().map((a, i) => (
           <li key={a.id} className="flex shrink-0 items-center gap-1">
@@ -56,7 +56,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
     </nav>
     {/* The line needs two seasons to draw. */}
     {apps.length > 1 && <figure className="mt-3 max-md:hidden" data-timeline>
-      <figcaption className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Division rank by season</figcaption>
+      <figcaption className="text-xs font-semibold text-muted-foreground">Division rank by season</figcaption>
       <div className="relative mt-2 h-28">
         <span className="absolute left-0 top-[18%] -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" aria-hidden>#1</span>
         {worst > 1 && <span className="absolute left-0 top-[82%] -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" aria-hidden>#{worst}</span>}

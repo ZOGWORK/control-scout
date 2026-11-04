@@ -19,7 +19,7 @@ export function SearchSkeleton({ query, top }: { query: string; top?: ReactNode 
   return (
     <div className="w-full max-w-6xl pt-4 sm:pt-8" data-search-loading aria-busy="true">
       {top}
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-accent-text max-md:hidden">FTC One Search</p>
+      <p className="text-xs font-semibold text-accent-text max-md:hidden">FTC One Search</p>
       <h1 className="sr-only">Searching for “{query}”</h1>
       <div className="skeleton mt-2 h-7 w-3/4 max-w-lg md:h-8" aria-hidden />
       <div className="skeleton mt-3 h-6 w-56 max-w-full rounded-full" aria-hidden />

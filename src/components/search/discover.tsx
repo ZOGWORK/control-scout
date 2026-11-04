@@ -30,7 +30,7 @@ export function ExampleChips({ examples = SEARCH_EXAMPLES, onRun, label = "Try",
       {label && <span>{label}:</span>}
       {examples.map((q) => (
         <button key={q} type="button" data-example onPointerDown={(e) => e.preventDefault()} onMouseDown={(e) => e.preventDefault()} onClick={() => onRun(q)}
-          className="inline-flex items-center rounded-full border border-border px-3 py-1 text-foreground hover:border-accent/60 hover:text-accent-text max-sm:min-h-9">
+          className="inline-flex items-center rounded-full border border-border px-3 py-1 text-foreground hover:border-accent/60 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
           {q}
         </button>
       ))}

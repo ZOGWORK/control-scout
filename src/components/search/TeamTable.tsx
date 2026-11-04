@@ -122,7 +122,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     {phases && (
                       <td className="py-1 pr-1 md:hidden">
                         <button type="button" onClick={() => toggle(r.team)} aria-expanded={isOpen} aria-controls={more} aria-label={`${isOpen ? "Hide" : "Show"} phases for ${name}`} data-expand={r.team}
-                          className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+                          className="inline-flex size-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
                           <ChevronDown className={cn("size-4 transition-transform", isOpen && "rotate-180")} aria-hidden />
                         </button>
                       </td>
@@ -158,7 +158,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
         </figcaption>
       )}
       <details className="mt-1 text-[11px] text-muted-foreground" data-column-defs>
-        <summary className="cursor-pointer select-none hover:text-foreground">What the columns mean</summary>
+        <summary className="cursor-pointer select-none hover:text-foreground max-md:py-3.5 pointer-coarse:py-3.5">What the columns mean</summary>
         <dl className="mt-1 space-y-0.5">
           {columns.filter((c) => phases || !["auto", "dc", "endgame", "pen"].includes(c.key)).map((c) => (
             <div key={c.key} className="flex gap-1.5"><dt className="w-14 shrink-0 font-medium text-foreground">{c.label}</dt><dd>{c.def}</dd></div>
