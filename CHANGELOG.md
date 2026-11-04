@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.1.2 — 2026-11-04
+## 3.1.0 — 2026-11-04
 
 Search answers look like the team page all the way down: an award at an event is a podium with every award the event gave, a record splits qualifications from playoffs, and no name is cut off.
 
@@ -33,6 +33,19 @@ Search answers look like the team page all the way down: an award at an event is
 - **Place card.** "where is 4215 from" draws the place over a map-style grid with a pin, the place big, and its city, state and country as FIRST lists them.
 - **Leaderboards.** The top three's rank badges are coloured (green, blue, orange).
 - **No truncation.** Match rows' event names and partners, and OPR by event's names, wrap instead of being cut off with "…"; the cut-off names under the OPR line are gone (the list under it has every name). Table values such as W-L-T stay on one line on phones. (#648)
+## 3.0.9 — 2026-11-04
+
+Three fixes to the two-team and forecast answers from 3.0.7's last review.
+
+### Highlights
+- [predict] A forecast "this season" is labelled with the current season
+- [teams] Partner OPR at a named event uses that event's season
+- [teams] Compare names no leader when no team has an OPR
+
+### Fixes
+- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season, also when the question names an event ("at Northeast League Meet this season"). (#628)
+- **Partner OPR at an event.** "Partner with the highest combined OPR at" an event asked for a season although the event names one; it now reads that event's season, the meetings still that event's only.
+- **Compare with no OPR.** When none of the compared teams has an OPR (counted matches that were all no-shows), the card shows the table and names no leader, instead of the first team under "Highest OPR: –".
 
 ## 3.0.8 — 2026-11-04
 

@@ -136,12 +136,15 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   else if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
     // alike): left to search's team-at-event answer, which lets the visitor pick.
-    const season = s.season ?? (s.latest ? (await latestSeason(team, it.id))?.season ?? null : null);
+    // A forecast's "this season" is the current one (its upcoming event), not the team's last played.
+    const season = s.season ?? (s.latest ? (PREDICT_INTENTS.has(it.id) ? CURRENT_SEASON : (await latestSeason(team, it.id))?.season ?? null) : null);
     if (s.latest && season == null) return null;
     const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;
     return { ...scope, season: null, event: { season: e.season, code: e.code, name: e.name } };
   }
+  // A forecast's "this season" is the current one, where its upcoming event is: the heading and links agree with it.
+  if (s.season == null && s.latest && PREDICT_INTENTS.has(it.id)) return { ...scope, season: CURRENT_SEASON };
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest") && PARTNER_LIST_INTENTS.has(it.id)) {
     // The partner and opponent answers read the latest completed season when the team played it ("this season" too).
     const def = searchSeason();
@@ -269,8 +272,8 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
   if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
   // A forecast is for one event: the one named, else the team's next; a place or Worlds isn't one event.
-  // Only a season written in the question narrows it ("this season" is the current one, not the team's last played).
-  if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, it.scope.season ?? (it.scope.latest ? CURRENT_SEASON : null));
+  // Only a season written in the question, or "this season" (the current one), narrows it.
+  if (PREDICT_INTENTS.has(it.id)) return scope.place || scope.championship || scope.states ? null : nextEventPrediction(it.id, team, undefined, scope.event, scope.season ?? null);
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);
   if (PARTNER_LIST_INTENTS.has(it.id)) return partnerListAnswer(it.id, team, ms, scope);
