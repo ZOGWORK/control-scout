@@ -33,6 +33,20 @@ Search answers questions that join filters or ask two things at once, each filte
 - **Two answers on one card.** "Awards and record" (or OPR), and "where is … from and what is their record", which also finds a team by its name. Three or four teams' reliability side by side names the most reliable.
 - **Fixes.** A compare side made only of words like "when they lose" no longer matches a team's name by spelling.
 
+## 3.0.9 — 2026-11-04
+
+Three fixes to the two-team and forecast answers from 3.0.7's last review.
+
+### Highlights
+- [predict] A forecast "this season" is labelled with the current season
+- [teams] Partner OPR at a named event uses that event's season
+- [teams] Compare names no leader when no team has an OPR
+
+### Fixes
+- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season, also when the question names an event ("at Northeast League Meet this season"). (#628)
+- **Partner OPR at an event.** "Partner with the highest combined OPR at" an event asked for a season although the event names one; it now reads that event's season, the meetings still that event's only.
+- **Compare with no OPR.** When none of the compared teams has an OPR (counted matches that were all no-shows), the card shows the table and names no leader, instead of the first team under "Highest OPR: –".
+
 ## 3.0.8 — 2026-11-04
 
 Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
