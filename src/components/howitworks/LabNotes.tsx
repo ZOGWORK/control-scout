@@ -22,6 +22,46 @@ const NOTES: { v: Verdict; title: string; body: string; more: string; wide?: boo
     more: "Brier change per release, 2024–25 (tuning) / 2025–26: 2.7 −3.3 / −2.4 ×10⁻⁴; 2.8 −0.7 / −1.9 (month-by-month, forward-only); 2.9 −1.5 / −1.8; 2.10 neutral on win odds, expected-score error 27.67 → 26.57 points on 2025–26; 2.11 −2.1 / −2.4. Winner accuracy barely moved: these make the stated chances truer rather than picking more winners. One exception: in 2023–24, which every replay starts cold, 2.10 made matches between well-known robots (16+ matches) slightly worse (+1.6 ×10⁻⁴), and 2.9 large events (+2.9). Every gate report is in docs/engine/gates in the repository.",
   },
   {
+    v: "no", title: "Other rating systems: Massey, TrueSkill, Glicko-2",
+    body: "Three well-known rating systems, adapted to two-robot alliances. On their own, all three were far worse. Even the ones that track how sure they are about each robot did worse on robots with only a few matches. Feeding them into the engine as an extra signal helped 2025–26 a little but not the season the settings were chosen on.",
+    more: "Minus the engine, Brier ×10⁻⁴, 2024–25 (tuning) / 2025–26: Massey per phase +219 / +180, TrueSkill +373 / +341, Glicko-2 +381 / +346. As an extra input: Massey −0.5 [−1.8, +0.8] / −2.5 [−3.8, −1.3], TrueSkill −0.9 [−1.9, +0.1] / −1.4 [−2.5, −0.2]. TrueSkill and Glicko-2 learn from wins and losses only, which throws away the score. Details in docs/engine/research-2026-11/r1-rating-systems.md.",
+  },
+  {
+    v: "no", title: "Margin-of-victory Elo",
+    body: "An Elo rating that learns from how much a team won by. The engine already learns from points, phase by phase, so this added almost nothing. On its own it was far worse, and as an extra input plain win/loss Elo helped about as much.",
+    more: "Minus the engine, Brier ×10⁻⁴: MOV-Elo alone +283 / +286 (2024–25 / 2025–26), worse in every situation. As a 23rd input: −0.30 [−2.17, +1.51] / −2.19 [−4.30, −0.19], and first-event matches got worse. Details in docs/engine/research-2026-11/r5-mov-elo.md.",
+  },
+  {
+    v: "no", title: "A stronger pull toward the average for new robots",
+    body: "The engine already pulls thinly known robots toward the average in six places. A seventh, a head start in how fast brand-new robots learn, helped the tuning season but not 2025–26, and late qualification matches got worse.",
+    more: "Minus the engine, Brier ×10⁻⁴: −0.61 [−1.19, −0.05] (2024–25), −0.24 [−1.11, +0.64] (2025–26); quals from match 26 on +2.69. New robots miss their starting point by about as much as returning ones (variance ratio 1.05–1.06), so a stronger pull has little to fix. Details in docs/engine/research-2026-11/r2-shrinkage.md.",
+  },
+  {
+    v: "no", title: "Forgetting old matches faster or slower",
+    body: "How fast should old matches stop counting? The engine gives a past result half its weight after about 4 matches, which is right where the best setting sits in both seasons. Counting the whole season equally, or only the last event, were both clearly worse. Form at today's event earns its place.",
+    more: "Minus the engine, Brier ×10⁻⁴, 2024–25 / 2025–26: whole season +10.7 / +6.3; last event only +94.0 / +91.7; half-life 2.5 matches +6.4 / +7.7; a week-based half-life of 8 weeks −0.52 [−1.64, +0.54] / −0.14 [−0.86, +0.62]. Turning off event form costs +2.2 / +2.5. Details in docs/engine/research-2026-11/r4-recency.md.",
+  },
+  {
+    v: "no", title: "Reweighting auto, TeleOp and endgame",
+    body: "Which parts of a match predict the winner? TeleOp by far, then auto. Endgame and fouls matter little. Reweighting the engine to match bought almost nothing and cost a little accuracy, so the weights stay.",
+    more: "Brier cost of dropping each part and refitting, 2025–26 ×10⁻⁴: TeleOp +125, auto +51, reliability +5.2, partner balance +4.8, experience +4.4, form +3.6, endgame +3.2, fouls +0.1. Reweighting: −0.38 [−0.75, −0.02] / −0.34 [−1.09, +0.35], with 2025–26 accuracy −0.08 points [−0.17, −0.01]. Details in docs/engine/research-2026-11/r3-component-importance.md.",
+  },
+  {
+    v: "no", title: "A separate model for playoffs",
+    body: "Playoffs look easier to call mainly because the higher seed wins about 70% of the time. A playoff-only model, or a term for the seed, helped 2025–26 but not 2024–25, so one model still covers both.",
+    more: "Minus the engine on playoff matches, Brier ×10⁻⁴, 2024–25 / 2025–26: seed term +0.54 / −3.43 [−5.96, −0.89]; slope and seed +1.77 / −3.75; full refit +6.90 / −3.54 [−12.8, +5.5]. Measured against the seed, the engine is a little less sharp in playoffs (skill 0.28 vs 0.32 in quals, 2025–26). Re-test at the next season. Details in docs/engine/research-2026-11/r6-playoffs.md.",
+  },
+  {
+    v: "no", title: "How much better can calibration get?",
+    body: "Splitting the engine's error into calibration, resolution and noise shows the stated chances are already almost exactly right. Perfect calibration would gain about 0.0006 at most. Getting much better needs new information about robots, not better tuning of the same numbers.",
+    more: "2025–26, 20 bins: Brier 0.1681; calibration 0.0002, resolution 0.0810, uncertainty 0.2492 (calibration − resolution + uncertainty is 0.1684; binning leaves the small rest). The best possible monotone recalibration reaches 0.1676. Isotonic minus the shipped stretch on decided matches: +0.84 [+0.07, +1.62] ×10⁻⁴ (2024–25), −0.12 [−1.04, +0.82] (2025–26). Details in docs/engine/research-2026-11/r7-calibration.md.",
+  },
+  {
+    v: "no", title: "A neural network",
+    body: "A small neural network on the same alliance stats, tested exactly like the engine. It lost on every measure in both seasons, even when fed the engine's own ratings. The research paper's setup overfit badly.",
+    more: "Minus the engine, Brier ×10⁻⁴, 2024–25 / 2025–26: the paper's features and network +426 / +365 (accuracy −7.0 / −6.2 points); best version, engine ratings into a small network, +68.5 / +36.1 (accuracy −1.0 / −0.5). The paper's network scored 79% on the matches it trained on and 69% on the next month's. Details in docs/engine/research-2026-11/mlp-baseline.md.",
+  },
+  {
     v: "no", title: "Carrying endgame over less between seasons",
     body: "Last season predicts this season's endgame only half as well as auto and TeleOp. Carrying less of it over still made every situation slightly worse, so all phases still carry over alike.",
     more: "Season-to-season slopes: auto about 0.65, TeleOp about 0.65, endgame 0.13–0.33. Endgame carry-over 0.2–0.8 against 1: Brier +0.03 to +0.13 ×10⁻⁴ on both seasons.",
