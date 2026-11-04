@@ -341,9 +341,10 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
     ...base,
     headline: { value: whoOf(lead), label: `Highest OPR: ${num1(best.opr_np)}${best.rank_np ? ` (#${best.rank_np} of ${best.ranked_teams ?? "?"})` : ""}`, sub: `Prediction rating ${num1(best.rating_np)} · record ${recText(rec(best))}`, href: teamHref(lead.number, season) },
     blocks: [
+      // Five columns fit a 390 px phone: the team by number (the profiles row names it), the phases in the bars below.
       { kind: "table", title: `Season numbers, ${seasonLabel(season)}`,
-        columns: [{ key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }, { key: "rank", label: "OPR rank", num: true }, { key: "auto", label: "Auto", num: true }, { key: "teleop", label: "TeleOp", num: true }, { key: "endgame", label: "Endgame", num: true }, { key: "rating", label: "Rating", num: true }, { key: "record", label: "W-L-T" }],
-        rows: rows.map((r, i) => ({ cells: { team: whoOf(teams[i]), opr: num1(r.opr_np), rank: r.rank_np ? `#${r.rank_np} of ${r.ranked_teams ?? "?"}` : "–", auto: num1(r.opr_auto), teleop: num1(r.opr_teleop), endgame: num1(r.opr_endgame), rating: r.rating_np == null ? "–" : `${num1(r.rating_np)} ±${Math.round(r.rating_sd ?? 0)}`, record: recText(rec(r)) }, href: teamHref(teams[i].number, season), strong: r === best })) },
+        columns: [{ key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }, { key: "rank", label: `Rank of ${(best.ranked_teams ?? 0).toLocaleString("en-US")}`, num: true }, { key: "rating", label: "Rating", num: true }, { key: "record", label: "W-L-T" }],
+        rows: rows.map((r, i) => ({ cells: { team: String(teams[i].number), opr: num1(r.opr_np), rank: r.rank_np ? `#${r.rank_np}` : "–", rating: num1(r.rating_np), record: recText(rec(r)) }, href: teamHref(teams[i].number, season), strong: r === best })) },
       { kind: "bars", title: "OPR by phase", unit: "pts", groups: phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], items: rows.map((r, i) => ({ label: String(teams[i].number), value: r[`opr_${k}`], tone: tones[i % tones.length] })) })) },
       { kind: "links", title: "Try it", items: [{ label: "Compare side by side", href: compareHref }, ...(teams.length === 2 && !isLegacy(season) ? [{ label: `Predict ${teams[0].number} vs ${teams[1].number}`, href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : [])] },
     ],

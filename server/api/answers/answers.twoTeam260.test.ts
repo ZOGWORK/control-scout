@@ -130,7 +130,7 @@ describe("the answers", () => {
     const a = await ask("4215 versus 6980 compare");
     expect(a.stat!.title).toContain(`4215 vs 6980, ${S}–`);
     const t = a.stat!.blocks.find((b) => b.kind === "table");
-    expect(t).toMatchObject({ rows: [{ cells: { opr: "101.6", rank: "#600 of 8308", rating: "98.0 ±3", record: "6-2-0" } }, { cells: { opr: "46.9", record: "1-4-0" } }] });
+    expect(t).toMatchObject({ rows: [{ cells: { team: "4215", opr: "101.6", rank: "#600", rating: "98.0", record: "6-2-0" } }, { cells: { opr: "46.9", record: "1-4-0" } }] });
     const b = await ask("4215 6980 33950 compare");
     expect(b.stat!.teams!.map((x) => x.number)).toEqual([4215, 6980, 33950]);
     expect(b.hits[0]).toMatchObject({ kind: "compare", ref: "4215,6980,33950" });
