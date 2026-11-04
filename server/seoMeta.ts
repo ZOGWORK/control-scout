@@ -20,6 +20,10 @@ import { recordOf, recordSql } from "../src/shared/eventRecord.js";
 import { hasTeamPage } from "../src/shared/teamPages.js";
 import { eventHasDataSql, isReachableEventCode, teamHasDataSql } from "./indexable.js";
 import { listEvents } from "./api/events.js";
+import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
+import { eventPath, isEventCodeParam } from "../src/shared/eventCode.js";
+import { storedEventCode } from "./eventCodes.js";
+import { listRecords, recordsQuery } from "./api/records.js";
 import { siteTitle, teamHeading, teamTitle } from "../src/shared/teamTitle.js";
 import { pageModule } from "../src/shared/routes.js";
 import { normalMatchKey } from "../src/shared/matchReport.js";
@@ -234,7 +238,7 @@ async function teamMeta(n: number, seasonRaw?: string): Promise<PageMeta> {
   const lead = `${who}${t?.school?.trim() ? ` (${t.school.trim()})` : ""}${since}.${stat}`;
   const list = events.map((e) => {
     const facts = [seasonInfo(e.season).label, dateLong(e.start), e.rank ? `ranked ${e.rank}` : "", record(e.wins, e.losses, e.ties)].filter(Boolean).join(" · ");
-    return `<li><a href="/events/${e.season}/${encodeURIComponent(e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
+    return `<li><a href="${h(eventPath(e.season, e.code))}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
   }).join("");
   const moreHtml = list ? `<h2>Events</h2><ul>${list}</ul>` : "";
   const bodyHtml = `<p>${h(lead)} Stats, OPR by game phase, event results, match history and win predictions on ${SITE}.</p>` + moreHtml;
@@ -265,7 +269,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
     `${e.name}, FTC ${kind}${when ? `, ${when}` : ""}.${tail}`,
   ]);
   const ev: Record<string, unknown> = {
-    "@context": "https://schema.org", "@type": "SportsEvent", name: e.name, url: canonicalUrl(`/events/${season}/${code}`),
+    "@context": "https://schema.org", "@type": "SportsEvent", name: e.name, url: canonicalUrl(eventPath(season, code)),
     sport: "Robotics (FIRST Tech Challenge)", organizer: FTC, description,
     // Events have no photos of their own: the site's 1200×630 card (Google's optional Event "image").
     image: [`${canonicalOrigin()}/og-image.png`],
@@ -296,7 +300,7 @@ async function eventMeta(season: number, code: string): Promise<PageMeta | null>
   }).join("");
   const moreHtml = standings ? `<h2>${rows.some((r) => r.rank != null) ? "Rankings" : "Teams"}</h2><ol>${standings}</ol>` : "";
   const bodyHtml = `<p>${x(description)}</p>` + moreHtml;
-  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: `/events/${season}/${code}`, jsonLd: [ev], bodyHtml, ...(data?.ok ? {} : { noData: true }), ...(moreHtml ? { moreHtml } : {}) };
+  return { title: `${e.name} (${seasonInfo(season).label})`, description, type: "website", path: eventPath(season, code), jsonLd: [ev], bodyHtml, ...(data?.ok ? {} : { noData: true }), ...(moreHtml ? { moreHtml } : {}) };
 }
 
 /** At most this many teams in an event page's first HTML (the biggest championships run past it). */
@@ -367,7 +371,7 @@ async function matchReportMeta(season: number, code: string, key: string): Promi
   return {
     title: `${r.label} at ${r.event}: know your match`,
     description: fitDescription(`${r.label} at ${r.event} (${seasonInfo(season).label}): the win prediction and every robot's OPR, rank, trend and flags.`),
-    type: "website", path: `/events/${season}/${code}/match/${key}`, noindex: true,
+    type: "website", path: `${eventPath(season, code)}/match/${key}`, noindex: true,
   };
 }
 
@@ -489,6 +493,52 @@ async function rankingsMeta(query: Record<string, unknown>): Promise<PageMeta> {
   return { title, description, type: "website", path, bodyHtml, ...(list ? { jsonLd: list } : {}) };
 }
 
+/** How many rows the record tables (/teams, /matches) put in their first HTML. */
+const RECORD_ROWS = 100;
+/** The season a records page opens on: its ?season= when it's one we hold, else the current season (src/pages/RecordsPage.tsx). */
+const recordsSeason = (query: Record<string, unknown>) => {
+  const n = Number(qstr(query.season));
+  return SEASON_NUMBERS.includes(n) ? n : CURRENT_SEASON;
+};
+/** An address that narrows or reorders a records table (a filter, sort, page, region …): its first HTML lists no
+ *  rows, since the preview reads the table as it opens, and those would not be the rows asked for. */
+const recordsNarrowed = (query: Record<string, unknown>, own: string[]) => Object.keys(query).some((k) => !own.includes(k) && !/^utm_/.test(k));
+const n1 = (v: number | string | null | undefined) => (typeof v === "number" ? fmt1(v) : "–");
+
+/**
+ * /teams, the team records: the first page of the table the app opens on, from the same query its API answers with
+ * (server/api/records.ts listRecords). Team-event rows by OPR (no penalties), or with ?view=season one row per team;
+ * each a link to the team. The directory view (?view=listed) has its description only. The app's table replaces it.
+ */
+async function teamsTableMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const s = STATIC["/teams"], season = recordsSeason(query), view = qstr(query.view);
+  const base = { title: s.title, description: fitDescription(s.description), type: "website" as const };
+  const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  if (view === "listed" || recordsNarrowed(query, ["season", "view"])) return { ...base, bodyHtml: `<p>${h(s.description)}</p>` };
+  const perSeason = view === "season";
+  const r = await listRecords(season, recordsQuery(perSeason ? "teamSeason" : "teamEvent", { sort: "totalPointsNpOpr", pageSize: String(RECORD_ROWS) }));
+  const items = (r.rows as unknown as { team: number; eventName?: string; stats: Record<string, number | string | null> }[]).map((x) => {
+    const name = typeof x.stats.teamName === "string" ? x.stats.teamName : null;
+    const facts = [perSeason ? "" : x.eventName ?? "", `OPR ${n1(x.stats.totalPointsNpOpr)}`, `auto ${n1(x.stats.autoPointsOpr)}`, `TeleOp ${n1(x.stats.dcPointsOpr)}`, `endgame ${n1(x.stats.endgamePointsOpr)}`].filter(Boolean).join(" · ");
+    return `<li><a href="/teams/${x.team}">${h(teamHeading(x.team, name))}</a> <small>${h(facts)}</small></li>`;
+  }).join("");
+  const heading = `${seasonInfo(season).label}: ${perSeason ? "teams" : "team events"} by OPR`;
+  return { ...base, bodyHtml: `<p>${h(s.description)}</p>` + (items ? `<h2>${h(heading)}</h2><ol>${items}</ol>` : "") };
+}
+
+/** /matches, the match records: the first page of the table the app opens on (highest score first, penalties in, as
+ *  its API answers), each linked to its match on the event page. */
+async function matchesTableMeta(query: Record<string, unknown>): Promise<PageMeta> {
+  const s = STATIC["/matches"], season = recordsSeason(query);
+  if (recordsNarrowed(query, ["season"])) return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml: `<p>${s.description.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>` };
+  const r = await listRecords(season, recordsQuery("match", { sort: "highScore", pageSize: String(RECORD_ROWS) }));
+  const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const items = (r.rows as unknown as { eventCode: string; eventName: string; key: string; label: string; stats: Record<string, number | string | null> }[]).map((x) =>
+    `<li><a href="${h(eventPath(season, x.eventCode))}?match=${h(x.key)}">${h(`${x.label} at ${x.eventName}`)}</a> <small>${h(`red ${x.stats.redTotalPoints ?? "–"} · blue ${x.stats.blueTotalPoints ?? "–"}`)}</small></li>`).join("");
+  const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(season).label)}: highest scores</h2><ol>${items}</ol>` : "");
+  return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml };
+}
+
 /** How many events /events names in its first HTML. */
 const EVENT_LIST_ROWS = 200;
 
@@ -507,7 +557,7 @@ async function eventsListMeta(): Promise<PageMeta> {
   const h = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const items = rows.map((e) => {
     const facts = [dateLong(e.start), place(e.city, e.state, e.country === "USA" ? null : e.country), e.teams ? `${e.teams} teams` : ""].filter(Boolean).join(" · ");
-    return `<li><a href="/events/${e.season}/${encodeURIComponent(e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
+    return `<li><a href="${eventPath(e.season, e.code)}">${h(e.name)}</a> <small>${h(facts)}</small></li>`;
   }).join("");
   const bodyHtml = `<p>${h(s.description)}</p>` + (items ? `<h2>${h(seasonInfo(CURRENT_SEASON).label)} events</h2><ul>${items}</ul>` : "");
   return { title: s.title, description: fitDescription(s.description), type: "website", bodyHtml };
@@ -600,31 +650,35 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
     // Any number of digits: the value is what counts (/teams/0004215 is team 4215, as in the app; a huge one is out of range).
     if ((m = p.match(/^\/teams\/(\d+)$/i))) return await teamMeta(Number(m[1]), qstr(query.season) ?? undefined);
     // The season by value too (/events/02025/X is 2025, as in the app and the API).
-    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})$/i))) {
-      // Event codes are case-insensitive in the app (the API uppercases them): same here.
-      const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
+    // Any code FIRST uses, in any case (src/shared/eventCode.ts): looked up as stored, the canonical in upper case.
+    if ((m = p.match(/^\/events\/(\d+)\/([^/]+)$/i)) && isEventCodeParam(m[2])) {
+      const code = await storedEventCode(Number(m[1]), m[2]);
+      const ev = await eventMeta(Number(m[1]), code);
       if (!ev) return NOT_FOUND;
       // A shared match: its own call, or the event's values if it can't be read.
-      const meta = sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), m[2].toUpperCase(), sp.get("match")).catch(() => ev) : ev;
+      const meta = sp.has("match") ? await eventMatchMeta(ev, Number(m[1]), code, sp.get("match")).catch(() => ev) : ev;
       // The page itself as its first paint, when this server can draw it (a production build).
       const q = sp.toString();
       const firstPaint = await eventFirstPaint(m[1], m[2], q ? `?${q}` : "");
       return firstPaint ? { ...meta, firstPaint } : meta;
     }
     // A match's scouting report: the match must exist (a key that can't be one is not found too).
-    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/match\/([^/]+)$/i))) {
+    if ((m = p.match(/^\/events\/(\d+)\/([^/]+)\/match\/([^/]+)$/i)) && isEventCodeParam(m[2])) {
       const key = normalMatchKey(m[3]);
-      return (key && (await matchReportMeta(Number(m[1]), m[2].toUpperCase(), key))) || NOT_FOUND;
+      return (key && (await matchReportMeta(Number(m[1]), await storedEventCode(Number(m[1]), m[2]), key))) || NOT_FOUND;
     }
     // The pit display: the event must exist. Its canonical is the event page (the one to find), so search engines
     // fold it in there. No noindex: the app keeps no per-page robots tag in step on navigation, so it would
     // follow the visitor back to the event page (as powerRankingsMeta notes).
-    if ((m = p.match(/^\/events\/(\d+)\/([A-Za-z0-9_-]{1,40})\/display$/i))) {
-      const ev = await eventMeta(Number(m[1]), m[2].toUpperCase());
-      return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: `/events/${Number(m[1])}/${m[2].toUpperCase()}`, jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
+    if ((m = p.match(/^\/events\/(\d+)\/([^/]+)\/display$/i)) && isEventCodeParam(m[2])) {
+      const code = await storedEventCode(Number(m[1]), m[2]);
+      const ev = await eventMeta(Number(m[1]), code);
+      return ev ? { ...ev, title: `Pit display: ${ev.title}`, path: eventPath(Number(m[1]), code), jsonLd: undefined, bodyHtml: undefined } : NOT_FOUND;
     }
     if (/^\/rankings$/i.test(p)) return await rankingsMeta(query);
     if (p === "/events") return await eventsListMeta();
+    if (p === "/teams") return await teamsTableMeta(query);
+    if (p === "/matches") return await matchesTableMeta(query);
     if (/^\/search$/i.test(p)) return await searchMeta(sp.get("q") ?? "");
     if ((m = p.match(/^\/power-rankings(?:\/([^/]+))?$/i))) return await powerRankingsMeta(m[1] ?? null);
   } catch {
@@ -651,6 +705,15 @@ export async function pageMeta(path: string, query: Record<string, unknown> = {}
   // How FTC One Search works: the whole page in the first paint too, prerendered the same way.
   if (p === "/how-it-works/search") {
     const s = STATIC[p], body = searchDocsHtml();
+    return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
+  }
+  // The plain content pages (privacy, terms, contact, donate, rules): the whole page in the first paint too,
+  // prerendered from the real page component at build time (src/prerender/staticPages.tsx).
+  if (PRERENDERED_PAGES[p]) {
+    // The rules reference switched off by the owner (flag rulesReference): the page says so, so none of its text, and
+    // noindex marked as a no-data page's, so the app drops it once the visitor moves on (src/lib/meta.tsx NoDataRobotsSync).
+    if (p === "/rules" && !(await isEnabled("rulesReference").catch(() => false))) return { title: STATIC[p].title, description: fitDescription(STATIC[p].description), type: "website", noData: true };
+    const s = STATIC[p], body = prerenderedHtml(PRERENDERED_PAGES[p]);
     return { title: s.title, description: fitDescription(s.description), type: "website", ...(body ? { bodyHtml: body } : {}) };
   }
   // The FAQ: its questions as FAQPage data, and in full in the first paint (the same text as the page).

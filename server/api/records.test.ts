@@ -442,7 +442,7 @@ describe("one event's records and region options", () => {
     expect((await get(`/api/records/${S}/matches?code=USTST`)).body.total).toBe(3);
     expect((await get(`/api/records/${S}/matches?code=NOPE`)).body.total).toBe(0);
     expect((await get(`/api/records/${N}/teams?scope=season&code=B2`)).body.error).toMatch(/code applies to team-event and match records/);
-    expect((await get(`/api/records/${N}/teams?code=a;b`)).status).toBe(400);
+    expect((await get(`/api/records/${N}/teams?code=a%3Fb`)).status).toBe(400); // "?" can't be in a code (src/shared/eventCode.ts)
   });
   it("treats an empty fields= as no stat columns (identity only), in JSON and CSV", async () => {
     const j = await get(`/api/records/${S}/matches?fields=`);

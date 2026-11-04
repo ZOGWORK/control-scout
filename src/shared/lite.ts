@@ -11,6 +11,7 @@
 // back to its full version: light mode is never somewhere a good connection gets stuck.
 
 import { picklistQuery } from "./scoutSections";
+import { eventPath, isEventCodeParam } from "./eventCode";
 
 export const LITE_PREFIX = "/lite";
 
@@ -22,10 +23,18 @@ export const LITE_FAIL_WINDOW_MS = 60_000;
 /** The static first paint offers it after this long when the app's code still hasn't run (server/bootShell.ts). */
 export const LITE_BOOT_S = 10;
 
-const EVENT = /^\/events\/(\d{4})\/([A-Za-z0-9_-]{2,24})\/?$/;
-const MATCH = /^\/events\/(\d{4})\/([A-Za-z0-9_-]{2,24})\/match\/([A-Za-z0-9:]{1,24})\/?$/;
+// Any event code FIRST uses (src/shared/eventCode.ts): dotted, punctuated or mixed case, encoded in the path or not.
+const EVENT = /^\/events\/(\d{4})\/([^/]{1,120})\/?$/;
+const MATCH = /^\/events\/(\d{4})\/([^/]{1,120})\/match\/([A-Za-z0-9:]{1,24})\/?$/;
 const TEAM = /^\/teams\/(\d{1,6})\/?$/;
 const SPACE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** The event's address (its code in capitals, encoded), or null for a segment that isn't an event code. */
+const eventAt = (season: string, raw: string): string | null => {
+  let code: string;
+  try { code = decodeURIComponent(raw); } catch { return null; }
+  return isEventCodeParam(code) ? eventPath(season, code) : null;
+};
 
 const seasonQuery = (params: URLSearchParams) => {
   const s = params.get("season");
@@ -35,9 +44,9 @@ const seasonQuery = (params: URLSearchParams) => {
 /** The light twin of a rich page (path and its query, "?a=b" or ""), or null when it has none. */
 export function liteHref(path: string, search = ""): string | null {
   const params = new URLSearchParams(search);
-  let m = MATCH.exec(path);
-  if (m) return `${LITE_PREFIX}/events/${m[1]}/${m[2].toUpperCase()}/match/${m[3]}`;
-  if ((m = EVENT.exec(path))) return `${LITE_PREFIX}/events/${m[1]}/${m[2].toUpperCase()}`;
+  let m = MATCH.exec(path), ev: string | null;
+  if (m) return (ev = eventAt(m[1], m[2])) ? `${LITE_PREFIX}${ev}/match/${m[3]}` : null;
+  if ((m = EVENT.exec(path))) return (ev = eventAt(m[1], m[2])) ? `${LITE_PREFIX}${ev}` : null;
   if ((m = TEAM.exec(path))) return `${LITE_PREFIX}/teams/${Number(m[1])}${seasonQuery(params)}`;
   // The pick list: ?view=picklist, or Pick list & planning with no view (the pick list is its first view).
   if (/^\/scout\/?$/i.test(path) && (params.get("view") === "picklist" || (params.get("tab") === "planning" && !params.get("view")))) {
@@ -56,9 +65,9 @@ export function liteHref(path: string, search = ""): string | null {
 export function fullHref(path: string, search = ""): string {
   const params = new URLSearchParams(search);
   const rest = path.replace(/^\/lite(?=\/|$)/i, "") || "/";
-  let m = MATCH.exec(rest);
-  if (m) return `/events/${m[1]}/${m[2]}/match/${m[3]}`;
-  if ((m = EVENT.exec(rest))) return `/events/${m[1]}/${m[2]}`;
+  let m = MATCH.exec(rest), ev: string | null;
+  if (m) return (ev = eventAt(m[1], m[2])) ? `${ev}/match/${m[3]}` : "/";
+  if ((m = EVENT.exec(rest))) return (ev = eventAt(m[1], m[2])) ? ev : "/";
   if ((m = TEAM.exec(rest))) return `/teams/${Number(m[1])}${seasonQuery(params)}`;
   if (/^\/picklist\/?$/i.test(rest)) {
     const space = params.get("space");

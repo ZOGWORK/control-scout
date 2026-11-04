@@ -22,6 +22,8 @@ import { normalMatchKey } from "../../src/shared/matchReport.js";
 import { fullHref, liteHref } from "../../src/shared/lite.js";
 import { liteEvent, liteMatch, litePicks, liteTeam } from "./trim.js";
 import { esc, eventPage, liteDocument, matchPage, messagePage, picklistPage, teamPage, type LitePage } from "./render.js";
+import { storedEventCode } from "../eventCodes.js";
+import { eventPath, isEventCodeParam } from "../../src/shared/eventCode.js";
 
 /**
  * The workspaces an account reads when Control Point can't answer (and its last answer has expired): the memberships
@@ -62,7 +64,6 @@ const seasonOf = (x: unknown): number | null | undefined => {
   const n = Number(x);
   return SEASON_NUMBERS.includes(n) ? n : null;
 };
-const CODE = /^[A-Za-z0-9_-]{2,24}$/;
 
 const h = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) => (req: Request, res: Response, next: NextFunction) => { fn(req, res, next).catch(next); };
 
@@ -87,20 +88,22 @@ export function liteRouter(): Router {
   }));
 
   r.get("/events/:season/:code", h(async (req, res) => {
-    const season = seasonOf(req.params.season), code = String(req.params.code).toUpperCase();
-    if (!season || !CODE.test(code)) return notFound(req, res, "There's no such event.");
+    const season = seasonOf(req.params.season), raw = String(req.params.code);
+    if (!season || !isEventCodeParam(raw)) return notFound(req, res, "There's no such event.");
+    const code = await storedEventCode(season, raw); // any case (src/shared/eventCode.ts)
     const d = await cachedEventDetail(season, code);
     if (!d) return notFound(req, res, `No event ${code} in ${season}.`);
-    send(res, eventPage(liteEvent(d), `/events/${season}/${d.event.code}`), { cache: d.live ? "revalidate" : "public" });
+    send(res, eventPage(liteEvent(d), eventPath(season, d.event.code)), { cache: d.live ? "revalidate" : "public" });
   }));
 
   r.get("/events/:season/:code/match/:key", h(async (req, res) => {
-    const season = seasonOf(req.params.season), code = String(req.params.code).toUpperCase(), key = normalMatchKey(req.params.key);
-    if (!season || !CODE.test(code) || !key) return notFound(req, res, "There's no such match.");
+    const season = seasonOf(req.params.season), raw = String(req.params.code), key = normalMatchKey(req.params.key);
+    if (!season || !isEventCodeParam(raw) || !key) return notFound(req, res, "There's no such match.");
+    const code = await storedEventCode(season, raw);
     const event = await cachedEventDetail(season, code);
     const d = event ? await matchDetail(season, code, key, event) : null;
     if (!event || !d) return notFound(req, res, `No match ${key} at ${code}.`);
-    send(res, matchPage(liteMatch(d), `/events/${season}/${event.event.code}/match/${key}`), { cache: event.live ? "revalidate" : "public" });
+    send(res, matchPage(liteMatch(d), `${eventPath(season, event.event.code)}/match/${key}`), { cache: event.live ? "revalidate" : "public" });
   }));
 
   r.get("/teams/:number", h(async (req, res) => {

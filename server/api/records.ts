@@ -19,6 +19,8 @@ import {
 import { isTeamNumber, placeholderNameSql, teamPageSql } from "../../src/shared/teamPages.js";
 import { HEAT_MIN, heatable, heatBand, TONE_HEX, toneOf, type Tone } from "../../src/shared/statTones.js";
 import { excelDate, Gone, Styles, writeWorkbook, ZipStream, type Cell, type CellStyle } from "../xlsx.js";
+import { isEventCodeParam } from "../../src/shared/eventCode.js";
+
 
 /** A request the client got wrong (→ 400). */
 export class RecordsQueryError extends Error {}
@@ -158,7 +160,7 @@ export interface RecordsQuery {
   to: string | null;
   team: number | null;
   level: "qual" | "playoff" | null;
-  /** One event (team-event and match records): its code, upper case. */
+  /** One event (team-event and match records): its code, upper case (the route then takes it as stored). */
   code: string | null;
   /** Team records only: teams whose directory entry reports this country (ISO alpha-2, upper case). */
   country: string | null;
@@ -215,7 +217,7 @@ export function recordsQuery(scope: RecordScope, q: Record<string, unknown>, max
   const team = teamRaw == null ? null : intParam(q, "team", 0, 1, 999999);
   const codeRaw = one(q, "code");
   if (codeRaw != null && scope === "teamSeason") throw bad("code applies to team-event and match records");
-  if (codeRaw != null && !/^[A-Za-z0-9_-]{1,40}$/.test(codeRaw)) throw bad("code must be an event code like USNJQ1");
+  if (codeRaw != null && !isEventCodeParam(codeRaw)) throw bad("code must be an event code like USNJQ1");
   const countryRaw = one(q, "country");
   if (countryRaw != null && scope === "match") throw bad("country applies to team records");
   if (countryRaw != null && !countryByCode(countryRaw)) throw bad("country must be a country code like US or GB");
