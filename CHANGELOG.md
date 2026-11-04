@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.0 — 2026-11-04
+## 3.0.1 — 2026-11-04
 
 Search answers more about a team's matches: records in quals or playoffs and by place, score spread, best phases, penalties, form and how it does against top or rookie teams.
 
@@ -31,6 +31,26 @@ Search answers more about a team's matches: records in quals or playoffs and by 
 - **Scores at their official value.** A team's highest, lowest and average score lead with the official score, penalties included, as its match list and its "avg alliance score" show it, the score without penalties beside it. The highest and lowest are still picked by the alliance's own points, so a score made by the other alliance's fouls never becomes the record: it's shown beside it, said so ("302: 102 of its own, 200 from fouls"). "Best match", "high score", "highest alliance score" and "highest scoring match this season" all name that same match.
 - **New answers.** Win rate leads with wins out of matches (26 of 32, 81%); ties; score range, median and consistency (the middle half and the spread in points, never a made-up percent); scores over a number with the count; the match with the highest Auto, TeleOp or Endgame (its phases as the team page's coloured tiles) or the most penalty points given away; penalty points per match, the penalty rate, per event, at Worlds or in playoffs, with the robot's own share from its rating; the easiest opponent by rating; the record against top-rated (the season's top 10% by rating) or rookie opponents; early season against late season; the last 5 matches with their scores and trend; and the OPR trend with the season's rating beside it.
 - **Groups are never teams.** "Against top teams", "rookie teams" and "early season" are read as groups of matches, never as a team named "Top Hat" or "Rookie".
+
+## 3.0.0 — 2026-11-04
+
+Searches people tried that found nothing now answer: a match by its event's code, an event's match by the event's name, a leaderboard by a game, and the season's events.
+
+### Highlights
+- [fixes] "usnjcmp q1" finds Q1 in each division of the championship
+- [fixes] "jackson division q12" finds that match at Worlds
+- [teams] "Best auto in decode" lists that season's top Auto OPR
+- [fixes] "Events" lists this season's events, not a team's name
+- [fixes] "4215 matches at worlds" finds the last Worlds they went to
+
+### Search
+- **Failed searches answered.** Each was filed by the failed-search reporter (#536):
+  - A match by its event's code with no year is from the newest season with matches ("usnjcmp q1", not next season's unplayed event). An event split in divisions has its qualification matches in each division, so "USNJCMP Q1" lists both divisions' Q1, and a division's finals are its event's ("usnjcmppkwy f1" is the New Jersey Championship's F1).
+  - A match at an event named by its own name ("jackson division q12", "worlds jackson division q12", "jackson divison q12") is that match.
+  - A leaderboard by a game or a season ("best auto in decode", "best scoring auto in decode", "top auto opr decode", "best auto opr in 2025-26") is that season's, never a team named "We are the best".
+  - "Events", "events this season" and "meets" list the season's events, never the team Event Horizon.
+  - A team's matches at Worlds with no season ("4215 matches at worlds", "… in worlds") are from the last Worlds it went to.
+  - A misspelled game with an event ("jackson division dcode") and a question opened with filler ("so like what was 4215 last game") are read as meant.
 
 ## 2.9.9 — 2026-11-04
 
