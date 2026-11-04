@@ -5,7 +5,7 @@ import { showingLine } from "./search.js";
 
 /** What the server says it understood (the search-engine work, `SearchAnswer.understood`): the one line to show, and
  *  when the hits are a fallback rather than the answer, the line that says so. Read defensively (older servers lack it). */
-export interface UnderstoodLine { label: string; fallback?: string; total?: number }
+export interface UnderstoodLine { label: string; fallback?: string; total?: number; /** What it was read as ("events"), and an event set's time ("upcoming"). */ kind?: string; time?: string }
 export type AnswerExtra = Omit<SearchAnswer, "understood"> & { understood?: UnderstoodLine };
 
 /** The server's reading of the query, in words ("League meets in New Jersey"), when it sends one. */
