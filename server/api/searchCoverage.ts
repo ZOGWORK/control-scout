@@ -119,15 +119,12 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   }
   // A team number with its home state after it ("6980 texas"): one team, the place adds nothing.
   if ((m = /^(\d{1,6})\s+(.+)$/.exec(t)) && regionOf(m[2].split(" ")) && regionOf(m[2].split(" "))!.name.toLowerCase() === m[2]) return { q: m[1], note: `a team number names one team, so "${titleCase(m[2])}" is left out` };
-  // Three or four teams side by side ("compare 4215 6980 16461", "compare 4215, 6980 and 16461"); Compare holds four.
-  // Two teams with a word between them are the rule below's.
-  if ((m = /^(?:compare|comparing|comparison of|compare teams?)\s+(.+)$/.exec(t))) {
-    const parts = m[1].split(/\s*,\s*(?:and\s+)?|\s+(?:and|with|&|vs\.?|versus)\s+/).map(squash).filter(Boolean);
-    // Numbers with only spaces between them are a list too (search drops the commas before this reads them).
-    const bare = parts.every((p) => /^\d{1,6}(?:\s+\d{1,6})*$/.test(p)) && parts.some((p) => p.includes(" "));
-    const list = bare ? parts.flatMap((p) => p.split(" ")) : parts;
-    if ((bare || list.length > 2) && list.length <= 4 && new Set(list).size === list.length && !(bare && list.some((n) => /^(?:19|20)\d\d$/.test(n)))
-      && list.every((p) => new RegExp(`^${TEAM}$`).test(p))) return { q: list.join(" vs ") };
+  // Three or four team numbers side by side ("compare 4215 6980 16461", "compare 4215, 6980 and 16461"); Compare holds
+  // four. Numbers only: a name may hold "and" ("Nuts and Bolts"), so names are compared with "vs", and two teams with a
+  // word between them are the rule below's.
+  if ((m = /^(?:compare|comparing|comparison of|compare teams?)\s+(\d{1,6}(?:(?:\s*,\s*|\s+)(?:(?:and|with|&|vs\.?|versus)\s+)?\d{1,6})+)$/.exec(t))) {
+    const list = m[1].split(/[^\d]+/).filter(Boolean);
+    if ((list.length > 2 || !/[^\d\s]/.test(m[1])) && list.length <= 4 && new Set(list).size === list.length && !list.some((n) => /^(?:19|20)\d\d$/.test(n))) return { q: list.join(" vs ") };
   }
   // Two teams side by side, however it's asked.
   if ((m = new RegExp(`^(?:compare|comparing|comparison of|compare teams?)\\s+${TEAM}\\s+(?:and|with|to|&|vs\\.?|versus)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
@@ -363,7 +360,9 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   const cc = place ? countryOf(place.country)?.code : null;
   const teamsWhere = cc ? `&country=${cc}${place?.state ? `&state=${encodeURIComponent(place.state)}` : ""}` : "";
   // A calendar year spans two seasons: its events are the event search's ("events in 2024"), not one season's list.
+  // That search reads states and provinces, not countries, so a country's year opens the full event list instead.
   const href = teams ? `/teams?season=${season}&view=listed${teamsWhere}`
+    : inYear && place && !place.state ? "/events"
     : inYear ? `/search?q=${encodeURIComponent(`${meets ? "meets" : "events"}${inPlace} in ${year}`)}`
     : `/events?season=${season}${place?.state ? `&region=${encodeURIComponent(place.key)}` : ""}`;
   return answer(q, {

@@ -280,6 +280,9 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect(rewriteQuery("compare 4215 6980")?.q).toBe("4215 vs 6980");
     expect(rewriteQuery("compare 4215 2024")).toBeNull(); // a team and a year, never two teams
     expect(rewriteQuery("compare 1 2 3 4 5")).toBeNull(); // Compare holds four
+    // A name may hold "and": never split into teams (Greptile on #513). Two names are the two-team rule's.
+    expect(rewriteQuery("compare nuts and bolts and 4215")?.q).not.toBe("nuts vs bolts vs 4215");
+    expect(rewriteQuery("compare hypnotic and bad wolf")?.q).toBe("hypnotic vs bad wolf");
     expect(rewriteQuery("top opr last season")).toMatchObject({ q: "top 10 teams by opr last season", pre: true });
     expect(rewriteQuery("best auto opr in nj 2024-25")?.q).toBe("top 10 teams by auto opr in New Jersey 2024-25");
     expect(rewriteQuery("top opr in narnia last season")).toBeNull(); // no such place: never a list of somewhere else
@@ -325,6 +328,8 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'YEARNEXT', 'Spring Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', ?, ?, 't')", [CURRENT_SEASON, `${CURRENT_SEASON + 1}-02-01`, `${CURRENT_SEASON + 1}-02-01`]);
     expect((await ask(`how many events in ${CURRENT_SEASON + 1}`)).card?.lines[0].text).toBe(`${await held(`substr(start, 1, 4) = '${CURRENT_SEASON + 1}'`, [])} events in ${CURRENT_SEASON + 1}`);
     expect((await ask(`how many teams in ${CURRENT_SEASON + 1}`)).card?.title ?? "").not.toMatch(/^How many teams/);
+    // A country's year: counted by country, linked to the event list (the event search reads states, not countries).
+    expect((await ask("how many events in romania in 2026")).card?.lines[0].href).toBe("/events");
     // A season written as one is that season, January and April included, October not.
     expect((await ask("how many events in 2025-26")).card?.lines[0].text).toBe(`${await held("season = ?", [S])} events in ${seasonLabel(S)}`);
   });
