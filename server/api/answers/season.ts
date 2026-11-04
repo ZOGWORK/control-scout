@@ -16,8 +16,8 @@ let cached: { season: number; at: number } | null = null;
 async function readCompleted(today: string): Promise<number> {
   const c = await get<{ s: number | null }>("SELECT MAX(season) s FROM events WHERE type = ? AND COALESCE(end, start) < ?", [CHAMPIONSHIP_TYPE, today]);
   if (c?.s != null) return Number(c.s);
-  const m = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE matches > 0");
-  return m?.s != null ? Math.min(Number(m.s), CURRENT_SEASON - 1) : CURRENT_SEASON - 1;
+  const m = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE matches > 0 AND season < ?", [CURRENT_SEASON]);
+  return m?.s != null ? Number(m.s) : CURRENT_SEASON - 1;
 }
 
 /** Reads the completed season again once `TTL_MS` has passed (search calls this before it reads a query). */

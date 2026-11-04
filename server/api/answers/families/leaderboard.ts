@@ -150,11 +150,13 @@ async function cityBestAnswer(b: BoardQuestion, season: number, why: string): Pr
      WHERE s.season = ? AND s.matches >= ? AND s.opr_np IS NOT NULL AND lower(t.city) = lower(?) AND ${teamPageSql("s.team", "t.name")}
      ORDER BY s.opr_np DESC, s.wins DESC, s.team LIMIT ?`, [season, RANKED_MIN_MATCHES, b.city, b.n]);
   const name = rows[0]?.city ?? b.city!;
-  const where = ` in ${name}${rows[0]?.state ? `, ${rows[0].state}` : ""}`;
+  // A city name several states share ("Springfield") is every one of them, so the heading names a state only when one.
+  const states = [...new Set(rows.map((r) => r.state).filter(Boolean))];
+  const where = ` in ${name}${states.length === 1 ? `, ${states[0]}` : ""}`;
   const S = seasonLabel(season);
   const base = {
     family: "leaderboard" as const, intent: "city-best", title: `Best team${where} by OPR · ${S}`, scope: [name, S],
-    definition: `Teams whose home city is ${name}, as FIRST lists it, by their ${S} OPR. ${RANKED}${why}`,
+    definition: `Teams whose home city is ${name}, as FIRST lists it${states.length > 1 ? ` (in ${states.join(", ")})` : ""}, by their ${S} OPR. ${RANKED}${why}`,
     source: `From the ${S} season numbers of ${rows.length} ranked team${rows.length === 1 ? "" : "s"}${where}`,
   };
   if (!rows.length) return { ...base, blocks: [], none: `No team from ${name} has played ${RANKED_MIN_MATCHES}+ matches in ${S}.` };

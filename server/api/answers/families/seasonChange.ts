@@ -109,12 +109,13 @@ async function withinAnswer(season: number, team: Team): Promise<StatAnswer> {
     seasonStats(season, team.number),
   ]);
   // Weeks after the team's last change (the off-season, no matches) repeat the final standing: the first one stays.
+  // A week whose rank moved (others passed the team) is a change too.
   let last = all_.length - 1;
-  while (last > 0 && Number(all_[last].rating) === Number(all_[last - 1].rating)) last--;
+  while (last > 0 && Number(all_[last].rating) === Number(all_[last - 1].rating) && Number(all_[last].rank) === Number(all_[last - 1].rank)) last--;
   const weeks = all_.slice(0, last + 1);
   const base = {
     family: "trend" as const, intent: "rating-change", title: `Prediction rating change in ${S}`, team, scope: [S],
-    definition: `Prediction rating: the engine's points-per-match strength, from the weekly Rankings snapshots (a team is in a week's snapshot once 3 of its matches are rated). The start is the earliest week of ${S} kept; the end is the season's last week with a change, its final standing. The team page shows the engine's live ${S} rating, which isn't one of these weekly snapshots, so it is listed beside them and not used for the change.${season === searchSeason() ? ` With no other season named, "this season" is ${S}, the latest completed season (its FIRST Championship has finished).` : ""}`,
+    definition: `Prediction rating: the engine's points-per-match strength, from the weekly Rankings snapshots (a team is in a week's snapshot once 3 of its matches are rated). The start is the earliest week of ${S} kept; the end is the season's last week in which its rating or world rank changed, its final standing. The team page shows the engine's live ${S} rating, which isn't one of these weekly snapshots, so it is listed beside them and not used for the change.${season === searchSeason() ? ` With no other season named, "this season" is ${S}, the latest completed season (its FIRST Championship has finished).` : ""}`,
     source: `From ${weeks.length} weekly Rankings snapshot${weeks.length === 1 ? "" : "s"} of ${who(team)}, ${S}`,
   };
   const live = now?.rating?.np ?? null;

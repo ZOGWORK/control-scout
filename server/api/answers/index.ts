@@ -264,8 +264,11 @@ async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts
   const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
   const what = c.stat === "opr" ? "OPR" : "Prediction rating";
   const label = `${whoOf(team)} · ${what} change, ${c.from != null ? `${seasonLabel(c.from)} to ` : ""}${seasonLabel(c.to)}`;
+  const guessed = base.step === "did-you-mean";
   const answer: SearchAnswer = {
-    q, hits: [{ ...top, linkSeason: c.to }, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages, step: "deterministic", weak: false,
+    q, hits: [{ ...top, linkSeason: c.to }, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages,
+    step: guessed ? "did-you-mean" : "deterministic", weak: guessed && base.weak,
+    ...(guessed && base.didYouMean ? { didYouMean: q.toLowerCase().includes(c.core) ? q.toLowerCase().replace(c.core, base.didYouMean) : base.didYouMean } : {}),
     understood: { kind: "question", label, season: c.to },
     intent: { kind: `stat-${c.stat}-change`, pattern: `[team] ${c.stat} change${c.from != null ? " [season] [season]" : " [season]"}`, met: true, understood: [`Team ${whoOf(team)}`, `${what} change`] },
   };

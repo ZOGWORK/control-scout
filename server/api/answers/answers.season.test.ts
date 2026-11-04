@@ -31,6 +31,9 @@ beforeAll(async () => {
     [18061, "Simply Complex", "Princeton", "NJ", [[2025, 90.2, 20, 4, 24, 95.0, 93]]],
     // Rated in the season that has just begun, higher than anyone in 2025–26: never on a default list.
     [30000, "Early Bird", "Newark", "NJ", [[2026, 400, 6, 0, 6, 390, 99]]],
+    // One city name in two states.
+    [11111, "Spring One", "Springfield", "OH", [[2025, 60, 10, 5, 15, 60, 80]]],
+    [22222, "Spring Two", "Springfield", "IL", [[2025, 70, 10, 5, 15, 70, 80]]],
   ];
   for (const [n, name, city, state, seasons] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (?, ?, ?, ?, 'USA', 2010)", [n, name, city, state]);
@@ -41,7 +44,8 @@ beforeAll(async () => {
     }
   }
   // 4215's weekly Rankings ratings through 2025–26.
-  for (const [week, rating, rank] of [["2025-11-10", 120.4, 300], ["2025-12-01", 110.2, 450], ["2026-03-02", 98.0, 610]] as const)
+  // The last two weeks: no match played, others passed it (the rank moved), then nothing changed at all.
+  for (const [week, rating, rank] of [["2025-11-10", 120.4, 300], ["2025-12-01", 110.2, 450], ["2026-03-02", 98.0, 610], ["2026-03-09", 98.0, 640], ["2026-03-16", 98.0, 640]] as const)
     await run("INSERT INTO ranking_snapshots (season, week, team, rank, rating) VALUES (2025, ?, 4215, ?, ?)", [week, rank, rating]);
   await rebuildSearch();
   resetSearchSeason();
@@ -115,6 +119,10 @@ describe("leaderboards", () => {
     const a = await searchAnswer("best team in Oradell", { limit: 25, full: true });
     expect(a.stat).toMatchObject({ title: "Best team in Oradell, NJ by OPR · 2025–26", headline: { value: "4215 Hypnotic Robotics", label: "OPR 101.6, 26-6-0" } });
     expect((await searchAnswer("best team in atlantis", { limit: 25, full: true })).stat?.intent).not.toBe("city-best");
+    // A city name two states share names no one state.
+    const sp = (await searchAnswer("best team in Springfield", { limit: 25, full: true })).stat;
+    expect(sp).toMatchObject({ title: "Best team in Springfield by OPR · 2025–26", headline: { value: "22222 Spring Two" } });
+    expect(sp?.definition).toContain("(in IL, OH)");
   });
 });
 
@@ -128,10 +136,12 @@ describe("how a number changed", () => {
     expect(readChange("how much did 4215's rating change this season")).toEqual({ stat: "rating", core: "4215", from: null, to: 2025 });
     const a = (await searchAnswer("how much did 4215's rating change this season", { limit: 25, full: true })).stat;
     expect(a?.title).toBe("Prediction rating change in 2025–26");
-    expect(a?.headline).toMatchObject({ value: "−22.4", sub: "3 weeks on record" });
+    expect(a?.headline).toMatchObject({ value: "−22.4", sub: "4 weeks on record" });
     expect(a?.headline?.label).toMatch(/^120\.4 \(week of .+\) → 98 \(week of .+\)$/);
     const k = a?.blocks[0];
     expect(k?.kind === "kpis" && k.items.map((i) => i.label)).toEqual(["Start", "End", "Change", "Team page rating now"]);
+    // The end is the last week the rating or the rank moved: #640, not #610.
+    expect(k?.kind === "kpis" && k.items[1].sub).toMatch(/#640 worldwide$/);
   });
   it("no stored weeks: said so, with the season's rating", async () => {
     const a = (await searchAnswer("how much did 6980's rating change this season", { limit: 25, full: true })).stat;
@@ -148,5 +158,16 @@ describe("a place's events with the season in words", () => {
   });
   it("\"upcoming\" beside this weekend says nothing more", () => {
     expect(readEventQuery("upcoming events this weekend")).toMatchObject({ time: "this-weekend", words: [] });
+  });
+});
+
+describe("no finished Championship stored", () => {
+  it("falls back to the newest season with matches before the current one, never a season with none", async () => {
+    const c = openDb(":memory:");
+    setDb(c);
+    await migrate(c);
+    await run("INSERT INTO team_season_stats (season, team, matches) VALUES (2024, 1, 10), (2026, 1, 6)");
+    resetSearchSeason();
+    expect(await refreshSearchSeason(NOW)).toBe(2024);
   });
 });
