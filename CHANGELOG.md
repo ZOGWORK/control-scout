@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.5 — 2026-11-04
+## 2.9.6 — 2026-11-04
 
 Predicted scores sit a little closer together: margins ran about 5% wide, so engine 3.5.0 calibrates them. Win chances are exactly what they were.
 
@@ -28,6 +28,21 @@ Predicted scores sit a little closer together: margins ran about 5% wide, so eng
 - **Engine 3.5.0: margin calibration.** Replayed, the real margin came out about 0.95 of the predicted one, so both predicted scores now move toward their middle until the margin is 0.95 of the rating gap. The total is the same and each 80% range keeps its width, recentred. Margin error falls by about 0.1 point in both seasons tested (2024–25 −0.107 [−0.147, −0.064], 2025–26 −0.095 [−0.124, −0.066]), alliance score error a little too, and ranges hold as many real scores as before. Win chances, tie chances, bonus RP odds, event simulations and the factor sheet are bit-identical to 3.4.0 on every replayed match (docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md). (#534)
 - **Lab.** Under the ratings table, each alliance's sum is labelled "before calibration" and a second pair of lines writes the calibration out ("113.4 + 0.95 × 7.4 = 120.4 · shown 120"). The factors note says they split the rating gap, and that the margin is 0.95 of it.
 - **How it works.** The match section has one sentence on the calibration and its value, the factors section says the phases split the rating gap, and the settings table lists "Margin calibration (3.5) × 0.95".
+
+## 2.9.5 — 2026-11-04
+
+FTC One Search answers "4215 record" and "4215 awards" with full cards, and a team's sponsors, school and hometown read as one team card.
+
+### Highlights
+- [teams] "4215 record" shows the season's record, win rate and rank
+- [teams] "4215 awards" lists every award, grouped by season
+- [teams] Sponsors, school and hometown answers read as one team card
+- [fixes] An Inspire Award is never listed as a 1st place
+
+### Search
+- **"4215 record" answers.** A plain record question gave no answer card, only the team and a Team records link. It now reads the team's latest season with matches: the W-L-T, the win-loss bar, the win rate, the season and the team's world rank by win rate (its place on the season's "top teams by win rate" list: wins over matches played, teams with 3 or more matches, shown when that list holds the same record). The numbers are the team page's: 4215 is 26-6-0 in 2025–26.
+- **"4215 awards" and "awards 4215 has won" answer.** Both gave only the team. They now list every award with its event and date, a table per season, newest first. 1st place (Winning Alliance) and the Inspire Award stay two separate awards; 2nd and 3rd place Inspire are labelled as such.
+- **Listing facts as one team card.** "4215 sponsors", "4215 sponsors and school" and "where is 4215 from" were a thin box of links. They're now one card under the team's name: every sponsor its own bold row, the school and the hometown a bold value with its name small under it, then related questions. Values are shown exactly as FIRST's listing stores them; some school names are already cut short there (4215's is stored as "River Dell Regional High Sch"), and they're never cut further. (#522)
 
 ## 2.9.4 — 2026-11-04
 
