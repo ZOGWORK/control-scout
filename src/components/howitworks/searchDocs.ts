@@ -43,24 +43,29 @@ export const SEARCH_STEPS: { title: string; body: string; example: string; detai
   },
 ];
 
-/** The kinds of answers it gives, with a live-verified query for each. */
+/** The kinds of answers it gives, each query run on the live site before it was listed (the PR that adds one says
+ *  what it returned and when). `what` is the kind of answer it returns. */
 export const SEARCH_FAMILIES: { title: string; q: string; what: string }[] = [
-  { title: "A team", q: "4215", what: "Straight to the team" },
+  { title: "A team", q: "4215", what: "That team's page" },
+  { title: "A match", q: "USNJCMPPKWY Q12", what: "That match, by event code and number" },
   { title: "Two teams side by side", q: "4215 vs 6980", what: "Compare, with a prediction" },
+  { title: "Head to head", q: "4215 vs 6980 head to head", what: "A head-to-head answer for the two teams" },
+  { title: "A team's OPR", q: "4215 opr", what: "OPR for the season" },
+  { title: "Phase splits", q: "4215 auto opr", what: "Auto OPR for the season" },
+  { title: "Average score", q: "4215 average score", what: "The season's average alliance score" },
+  { title: "Prediction rating", q: "4215 rating", what: "The team's prediction rating for the season" },
+  { title: "Advancement odds", q: "4215 advancement", what: "The team's advancement odds" },
   { title: "A team's records", q: "4215 highest score in worlds", what: "The match, event, season and date" },
-  { title: "Team facts", q: "4215 school", what: "From the team's FIRST record" },
   { title: "Who won", q: "who won worlds last year", what: "Winning alliances" },
   { title: "Counts", q: "how many teams in NJ", what: "A number, with the list" },
-  { title: "Leaders", q: "top teams in New Jersey", what: "A ranked table" },
+  { title: "Leaderboards", q: "top teams in New Jersey", what: "A ranked table" },
   { title: "Team lists", q: "undefeated teams", what: "Every team that fits" },
   { title: "Teams in a place", q: "teams in Oradell", what: "By town, state or country" },
-  { title: "Events by place and time", q: "meets this weekend", what: "Soonest first" },
-  { title: "Events in a month", q: "events in january", what: "That month of the season" },
+  { title: "Events by place and time", q: "meets this weekend", what: "Events, soonest first" },
   { title: "An event's tabs", q: "nj states rankings", what: "Opens that tab" },
   { title: "High scores", q: "highest score this season", what: "The top matches" },
-  { title: "Rules", q: "G402", what: "The rule, from the Rules page" },
-  { title: "What a word means", q: "what is OPR", what: "A short explainer" },
   { title: "Team history", q: "when did hypnotic go to worlds", what: "Every appearance, newest first" },
+  { title: "What a word means", q: "what is OPR", what: "A short explainer" },
 ];
 
 /** Worked readings for the "how a query is read" figure: each word and what it was read as. */

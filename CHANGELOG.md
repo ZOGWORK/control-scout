@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.9.2 — 2026-11-03
+
+How FTC One Search works says plainly what the search does, for people and
+for search engines.
+
+### Highlights
+- [home] FTC One Search page opens with what you can search and how
+- [home] 20 example searches, each checked on the live site
+- [home] "How FTC One Search works" link on Home and on search results
+
+### Search
+- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app.
+- **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
+- **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
+
 ## 2.9.1 — 2026-11-03
 
 Event searches count one way everywhere, open on the time asked for, and

@@ -621,7 +621,10 @@ describe("/methodology (How it works)", () => {
     try {
       const page = await renderPage(file, "/how-it-works/search");
       expect(page.status).toBe(200);
-      expect(page.html).toContain("<title>How FTC One Search works · Control Scout</title>");
+      expect(page.html).toContain("<title>FTC One Search — the most powerful search engine for FTC | Control Scout</title>");
+      const desc = /<meta name="description" content="([^"]*)"/.exec(page.html)?.[1] ?? "";
+      for (const p of ["FTC One Search", "Control Scout", "search any FTC team, event, or match", "OPR, predictions, and advancement odds"]) expect(desc, p).toContain(p);
+      expect(page.html).not.toMatch(/noindex/);
       expect(page.html).toContain('<link rel="canonical" href="https://controlscout.org/how-it-works/search"');
       expect(page.html).toContain('<section id="steps"><h2>Six steps</h2></section>');
       expect(page.html.match(/<h1[\s>]/g)).toHaveLength(1);

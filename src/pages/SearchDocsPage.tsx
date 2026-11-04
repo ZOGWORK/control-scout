@@ -1,5 +1,7 @@
 // How FTC One Search works: what you can search for and how a query is
 // answered, step by step, as the code does it (server/api/searchAnswer.ts).
+// Written for search engines too: the H1, the opening paragraphs and every H2 are in the
+// prerendered first paint (src/prerender/searchDocs.tsx), as plain text with no entrance motion.
 // Under How it works in the menu, beside the prediction page, and built from its parts
 // (src/components/howitworks/) so the two read and move alike. The words,
 // steps and examples are data (src/components/howitworks/searchDocs.ts).
@@ -15,18 +17,20 @@ import { SectionNav } from "../components/howitworks/SectionNav";
 import { CleanList, Eyebrow, Figure, Prose, Reveal, SectionHead, Seg, TipLayer, useReduced } from "../components/howitworks/ui";
 import { READINGS, SEARCH_FAMILIES, SEARCH_STEPS, type Role } from "../components/howitworks/searchDocs";
 
-const ease = [0.2, 0.8, 0.2, 1] as const;
 const searchHref = (q: string) => `/search?q=${encodeURIComponent(q)}`;
 
 const SECTIONS = [
-  { id: "overview", label: "Overview" },
+  { id: "what", label: "What" },
+  { id: "use", label: "How to use" },
+  { id: "answers", label: "Examples" },
+  { id: "unique", label: "Unique" },
   { id: "steps", label: "Steps" },
   { id: "reading", label: "Reading" },
-  { id: "answers", label: "Answers" },
   { id: "results", label: "Results" },
   { id: "nothing", label: "No match" },
   { id: "rules", label: "No AI" },
   { id: "limits", label: "Limits" },
+  { id: "next", label: "Next" },
 ] as const;
 
 const ROLE: Record<Role, { label: string; cls: string }> = {
@@ -40,10 +44,20 @@ const ROLE: Record<Role, { label: string; cls: string }> = {
   filler: { label: "skipped", cls: "border-dashed border-border text-muted-foreground line-through" },
 };
 
-const WORDS: { w: string; gold?: boolean }[] = [{ w: "How" }, { w: "FTC" }, { w: "One" }, { w: "Search", gold: true }, { w: "works" }];
+/** "Where to go next": each link names where it goes. */
+const NEXT: { to: string; label: string; what: string }[] = [
+  { to: "/search", label: "Search results page", what: "the full results for anything you type in the search bar at the top" },
+  { to: "/teams", label: "FTC teams", what: "every team's season numbers, to filter, sort and compare" },
+  { to: "/events", label: "FTC events", what: "every event, with results, rankings and advancement odds" },
+  { to: "/predict", label: "Predict a match", what: "pick four teams and get win odds and a predicted score" },
+  { to: "/methodology", label: "How the predictions work", what: "how OPR and the predictions are worked out, and how often they come true" },
+];
+
+/** The page's title (and the server's, server/seoMeta.ts): siteTitle adds " | Control Scout". */
+export const PAGE_TITLE = "FTC One Search — the most powerful search engine for FTC";
 
 export default function SearchDocsPage() {
-  useTitle("How FTC One Search works");
+  useTitle(PAGE_TITLE);
   const reduced = useReduced();
   return (
     <TipLayer>
@@ -51,80 +65,56 @@ export default function SearchDocsPage() {
         <header className="grid items-end gap-8 max-sm:gap-5 pb-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:gap-10">
           <div className="grid min-w-0 gap-5 max-sm:gap-4">
             <Eyebrow>Control Scout · Search, explained</Eyebrow>
-            <h1 className="text-balance font-display text-[2.4rem] font-bold leading-[0.98] tracking-tight text-foreground sm:text-6xl xl:text-7xl">
-              {WORDS.map(({ w, gold }, i) => (
-                <span key={w}>
-                  {reduced ? <span className={cn("inline-block", gold && "hiw-gold")}>{w}</span> : (
-                    <m.span
-                      className={cn("inline-block", gold && "hiw-gold")}
-                      initial={{ opacity: 0, y: "0.35em", rotate: 2, filter: "blur(8px)" }}
-                      animate={{ opacity: 1, y: 0, rotate: 0, filter: "blur(0px)" }}
-                      transition={{ duration: 0.8, ease, delay: 0.12 + i * 0.08 }}
-                    >{w}</m.span>
-                  )}
-                  {i < WORDS.length - 1 && " "}
-                </span>
-              ))}
+            <h1 className="text-balance font-display text-[2.1rem] font-bold leading-[1.02] tracking-tight text-foreground sm:text-5xl xl:text-6xl">
+              <span className="hiw-gold">FTC One Search</span> — the most powerful search engine for FTC
             </h1>
-            <m.p
-              className="max-w-xl text-lg leading-relaxed text-foreground/85 sm:text-xl"
-              initial={reduced ? false : { opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease, delay: 0.45 }}
-            >
-              One box for teams, events, matches, places and questions about them. Here's what you can ask, and exactly how it decides what you meant: by fixed rules, the same way every time.
-            </m.p>
-            <m.p
-              className="font-mono text-xs leading-relaxed text-muted-foreground"
-              initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.6 }}
-            >
-              {SEARCH_STEPS.length} steps, always in the same order · {SEARCH_FAMILIES.length} kinds of answers · no AI in the search path · every example on this page was run on the live site
-            </m.p>
+            <p className="max-w-xl text-lg leading-relaxed text-foreground/85 sm:text-xl">
+              FTC One Search is the search bar on Control Scout, built to be the most powerful search engine for FTC: one box finds any team, event or match and answers questions about them from the stored records. Because it gives the answer in the search instead of a list of links, it's the most unique search tool for FTC scouting, and with OPR, predictions and advancement odds a few words away, it's the most powerful tool for FTC scouting.
+            </p>
+            <p className="max-w-xl text-base leading-relaxed text-foreground/85">
+              Search any FTC team, event or match from one search bar, without logging in. Where the data exists, you get the answer in the search itself, not just a list of links. Answers come from stored FTC data, deterministically: the same query gives the same answer every time. Search is not a machine-learning model and does not require AI to return a result.
+            </p>
+            <p className="text-sm text-muted-foreground">Control Scout is a free FTC scouting platform at controlscout.org.</p>
           </div>
-          <m.div initial={reduced ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease, delay: 0.3 }} className="min-w-0">
+          <div className="min-w-0">
             <QueryCard />
-          </m.div>
+          </div>
         </header>
         <SectionNav sections={SECTIONS} />
 
-        {/* ================= 01 OVERVIEW ================= */}
-        <section id="overview" className="scroll-mt-bar-20">
-          <SectionHead num="01" eyebrow="The big picture" title="Type it the way you'd say it" />
+        {/* ================= 01 WHAT YOU CAN SEARCH ================= */}
+        <section id="what" className="scroll-mt-bar-20">
+          <SectionHead num="01" eyebrow="The big picture" title="What you can search" />
           <Prose>
-            <p>FTC One Search is the search box at the top of every page, and the full results page it opens at <code>/search</code>. It covers <strong>teams</strong> (by number or name), <strong>events</strong> (by name, code, place or date), <strong>matches</strong>, <strong>places</strong>, and questions about them: who won, how many, who's best, a team's records, comparisons, predictions, advancement, awards and rules.</p>
-            <p>From the box, pressing Enter on a bare team number (<code>6980</code>, <code>team 6980</code>), one team's exact name or an exact event code goes straight to that page. Anything else opens the results page, where the answer sits on top and the matching teams, events and matches are listed underneath.</p>
-          </Prose>
-        </section>
-
-        {/* ================= 02 STEPS ================= */}
-        <section id="steps" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="02" eyebrow="Step by step" title="Six steps, and the first one that fits answers" />
-          <Prose>
-            <p>Every query goes through the same steps in the same order. Each step either answers it or passes it on. That's why the same words always give the same result, and why a more specific question (a team, a stat and an event together) is answered before a broad name search gets a go.</p>
-          </Prose>
-          <StepsFigure />
-        </section>
-
-        {/* ================= 03 READING ================= */}
-        <section id="reading" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="03" eyebrow="Understanding a query" title="Every word gets a job, or gets skipped" />
-          <ReadingFigure />
-          <Prose>
-            <h3>What it listens for</h3>
             <CleanList items={[
-              <><strong>Places.</strong> A US state or Canadian province by its name or two-letter code, and a few Australian ones. Codes that are also English words (OR, IN, ME, HI, OK and others) count only in capitals, so "how many teams in OR" means Oregon while a lowercase "or" stays an ordinary word. In an event search, a state name with a small typo ("upcoming meets in new jesey") is read as the place, and the label says so. After "in", "at", "near" or "from", other words are read as a city or venue ("HS" matches "High School"). Countries work by name, and "USA", "UK" and "England" are understood.</>,
-              <><strong>Time.</strong> Today, tomorrow, this or next weekend, week or month, upcoming, past, a month name, a year or a season. "2024" means events held in 2024; "2023-24" means that season. A month belongs to the season it falls in (the season runs September to August). With no time given, events come from the current season, except championships, which cover every season.</>,
-              <><strong>Kinds of events.</strong> Meet, qualifier, league, championship, scrimmage and the like, singular or plural. Short forms are understood too: "champs", "cmp", "quals", "worlds", "states".</>,
-              <><strong>Comparisons.</strong> "vs", "versus", "v" or "against" between two to four teams opens Compare. "compare A and B", "is A better than B" and two bare team numbers are reworded to the same thing. "who would win A or B" adds the match prediction.</>,
-              <><strong>Words it skips.</strong> Small words (in, at, on, the, a, an, for, of, this) never have to match, and question words (how, what, who, is, does…) are dropped when the query reads as a question. A friendly opening ("tell me about", "how good is") is set aside and the rest is searched.</>,
-              <><strong>Names.</strong> Matched word by word from the start of each word, ignoring case and accents. A one-letter typo is forgiven in words of four to seven letters, two in longer words; a name typed without spaces still matches.</>,
+              <><strong>Teams</strong>, by number, name or city: <code>4215</code>, <code>hypnotic robotics</code>, <code>teams in Oradell</code>.</>,
+              <><strong>Events</strong>, by name, city or event code: <code>new jersey championship</code>, <code>events in Oradell</code>, <code>USNJCMP</code>.</>,
+              <><strong>Matches</strong>, by event code and match number (<code>USNJCMPPKWY Q12</code>), or a team's matches by its number (<code>4215 matches</code>).</>,
+              <><strong>Team stats</strong>, where the data exists: OPR and its auto and teleop splits, record, prediction rating, average score, awards, head-to-head, leaderboards and event history.</>,
+              <><strong>Predictions and advancement odds</strong>, where the data exists: who would win between two teams, and a team's chances of advancing.</>,
             ]} />
           </Prose>
         </section>
 
-        {/* ================= 04 ANSWERS ================= */}
-        <section id="answers" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="04" eyebrow="What you can ask" title={<>{SEARCH_FAMILIES.length} kinds of answers, each worked out from the records</>} />
+        {/* ================= 02 HOW TO USE ================= */}
+        <section id="use" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="02" eyebrow="Getting started" title="How to use FTC One Search" />
           <Prose>
-            <p>Each card is a real query. Tap one to run it. Answers are computed from match and event records when you ask, and show their source (the match, event, season or date), so you can check them.</p>
+            <ol className="grid list-decimal gap-2.5 pl-5">
+              <li>Go to <a href="https://controlscout.org/">controlscout.org</a>.</li>
+              <li>Use the search bar at the top of the page.</li>
+              <li>Type a team number, a team name, an event name or code, or a question about a team.</li>
+              <li>Press Enter for full results. Select a result to open its team, event or comparison page.</li>
+            </ol>
+            <p>From the box, pressing Enter on a bare team number (<code>6980</code>, <code>team 6980</code>), one team's exact name or an exact event code goes straight to that page. Anything else opens the <Link to="/search">search results page</Link>, where the answer sits on top and the matching teams, events and matches are listed underneath.</p>
+          </Prose>
+        </section>
+
+        {/* ================= 03 EXAMPLES ================= */}
+        <section id="answers" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="03" eyebrow="Try one" title="Example searches" />
+          <Prose>
+            <p>Each card is a real query, run on the live site before it was listed here, with the kind of answer it returns. Tap one to run it. Answers are worked out from match and event records when you ask, and show their source (the match, event, season or date), so you can check them.</p>
           </Prose>
           <div className="mx-auto my-8 grid max-w-5xl grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {SEARCH_FAMILIES.map((f, i) => (
@@ -143,9 +133,45 @@ export default function SearchDocsPage() {
           </div>
         </section>
 
-        {/* ================= 05 RESULTS ================= */}
+        {/* ================= 04 UNIQUE ================= */}
+        <section id="unique" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="04" eyebrow="Why it's different" title="What makes FTC One Search unique" />
+          <Prose>
+            <p><strong>One bar for everything.</strong> Teams, events, matches, stats, predictions and advancement all go in the same box, instead of separate filters or separate tools for each. That one bar is what makes FTC One Search the most powerful search engine for FTC.</p>
+            <p><strong>Answers in search, with the numbers shown.</strong> Ask <code>4215 highest score in worlds</code> and the score, match, event and date are on the results page, instead of a link you have to open to find them. Answering in the search itself is what makes it the most unique search tool for FTC scouting.</p>
+            <p><strong>Deterministic answers from stored data.</strong> Every answer is worked out from the stored records by fixed rules, with the season and what the number means stated on the answer (for example "OPR in 2025–26"). The same question gets the same answer every time, from OPR to predictions and advancement odds, and that is what makes it the most powerful tool for FTC scouting.</p>
+          </Prose>
+        </section>
+
+        {/* ================= 05 STEPS ================= */}
+        <section id="steps" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="05" eyebrow="Step by step" title="Six steps, and the first one that fits answers" />
+          <Prose>
+            <p>Every query goes through the same steps in the same order. Each step either answers it or passes it on. That's why the same words always give the same result, and why a more specific question (a team, a stat and an event together) is answered before a broad name search gets a go.</p>
+          </Prose>
+          <StepsFigure />
+        </section>
+
+        {/* ================= 06 READING ================= */}
+        <section id="reading" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="06" eyebrow="Understanding a query" title="Every word gets a job, or gets skipped" />
+          <ReadingFigure />
+          <Prose>
+            <h3>What it listens for</h3>
+            <CleanList items={[
+              <><strong>Places.</strong> A US state or Canadian province by its name or two-letter code, and a few Australian ones. Codes that are also English words (OR, IN, ME, HI, OK and others) count only in capitals, so "how many teams in OR" means Oregon while a lowercase "or" stays an ordinary word. In an event search, a state name with a small typo ("upcoming meets in new jesey") is read as the place, and the label says so. After "in", "at", "near" or "from", other words are read as a city or venue ("HS" matches "High School"). Countries work by name, and "USA", "UK" and "England" are understood.</>,
+              <><strong>Time.</strong> Today, tomorrow, this or next weekend, week or month, upcoming, past, a month name, a year or a season. "2024" means events held in 2024; "2023-24" means that season. A month belongs to the season it falls in (the season runs September to August). With no time given, events come from the current season, except championships, which cover every season.</>,
+              <><strong>Kinds of events.</strong> Meet, qualifier, league, championship, scrimmage and the like, singular or plural. Short forms are understood too: "champs", "cmp", "quals", "worlds", "states".</>,
+              <><strong>Comparisons.</strong> "vs", "versus", "v" or "against" between two to four teams opens Compare. "compare A and B", "is A better than B" and two bare team numbers are reworded to the same thing. "who would win A or B" adds the match prediction.</>,
+              <><strong>Words it skips.</strong> Small words (in, at, on, the, a, an, for, of, this) never have to match, and question words (how, what, who, is, does…) are dropped when the query reads as a question. A friendly opening ("tell me about", "how good is") is set aside and the rest is searched.</>,
+              <><strong>Names.</strong> Matched word by word from the start of each word, ignoring case and accents. A one-letter typo is forgiven in words of four to seven letters, two in longer words; a name typed without spaces still matches.</>,
+            ]} />
+          </Prose>
+        </section>
+
+        {/* ================= 07 RESULTS ================= */}
         <section id="results" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="05" eyebrow="The results page" title="The answer on top, the matches in groups below" />
+          <SectionHead num="07" eyebrow="The results page" title="The answer on top, the matches in groups below" />
           <ResultsFigure />
           <Prose>
             <p>The title names what was understood (for example "Upcoming meets in New Jersey"), never just the top result. Under it, results come in groups, always in this order: <strong>Compare</strong>, <strong>Places</strong>, <strong>Teams</strong>, <strong>Events</strong>, <strong>Matches</strong>, then site pages. A list of events puts Events before Teams. Each group shows how many it holds, up to 25 results in all.</p>
@@ -153,27 +179,27 @@ export default function SearchDocsPage() {
           </Prose>
         </section>
 
-        {/* ================= 06 NO MATCH ================= */}
+        {/* ================= 08 NO MATCH ================= */}
         <section id="nothing" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="06" eyebrow="When nothing fits" title="It tells you, instead of guessing" />
+          <SectionHead num="08" eyebrow="When nothing fits" title="It tells you, instead of guessing" />
           <EmptyFigure />
           <Prose>
             <p>When no team, event or match matches all of your words, the page says so plainly and shows what it understood. Below that come up to ten <strong>closest matches</strong>, each labelled "not an exact match" and showing which of your words it did match, plus links to browse every event and team. A closest match is a lead to check, not an answer.</p>
           </Prose>
         </section>
 
-        {/* ================= 07 NO AI ================= */}
+        {/* ================= 09 NO AI ================= */}
         <section id="rules" className="scroll-mt-bar-20 pt-20">
-          <SectionHead num="07" eyebrow="Fixed rules" title="No AI decides what you meant" />
+          <SectionHead num="09" eyebrow="Fixed rules" title="No AI decides what you meant" />
           <Prose>
-            <p>FTC One Search follows fixed rules written in code: the steps above, in that order, with the word lists and patterns described on this page. It doesn't guess what you meant the way a person would. The same query gives the same answer every time, and when a rule doesn't fit, it says so rather than filling the gap.</p>
+            <p>FTC One Search follows fixed rules written in code: the steps above, in that order, with the word lists and patterns described on this page. It doesn't guess what you meant the way a person would. The same query gives the same answer every time, and when a rule doesn't fit, it says so rather than filling the gap. The order of a results list can follow which results people open most (counted clicks), but that only reorders what the rules found: it never adds a result or changes an answer.</p>
             <p>On some results pages a separate card labelled <strong>Bruno AI</strong> offers a short written summary of the results. It's only for questions, it's written from the records already on the page, it checks its own numbers against them (any number it can't back up drops its summary), and it says to check it before relying on it. It's an extra on top of the results. It never changes what the search found.</p>
           </Prose>
         </section>
 
-        {/* ================= 08 LIMITS ================= */}
-        <section id="limits" className="scroll-mt-bar-20 pt-20 pb-10">
-          <SectionHead num="08" eyebrow="Honest limits" title="What it can't do (yet)" />
+        {/* ================= 10 LIMITS ================= */}
+        <section id="limits" className="scroll-mt-bar-20 pt-20">
+          <SectionHead num="10" eyebrow="Honest limits" title="What it can't do (yet)" />
           <Prose>
             <CleanList items={[
               <><strong>Close matches can miss.</strong> Typo tolerance and word-start matching find most names, but a short word or a very different spelling can match the wrong team or nothing. Close matches are always labelled.</>,
@@ -184,6 +210,14 @@ export default function SearchDocsPage() {
               <><strong>Only what FIRST has published.</strong> A team's next event or match shows once FIRST has posted it.</>,
             ]} />
             <p>Found a query that should work and doesn't? <Link to="/contact">Tell us</Link>, with what you typed.</p>
+          </Prose>
+        </section>
+
+        {/* ================= 11 NEXT ================= */}
+        <section id="next" className="scroll-mt-bar-20 pt-20 pb-10">
+          <SectionHead num="11" eyebrow="Keep going" title="Where to go next" />
+          <Prose>
+            <CleanList items={NEXT.map((n) => <><Link to={n.to}>{n.label}</Link>: {n.what}</>)} />
           </Prose>
         </section>
       </div>
