@@ -54,11 +54,14 @@ export function trendAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
   const last = known[known.length - 1];
   const dir = direction(known.map((p) => p.y), metric.lowerIsBetter);
   const best = [...known].sort((a, b) => (metric.lowerIsBetter ? a.y - b.y : b.y - a.y))[0];
+  const rated = set.seasons.find((s) => s.season === season);
   const series: StatBlock = { kind: "series", title: `${metric.label}, event by event`, unit: metric.unit, points: pts.map((p) => ({ x: p.e.name, y: p.y == null ? null : Math.round(p.y * 100) / 100, href: eventHref(p.e.season, p.e.code, team.number), note: dateRange(p.e.start, p.e.end) })) };
   const kpis: StatBlock = { kind: "kpis", items: [
     { label: "Latest", value: fmt(last.y, metric), sub: last.e.name, href: eventHref(last.e.season, last.e.code, team.number) },
     ...(dir ? [{ label: "Trend", value: dir.word, sub: `against ${fmt(known[known.length - 2].y, metric)} at the event before`, tone: dir.tone }] : []),
     { label: metric.lowerIsBetter ? "Lowest" : "Best", value: fmt(best.y, metric), sub: best.e.name, href: eventHref(best.e.season, best.e.code, team.number) },
+    // Beside an OPR trend, the season's prediction rating as the team page shows it (stored; it has no per-event row).
+    ...(id === "opr-history" && rated?.rating != null ? [{ label: "Prediction rating", value: `${fmt(rated.rating, { digits: 1 })}${rated.ratingSd != null ? ` ± ${fmt(rated.ratingSd, { digits: 1 })}` : ""}`, sub: `${seasonLabel(rated.season)}${rated.ratingRank != null ? ` · world #${rated.ratingRank.toLocaleString("en-US")}` : ""}`, href: teamHref(team.number, rated.season) }] : []),
   ] };
   return {
     ...base,
