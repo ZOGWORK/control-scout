@@ -53,8 +53,15 @@ export function StatPicker({ scope, predictable, mode, selected, onPick, autoFoc
         const hits = cells.filter((d) => matches(`${part.label} ${AGGREGATE_LABELS[d.aggregate!]} ${d.key} ${cat}`.toLowerCase(), ws));
         return hits.length ? { part, cells, hits: new Set(hits.map((h) => h.key)) } : null;
       }).filter((r) => r != null);
-      shown += rows.length;
-      if (rows.length) body = <Grid cols={AGGREGATES.map((a) => AGGREGATE_LABELS[a])} rows={rows.map((r) => ({ id: r.part.base, label: r.part.label, description: r.part.description, cells: r.cells.map((d) => (r.hits.has(d.key) ? d : null)) }))} mode={mode} selected={selected} onPick={onPick} />;
+      // Score stats outside the part × aggregate grid (Swing): a row each, under it.
+      const rest = defs.filter((d) => !d.base && matches(`${d.label} ${d.short} ${d.key} ${cat} ${d.description ?? ""}`.toLowerCase(), ws));
+      shown += rows.length + rest.length;
+      if (rows.length || rest.length) body = (
+        <>
+          {rows.length > 0 && <Grid cols={AGGREGATES.map((a) => AGGREGATE_LABELS[a])} rows={rows.map((r) => ({ id: r.part.base, label: r.part.label, description: r.part.description, cells: r.cells.map((d) => (r.hits.has(d.key) ? d : null)) }))} mode={mode} selected={selected} onPick={onPick} />}
+          {rest.map((d) => <Row key={d.key} d={d} mode={mode} on={selected.has(d.key)} onPick={onPick} />)}
+        </>
+      );
     } else if (cat === "Match Scores") {
       const sided = SCORE_STATS.filter((p) => p.base !== "penaltyPointsByOpp").map((part) => {
         const cells = (["red", "blue"] as const).map((side) => defs.find((d) => d.key === `${side}${part.base[0].toUpperCase()}${part.base.slice(1)}`)).filter((d): d is StatDef => !!d);

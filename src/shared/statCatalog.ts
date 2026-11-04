@@ -8,6 +8,7 @@
 // so a filter written for one site reads the same on the other.
 
 import type { ConfidenceTier } from "./api";
+import { SWING_LINE } from "./reliability";
 
 /** Which kind of record a stat describes. */
 export type RecordScope = "teamEvent" | "teamSeason" | "match";
@@ -128,6 +129,9 @@ export const STAT_CATALOG: readonly StatDef[] = [
   { key: "scheduleLeft", label: "Schedule Difficulty (still to play)", short: "Sched. left", category: "Control Scout Exclusives", type: "number", scopes: ["teamEvent"], lowerIsBetter: true, description: "Schedule difficulty over the qualification matches still to play, while quals are under way (empty before the first result and after the last)." },
   { key: "scheduleOpponents", label: "Opponents vs Field", short: "Opp. vs field", category: "Control Scout Exclusives", type: "number", scopes: ["teamEvent"], lowerIsBetter: true, description: "The team's scheduled opponents' average rating minus the field's (points per robot; + = stronger opponents)." },
   { key: "schedulePartners", label: "Partners vs Field", short: "Partners vs field", category: "Control Scout Exclusives", type: "number", scopes: ["teamEvent"], description: "The team's scheduled partners' average rating minus the field's (points per robot; + = stronger partners)." },
+  // Swing (src/shared/reliability.ts, the engine's consistency stat): lower = steadier. A score stat, not a prediction one, so seasons
+  // without predictions (before 2023) keep it: pickableStats only drops "Control Scout Exclusives" there.
+  { key: "swing", label: "Swing (consistency)", short: "Swing", category: "Score Stats", type: "number", scopes: TEAM_SCOPES, lowerIsBetter: true, description: SWING_LINE },
   { key: "redPredictedWinPct", label: "Red Predicted Win %", short: "Red pred. win %", category: "Control Scout Exclusives", type: "number", scopes: ["match"], percent: true, description: "Red alliance's pre-match win probability (walk-forward ledger)." },
 ];
 

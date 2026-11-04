@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.9.0 — 2026-11-03
+
+An event's Rankings tab has the Swing column now, in the full stats table.
+
+### Highlights
+- [rankings] Swing in the event Rankings table, with its formula alongside
+- [rankings] Swing can be added to the team and season record tables
+- [fixes] Fewer than 5 counted matches leaves the Swing cell empty
+
+### Rankings
+- **Swing in every rankings table.** The event Rankings tab's full table (the one the stats cycle builds) had no Swing column; only its fallback did. Swing is now a stat of the records tables, shown by default on event rankings and pickable for team-event and team-season records, with the same "±0.42" display, lower-is-better sorting and a one-line formula in the notes above the table. Below 5 counted matches the cell is empty, as elsewhere. (#506)
+
 ## 2.8.9 — 2026-11-03
 
 FTC One Search understands "and", "or" and "not" between teams, and quotes around an exact name: "4215 and 6980" lists the matches both teams played in.
