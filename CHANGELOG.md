@@ -35,7 +35,7 @@ Search answers a team's events, awards and Worlds history more exactly: one awar
 - **Worlds.** "4215 worlds divisions", "championship divisions 4215 played in" and "4215 championship appearances count" give one row per Worlds the team went to (its division, season, rank and record) and the count. "4215 worlds wins" is the match-win count. "4215 matches at worlds in 2025" reads the year as when the championship was held (2024–25), and lists the matches or says there were none, naming the seasons it did play.
 - **Event schedule.** "4215 event schedule this season" lists the season's events newest first, with dates, ranks and records.
 - **Winners.** "winning alliance at 4215's last event" answers for the team's latest event played, its division when it played in one. A bare "championship" ("decode championship winning alliance", "who won the ftc championship in 2025") is the FIRST Championship, never a state event with that word in its name.
-- **Event codes.** "USNJNEM6 event" opens that event's card from its record (dates, venue, place, status), like typing the code alone. (#PR)
+- **Event codes.** "USNJNEM6 event" opens that event's card from its record (dates, venue, place, status), like typing the code alone. (#580)
 
 ## 2.9.9 — 2026-11-04
 
