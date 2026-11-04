@@ -35,6 +35,16 @@ describe("answer card detail", () => {
     // The answer itself still stands.
     expect(c.textContent).toContain("Oradell, NJ, USA");
   });
+  it("a card's own season wins (its numbers' season), and its support facts show beside the team page tiles", () => {
+    const c = render(<MemoryRouter><FactCard season={2025} card={{ ...card, season: 2024, support: [
+      { label: "Region", values: ["New Jersey"] }, { label: "Record, 2024–25", values: ["30-5-0"] },
+      { label: "OPR, 2024–25", values: ["90.1"] }, { label: "Reliability, 2024–25", values: ["84 out of 100"] },
+    ] } as SearchCard} /></MemoryRouter>).container;
+    expect(api.paths).toContain("/api/teams/4215?season=2024");
+    expect(c.querySelector('a[href="/teams/4215?season=2024"]')).toBeTruthy();
+    // Record and OPR are on the team page tiles already; the rest of the team's card is drawn once.
+    expect([...c.querySelectorAll("[data-support] [data-fact]")].map((f) => f.getAttribute("data-fact"))).toEqual(["Region", "Reliability, 2024–25"]);
+  });
   it("reads a season only from a real season label", () => {
     expect(statedSeason("Record in 2025–26")).toBe(2025);
     expect(statedSeason(null, "All seasons", "2024-25")).toBe(2024);

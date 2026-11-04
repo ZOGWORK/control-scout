@@ -28,10 +28,20 @@ const SOURCE: Partial<Record<SearchCard["kind"], string>> = {
 
 const ICON: Partial<Record<SearchCard["kind"], LucideIcon>> = { rule: BookOpen, "next-event": CalendarDays, "next-match": CalendarDays, awards: Medal, "event-awards": Medal, info: Info };
 
-/** `season`: the season the query named (its team hit's linkSeason, or one the card's title states); else the default. */
-export function FactCard({ card, heading, season: asked }: { card: SearchCard; heading?: string; season?: number | null }) {
+/** Fields a newer server adds to a team's fact card (s260-facts): the season its numbers are from, and the rest of the
+ *  team's card beyond what `facts` shows (region, record, OPR, rating, reliability). Read defensively. */
+type CardExtra = SearchCard & { season?: number; support?: SearchCardFact[] };
+
+/** The team page tiles already show a season's record, OPR and rating (from the team page's own data): those
+ *  support facts aren't drawn twice. */
+const ON_TILES = /^(record|opr|rating)\b/i;
+
+/** `season`: the season the query named (its team hit's linkSeason); the card's own season wins, then one its title
+ *  states, else the default. */
+export function FactCard({ card, heading, season: asked }: { card: CardExtra; heading?: string; season?: number | null }) {
   const team = card.team;
-  const season = useAnswerSeason(asked ?? statedSeason(card.title));
+  const season = useAnswerSeason(card.season ?? asked ?? statedSeason(card.title));
+  const support = (card.support ?? []).filter((f) => !ON_TILES.test(f.label) && !card.facts?.some((x) => x.label === f.label));
   const profile = useTeamProfile(team?.number, season);
   const facts = card.facts ?? [];
   // A fact answer's lines are the dropdown's short form of the same facts: drawn once, as the facts.
@@ -54,6 +64,12 @@ export function FactCard({ card, heading, season: asked }: { card: SearchCard; h
         : !!lines.length && <Lines lines={lines} icon={ICON[card.kind]} />}
       {!!card.none && !!card.closest?.length && (
         <div className="mt-4"><h3 className={PART}>Closest records</h3><Lines lines={card.closest} /></div>
+      )}
+      {!!support.length && (
+        <section aria-label="More about the team" className="mt-5" data-support>
+          <h3 className={PART}>More about the team</h3>
+          <FactTiles facts={support} />
+        </section>
       )}
       {team && (
         <div className="mt-5">
