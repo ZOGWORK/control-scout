@@ -91,7 +91,18 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
     { kind: "bars", title: id === "award-split" ? "By kind" : "By award", groups: [{ label: "Awards", items: id === "award-split" ? groups.map((g, i) => ({ label: g.k, value: g.xs.length, tone: (["a", "b", "c"] as const)[i] })) : types.slice(0, 8).map((x) => ({ label: awardLabel(x.t, 1).replace(/ Award$/, ""), value: x.n, tone: "a" as const })) }] },
   ];
   if (id === "award-split") blocks.push(...groups.filter((g) => g.xs.length).map((g) => table(g.xs, team.number, `${g.k} awards`)));
-  else blocks.push(table(rows, team.number, "Newest first", true));
+  else {
+    // Every award, grouped by season, newest first: each season's own table (the season is its title, so not a column).
+    const shown = rows.slice(0, 50);
+    for (const season of [...new Set(shown.map((r) => r.season))]) {
+      const xs = shown.filter((r) => r.season === season), all = rows.filter((r) => r.season === season).length;
+      const t = table(xs, team.number, `${seasonLabel(season)} · ${count(all, "award")}`);
+      if (t.kind === "table") t.columns = t.columns.filter((c) => c.key !== "season");
+      blocks.push(t);
+    }
+    const last = blocks[blocks.length - 1];
+    if (rows.length > 50 && last.kind === "table") last.more = `Showing the newest 50 of ${rows.length} awards`;
+  }
   return {
     ...base, family: "awards", intent: id, title,
     headline: { value: count(rows.length, "award"), label: groups.filter((g) => g.xs.length).map((g) => `${g.xs.length} ${g.k.toLowerCase()}`).join(" · "), sub: `at ${count(events, "event")}` },

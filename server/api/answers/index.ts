@@ -98,10 +98,14 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest")) {
     const latest = await latestSeason(team, it.id);
+    // A plain "4215 record" with no match on record is left to search's team answer (its stored season record).
+    if (latest == null && it.id === "record" && !s.latest) return null;
     scope.season = latest;
-    if (latest != null) scope.seasonWhy = latest !== CURRENT_SEASON && s.latest
-      ? `"This season" here is ${seasonLabel(latest)}: no ${seasonLabel(CURRENT_SEASON)} matches yet, so the team's latest season with matches on record.`
-      : `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
+    if (latest != null) scope.seasonWhy = !s.latest
+      ? `The season is ${seasonLabel(latest)}, the team's latest with matches on record.`
+      : latest !== CURRENT_SEASON
+        ? `"This season" here is ${seasonLabel(latest)}: no ${seasonLabel(CURRENT_SEASON)} matches yet, so the team's latest season with matches on record.`
+        : `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
   }
   return scope;
 }

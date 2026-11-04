@@ -63,6 +63,7 @@ describe("test 16: each intent returns its stated surface", () => {
   it("4215 record: its record", async () => {
     const a = await ask("4215 record");
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
+    // No match rows here, only the stored season: the team's own record (the record answer needs matches).
     expect(a.hits[0].facts?.find((f) => f.label === "Record")?.value).toBe("26-6-0");
   });
   it("when does 4215 play next: its next match, or plainly none scheduled", async () => {

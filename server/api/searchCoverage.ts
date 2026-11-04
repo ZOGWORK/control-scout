@@ -753,13 +753,20 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     try { s = JSON.parse(row.sponsors ?? "[]"); } catch { /* not a list */ }
     return { text: s.length ? s.join(", ") : null };
   };
+  // Each fact's values apart, exactly as stored (FIRST's listing cuts some school names short; they're shown as stored).
+  const values = (fact: typeof last): string[] => {
+    if (fact !== "sponsors") { const t = read(fact).text; return t ? [t] : []; }
+    try { const s = JSON.parse(row.sponsors ?? "[]"); return Array.isArray(s) ? s.map(String).filter(Boolean) : []; } catch { return []; }
+  };
+  const factsOf = (fs: (typeof last)[]) => fs.map((f) => ({ label: LABEL[f], values: values(f), ...(read(f).detail ? { detail: read(f).detail } : {}), ...(f === "website" ? { link: true } : {}) }));
+  const related = ["record", "awards", "opr"].map((x) => `${hit.ref} ${x}`);
   const team = { number: Number(hit.ref), name: teamNameOf(hit.title) };
   if (facts.length > 1) {
     // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
     const what = facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])).join(" and ");
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-      card: { kind: "info", title: what, team, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
+      card: { kind: "info", title: what, team, facts: factsOf(facts), related, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
       understood: { kind: "team", label: `${name} · ${what}` },
     });
   }
@@ -769,7 +776,7 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const title = `${name} · ${what}`;
   return answer(q, {
     hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-    card: { kind: "info", title: what, team, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
+    card: { kind: "info", title: what, team, facts: factsOf([last]), related, lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : [], ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.` }) },
     understood: { kind: "team", label: title },
   });
 }
