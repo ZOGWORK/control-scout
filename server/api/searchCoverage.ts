@@ -42,6 +42,18 @@ const EVENT_WORDS = /\b(?:championships?|champs|qualifiers?|quals|meets?|league|
 /** A bare kind of thing with no place ("teams", "events"), as search singularizes it. */
 const BARE_KIND = /^(?:(?:upcoming|ftc|all|the)\s+)*(teams?|events?|meets?|competitions?|tournaments?|qualifiers?|scrimmages?)$/;
 
+/** A game's name ("decode", "into the deep", any spacing) or a season written as one ("2025-26") in `t`: the season
+ *  as search reads one ("2025-26"), and `t` without it. `game` when it was a game's name. */
+function seasonWord(t: string): { season: string; rest: string; game: boolean } | null {
+  const cut = (g: RegExpExecArray) => squash(t.slice(0, g.index) + " " + t.slice(g.index + g[0].length));
+  for (const s of SEASONS) {
+    const g = new RegExp(`(?:^|\\s)(?:in\\s+|during\\s+)?(?:the\\s+)?${[...s.game.toLowerCase().replace(/\s+/g, "")].join("\\s*")}(?:\\s+season)?(?=\\s|$)`).exec(t);
+    if (g) return { season: `${s.season}-${String((s.season + 1) % 100).padStart(2, "0")}`, rest: cut(g), game: true };
+  }
+  const y = /(?:^|\s)(?:in\s+)?(20\d\d)\s*[-–/]\s*(\d\d)(?=\s|$)/.exec(t);
+  return y && (Number(y[1]) + 1) % 100 === Number(y[2]) ? { season: `${y[1]}-${y[2]}`, rest: cut(y), game: false } : null;
+}
+
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
  *  before the stat answers, whose readers would take the original the wrong way ("have 4215 and 6980 played each other"
  *  read "6980 played each other" as a team's name). */
@@ -65,14 +77,21 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   }
   // An event's best score, "at" or not ("highest score new jersey championship", "nj states highest score"). A
   // place's "states" is its championship, never another event with the place in its name (a workshop).
-  if (((m = /^(?:the\s+)?(?:highest|best|top|record|max(?:imum)?)\s+(?:match\s+)?scores?\s+(?!(?:of|for|this|last)\s)(?:(?:at|in)\s+)?(?:the\s+)?(.+)$/.exec(t))
-    || (m = /^(.+?)\s+(?:highest|best|top|record)\s+(?:match\s+)?scores?$/.exec(t))) && EVENT_WORDS.test(m[1]) && !/^\d/.test(m[1])) {
+  // A season or game named with it ("nj states highest score decode") stays, said as a season.
+  const sw = seasonWord(t), ht = sw ? sw.rest : t;
+  if (((m = /^(?:the\s+)?(?:highest|best|top|record|max(?:imum)?)\s+(?:match\s+)?scores?\s+(?!(?:of|for|this|last)\s)(?:(?:at|in)\s+)?(?:the\s+)?(.+)$/.exec(ht))
+    || (m = /^(.+?)\s+(?:highest|best|top|record)\s+(?:match\s+)?scores?$/.exec(ht))) && EVENT_WORDS.test(m[1]) && !/^\d/.test(m[1])) {
     const st = /^(.+?)\s+(?:states|state championships?|state champs)$/.exec(m[1]);
     const r = st ? regionOf(st[1].split(" ")) : null;
     // "Worlds" is the FIRST Championship (never a "Pre Worlds" scrimmage).
     const at = r ? `${r.name.toLowerCase()} championship` : /^(?:worlds|world championships?)$/.test(m[1]) ? "first championship" : m[1];
-    if (`highest score at ${at}` !== t) return { q: `highest score at ${at}`, pre: true };
+    const out = `highest score at ${at}${sw ? ` ${sw.season}` : ""}`;
+    if (out !== t) return { q: out, pre: true };
   }
+  // An event named with a game's name ("nj states decode", "worlds edison division centerstage"): that game's season,
+  // written as one ("nj states 2025-26"), which the event readers already read. Never for a team's number (the rule
+  // further down) or a game named alone ("what is decode").
+  if (sw && sw.game && !/^\d{1,6}\b/.test(t) && EVENT_WORDS.test(sw.rest)) return { q: `${sw.rest} ${sw.season}`, pre: true };
   // "When did hypnotic last play", "when did 4215 play last", "when did they last compete": the team's most recent match.
   if ((m = new RegExp(`^when\\s+(?:did|was|were)\\s+${TEAM}\\s+(?:last\\s+(?:play|played|compete|competed|playing|competing)|(?:play|compete)\\s+last)$`).exec(t))) return { q: `${m[1]} last match`, pre: true };
   // No-shows and disqualifications are counted in the team's reliability.

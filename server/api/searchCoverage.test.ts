@@ -291,6 +291,15 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
     expect(rewriteQuery("4215 highest score")).toBeNull();
     expect(rewriteQuery("rookie teams new jersey")?.q).toBe("rookie teams in new jersey");
     expect(rewriteQuery("nj rookie teams")?.q).toBe("rookie teams in new jersey");
+    // An event named with a game's name: that game's season, written as one (Sushil's screenshots, 11-03).
+    expect(rewriteQuery("nj states decode")).toMatchObject({ q: "nj states 2025-26", pre: true });
+    expect(rewriteQuery("decode nj states")?.q).toBe("nj states 2025-26");
+    expect(rewriteQuery("worlds edison division centerstage")?.q).toBe("worlds edison division 2023-24");
+    expect(rewriteQuery("nj states into the deep")?.q).toBe("nj states 2024-25");
+    expect(rewriteQuery("nj states highest score decode")?.q).toBe("highest score at new jersey championship 2025-26");
+    expect(rewriteQuery("highest score at nj states 2024-25")?.q).toBe("highest score at new jersey championship 2024-25");
+    expect(rewriteQuery("what is decode")).toBeNull(); // a game alone is explained, not an event
+    expect(rewriteQuery("4215 decode")?.q).toBe("4215 in DECODE"); // a team's season, as before
     // "me" is never a place (it read as Maine), and a bare "teams" near me is nearMeAnswer's.
     expect(rewriteQuery("teams near me")).toBeNull();
     expect(rewriteQuery("events near me")).toBeNull();
@@ -307,7 +316,7 @@ describe("wrong answers from the 92-query probe (11-03)", () => {
   it("a count of events in a bare year: the calendar year, from both seasons, as event searches read it", async () => {
     // An event held in January 2026 belongs to 2025–26; one in October 2026 to 2026–27. 2026 counts both.
     await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, 'YEARJAN', 'January Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-01-10', '2026-01-10', 't'), (?, 'YEAROCT', 'October Qualifier', 'Qualifier', 'Edison', 'NJ', 'USA', '2026-10-10', '2026-10-10', 't')", [S, S + 1]);
-    const held = async (sql: string, args: unknown[]) => Number((await get<{ n: number }>(`SELECT COUNT(*) n FROM events WHERE ${sql}`, args))?.n);
+    const held = async (sql: string, args: number[]) => Number((await get<{ n: number }>(`SELECT COUNT(*) n FROM events WHERE ${sql}`, args))?.n);
     const y = await ask("how many events in 2026");
     expect(y.card?.title).toBe("How many events · 2026");
     expect(y.card?.lines[0]).toMatchObject({ text: `${await held("substr(start, 1, 4) = '2026'", [])} events in 2026`, href: "/search?q=events%20in%202026" });

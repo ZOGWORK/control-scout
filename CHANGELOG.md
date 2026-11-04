@@ -36,6 +36,9 @@ Searches that used to give a confident wrong answer now give the right one, or s
   - Three or four teams compared ("compare 4215 6980 16461", "compare 4215, 6980 and 16461") open Compare with every team, none dropped.
   - A leaderboard with a season ("top opr last season", "best auto opr in texas 2024-25") is that season's, never the team Top Shelf BGS.
   - A rookie list without "in" ("rookie teams new jersey", "nj rookie teams") is the place's rookie list.
+  - An event named with a game ("nj states decode", "worlds edison division centerstage", "nj states highest score decode") is that game's season, where it said "No matches found".
+  - A count of events in a bare year ("how many events in 2026") is the events held that calendar year, from either season; a season written as one ("2025-26") is that season.
+  - "Lowest OPR in NJ" links the Teams table sorted by that stat, lowest first.
 
 ## 2.9.0 — 2026-11-03
 
