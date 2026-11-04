@@ -31,7 +31,7 @@ const PHRASE_POOL = 200;
 /** What a boolean query may ask besides its teams: the match list (nothing else asked, or "matches"). */
 const MATCH_WORDS = /^(?:(?:shared|common|joint)\s+)?(?:matches|match|games|game|match list|match history|results)?(?:\s+(?:together|played|in common))?$/;
 /** Words that ask a question the operators don't: left to the readers that answer it. */
-const OWN_READING = /\b(?:vs\.?|versus|v|head to head|h2h|compare|comparison|who|which|better|stronger|win|wins|winning|beat|beats|faced|met|each other|against)\b/;
+const OWN_READING = /\b(?:vs\.?|versus|v|head to head|h2h|compare|comparison|who|which|better|stronger|win (?:chances?|probability|odds)|chances? (?:of winning|to win)|odds|beat|beats|faced|met|each other|against)\b/;
 
 type Op = "and" | "or" | "not";
 type Tok = { op: Op } | { word: string } | { phrase: string };
@@ -48,6 +48,8 @@ function tokenize(raw: string): Tok[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw))) {
     if (m[1] != null) { if (m[1].trim()) out.push({ phrase: m[1].trim() }); continue; }
+    // "-" right before a quote is NOT on the phrase (4215 -"bad wolf"); a dash standing alone stays a word.
+    if (m[2] === "-" && raw[re.lastIndex] === '"') { out.push({ op: "not" }); continue; }
     for (const piece of m[2].split(/([&|])/).filter(Boolean)) {
       if (piece === "&") out.push({ op: "and" });
       else if (piece === "|") out.push({ op: "or" });

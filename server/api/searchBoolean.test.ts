@@ -226,6 +226,15 @@ describe("precedence and parsing", () => {
     const rows = rowsOf(await ask("23268 or 14270"));
     expect(rows[0].label).toBe("Final 1");
   });
+  it("a stat about wins stays on the boolean path; a win chance or who wins does not", async () => {
+    expect((await readBoolean("4215 and 6980 total wins"))?.rest).toBe("total wins");
+    expect((await readBoolean("4215 not 6980 win rate"))?.rest).toBe("win rate");
+    for (const q of ["4215 and 6980 win chance", "4215 or 6980 who wins", "4215 and 6980 odds"]) expect(await readBoolean(q), q).toBeNull();
+  });
+  it("a dash right before a quote is NOT on the phrase", async () => {
+    expect((await readBoolean("4215 -\"bad wolf\""))?.groups).toEqual([[{ team: 4215, neg: false }, { team: 6980, neg: true }]]);
+    expect(sig(await ask("4215 -\"bad wolf\""))).toBe(sig(await ask("4215 not 6980")));
+  });
   it("a quoted full name is one term", async () => {
     expect((await readBoolean("\"bad wolf\" and 4215"))?.groups).toEqual([[{ team: 6980, neg: false }, { team: 4215, neg: false }]]);
   });
