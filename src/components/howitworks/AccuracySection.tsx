@@ -260,29 +260,27 @@ export function CurrentEngineTable() {
   const fmtN = (n: number) => n.toLocaleString("en-US");
   return (
     <Figure id="current-engine" narrow label={`Engine ${CURRENT_ENGINE.version} · ${CURRENT_ENGINE.test}`} title="Today's engine, replayed month by month"
-      caption={<>Each month from October 2024 to July 2026 is predicted by an engine fitted only on the year before it, on matches with a winner at rated events. 2024–25 was used to tune it; 2025–26 has been looked at before, so it isn't a fully fresh test. Win odds haven't changed since engine 3.3, so these are the odds served today. Engine 3.5 narrowed predicted margins a little (it scales each predicted gap by 0.95), which cut margin error and moved no win chance. This test uses its own match list and settings, so its figures don't match the ledger's season replay above exactly; both score the same engine. The calibration's last step was fitted on data through July 2026, which gives this test a head start of at most 0.00005 Brier.</>}>
-      <ScrollX label="Current engine test table" min={480}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground">
-              <th scope="col" className="py-2 pr-3 font-medium">Season</th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">Called right</th>
-              <th scope="col" className="py-2 pr-3 text-right font-medium">Brier</th>
-              <th scope="col" className="py-2 text-right font-medium">Margin error (pts)</th>
+      caption={<>Each month from October 2024 to July 2026 is predicted by an engine fitted only on the year before it, on matches with a winner at rated events. 2024–25 was used to tune it; 2025–26 has been looked at before, so it isn't a fully fresh test. Win odds haven't changed since engine 3.3. Engine 3.5 scales each predicted gap by 0.95, which cut margin error and moved no win chance. This test has its own match list, so it doesn't match the ledger's season replay above exactly.</>}>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-xs text-muted-foreground">
+            <th scope="col" className="py-2 pr-2 font-medium">Season</th>
+            <th scope="col" className="py-2 pr-2 text-right font-medium">Called right</th>
+            <th scope="col" className="py-2 pr-2 text-right font-medium">Brier</th>
+            <th scope="col" className="py-2 text-right font-medium">Margin error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {CURRENT_ENGINE_ROWS.map((r) => (
+            <tr key={r.season} className="border-b border-border/60 last:border-0">
+              <th scope="row" className="py-2.5 pr-2 text-left font-medium text-foreground">{r.season}<span className="hidden text-xs font-normal text-muted-foreground sm:block">{r.role === "tuning" ? "tuning season" : "reused season"} · {fmtN(r.matches)} matches</span></th>
+              <td className="py-2.5 pr-2 text-right font-display text-lg font-semibold tabular-nums text-accent-text">{pct(r.accuracy, 1)}</td>
+              <td className="py-2.5 pr-2 text-right tabular-nums text-foreground">{r.brier.toFixed(4)}</td>
+              <td className="py-2.5 text-right tabular-nums text-foreground">{r.marginMae.toFixed(2)}<span className="block text-xs text-muted-foreground">was {r.marginMaeBefore.toFixed(2)}<span className="hidden sm:inline"> · {fmtN(r.marginMatches)} matches</span></span></td>
             </tr>
-          </thead>
-          <tbody>
-            {CURRENT_ENGINE_ROWS.map((r) => (
-              <tr key={r.season} className="border-b border-border/60 last:border-0">
-                <th scope="row" className="py-2.5 pr-3 text-left font-medium text-foreground">{r.season}<span className="block text-xs font-normal text-muted-foreground">{r.role === "tuning" ? "tuning season" : "reused season"} · {fmtN(r.matches)} matches</span></th>
-                <td className="py-2.5 pr-3 text-right font-display text-lg font-semibold tabular-nums text-accent-text">{pct(r.accuracy, 1)}</td>
-                <td className="py-2.5 pr-3 text-right tabular-nums text-foreground">{r.brier.toFixed(4)}</td>
-                <td className="py-2.5 text-right tabular-nums text-foreground">{r.marginMae.toFixed(2)}<span className="block text-xs text-muted-foreground">was {r.marginMaeBefore.toFixed(2)} · {fmtN(r.marginMatches)} matches</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </ScrollX>
+          ))}
+        </tbody>
+      </table>
     </Figure>
   );
 }
