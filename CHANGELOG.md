@@ -15,6 +15,28 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.9.1 — 2026-11-03
+
+Searches that used to give a confident wrong answer now give the right one, or say plainly what search can't do.
+
+### Highlights
+- [teams] "How many teams 2023" counts that season's teams
+- [teams] "Compare 4215 6980 16461" compares all three teams
+- [teams] "Top OPR last season" lists last season's leaders
+- [fixes] "How is OPR calculated" explains OPR, not a team
+- [fixes] "Teams near me" asks for a place, never reads "me" as Maine
+
+### Search
+- **Wrong answers fixed.** A 92-query check against the real data found searches that answered with the wrong thing, usually a team whose name shared a word. Each now answers what was asked (#513):
+  - A count of a named season ("how many teams 2023", "… in 2024-25", "… last season") is that season's count, not teams named "Spark team".
+  - "How is OPR calculated" is the OPR explanation, not the team CALculated Risk.
+  - "Teams near me" and "events near me" say where you are isn't known and suggest adding a place, instead of reading "me" as Maine or listing names with "event" in them.
+  - "Lowest OPR in New Jersey" and "worst teams" say search lists teams from the top, and link the full ranking.
+  - An event's best score without "at" ("highest score new jersey championship", "nj states highest score") is that event's. "NJ states" is New Jersey's championship, never a workshop with NJ in its name, and "worlds" is the FIRST Championship, never a Pre Worlds scrimmage.
+  - Three or four teams compared ("compare 4215 6980 16461", "compare 4215, 6980 and 16461") open Compare with every team, none dropped.
+  - A leaderboard with a season ("top opr last season", "best auto opr in texas 2024-25") is that season's, never the team Top Shelf BGS.
+  - A rookie list without "in" ("rookie teams new jersey", "nj rookie teams") is the place's rookie list.
+
 ## 2.9.0 — 2026-11-03
 
 An event's Rankings tab has the Swing column now, in the full stats table.
