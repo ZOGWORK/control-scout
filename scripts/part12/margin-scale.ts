@@ -45,7 +45,7 @@ if (cmd === "replay") {
   const book = new RatingBook(M.rating);
   const rows: Row[] = [];
   let checked = 0;
-  const scale = (M as { margin?: { scale: number } }).margin?.scale ?? 1;
+  const scale = M.margin?.scale ?? 1;
   for (const s of [2023, 2024, 2025]) {
     const { matches, unrated } = await seasonCorpus(s);
     book.startSeason(s);
@@ -63,7 +63,7 @@ if (cmd === "replay") {
           if (!Object.is(p.red.mean, R) || !Object.is(p.blue.mean, B) || br.lo !== p.red.band.lo || br.hi !== p.red.band.hi || bb.lo !== p.blue.band.lo || bb.hi !== p.blue.band.hi) {
             throw new Error(`served scores are not the margin transform at ${m.eventCode} ${m.level} ${m.series}-${m.number}`);
           }
-          const one = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx, shadow: M.contextual?.fallback, band: M.band, margin: { scale: 1 } } as never);
+          const one = predictMatch(book, m.red.teams, m.blue.teams, M.noise, M.calibration, { contextual: M.contextual, context: ctx, shadow: M.contextual?.fallback, band: M.band, margin: { scale: 1 } });
           if (!Object.is(one.pRedWin, p.pRedWin) || !Object.is(one.pShadow, p.pShadow) || !Object.is(one.red.mean, r) || !Object.is(one.blue.mean, b) || !Object.is(one.red.band.sd, p.red.band.sd)) {
             throw new Error(`the scale moved a probability or the model scores at ${m.eventCode} ${m.level} ${m.series}-${m.number}`);
           }
@@ -279,7 +279,7 @@ if (flag("--json")) writeFileSync(flag("--json")!, JSON.stringify(out, (k, v) =>
 
 const f2 = (x: number, d = 2) => `${x >= 0 ? "+" : "−"}${Math.abs(x).toFixed(d)}`;
 const ci = (c: [number, number], d = 2) => `[${f2(c[0], d)}, ${f2(c[1], d)}]`;
-console.log(`2024–25 rolled margin MAE: least squares ${tuneMae("lsq").toFixed(4)}, MAE fit ${tuneMae("one").toFixed(4)} → ${family}`);
+console.log(`2024–25 rolled margin MAE (reported; the rule ships the MAE fit): least squares ${tuneMae("lsq").toFixed(4)}, MAE fit ${tuneMae("one").toFixed(4)}`);
 console.log(`fitted s (median of ${tuneFolds.length} 2024–25 monthly ${family} fits) = ${fitted}; gate at s = ${S}; least-squares variant ${lsqVariant}`);
 for (const [label, sl] of Object.entries(variant)) for (const [name, d] of Object.entries(sl)) console.log(`  variant ${lsqVariant} ${label} · ${name}: margin ${JSON.stringify(d.marginMae)} alliance ${JSON.stringify(d.allianceMae)}`);
 console.log(`monthly: ${folds.map((f) => `${f.origin} ${f.mae}/${f.lsq}`).join("  ")}`);

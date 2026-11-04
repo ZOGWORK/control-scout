@@ -78,6 +78,12 @@ function scoreCheck(x: any, o: any): string | null {
     const want = scoreBand(c, o[k].sd, o[k].level);
     if (x[k].lo !== want.lo || x[k].hi !== want.hi) return `${k}: not the old range's sd recentred on the calibrated score`;
   }
+  // The derived fields: each range is its band's bounds, and "score ± pm" reaches both ends from the shown score.
+  for (const [side, score] of [["A", x.predictedScoreA], ["B", x.predictedScoreB]] as const) {
+    const band = x[`scoreBand${side}`], range = x[`scoreRange${side}`], pm = x[`scorePlusMinus${side}`];
+    if (range[0] !== band.lo || range[1] !== band.hi) return `scoreRange${side}: not its band's bounds`;
+    if (pm !== Math.max(0, band.hi - score, score - band.lo)) return `scorePlusMinus${side}: does not reach the range from the shown score`;
+  }
   return null;
 }
 /** --champion overrides the champion's rating settings, to gate a release after model.json already carries it
