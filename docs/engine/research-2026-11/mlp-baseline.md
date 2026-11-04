@@ -1,6 +1,7 @@
 # Research item 11: an MLP baseline against engine 3.3.0 (comparison only)
 
 **Verdict: the engine stays.** No MLP variant beats engine 3.3.0 on walk-forward Brier, in either season. The best one, built on the engine's own pre-match ratings, is still worse on every metric, and every interval excludes zero against it. Nothing changes in `packages/predict-engine`.
+- **Correction (Greptile on #505):** the engine-ratings variant was rerun after a fix. Its ratings are now read under the event as well as the region, exactly as `predictMatch` reads them. That moved its numbers by a few ×10⁻⁴; the other variants don't use ratings.
 - Script: `scripts/research/mlp_baseline.py` (with `scripts/research/mlp-export.ts`).
 - Output: `mlp-baseline-2026-11-03.json`.
 
@@ -19,12 +20,12 @@ Each row is MLP minus engine on identical matches: decisive matches at rated eve
 | paper / grid pick (32, 16), α 1e-2 | 2025–26 (reused) | 0.1681 | 0.1894 | +212.4 [+196.9, +226.4] | 74.79% | 71.05% | −3.74 [−4.17, −3.31] | +541.3 [+502.4, +576.7] | 37.48 | 41.87 | +4.39 [+4.08, +4.71] |
 | paper+n / grid pick (32, 16), α 1e-2 | 2024–25 (tuning) | 0.1579 | 0.1797 | +217.5 [+203.0, +231.7] | 76.53% | 72.39% | −4.14 [−4.56, −3.70] | +565.8 [+529.2, +601.9] | 38.84 | 43.41 | +4.57 [+4.20, +4.94] |
 | paper+n / grid pick (32, 16), α 1e-2 | 2025–26 (reused) | 0.1681 | 0.1851 | +169.1 [+155.0, +182.3] | 74.79% | 71.52% | −3.27 [−3.69, −2.85] | +421.3 [+386.7, +454.6] | 37.48 | 41.11 | +3.64 [+3.34, +3.93] |
-| engine-ratings / paper config | 2024–25 (tuning) | 0.1579 | 0.1813 | +234.0 [+216.8, +250.0] | 76.53% | 73.07% | −3.46 [−3.86, −3.02] | +728.2 [+677.2, +775.2] | 38.84 | 41.71 | +2.87 [+2.61, +3.12] |
-| engine-ratings / paper config | 2025–26 (reused) | 0.1681 | 0.1843 | +161.2 [+150.1, +172.9] | 74.79% | 72.33% | −2.47 [−2.81, −2.13] | +490.9 [+457.4, +527.7] | 37.48 | 38.98 | +1.50 [+1.31, +1.72] |
-| engine-ratings / grid pick (32, 16), α 1e-4 | 2024–25 (tuning) | 0.1579 | 0.1652 | +72.9 [+63.9, +82.4] | 76.53% | 75.50% | −1.03 [−1.36, −0.71] | +205.0 [+180.4, +229.8] | 38.84 | 40.31 | +1.46 [+1.25, +1.67] |
-| engine-ratings / grid pick (32, 16), α 1e-4 | 2025–26 (reused) | 0.1681 | 0.1724 | +42.6 [+36.6, +48.2] | 74.79% | 74.19% | −0.60 [−0.84, −0.37] | +116.6 [+100.3, +132.0] | 37.48 | 37.96 | +0.48 [+0.36, +0.61] |
+| engine-ratings / paper config | 2024–25 (tuning) | 0.1579 | 0.1796 | +216.5 [+200.7, +233.3] | 76.53% | 73.28% | −3.25 [−3.67, −2.85] | +691.2 [+643.7, +740.7] | 38.84 | 41.68 | +2.83 [+2.56, +3.08] |
+| engine-ratings / paper config | 2025–26 (reused) | 0.1681 | 0.1844 | +162.2 [+150.4, +174.3] | 74.79% | 72.26% | −2.53 [−2.90, −2.21] | +484.4 [+449.1, +521.0] | 37.48 | 38.94 | +1.46 [+1.24, +1.69] |
+| engine-ratings / grid pick (32, 16), α 1e-2 | 2024–25 (tuning) | 0.1579 | 0.1648 | +68.5 [+59.8, +77.9] | 76.53% | 75.55% | −0.98 [−1.31, −0.68] | +195.2 [+171.5, +220.2] | 38.84 | 40.31 | +1.46 [+1.24, +1.68] |
+| engine-ratings / grid pick (32, 16), α 1e-2 | 2025–26 (reused) | 0.1681 | 0.1718 | +36.1 [+30.7, +41.2] | 74.79% | 74.34% | −0.46 [−0.69, −0.24] | +99.9 [+84.9, +114.3] | 37.48 | 37.93 | +0.45 [+0.33, +0.57] |
 
-On qualification matches alone the picture is the same. For example, the engine-ratings grid pick on 2025–26 quals is +44.1 [+37.2, +50.7], and the paper config is +364.2 [+343.5, +385.6]. Every run's quals-only numbers are in the JSON.
+On qualification matches alone the picture is the same. For example, the engine-ratings grid pick on 2025–26 quals is +36.6 [+30.3, +42.6], and the paper config is +364.2 [+343.5, +385.6]. Every run's quals-only numbers are in the JSON.
 
 ### Seeds, and the train vs test gap
 
@@ -35,14 +36,14 @@ On qualification matches alone the picture is the same. For example, the engine-
 |---|---|---|---|---|---|---|---|
 | paper / paper config | 2024–25 | 3 | 0.2017 ± 0.0012 | +426.2 to +449.2 | 0.1424 / 0.2017 | 79.1% / 69.4% | 34.75 / 46.51 |
 | paper / paper config | 2025–26 | 3 | 0.2058 ± 0.0010 | +365.3 to +385.2 | 0.1462 / 0.2058 | 78.5% / 68.4% | 39.02 / 43.45 |
-| engine-ratings / paper config | 2024–25 | 1 | 0.1813 | +234.0 | 0.1276 / 0.1813 | 81.6% / 73.1% | 32.01 / 41.71 |
-| engine-ratings / paper config | 2025–26 | 1 | 0.1843 | +161.2 | 0.1309 / 0.1843 | 81.1% / 72.3% | 35.18 / 38.98 |
+| engine-ratings / paper config | 2024–25 | 1 | 0.1796 | +216.5 | 0.1276 / 0.1796 | 81.6% / 73.3% | 32.00 / 41.68 |
+| engine-ratings / paper config | 2025–26 | 1 | 0.1844 | +162.2 | 0.1299 / 0.1844 | 81.2% / 72.3% | 35.14 / 38.94 |
 | paper / grid pick | 2024–25 | 5 | 0.1839 ± 0.0001 | +258.7 to +260.8 | 0.1863 / 0.1839 | 71.4% / 72.0% | 39.11 / 44.95 |
 | paper / grid pick | 2025–26 | 5 | 0.1893 ± 0.0001 | +209.2 to +212.4 | 0.1855 / 0.1893 | 71.7% / 71.1% | 43.42 / 41.92 |
 | paper+n / grid pick | 2024–25 | 5 | 0.1796 ± 0.0001 | +216.3 to +217.8 | 0.1809 / 0.1796 | 72.0% / 72.5% | 37.96 / 43.39 |
 | paper+n / grid pick | 2025–26 | 5 | 0.1850 ± 0.0001 | +167.7 to +169.2 | 0.1809 / 0.1850 | 72.2% / 71.5% | 42.31 / 40.92 |
-| engine-ratings / grid pick | 2024–25 | 5 | 0.1652 ± 0.0001 | +72.6 to +74.4 | 0.1682 / 0.1652 | 74.5% / 75.5% | 35.47 / 40.38 |
-| engine-ratings / grid pick | 2025–26 | 5 | 0.1724 ± 0.0001 | +40.9 to +43.2 | 0.1660 / 0.1724 | 75.2% / 74.2% | 39.03 / 38.00 |
+| engine-ratings / grid pick | 2024–25 | 5 | 0.1648 ± 0.0001 | +68.4 to +69.7 | 0.1684 / 0.1648 | 74.5% / 75.6% | 35.45 / 40.32 |
+| engine-ratings / grid pick | 2025–26 | 5 | 0.1717 ± 0.0001 | +34.2 to +38.0 | 0.1661 / 0.1717 | 75.3% / 74.3% | 39.00 / 37.93 |
 
 - **Seed variance is far smaller than the gap to the engine.** The paper config's Brier moves by about 0.001 between seeds; the small nets move by about 0.0001.
 - **The paper's config overfits here, as its own numbers suggested** (93.48% train against 84.08% test there):
@@ -56,24 +57,28 @@ On qualification matches alone the picture is the same. For example, the engine-
 |---|---|---|---|---|---|---|---|
 | paper | 0.1841 | 0.1842 | 0.1855 | 0.1843 | **0.1840** | 0.1852 | 0.2005 |
 | paper+n | 0.1797 | 0.1797 | 0.1814 | 0.1798 | **0.1797** | 0.1810 | not run |
-| engine-ratings | 0.1653 | 0.1653 | 0.1666 | **0.1652** | 0.1653 | 0.1663 | 0.1813 |
+| engine-ratings | 0.1648 | 0.1649 | 0.1661 | 0.1648 | **0.1648** | 0.1658 | 0.1796 |
 
 ## Reading it
 
 - **The decision rule is not close to met.** The MLP wins only if it beats the engine on walk-forward Brier, with the interval excluding zero in its favour, and loses nothing on accuracy or margin MAE.
-  - Every variant, config, seed and season is worse on Brier, with intervals well above zero.
-  - Every one is also worse on accuracy, log loss and margin MAE.
+  - Every fully measured run (the paper config, and each variant's grid pick) is worse on Brier in both seasons, on every seed, with intervals well above zero. Every one is also worse on accuracy, log loss and margin MAE.
+  - The other grid cells were measured on the tuning season only (classifier, seed 0, Brier). None of them came within 0.006 Brier of the engine there, and the grid table shows each one. Their 2025–26 numbers, intervals and margin errors were not measured.
 - **The paper's features are the main loss.**
   - A season-to-date mean of alliance scores has no prior for a robot's first matches, no carry-over from last season, and no adjustment for who its partners were.
   - The engine has all three. On the tuning season the paper features cost about 0.026 Brier even with the best small net.
   - Adding the match counts (paper+n) recovers about a sixth of that.
 - **The MLP head adds nothing on top of the engine's own inputs.**
-  - Fed the engine's pre-match per-phase ratings, the best net still trails by +72.9×10⁻⁴ on the tuning season and +42.6×10⁻⁴ on 2025–26.
+  - Fed the engine's pre-match per-phase ratings, the best net still trails by +68.5×10⁻⁴ on the tuning season and +36.1×10⁻⁴ on 2025–26 (seed 0).
   - The engine turns the same ratings into a calibrated probability through its noise model, uncertainty, reliability and contextual terms. A generic classifier fitted on 365 days does not find more than that.
-- **There is an in-sample caveat, and it does not change the answer.**
-  - The engine's contextual coefficients were fitted on 2023–24 and early 2024–25, and its final calibration on later seasons (see the slice report). So its 2024–25 numbers are partly in-sample.
-  - The MLP is refitted every month on strictly earlier data.
-  - On 2025–26, the engine's out-of-sample season (reused), the MLP still loses on every metric.
+- **The served engine is partly in-sample on both seasons. A forward-only rebuild shows this is worth almost nothing.**
+  - The engine's contextual coefficients were fitted on 2023–24 plus 2024–25 before 2025-01-01, and its rating settings were tuned on 2024–25.
+  - Its final stretch (slope 1.057692) was fitted on rated matches from 2024-07-26 to 2026-07-26, which covers both scored seasons.
+  - The MLP, by contrast, is refitted every month on strictly earlier data.
+  - `scripts/research/engine_forward_check.py` rebuilds a forward-only stretch. It takes the engine's probability before the stretch (`--champion '{"rating":{},"recalibration":false}'`) and refits the slope on each rolling origin, as Part 12.5 did. The fitted slopes range from 1.04 to 1.10. Output: `engine-forward-check-2026-11-03.json`.
+  - Served minus forward-only Brier (×10⁻⁴): +0.01 [−0.30, +0.31] on 2024–25 and −0.48 [−0.71, −0.25] on 2025–26.
+  - So the stretch's in-sample advantage is at most about 0.7×10⁻⁴. The smallest MLP deficit is +34.2×10⁻⁴ (the best seed on 2025–26; seed 0's interval starts at +30.7), so the verdict stands against a forward-only engine too.
+  - On 2025–26 that forward-only engine is out-of-sample for the coefficients and the settings as well. Only 2024–25 keeps the coefficient and settings caveat.
 - **The paper's 84.08% has no bearing here.** It is a different competition, three-robot alliances, and a random split that lets the model train on matches after the ones it predicts.
 
 ## Not pursued
