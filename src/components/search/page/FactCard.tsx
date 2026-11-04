@@ -129,7 +129,9 @@ function FactTiles({ facts }: { facts: SearchCardFact[] }) {
 function LocationTile({ f }: { f: SearchCardFact }) {
   const v = f.values[0] ?? "";
   const parts = v.split(",").map((x) => x.trim()).filter(Boolean);
-  const names = parts.length === 3 ? ["City", "State", "Country"] : parts.length === 2 ? ["City", "Country"] : [];
+  // Named only when all three are there: a missing part is dropped before FIRST's fields are joined, so two parts
+  // could be city and country or state and country. Otherwise the chips go unnamed.
+  const names = parts.length === 3 ? ["City", "State", "Country"] : [];
   return (
     <div className="relative isolate overflow-hidden rounded-xl border border-info/30 bg-info/[0.06] p-4" data-location>
       <svg className="absolute inset-y-0 right-0 -z-10 h-full w-2/3 text-info/20 max-sm:w-full max-sm:opacity-60" viewBox="0 0 200 120" preserveAspectRatio="xMaxYMid slice" aria-hidden>
@@ -146,11 +148,11 @@ function LocationTile({ f }: { f: SearchCardFact }) {
         <span className="grid size-12 shrink-0 place-items-center rounded-full bg-info text-white shadow-sm" aria-hidden><MapPin className="size-6" /></span>
         <span className="min-w-0 break-words font-display text-3xl font-semibold leading-tight text-foreground max-sm:text-2xl">{v || <span className="text-base font-normal text-muted-foreground">Not in FIRST's listing</span>}</span>
       </span>
-      {!!names.length && (
+      {parts.length > 1 && (
         <span className="mt-3 flex flex-wrap gap-1.5" data-location-parts>
           {parts.map((x, i) => (
             <span key={i} className="inline-flex items-center gap-1 rounded-full border border-info/30 bg-card/80 px-2.5 py-0.5 text-xs text-foreground">
-              <span className="text-muted-foreground">{names[i]}</span><b className="font-semibold">{x}</b>
+              {names[i] && <span className="text-muted-foreground">{names[i]}</span>}<b className="font-semibold">{x}</b>
             </span>
           ))}
         </span>

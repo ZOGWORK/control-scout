@@ -29,9 +29,13 @@ describe("award-at-event answer", () => {
     const c = draw(card);
     const steps = [...c.querySelectorAll("[data-podium] [data-place]")];
     expect(steps.map((s) => s.getAttribute("data-place"))).toEqual(["2", "1", "3"]);
-    expect(steps[1].className).toContain("order-2");
+    expect(steps[1].className).toContain("col-start-2");
     expect(steps[1].textContent).toContain("4215");
     expect(steps[1].querySelector("a")!.getAttribute("href")).toBe("/teams/4215?season=2025");
+  });
+  it("a lone winner still stands in the centre", () => {
+    const c = draw({ ...card, awards: card.awards!.filter((x) => x.placement === 1) });
+    expect(c.querySelector("[data-podium] [data-place='1']")!.className).toContain("col-start-2");
   });
   it("lists every award at the event and links to its Awards tab", () => {
     const c = draw(card);

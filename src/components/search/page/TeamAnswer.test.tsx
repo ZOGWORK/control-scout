@@ -49,6 +49,10 @@ describe("answer card detail", () => {
     const loc = draw().querySelector("[data-location]")!;
     expect(loc.textContent).toContain("Oradell, NJ, USA");
     expect([...loc.querySelectorAll("[data-location-parts] > span")].map((x) => x.textContent)).toEqual(["CityOradell", "StateNJ", "CountryUSA"]);
+    // A part missing (no city): the parts aren't guessed at, so they go unnamed.
+    cleanup();
+    const two = render(<MemoryRouter><FactCard card={{ ...card, facts: [{ label: "Where they're from", values: ["NJ, USA"] }] }} /></MemoryRouter>).container;
+    expect([...two.querySelectorAll("[data-location-parts] > span")].map((x) => x.textContent)).toEqual(["NJ", "USA"]);
   });
   it("reads a season only from a real season label", () => {
     expect(statedSeason("Record in 2025–26")).toBe(2025);
