@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.6 — 2026-11-04
+## 3.0.7 — 2026-11-04
 
 Search answers questions about two or three teams, a team's partners and opponents, and predictions, each in one card from the stored numbers.
 
@@ -30,6 +30,22 @@ Search answers questions about two or three teams, a team's partners and opponen
 - **Next event.** "4215 chance to win an event", "advancement chances", "chance to advance to worlds", "predicted to make playoffs" and "predicted wins at their next event" read the event's stored forecast. Before one is published, the card names the event and says so; no number is guessed.
 - **Two and three teams.** "4215 vs 6980 compare" and "4215 6980 33950 compare" show OPR, OPR rank, the phases, rating and record for the season in one card. "Who is better at auto / teleop / endgame", "who has higher reliability" and "who has won more awards" name the winner from the team pages' numbers. "4215 wins against 6980" counts the meetings; "matches together" is the same list as "shared matches"; "match against 6980 at worlds" says when there is none.
 - **Partners and opponents.** Worst partner, partners and opponents (this season or at Worlds), teams beaten or lost to most often, the partner with the highest combined OPR, the highest-OPR opponent, win rate with partners and opponents' win rate, and a pick suggestion drawn from past partnerships. With no season named, the latest completed season (2025–26).
+
+## 3.0.6 — 2026-11-04
+
+Search reads a query with no season as the latest completed season (2025–26 for now, said on every card), and "last season" as the one before it.
+
+### Highlights
+- [rankings] Leaderboards show the latest completed season
+- [teams] "Last season" now means the season before the latest one
+- [rankings] Leaderboards by reliability and record, and a town's best
+- [teams] Ask how a team's OPR or rating changed and see both numbers
+
+### Search
+- **The season a query means.** With no season named, search reads the latest completed season: the newest one whose FIRST Championship has finished in the stored events (2025–26 until the 2026–27 Championship is over), never a fixed year. "This season" is that season too and "last season" the one before it (2024–25). Every leaderboard, team fact and team stat says which season it shows and why. A team with no matches in that season falls back to its own latest season, said so. (#574)
+- **More leaderboards.** "Top 5 teams by reliability in New Jersey" ranks by the team page's reliability index; "New Jersey leaderboard by record" (or by rating, or by any stat) lists a place's top 25; "best team in New Jersey by OPR" leads with that place's #1; "best team in Oradell" ranks a town's teams by OPR.
+- **How a number changed.** "How much did 4215's OPR improve from last season to this season" shows both seasons' OPR, the difference and each season's world standing. "How much did 4215's rating change this season" shows the rating in the earliest and the last weekly Rankings snapshot kept for the season, the change and the weeks between, with the team page's live rating beside them.
+- **A place's events by season.** "Events this season in New Jersey" and "events last season in New Jersey" list that state's events for the season, not a team called Event Horizon. "Upcoming events this weekend" lists this weekend's events.
 
 ## 3.0.5 — 2026-11-04
 

@@ -32,6 +32,8 @@ beforeAll(async () => {
   await ev(2025, "USNJNOM3", "P1-4 PM Northern League Meet", "LeagueMeet", "2025-11-08");
   await ev(2025, "USNJNOLT2", "East Bergen Conference Northern League Tournament", "LeagueTournament", "2026-03-08");
   await ev(2025, "USNJCMPPKWY", "New Jersey Championship - Parkway Division", "Championship", "2026-03-15", "USNJCMP");
+  // 2025–26 is over (its FIRST Championship has finished), so it is the season a query with none named reads.
+  await ev(2025, "FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2026-04-29");
   // season, code, OPR, auto, teleop, endgame, matches
   for (const [season, code, opr, a, t, e, n] of [[2023, "USNJCMPTNPK", 111.5, 30, 60, 21, 5], [2023, "FTCCMP1EDIS", 141.4, 47.3, 55.3, 38.9, 10], [2024, "USNJNOLT", 144.8, 38.6, 106.2, 2, 5],
     [2025, "USNJNOM3", 52.4, 6.6, 45.8, 2.4, 6], [2025, "USNJNOLT2", 84.4, 20, 60, 4.4, 5], [2025, "USNJCMPPKWY", 101.6, 28.3, 73.4, 5.5, 5]] as const) {

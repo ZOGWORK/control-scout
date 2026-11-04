@@ -3,7 +3,8 @@
 // playoffs", "on red", "ever") and what's left, which names the team. One table of intents, each naming its family;
 // the scope words are read once, the same way for every intent (./clauses.ts applies them).
 import type { StatFamily } from "../../../src/shared/searchStat.js";
-import { CURRENT_SEASON, SEASONS } from "../../data/seasons.js";
+import { SEASONS } from "../../data/seasons.js";
+import { searchSeason } from "./season.js";
 import { findRegions, nearRegion, type Region } from "../../../src/shared/regions.js";
 
 export type IntentId =
@@ -267,8 +268,9 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     if (y && SEASONS.some((s) => s.season === Number(y[1]))) { scope.season = Number(y[1]); scope.year = true; rest = rest.replace(y[0], " "); }
   }
   if (take(/\b(?:this|current|the\s+current)\s+(?:season|year)\b|\bthis\s+year'?s?\b/)) scope.latest = true;
-  // "Last season" is the season before the current one; a championship question reads it as the latest finished one.
-  else if (take(/\b(?:last|previous|past)\s+(?:year|season)'?s?\b/)) { scope.lastYear = true; scope.season ??= CURRENT_SEASON - 1; }
+  // "Last season" is the season before the default one (the latest completed season, ./season.ts); a championship
+  // question reads it as the latest finished one.
+  else if (take(/\b(?:last|previous|past)\s+(?:year|season)'?s?\b/)) { scope.lastYear = true; scope.season ??= searchSeason() - 1; }
   if (take(/\b(?:ever|all[\s-]+time|of\s+all\s+time|career|in\s+history|overall)\b/)) scope.ever = true;
   if (take(/\b(?:on|as|from)\s+(?:the\s+)?red(?:\s+alliance|\s+side)?\b|\bred\s+alliance\b/)) scope.alliance = "red";
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";
@@ -370,13 +372,15 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
-  kind: "top" | "rookie" | "improved" | "city";
+  kind: "top" | "rookie" | "improved" | "city" | "city-best";
   /** BOARD_STATS key (families/leaderboard.ts). */
   stat: string;
   n: number;
   region: Region | null;
   city: string | null;
   season: number | null;
+  /** "best team in New Jersey by OPR": one team asked for. */
+  best?: boolean;
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -388,6 +392,8 @@ const BOARD_STAT_WORDS: [string, RegExp][] = [
   ["wins", /^(?:(?:most |match )?wins)$/],
   ["avg-score", /^(?:average|avg|mean) (?:score|points)$/],
   ["rating", /^(?:prediction |predicted )?(?:rating|strength)$/],
+  ["record", /^(?:(?:win[- ]loss(?:[- ]tie)? )?record|w-l-t)$/],
+  ["reliability", /^(?:reliability|reliable|dependability)(?: index| score)?$/],
 ];
 const boardStat = (s: string) => BOARD_STAT_WORDS.find(([, re]) => re.test(s.trim()))?.[0] ?? null;
 /** A place's words as one region (a name, its start, a code, or one near miss), or null. */
@@ -413,6 +419,18 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
     const stat = boardStat(m[2]), region = place(m[3]);
     if (stat && region !== false) return { kind: "top", stat, n: n(m[1], 10), region, city: null, season: scope.season };
   }
+  // "best team in new jersey by opr", "best team by auto opr in nj": one team, the next few listed under it
+  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest|highest ranked) (?:team|robot|ftc team) (?:(?:in|from) (.+?) by (.+)|by (.+?)${PLACE})$`).exec(rest))) {
+    const stat = boardStat(m[2] ?? m[3]), region = place(m[1] ?? m[4]);
+    if (stat && region !== false) return { kind: "top", stat, n: 5, region, city: null, season: scope.season, best: true };
+  }
+  // "new jersey leaderboard by rating", "leaderboard by record in nj", "nj leaderboard": the place's ranked list (by
+  // the prediction rating, as Rankings, unless a stat is named)
+  if ((m = /^(?:the )?(?:(.+?) )?(?:leaderboard|rankings?|standings)(?: (?:by|for|on) (.+?))?(?: (?:in|from) (.+))?$/.exec(rest)) && (m[1] || m[2] || m[3]) && !(m[1] && m[3])) {
+    const stat = m[2] ? boardStat(m[2]) : "rating", region = place(m[1] ?? m[3]);
+    // "4215 rankings" names a team: only a place (or no place, with a stat) is a leaderboard.
+    if (stat && region !== false && (region || !m[1])) return { kind: "top", stat, n: m[2] ? 25 : 10, region, city: null, season: scope.season };
+  }
   // "top 10 teams in nj": a number asked for is honoured (search's own leaderboard shows 5); ranked as Rankings ranks,
   // by the prediction rating
   if ((m = new RegExp(`^(?:the )?(?:top|best|highest ranked|strongest) (\\d{1,2}) ${TEAMS}${PLACE}$`).exec(rest))) {
@@ -428,6 +446,10 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   if ((m = new RegExp(`^(?:the )?(?:top (\\d{1,2}) )?most improved ${TEAMS}${PLACE}$`).exec(rest))) {
     const region = place(m[2]);
     if (region !== false) return { kind: "improved", stat: "opr", n: n(m[1], 10), region, city: null, season: scope.season };
+  }
+  // "best team in oradell": a city's best team by OPR, never a region's (above)
+  if ((m = new RegExp(`^(?:the )?(?:best|top|strongest)(?: (\\d{1,2}))? ${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[2]).length && !nearRegion(m[2])) {
+    return { kind: "city-best", stat: "opr", n: n(m[1], 10), region: null, city: m[2].trim(), season: scope.season };
   }
   // "teams in oradell": a city, never a region (the region's own answers are search's)
   if ((m = new RegExp(`^(?:all )?${TEAMS} (?:in|from|based in) (.+)$`).exec(rest)) && !findRegions(m[1]).length && !nearRegion(m[1]) && scope.season == null) {

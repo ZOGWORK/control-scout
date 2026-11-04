@@ -20,7 +20,7 @@ import { readProjections } from "../../../projections/store.js";
 import { eventHref, teamHref } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
-import { answerSeason } from "./twoTeam.js";
+import { searchSeason, searchSeasonWhy } from "../season.js";
 
 const pct = (p: number) => `${Math.round(100 * p)}%`;
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
@@ -33,10 +33,10 @@ interface RatingRow { team: number; rating_np: number | null; rating_sd: number 
  *  else the latest predicted season both have one in (said so), else the latest completed one (its card says what's
  *  missing). */
 export async function predictionSeason(a: number, b: number): Promise<{ season: number; why: string }> {
-  const def = answerSeason();
+  const def = searchSeason();
   const rows = await all<{ season: number; n: number }>(`SELECT season, COUNT(*) n FROM team_season_stats WHERE team IN (?, ?) AND rating_np IS NOT NULL AND season >= ? GROUP BY season HAVING COUNT(*) = 2 ORDER BY season DESC`, [a, b, FIRST_PREDICT_SEASON]);
   const both = rows.map((r) => Number(r.season));
-  if (both.includes(def) || !both.length) return { season: def, why: `The season is ${seasonLabel(def)}, the latest completed season.` };
+  if (both.includes(def) || !both.length) return { season: def, why: searchSeasonWhy(def) };
   return { season: both[0], why: `The season is ${seasonLabel(both[0])}, the latest season both teams have a prediction rating in.` };
 }
 

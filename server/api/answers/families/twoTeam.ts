@@ -12,12 +12,13 @@ import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js
 import { seasonLabel } from "../../../../src/shared/format.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { predictHref } from "../../../../src/shared/predictUrl.js";
-import { CURRENT_SEASON, isLegacy } from "../../../data/seasons.js";
+import { isLegacy } from "../../../data/seasons.js";
 import { all, get } from "../../../db.js";
 import { OFFICIAL_TYPES, inScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import { matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
+import { searchSeason, searchSeasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 
 const LIST_CAP = 25, TOP = 10;
@@ -77,28 +78,22 @@ export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[],
 
 interface SeasonRow { team: number; season: number; opr_np: number | null; opr_auto: number | null; opr_teleop: number | null; opr_endgame: number | null; rank_np: number | null; rank_auto: number | null; rank_teleop: number | null; rank_endgame: number | null; ranked_teams: number | null; rating_np: number | null; rating_auto: number | null; rating_teleop: number | null; rating_endgame: number | null; rating_sd: number | null; rating_rank: number | null; matches: number; wins: number; losses: number; ties: number }
 
-/** The season an answer reads when none is named: the latest completed one. A season runs September to the
- *  championship in spring, so the newest season counts once June of its second year has come. */
-export function answerSeason(now = new Date()): number {
-  return now >= new Date(Date.UTC(CURRENT_SEASON + 1, 5, 1)) ? CURRENT_SEASON : CURRENT_SEASON - 1;
-}
-
 const SEASON_COLS = "team, season, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, rank_auto, rank_teleop, rank_endgame, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties";
 
-/** Every team's row for the season named, else for the latest completed season when all of them played it, else the
- *  latest season all of them played (said so). */
 /** The season a compare card reads when none is named (seasonRows' choice). */
 export async function compareSeason(teams: number[]): Promise<number | null> {
   return (await seasonRows(teams, null)).season;
 }
 
+/** Every team's row for the season named, else for the latest completed season (../season.ts) when all of them played
+ *  it, else the latest season all of them played (said so). */
 async function seasonRows(teams: number[], season: number | null): Promise<{ season: number | null; why?: string; rows: (SeasonRow | undefined)[] }> {
   const rows = await all<SeasonRow>(`SELECT ${SEASON_COLS} FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(",")}) AND matches > 0${season != null ? " AND season = ?" : ""} ORDER BY season DESC`, season != null ? [...teams, season] : teams);
   const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
   const allOf = (s: number) => teams.map((t) => of(t, s));
   if (season != null) return { season, rows: allOf(season) };
-  const def = answerSeason();
-  if (teams.every((t) => of(t, def))) return { season: def, why: `The season is ${seasonLabel(def)}, the latest completed season.`, rows: allOf(def) };
+  const def = searchSeason();
+  if (teams.every((t) => of(t, def))) return { season: def, why: searchSeasonWhy(def), rows: allOf(def) };
   const s = rows.map((r) => Number(r.season)).find((x) => teams.every((t) => of(t, x)));
   if (s == null) return { season: null, rows: [] };
   return { season: s, why: `The season is ${seasonLabel(s)}, the latest season ${teams.length === 2 ? "both" : "all the"} teams played.`, rows: allOf(s) };

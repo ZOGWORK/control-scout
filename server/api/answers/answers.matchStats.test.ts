@@ -24,6 +24,8 @@ beforeAll(async () => {
   await ev(2025, "USNJQ1", "New Jersey Qualifier", "Qualifier", "NJ", "2026-01-10");
   await ev(2025, "USPAQ1", "Pennsylvania Qualifier", "Qualifier", "PA", "2026-02-07");
   await ev(2025, "USNJCMP", "New Jersey Championship", "Championship", "NJ", "2026-03-14");
+  // 2025–26 is over (its FIRST Championship has finished), so it is the season a query with none named reads.
+  await ev(2025, "FTCCMP1", "FIRST Championship", "FIRSTChampionship", "TX", "2026-04-29");
   // Each alliance's own points and phases, and the penalty points it gave away (the other alliance's gain).
   const match = (season: number, code: string, level: string, n: number, time: string, red: Side, blue: Side, redTeams: number[], blueTeams: number[]) => Promise.all([
     run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen,

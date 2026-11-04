@@ -7,10 +7,11 @@ import { rebuildSearch } from "../../stats/job";
 import { CURRENT_SEASON } from "../../data/seasons";
 import { setFlag } from "../../flags";
 import { searchAnswer } from "../searchAnswer";
-import { answerSeason } from "./families/twoTeam";
+import { refreshSearchSeason, resetSearchSeason } from "./season";
 import { readStatQuestion, readTeamSet, readTwoTeam } from "./read";
 
-const S = answerSeason();
+// The latest completed season: the fixture's Championship below has finished.
+const S = CURRENT_SEASON - 1;
 const ask = (q: string) => searchAnswer(q, { limit: 40 });
 
 beforeAll(async () => {
@@ -58,6 +59,8 @@ beforeAll(async () => {
   const teams = JSON.stringify([{ team: 4215, rank: { p10: 1, p50: 3, p90: 7, mean: 3.4 }, pPlayoff: 0.71, pCaptain: 0.5, pPicked: 0.21, pAdvance: 0.33, advance: "odds", pWin: 0.22, pFinalist: 0.18 }]);
   await run("INSERT INTO event_projections (season, code, kind, state_key, seed, runs, target_runs, stage, played, scheduled, through, slots, slots_source, engine_version, ms, computed_at, teams) VALUES (?, 'USNJNEM2', 'current', 'k', 1, 2000, 2000, 'pre', 0, 30, NULL, 2, 'official', 't', 10, 'now', ?)", [CURRENT_SEASON, teams]);
   await rebuildSearch();
+  resetSearchSeason();
+  await refreshSearchSeason();
 });
 
 describe("reading the 260 list's two-team questions", () => {

@@ -59,7 +59,7 @@ describe("\"4215 record\": the latest season's record", () => {
     ].map(([l, v, s]) => [l, v, s]));
     expect(a.stat!.blocks.find((b) => b.kind === "record")).toMatchObject({ wins: 3, losses: 1, ties: 0 });
     expect(a.stat!.definition).toMatch(/World rank by win rate/);
-    expect(a.stat!.definition).toMatch(/The season is 2025–26, the team's latest/);
+    expect(a.stat!.definition).toMatch(/The season is 2025–26, the latest completed season/);
   });
   it("ties on the win-rate list go to most wins, then the lower team number, as the list orders them", async () => {
     await run("UPDATE team_season_stats SET wins = 3, losses = 1, matches = 4 WHERE season = 2025 AND team = 207");

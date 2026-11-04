@@ -13,6 +13,7 @@ import { all, get } from "../../../db.js";
 import { isEnabled } from "../../../flags.js";
 import { ATTENDED, seasonStats, teamEvents, teamReliability, teamReportCards, teamSchedule } from "../../teams.js";
 import { readScope } from "../read.js";
+import { searchSeason, searchSeasonWhy } from "../season.js";
 import { ratingKpis } from "./oprRating.js";
 import { eventHref, matchHref, shortEvent, teamHref } from "../matchSet.js";
 
@@ -101,11 +102,13 @@ const top = (rank: number, of: number) => `top ${Math.max(1, Math.ceil((100 * ra
 const n = (x: number) => x.toLocaleString("en-US");
 const OPR_RULE = "OPR: the points a team adds to its alliance's score without penalties, its best event that season (as its team page shows). Each phase's OPR is its own best that season, so the phases don't add up to the OPR. Ranks count every team with an OPR that season; each season is a different game, so a number is only set against its own season's.";
 
-/** The season asked, else the team's newest with matches. */
+/** The season asked, else the default season (the latest completed one, ../season.ts) when the team played in it,
+ *  else the team's newest with matches. */
 export async function seasonOf(team: number, asked: number | null): Promise<number | null> {
   if (asked != null) return asked;
-  const r = await get<{ s: number | null }>("SELECT MAX(season) s FROM team_season_stats WHERE team = ? AND matches > 0", [team]);
-  return r?.s == null ? null : Number(r.s);
+  const def = searchSeason();
+  const r = await get<{ s: number | null; d: number }>("SELECT MAX(season) s, MAX(season = ?) d FROM team_season_stats WHERE team = ? AND matches > 0", [def, team]);
+  return r?.s == null ? null : Number(r.d) ? def : Number(r.s);
 }
 
 /** The answer, or null when it has nothing to stand on (the question is left to search). */
@@ -130,7 +133,7 @@ export async function factAnswer(f: FactQuestion, team: Team, findEvent: (words:
   const season = await seasonOf(team.number, f.season);
   if (season == null) return { ...base(f.id, "Season numbers", [], OPR_RULE, "From the stored season numbers"), none: `${who(team)} has no season with matches on record.` };
   const S = seasonLabel(season);
-  const why = f.season == null ? ` The season is ${S}, the team's latest with matches.` : "";
+  const why = f.season == null ? (season === searchSeason() ? ` ${searchSeasonWhy(season)}` : ` The season is ${S}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest with matches.`) : "";
 
   if (f.id === "opr" || f.id in PHASE) {
     // The team page's own reader (seasonStats, server/api/teams.ts): the same stored row, ranks and population, so the
