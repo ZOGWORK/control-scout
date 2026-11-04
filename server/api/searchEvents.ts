@@ -87,9 +87,13 @@ function atPlace(typed: string, r: Row): boolean {
 
 const placeOf = (r: Row) => [r.city, r.state, r.country].filter(Boolean).join(", ");
 
+/** A venue as shown: FIRST's event list stores some with a trailing comma (the address cut off after it, "Columbia
+ *  High School,"), so the name ends at the comma; nothing else of it changes. */
+export const venueName = (v: string | null): string | null => v?.replace(/[,\s]+$/, "") || null;
+
 export function eventHit(r: Row, now = Date.now()): SearchHit {
   const status = eventStatus({ start: r.start, end: r.end, timezone: r.timezone }, 0, 0, now);
-  const event: SearchEventInfo = { start: r.start, end: r.end, type: r.type, venue: r.venue, status };
+  const event: SearchEventInfo = { start: r.start, end: r.end, type: r.type, venue: venueName(r.venue), status };
   return { kind: "event", ref: `${r.season}:${r.code}`, title: r.name, subtitle: [r.code, r.start, placeOf(r)].filter(Boolean).join(" · "), season: Number(r.season), event, match: "exact" };
 }
 
@@ -178,11 +182,28 @@ function whereAsStored(e: EventQuery, rows: Row[]): { text: string; city: boolea
   return null;
 }
 
-/** The "All events in New Jersey" link, with how many this season. */
-export async function placeHit(r: Region): Promise<SearchHit | null> {
-  const n = Number((await get<{ n: number }>("SELECT COUNT(*) n FROM events WHERE season = ? AND country = ? AND state = ?", [CURRENT_SEASON, r.country, r.state]))?.n ?? 0);
-  return n ? { kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${n} this season`, season: CURRENT_SEASON } : null;
+/** How many events a place holds this season: every kind, less the volunteer sign-ups no event set lists. */
+async function placeCount(r: Region): Promise<number> {
+  return Number((await get<{ n: number }>("SELECT COUNT(*) n FROM events WHERE season = ? AND country = ? AND state = ? AND (type IS NULL OR type <> 'VolunteerSignup')", [CURRENT_SEASON, r.country, r.state]))?.n ?? 0);
 }
+
+/** The "All events in New Jersey" link, with how many events it holds this season (`n`, placeCount). `asked`: the
+ *  set the query asked for, named first with its own count (the events listed, the All tab's count) when it is
+ *  narrower than every event: "24 meets · 42 events this season". */
+function placeHitOf(r: Region, n: number, asked?: { n: number; label: string }): SearchHit | null {
+  if (!n) return null;
+  const all = `${n} ${n === 1 ? "event" : "events"} this season`;
+  const set = asked && asked.label !== "events" ? `${asked.n} ${asked.n === 1 ? singular(asked.label) : asked.label} · ` : "";
+  return { kind: "place", ref: r.key, title: `All events in ${r.name}`, subtitle: `${set}${all}`, season: CURRENT_SEASON };
+}
+
+/** The place's link on its own (a bare "New Jersey"): how many events this season. */
+export async function placeHit(r: Region): Promise<SearchHit | null> {
+  return placeHitOf(r, await placeCount(r));
+}
+
+/** "meets" as one: "meet" (the first event word of a set's label). */
+const singular = (label: string) => label.replace(/\b(meet|event|tournament|championship)s\b/, "$1");
 
 /** The answer for an event set (`q`: the query as typed). `others`: hits to list after the events (a bare region's
  *  teams). */
@@ -195,19 +216,22 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
     ...(e.where ? { where: e.where } : {}), ...(e.year != null ? { year: e.year } : {}), season: e.season ?? (e.year == null && !e.allSeasons && !e.where ? CURRENT_SEASON : undefined),
     ...(window ? { window } : {}), ...(eventTypesOf(e.kinds) ? { eventTypes: eventTypesOf(e.kinds)! } : {}),
   };
-  const place = e.region ? await placeHit(e.region) : null;
+  const inPlace = e.region ? await placeCount(e.region) : 0;
+  // The place's link names the set listed too, in the label's own words with the place left out ("meets", "upcoming
+  // meets"), counted as the list is: one definition for the link, the events heading and the time tabs.
+  const placeFor = (rows: Row[], o: Parameters<typeof eventSetLabel>[1]) => (e.region ? placeHitOf(e.region, inPlace, { n: rows.length, label: lower(eventSetLabel({ ...e, region: null }, { seasonLabel, ...o })) }) : null);
   // Every season but more than a page holds: the newest first, how many in all, and the full list one click away.
-  const room = SEARCH_PAGE_LIMIT - (place ? 1 : 0);
+  const room = SEARCH_PAGE_LIMIT - (inPlace ? 1 : 0);
   const more = (rows: Row[]) => (e.allSeasons && rows.length > room ? rows.length : 0);
-  const done = (rows: Row[], understood: SearchUnderstood): SearchAnswer => ({
-    q, hits: [...(place ? [place] : []), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])],
+  const done = (rows: Row[], understood: SearchUnderstood, o: Parameters<typeof eventSetLabel>[1] = {}): SearchAnswer => ({
+    q, hits: [...[placeFor(rows, o)].filter((h): h is SearchHit => !!h), ...rows.map((r) => eventHit(r, now)), ...(opts.others ?? [])],
     pages: more(rows) && e.region ? [{ title: `Championships in ${e.region.name}, each season: Events`, href: `/events?region=${encodeURIComponent(e.region.key)}&type=Championship` }, ...pagesFor(q)] : pagesFor(q),
     step: "deterministic", weak: false,
     understood: { ...understood, ...(more(rows) ? { label: `${understood.label}, ${rows.length} in all (the full list is on Events)` } : {}), total: rows.length },
   });
 
   const rows = await rowsFor(e, now);
-  if (rows.length) return done(rows, { ...base, label: label({ where: whereAsStored(e, rows) }) + gaps(e, rows) });
+  if (rows.length) return done(rows, { ...base, label: label({ where: whereAsStored(e, rows) }) + gaps(e, rows) }, { where: whereAsStored(e, rows) });
   // Nothing matched: the closest honest set, labelled as such. The time goes first (the venue asked for stays), then
   // the venue or city.
   const asked = label();
@@ -217,7 +241,8 @@ export async function eventSetAnswer(q: string, e: EventQuery, opts: { now?: num
   if (e.time && e.where) tries.push(["where", "time"]);
   for (const d of tries) {
     const fb = await rowsFor(e, now, { where: d.includes("where"), time: d.includes("time") });
-    if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label({ drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) }))} instead` });
+    const shown = { drop: d, where: d.includes("where") ? null : whereAsStored(e, fb) };
+    if (fb.length) return done(fb, { ...base, ...(d.includes("where") ? { season: e.season ?? (e.year == null && !e.allSeasons ? CURRENT_SEASON : undefined) } : {}), label: asked, fallback: `No ${lower(asked)} in the data — showing ${lower(label(shown))} instead` }, shown);
   }
   // Still nothing. A year named is never swapped for another: say so, with other years' events as closest matches.
   const otherYears = e.year != null || e.season != null ? (await rowsFor(e, now, { year: true })).slice(0, 10) : [];

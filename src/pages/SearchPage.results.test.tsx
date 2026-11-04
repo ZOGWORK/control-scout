@@ -117,6 +117,38 @@ describe("search results page", () => {
     expect(titles()).toEqual(["Next Meet", "Old Meet", "Later Meet"]);
   });
 
+  it("the time tab follows the query: 'upcoming meets' opens on Upcoming, highlighted, and a pick of All is kept in the address", () => {
+    const understood = { kind: "events" as const, label: "Upcoming meets in New Jersey", time: "upcoming" as const };
+    state.answer = answer([ev("A", "Next Meet", "2099-11-17"), ev("C", "Later Meet", "2099-12-01")], { understood });
+    const { container, unmount } = show("/search?q=upcoming%20meets%20in%20nj");
+    const checked = () => screen.getAllByRole("radio").filter((r) => r.getAttribute("aria-checked") === "true").map((r) => r.textContent);
+    expect(checked()).toEqual(["Upcoming2"]);
+    expect(screen.getByRole("radio", { name: /^Upcoming/ }).className).toContain("bg-accent");
+    // The query's own tab is no filter: nothing to clear.
+    expect(screen.queryByRole("button", { name: /Clear filters/ })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: /^All/ }));
+    expect(loc).toBe("/search?q=upcoming+meets+in+nj&when=all");
+    expect(checked()).toEqual(["All2"]);
+    // Clear goes back to the query's own tab.
+    fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
+    expect(loc).toBe("/search?q=upcoming+meets+in+nj");
+    expect(checked()).toEqual(["Upcoming2"]);
+    expect(container.querySelectorAll('[data-result="event"]')).toHaveLength(2);
+    unmount();
+    // A reload or a shared link of the All pick opens on All.
+    show("/search?q=upcoming%20meets%20in%20nj&when=all");
+    expect(checked()).toEqual(["All2"]);
+  });
+
+  it("an event's venue is shown in full, never cut to fit", () => {
+    const h: SearchHit = { ...ev("USNJNOM5", "Northern League Meet", "2099-12-06"), event: { start: "2099-12-06", end: "2099-12-06", type: "LeagueMeet", venue: "Thomas Edison EnergySmart Charter School", status: "upcoming" } };
+    state.answer = answer([h, ev("B", "Old Meet", "2020-01-11", 2019)]);
+    const { container } = show("/search?q=meets%20in%20nj");
+    const venue = container.querySelector("[data-venue]")!;
+    expect(venue.textContent).toBe("Thomas Edison EnergySmart Charter School");
+    expect(venue.className).not.toContain("truncate");
+  });
+
   it("a filter with nothing left says what's empty and offers the tab that isn't, never a dead end", () => {
     state.answer = answer([ev("A", "P2-8 Northeast League Meet", "2099-12-13", 2026), ev("B", "P3-8 Northeast League Meet", "2100-01-24", 2026)]);
     const { container } = show("/search?q=meets%20in%20river%20dell%20high%20school&when=past");
