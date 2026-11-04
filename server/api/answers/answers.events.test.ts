@@ -379,3 +379,29 @@ describe("events, awards and Worlds history (260-query list)", () => {
     expect(a.understood?.label).toMatch(/^Event FTCCMP1EDIS/);
   });
 });
+
+describe("what Greptile found (#580)", () => {
+  it("a Leadership Award stored as a Winner is never a Winning Alliance award", async () => {
+    const a = await searchAnswer("6980 winning alliance awards", { limit: 25 });
+    expect(JSON.stringify(a.stat)).not.toMatch(/Pine Barrens/);
+  });
+  it("the newest award of one kind lists every award the team won at that event", async () => {
+    const a = await searchAnswer("4215 latest Inspire award", { limit: 25 });
+    const t = a.stat!.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.length).toBeGreaterThan(1);
+  });
+  it("a schedule keeps the events still to come; an event not over yet is never ranked 1st", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USNJLATE', 'Late Qualifier', 'Qualifier', 'Hillsborough', 'NJ', 'USA', '2099-01-01', '2099-01-02', 't')");
+    await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJLATE', 4215, 1)");
+    clearAllCaches();
+    const s = await searchAnswer("4215 event schedule this season", { limit: 25 });
+    expect(s.stat!.title).toMatch(/^Event schedule/);
+    expect(JSON.stringify(s.stat)).toMatch(/Late Qualifier/);
+    expect(JSON.stringify((await searchAnswer("4215 total events this season", { limit: 25 })).stat)).not.toMatch(/Late Qualifier/);
+    expect(JSON.stringify((await searchAnswer("events 4215 placed first in", { limit: 25 })).stat)).not.toMatch(/Late Qualifier/);
+  });
+  it("a team's last event in a season named is that season's", async () => {
+    const a = await searchAnswer("winning alliance at 7149's last event in 2024-25", { limit: 25 });
+    expect(JSON.stringify(a.stat ?? null)).not.toMatch(/Parkway/);
+  });
+});

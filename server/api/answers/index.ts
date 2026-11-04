@@ -167,7 +167,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
   const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin`
-    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : TITLES[it.id];
+    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
   // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
@@ -207,7 +207,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
   if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count, award: it.award, pick: it.pick });
   if (it.id === "total-penalties") return penaltyTotalAnswer(team, await teamEventSet(team.number), scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
-  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord });
+  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);
   if (it.id === "never-played") return neverPlayedAnswer(team, ms, scope);
@@ -277,12 +277,12 @@ async function namedEvent(it: StatQuestion, season: number | null) {
 }
 
 /** "winning alliance at 4215's last event": the team's latest event with a match it played (a division, when it played
- *  in one), or null when `words` aren't a team and "last event". */
-async function teamsLastEvent(words: string) {
+ *  in one), in the season asked for when one is, or null when `words` aren't a team and "last event". */
+async function teamsLastEvent(words: string, season: number | null) {
   const m = /^(.+?)\s+(?:last|latest|most\s+recent|newest|previous)\s+(?:event|meet|competition|tournament)$/.exec(words);
   const named = m ? await namedTeam(m[1], new Set()) : null;
   if (!named || !("team" in named)) return null;
-  const e = (await teamEventSet(named.team)).events.filter((x) => (x.matches > 0 || x.record != null) && officialClause()(x)).pop();
+  const e = (await teamEventSet(named.team)).events.filter((x) => (season == null || x.season === season) && (x.matches > 0 || x.record != null) && officialClause()(x)).pop();
   return e ? (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [e.season, e.code])) ?? null : null;
 }
 
@@ -295,7 +295,7 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   // As the asks' "who won" reads them: a bare year is when the event was held ("who won 2025 nj states": 2024–25),
   // "last year" the latest finished championship.
   const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? CURRENT_SEASON : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
-  const named = championship ? null : (await teamsLastEvent(core)) ?? await namedEvent(it, asked);
+  const named = championship ? null : (await teamsLastEvent(core, asked)) ?? await namedEvent(it, asked);
   if (!championship && !named) return null;
   const stat = opts.full ? await winnersAnswer(core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
   if (opts.full && !stat) return null;

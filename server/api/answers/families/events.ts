@@ -48,11 +48,12 @@ function seasonRows(ss: TeamSeason[], title: string, strong?: TeamSeason): StatB
 }
 
 /** The answer for an event or season intent, or null when `id` isn't one. */
-export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope, opts: { byRecord?: boolean } = {}): StatAnswer | null {
+export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamEvent[]; seasons: TeamSeason[] }, scope: Scope, opts: { byRecord?: boolean; schedule?: boolean } = {}): StatAnswer | null {
   const keep = eventInScope(scope);
   // Events the team has played at or that have begun: a published roster for a coming event is never its latest.
   const today = new Date().toISOString().slice(0, 10);
-  const evs = set.events.filter((e) => keep(e) && (e.matches > 0 || (e.start != null && e.start.slice(0, 10) <= today)));
+  // A schedule lists the events still to come too (a published roster).
+  const evs = set.events.filter((e) => keep(e) && (opts.schedule || e.matches > 0 || (e.start != null && e.start.slice(0, 10) <= today)));
   const ss = set.seasons.filter((s) => (scope.season == null || s.season === scope.season) && s.matches > 0);
   const who = whoOf(team), where = scopePhrase(scope);
   const evSource = evs.length ? `From ${evs.length} event record${evs.length === 1 ? "" : "s"}, ${seasonLabel(evs[0].season)}${evs[0].season !== evs[evs.length - 1].season ? ` to ${seasonLabel(evs[evs.length - 1].season)}` : ""}` : "No events in this scope";
@@ -81,7 +82,8 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
     case "first-place-events": {
       // A placement, never an award: ranked #1 at the end of qualifications (league meets left out: their rank is the
       // league's running standing). The event's Winning Alliance and Inspire Award are the event wins' answer.
-      const firsts = evs.filter((e) => e.rank === 1 && e.type !== "LeagueMeet").reverse();
+      // Only finished events: mid-qualifications, rank 1 is a current standing, not a placement.
+      const firsts = evs.filter((e) => e.rank === 1 && e.type !== "LeagueMeet" && String(e.end ?? e.start ?? "").slice(0, 10) < today).reverse();
       const title = `Events ranked 1st${where}`;
       const def = `Ranked 1st: the team's qualification rank at the event was #1, a placement, not an award. ${FINISH_BASE} Winning Alliance and Inspire Award wins are a separate answer (${team.number} event wins).`;
       const related: StatBlock = { kind: "related", title: "Awards, listed apart", queries: [`${team.number} event wins`] };
@@ -143,7 +145,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       };
     }
     case "total-events": {
-      const title = `Events played${where}`;
+      const title = `${opts.schedule ? "Event schedule" : "Events played"}${where}`;
       if (!evs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
       const per = [...new Set(evs.map((e) => e.season))].sort((a, b) => b - a);
       return {

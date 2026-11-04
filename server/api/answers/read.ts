@@ -159,6 +159,8 @@ export interface StatQuestion {
   pick?: "first" | "latest";
   /** "4215 best event": the event's record breaks a tie on rank, and is shown. */
   byRecord?: boolean;
+  /** "4215 event schedule": every event, the ones still to come included. */
+  schedule?: boolean;
   /** No team: what's left (an event's name, or "" for the season's championship). */
   noTeam: boolean;
   /** What names the team. */
@@ -415,7 +417,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (!core && scope.year) { core = String(scope.season); scope.season = null; scope.year = false; }
     if (!core) return null;
     const byRecord = (r.id === "best-finish" || r.id === "worst-finish") && /\b(?:event|competition|tournament)$/.test(m[0]);
-    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: false, core, ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}) };
+    return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, noTeam: false, core, ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
   }
   return null;
 }

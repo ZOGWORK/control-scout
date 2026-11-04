@@ -16,7 +16,7 @@ export const PERFORMANCE = new Set(["Winner", "Finalist"]);
 export const INDIVIDUAL = new Set(["DeansList", "Compass", "Volunteer"]);
 const kindOf = (type: string) => (PERFORMANCE.has(type) ? "Performance" : INDIVIDUAL.has(type) ? "Individual" : "Judged");
 
-interface AwardRow { season: number; code: string; name: string; type: string; placement: number; start: string | null; end: string | null }
+interface AwardRow { season: number; code: string; name: string; type: string; placement: number; start: string | null; end: string | null; award: string | null }
 
 const WINS_RULE = "Won an event: two kinds of win, listed apart. 1st place means the team was on the event's Winning Alliance (FIRST's Winning Alliance award); the Inspire Award is the event's top judged award (1st-place Inspire). Both from the event's published awards.";
 const KIND_RULE = "Performance awards: Winning and Finalist Alliance. Individual awards: Dean's List, Compass and Volunteer. Every other award is a judged team award. From the events' published awards.";
@@ -26,9 +26,9 @@ const KIND_RULE = "Performance awards: Winning and Finalist Alliance. Individual
 async function awardRows(team: number, scope: Scope): Promise<AwardRow[]> {
   const w = eventSql(scope);
   return all<AwardRow>(
-    `SELECT a.season, a.code, e.name, e.type event_type, a.type award, a.placement, e.start, e.end FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code
+    `SELECT a.season, a.code, e.name, e.type event_type, a.type award, a.name award_name, a.placement, e.start, e.end FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code
      WHERE a.team = ? AND ${w.sql} ORDER BY e.start DESC, a.code, a.type = 'Winner' DESC, a.type = 'Inspire' DESC, a.placement`,
-    [team, ...w.args]).then((rs) => rs.map((r: any) => ({ season: Number(r.season), code: r.code, name: shortEvent(r.name, r.event_type ?? null), type: r.award, placement: Number(r.placement), start: r.start, end: r.end })));
+    [team, ...w.args]).then((rs) => rs.map((r: any) => ({ season: Number(r.season), code: r.code, name: shortEvent(r.name, r.event_type ?? null), type: r.award, placement: Number(r.placement), start: r.start, end: r.end, award: r.award_name ?? null })));
 }
 
 const label = (r: AwardRow) => (r.type === "Winner" ? "1st place (Winning Alliance)" : r.type === "Inspire" && r.placement === 1 ? "Inspire Award" : awardLabel(r.type, r.placement));
@@ -59,7 +59,8 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
   if (!["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"].includes(id)) return null;
   const every = await awardRows(team.number, scope);
   // One award named ("4215 design award"), or Inspire for its newest or earliest: only those rows.
-  const rows = opts.award ? every.filter((r) => r.type === opts.award) : id === "inspire-awards" && opts.pick ? every.filter((r) => r.type === "Inspire") : every;
+  // FIRST stores its Leadership Award as a Winner too: never a Winning Alliance (as winners.ts reads them).
+  const rows = opts.award ? every.filter((r) => r.type === opts.award && !(r.type === "Winner" && /leadership/i.test(r.award ?? ""))) : id === "inspire-awards" && opts.pick ? every.filter((r) => r.type === "Inspire") : every;
   const who = whoOf(team), where = scopePhrase(scope);
   const events = new Set(rows.map((r) => `${r.season}|${r.code}`)).size;
   const base = { team, scope: scopeChips(scope), source: rows.length ? `From ${count(rows.length, "award record")} at ${count(events, "event")}` : "No awards in this scope" };
@@ -71,7 +72,7 @@ export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope,
     const def = `${opts.pick === "latest" ? "Most recent" : "First"}: by the event's date, from the events' published awards; every award the team won at that event is listed.`;
     const top = opts.pick === "latest" ? rows[0] : rows[rows.length - 1];
     if (!top) return { ...base, family: "awards", intent: id, title, blocks: [], definition: def, none: `No ${opts.award ? awardName(opts.award) : id === "inspire-awards" ? "Inspire Award" : "awards"}${where} found for ${who} in the published awards${checked}.` };
-    const there = rows.filter((r) => r.season === top.season && r.code === top.code);
+    const there = every.filter((r) => r.season === top.season && r.code === top.code);
     return {
       ...base, family: "awards", intent: id, title,
       headline: { value: label(top), label: top.name, sub: [seasonLabel(top.season), dateRange(top.start, top.end), there.length > 1 ? `also ${there.filter((r) => r !== top).map(label).join(", ")} there` : ""].filter(Boolean).join(" · "), href: eventHref(top.season, top.code, team.number) },
