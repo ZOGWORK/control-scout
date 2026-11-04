@@ -448,7 +448,10 @@ async function ratingTrend(team: Team, season: number, set: { events: TeamEvent[
   const after = (e: TeamEvent, last: boolean): number | null => {
     if (last) return Number(r.np);
     // That exact Monday's snapshot only: one pruned past the retention window leaves a gap, never a later week's rating.
-    const monday = weekOf(Date.parse(`${e.end ?? e.start}T12:00:00Z`) + WEEK_MS);
+    // An event with no dates on record has no Monday after it: a gap.
+    const end = Date.parse(`${e.end ?? e.start}T12:00:00Z`);
+    if (!Number.isFinite(end)) return null;
+    const monday = weekOf(end + WEEK_MS);
     const w = weeks.find((x) => x.week === monday);
     return w ? Number(w.rating) : null;
   };

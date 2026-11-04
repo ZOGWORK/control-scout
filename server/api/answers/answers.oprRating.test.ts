@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
+import { clearAllCaches } from "../../caches";
 import { seasonStats } from "../teams";
 import { readTwoTeam } from "./read";
 import { readOprRating } from "./families/oprRating";
@@ -167,6 +168,14 @@ describe("answers", () => {
     const g = await ask("4215 rating trend");
     expect(g.blocks.find((b) => b.kind === "series")).toMatchObject({ points: [{ y: null }, { y: 88.2 }, { y: 98 }] });
     expect(g.headline?.label).toContain("Rising from 88.2 after East Bergen Conference Northern League Tournament");
+    // An event with no dates on record is a gap too, never a failed answer.
+    await run("UPDATE events SET start = NULL, end = NULL WHERE code = 'USNJNOLT2'");
+    clearAllCaches();
+    const nd = await ask("4215 rating trend");
+    // (Only the last event's rating is left here, so no line: one point isn't a trend.)
+    expect(nd).toMatchObject({ headline: { value: "98 ± 3.2" }, definition: expect.stringContaining("only the season rating is shown") });
+    await run("UPDATE events SET start = '2026-03-08', end = '2026-03-08' WHERE code = 'USNJNOLT2'");
+    clearAllCaches();
     expect((await ask("4215 best prediction rating ever")).headline).toMatchObject({ value: "167.6 ± 3.2", label: "2024–25 season rating, after East Bergen Conference Northern League Tournament" });
   });
 });
