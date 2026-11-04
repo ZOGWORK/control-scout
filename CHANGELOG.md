@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.0.8 — 2026-11-04
+## 3.0.9 — 2026-11-04
 
 Three fixes to the two-team and forecast answers from 3.0.7's last review.
 
@@ -25,9 +25,24 @@ Three fixes to the two-team and forecast answers from 3.0.7's last review.
 - [teams] Compare names no leader when no team has an OPR
 
 ### Fixes
-- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season, also when the question names an event ("at <event> this season"). (#628)
-- **Partner OPR at an event.** "Partner with the highest combined OPR at <event>" asked for a season although the event names one; it now reads that event's season, the meetings still that event's only.
+- **Forecast labels.** "4215 advancement chances this season" for a team with no match yet this season showed the current forecast under last season's heading and team link; both now name the current season, also when the question names an event ("at Northeast League Meet this season"). (#628)
+- **Partner OPR at an event.** "Partner with the highest combined OPR at" an event asked for a season although the event names one; it now reads that event's season, the meetings still that event's only.
 - **Compare with no OPR.** When none of the compared teams has an OPR (counted matches that were all no-shows), the card shows the table and names no leader, instead of the first team under "Highest OPR: –".
+
+## 3.0.8 — 2026-11-04
+
+Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
+
+### Highlights
+- [teams] Mistyped team names reach the team: "hypnotc robotics"
+- [teams] Search shows "Did you mean: …" and runs it on a tap
+- [fixes] Mistyped words like "recrod" or "awrds" still answer
+- [fixes] Two names equally close are both shown, never guessed
+
+### Search
+- **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: "hypnotc robotics", "bad wolff", "enforcrs", "4215 recrod", "4215 awrds", "hypnotic oper", "new jersey champinship", "new jersy", "oradel". Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
+- **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
+- **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
 
 ## 3.0.7 — 2026-11-04
 

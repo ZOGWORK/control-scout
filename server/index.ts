@@ -21,6 +21,7 @@ import { RELEASE } from "./release.js";
 import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
+import { warmSpelling } from "./api/spelling.js";
 import { seasonCutoffs } from "./api/matchReport.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
@@ -75,6 +76,8 @@ forecasterFor(CURRENT_SEASON).then(() => log("ratings ready")).catch((e) => log(
 warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track record not ready: ${(e as Error).message}`))
   // Then the match report's flag cutoffs (two scans of a season) for this season and last, so a first report doesn't wait for them.
   .then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1)).catch(() => { /* built on the first report instead */ });
+// And search's spelling vocabulary (every team, event and place word: about a second cold).
+warmSpelling().then(() => log("spelling ready")).catch((e) => log(`spelling not ready: ${(e as Error).message}`));
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous
