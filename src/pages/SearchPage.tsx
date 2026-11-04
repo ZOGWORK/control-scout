@@ -241,6 +241,9 @@ export default function SearchPage() {
         </>
       )}
       </div>
+      <p className="mt-10 border-t border-border pt-4 text-sm text-muted-foreground max-md:mb-20">
+        <Link to="/how-it-works/search" className="font-medium text-accent-text hover:underline">How FTC One Search works</Link>
+      </p>
     </div>
   );
 }

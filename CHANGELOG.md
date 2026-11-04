@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.3 — 2026-11-03
+## 2.9.4 — 2026-11-03
 
 FTC One Search answers "4215 record" and "4215 awards" with full cards, and a team's sponsors, school and hometown read as one team card.
 
@@ -29,6 +29,47 @@ FTC One Search answers "4215 record" and "4215 awards" with full cards, and a te
 - **"4215 record" answers.** A plain record question gave no answer card, only the team and a Team records link. It now reads the team's latest season with matches: the W-L-T, the win-loss bar, the win rate, the season and the team's world rank by win rate (the same order as the highest-win-rate list: wins over matches played, a tie counting half, teams with 3 or more matches). The numbers are the team page's: 4215 is 26-6-0 in 2025–26.
 - **"4215 awards" and "awards 4215 has won" answer.** Both gave only the team. They now list every award with its event and date, a table per season, newest first. 1st place (Winning Alliance) and the Inspire Award stay two separate awards; 2nd and 3rd place Inspire are labelled as such.
 - **Listing facts as one team card.** "4215 sponsors", "4215 sponsors and school" and "where is 4215 from" were a thin box of links. They're now one card under the team's name: every sponsor its own bold row, the school and the hometown a bold value with its name small under it, then related questions. Values are shown exactly as FIRST's listing stores them; some school names are already cut short there (4215's is stored as "River Dell Regional High Sch"), and they're never cut further. (#522)
+
+## 2.9.3 — 2026-11-03
+
+Searches that used to give a confident wrong answer now give the right one, or say plainly what search can't do.
+
+### Highlights
+- [teams] "How many teams 2023" counts that season's teams
+- [teams] "Compare 4215 6980 16461" compares all three teams
+- [teams] "Top OPR last season" lists last season's leaders
+- [fixes] "How is OPR calculated" explains OPR, not a team
+- [fixes] "Teams near me" asks for a place, never reads "me" as Maine
+
+### Search
+- **Wrong answers fixed.** A 92-query check against the real data found searches that answered with the wrong thing, usually a team whose name shared a word. Each now answers what was asked (#513):
+  - A count of a named season ("how many teams 2023", "… in 2024-25", "… last season") is that season's count, not teams named "Spark team".
+  - "How is OPR calculated" is the OPR explanation, not the team CALculated Risk.
+  - "Teams near me" and "events near me" say where you are isn't known and suggest adding a place, instead of reading "me" as Maine or listing names with "event" in them.
+  - "Lowest OPR in New Jersey" and "worst teams" say search lists teams from the top, and link the full ranking.
+  - An event's best score without "at" ("highest score new jersey championship", "nj states highest score") is that event's. "NJ states" is New Jersey's championship, never a workshop with NJ in its name, and "worlds" is the FIRST Championship, never a Pre Worlds scrimmage.
+  - Three or four teams compared ("compare 4215 6980 16461", "compare 4215, 6980 and 16461") open Compare with every team, none dropped.
+  - A leaderboard with a season ("top opr last season", "best auto opr in texas 2024-25") is that season's, never the team Top Shelf BGS.
+  - A rookie list without "in" ("rookie teams new jersey", "nj rookie teams") is the place's rookie list.
+  - An event named with a game ("nj states decode", "worlds edison division centerstage", "nj states highest score decode") is that game's season, where it said "No matches found".
+  - A count of events in a bare year ("how many events in 2026") is the events held that calendar year, from either season; a season written as one ("2025-26") is that season.
+  - "Lowest OPR in NJ" links the Teams table sorted by that stat, lowest first.
+
+## 2.9.2 — 2026-11-03
+
+How FTC One Search works says plainly what the search does, for people and
+for search engines.
+
+### Highlights
+- [home] FTC One Search page opens with what you can search and how
+- [home] 20 example searches, each checked on the live site
+- [home] "How FTC One Search works" link on Home and on search results
+
+### Search
+- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app (#531).
+- **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
+- **Answers that don't drift.** A question with a misspelt team name ("geer opr") always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
+- **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
 
 ## 2.9.1 — 2026-11-03
 
