@@ -34,7 +34,7 @@ team up top, big numbers and its season at a glance, and no gold boxes.
 - **No gold.** Answer cards, headline bands, scope chips, related-question pills, the Compare card, event and trip badges, the query badge and the team table's rank badges and OPR bar are no longer gold; the yellow-bordered box is gone.
 - **Phase colours.** Auto, TeleOp and Endgame bars and table columns use the team page's phase colours (sky, emerald, violet), with a thin bar in that colour.
 - **Compare.** The Compare card shows both teams' numbers big and bold with no gold box or button; the head-to-head adds the prediction rating and states its season once, and phones show it under the Compare. No team cards repeat the two sides.
-- **Bruno AI credit.** The Bruno AI card is headed "Bruno AI from Control Point". (#PR)
+- **Bruno AI credit.** The Bruno AI card is headed "Bruno AI from Control Point". (#566)
 
 ## 2.9.9 — 2026-11-04
 
