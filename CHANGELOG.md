@@ -15,6 +15,28 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.0.2 — 2026-11-04
+
+Search answers a team's events, awards and Worlds history more exactly: one award by name, the newest or first award, the events it ranked 1st at, its Worlds divisions and its matches at a given Worlds.
+
+### Highlights
+- [teams] Ask for one award, like "4215 Design award", and get only it
+- [history] "Most recent award" and "first award ever" name the event
+- [history] Events ranked 1st, and the best or worst event by rank
+- [history] Worlds divisions, wins at Worlds and a Worlds year's matches
+- [fixes] "decode championship winning alliance" means Worlds again
+
+### Search
+- **One award.** "4215 Design award", "… Judges Choice award", "… winning alliance awards" list only that award (2nd and 3rd places as such), or say plainly that none was found in any season on record. Award words never become part of the team's name.
+- **Newest and first.** "4215 latest Inspire award", "4215 most recent award" and "4215 first award ever" lead with the award, its event, season and date, and list every award the team won at that event.
+- **Awards at a region's events.** "4215 awards at New Jersey events" keeps only awards from events in that region, and says so.
+- **Events ranked 1st.** "events 4215 won outright" and "events 4215 placed first in" list the events where the team ranked #1 after qualifications, each labelled as a placement. Winning Alliance and Inspire wins stay in "event wins". League meets are left out (their stored rank is the league's running standing).
+- **Best and worst event.** "4215 best event ever" and "… worst event ever" go by rank first and then the record there. Event tables now show a W-L-T column, counted the way the team page's event list counts it (playoffs included).
+- **Worlds.** "4215 worlds divisions", "championship divisions 4215 played in" and "4215 championship appearances count" give one row per Worlds the team went to (its division, season, rank and record) and the count. "4215 worlds wins" is the match-win count. "4215 matches at worlds in 2025" reads the year as when the championship was held (2024–25), and lists the matches or says there were none, naming the seasons it did play.
+- **Event schedule.** "4215 event schedule this season" lists the season's events newest first, with dates, ranks and records.
+- **Winners.** "winning alliance at 4215's last event" answers for the team's latest event played, its division when it played in one. A bare "championship" ("decode championship winning alliance", "who won the ftc championship in 2025") is the FIRST Championship, never a state event with that word in its name.
+- **Event codes.** "USNJNEM6 event" opens that event's card from its record (dates, venue, place, status), like typing the code alone. (#580)
+
 ## 3.0.1 — 2026-11-04
 
 Search answers more about a team's matches: records in quals or playoffs and by place, score spread, best phases, penalties, form and how it does against top or rookie teams.

@@ -8,8 +8,8 @@
 import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/shared/api.js";
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
-import { CURRENT_SEASON } from "../../data/seasons.js";
 import { findRegions } from "../../../src/shared/regions.js";
+import { CURRENT_SEASON } from "../../data/seasons.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
@@ -19,8 +19,8 @@ import { eventHit } from "../searchEvents.js";
 import { namedTeam } from "../searchCompare.js";
 import { officialClause, scopePhrase, type Scope } from "./clauses.js";
 import { teamEventSet, type TeamEvent } from "./eventSet.js";
-import { awardsAnswer } from "./families/awards.js";
-import { eventScopeAnswer } from "./families/eventScope.js";
+import { awardsAnswer, awardsTitle } from "./families/awards.js";
+import { eventScopeAnswer, worldsMatchesAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, type FactQuestion } from "./families/facts.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
@@ -38,7 +38,7 @@ export type Resolve = (core: string) => Promise<SearchAnswer>;
 
 const TITLES: Record<IntentId, string> = {
   "highest-score": "Highest score", "lowest-score": "Lowest score", "biggest-win": "Biggest win", "biggest-loss": "Biggest loss", "closest-match": "Closest match",
-  "first-match": "First match", "recent-match": "Most recent match", "best-finish": "Best event finish", "worst-finish": "Worst event finish", "first-event": "First event",
+  "first-match": "First match", "recent-match": "Most recent match", "best-finish": "Best event finish", "worst-finish": "Worst event finish", "first-place-events": "Events ranked 1st", "worlds-divisions": "Worlds divisions", "first-event": "First event",
   "last-event": "Most recent event", "best-opr-event": "Best OPR event", "best-season": "Best season", "most-improved-season": "Most improved season", "first-season": "First season",
   "wins-count": "Match wins", record: "Record", "average-score": "Average score", "average-margin": "Average margin", "total-points": "Total points", "total-matches": "Matches played", "total-events": "Events played", "seasons-played": "Seasons played",
   "seasons-count": "How many seasons", "current-streak": "Current streak", "longest-streak": "Longest win streak", "last-matches": "Last matches", "average-rank": "Average event rank",
@@ -61,7 +61,7 @@ const TREND_INTENTS = new Set<IntentId>(["opr-history", "opr-by-season", "record
 const OPPONENT_INTENTS = new Set<IntentId>(["most-played-opponent", "toughest-opponent", "best-partner", "frequent-partner"]);
 
 /** The intents read from event and season rows; the rest from matches (or awards). */
-const EVENT_INTENTS = new Set<IntentId>(["best-finish", "worst-finish", "first-event", "last-event", "best-opr-event", "best-season", "most-improved-season", "first-season", "total-events", "average-rank", "seasons-played", "seasons-count"]);
+const EVENT_INTENTS = new Set<IntentId>(["best-finish", "worst-finish", "first-place-events", "worlds-divisions", "first-event", "last-event", "best-opr-event", "best-season", "most-improved-season", "first-season", "total-events", "average-rank", "seasons-played", "seasons-count"]);
 const AWARD_INTENTS = new Set<IntentId>(["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"]);
 
 /** One of the team's events, by the words typed ("New Jersey Championship"): the best name match of every season it
@@ -87,6 +87,13 @@ async function latestSeason(team: number, id?: IntentId): Promise<number | null>
   return ms.length ? Math.max(...ms.map((m) => m.season)) : null;
 }
 
+/** "new jersey events", "nj meets": a region named outright (its whole name or code), else null. */
+function placeOf(at: string) {
+  const words = at.replace(/\b(?:the|events?|meets?|competitions?|tournaments?)\b/g, " ").replace(/\s+/g, " ").trim();
+  if (!words || words === at) return null;
+  return findRegions(words).find((r) => r.name.toLowerCase() === words || r.state.toLowerCase() === words) ?? null;
+}
+
 /** The scope an answer covers: the season named, else "this season" or an intent that defaults to one as the team's
  *  latest season with matches at official events (said so), else every season. */
 async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
@@ -100,7 +107,10 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     const region = findRegions(home.state).find((r) => r.country === (home.country ?? r.country) && r.state === home.state);
     scope.place = { country: home.country ?? "", state: home.state, name: region?.name ?? home.state, outside: true };
   }
-  if (s.at) {
+  // "4215 awards at New Jersey events" when the place wasn't read already: the events' own region, not one event.
+  const region = !scope.place && s.at ? placeOf(s.at) : null;
+  if (region) scope.place = { country: region.country, state: region.state, name: region.name };
+  else if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
     // alike): left to search's team-at-event answer, which lets the visitor pick.
     const season = s.season ?? (s.latest ? await latestSeason(team, it.id) : null);
@@ -170,8 +180,9 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
   const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
-    : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event") : TITLES[it.id];
-  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(scope)}`;
+    : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
+    : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : TITLES[it.id];
+  const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that
   // season (its title ends "in 2025–26"), and the answer's note says why (scope.seasonWhy), so the heading stays clean.
   const label = `${whoOf(team)} · ${title}`;
@@ -207,10 +218,10 @@ const worldsSeason = (s: StatAnswer): number | null => {
 };
 
 async function build(it: StatQuestion, team: { number: number; name: string | null }, scope: Scope): Promise<StatAnswer | null> {
-  if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count });
+  if (AWARD_INTENTS.has(it.id)) return awardsAnswer(it.id, team, scope, { count: it.count, award: it.award, pick: it.pick });
   if (it.id === "total-penalties") return penaltyTotalAnswer(team, await teamEventSet(team.number), scope);
   if (TREND_INTENTS.has(it.id)) return trendAnswer(it.id, team, await teamEventSet(team.number), scope);
-  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope);
+  if (EVENT_INTENTS.has(it.id)) return eventAnswer(it.id, team, await teamEventSet(team.number), scope, { byRecord: it.byRecord, schedule: it.schedule });
   const ms = await teamMatches(team.number);
   if (OPPONENT_INTENTS.has(it.id)) return opponentsAnswer(it.id, team, ms, scope);
   if (it.id === "never-played") return neverPlayedAnswer(team, ms, scope);
@@ -220,6 +231,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
     if (at) return at;
   }
   if (MATCH_STAT_IDS.has(it.id)) return matchStatAnswer(it.id, team, ms, scope, { n: it.n, variant: it.variant });
+  if (it.id === "results" && scope.championship) return worldsMatchesAnswer(team, ms, scope);
   return matchAnswer(it.id, team, ms, scope, { leadEvent: it.leadEvent, n: it.n, outcome: it.outcome });
 }
 
@@ -279,16 +291,28 @@ async function namedEvent(it: StatQuestion, season: number | null) {
   return it.scope.states ? null : findEvent(it.core, season);
 }
 
+/** "winning alliance at 4215's last event": the team's latest event with a match it played (a division, when it played
+ *  in one), in the season asked for when one is, or null when `words` aren't a team and "last event". */
+async function teamsLastEvent(words: string, season: number | null) {
+  const m = /^(.+?)\s+(?:last|latest|most\s+recent|newest|previous)\s+(?:event|meet|competition|tournament)$/.exec(words);
+  const named = m ? await namedTeam(m[1], new Set()) : null;
+  if (!named || !("team" in named)) return null;
+  const e = (await teamEventSet(named.team)).events.filter((x) => (season == null || x.season === season) && (x.matches > 0 || x.record != null) && officialClause()(x)).pop();
+  return e ? (await get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [e.season, e.code])) ?? null : null;
+}
+
 async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // "who won nj states": a place's state championship; "states" with no place names none.
   if (it.scope.states && !it.core) return null;
-  const championship = !it.scope.states && (it.scope.championship || !it.core);
+  // "decode championship", "the ftc championship": the season's FIRST Championship, never an event by that word.
+  const core = /^championships?$/.test(it.core) ? "" : it.core;
+  const championship = !it.scope.states && (it.scope.championship || !core);
   // As the asks' "who won" reads them: a bare year is when the event was held ("who won 2025 nj states": 2024–25),
   // "last year" the latest finished championship.
   const asked = it.scope.lastYear ? null : it.scope.latest && it.scope.season == null ? CURRENT_SEASON : it.scope.year && it.scope.season != null ? it.scope.season - 1 : it.scope.season;
-  const named = championship ? null : await namedEvent(it, asked);
+  const named = championship ? null : (await teamsLastEvent(core, asked)) ?? await namedEvent(it, asked);
   if (!championship && !named) return null;
-  const stat = opts.full ? await winnersAnswer(it.core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
+  const stat = opts.full ? await winnersAnswer(core, named?.season ?? asked, championship, async () => named, { latest: it.scope.latest, lastYear: it.scope.lastYear }) : null;
   if (opts.full && !stat) return null;
   const season = named?.season ?? asked;
   const label = named ? `${shortEvent(named.name, named.type)} · Winning alliance` : `${season != null ? `${seasonLabel(season)} ` : ""}FIRST Championship · Winning alliances`;

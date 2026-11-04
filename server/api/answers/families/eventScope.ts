@@ -15,6 +15,33 @@ const OPR_RULE = "OPR at the event: the team's offensive power rating there with
 
 const rec = (ms: TeamMatch[]) => ({ wins: ms.filter((m) => m.result === "W").length, losses: ms.filter((m) => m.result === "L").length, ties: ms.filter((m) => m.result === "T").length });
 
+/** "4215 matches at worlds in 2025": the team's matches at the FIRST Championship (its division and the finals), in
+ *  the season asked for or every season, with their scores. None in that season: said so, with the seasons it did play. */
+export async function worldsMatchesAnswer(team: AnswerTeam, all: TeamMatch[], scope: Scope): Promise<StatAnswer> {
+  const keep = inScope(scope);
+  const ms = all.filter((m) => keep(m) && m.counted);
+  const who = whoOf(team);
+  const when = scope.season != null ? ` in ${seasonLabel(scope.season)} (the ${scope.season + 1} FIRST Championship)` : "";
+  const title = `Matches at Worlds${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
+  const def = `Worlds: the FIRST Championship, its divisions and its finals. A year names when the championship was held: the 2025 one is the 2024–25 season's. ${RECORD_RULE}`;
+  const base = { team, scope: scopeChips(scope), source: ms.length ? sourceOf(ms) : "No Worlds matches in this scope" };
+  if (!ms.length) {
+    const other = [...new Set(all.filter((m) => inScope({ ...scope, season: null })(m) && m.counted).map((m) => m.season))].sort((a, b) => b - a);
+    return {
+      ...base, family: "event", intent: "results", title, blocks: other.length ? [{ kind: "related", title: "Worlds seasons on record", queries: other.map((s) => `${team.number} matches at worlds ${seasonLabel(s)}`) }] : [], definition: def,
+      none: `No Worlds matches found for ${who}${when}.${other.length ? ` Its Worlds matches on record are from ${other.map(seasonLabel).join(", ")}.` : " It has no Worlds matches on record."}`,
+    };
+  }
+  const links = await teamLinks(ms.flatMap((m) => [...m.partners, ...m.opponents]));
+  const r = rec(ms);
+  return {
+    ...base, family: "event", intent: "results", title,
+    headline: { value: `${r.wins}-${r.losses}-${r.ties}`, label: `in ${ms.length} match${ms.length === 1 ? "" : "es"} at Worlds${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`, sub: [...new Set(ms.map((m) => m.event))].join(" · ") },
+    blocks: [{ kind: "record", title: "Wins, losses and ties", ...r }, { kind: "matches", title: "Matches in order", rows: ms.slice(0, 40).map((m) => matchRow(m, links, team.number)) }],
+    definition: def,
+  };
+}
+
 /** The answer for an event intent, or null when `id` isn't one. `scope.event` is set. */
 export async function eventScopeAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch[], ev: TeamEvent | undefined, scope: Scope, opts: { n: number | null }): Promise<StatAnswer | null> {
   if (!scope.event || !["results", "event-rank", "event-opr", "match-lookup"].includes(id)) return null;
