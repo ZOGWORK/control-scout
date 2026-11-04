@@ -18,8 +18,9 @@ export interface TeamMatch {
   alliance: "red" | "blue";
   /** With penalties (the result), and without (the alliance's own points). */
   own: number; opp: number; ownNp: number | null; oppNp: number | null;
-  /** The alliance's phase points (as the match's own breakdown stores them: TeleOp as FIRST reports it) and the
-   *  penalty points it gave away (its fouls, the other alliance's gain); null where the match has no breakdown. */
+  /** The alliance's phase points (as the match's own breakdown stores them) and the penalty points it gave away (its
+   *  fouls, the other alliance's gain). A match FIRST posted as totals only (`breakdown` 0) has a reported Auto and
+   *  fouls but an estimated TeleOp and no Endgame: those two are null, never a phase record. */
   ownAuto: number | null; ownTeleop: number | null; ownEndgame: number | null; ownPen: number | null; oppPen: number | null;
   /** On the team's win-loss record (eventRecord's rule: a qualification surrogate isn't, a playoff team sitting out isn't). */
   counted: boolean;
@@ -53,7 +54,7 @@ async function load(team: number): Promise<TeamMatch[]> {
     all<any>(
       `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, x.surrogate, x.on_field, m.label, COALESCE(m.time, e.start) date,
               m.red_total, m.blue_total, m.red_np, m.blue_np, m.red_auto, m.blue_auto, m.red_teleop, m.blue_teleop,
-              m.red_endgame, m.blue_endgame, m.red_pen, m.blue_pen, e.name event, e.type, e.country, e.state, e.division_code
+              m.red_endgame, m.blue_endgame, m.red_pen, m.blue_pen, m.breakdown, e.name event, e.type, e.country, e.state, e.division_code
        FROM match_teams x
        JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
        JOIN events e ON e.season = x.season AND e.code = x.code
@@ -71,13 +72,14 @@ async function load(team: number): Promise<TeamMatch[]> {
     const red = r.alliance === "red";
     const own = Number(red ? r.red_total : r.blue_total) || 0, opp = Number(red ? r.blue_total : r.red_total) || 0;
     const around = sides.get(key(r)) ?? [];
+    const split = r.breakdown == null || Number(r.breakdown) !== 0;
     return {
       season: Number(r.season), code: r.code, level: r.level, series: Number(r.series), number: Number(r.number), label: r.label, date: r.date ?? null,
       event: shortEvent(r.event, r.type), type: r.type ?? null, country: r.country ?? null, state: r.state ?? null, division: r.division_code ?? null,
       alliance: red ? "red" : "blue", own, opp,
       ownNp: (red ? r.red_np : r.blue_np) == null ? null : Number(red ? r.red_np : r.blue_np),
       oppNp: (red ? r.blue_np : r.red_np) == null ? null : Number(red ? r.blue_np : r.red_np),
-      ownAuto: num(red ? r.red_auto : r.blue_auto), ownTeleop: num(red ? r.red_teleop : r.blue_teleop), ownEndgame: num(red ? r.red_endgame : r.blue_endgame),
+      ownAuto: num(red ? r.red_auto : r.blue_auto), ownTeleop: split ? num(red ? r.red_teleop : r.blue_teleop) : null, ownEndgame: split ? num(red ? r.red_endgame : r.blue_endgame) : null,
       ownPen: num(red ? r.red_pen : r.blue_pen), oppPen: num(red ? r.blue_pen : r.red_pen),
       counted: onRecord(r.level, { surrogate: !!Number(r.surrogate), onField: Number(r.on_field ?? 1) === 1 }),
       onField: Number(r.on_field ?? 1) === 1,

@@ -109,7 +109,7 @@ const RULES: IntentRule[] = [
   { id: "highest-auto", family: "superlative", season: "latest", re: /\b(?:highest|best|top|most|max(?:imum)?)\s+auto(?:nomous)?(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
   { id: "highest-teleop", family: "superlative", season: "latest", re: /\b(?:highest|best|top|most|max(?:imum)?)\s+(?:tele[\s-]?op|driver[\s-]controlled)(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
   { id: "highest-endgame", family: "superlative", season: "latest", re: /\b(?:highest|best|top|most|max(?:imum)?)\s+end[\s-]?game(?:\s+(?:scores?|points))?\b(?!\s+(?:opr|teams?))/ },
-  { id: "scores-over", family: "aggregate", season: "latest", re: /\b(?:scores?|scored|matches|games)\s+(?:(?:where|when|with|that|in\s+which)\s+(?:they|it|the\s+team)?\s*(?:scored?|had|got)\s+)?(?:over|above|more\s+than|at\s+least|higher\s+than)\s+(\d{2,3})(?:\s+points)?\b/ },
+  { id: "scores-over", family: "aggregate", season: "latest", re: /\b(?:scores?|scored|matches|games)\s+(?:(?:where|when|with|that|in\s+which)\s+(?:they|it|the\s+team)?\s*(?:scored?|had|got)\s+)?(?:of\s+)?(?:over|above|more\s+than|at\s+least|higher\s+than)\s+(\d{2,3})(?:\s+points)?\b/ },
   { id: "median-score", family: "aggregate", season: "latest", re: /\bmedian\s+(?:match\s+|alliance\s+)?(?:scores?|points)\b/ },
   { id: "score-range", family: "aggregate", season: "latest", re: /\b(?:score|scoring|points)\s+(?:range|spread)\b|\brange\s+of\s+scores\b/ },
   { id: "score-consistency", family: "aggregate", season: "latest", re: /\b(?:(?:score|scoring)\s+)?consisten(?:cy|t)(?:\s+(?:rating|score|index))?\b/ },
@@ -181,8 +181,9 @@ export interface StatQuestion {
   outcome: "W" | "L" | null;
   /** "how many inspire awards", "event wins count": a count, not the list. */
   count: boolean;
-  /** "penalties per event", "penalty rate": which figure leads a penalties answer. */
-  variant?: "per-event" | "rate" | null;
+  /** "penalties per event", "penalty rate": which figure leads a penalties answer; "at least 200": a limit that
+   *  includes itself. */
+  variant?: "per-event" | "rate" | "at-least" | null;
   /** No team: what's left (an event's name, or "" for the season's championship). */
   noTeam: boolean;
   /** What names the team. */
@@ -428,7 +429,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // "q12", "qual 12": a qualification match only, never a playoff match with that number.
     if (r.id === "match-lookup" && /\bq(?:ual(?:ification)?)?\s*\d/.test(m[0])) scope.level = "qual";
     const n = r.id === "last-matches" ? Math.min(20, Math.max(1, Number(m[1]))) : r.id === "match-lookup" ? Number(m[1] ?? m[2]) : r.id === "scores-over" ? Number(m[1]) : null;
-    const variant = r.id === "penalties" ? (/\bper\s+event\b/.test(q) ? "per-event" : /\brate\b/.test(q) ? "rate" : null) : null;
+    const variant = r.id === "penalties" ? (/\bper\s+event\b/.test(q) ? "per-event" : /\brate\b/.test(q) ? "rate" : null)
+      : r.id === "scores-over" && /\bat\s+least\b/.test(m[0]) ? "at-least" : null;
     // "average winning margin", "margin of victory on average": wins only; "average losing margin": losses only.
     const outcome = r.id === "closest-match" || r.id === "current-streak" ? (/\b(?:loss|losing|lost)\b/.test(m[0]) ? "L" : /\bwin/.test(m[0]) ? "W" : null)
       : r.id === "average-margin" ? (/\blosing\b/.test(m[0]) ? "L" : /\b(?:winning|victory)\b/.test(m[0]) ? "W" : null) : null;

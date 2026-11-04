@@ -69,7 +69,7 @@ async function ratingsOf(pairs: { team: number; season: number }[]): Promise<{ r
 }
 
 /** The answer for one of MATCH_STAT_IDS, or null for any other intent. */
-export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: TeamMatch[], scope: Scope, opts: { n?: number | null; variant?: "per-event" | "rate" | null }): Promise<StatAnswer | null> {
+export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: TeamMatch[], scope: Scope, opts: { n?: number | null; variant?: "per-event" | "rate" | "at-least" | null }): Promise<StatAnswer | null> {
   if (!MATCH_STAT_IDS.has(id)) return null;
   const keep = inScope(scope);
   const pool = all0.filter((m) => keep(m) && counts(id, m));
@@ -166,18 +166,20 @@ export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: Team
     }
 
     case "scores-over": {
-      const over = opts.n ?? 0;
-      const title = title0(`Scores over ${over}`);
-      const def = `${SCORE_RULE} Over: more than ${over} points.${pointsNote}`;
+      const over = opts.n ?? 0, least = opts.variant === "at-least";
+      const above = (m: TeamMatch) => (least ? m.own >= over : m.own > over);
+      const words = least ? `at least ${over}` : `over ${over}`;
+      const title = title0(`Scores ${least ? "of at least" : "over"} ${over}`);
+      const def = `${SCORE_RULE} ${least ? `At least: ${over} points or more` : `Over: more than ${over} points`}.${pointsNote}`;
       if (!pts.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
-      const xs = pts.filter((m) => m.own > over);
+      const xs = pts.filter(above);
       const r = record(xs);
       const blocks: StatBlock[] = [];
       if (xs.length) blocks.push({ kind: "kpis", items: [{ label: "Record in them", value: recText(r) }, { label: "Highest", value: String(Math.max(...xs.map((m) => m.own))) }, { label: "Share", value: pct({ wins: xs.length, losses: pts.length - xs.length, ties: 0 }), sub: `of ${plural(pts.length, "match", "matches")}` }] });
-      blocks.push(xs.length ? matches("Newest first", [...xs].reverse()) : { kind: "links", title: "Their matches", items: [{ label: `${who}'s matches`, href: teamHref(team.number, pts[0].season) }], none: `No match over ${over} points${where}.` });
-      if (several) blocks.push({ kind: "table", title: `Over ${over}, each season (a different game each year)`, columns: [{ key: "season", label: "Season" }, { key: "n", label: "Matches over", num: true }, { key: "of", label: "Matches", num: true }],
-        rows: bySeason(pool).map(([s, ys]) => ({ cells: { season: seasonLabel(s), n: ys.filter((m) => m.own > over).length, of: ys.length }, strong: s === pointsSeason })) });
-      return { ...base, family: "aggregate", intent: id, title, headline: { value: plural(xs.length, "match", "matches"), label: `of ${pts.length} scored over ${over} points (official score)`, sub: seasonLabel(pts[0].season) }, blocks, definition: def };
+      blocks.push(xs.length ? matches("Newest first", [...xs].reverse()) : { kind: "links", title: "Their matches", items: [{ label: `${who}'s matches`, href: teamHref(team.number, pts[0].season) }], none: `No match scored ${words} points${where}.` });
+      if (several) blocks.push({ kind: "table", title: `Scored ${words}, each season (a different game each year)`, columns: [{ key: "season", label: "Season" }, { key: "n", label: `Matches ${least ? "at least" : "over"}`, num: true }, { key: "of", label: "Matches", num: true }],
+        rows: bySeason(pool).map(([s, ys]) => ({ cells: { season: seasonLabel(s), n: ys.filter(above).length, of: ys.length }, strong: s === pointsSeason })) });
+      return { ...base, family: "aggregate", intent: id, title, headline: { value: plural(xs.length, "match", "matches"), label: `of ${pts.length} scored ${words} points (official score)`, sub: seasonLabel(pts[0].season) }, blocks, definition: def };
     }
 
     case "highest-auto":

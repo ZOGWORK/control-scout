@@ -45,6 +45,13 @@ beforeAll(async () => {
   // Worlds 2024–25: two wins.
   await match(2024, "FTCCMP1EDIS", "qual", 1, "2025-04-17T10:00:00Z", [200, 50, 110, 40, 10], [150, 30, 90, 30, 0], [4215, 23268], [6980, 207]);
   await match(2024, "FTCCMP1EDIS", "qual", 2, "2025-04-17T11:00:00Z", [100, 20, 60, 20, 0], [220, 50, 130, 40, 0], [6980, 207], [4215, 9999]);
+  // 777 at its own meet: one match with a breakdown (Endgame 20), one FIRST posted as totals only (its stored Endgame
+  // is no breakdown's: never a phase record).
+  await run("INSERT INTO teams (number, name, city, state, country) VALUES (777, 'Totals Only', 'Oradell', 'NJ', 'USA')");
+  await ev(2025, "USNJLM7", "Seven League Meet", "LeagueMeet", "NJ", "2026-01-20");
+  await match(2025, "USNJLM7", "qual", 1, "2026-01-20T10:00:00Z", [100, 20, 60, 20, 0], [50, 10, 30, 10, 0], [777, 6980], [207, 23268]);
+  await match(2025, "USNJLM7", "qual", 2, "2026-01-20T11:00:00Z", [150, 30, 21, 99, 0], [50, 10, 30, 10, 0], [777, 6980], [207, 23268]);
+  await run("UPDATE matches SET breakdown = CASE number WHEN 2 THEN 0 ELSE 1 END WHERE code = 'USNJLM7'");
   await rebuildSearch();
   // The stored season numbers the team pages show: ratings (9999 the top one) and 4215's penalty share.
   for (const [team, rating, rank] of [[4215, 98, 2], [6980, 50, 3], [207, 30, 4], [23268, 10, 5], [9999, 150, 1]] as const) {
@@ -122,6 +129,9 @@ describe("records", () => {
     const last = await stat("4215 trend over their last 5 matches");
     expect(last?.headline).toMatchObject({ value: "3-1-1", sub: "2025–26 · scores 260, 210, 150, 130, 180" });
     expect(last?.blocks.some((b) => b.kind === "series")).toBe(true);
+    // A run reaching back a season keeps its record, but its scores are the newest season's only.
+    const ten = await stat("4215 last 10 matches");
+    expect(ten?.headline).toMatchObject({ value: "7-2-1", sub: "2025–26 · scores 100, 120, 70, 260, 210, 150, 130, 180 (the 8 in 2025–26; each season is a different game)" });
   });
 
   it("against top-rated and rookie teams, never a compare with a team named so", async () => {
@@ -160,6 +170,10 @@ describe("scores", () => {
   it("scores over a number, with the count", async () => {
     expect((await stat("4215 scores over 200"))?.headline).toMatchObject({ value: "2 matches", label: "of 8 scored over 200 points (official score)" });
     expect((await stat("4215 matches where they scored over 150"))?.headline?.value).toBe("3 matches");
+    // "At least" includes the limit itself: the 210 counts.
+    expect(readStatQuestion("4215 scores of at least 210")).toMatchObject({ id: "scores-over", n: 210, variant: "at-least" });
+    expect(await stat("4215 scores of at least 210")).toMatchObject({ title: "Scores of at least 210 in 2025–26", headline: { value: "2 matches" } });
+    expect((await stat("4215 scores over 210"))?.headline?.value).toBe("1 match");
   });
 
   it("the best match by phase, its phases in the team page's colours, and the most penalties", async () => {
@@ -169,6 +183,8 @@ describe("scores", () => {
     const tiles = tele?.blocks.find((b) => b.kind === "kpis" && b.items.some((i) => i.phase));
     expect(tiles && tiles.kind === "kpis" && tiles.items.map((i) => [i.phase, i.value])).toEqual([["auto", "40"], ["teleop", "160"], ["endgame", "50"]]);
     expect((await stat("4215 match with the highest endgame score"))?.headline?.value).toBe("50 points");
+    // A totals-only match has no Endgame of record: the one with a breakdown is the answer.
+    expect((await stat("777 match with the highest endgame score"))?.headline).toMatchObject({ value: "20 points", label: "Endgame in Q1 at Seven League Meet" });
     expect((await stat("4215 match with the most penalties"))?.headline).toMatchObject({ value: "20 points", label: "of penalty points given away in Q3 at New Jersey Qualifier" });
   });
 });

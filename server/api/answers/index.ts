@@ -169,7 +169,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
-  const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores over ${it.n}`
+  const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event") : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(scope)}`;
   // "This season" with none of the season in progress played yet reads the team's latest: the heading names that

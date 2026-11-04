@@ -334,21 +334,24 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const title = `Last ${n} matches${where}`;
       if (!xs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
       const r = record(xs);
-      // The form and its trend: each result and score, oldest to newest, and the run's average beside its season's.
-      const run = [...xs].reverse(), season = ms.filter((m) => m.season === xs[0].season);
+      // The form and its trend: each result oldest to newest, and the scores beside the season's average. Points are
+      // never compared across seasons: when the run reaches back into an earlier season, its scores, average and
+      // trend are the newest season's matches only.
+      const run = [...xs].reverse().filter((m) => m.season === xs[0].season), season = ms.filter((m) => m.season === xs[0].season);
+      const mixed = run.length < xs.length;
       const avg = (ys: TeamMatch[]) => (ys.reduce((a, m) => a + m.own, 0) / ys.length).toFixed(1);
       const half = Math.floor(run.length / 2);
       const early = run.slice(0, half), late = run.slice(run.length - half);
       const dir = half ? Number(avg(late)) - Number(avg(early)) : 0;
       return {
         ...base, family: "aggregate", intent: id, title,
-        headline: { value: recText(r), label: `in the last ${xs.length} matches, oldest to newest ${run.map((m) => m.result).join(" ")}`, sub: `${seasonLabel(xs[0].season)} · scores ${run.map((m) => m.own).join(", ")}` },
+        headline: { value: recText(r), label: `in the last ${xs.length} matches, oldest to newest ${[...xs].reverse().map((m) => m.result).join(" ")}`, sub: `${seasonLabel(xs[0].season)} · scores ${run.map((m) => m.own).join(", ")}${mixed ? ` (the ${run.length} in ${seasonLabel(xs[0].season)}; each season is a different game)` : ""}` },
         blocks: [
           { kind: "kpis", items: [
-            { label: `Average, last ${xs.length}`, value: avg(xs), sub: `${avg(season)} over the season's ${season.length}` },
+            { label: `Average, last ${run.length}`, value: avg(run), sub: `${avg(season)} over the season's ${season.length}` },
             ...(half ? [{ label: "Trend", value: Math.abs(dir) < 5 ? "Steady" : dir > 0 ? "Rising" : "Falling", sub: `${avg(early)} in the first ${half}, ${avg(late)} in the last ${half}`, tone: Math.abs(dir) < 5 ? undefined : dir > 0 ? "good" as const : "bad" as const }] : []),
-            { label: "Highest", value: String(Math.max(...xs.map((m) => m.own))) },
-            { label: "Lowest", value: String(Math.min(...xs.map((m) => m.own))) },
+            { label: "Highest", value: String(Math.max(...run.map((m) => m.own))) },
+            { label: "Lowest", value: String(Math.min(...run.map((m) => m.own))) },
           ] },
           { kind: "series", title: "Score, match by match", unit: "points", points: run.map((m) => ({ x: `${m.label} · ${m.event}`, y: m.own, href: row(m).href, note: `${m.result === "W" ? "Won" : m.result === "L" ? "Lost" : "Tied"} ${m.own}–${m.opp}` })) },
           matchesBlock("Newest first", xs),
