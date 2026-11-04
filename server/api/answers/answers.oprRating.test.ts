@@ -23,7 +23,7 @@ beforeAll(async () => {
   setDb(c);
   await migrate(c);
   await run(`INSERT INTO teams (number, name, city, state, country) VALUES (4215, 'Hypnotic Robotics', 'Oradell', 'NJ', 'USA'), (6980, 'Bad Wolf', 'Oradell', 'NJ', 'USA'),
-    (7000, 'Jersey Top', 'Edison', 'NJ', 'USA'), (8000, 'Texas Top', 'Austin', 'TX', 'USA'), (24357, 'Teleop Tigers', 'Austin', 'TX', 'USA'), (9100, 'Few Matches', 'Trenton', 'NJ', 'USA')`);
+    (7000, 'Jersey Top', 'Edison', 'NJ', 'USA'), (8000, 'Texas Top', 'Austin', 'TX', 'USA'), (24357, 'Teleop Tigers', 'Austin', 'TX', 'USA'), (9100, 'Few Matches', 'Trenton', 'NJ', 'USA'), (9200, 'Sydney Bots', 'Sydney', 'NSW', 'Australia')`);
   const ev = (season: number, code: string, name: string, type: string, start: string, division: string | null = null) =>
     run("INSERT INTO events (season, code, name, type, division_code, city, state, country, start, end, source) VALUES (?, ?, ?, ?, ?, 'Edison', 'NJ', 'USA', ?, ?, 't')", [season, code, name, type, division, start, start]);
   await ev(2023, "FTCCMP1EDIS", "2024 FIRST Championship - Edison Division", "FIRSTChampionship", "2024-04-17", "FTCCMP1");
@@ -58,6 +58,7 @@ beforeAll(async () => {
   }
   // On the New Jersey list only with 3+ matches (the Teams list's filter): under 3, never ranked there.
   await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9100, 300, 2, 2, 0, 0)");
+  await run("INSERT INTO team_season_stats (season, team, opr_np, matches, wins, losses, ties) VALUES (2025, 9200, 80, 6, 3, 3, 0)");
   // The Teams page's season table (team_season_records), at full precision: what its New Jersey list sorts.
   for (const [team, name, opr, played] of [[4215, "Hypnotic Robotics", 101.64, 26], [6980, "Bad Wolf", 46.91, 24], [7000, "Jersey Top", 120.02, 20], [9100, "Few Matches", 300, 2], [8000, "Texas Top", 150, 20]] as const) {
     await run("INSERT INTO team_season_records (season, team, team_name, events, played, wins, losses, ties, np_opr) VALUES (2025, ?, ?, 2, ?, 10, 0, 0, ?)", [team, name, played, opr]);
@@ -136,9 +137,11 @@ describe("answers", () => {
     for (const q of ["8000 opr rank in New Jersey", "8000 rating in New Jersey", "8000 rank in New Jersey"]) {
       const s = await ask(q);
       expect(s.none, q).toMatch(/isn't on the New Jersey .* for 2025–26: it's a team from Texas, and the New Jersey .* rank teams from New Jersey only\./);
-      expect(s.blocks[0], q).toMatchObject({ kind: "related", queries: [expect.stringMatching(/^8000 .* in Texas$/)] });
+      expect(s.blocks[0], q).toMatchObject({ kind: "related", queries: [expect.stringMatching(/^8000 .* in Texas in 2025–26$/)] });
     }
-    expect((await ask("8000 opr rank in Texas")).headline).toMatchObject({ value: "#1 of 1", label: "in Texas by OPR" });
+    expect((await ask("8000 opr rank in Texas in 2025–26")).headline).toMatchObject({ value: "#1 of 1", label: "in Texas by OPR" });
+    // A region stored by its code ("NSW") is named so its own question reads it back.
+    expect((await ask("9200 opr rank in New Jersey")).blocks[0]).toMatchObject({ queries: ["9200 opr rank in New South Wales in 2025–26"] });
     // A New Jersey team under 3 matches is still told why.
     expect((await ask("9100 opr rank in New Jersey")).none).toMatch(/it needs 3\+ matches that season/);
   });

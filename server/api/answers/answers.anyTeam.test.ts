@@ -54,6 +54,12 @@ beforeAll(async () => {
   }
   await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJNOM2', 'qual', 0, 1, 'Q1', '2025-11-08T10:00:00Z', 1, 60, 60, 40, 40, 't'), (2025, 'USNJNOM3', 'qual', 0, 1, 'Q1', '2025-11-08T15:00:00Z', 1, 30, 30, 70, 70, 't')");
   await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJNOM2', 'qual', 0, 1, 4215, 'red', 1), (2025, 'USNJNOM3', 'qual', 0, 1, 4215, 'red', 1)");
+  // A playoff M1 at each meet too.
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJNOM2', 'playoff', 1, 1, 'M1', '2025-11-08T12:00:00Z', 1, 90, 90, 80, 80, 't'), (2025, 'USNJNOM3', 'playoff', 1, 1, 'M1', '2025-11-08T17:00:00Z', 1, 70, 70, 75, 75, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJNOM2', 'playoff', 1, 1, 4215, 'red', 1), (2025, 'USNJNOM3', 'playoff', 1, 1, 4215, 'red', 1)");
+  // A remote event 7149 was ranked at: left out of a team's event list, never "didn't play".
+  await run("INSERT INTO events (season, code, name, type, remote, city, state, country, start, end, source) VALUES (2025, 'USNJRQ', 'Garden State Remote Qualifier', 'Qualifier', 1, 'Town', 'NJ', 'USA', '2026-01-20', '2026-01-20', 't')");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USNJRQ', 7149, 1)");
   // Crow Force played in California only.
   await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2025, 'USCALAQ1', 10809, 1)");
   await run("INSERT INTO team_event_stats (season, code, team, opr_np, matches) VALUES (2025, 'USCALAQ1', 10809, 180, 1)");
@@ -83,10 +89,15 @@ describe("an event phrase reads the events the team played", () => {
   it("two meets of one name, read together; one match number at each is listed, never picked", async () => {
     const r = await ask("4215 record at P1-4 Northern League Meet");
     expect(r.title).toBe("Record at P1-4 AM Northern League Meet and P1-4 PM Northern League Meet");
-    expect(r.headline).toMatchObject({ value: "1-1-0" });
+    expect(r.headline).toMatchObject({ value: "2-2-0" });
     const m = await ask("4215 score in match 1 at P1-4 Northern League Meet");
     expect(m.blocks[0]).toMatchObject({ kind: "matches", title: "Match 1 at each event" });
     expect(m.blocks[0].kind === "matches" && m.blocks[0].rows).toHaveLength(2);
+    const p = await ask("4215 score in match 1 in playoffs at P1-4 Northern League Meet");
+    expect(p.blocks[0].kind === "matches" && p.blocks[0].rows.map((r) => r.label)).toEqual(["M1", "M1"]);
+  });
+  it("a remote event the team was ranked at is never said to be one it didn't play", async () => {
+    expect((await ask("7149 rank at Garden State Remote Qualifier"))?.none ?? "").not.toMatch(/didn't play/);
   });
   it("a team that played none of them is told so, the event checked named, with its own events to ask about", async () => {
     for (const q of ["10809 matches at NJ championship", "10809 record at NJ championship", "10809 opr at the New Jersey championship"]) {

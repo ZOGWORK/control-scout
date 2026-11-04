@@ -173,6 +173,10 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     // None of the team's events: the event those words name, which the answer says the team didn't play.
     const named = await findEvent(s.at, season, { anyPlayed: true, closest: true });
     if (!named) return null;
+    // The team's event list leaves some events out (remote ones): only a team with no row there at all is absent.
+    const there = await get("SELECT 1 FROM events e WHERE e.season = ? AND (e.code = ? OR e.division_code = ?) AND (EXISTS (SELECT 1 FROM event_teams t WHERE t.season = e.season AND t.code = e.code AND t.team = ?) OR EXISTS (SELECT 1 FROM match_teams t WHERE t.season = e.season AND t.code = e.code AND t.team = ?) OR EXISTS (SELECT 1 FROM awards t WHERE t.season = e.season AND t.code = e.code AND t.team = ?)) LIMIT 1",
+      [named.season, named.code, named.code, team, team, team]);
+    if (there) return null;
     return { ...scope, season: null, event: { season: Number(named.season), code: named.code, name: shortEvent(named.name, named.type ?? null), absent: true } };
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest") && PARTNER_LIST_INTENTS.has(it.id)) {
