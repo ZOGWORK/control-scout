@@ -107,3 +107,11 @@ describe("team facts", () => {
     for (const q of ["will 4215 win its next match", "when is 4215 next match", "when is 4215 next event", "what events did 4215 win in 2025"]) expect(readTeamFact(q), q).toBeNull();
   });
 });
+
+describe("reliability asked what it means (260-query list, 11-04)", () => {
+  it("reads the team, not the question's words", () => {
+    expect(readTeamFact("what does 4215's reliability score mean")).toMatchObject({ id: "reliability", core: "4215" });
+    expect(readTeamFact("4215 reliability rating")).toMatchObject({ id: "reliability", core: "4215" });
+    expect(readTeamFact("4215 rating")).toMatchObject({ id: "rating", core: "4215" });
+  });
+});
