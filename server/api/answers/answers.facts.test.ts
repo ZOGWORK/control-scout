@@ -7,6 +7,9 @@ import { rebuildSearch } from "../../stats/job";
 import { searchAnswer } from "../searchAnswer";
 import { readTwoTeam } from "./read";
 import { readTeamFact } from "./families/facts";
+import { seasonStats } from "../teams";
+import { num } from "../../../src/shared/format";
+import type { StatBlock } from "../../../src/shared/searchStat";
 
 beforeAll(async () => {
   const c = openDb(":memory:");
@@ -61,10 +64,24 @@ describe("team facts", () => {
   it("OPR and its phases, with the world rank; the prediction rating", async () => {
     const o = (await searchAnswer("4215 OPR", { limit: 25 })).stat!;
     expect(o).toMatchObject({ title: "OPR in 2025–26", headline: { value: "101.6", label: "#616 of 8,375 worldwide · top 8%" } });
+    // Every number on the card is the team page's (seasonStats, the reader /teams/4215 uses), formatted as it formats them.
+    const page = (await seasonStats(2025, 4215))!;
+    const kp = o.blocks.find((b) => b.kind === "kpis") as Extract<StatBlock, { kind: "kpis" }>;
+    expect(kp.items.map((i) => [i.phase, i.value, i.rank, i.of])).toEqual((["np", "auto", "teleop", "endgame"] as const).map((k) => [k, num(page.opr[k].value), page.opr[k].rank, page.opr[k].of]));
     const a = (await searchAnswer("4215 auto OPR", { limit: 25 })).stat!;
     expect(a.headline).toMatchObject({ value: "28.3", label: "#900 of 8,375 worldwide · top 11%" });
     const r = (await searchAnswer("4215 prediction rating", { limit: 25 })).stat!;
     expect(r.headline).toMatchObject({ value: "94.6 ± 3.2", label: "#2 of 3 worldwide · top 67%", sub: "30 matches rated" });
+  });
+  it("a name ending in s owns with an apostrophe alone; a rate is \"per match\" (audit v2.8.9)", async () => {
+    const o = (await searchAnswer("4215 OPR", { limit: 25 })).stat!;
+    expect(o.source).toBe("From 4215 Hypnotic Robotics' 2025–26 season numbers");
+    const r = (await searchAnswer("4215 prediction rating", { limit: 25 })).stat!;
+    expect(r.source).toBe("From 4215 Hypnotic Robotics' 2025–26 rating");
+    const kpis = r.blocks.find((b) => b.kind === "kpis");
+    expect(kpis && kpis.kind === "kpis" && kpis.items.find((k) => k.label === "Penalty points given away")).toMatchObject({ value: "4.1", sub: "per match" });
+    expect(r.definition).toContain("hand the other alliance per match");
+    for (const s of [o, r]) expect(JSON.stringify(s)).not.toMatch(/Robotics's|\ba match"/);
   });
   it("events in a season and in a place", async () => {
     expect((await searchAnswer("4215 events in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "2 events" });

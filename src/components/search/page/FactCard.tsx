@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { Search, Shield } from "lucide-react";
 import type { SearchCard, SearchCardFact } from "../../../shared/api";
 
-const H3 = "text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
+const H3 = "text-xs font-semibold text-muted-foreground";
 
 export function FactCard({ card }: { card: SearchCard & { facts: SearchCardFact[] } }) {
   const team = card.team;
@@ -31,7 +31,7 @@ export function FactCard({ card }: { card: SearchCard & { facts: SearchCardFact[
           <h3 className={`mb-1.5 ${H3}`}>Related questions</h3>
           <ul className="flex flex-wrap gap-1.5">
             {card.related.map((q) => (
-              <li key={q}><Link to={`/search?q=${encodeURIComponent(q)}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.06] px-3 text-xs font-medium text-foreground hover:border-accent/60"><Search className="size-3.5 text-accent" aria-hidden />{q}</Link></li>
+              <li key={q}><Link to={`/search?q=${encodeURIComponent(q)}`} className="inline-flex min-h-8 max-md:min-h-[44px] pointer-coarse:min-h-[44px] items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.06] px-3 text-xs font-medium text-foreground hover:border-accent/60"><Search className="size-3.5 text-accent" aria-hidden />{q}</Link></li>
             ))}
           </ul>
         </nav>

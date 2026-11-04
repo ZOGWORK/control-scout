@@ -42,8 +42,23 @@ const d1 = (x: number) => r1(x).toFixed(1);
  */
 export function scoreSum(own: { np: number }[], overlap: number, opp: { pen: number }[]): string {
   const robots = own.map((t) => r1(t.np)), pens = opp.map((t) => r1(t.pen)), ov = r1(overlap);
-  const total = robots.reduce((s, x) => s + x, 0) - ov + pens.reduce((s, x) => s + x, 0);
-  return `(${robots.map(d1).join(" + ")}) − ${d1(ov)} + (${pens.map(d1).join(" + ")}) = ${d1(total)}`;
+  return `(${robots.map(d1).join(" + ")}) − ${d1(ov)} + (${pens.map(d1).join(" + ")}) = ${d1(scoreTotal(own, overlap, opp))}`;
+}
+
+/** The total scoreSum writes (its parts rounded to 0.1, then added), as a number. */
+export function scoreTotal(own: { np: number }[], overlap: number, opp: { pen: number }[]): number {
+  return r1(own.reduce((s, t) => s + r1(t.np), 0) - r1(overlap) + opp.reduce((s, t) => s + r1(t.pen), 0));
+}
+
+/**
+ * Engine 3.5's margin calibration, written out from the two model sums (scoreTotal): both scores move toward
+ * their middle so the margin is `scale` × the gap, and the total stays the same. Each step to 0.1, so the lines
+ * check out by hand: { mid: "113.4", red: "113.4 + 0.95 × 7.4 = 120.4", blue: "113.4 − 0.95 × 7.4 = 106.4" }.
+ */
+export function marginCalibration(red: number, blue: number, scale: number): { mid: string; half: string; red: string; blue: string } {
+  const mid = r1((red + blue) / 2), half = r1(Math.abs(red - blue) / 2), moved = r1(scale * half);
+  const up = `${d1(mid)} + ${scale} × ${d1(half)} = ${d1(r1(mid + moved))}`, down = `${d1(mid)} − ${scale} × ${d1(half)} = ${d1(r1(mid - moved))}`;
+  return { mid: d1(mid), half: d1(half), red: red >= blue ? up : down, blue: red >= blue ? down : up };
 }
 
 /** The line for a match at this level (a what-if with no level is a qualification match). */

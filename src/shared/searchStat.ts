@@ -44,9 +44,13 @@ export interface LeaderboardRow {
   parts?: { auto: number | null; teleop: number | null; endgame: number | null; pen?: number | null } | null;
 }
 
+/** A season OPR (np, without penalties) or one of its phases, as the team page keys them. */
+export type OprPhase = "np" | "auto" | "teleop" | "endgame";
+
 export type StatBlock =
-  /** Big numbers side by side ("312 points", "14 wins"). */
-  | { kind: "kpis"; items: { label: string; value: string; sub?: string; href?: string; tone?: "accent" | "good" | "bad" }[] }
+  /** Big numbers side by side ("312 points", "14 wins"). Items with a `phase` are a team's season OPR and its parts, drawn
+   *  as the team page's OPR tiles (its colours, its rank line and bar from `rank` and `of`). */
+  | { kind: "kpis"; items: { label: string; value: string; sub?: string; href?: string; tone?: "accent" | "good" | "bad"; phase?: OprPhase; rank?: number | null; of?: number | null }[] }
   /** A win-loss-tie record as a bar. */
   | { kind: "record"; title?: string; wins: number; losses: number; ties: number }
   /** Matches, best first or newest first as `title` says. */
@@ -73,7 +77,12 @@ export interface StatAnswer {
   intent: string;
   /** "Highest score at Worlds" */
   title: string;
+  /** The page's own heading, when the card's `title` only complements it (a winning-alliance answer's page names the
+   *  event and season; its card, what it holds). Absent: the page heading is built around `title`. */
+  heading?: string;
   team?: { number: number; name: string | null };
+  /** Every team the answer is about, when it's more than `team` (a two-team answer's both sides, `team` first). */
+  teams?: { number: number; name: string | null }[];
   /** What the answer covers, as chips ("FIRST Championship events", "All seasons"). */
   scope: string[];
   /** The one number the question asks for, read first. */

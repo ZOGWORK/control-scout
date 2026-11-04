@@ -8,22 +8,38 @@ import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/search
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
+import { Meter, StatTile, TONES, rankPc } from "../../StatTile";
+import { OPR_CARDS, oprRankHint } from "../../oprCards";
+import { rangeCaption } from "../../../shared/format";
 
-const H3 = "mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
+const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
 export function StatAnswerCard({ stat }: { stat: StatAnswer }) {
+  // A team's season OPR (or one phase's) is drawn as the team page draws it: its plain card and section header, the
+  // number with no band behind it, and the phases as its coloured OPR tiles (../../oprCards.ts).
+  const opr = stat.blocks.some((b) => b.kind === "kpis" && b.items.some((i) => i.phase));
+  const scope = !!stat.scope.length && (
+    <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]" data-scope>
+      {stat.scope.map((s) => <span key={s} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{s}</span>)}
+    </p>
+  );
   return (
-    <section aria-label={stat.title} className="mb-5 rounded-xl border border-accent/30 bg-card p-4 shadow-sm sm:p-5" data-stat-answer={stat.intent} data-family={stat.family}>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <BarChart3 className="size-4 text-accent" aria-hidden />
-        <h2 className="font-display text-base font-semibold text-foreground">{stat.title}</h2>
-      </div>
-      {!!stat.scope.length && (
-        <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]" data-scope>
-          {stat.scope.map((s) => <span key={s} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{s}</span>)}
-        </p>
+    <section aria-label={stat.title} className={cn("mb-5 rounded-xl border bg-card p-4 shadow-sm sm:p-5", opr ? "border-border" : "border-accent/30")} data-stat-answer={stat.intent} data-family={stat.family}>
+      {opr ? (
+        <div className="border-b border-border pb-3">
+          <h2 className="text-base font-semibold text-foreground">{stat.title}</h2>
+          {scope}
+        </div>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <BarChart3 className="size-4 text-accent" aria-hidden />
+            <h2 className="font-display text-base font-semibold text-foreground">{stat.title}</h2>
+          </div>
+          {scope}
+        </>
       )}
-      {stat.headline && <Headline h={stat.headline} />}
+      {stat.headline && <Headline h={stat.headline} plain={opr} />}
       {stat.none && (
         <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground" data-none>
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
@@ -33,13 +49,14 @@ export function StatAnswerCard({ stat }: { stat: StatAnswer }) {
       <footer className="mt-4 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground" data-definition>
         <p><span className="font-medium text-foreground">How this is counted: </span>{stat.definition}</p>
         <p data-source>{stat.source}.</p>
-        {stat.more && <p><Link to={stat.more.href} className="text-[11px] text-accent-text hover:underline" data-more>{stat.more.label}</Link></p>}
+        {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-[11px] text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
       </footer>
     </section>
   );
 }
 
-function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
+/** `plain`: no band behind it (the OPR answer, as the team page shows its OPR). */
+function Headline({ h, plain }: { h: NonNullable<StatAnswer["headline"]>; plain?: boolean }) {
   const body = (
     <>
       <p className="break-words font-display text-3xl font-semibold leading-tight tabular-nums text-foreground group-hover:text-accent-text">{h.value}</p>
@@ -47,13 +64,14 @@ function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
       {h.sub && <p className="mt-0.5 text-xs text-muted-foreground">{h.sub}</p>}
     </>
   );
-  const cls = "group mt-3 block rounded-lg bg-accent/[0.06] px-3 py-3";
-  return h.href ? <Link to={h.href} className={cn(cls, "hover:bg-accent/[0.1]")} data-headline>{body}</Link> : <div className={cls} data-headline>{body}</div>;
+  const cls = plain ? "group mt-3 block rounded-lg py-1" : "group mt-3 block rounded-lg bg-accent/[0.06] px-3 py-3";
+  return h.href ? <Link to={h.href} className={cn(cls, !plain && "hover:bg-accent/[0.1]")} data-headline>{body}</Link> : <div className={cls} data-headline>{body}</div>;
 }
 
 function Block({ b }: { b: StatBlock }) {
   switch (b.kind) {
     case "kpis":
+      if (b.items.some((k) => k.phase)) return <OprTiles items={b.items} />;
       return (
         <dl className={cn("grid gap-2", b.items.length === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3")} data-block="kpis">
           {b.items.map((k) => {
@@ -134,7 +152,7 @@ function Block({ b }: { b: StatBlock }) {
           {b.items.length ? (
             <ul className="flex flex-wrap gap-2">
               {b.items.map((l) => (
-                <li key={l.href}><Link to={l.href} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-accent/60 hover:text-accent-text">{l.label}{l.sub && <span className="text-[11px] font-normal text-muted-foreground">{l.sub}</span>}<ArrowRight className="size-3.5 text-muted-foreground" aria-hidden /></Link></li>
+                <li key={l.href}><Link to={l.href} className="inline-flex min-h-9 max-md:min-h-[44px] pointer-coarse:min-h-[44px] items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground hover:border-accent/60 hover:text-accent-text">{l.label}{l.sub && <span className="text-[11px] font-normal text-muted-foreground">{l.sub}</span>}<ArrowRight className="size-3.5 text-muted-foreground" aria-hidden /></Link></li>
               ))}
             </ul>
           ) : <p className="text-sm text-muted-foreground">{b.none}</p>}
@@ -146,12 +164,30 @@ function Block({ b }: { b: StatBlock }) {
           <h3 className={H3}>{b.title}</h3>
           <ul className="flex flex-wrap gap-1.5">
             {b.queries.map((q) => (
-              <li key={q}><Link to={`/search?q=${encodeURIComponent(q)}`} className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.06] px-3 text-xs font-medium text-foreground hover:border-accent/60"><Search className="size-3.5 text-accent" aria-hidden />{q}</Link></li>
+              <li key={q}><Link to={`/search?q=${encodeURIComponent(q)}`} className="inline-flex min-h-8 max-md:min-h-[44px] pointer-coarse:min-h-[44px] items-center gap-1.5 rounded-full border border-accent/30 bg-accent/[0.06] px-3 text-xs font-medium text-foreground hover:border-accent/60"><Search className="size-3.5 text-accent" aria-hidden />{q}</Link></li>
             ))}
           </ul>
         </nav>
       );
   }
+}
+
+/** A season OPR and its phases as the team page's OPR tiles: each in its phase's colour, with its rank line and bar. */
+function OprTiles({ items }: { items: Extract<StatBlock, { kind: "kpis" }>["items"] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-block="kpis" data-opr-tiles>
+      {OPR_CARDS.map(([k, label, Icon, tone]) => {
+        const it = items.find((i) => i.phase === k);
+        if (!it) return null;
+        return (
+          <StatTile key={k} tone={tone} icon={Icon} label={label}
+            value={<span className={TONES[tone].text}>{it.value}</span>}
+            hint={oprRankHint(it.rank, it.of)}
+            bar={<Meter parts={[{ pc: rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} />
+        );
+      })}
+    </div>
+  );
 }
 
 function MatchRow({ r }: { r: StatMatchRow }) {
@@ -204,7 +240,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <p className="mt-1 flex justify-between gap-2 text-[11px] tabular-nums text-muted-foreground" aria-hidden>
         <span className="truncate">{b.points[0].x}</span>{b.points.length > 1 && <span className="truncate text-right">{b.points[b.points.length - 1].x}</span>}
       </p>
-      <p className="text-[11px] text-muted-foreground">Low {lo}{b.unit ? ` ${b.unit}` : ""} · high {hi}{b.unit ? ` ${b.unit}` : ""} · {pts.length} on the chart</p>
+      <p className="text-[11px] text-muted-foreground">{rangeCaption(lo, hi, pts.length, b.unit)}</p>
       {/* Every point's value in words too: readable without hovering (phones), and by screen readers. */}
       <ol className="mt-1.5 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2" data-series-values>
         {b.points.map((p, i) => (
@@ -258,7 +294,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
       <TeamTable table={table} label={b.title} />
-      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
+      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
     </figure>
   );
 }

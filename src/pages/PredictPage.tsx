@@ -37,7 +37,7 @@ import { SearchBox } from "../components/search/SearchBox";
 import { canonicalPredict, parsePick, predictHref, predictParams, readPredict, switchMode, type PredictMode, type PredictPick } from "../shared/predictUrl";
 import { cn } from "../components/cn";
 import { PredictionBasis } from "../components/PredictionBasis";
-import { marginText, matchBasis, overlapTotal, scoreSum } from "../shared/predictionBasis";
+import { marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "../shared/predictionBasis";
 import { Reveal, m } from "../components/motion";
 import { dateRange, dayDate, num, oddsPct, place, seasonLabel } from "../lib/format";
 import { copyLink } from "../lib/clipboard";
@@ -458,13 +458,36 @@ function useOfflineFallback(q: { season: number; red: number[]; blue: number[] }
           season: q.season, red: q.red, blue: q.blue, winProbRed: x.winProbA, winProbBlue: x.winProbB, predictedRed: x.predictedScoreA, predictedBlue: x.predictedScoreB,
           rangeRed: x.scoreRangeA, rangeBlue: x.scoreRangeB, rangeLevel: x.scoreBandA.level, factors: x.factors, factorSheet: compactSheet(x.factorSheet), history: x.partnership ? pairHistory(x.partnership) : null, confidence: x.confidence,
           teamsRed: x.teamsA.map((t) => ({ ...t, name: null })), teamsBlue: x.teamsB.map((t) => ({ ...t, name: null })),
-          overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
+          overlapRed: overlapTotal(x.overlapA), overlapBlue: overlapTotal(x.overlapB), marginScale: x.marginScale, bonus: bonusView(q.season, x) ?? null, engineVersion: ENGINE_VERSION,
         },
       });
     }, () => live && setOut({ data: null, asOf: null, loading: false }));
     return () => { live = false; };
   }, [key]);
   return out;
+}
+
+/**
+ * The Lab's by-hand score lines: each alliance's model sum from the ratings table, then (engine 3.5) the margin
+ * calibration that turns the two sums into the shown scores. Every step is written to 0.1 so it checks out by hand.
+ */
+function ScoreSumLines({ x, overlapRed, overlapBlue }: { x: MatchExplanationView; overlapRed: number; overlapBlue: number }) {
+  const red = scoreTotal(x.teamsRed, overlapRed, x.teamsBlue), blue = scoreTotal(x.teamsBlue, overlapBlue, x.teamsRed);
+  const cal = x.marginScale != null && x.marginScale !== 1 ? marginCalibration(red, blue, x.marginScale) : null;
+  return (
+    <div className="mt-3 space-y-0.5 text-xs text-muted-foreground" data-testid="score-sum">
+      <p>{cal ? "Before calibration" : "Predicted score"} = robots' Adds − overlap + the other side's Pen, each to 0.1{cal ? ":" : " (the score above is rounded from the unrounded parts, so it can differ by a point):"}</p>
+      <p className="tabular-nums"><span className="text-red-alliance">Red</span> {scoreSum(x.teamsRed, overlapRed, x.teamsBlue)}{cal ? "" : ` · shown ${x.predictedRed}`}</p>
+      <p className="tabular-nums"><span className="text-blue-alliance">Blue</span> {scoreSum(x.teamsBlue, overlapBlue, x.teamsRed)}{cal ? "" : ` · shown ${x.predictedBlue}`}</p>
+      {cal && (
+        <>
+          <p className="pt-1">Margin calibration: both move toward the middle ({cal.mid}) so the margin is {x.marginScale} of the gap, because predicted margins ran a little wide (the total stays the same; the shown score is rounded from the unrounded parts, so it can differ by a point):</p>
+          <p className="tabular-nums" data-testid="margin-calibration"><span className="text-red-alliance">Red</span> {cal.red} · shown {x.predictedRed}</p>
+          <p className="tabular-nums"><span className="text-blue-alliance">Blue</span> {cal.blue} · shown {x.predictedBlue}</p>
+        </>
+      )}
+    </div>
+  );
 }
 
 function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offlineAsOf?: string | null; onSwap?: () => void }) {
@@ -515,7 +538,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
           <h2 className="mb-3 text-base font-semibold">Why: the top 3 factors</h2>
           <FactorList factors={x.factors} reasons={x.reasons} />
           {x.history ? <PairHistoryLine history={x.history} className="mt-1.5" /> : null}
-          <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the predicted margin by game phase{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
+          <p className="mt-3 text-xs text-muted-foreground">Factors are an exact split of the rating gap by game phase{x.marginScale != null && x.marginScale !== 1 ? `; the predicted margin is ${x.marginScale} of that gap (margin calibration)` : ""}{x.history ? "; the last line is these robots' real history together or against each other" : ""}. <Link to="/methodology#factors" className="underline">More</Link></p>
         </div>
         <details className="group rounded-2xl border border-border bg-card p-5 max-sm:p-4 md:open:row-span-1">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-base font-semibold [&::-webkit-details-marker]:hidden">
@@ -535,13 +558,7 @@ function MatchResult({ x, offlineAsOf, onSwap }: { x: MatchExplanationView; offl
               ))}
             </tbody>
           </table>
-          {x.overlapRed != null && x.overlapBlue != null && (
-            <div className="mt-3 space-y-0.5 text-xs text-muted-foreground" data-testid="score-sum">
-              <p>Predicted score = robots' Adds − overlap + the other side's Pen, each to 0.1 (the score above is rounded from the unrounded parts, so it can differ by a point):</p>
-              <p className="tabular-nums"><span className="text-red-alliance">Red</span> {scoreSum(x.teamsRed, x.overlapRed, x.teamsBlue)} · shown {x.predictedRed}</p>
-              <p className="tabular-nums"><span className="text-blue-alliance">Blue</span> {scoreSum(x.teamsBlue, x.overlapBlue, x.teamsRed)} · shown {x.predictedBlue}</p>
-            </div>
-          )}
+          {x.overlapRed != null && x.overlapBlue != null && <ScoreSumLines x={x} overlapRed={x.overlapRed} overlapBlue={x.overlapBlue} />}
         </details>
       </div>
       {/* Full width under both cards: on a wide screen its sections sit side by side (it sizes by its container). */}

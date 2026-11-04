@@ -135,7 +135,7 @@ export function penaltyTotalAnswer(team: AnswerTeam, set: { events: TeamEvent[] 
   if (!evs.length) return { ...base, blocks: [], none: `No penalty records${season != null ? ` in ${seasonLabel(season)}` : ""} for ${whoOf(team)} yet.` };
   return {
     ...base,
-    headline: { value: `${Math.round(total)} points`, label: `given in ${matches} qualification matches · ${(total / matches).toFixed(1)} a match`, sub: season != null ? seasonLabel(season) : undefined },
+    headline: { value: `${Math.round(total)} points`, label: `given in ${matches} qualification matches · ${(total / matches).toFixed(1)} per match`, sub: season != null ? seasonLabel(season) : undefined },
     blocks: [
       { kind: "table", title: "By event", columns: [{ key: "event", label: "Event" }, { key: "avg", label: "A match", num: true }, { key: "n", label: "Matches", num: true }, { key: "total", label: "Total", num: true }],
         rows: evs.map((e) => ({ cells: { event: e.name, avg: (e.avgPen ?? 0).toFixed(1), n: e.matches, total: Math.round((e.avgPen ?? 0) * e.matches) }, href: eventHref(e.season, e.code, team.number) })) },

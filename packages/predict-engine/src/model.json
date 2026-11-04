@@ -37,6 +37,9 @@
   "playoff": 0.72,
   "rating": 0.59
  },
+ "margin": {
+  "scale": 0.95
+ },
  "pick": {
   "tau": 18,
   "rankWeight": 3
@@ -218,6 +221,18 @@
    "baselineCoverageErratic": 0.744,
    "coveragePlayoff": 0.784,
    "baselineCoveragePlayoff": 0.866
+  },
+  "margin35": {
+   "note": "Engine 3.5 margin calibration: served expected scores shrink toward their midpoint (margin x scale, total unchanged; ranges keep their sd, recentred). scale = median of the nine 2024-25 monthly fits, each the margin-MAE-minimising s on the 365 days of rated matches before the month (rolling origins), rounded to 0.01; frozen, then 2025-26 scored as reused. Probabilities read the unscaled scores and are bit-identical to 3.4.0 (slice replay, 109,002 matches; simulator on fixed seeds). Research: scripts/part12/margin-scale.ts, docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md.",
+   "monthlyFits2024": [0.9525, 0.9525, 0.9575, 0.965, 0.9525, 0.9475, 0.945, 0.9425, 0.94],
+   "marginMaeDelta2024": -0.107,
+   "marginMaeDelta2024CI": [-0.147, -0.064],
+   "marginMaeDelta2025Reused": -0.095,
+   "marginMaeDelta2025ReusedCI": [-0.124, -0.066],
+   "allianceMaeDelta2024": -0.018,
+   "allianceMaeDelta2025Reused": -0.012,
+   "rangeIntervalScoreDelta2024": -0.39,
+   "rangeIntervalScoreDelta2025Reused": -0.12
   },
   "ranges32": {
    "note": "Engine 3.2 score ranges: band refitted on 2024-25 by the 80% interval score under engine 3.1 (whose expected scores 2.7-2.11 sharpened; the 2.2 band then covered 84-86%), walk-forward, 2-on-2 alliance scores, whole-point ranges, inside = lo <= score <= hi. The playoff factor is set so playoff ranges stay as wide as before (scale x playoff = 0.66): the plain fit (0.59) under-covered 2025-26 and 2023-24 playoffs, so 2025-26 was reused for that one choice. Win probabilities are unchanged; the event simulator draws alliance scores from the same game variance. Research: scripts/part12/band-refit.ts, docs/engine/part12/bands.md.",

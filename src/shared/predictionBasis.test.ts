@@ -1,7 +1,7 @@
 // The "what it learns from" lines and the by-hand helpers stay true to the engine they describe.
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BAND, FITTED_MODEL, RatingBook } from "@control-scout/predict-engine";
-import { BASIS, marginText, matchBasis, overlapTotal, scoreSum } from "./predictionBasis";
+import { DEFAULT_BAND, FITTED_MODEL, RatingBook, servedScores } from "@control-scout/predict-engine";
+import { BASIS, marginCalibration, marginText, matchBasis, overlapTotal, scoreSum, scoreTotal } from "./predictionBasis";
 
 describe("prediction basis lines", () => {
   it("picks the playoff line only for a playoff match", () => {
@@ -41,7 +41,18 @@ describe("by-hand helpers", () => {
     expect(scoreSum([{ np: 72.44 }, { np: 51 }], 6.08, [{ pen: 2 }, { pen: 1.46 }])).toBe("(72.4 + 51.0) − 6.1 + (2.0 + 1.5) = 120.8");
     // The sum is of the parts as written, so it always checks out by hand (Greptile on #488: 50.24 + 50.24 + 2.04 + 1.04).
     expect(scoreSum([{ np: 50.24 }, { np: 50.24 }], 0, [{ pen: 2.04 }, { pen: 1.04 }])).toBe("(50.2 + 50.2) − 0.0 + (2.0 + 1.0) = 103.4");
+    expect(scoreTotal([{ np: 72.44 }, { np: 51 }], 6.08, [{ pen: 2 }, { pen: 1.46 }])).toBe(120.8);
     expect(overlapTotal({ auto: 1, teleop: 2, endgame: 0 })).toBe(3);
     expect(overlapTotal(undefined)).toBe(0);
+  });
+
+  it("writes the margin calibration out step by step (engine 3.5): the margin shrinks, the total stays", () => {
+    expect(marginCalibration(120.8, 106, 0.95)).toEqual({ mid: "113.4", half: "7.4", red: "113.4 + 0.95 × 7.4 = 120.4", blue: "113.4 − 0.95 × 7.4 = 106.4" });
+    // Blue favoured: blue's line adds, red's subtracts.
+    expect(marginCalibration(90, 110, 0.95)).toEqual({ mid: "100.0", half: "10.0", red: "100.0 − 0.95 × 10.0 = 90.5", blue: "100.0 + 0.95 × 10.0 = 109.5" });
+    // Matches the engine's served scores to the precision written.
+    const s = servedScores(120.8, 106, { scale: 0.95 });
+    expect(s.red).toBeCloseTo(120.43, 2);
+    expect(s.blue).toBeCloseTo(106.37, 2);
   });
 });

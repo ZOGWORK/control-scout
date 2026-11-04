@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.9 — 2026-11-04
+## 3.0.0 — 2026-11-04
 
 Searches people tried that found nothing now answer: a match by its event's code, an event's match by the event's name, a leaderboard by a game, and the season's events.
 
@@ -34,6 +34,64 @@ Searches people tried that found nothing now answer: a match by its event's code
   - "Events", "events this season" and "meets" list the season's events, never the team Event Horizon.
   - A team's matches at Worlds with no season ("4215 matches at worlds", "… in worlds") are from the last Worlds it went to.
   - A misspelled game with an event ("jackson division dcode") and a question opened with filler ("so like what was 4215 last game") are read as meant.
+
+## 2.9.9 — 2026-11-04
+
+Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
+
+### Highlights
+- [teams] Answers about a team show it once, with one profile link
+- [teams] Search section labels read in sentence case, not capitals
+- [fixes] Search chips, pills and links are 44px tall on touch screens
+- [fixes] A short search answer keeps the footer right under it
+
+### Search
+- **One card per team.** A fact, stat, Compare or head-to-head answer that names its team or teams no longer lists them again in a Teams card under it. One small "View scouting profile" row sits under the answer instead; a fact answer's row keeps the team's season badges (record, OPR, OPR rank) its card used to show. (#524)
+- **Sentence-case labels.** Section labels and pills on the results page and in the search box ("Teams", "Top 10 by OPR", "Meetings, newest first", "You may also want to know") are no longer forced into capitals. Game names keep FIRST's own capitals.
+- **Touch-size targets.** On phones and touch screens the time filter, season and type pickers, Clear filters, suggestion pills, link chips, example chips, season tabs, the table's row chevron and the "View scouting profile" links are at least 44px tall. Desktop with a mouse keeps today's compact sizes.
+- **Footer follows the answer.** On the search page a short answer no longer leaves the footer pinned to the bottom of a mostly empty screen.
+
+## 2.9.8 — 2026-11-04
+
+A team's OPR in search now looks like, and reads the same numbers as,
+its team page.
+
+### Highlights
+- [teams] Search's OPR card uses the team page's coloured OPR tiles
+- [teams] No yellow band behind the OPR in search's answer
+- [fixes] Search's OPR card reads the team page's own season numbers
+
+### Search
+- **The OPR answer is the team page's card.** "4215 opr" (and every one-team OPR or phase OPR question) shows Total OPR, Autonomous, TeleOp and Endgame as the team page's tiles: the same names, icons, colours, rank line ("OPR #612 of 8,308 with an OPR · top 8%") and rank bar, from one shared list both pages draw. The value in each tile is in its phase's colour. The yellow band behind the big OPR number is gone, and the card has the team page's plain border and header; the season chip, the rank and the chart stay.
+- **One reader for both.** The card's numbers come from the same function the team page reads its season numbers with, formatted the same way (73 rather than 73.0), so the two can't drift. Nothing is worked out during a search. (#532)
+
+## 2.9.7 — 2026-11-04
+
+Predicted scores sit a little closer together: margins ran about 5% wide, so engine 3.5.0 calibrates them. Win chances are exactly what they were.
+
+### Highlights
+- [predict] Predicted margins are 5% tighter, closer to real ones
+- [predict] The Lab writes the calibration out step by step
+- [report] How it works explains the margin calibration (0.95)
+
+### Predictions
+- **Engine 3.5.0: margin calibration.** Replayed, the real margin came out about 0.95 of the predicted one, so both predicted scores now move toward their middle until the margin is 0.95 of the rating gap. The total is the same and each 80% range keeps its width, recentred. Margin error falls by about 0.1 point in both seasons tested (2024–25 −0.107 [−0.147, −0.064], 2025–26 −0.095 [−0.124, −0.066]), alliance score error a little too, and ranges hold as many real scores as before. Win chances, tie chances, bonus RP odds, event simulations and the factor sheet are bit-identical to 3.4.0 on every replayed match (docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md). (#534)
+- **Lab.** Under the ratings table, each alliance's sum is labelled "before calibration" and a second pair of lines writes the calibration out ("113.4 + 0.95 × 7.4 = 120.4 · shown 120"). The factors note says they split the rating gap, and that the margin is 0.95 of it.
+- **How it works.** The match section has one sentence on the calibration and its value, the factors section says the phases split the rating gap, and the settings table lists "Margin calibration (3.5) × 0.95".
+
+## 2.9.6 — 2026-11-04
+
+FTC One Search answers read more cleanly: names, rates, captions and headings follow one set of wording rules.
+
+### Highlights
+- [fixes] "Hypnotic Robotics'" for a name ending in s, in every answer
+- [fixes] Rates say "per match", and every chart has one plain caption
+- [fixes] One 1st-place spelling, and no "Worlds finals finals" pill
+- [teams] Fact titles read "Where Hypnotic Robotics (4215) is from"
+- [fixes] A card's heading no longer repeats the page heading
+
+### Search
+- **Wording fixes from the v2.8.9 search display audit.** One possessive rule everywhere ("Hypnotic Robotics'", "Bad Wolf's"). Rates read "per match" as Compare has them ("8.4 per match", "points per match"). Charts end with one sentence ("Ranges from 52.4 to 101.6 across 5 values."). "1st-place" is the adjective ("1st-place finishes", "1st-place Inspire") and "1st place" the noun; the Worlds events pill no longer says "Worlds finals finals". A team fact's page title is sentence case with the team named once, in bold ("Where **Hypnotic Robotics (4215)** is from", "Sponsors and school for …"), never "Team 4215 — Where They're From". The head-to-head card is headed "Their meetings and partnerships" and a winning-alliance card "The champions and each division's winners", under page headings that name the teams and event. "This season" before the season in progress has a match now heads the page with the season it answers ("Average score in 2025–26"), the reason in the note. No number changes. (#525)
 
 ## 2.9.5 — 2026-11-04
 

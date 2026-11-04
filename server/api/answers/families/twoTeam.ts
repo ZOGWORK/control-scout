@@ -45,8 +45,9 @@ export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[],
   const together = ms.filter((m) => m.partners.includes(b.number));
   const r = recOf(met), rt = recOf(together);
   const where = scopePhrase(scope);
-  const title = `${a.number} vs ${b.number} head to head${where}`;
-  const base = { family: "two-team" as const, intent: "head-to-head", title, team: a, scope: scopeChips(scope), definition: H2H_RULE, source: sourceOf(met.length ? met : ms) };
+  // The page's heading names both teams ("Head to head: … vs …"); the card's says what it holds.
+  const title = `Their meetings and partnerships${where}`;
+  const base = { family: "two-team" as const, intent: "head-to-head", title, team: a, teams: [a, b], scope: scopeChips(scope), definition: H2H_RULE, source: sourceOf(met.length ? met : ms) };
   const links = await teamLinks([...met, ...together].flatMap((m) => [...m.partners, ...m.opponents]).slice(0, 2000));
   const row = (m: TeamMatch) => ({ ...matchRow(m, links, a.number), ownNp: undefined });
   const togetherBlock: StatBlock[] = together.length ? [{ kind: "matches", title: `As partners: ${recText(rt)} in ${together.length} match${together.length === 1 ? "" : "es"}, newest first`, rows: together.slice(0, 5).map(row), ...(together.length > 5 ? { more: `Showing 5 of ${together.length}` } : {}) }] : [];
@@ -89,7 +90,7 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
   const phrase = s.season != null ? ` in ${seasonLabel(s.season)}` : "";
   const what = id === "opr-vs" ? "OPR" : id === "better-record" ? "Better record" : id === "win-chance" ? "Win chance" : "Prediction rating";
   const title = id === "better-record" ? `Better record: ${a.number} or ${b.number}${phrase}` : `${what}: ${a.number} vs ${b.number}${phrase}`;
-  const base = { family: "two-team" as const, intent: id, title, team: a, scope: scopeChips(sc), definition: `${id === "better-record" ? RECORD_VERDICT : SEASON_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From both teams' ${seasonLabel(s.season)} season numbers` : "No season both teams played" };
+  const base = { family: "two-team" as const, intent: id, title, team: a, teams: [a, b], scope: scopeChips(sc), definition: `${id === "better-record" ? RECORD_VERDICT : SEASON_RULE}${s.why ? ` ${s.why}` : ""}`, source: s.season != null ? `From both teams' ${seasonLabel(s.season)} season numbers` : "No season both teams played" };
   const { ra, rb } = s;
   if (!ra || !rb) {
     const missing = [!ra ? whoOf(a) : "", !rb ? whoOf(b) : ""].filter(Boolean).join(" and ");

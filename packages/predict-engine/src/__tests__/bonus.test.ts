@@ -172,7 +172,7 @@ describe("explainMatch bonus odds", () => {
     const x = explainMatch(book, [1, 2], [3, 4], { ...opts, bonus: { season: 2025, model: { model: B2025, source: "fitted", samples: null } } });
     const p = predictMatch(book, [1, 2], [3, 4], FITTED_MODEL.noise, FITTED_MODEL.calibration);
     // Engine 3.1: the match's tie chance, from the final-score margin, enters both alliances' expected RPs.
-    const pTie = tieProbability({ mean: p.red.mean - p.blue.mean, sd: Math.hypot(p.red.sd, p.blue.sd) }, x.winProbA);
+    const pTie = tieProbability({ mean: p.red.modelMean - p.blue.modelMean, sd: Math.hypot(p.red.sd, p.blue.sd) }, x.winProbA);
     expect(pTie).toBeGreaterThan(0);
     expect(x.bonus!.pTie).toBe(pTie);
     expect(x.bonus!.A).toEqual(allianceBonusOdds(2025, B2025, { mean: p.red.np, sd: p.red.sd }, x.winProbA, pTie));

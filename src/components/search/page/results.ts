@@ -4,7 +4,7 @@
 // Presentation only: nothing here adds, drops or reorders a result except the filters the visitor picks.
 import type { SearchHit } from "../../../shared/api";
 import { isCompare, type AnswerExtra } from "../../../shared/searchPage";
-export { badgeUnder, contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
+export { badgeUnder, cardTeamName, contextBadge, isCompare, pageTitle, readingOf, teamParts, type AnswerExtra } from "../../../shared/searchPage";
 import { hitHref } from "../../../shared/search";
 import { eventTypeLabel } from "../../../shared/labels";
 
@@ -78,6 +78,18 @@ export function compareTeams(h: SearchHit): number[] {
   const sides = compareSides(h);
   if (sides.length) return sides.map((s) => s.number);
   return (compareQuery(h).get("teams") ?? "").split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/** The teams an answer already names, in order: a fact or stat answer's team, a two-team answer's both sides
+ *  ("4215 vs 6980 head to head": its `teams`) and a Compare's sides. The page shows them in the
+ *  answer, so they get no team card of their own under it, only a link on to their scouting profiles. */
+export function answerTeams(answer: { card?: { team?: { number: number } }; stat?: { team?: { number: number }; teams?: { number: number }[] } } | undefined, compares: SearchHit[]): number[] {
+  const out = new Set<number>();
+  const one = answer?.stat?.team ?? answer?.card?.team;
+  if (one) out.add(one.number);
+  for (const t of answer?.stat?.teams ?? []) out.add(t.number);
+  for (const c of compares) for (const n of compareTeams(c)) out.add(n);
+  return [...out];
 }
 
 /** The season a Compare's link asks for (/compare?teams=…&season=2024), or null for the current one. */

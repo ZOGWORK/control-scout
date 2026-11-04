@@ -116,7 +116,7 @@ describe("filler: never changes an answer; forbidden words are never ignored", (
   }, 120_000);
   it("a filler word that's part of a team's full name stays the name", async () => {
     expect((await stripFiller("just in time opr")).q).toBe("just in time opr");
-    expect((await ask("just in time opr")).stat?.headline?.value).toBe("55.0");
+    expect((await ask("just in time opr")).stat?.headline?.value).toBe("55");
     expect((await stripFiller("please 4215 opr rn")).dropped).toEqual(["please", "rn"]);
     // A greeting alone is no query: nothing is made from it.
     expect((await stripFiller("hello")).q).toBe("hello");
