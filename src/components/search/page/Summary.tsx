@@ -47,7 +47,7 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
           <li key={a.id} className="flex shrink-0 items-center gap-1">
             {i > 0 && <span aria-hidden className="text-muted-foreground">←</span>}
             <button type="button" onClick={() => jumpTo(a.id)} data-chip={a.season}
-              className="min-h-11 rounded-full border border-accent/40 bg-accent/[0.08] px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
+              className="min-h-11 rounded-full border border-border bg-muted/50 px-3 text-sm font-medium tabular-nums text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60">
               {a.seasonLabel}: {a.rank != null ? `#${a.rank}` : a.division ?? "—"}
             </button>
           </li>
@@ -62,13 +62,13 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
         {worst > 1 && <span className="absolute left-0 top-[82%] -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" aria-hidden>#{worst}</span>}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
           <line x1="0" x2="100" y1="96" y2="96" className="stroke-border" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
-          {pts.length > 1 && <polyline points={path} fill="none" className="stroke-accent" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={path} fill="none" className="stroke-info" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {apps.map((a, i) => (
           <button key={a.id} type="button" onClick={() => jumpTo(a.id)} onMouseEnter={() => setOn(a.id)} onMouseLeave={() => setOn(null)} onFocus={() => setOn(a.id)} onBlur={() => setOn(null)}
             aria-label={`${a.seasonLabel}: ${[a.division && `${a.division} Division`, a.rank != null && `ranked #${a.rank}`, a.record, a.opr != null && `OPR ${a.opr.toFixed(1)}`].filter(Boolean).join(", ")}. Go to its card.`}
             style={{ left: `${x(i)}%`, top: `${a.rank == null ? 96 : y(a.rank)}%` }}
-            className={cn("absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-accent bg-card hover:bg-accent focus-visible:bg-accent", on === a.id && "bg-accent")} data-node={a.season} />
+            className={cn("absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-info bg-card hover:bg-info focus-visible:bg-info", on === a.id && "bg-info")} data-node={a.season} />
         ))}
       </div>
       <div className="mt-1 flex justify-between text-[11px] tabular-nums text-muted-foreground" aria-hidden>
@@ -88,9 +88,9 @@ export function StatBanner({ stats }: { stats: Stat[] }) {
     // Phones: one row that scrolls sideways, three blocks to a screen; from md up a grid.
     <dl className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0" data-stat-banner>
       {stats.map((s) => (
-        <div key={s.label} className="w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-lg border border-border bg-card px-3 py-2 max-md:px-2.5 md:w-auto">
+        <div key={s.label} className="w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-xl border border-border bg-card px-3.5 py-3 max-md:px-2.5 md:w-auto">
           <dt className="text-[11px] text-muted-foreground">{s.label}</dt>
-          <dd className="mt-0.5 break-words font-display text-lg font-semibold tabular-nums leading-tight text-foreground">{s.value}</dd>
+          <dd className="mt-1 break-words font-display text-2xl font-semibold tabular-nums leading-tight text-foreground">{s.value}</dd>
           {s.note && <dd className="text-[11px] text-muted-foreground">{s.note}</dd>}
         </div>
       ))}
@@ -104,7 +104,7 @@ function Gauge({ pct }: { pct: number }) {
   return (
     <svg viewBox="0 0 36 36" className="size-14 shrink-0 -rotate-90" aria-hidden>
       <circle cx="18" cy="18" r={r} fill="none" className="stroke-muted" strokeWidth="3.2" />
-      <circle cx="18" cy="18" r={r} fill="none" className="stroke-accent" strokeWidth="3.2" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} />
+      <circle cx="18" cy="18" r={r} fill="none" className="stroke-success" strokeWidth="3.2" strokeLinecap="round" strokeDasharray={`${(pct / 100) * c} ${c}`} />
     </svg>
   );
 }
@@ -140,7 +140,7 @@ export function AppearanceCard({ a }: { a: Appearance }) {
       {/* The question asks when: the season leads the card, ahead of the division. */}
       <p className="leading-snug text-foreground group-hover:text-accent-text" data-card-title><b className="font-display text-lg font-semibold tabular-nums" data-season>{a.seasonLabel}</b><span className="text-muted-foreground"> · </span><span className="font-medium">{a.title}</span></p>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
-        {[...a.badges, a.place].filter(Boolean).map((b) => <span key={b} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{b}</span>)}
+        {[...a.badges, a.place].filter(Boolean).map((b) => <span key={b} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground/80">{b}</span>)}
       </p>
       {a.when && <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="size-3.5 shrink-0" aria-hidden />{a.when}{a.place && <><MapPin className="ml-1.5 size-3.5 shrink-0" aria-hidden />{a.place}</>}</p>}
       <p className="mt-2 flex flex-wrap gap-1" data-pills>
@@ -152,7 +152,7 @@ export function AppearanceCard({ a }: { a: Appearance }) {
       {a.href && <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent-text group-hover:underline max-sm:hidden" data-cta>View event<ArrowRight className="size-3.5" aria-hidden /></span>}
     </>
   );
-  const cls = "lift group block scroll-mt-24 rounded-xl border border-border bg-card p-4 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-accent data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-accent)_35%,transparent)]";
+  const cls = "lift group block scroll-mt-24 rounded-xl border border-border bg-card p-4 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-info data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-info)_35%,transparent)]";
   return a.href
     ? <Link id={a.id} to={a.href} className={cls} data-appearance={a.season}>{body}</Link>
     : <div id={a.id} tabIndex={-1} className={cls} data-appearance={a.season}>{body}</div>;

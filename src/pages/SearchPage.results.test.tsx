@@ -59,27 +59,45 @@ describe("search results page", () => {
     const cmp = container.querySelector('[data-section="compare"]')!;
     const teams = container.querySelector('[data-section="team"]')!;
     expect(cmp.compareDocumentPosition(teams) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // The Compare's two sides aren't listed again as team cards: one row of profile links instead.
+    // The Compare's two sides aren't listed again as team cards (no "Teams 2" under it), nor as a row of links.
     expect([...teams.querySelectorAll('[data-result="team"]')].map((c) => c.textContent)).toEqual([expect.stringContaining("6980 | Bad Wolf")]);
     expect(within(teams as HTMLElement).getByText("1")).toBeTruthy();
-    const profiles = container.querySelector("[data-answer-teams]")!;
-    expect([...profiles.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/teams/4215", "/teams/23268"]);
+    expect(container.querySelector("[data-answer-teams]")).toBeNull();
     const card = within(cmp as HTMLElement).getByRole("link");
     expect(card.getAttribute("href")).toBe("/compare?teams=4215,23268");
     expect(card.textContent).toContain("Hypnotic Robotics (4215)");
     expect(card.textContent).toContain("Ultraviolet (23268)");
     expect(card.textContent).toContain("Hackettstown, NJ");
     expect(card.textContent).toContain("View comparison");
-    // The head-to-head preview links to the full comparison.
-    expect(screen.getByRole("link", { name: /View full comparison/ }).getAttribute("href")).toBe("/compare?teams=4215,23268");
+    // No gold box: the team page's plain card.
+    expect(card.className).not.toMatch(/accent/);
+    // The head-to-head preview links to the full comparison (beside it on desktop, under it on a phone).
+    expect(screen.getAllByRole("link", { name: /View full comparison/ }).map((a) => a.getAttribute("href"))).toEqual(["/compare?teams=4215,23268", "/compare?teams=4215,23268"]);
   });
 
-  it("a head-to-head answer names both teams: neither gets a card of its own, both get a profile link", () => {
+  it("a head-to-head answer names both teams in its card's header: neither gets a card of its own", () => {
     const stat = { family: "two-team", intent: "head-to-head", title: "Their meetings and partnerships", team: { number: 4215, name: "Hypnotic Robotics" }, teams: [{ number: 4215, name: "Hypnotic Robotics" }, { number: 6980, name: "Bad Wolf" }], scope: [], blocks: [], definition: "", source: "" };
     state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ, USA"), team(6980, "Bad Wolf", "Oradell, NJ, USA")], { stat } as Partial<SearchAnswer>);
     const { container } = show("/search?q=4215%20vs%206980%20head%20to%20head");
     expect(container.querySelector('[data-result="team"]')).toBeNull();
-    expect([...container.querySelectorAll("[data-answer-teams] a")].map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["Hypnotic Robotics (4215)", "/teams/4215"], ["Bad Wolf (6980)", "/teams/6980"]]);
+    const header = container.querySelector("[data-answer-frame] [data-answer-teams]")!;
+    expect([...header.querySelectorAll("a")].map((a) => [a.getAttribute("aria-label"), a.getAttribute("href")])).toEqual([["Hypnotic Robotics (4215)", "/teams/4215"], ["Bad Wolf (6980)", "/teams/6980"]]);
+  });
+
+  it("a fact answer is one card in the team page's look: the team's header, the fact once, no TEAMS card, no gold", () => {
+    const card = { kind: "info" as const, title: "Where they're from", team: { number: 4215, name: "Hypnotic Robotics" }, facts: [{ label: "Where they're from", values: ["Oradell, NJ, USA"] }],
+      related: ["4215 record"], lines: [{ text: "Oradell, NJ, USA", href: "/teams/4215" }] };
+    state.answer = answer([team(4215, "Hypnotic Robotics", "Oradell, NJ, USA")], { card });
+    const { container } = show("/search?q=where%20is%204215%20from");
+    const frame = container.querySelector("[data-answer-frame]")!;
+    expect(frame.querySelector("[data-answer-team]")!.textContent).toContain("4215Hypnotic Robotics");
+    expect(within(frame as HTMLElement).getByRole("link", { name: /Full team page/ }).getAttribute("href")).toBe("/teams/4215?season=2024");
+    // The fact once (its dropdown line isn't drawn again), and its team gets no card of its own.
+    expect(within(frame as HTMLElement).getAllByText("Oradell, NJ, USA")).toHaveLength(1);
+    expect(container.querySelector('[data-result="team"]')).toBeNull();
+    expect(container.querySelector('[data-section="team"]')).toBeNull();
+    expect(frame.innerHTML).not.toMatch(/(border|bg)-accent/);
+    expect(within(frame as HTMLElement).getByRole("link", { name: /4215 record/ }).getAttribute("href")).toBe("/search?q=4215%20record");
   });
 
   it("shows team badges only from real numbers, and no card shows a web address or nests a control", () => {
@@ -224,7 +242,7 @@ describe("search results page", () => {
     paths.length = 0;
     show("/search?q=x");
     expect(paths.filter(Boolean).every((p) => p!.includes("season=2024"))).toBe(true);
-    expect(screen.getByText("2024–25 record")).toBeTruthy();
+    expect(screen.getAllByText("2024–25").length).toBeGreaterThan(0);
   });
 
   it("shows the numbers a row was asked for", () => {
@@ -278,8 +296,8 @@ describe("search results page", () => {
       compare: { teams: [{ number: 4215, name: "Hypnotic Robotics", place: "Oradell, NJ" }, { number: 23268, name: "Ultraviolet", place: "Hackettstown, NJ" }] } } as SearchHit]);
     const { container } = show("/search?q=x");
     const card = container.querySelector('[data-result="compare"]')!;
-    expect(card.textContent).toContain("Hypnotic Robotics (4215)vsUltraviolet (23268)");
-    expect(card.textContent).toContain("23268: Hackettstown, NJ");
+    expect(card.textContent).toContain("Hypnotic Robotics (4215)Oradell, NJ");
+    expect(card.textContent).toContain("Ultraviolet (23268)Hackettstown, NJ");
   });
 
   it("titles the page by what was found, with no badge that repeats it and no second search box", () => {

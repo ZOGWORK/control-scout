@@ -16,9 +16,9 @@ const record = (r: TeamTableRow) => `${r.wins}-${r.losses}-${r.ties}`;
  *  season's TeleOp includes the endgame, so it's named TeleOp and the bar leaves the endgame out (never drawn twice). */
 export function phaseSegments(withEndgame = false) {
   return [
-    { key: "auto", label: "Auto", tone: "bg-chart-2", drawn: true },
-    { key: "dc", label: withEndgame ? "TeleOp" : "DC", tone: "bg-chart-3", drawn: true },
-    { key: "endgame", label: "Endgame", tone: "bg-chart-4", drawn: !withEndgame },
+    { key: "auto", label: "Auto", tone: "bg-info", drawn: true },
+    { key: "dc", label: withEndgame ? "TeleOp" : "DC", tone: "bg-success", drawn: true },
+    { key: "endgame", label: "Endgame", tone: "bg-violet-500", drawn: !withEndgame },
     { key: "pen", label: "Pen (given away)", tone: "bg-danger/70", drawn: true },
   ] as const;
 }
@@ -79,9 +79,9 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
               {sortTh("opr", "OPR", "md:w-28")}
               {phases && <>
-                {sortTh("auto", "Auto", "max-md:hidden")}
-                {sortTh("dc", withEndgame ? "TeleOp" : "DC", "max-md:hidden")}
-                {sortTh("endgame", "Endgame", "max-md:hidden")}
+                {sortTh("auto", "Auto", "max-md:hidden border-b-2 border-b-info")}
+                {sortTh("dc", withEndgame ? "TeleOp" : "DC", "max-md:hidden border-b-2 border-b-success")}
+                {sortTh("endgame", "Endgame", "max-md:hidden border-b-2 border-b-violet-500")}
                 {sortTh("pen", "Pen", "max-md:hidden")}
               </>}
               {sortTh("record", "W-L-T")}
@@ -99,7 +99,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                   <tr className="border-t border-border" data-team-row={r.team}>
                     <td className="px-2 py-1.5 text-right tabular-nums">
                       {r.rank <= 3
-                        ? <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent/15 text-[11px] font-semibold text-accent-text" data-rank-badge>{r.rank}</span>
+                        ? <span className="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground" data-rank-badge>{r.rank}</span>
                         : <span className="text-xs text-muted-foreground">{r.rank}</span>}
                     </td>
                     <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
@@ -108,7 +108,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>
-                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute bottom-1 left-1 h-1 rounded-full bg-accent/70" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
+                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute bottom-1 left-1 h-1 rounded-full bg-foreground/25" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>

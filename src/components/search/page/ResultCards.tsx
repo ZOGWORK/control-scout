@@ -83,10 +83,10 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
       </div>
       <Link to={hitHref(cur)} onClick={() => onOpen(cur)} className="mt-2 line-clamp-2 font-medium leading-snug text-foreground outline-none group-hover:text-accent-text after:absolute after:inset-0 after:content-[''] focus-visible:after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-accent">{title}</Link>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
-        {[...badges, e.place, cur.season != null ? seasonLabel(cur.season) : null].filter(Boolean).map((b) => <span key={b} className="rounded-full bg-accent/[0.1] px-2 py-0.5 font-medium text-accent-text">{b}</span>)}
+        {[...badges, e.place, cur.season != null ? seasonLabel(cur.season) : null].filter(Boolean).map((b) => <span key={b} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground/80">{b}</span>)}
       </p>
       <div className="mt-auto space-y-1 pt-3 text-xs max-sm:pt-2 text-muted-foreground">
-        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><CalendarDays className="size-4 shrink-0 text-accent" aria-hidden />{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</p>
+        <p className="flex items-center gap-1.5 text-sm font-medium text-foreground"><CalendarDays className="size-4 shrink-0 text-muted-foreground" aria-hidden />{e.start ? dateRange(e.start, e.end) : "Date to be announced"}</p>
         {e.venue && <p className="flex items-start gap-1.5"><MapPin className="mt-px size-3.5 shrink-0" aria-hidden /><span className="min-w-0 break-words" data-venue>{e.venue}</span></p>}
       </div>
       <nav aria-label={`${title}: pages`} className="relative z-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" data-quick-links>
@@ -136,32 +136,7 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
   );
 }
 
-/** A small text link that is an action: 44px tall on phones and touch screens, today's size with a mouse. */
-const ACTION_LINK = "inline-flex items-center gap-1 text-xs font-semibold text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
-
-/** Under an answer that names its teams (a fact, a stat, a Compare, a head-to-head): one small row on to their
- *  scouting profiles, in place of a team card that would repeat them. `numbers`: a fact answer's one team also shows
- *  the season badges its card had, so a short answer keeps them. */
-export function AnswerTeams({ teams, numbers }: { teams: { number: number; name: string | null; href: string }[]; numbers?: SeasonSummary }) {
-  if (!teams.length) return null;
-  return (
-    <nav aria-label="Scouting profiles" className="-mt-2 mb-5 flex flex-wrap items-center gap-x-4 gap-y-1" data-answer-teams>
-      {teams.length === 1 ? (
-        <>
-          {numbers && <TeamBadges summary={numbers} className="mt-0" />}
-          <Link to={teams[0].href} className={ACTION_LINK}>View scouting profile<ArrowRight className="size-3.5" aria-hidden /></Link>
-        </>
-      ) : (
-        <>
-          <span className="text-xs text-muted-foreground">Scouting profiles</span>
-          {teams.map((t) => <Link key={t.number} to={t.href} className={ACTION_LINK}>{t.name ? `${t.name} (${t.number})` : `Team ${t.number}`}<ArrowRight className="size-3.5" aria-hidden /></Link>)}
-        </>
-      )}
-    </nav>
-  );
-}
-
-/** "X vs Y": both sides by number, name and place, as an action (volt), never as a team row. */
+/** "X vs Y": both sides by number, name and place, as the team page's bold numbers, never as a team row. */
 /** `preview` (phones): a tap opens the head-to-head over the results instead of leaving them; the card keeps its link
  *  (open it in a new tab, copy it). */
 export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; summaries: Map<number, SeasonSummary>; onOpen: () => void; preview?: (from: HTMLElement) => void }) {
@@ -174,18 +149,26 @@ export function CompareCard({ h, summaries, onOpen, preview }: { h: SearchHit; s
       // A plain tap previews; a modified click (new tab, new window) is left to the link.
       if (preview && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); preview(e.currentTarget); }
     }} data-result="compare"
-      className="lift group flex items-start gap-3 rounded-xl border border-accent/50 bg-accent/[0.08] px-4 py-3.5">
-      <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-accent text-accent-ink"><ArrowLeftRight className="size-4.5" aria-hidden /></span>
-      <span className="min-w-0 flex-1">
-        <span className="block break-words font-display text-base font-semibold text-foreground">
-          {nums.length >= 2 ? nums.map((n, i) => <span key={n}>{i > 0 && <span className="px-1.5 text-accent-text">vs</span>}{sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? teamParts(names[i] ?? "")?.name ?? "Team"} ({n})</span>) : h.title}
+      className="lift group block rounded-2xl border border-border bg-card p-4 sm:p-6">
+      <span className="flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeftRight className="size-4" aria-hidden />Compare side by side: records, OPR and event history</span>
+      {nums.length >= 2 ? (
+        <span className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
+          {nums.slice(0, 2).map((n, i) => {
+            const name = sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? teamParts(names[i] ?? "")?.name ?? "Team";
+            const place = sides.find((x) => x.number === n)?.place || summaries.get(n)?.s.place;
+            return (
+              <span key={n} className={cn("min-w-0", i === 1 && "col-start-3 text-right")}>
+                <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground group-hover:text-accent-text sm:text-4xl">{n}</span>
+                <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{name} ({n})</span>
+                {place && <span className="mt-0.5 block truncate text-xs text-muted-foreground">{place}</span>}
+              </span>
+            );
+          })}
+          <span aria-hidden className="col-start-2 row-start-1 self-center text-sm font-medium text-muted-foreground">vs</span>
         </span>
-        <span className="mt-1 block space-y-0.5 text-xs text-muted-foreground">
-          {nums.map((n) => { const place = sides.find((x) => x.number === n)?.place || summaries.get(n)?.s.place; return place ? <span key={n} className="block truncate">{n}: {place}</span> : null; })}
-        </span>
-        <span className="mt-1 block text-xs text-foreground/80">Compare side by side: records, OPR and event history</span>
-        <span className="mt-2.5 inline-flex items-center gap-1 rounded-lg bg-accent px-2.5 py-1 text-xs font-semibold text-accent-ink" data-cta>View comparison<ArrowRight className="size-3.5" aria-hidden /></span>
-      </span>
+      ) : <span className="mt-2 block break-words font-display text-lg font-semibold text-foreground">{h.title}</span>}
+      {nums.length > 2 && <span className="mt-2 block text-sm text-foreground/90">{nums.slice(2).map((n) => `${sides.find((x) => x.number === n)?.name ?? summaries.get(n)?.s.name ?? "Team"} (${n})`).join(", ")}</span>}
+      <span className="mt-4 inline-flex min-h-9 items-center gap-1 rounded-lg border border-border bg-secondary px-3 text-sm font-medium text-foreground max-md:min-h-11" data-cta>View comparison<ArrowRight className="size-4" aria-hidden /></span>
     </Link>
   );
 }
@@ -200,33 +183,34 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
   const season = useNow ? current : current - 1;
   const sides = nums.map((n) => ({ n, s: (useNow ? now : before)?.find((x) => x.team === n) ?? now?.find((x) => x.team === n) }));
   const rows: [string, (s: TeamSummary) => string | null][] = [
-    [`${seasonLabel(season)} record`, (s) => s.record],
+    ["Record", (s) => s.record],
     ["OPR", (s) => (s.opr != null ? s.opr.toFixed(1) : null)],
     ["OPR rank", (s) => (s.oprRank != null && s.of ? `#${nf.format(s.oprRank)} of ${nf.format(s.of)}` : null)],
+    ["Prediction rating", (s) => (s.rating != null ? `${s.rating.toFixed(1)}${s.ratingSd != null ? ` ±${s.ratingSd.toFixed(1)}` : ""}` : null)],
   ];
   const shown = rows.filter(([, f]) => sides.some(({ s }) => s && f(s) != null));
   return (
-    <aside aria-label="Head-to-head summary" className="rounded-xl border border-border bg-card p-4" data-head-to-head>
-      <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><ArrowLeftRight className="size-3.5 text-accent" aria-hidden />Head-to-head</p>
+    <aside aria-label="Head-to-head summary" className="rounded-2xl border border-border bg-card p-4 sm:p-5" data-head-to-head>
+      <p className="flex items-center justify-between gap-2 text-sm font-semibold text-foreground"><span className="inline-flex items-center gap-1.5"><ArrowLeftRight className="size-4 text-muted-foreground" aria-hidden />Head-to-head</span><span className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-foreground/80" data-h2h-season>{seasonLabel(season)}</span></p>
       <div className="mt-3 grid grid-cols-2 gap-3">
         {sides.map(({ n, s }) => (
           <div key={n} className="min-w-0">
-            <p className="font-display text-sm font-semibold tabular-nums text-foreground">{n}</p>
-            <p className="truncate text-xs text-muted-foreground">{s?.name ?? " "}</p>
+            <p className="font-display text-2xl font-semibold leading-none tabular-nums text-foreground">{n}</p>
+            <p className="mt-1 truncate text-sm text-foreground/90">{s?.name ?? " "}</p>
           </div>
         ))}
       </div>
       {shown.length ? (
         <dl className="mt-3 divide-y divide-border border-t border-border text-sm">
           {shown.map(([label, f]) => (
-            <div key={label} className="py-2">
-              <dt className="text-[11px] text-muted-foreground">{label}</dt>
-              <dd className="mt-0.5 grid grid-cols-2 gap-3 font-semibold tabular-nums text-foreground">{sides.map(({ n, s }) => <span key={n}>{(s && f(s)) ?? "—"}</span>)}</dd>
+            <div key={label} className="py-2.5">
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd className="mt-0.5 grid grid-cols-2 gap-3 font-display text-lg font-semibold tabular-nums text-foreground">{sides.map(({ n, s }) => <span key={n}>{(s && f(s)) ?? "—"}</span>)}</dd>
             </div>
           ))}
         </dl>
       ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
-      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
 }

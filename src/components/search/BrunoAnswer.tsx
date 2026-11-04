@@ -72,7 +72,7 @@ ${prefer}`;
     <div role="note" aria-label="Bruno AI's answer" data-bruno-answer
       className={cn("animate-[cs-call-in_300ms_ease-out] rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5 motion-reduce:animate-none", className)}>
       <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300">
-        <Sparkles className="size-3.5 shrink-0" />Bruno AI
+        <Sparkles className="size-3.5 shrink-0" />Bruno AI from Control Point
       </p>
       {phone ? (
         // Phones: the numbers first; his writing folded away, so the results below stay near the top of the screen.
@@ -91,7 +91,7 @@ ${prefer}`;
           {children && <div className="mt-3" data-search-summary>{children}</div>}
         </>
       )}
-      <p className="mt-3 border-t border-violet-400/20 pt-2 text-[11px] text-muted-foreground">Written by Bruno AI from the records below. Check them before relying on it.</p>
+      <p className="mt-3 border-t border-violet-400/20 pt-2 text-[11px] text-muted-foreground">Written by Bruno AI from Control Point, from the records below. Check them before relying on it.</p>
     </div>
   );
 }
