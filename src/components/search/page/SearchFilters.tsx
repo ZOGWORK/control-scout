@@ -9,8 +9,9 @@ import { anyFilter, type PageFilters, type When } from "./results";
 
 const WHEN: { v: When; label: string }[] = [{ v: "all", label: "All" }, { v: "upcoming", label: "Upcoming" }, { v: "past", label: "Past" }];
 
-/** `counts`: how many events each time tab would show, beside its name ("Past 0"), so an empty tab is plain before it's picked. */
-export function SearchFilters({ f, seasons, types, counts, onChange }: { f: PageFilters; seasons: number[]; types: { value: string; label: string }[]; counts?: Record<When, number>; onChange: (f: PageFilters) => void }) {
+/** `counts`: how many events each time tab would show, beside its name ("Past 0"), so an empty tab is plain before it's picked.
+ *  `asked`: the query's own time tab ("upcoming meets": Upcoming), where Clear goes back to. */
+export function SearchFilters({ f, seasons, types, counts, asked = "all", onChange }: { f: PageFilters; seasons: number[]; types: { value: string; label: string }[]; counts?: Record<When, number>; asked?: When; onChange: (f: PageFilters) => void }) {
   return (
     <div role="group" aria-label="Filter results" className="flex flex-wrap items-center gap-2" data-search-filters>
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-lg border border-border bg-card p-0.5">
@@ -40,8 +41,8 @@ export function SearchFilters({ f, seasons, types, counts, onChange }: { f: Page
           </SelectContent>
         </Select>
       )}
-      {anyFilter(f) && (
-        <button type="button" onClick={() => onChange({ when: "all", season: null, type: null })} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent-text hover:underline">
+      {anyFilter(f, asked) && (
+        <button type="button" onClick={() => onChange({ when: asked, season: null, type: null })} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent-text hover:underline">
           <X className="size-3.5" aria-hidden />Clear filters
         </button>
       )}

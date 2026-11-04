@@ -28,7 +28,7 @@ import { CompareBar, CompareSheet, togglePick } from "../components/search/page/
 import { AppearanceCard, QualityBanner, StatBanner, Timeline } from "../components/search/page/Summary";
 import { appearanceStats, appearances, eventName, isQualityQuestion, hasNumbers, standing } from "../components/search/page/records";
 import { SearchFilters } from "../components/search/page/SearchFilters";
-import { anyFilter, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
+import { anyFilter, askedWhen, filterAlternatives, whenCounts, compareSeason, compareSides, compareTeams, filterChoices, isCompare, isFuzzy, keeps, pageTitle, contextBadge, badgeUnder, readingOf, fuzzyWords, readFilters, teamParts, withFilters, type AnswerExtra, type PageFilters } from "../components/search/page/results";
 import { SEARCH_PAGE_LIMIT } from "../shared/search";
 import type { AnswerRow, AnswerSection } from "../shared/searchSections";
 import type { SearchHit, TeamSummary } from "../shared/api";
@@ -43,10 +43,12 @@ export default function SearchPage() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const query = q.trim();
-  const filters = readFilters(params);
   const { hits, answer, busy, error, retry, logPick, stale, prefer, searchNow, live } = useSearchHits(q, undefined, SEARCH_PAGE_LIMIT, BOOT_HITS, false);
   const { sections, notes } = useSections(hits, answer, null);
   const ax = answer as AnswerExtra | undefined;
+  // The time tab follows the query ("upcoming meets …" opens on Upcoming); a pick of another is kept in the address.
+  const askedTime = askedWhen(ax);
+  const filters = readFilters(params, askedTime);
   const nav = useNavigate();
   // Asked at once, and on to the one page a submitted query names (../components/search/direct.ts).
   const leaving = useSubmittedSearch(query, { answer, live, error, searchNow });
@@ -55,7 +57,7 @@ export default function SearchPage() {
   const season = useCurrentSeason();
   useTitle(query ? `Search: ${query}` : "Search");
   // Each filter change is a step Back can undo.
-  const setFilters = (f: PageFilters) => setParams(withFilters(params, f));
+  const setFilters = (f: PageFilters) => setParams(withFilters(params, f, askedTime));
 
   // A Compare is its own card above the teams, never one of them (nor counted with them).
   const compares = useMemo(() => hits.filter(isCompare), [hits]);
@@ -64,7 +66,7 @@ export default function SearchPage() {
   // Site pages a query names ("rules", "rankings") are an answer too.
   const found = sections.some((s) => (RESULT_KINDS.has(s.id) || s.id === "pages") && s.rows.some((r) => !isCompare(r.hit))) || compares.length > 0 || !!answer?.card || !!answer?.stat;
   const events = hits.filter((h) => h.kind === "event").length;
-  const filtersOn = anyFilter(filters);
+  const filtersOn = anyFilter(filters, askedTime);
   const counts = useMemo(() => whenCounts(hits, filters), [hits, filters.when, filters.season, filters.type]);
 
   // Season numbers for the teams listed and the Compare's sides, in one request.
@@ -177,7 +179,7 @@ export default function SearchPage() {
                   <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
-              {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} onChange={setFilters} /></div>}
+              {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
               {/* Desktop: results left (65%), at most one panel right (35%), chosen by the query: a versus query's
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
                   both, the head-to-head keeps the column and the summary goes below the results. Phone: one column,
@@ -218,7 +220,7 @@ export default function SearchPage() {
                             Show {a.label}
                           </Button>
                         ))}
-                        <button type="button" onClick={() => setFilters({ when: "all", season: null, type: null })} className="text-sm font-medium text-accent-text hover:underline">Clear filters</button>
+                        <button type="button" onClick={() => setFilters({ when: askedTime, season: null, type: null })} className="text-sm font-medium text-accent-text hover:underline">Clear filters</button>
                       </div>
                     </div>
                   )}

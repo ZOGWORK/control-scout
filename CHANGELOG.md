@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.9.1 — 2026-11-03
+
+Event searches count one way everywhere, open on the time asked for, and
+show venues in full.
+
+### Highlights
+- [fixes] Place link names both counts: "24 meets · 42 events"
+- [fixes] "upcoming meets in New Jersey" opens on the Upcoming tab
+- [fixes] Venue names in full, no trailing comma or cut-off
+
+### Search
+- **One count for an event search.** The place link ("All events in New Jersey") said "42 this season" while the events heading and the All tab said 24. It now names both and what each is: the set asked for, counted exactly as the list and the tabs count it, then every event in the place this season ("24 meets · 42 events this season"; "22 upcoming meets · …" for the upcoming query). When there are more than the page lists, it says so: "24 of 26 meets listed · 42 events this season". A bare "New Jersey" says "42 events this season", counted the same way (volunteer sign-ups left out, as every event list leaves them out). Which events match is unchanged.
+- **The time tab follows the query.** "upcoming meets in New Jersey" opens on Upcoming, highlighted; "past meets …" on Past. Picking another tab writes it to the address (`when=all`), so a reload or a shared link opens where you left it, and Clear filters goes back to the query's own tab. A fallback that dropped the time asked for ("no past meets there, showing the upcoming ones") opens on All, so its events show.
+- **Venues in full.** FIRST stores some venues with a trailing comma ("Columbia High School,", "P.A.L. of Atlantic County & EHT,"); the event card now ends the name at it, and a long venue wraps onto a second line instead of being cut with an ellipsis. (#521)
+
 ## 2.9.0 — 2026-11-03
 
 An event's Rankings tab has the Swing column now, in the full stats table.
