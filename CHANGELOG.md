@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.0.8 — 2026-11-04
+
+Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
+
+### Highlights
+- [teams] Mistyped team names reach the team: "hypnotc robotics"
+- [teams] Search shows "Did you mean: …" and runs it on a tap
+- [fixes] Mistyped words like "recrod" or "awrds" still answer
+- [fixes] Two names equally close are both shown, never guessed
+
+### Search
+- **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: "hypnotc robotics", "bad wolff", "enforcrs", "4215 recrod", "4215 awrds", "hypnotic oper", "new jersey champinship", "new jersy", "oradel". Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
+- **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
+- **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
+
 ## 3.0.7 — 2026-11-04
 
 Search answers questions about two or three teams, a team's partners and opponents, and predictions, each in one card from the stored numbers.
