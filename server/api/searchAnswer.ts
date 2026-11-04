@@ -12,7 +12,8 @@
 // Before 2: a season, region, ranking or missing view read from the query (./searchIntents.ts).
 // Then the step: "deterministic" when the top result fits what was typed, "did-you-mean" when it's a correction, and
 // "recovery" when there's nothing, or only near matches to teams that never played (those are listed as closest).
-// Learned click weights (./searchLearn.ts) may re-rank the results, never add one. Bruno AI is never asked here:
+// Learned click weights (./searchLearn.ts) may re-rank the results, never add one, and never pick the team an answer is
+// about: every lookup that does (a stat, a high score, a question, an intent) asks with learn: false. Bruno AI is never asked here:
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
@@ -231,7 +232,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (rw && rw.q !== q && (rw.pre || /^who won worlds /.test(rw.q))) return rewritten(rw);
 
   // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
-  const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false }), { full: !!opts.full, pages: pagesFor(q) });
+  const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false, learn: false }), { full: !!opts.full, pages: pagesFor(q) });
   if (stat) return stat;
 
   // 0. Then the other rewrites, and a question answered on its own: what a word means, a count, the FIRST Championship,
@@ -261,7 +262,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const high = opts.intents === false ? null : parseHighScore(q);
   if (high) {
     if (!high.core) return highScoreAnswer(q, high, null, [], pagesFor(q));
-    const base = await searchAnswer(high.core, { ...opts, intents: false });
+    const base = await searchAnswer(high.core, { ...opts, intents: false, learn: false });
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) return highScoreAnswer(q, high, team, base.hits.slice(1), pagesFor(q));
   }
@@ -269,7 +270,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0b. A question with a direct answer, when its team is found (else search goes on with the whole query).
   const question = opts.intents === false ? null : parseQuestion(q);
   if (question) {
-    const base = await searchAnswer(question.core, { ...opts, intents: false });
+    const base = await searchAnswer(question.core, { ...opts, intents: false, learn: false });
     const team = base.step !== "recovery" && base.hits[0]?.kind === "team" && !base.hits[0].href ? base.hits[0] : null;
     if (team) return questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
   }
@@ -321,7 +322,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     if (asEvent[0]?.kind === "event" && topScore(it.withoutRanking, asEvent) >= WEAK_SCORE) it = null;
   }
   if (it && it.core !== q) {
-    const a = await intentAnswer(q, it, await searchAnswer(it.core, { ...opts, intents: false, season: it.season ?? opts.season }));
+    const a = await intentAnswer(q, it, await searchAnswer(it.core, { ...opts, intents: false, learn: false, season: it.season ?? opts.season }));
     if (a) return a;
   }
 

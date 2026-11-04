@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.5 — 2026-11-03
+## 2.9.6 — 2026-11-03
 
 FTC One Search answers read more cleanly: names, rates, captions and headings follow one set of wording rules.
 
@@ -28,6 +28,22 @@ FTC One Search answers read more cleanly: names, rates, captions and headings fo
 
 ### Search
 - **Wording fixes from the v2.8.9 search display audit.** One possessive rule everywhere ("Hypnotic Robotics'", "Bad Wolf's"). Rates read "per match" as Compare has them ("8.4 per match", "points per match"). Charts end with one sentence ("Ranges from 52.4 to 101.6 across 5 values."). "1st-place" is the adjective ("1st-place finishes", "1st-place Inspire") and "1st place" the noun; the Worlds events pill no longer says "Worlds finals finals". A team fact's page title is sentence case with the team named once, in bold ("Where **Hypnotic Robotics (4215)** is from", "Sponsors and school for …"), never "Team 4215 — Where They're From". The head-to-head card is headed "Their meetings and partnerships" and a winning-alliance card "The champions and each division's winners", under page headings that name the teams and event. "This season" before the season in progress has a match now heads the page with the season it answers ("Average score in 2025–26"), the reason in the note. No number changes. (#525)
+
+## 2.9.2 — 2026-11-03
+
+How FTC One Search works says plainly what the search does, for people and
+for search engines.
+
+### Highlights
+- [home] FTC One Search page opens with what you can search and how
+- [home] 20 example searches, each checked on the live site
+- [home] "How FTC One Search works" link on Home and on search results
+
+### Search
+- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app (#531).
+- **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
+- **Answers that don't drift.** A question with a misspelt team name ("geer opr") always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
+- **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
 
 ## 2.9.1 — 2026-11-03
 
