@@ -157,6 +157,29 @@ describe("answers on their own", () => {
     expect(s.card?.team?.number).toBe(31011);
     expect(s.card?.title).toBe("Website");
   });
+  it("a team name and a place no one team has together: the place's, or plainly none there (failed-search #503)", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31020, 'Robo Rebels', 'Troy', 'MI', 'USA'), (31021, 'Robo Rebels', 'Fremont', 'CA', 'USA')");
+    await rebuildSearch();
+    const none = await ask("robo rebels nj");
+    expect(none.hits.map((h) => h.ref).sort()).toEqual(["31020", "31021"]);
+    expect(none.understood?.label).toBe("No team named Robo Rebels in New Jersey: all 2 by that name");
+    const mi = await ask("robo rebels michigan");
+    expect(mi.hits.map((h) => h.ref)).toEqual(["31020"]);
+    expect(mi.understood?.label).toBe("The team named Robo Rebels in Michigan");
+    // Every team by the name counts, however many share it: the one in the place is never cut off by a result cap.
+    const many = Array.from({ length: 30 }, (_, i) => `(${32000 + i}, 'Gear Heads', 'Austin', 'TX', 'USA')`).join(", ");
+    await run(`INSERT INTO teams (number, name, city, state, country) VALUES ${many}, (32099, 'Gear Heads', 'Flint', 'MI', 'USA')`);
+    // A team with no city on record is still in its state.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (32100, 'Lone Gear', NULL, 'NJ', 'USA')");
+    await rebuildSearch();
+    const gh = await ask("gear heads michigan");
+    expect(gh.hits.map((h) => h.ref)).toEqual(["32099"]);
+    expect((await ask("lone gear nj")).understood?.label).toBe("The team named Lone Gear in New Jersey");
+    // A name read as search reads it, accents folded: "cafe" finds "Café".
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (32101, 'Cafe Robotics', 'Austin', 'TX', 'USA'), (32102, 'Café Robotics', 'Newark', 'NJ', 'USA')");
+    await rebuildSearch();
+    expect((await ask("cafe robotics nj")).hits.map((h) => h.ref)).toEqual(["32102"]);
+  });
   it("when a team last played: its most recent match (failed-search #487)", async () => {
     expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
     expect(rewriteQuery("when did 4215 play last")).toMatchObject({ q: "4215 last match" });
@@ -207,7 +230,9 @@ describe("Greptile on #465", () => {
     expect(a.hits.some((h) => /FIRST Championship/.test(h.title))).toBe(false);
   });
   it("a team named with a state it isn't in is never said to be in it", async () => {
-    expect((await ask("hypnotic robotics texas")).understood?.label ?? "").not.toMatch(/Texas/);
+    // It may say plainly that none is there, never that it is.
+    const label = (await ask("hypnotic robotics texas")).understood?.label ?? "";
+    expect(label.replace(/^No team named .+? in Texas/, "")).not.toMatch(/Texas/);
   });
 });
 

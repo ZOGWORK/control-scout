@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.8.6 — 2026-11-03
+## 2.8.7 — 2026-11-03
 
 Every event opens now, whatever its code looks like, and the policy, help and record pages arrive with their words in place.
 
@@ -26,10 +26,22 @@ Every event opens now, whatever its code looks like, and the policy, help and re
 - [speed] Team and match records arrive with their top rows
 
 ### Events
-- **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals. (#491)
+- **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals, its light version too. (#491)
 
 ### Pages
 - **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
+
+## 2.8.6 — 2026-11-03
+
+A team's name with a place ("robo rebels nj") now finds the teams by that name, and says so plainly when none is there.
+
+### Highlights
+- [teams] "Robo rebels nj" lists every Robo Rebels when none is in NJ
+- [teams] A name and a state find that state's team by that name
+- [fixes] No more "No matches found" for a real team name and a place
+
+### Search
+- **A name and a place.** A team's whole name followed by a place ("robo rebels nj", "bad wolf new jersey") lists the teams by that name in that place, or, when none is there, says "No team named Robo Rebels in New Jersey" and lists every team by the name. Every team sharing the name is checked against its stored state and country, accents and case folded as search reads names, never a capped list. (#504)
 
 ## 2.8.5 — 2026-11-03
 
