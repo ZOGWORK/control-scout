@@ -393,6 +393,8 @@ export async function partnerListAnswer(id: IntentId, team: AnswerTeam, msAll: T
   const oprs = OPR_IDS.has(id) ? await oprsOf(scope.season!, [team.number, ...t.map((x) => x.team)]) : new Map<number, { opr: number | null; rank: number | null }>();
   const oprOf = (n: number) => oprs.get(n)?.opr ?? null;
   const own = oprOf(team.number);
+  // Both OPRs or no total: a missing one is never counted as zero.
+  const sum = (n: number) => { const o = oprOf(n); return own != null && o != null ? own + o : null; };
   const byOpr = (x: Tally, y: Tally) => (oprOf(y.team) ?? -Infinity) - (oprOf(x.team) ?? -Infinity);
   const ranked =
     id === "worst-partner" ? t.filter((x) => x.ms.length >= MIN_MEETINGS).sort((x, y) => rateOf(rec(x)) - rateOf(rec(y)) || y.ms.length - x.ms.length || recent(y).localeCompare(recent(x)))
@@ -436,7 +438,7 @@ export async function partnerListAnswer(id: IntentId, team: AnswerTeam, msAll: T
     const S = seasonLabel(scope.season!);
     const o = oprOf(top.team);
     const head = id === "partner-top-opr"
-      ? { value: name(top.team), label: `combined OPR ${num1((own ?? 0) + (o ?? 0))} (${num1(own)} + ${num1(o)}) in ${S}`, sub: `${recText(rec(top))} together in ${plural(top.ms.length, "match")}` }
+      ? { value: name(top.team), label: `combined OPR ${num1(sum(top.team))} (${num1(own)} + ${num1(o)}) in ${S}`, sub: `${recText(rec(top))} together in ${plural(top.ms.length, "match")}` }
       : id === "opponent-top-opr"
         ? { value: name(top.team), label: `OPR ${num1(o)} in ${S}${oprs.get(top.team)?.rank ? ` (#${oprs.get(top.team)!.rank})` : ""}`, sub: `Met ${plural(top.ms.length, "time")}, ${recText(rec(top))} for ${team.number}` }
         : { value: name(top.team), label: `${recText(rec(top))} together (${pct(rec(top))} wins) in ${plural(top.ms.length, "match")}${o != null ? ` · OPR ${num1(o)}` : ""}`, sub: `Why: the best record together of ${team.number}'s ${S} partners${ranked[1] ? `; next ${name(ranked[1].team)}, ${recText(rec(ranked[1]))}` : ""}` };
@@ -445,7 +447,7 @@ export async function partnerListAnswer(id: IntentId, team: AnswerTeam, msAll: T
       headline: { ...head, href: teamHref(top.team, scope.season) },
       blocks: [{ kind: "table", title: id === "pick-partner" ? "Past partners, best record together first" : id === "partner-top-opr" ? "Partners by combined OPR" : "Opponents by OPR",
         columns: [{ key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }, ...(id === "partner-top-opr" ? [{ key: "sum", label: "Combined", num: true }] : []), nCol, recCol],
-        rows: shown.map((x) => row(x, { opr: num1(oprOf(x.team)), ...(id === "partner-top-opr" ? { sum: num1((own ?? 0) + (oprOf(x.team) ?? 0)) } : {}), n: x.ms.length, record: recText(rec(x)) })), ...more }],
+        rows: shown.map((x) => row(x, { opr: num1(oprOf(x.team)), ...(id === "partner-top-opr" ? { sum: num1(sum(x.team)) } : {}), n: x.ms.length, record: recText(rec(x)) })), ...more }],
     };
   }
   if (list) {

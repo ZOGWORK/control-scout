@@ -277,9 +277,11 @@ const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matc
 const COMPARE_MAX = 4;
 export interface TeamSetQuestion { teams: number[]; season: number | null }
 export function readTeamSet(raw: string): TeamSetQuestion | null {
-  const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ");
-  const { scope, rest } = readScope(q);
+  // A bare year in a list of numbers is a team ("4215 6980 2024 compare"); a season is written as one ("2024-25").
+  const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ").replace(/\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
+  const { scope, rest: said } = readScope(q);
   if (scope.at || scope.championship || scope.states || scope.level || scope.alliance) return null;
+  const rest = said.replace(/\bn(20\d\d)\b/g, "$1");
   const m = /^(?:compare )?((?:\d{1,5}(?: (?:vs\.?|versus|and|or))? ){2,3}\d{1,5})(?: (?:compare|comparison|compared|side by side|stats))?$/.exec(rest);
   if (!m || (!/^compare /.test(rest) && !/ (?:compare|comparison|compared|side by side|stats)$/.test(rest) && !/\b(?:vs\.?|versus)\b/.test(m[1]))) return null;
   const teams = [...new Set(m[1].split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];

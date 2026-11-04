@@ -160,6 +160,13 @@ describe("the answers", () => {
     const p = await ask("who should 4215 pick as an alliance partner");
     expect(p.stat!.headline).toMatchObject({ value: expect.stringMatching(/^23268 /), sub: expect.stringMatching(/^Why: the best record together.*; next 207 Critical Mass, 2-1-0$/) });
   });
+  it("a combined OPR needs both OPRs: none counted as zero", async () => {
+    await run("UPDATE team_season_stats SET opr_np = NULL WHERE season = ? AND team = 4215", [S]);
+    const a = await ask("4215 partner with the highest combined opr");
+    expect(a.stat!.headline!.label).toMatch(/^combined OPR – \(– \+ 157\.9\)/);
+    expect((a.stat!.blocks[0] as { rows: { cells: Record<string, unknown> }[] }).rows[0].cells.sum).toBe("–");
+    await run("UPDATE team_season_stats SET opr_np = 101.6 WHERE season = ? AND team = 4215", [S]);
+  });
   it("next-event chances from the stored projection, or the event named and nothing guessed", async () => {
     const win = await ask("4215 chance to win an event");
     expect(win.stat!.headline).toMatchObject({ value: "22%", label: "to win Northeast League Meet" });
@@ -185,6 +192,9 @@ describe("the answers", () => {
     expect((await ask(`4215 awards vs 6980 ${S - 1}-${String(S % 100).padStart(2, "0")}`)).stat!.headline).toMatchObject({ value: "Even", label: "0 awards each" });
     expect(readTeamSet("4215 6980 33950 207 compare")).toEqual({ teams: [4215, 6980, 33950, 207], season: null });
     expect(readTeamSet("4215 6980 33950 207 23268 compare")).toBeNull();
+    // A bare year in the list is a team; a season is written as one.
+    expect(readTeamSet("4215 6980 2024 compare")).toEqual({ teams: [4215, 6980, 2024], season: null });
+    expect(readTeamSet("4215 6980 33950 compare 2024-25")).toEqual({ teams: [4215, 6980, 33950], season: 2024 });
     // Every opponent listed (six here), never cut short.
     const o = await ask("4215 opponents this season");
     expect(o.stat!.blocks[0]).toMatchObject({ kind: "table" });
