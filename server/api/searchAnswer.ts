@@ -194,7 +194,13 @@ export function understoodOf(a: SearchAnswer): SearchUnderstood {
   if (a.step === "did-you-mean" && a.didYouMean) return { kind: "names", label: `Closest names to "${a.q}" (did you mean "${a.didYouMean}"?)` };
   // One team the words name exactly: that team (and what was asked about it).
   if (top?.kind === "team" && top.match !== "fuzzy" && (a.hits.length === 1 || top.facts || top.section || a.hits[1]?.match !== "exact")) return { kind: "team", label: showingLine(a) ?? teamWords(top.title) };
-  if (top?.kind === "match") return { kind: "names", label: top.title };
+  if (top?.kind === "match") {
+    // One match number in each division of an event ("USNJCMP Q1"): said once, for the event.
+    const same = a.hits.filter((h) => h.kind === "match" && h.title.split(" · ")[0] === top.title.split(" · ")[0]);
+    const event = /^(.+?) · (.+?) - [^·]+ Division$/.exec(top.title);
+    if (same.length > 1 && event && same.every((h) => h.title.startsWith(`${event[1]} · ${event[2]} - `))) return { kind: "names", label: `${event[1]} at ${event[2]}, in each of its ${same.length} divisions` };
+    return { kind: "names", label: top.title };
+  }
   return { kind: "names", label: `Teams, events and matches matching "${nameWords(a.q)}"` };
 }
 

@@ -253,3 +253,20 @@ describe("the in-memory typo scan (Greptile on #463)", () => {
     expect((await search("ma gaer", 5)).map((h) => h.title)).toContain("16000 | Gear Maniacs");
   });
 });
+
+describe("a match by its event's code, divisions and all (failed-search #527–#530)", () => {
+  beforeAll(async () => {
+    // 2025 New Jersey Championship: qualification and division playoffs on the division, the finals on the event.
+    // Its 2026 season is listed but not yet played.
+    await run("INSERT INTO matches (season, code, level, series, number, label, played, source) VALUES (2025, 'USNJCMPPKWY', 'qual', 0, 1, 'Q1', 1, 't'), (2025, 'USNJCMPPKWY', 'qual', 0, 12, 'Q12', 1, 't'), (2025, 'USNJCMPPKWY', 'playoff', 3, 1, 'M3', 1, 't'), (2025, 'USNJCMP', 'playoff', 0, 1, 'F1', 1, 't')");
+  });
+  it("an event's own code with no year: the newest season it has matches in, each division's match", async () => {
+    for (const q of ["usnjcmp q1", "2025 usnjcmp q1", "USNJCMP Q 1"]) expect((await search(q, 5)).filter((h) => h.kind === "match").map((h) => h.ref), q).toEqual(["2025:USNJCMPPKWY:qual:0:1"]);
+    expect((await search("2025 usnjcmp q 12", 5)).find((h) => h.kind === "match")?.ref).toBe("2025:USNJCMPPKWY:qual:0:12");
+  });
+  it("a division's finals are its event's", async () => {
+    expect((await search("usnjcmppkwy f1", 5)).find((h) => h.kind === "match")).toMatchObject({ ref: "2025:USNJCMP:playoff:0:1", title: "F1 · New Jersey Championship" });
+    // A match the division has is the division's.
+    expect((await search("usnjcmppkwy m3", 5)).find((h) => h.kind === "match")?.ref).toBe("2025:USNJCMPPKWY:playoff:3:1");
+  });
+});
