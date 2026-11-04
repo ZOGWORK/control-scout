@@ -192,7 +192,7 @@ async function matchListAnswer(b: BoolQuery, scope: Scope, who: Map<number, Answ
   const where = scopePhrase(scope);
   const and2 = b.groups.length === 1 && b.groups[0].length === 2 && b.groups[0].every((l) => !l.neg);
   const title = `${b.groups.length === 1 && !b.groups[0].some((l) => l.neg) ? `Matches with ${b.groups[0].map((l) => l.team).join(" and ")}` : `Matches: ${said(b.groups)}`}${where}`;
-  const base = { family: "two-team" as const, intent: `boolean-${b.groups.length > 1 ? "or" : b.groups[0].some((l) => l.neg) ? "not" : "and"}`, title, scope: scopeChips(scope), definition: RULE, source: sourceOf(hits.map((h) => h.m)) };
+  const base = { family: "two-team" as const, intent: `boolean-${b.groups.length > 1 ? "or" : b.groups[0].some((l) => l.neg) ? "not" : "and"}`, title, teams: [...sets.keys()].map((t) => who.get(t) ?? { number: t, name: null }), scope: scopeChips(scope), definition: RULE, source: sourceOf(hits.map((h) => h.m)) };
   const teams = [...sets.keys()];
   const counts: StatBlock = { kind: "kpis", items: teams.map((t) => ({ label: whoOf(who.get(t) ?? { number: t, name: null }), value: String(sets.get(t)!.length), sub: `match${sets.get(t)!.length === 1 ? "" : "es"}${where}`, href: teamHref(t, scope.season) })) };
   if (!hits.length) {
@@ -350,6 +350,7 @@ async function sideBySide(what: string, teams: number[], stats: StatAnswer[], na
   const when = season != null ? seasonLabel(season) : "no season every team played";
   return {
     family: "two-team", intent: "boolean-compare", title: `${what}: ${teams.join(" vs ")}`, scope: stats[0].scope,
+    teams: teams.map((t) => ({ number: t, name: rows.find((r) => Number(r.team) === t)?.name ?? null })),
     headline: { value: board.map((r) => r.display).join(" vs "), label: `${what}: ${teams.join(" vs ")}` },
     definition: `${what} is each team's own answer, as its own search gives it (${stats.map((x, i) => `${teams[i]}: ${x.headline?.label ?? x.none ?? "none"}`).join("; ")}). The other columns are each team's stored ${when} season numbers, as its team page shows them. ${stats[0].definition}`,
     source: stats.map((x, i) => `${teams[i]}: ${x.source}`).join(" · "),
