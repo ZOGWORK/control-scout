@@ -27,22 +27,40 @@ export function ftsQuery(q: string): string | null {
 
 const MATCH_RE = /^(?:(20\d\d)\s+)?([a-z0-9]{3,16})\s+(q|qual|m|match|f|final)\s*-?\s*(\d{1,3})(?:-(\d))?$/i;
 
-async function matchHit(q: string): Promise<SearchHit | null> {
+/** The match a code and number name ("USNJCMPPKWY Q12", "2025 USNJCMP F1"). With no year, the newest season the code
+ *  has matches in (a code's new season is listed before it's played). An event split in divisions has its
+ *  qualification and division playoff matches on each division, and its finals on the event itself, so a match the
+ *  code doesn't hold is looked for there: the event's own "Q12" is each division's, a division's "F1" the event's. */
+async function matchHits(q: string): Promise<SearchHit[]> {
   const m = MATCH_RE.exec(q.trim());
-  if (!m) return null;
+  if (!m) return [];
   const code = m[2].toUpperCase();
-  const season = m[1] ? Number(m[1]) : Number((await get<{ s: number }>("SELECT MAX(season) s FROM events WHERE code = ?", [code]))?.s ?? 0);
-  if (!season) return null;
+  const season = m[1] ? Number(m[1])
+    : Number((await get<{ s: number }>("SELECT MAX(season) s FROM matches WHERE code = ? OR code IN (SELECT d.code FROM events d JOIN events e ON e.season = d.season AND e.code = ? WHERE d.code LIKE e.code || '_%' AND d.name LIKE e.name || ' - %')", [code, code]))?.s
+      ?? (await get<{ s: number }>("SELECT MAX(season) s FROM events WHERE code = ?", [code]))?.s ?? 0);
+  if (!season) return [];
   const kind = m[3].toLowerCase()[0];
   const n = Number(m[4]);
-  const row = kind === "q"
-    ? await get<any>("SELECT level, series, number, label FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND number = ?", [season, code, n])
+  const find = (c: string) => kind === "q"
+    ? get<any>("SELECT level, series, number, label FROM matches WHERE season = ? AND code = ? AND level = 'qual' AND number = ?", [season, c, n])
     : kind === "f"
-      ? await get<any>("SELECT level, series, number, label FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND series = 0 AND number = ?", [season, code, n])
-      : await get<any>("SELECT level, series, number, label FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND series = ? AND number = ?", [season, code, n, Number(m[5] ?? 1)]);
-  if (!row) return null;
-  const ev = await get<any>("SELECT name FROM events WHERE season = ? AND code = ?", [season, code]);
-  return { kind: "match", ref: `${season}:${code}:${row.level}:${row.series}:${row.number}`, title: `${row.label} · ${ev?.name ?? code}`, subtitle: `${code} · ${season}`, season };
+      ? get<any>("SELECT level, series, number, label FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND series = 0 AND number = ?", [season, c, n])
+      : get<any>("SELECT level, series, number, label FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND series = ? AND number = ?", [season, c, n, Number(m[5] ?? 1)]);
+  const hit = async (c: string, row: any): Promise<SearchHit> => {
+    const ev = await get<any>("SELECT name FROM events WHERE season = ? AND code = ?", [season, c]);
+    return { kind: "match", ref: `${season}:${c}:${row.level}:${row.series}:${row.number}`, title: `${row.label} · ${ev?.name ?? c}`, subtitle: `${c} · ${season}`, season };
+  };
+  const own = await find(code);
+  if (own) return [await hit(code, own)];
+  // A division's finals are its event's ("USNJCMPPKWY F1": the New Jersey Championship's F1).
+  const parent = await get<{ code: string }>("SELECT e.code FROM events e JOIN events d ON d.season = e.season AND d.code = ? WHERE e.season = ? AND d.code LIKE e.code || '_%' AND d.name LIKE e.name || ' - %'", [code, season]);
+  const up = parent ? await find(parent.code) : null;
+  if (parent && up) return [await hit(parent.code, up)];
+  // An event's own code for a division's match ("USNJCMP Q1"): that match in each division.
+  const divisions = await all<{ code: string }>("SELECT d.code FROM events d JOIN events e ON e.season = d.season AND e.code = ? WHERE d.season = ? AND d.code LIKE e.code || '_%' AND d.name LIKE e.name || ' - %' ORDER BY d.code", [code, season]);
+  const out: SearchHit[] = [];
+  for (const d of divisions) { const row = await find(d.code); if (row) out.push(await hit(d.code, row)); }
+  return out;
 }
 
 /** A query that also asks about something ("hypnotic ranking points", "4215 awards"): the topic, its words as
@@ -158,8 +176,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   }
 
   // 1. A specific match ("USNJQ1 Q12").
-  const mh = allow("match") ? await matchHit(query) : null;
-  if (mh) push(mh);
+  if (allow("match")) for (const mh of await matchHits(query)) push(mh);
 
   // 2. Team numbers: exact first, then prefix matches as you type ("163" → 16321…).
   // (Team numbers never start with 0 — and a 0 prefix would never end the range loop.)
