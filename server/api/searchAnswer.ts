@@ -429,7 +429,8 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const named = searchIntent(rest)?.rest ?? rest;
   const nearName = top.match === "fuzzy" && fuzzyScore(named, nameOf(top)) >= 0.6;
   // Two names as close as each other ("molt bots": Volt Bots and Bolt Bots): both are listed, neither is guessed.
-  const tie = nearName && marked[1]?.kind === top.kind && marked[1].match === "fuzzy" && fuzzyScore(named, nameOf(marked[1])) >= fuzzyScore(named, nameOf(top));
+  // Every other near name, not just the next: learned clicks may have put a less close one between them.
+  const tie = nearName && marked.slice(1).some((h) => h.kind === top.kind && h.match === "fuzzy" && fuzzyScore(named, nameOf(h)) >= fuzzyScore(named, nameOf(top)));
   if (!nearName || tie) return answer(q, { hits: marked, step: "deterministic" });
   const topic = (intent ?? searchIntent(rest, true))?.phrase;
   return answer(q, { hits: marked, step: "did-you-mean", didYouMean: `${nameOf(top)}${topic ? ` ${topic}` : ""}` });
