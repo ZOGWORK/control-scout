@@ -97,7 +97,7 @@ describe("awards", () => {
     const k = a.stat!.blocks.find((b) => b.kind === "kpis");
     expect(k && k.kind === "kpis" && k.items[0]).toMatchObject({ label: "1st-place finishes", sub: "Winning Alliance" });
     const w = await searchAnswer("ftc decode winning alliance", { limit: 25 });
-    for (const s of [a.stat, w.stat]) expect(JSON.stringify(s)).not.toMatch(/(?:1st|2nd|3rd) place (?:Inspire|finish)|(?:2nd|3rd) place/);
+    for (const s of [a.stat, w.stat]) expect(JSON.stringify(s)).not.toMatch(/\b(?:1st|2nd|3rd) place (?:Inspire|finish)|\b(?:2nd|3rd) place\b/);
     const inspire = w.stat!.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award");
     if (inspire && inspire.kind === "links") for (const i of inspire.items) expect(i.sub).toBe("1st-place Inspire");
   });
@@ -125,7 +125,7 @@ describe("winning alliances", () => {
     // The season's championship events, from the data, as buttons.
     expect(a.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ title: "Worlds events, 2025–26", items: [{ label: "Edison Division" }, { label: "Ochoa Division" }, { label: "Worlds finals" }] });
     // No pill says a word twice ("Worlds finals finals", audit v2.8.9).
-    for (const b of a.stat!.blocks) if (b.kind === "links") for (const i of b.items) expect(`${i.label} ${i.sub ?? ""}`.trim(), i.label).not.toMatch(/(\w+) /i);
+    for (const b of a.stat!.blocks) if (b.kind === "links") for (const i of b.items) expect(`${i.label} ${i.sub ?? ""}`.trim(), i.label).not.toMatch(/\b(\w+) \1\b/i);
     // The card's heading complements the page's, never repeats it.
     expect(a.understood!.label).toBe("DECODE 2025–26 FIRST Championship winning alliances");
     expect(a.stat!.title).toBe("The champions and each division's winners");
