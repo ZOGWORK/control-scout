@@ -18,6 +18,7 @@ import { Badge, Input } from "../components/ui/basic";
 import { Button } from "../components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/overlay";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/controls";
+import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { cn } from "../components/cn";
 import { CompactFilters, FilterSection, useCompactFilters, type FilterChip } from "../components/CompactFilters";
 
@@ -270,6 +271,8 @@ const td = "px-2 py-2.5 sm:px-4";
 
 function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | null }) {
   const moves = data.baseline != null;
+  // Swing (the consistency stat) comes with the live ranking only (today's number, not a past week's), on rows that have one.
+  const swing = data.rows.some((r) => r.swing !== undefined);
   return (
     <div className="rounded-xl border border-text-base/15 bg-card">
       <table className="w-full border-collapse text-sm">
@@ -279,7 +282,8 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
             {moves && <th scope="col" className={cn(th, "w-12 text-left sm:w-16")} title="Places moved since last week">Move</th>}
             <th scope="col" className={cn(th, "text-left")}>Team</th>
             <th scope="col" className={cn(th, "text-left max-md:hidden")}>From</th>
-            <th scope="col" className={cn(th, "text-right", !moves && "rounded-tr-xl")} title="Expected points added to an alliance per match (auto + TeleOp + endgame)">Rating</th>
+            <th scope="col" className={cn(th, "text-right", !moves && !swing && "rounded-tr-xl")} title="Expected points added to an alliance per match (auto + TeleOp + endgame)">Rating</th>
+            {swing && <th scope="col" className={cn(th, "text-right", !moves && "rounded-tr-xl")} title={SWING_LINE}>Swing</th>}
             {moves && <th scope="col" className={cn(th, "rounded-tr-xl text-left max-sm:hidden")}>Trend</th>}
           </tr>
         </thead>
@@ -304,12 +308,14 @@ function RankTable({ data, myTeam }: { data: RankingsResponse; myTeam: number | 
                   <span className="font-semibold">{r.rating.toFixed(1)}</span>
                   {r.dRating != null && r.dRating !== 0 && <span className={cn("block text-[11px]", r.dRating > 0 ? "text-success" : "text-danger")}>{r.dRating > 0 ? "+" : ""}{r.dRating.toFixed(1)}</span>}
                 </td>
+                {swing && <td className={cn(td, "text-right tabular-nums")} title={swingTitle(r.swing)}>{swingText(r.swing)}</td>}
                 {moves && <td className={cn(td, "max-sm:hidden")}><TrendBadge row={r} /></td>}
               </tr>
             );
           })}
         </tbody>
       </table>
+      {swing && <p className="border-t border-text-base/10 px-2 py-2 text-xs text-text-muted sm:px-4" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </div>
   );
 }

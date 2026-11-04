@@ -7,7 +7,8 @@ import type { InStatement } from "@libsql/client";
 import { all, kvGet, writeBatch } from "../db.js";
 import { matchTimeMs, type DbEvent, type DbMatch } from "./load.js";
 import type { ReportCardField } from "../../src/shared/api.js";
-import { NEAR_ZERO_SHARE, RATIO_CAP, RECENT, reliabilityIndex, shrinkTo, type ReliabilityParts } from "../../src/shared/reliability.js";
+import { averageRobotShare, consistency, estimatedContribution, fieldVariance, tallyContributions } from "@control-scout/predict-engine";
+import { NEAR_ZERO_SHARE, RATIO_CAP, RECENT, RELIABILITY_PRIOR, consistencyFieldKey, reliabilityIndex, shrinkTo, type ConsistencyField, type ReliabilityParts } from "../../src/shared/reliability.js";
 
 type Log = (m: string) => void;
 
@@ -49,13 +50,8 @@ export function tallyReliability(events: DbEvent[], opr: (code: string, team: nu
     // RECENT" really are the latest: a postponed match replayed at the end counts as played at the end.
     const quals = e.matches.filter((m) => m.level === "qual" && m.played && m.redScore && m.blueScore).sort(playOrder);
     if (!quals.length) continue;
-    // An average robot's share of an alliance's non-penalty score at this event.
-    let np = 0, robots = 0;
-    for (const m of quals) for (const [side, sc] of [[m.red, m.redScore!], [m.blue, m.blueScore!]] as const) {
-      const on = side.filter((t) => t.onField).length;
-      if (on) { np += sc.np; robots += on; }
-    }
-    const share = robots ? np / robots : 0;
+    // An average robot's share of an alliance's non-penalty score at this event (the engine's consistency rule).
+    const share = averageRobotShare(quals.flatMap((m) => [[m.red, m.redScore!], [m.blue, m.blueScore!]] as const).map(([side, sc]) => ({ np: sc.np, robots: side.filter((t) => t.onField).length })));
     const teams = new Map<number, Tally>();
     out.set(e.code, teams);
     for (const m of quals) {
@@ -71,7 +67,7 @@ export function tallyReliability(events: DbEvent[], opr: (code: string, team: nu
           const partner = on.length === 2 ? on.find((x) => x.team !== t.team) : undefined;
           const p = partner ? opr(e.code, partner.team) : null;
           if (p != null && share > 0) {
-            const c = (sc.np - p) / share;
+            const c = estimatedContribution(sc.np, p, share);
             a.contribs.push(c);
             if (c <= NEAR_ZERO_SHARE) { a.nearZero++; a.seq.push("nearZero"); continue; }
           }
@@ -79,10 +75,7 @@ export function tallyReliability(events: DbEvent[], opr: (code: string, team: nu
         }
       }
     }
-    for (const a of teams.values()) {
-      const mean = a.contribs.reduce((s, x) => s + x, 0) / Math.max(1, a.contribs.length);
-      a.ss = a.contribs.reduce((s, x) => s + (x - mean) ** 2, 0);
-    }
+    for (const a of teams.values()) a.ss = tallyContributions(a.contribs).ss;
   }
   return out;
 }
@@ -105,7 +98,7 @@ export function fieldOf(all: Tally[]): Field {
     noShowRate: s.listed ? s.noShows / s.listed : 0,
     dqRate: s.onField ? s.dqs / s.onField : 0,
     nearZeroRate: s.contribs.length ? s.nearZero / s.contribs.length : 0,
-    swingVar: s.contribs.length ? s.ss / s.contribs.length : 0,
+    swingVar: fieldVariance({ n: s.contribs.length, ss: s.ss }),
     penPerRobot: s.onField ? s.penSum / s.onField : 0,
   };
 }
@@ -129,7 +122,8 @@ export function partsOf(a: Tally, f: Field, missSd: number | null, fieldMissSd: 
     noShowRate: shrinkTo(a.listed ? a.noShows / a.listed : null, a.listed, f.noShowRate),
     dqRate: shrinkTo(a.onField ? a.dqs / a.onField : null, a.onField, f.dqRate),
     nearZeroRate: shrinkTo(n ? a.nearZero / n : null, n, f.nearZeroRate),
-    swing: Math.sqrt(Math.max(0, shrinkTo(n ? a.ss / n : null, n, f.swingVar))),
+    // Swing is the engine's consistency stat (one number in both apps): sd of the contributions, shrunk toward the field.
+    swing: consistency({ n, ss: a.ss }, f.swingVar, { prior: RELIABILITY_PRIOR }).swing,
     penaltyRatio: ratioTo(pen, f.penPerRobot),
     predictabilityRatio: fieldMissSd == null ? 0 : missSd == null ? (fieldMissSd > 0 ? 1 : 0) : ratioTo(missSd, fieldMissSd),
   };
@@ -163,6 +157,10 @@ export function reliabilityStatements(season: number, byEvent: Map<string, Map<n
   const fp = fieldParts(f, miss.field);
   const fieldTally = pool([...perTeam.values()].flat());
   stmts.push({ sql: INSERT, args: rowArgs(season, "", 0, { ...fieldTally, seq: [] }, fp, at) });
+  // The season's exact field variance, the prior every swing here is shrunk toward. Control Point reads it
+  // (GET /api/reliability → consistencyField) so its own swing for an event comes out the same as these rows.
+  const cf: ConsistencyField = { variance: f.swingVar, matches: fieldTally.contribs.length };
+  stmts.push({ sql: "INSERT INTO kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", args: [consistencyFieldKey(season), JSON.stringify(cf), at] });
   for (const [code, teams] of byEvent) for (const [t, a] of teams) stmts.push({ sql: INSERT, args: rowArgs(season, code, t, a, partsOf(a, f, miss.event.get(`${code}|${t}`) ?? null, miss.field), at) });
   for (const [t, xs] of perTeam) { const a = pool(xs); stmts.push({ sql: INSERT, args: rowArgs(season, "", t, a, partsOf(a, f, miss.season.get(t) ?? null, miss.field), at) }); }
   return { stmts, teams: perTeam.size };

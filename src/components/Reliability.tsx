@@ -4,7 +4,7 @@
 import { Link } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import type { Reliability, ReliabilityNotes } from "../shared/reliability";
-import { blendedIndex, RELIABILITY_PRIOR, reliabilityWord } from "../shared/reliability";
+import { blendedIndex, RELIABILITY_PRIOR, reliabilityWord, SWING_LINE } from "../shared/reliability";
 import { Section } from "./page";
 import { StatTile } from "./StatTile";
 import { num, pct } from "../lib/format";
@@ -22,7 +22,7 @@ export function reliabilityParts(r: Reliability): { label: string; value: string
     { label: "No-shows", value: `${r.noShows} of ${r.matches}`, note: "Listed for a qualification match but not on the field." },
     { label: "Disqualified", value: `${r.dqs}`, note: "Matches the team was disqualified in." },
     { label: "Near-zero matches", value: `${r.nearZero}`, note: "Estimated: alliance score minus the partner's OPR came to almost nothing. Defense or a partner carrying the alliance can look the same, so this is a hint, not proof of a dead robot." },
-    { label: "Swing", value: `±${num(r.parts.swing, 2)}`, note: "How much its estimated contribution moves from match to match, in average-robot units." },
+    { label: "Swing", value: `±${num(r.parts.swing, 2)}`, note: `${SWING_LINE}${r.consistency?.value == null ? " Fewer matches than that: here it reads close to the field, and the tables show —." : ""}` },
     { label: "Penalties", value: `${num(r.parts.penaltyRatio, 2)}×`, note: "Penalty points its alliances gave away per robot, against the season average (1× = average)." },
     { label: "Predictability", value: r.parts.predictabilityRatio > 0 ? `${num(r.parts.predictabilityRatio, 2)}×` : "Not counted", note: "Spread of the engine's live-call misses on its matches, against the field (1× = average; a team with no live calls yet reads as average). Not counted in a season with no scored live calls." },
   ];

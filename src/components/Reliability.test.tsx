@@ -11,7 +11,7 @@ afterEach(cleanup);
 
 const r: Reliability = {
   index: 63, matches: 15, noShows: 1, dqs: 0, nearZero: 6, recent: { matches: 10, noShows: 1, nearZero: 6 },
-  parts: { noShowRate: 0.04, dqRate: 0.001, nearZeroRate: 0.2, swing: 0.4, penaltyRatio: 0.77, predictabilityRatio: 1 }, fieldIndex: 75,
+  parts: { noShowRate: 0.04, dqRate: 0.001, nearZeroRate: 0.2, swing: 0.4, penaltyRatio: 0.77, predictabilityRatio: 1 }, consistency: { value: 0.4, matches: 15, reason: null }, fieldIndex: 75,
 };
 // Closed at first (the team page's collapsed sections): opened here to read it.
 const show = (notes?: { matchEntries: number; flagged: number }) => {

@@ -18,7 +18,8 @@ export * from "./scoutData.js";
 export * from "./explain.js";
 export * from "./partnership.js";
 export * from "./bonus.js";
+export * from "./consistency.js";
 export { FITTED_MODEL } from "./model.js";
 
 /** Package version (kept in step with package.json by a test). */
-export const ENGINE_VERSION = "3.3.0";
+export const ENGINE_VERSION = "3.4.0";
