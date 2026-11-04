@@ -25,7 +25,7 @@ import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { defaultRankingsSeason } from "./rankings.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
-import { normalize } from "./fuzzy.js";
+import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
 import { eventHit, eventSetAnswer } from "./searchEvents.js";
 import { BOARD_STATS, teamsHref } from "./answers/families/leaderboard.js";
@@ -44,11 +44,25 @@ const BARE_KIND = /^(?:(?:upcoming|ftc|all|the)\s+)*(teams?|events?|meets?|compe
 
 /** A game's name ("decode", "into the deep", any spacing) or a season written as one ("2025-26") in `t`: the season
  *  as search reads one ("2025-26"), and `t` without it. `game` when it was a game's name. */
-function seasonWord(t: string): { season: string; rest: string; game: boolean } | null {
+function seasonWord(t: string, typos = false): { season: string; rest: string; game: boolean } | null {
   const cut = (g: RegExpExecArray) => squash(t.slice(0, g.index) + " " + t.slice(g.index + g[0].length));
+  const label = (s: number) => `${s}-${String((s + 1) % 100).padStart(2, "0")}`;
   for (const s of SEASONS) {
     const g = new RegExp(`(?:^|\\s)(?:in\\s+|during\\s+)?(?:the\\s+)?${[...s.game.toLowerCase().replace(/\s+/g, "")].join("\\s*")}(?:\\s+season)?(?=\\s|$)`).exec(t);
-    if (g) return { season: `${s.season}-${String((s.season + 1) % 100).padStart(2, "0")}`, rest: cut(g), game: true };
+    if (g) return { season: label(s.season), rest: cut(g), game: true };
+  }
+  // A one-word game's name misspelled ("dcode"), within search's own edit allowance: only where the caller has said
+  // the query names an event.
+  if (typos) for (const s of SEASONS) {
+    const game = s.game.toLowerCase();
+    if (/\s/.test(game)) continue;
+    // By word position, never as a pattern: the typed word may hold "$" or "(".
+    const ws = t.split(" ");
+    const i = ws.findIndex((x) => x.length >= 5 && x !== game && /^[a-z]+$/.test(x) && editDistance(x, game) <= allowedEdits(game.length));
+    if (i >= 0) {
+      const from = i > 0 && /^(?:in|during)$/.test(ws[i - 1]) ? i - 1 : i;
+      return { season: label(s.season), rest: squash([...ws.slice(0, from), ...ws.slice(i + 1)].join(" ")), game: true };
+    }
   }
   const y = /(?:^|\s)(?:in\s+)?(20\d\d)\s*[-–/]\s*(\d\d)(?=\s|$)/.exec(t);
   return y && (Number(y[1]) + 1) % 100 === Number(y[2]) ? { season: `${y[1]}-${y[2]}`, rest: cut(y), game: false } : null;
@@ -69,11 +83,17 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
     const r = regionOf(m[3].split(" "))!;
     return { q: squash(`${m[1]} ${m[2]} at ${r.name} championship`), pre: true };
   }
-  // A leaderboard of a season named ("top opr last season", "best auto opr in nj 2024-25"): the leaderboard's own
-  // phrasing, so "top" is never read as a team's name (Top Shelf BGS).
-  if ((m = new RegExp(`^(?:the\\s+)?(?:top|best|highest|strongest)(?:\\s+(\\d{1,2}))?\\s+${BOARD}(?:\\s+teams?)?(?:\\s+(?:in\\s+)?(.+?))?\\s+(?:in\\s+|for\\s+|during\\s+)?${SEASON_WORDS}$`).exec(t))) {
-    const place = m[3] ? regionOf(m[3].split(" ")) : null;
-    if (!m[3] || place) return { q: squash(`top ${m[1] ?? 10} teams by ${m[2]}${place ? ` in ${place.name}` : ""} ${m[4]}`), pre: true };
+  // A leaderboard of a season named ("top opr last season", "best auto opr in nj 2024-25", "best auto in decode"): the
+  // leaderboard's own phrasing, so "top" and "best" are never read as a team's name (Top Shelf BGS, We are the best).
+  {
+    const g = seasonWord(t);
+    const rel = g ? null : new RegExp(`\\s+(?:in\\s+|for\\s+|during\\s+)?${SEASON_WORDS}$`).exec(t);
+    const bt = g ? g.rest : rel ? t.slice(0, rel.index) : null;
+    const when = g ? g.season : rel?.[1];
+    if (bt != null && (m = new RegExp(`^(?:the\\s+)?(?:top|best|highest|strongest)(?:\\s+(\\d{1,2}))?\\s+(?:scoring\\s+)?${BOARD}(?:\\s+teams?)?(?:\\s+(?:in\\s+|from\\s+)?(.+?))?(?:\\s+(?:in|for|during))?$`).exec(bt))) {
+      const place = m[3] ? regionOf(m[3].split(" ")) : null;
+      if (!m[3] || place) return { q: squash(`top ${m[1] ?? 10} teams by ${m[2]}${place ? ` in ${place.name}` : ""} ${when}`), pre: true };
+    }
   }
   // An event's best score, "at" or not ("highest score new jersey championship", "nj states highest score"). A
   // place's "states" is its championship, never another event with the place in its name (a workshop).
@@ -91,7 +111,16 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   // An event named with a game's name ("nj states decode", "worlds edison division centerstage"): that game's season,
   // written as one ("nj states 2025-26"), which the event readers already read. Never for a team's number (the rule
   // further down) or a game named alone ("what is decode").
-  if (sw && sw.game && !/^\d{1,6}\b/.test(t) && EVENT_WORDS.test(sw.rest)) return { q: `${sw.rest} ${sw.season}`, pre: true };
+  const swt = sw ?? (EVENT_WORDS.test(t) && !/^\d{1,6}\b/.test(t) ? seasonWord(t, true) : null);
+  if (swt && swt.game && !/^\d{1,6}\b/.test(t) && EVENT_WORDS.test(swt.rest)) return { q: `${swt.rest} ${swt.season}`, pre: true };
+  // "events", "events this season", "events ths": the season's events, never teams named "Event Horizon".
+  if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
+    return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
+  }
+  // A question opened with filler ("so like what was 4215 last game"): the question.
+  if ((m = /^(?:(?:so|like|um+|uh+|ok|okay|hey|yo|bro)\s+)+((?:what|who|when|where|how|which|is|are|did|does|has|have)\b.+|\d{1,6}\b.+)$/.exec(t))) return { q: m[1], pre: true };
+  // A team's matches "in" an event, said as "at" ("4215 matches in worlds").
+  if ((m = /^(\d{1,6})\s+(matches|match|games?|record)\s+in\s+(worlds|first championship|world championships?)$/.exec(t))) return { q: `${m[1]} ${m[2]} at worlds`, pre: true };
   // "When did hypnotic last play", "when did 4215 play last", "when did they last compete": the team's most recent match.
   if ((m = new RegExp(`^when\\s+(?:did|was|were)\\s+${TEAM}\\s+(?:last\\s+(?:play|played|compete|competed|playing|competing)|(?:play|compete)\\s+last)$`).exec(t))) return { q: `${m[1]} last match`, pre: true };
   // No-shows and disqualifications are counted in the team's reliability.
@@ -477,12 +506,31 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   if (section) rest = rest.replace(section[0], " ");
   rest = squash(rest.replace(/\b(?:at|in|of|for|the|from)\b\s*$/, "").replace(/^\s*(?:at|in|of|for|the)\b/, ""));
   // "finals at worlds": the FIRST Championship, which needs no place or year to be one event set.
+  // "divison", "divsion": the word events use.
+  rest = rest.replace(/\bdiv(?:i?si?|is)on\b/g, "division");
   const worlds = /^(?:the\s+)?(?:worlds|first championship|world championships?)$/.test(rest);
   const ev: EventQuery | null = worlds ? { kinds: ["worlds"], time: null, year: null, season: null, region: null, where: null, words: [], allSeasons: true } : readEventQuery(rest);
-  if (!ev) return null;
-  const set = await eventSetAnswer(rest, ev, { now });
+  const set = ev ? await eventSetAnswer(rest, ev, { now }) : null;
   const today = new Date(now ?? Date.now()).toISOString().slice(0, 10);
-  const events = set.hits.filter((h) => h.kind === "event");
+  // An event by its own name ("jackson division q12", "worlds jackson division q12"), when the words name a kind of
+  // event and the event readers found none: search's events by name.
+  const read = set ? set.hits.filter((h) => h.kind === "event") : [];
+  // A season named with it ("edison division q1 2025-26", "… decode") is that season's event, and not part of the name.
+  const named = seasonWord(rest);
+  const nameWords = named ? named.rest : rest;
+  const inSeason = named ? Number(named.season.slice(0, 4)) : null;
+  const byName = !read.length && !!mm && EVENT_WORDS.test(nameWords) && !/\d/.test(nameWords);
+  // Search lists each code once, from its newest season, undated; each is dated here by the season named, else the
+  // newest season it has matches in (a code's next season is listed before it's played), so an unplayed season never
+  // hides a played one.
+  const events: SearchHit[] = byName ? [] : read;
+  if (byName) for (const h of (await search(nameWords.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((x) => x.kind === "event")) {
+    const c = h.ref.split(":")[1];
+    const r = await get<{ season: number; start: string | null }>(`SELECT e.season, e.start FROM events e WHERE e.code = ?${inSeason != null ? " AND e.season = ?" : " AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code)"} ORDER BY e.season DESC LIMIT 1`, inSeason != null ? [c, inSeason] : [c]);
+    if (!r && inSeason != null) continue;
+    events.push(r ? { ...h, ref: `${r.season}:${c}`, season: Number(r.season), event: { ...(h.event ?? {}), start: r.start ?? "" } as SearchHit["event"] } : h);
+  }
+  if (!events.length && !set) return null;
   // The event asked about: the latest that has started (its pages have something), else the next one.
   const startOf = (h: SearchHit) => h.event?.start ?? "";
   const started = events.filter((h) => h.event?.status !== "upcoming" && startOf(h) <= today).sort((a, b) => startOf(b).localeCompare(startOf(a)));
@@ -494,7 +542,8 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
     // that match number in every one of them.
     const codes = [code, ...(await all<{ code: string }>("SELECT code FROM events WHERE season = ? AND code LIKE ? AND code <> ? ORDER BY code", [Number(s), `${code}%`, code])).map((r) => r.code)];
     const found: SearchHit[] = [];
-    for (const c of codes) found.push(...(await search(`${s} ${c} ${kind.code}${mm[2]}`, 5, prefer, new Set(["match"]), Number(s))).filter((h) => h.kind === "match").slice(0, 1));
+    // The event's own code finds its divisions' matches too: each match once.
+    for (const c of codes) for (const h of (await search(`${s} ${c} ${kind.code}${mm[2]}`, 5, prefer, new Set(["match"]), Number(s))).filter((x) => x.kind === "match").slice(0, 1)) if (!found.some((f) => f.ref === h.ref)) found.push(h);
     if (found.length) return answer(q, { hits: [...found, { ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `${kind.word} ${mm[2]} at ${target.title} (${seasonLabel(Number(s))})${found.length > 1 ? `, in each of its ${found.length} divisions` : ""}` } });
     return answer(q, { hits: [{ ...target, section: "matches" }], pages: pagesFor(q), understood: { kind: "names", label: `${target.title} (${seasonLabel(Number(s))}): no ${kind.word.toLowerCase()} ${mm[2]} on record, here are its matches` } });
   }
