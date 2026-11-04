@@ -404,6 +404,10 @@ describe("failed-search issues (11-04)", () => {
       expect(a.hits.find((h) => h.kind === "match")?.ref, q).toBe(`${S}:FTCCMP1EDIS:qual:0:1`);
       expect(a.understood?.label, q).toMatch(/^Qualification match 1 at FIRST Championship - Edison Division/);
     }
+    // A season named with it, as a season or a game: that season's event, the season not part of the name.
+    for (const q of [`edison division q1 ${S}-${(S + 1) % 100}`, "edison division q1 decode"]) {
+      expect((await ask(q)).hits.find((h) => h.kind === "match")?.ref, q).toBe(`${S}:FTCCMP1EDIS:qual:0:1`);
+    }
     // A misspelled game with "$" left on it is read by position, never as a pattern (Greptile on #536).
     expect(() => rewriteQuery("jackson division decode$")).not.toThrow();
   });

@@ -503,13 +503,19 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   // An event by its own name ("jackson division q12", "worlds jackson division q12"), when the words name a kind of
   // event and the event readers found none: search's events by name.
   const read = set ? set.hits.filter((h) => h.kind === "event") : [];
-  const byName = !read.length && !!mm && EVENT_WORDS.test(rest) && !/\d/.test(rest);
-  // Search lists each code once, from its newest season, undated; each is dated here by the newest season it has
-  // matches in (a code's next season is listed before it's played), so an unplayed season never hides a played one.
+  // A season named with it ("edison division q1 2025-26", "… decode") is that season's event, and not part of the name.
+  const named = seasonWord(rest);
+  const nameWords = named ? named.rest : rest;
+  const inSeason = named ? Number(named.season.slice(0, 4)) : null;
+  const byName = !read.length && !!mm && EVENT_WORDS.test(nameWords) && !/\d/.test(nameWords);
+  // Search lists each code once, from its newest season, undated; each is dated here by the season named, else the
+  // newest season it has matches in (a code's next season is listed before it's played), so an unplayed season never
+  // hides a played one.
   const events: SearchHit[] = byName ? [] : read;
-  if (byName) for (const h of (await search(rest.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((x) => x.kind === "event")) {
+  if (byName) for (const h of (await search(nameWords.replace(/^(?:the\s+)?worlds\s+/, ""), 10, prefer, new Set(["event"]))).filter((x) => x.kind === "event")) {
     const c = h.ref.split(":")[1];
-    const r = await get<{ season: number; start: string | null }>("SELECT e.season, e.start FROM events e WHERE e.code = ? AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code) ORDER BY e.season DESC LIMIT 1", [c]);
+    const r = await get<{ season: number; start: string | null }>(`SELECT e.season, e.start FROM events e WHERE e.code = ?${inSeason != null ? " AND e.season = ?" : " AND EXISTS (SELECT 1 FROM matches m WHERE m.season = e.season AND m.code = e.code)"} ORDER BY e.season DESC LIMIT 1`, inSeason != null ? [c, inSeason] : [c]);
+    if (!r && inSeason != null) continue;
     events.push(r ? { ...h, ref: `${r.season}:${c}`, season: Number(r.season), event: { ...(h.event ?? {}), start: r.start ?? "" } as SearchHit["event"] } : h);
   }
   if (!events.length && !set) return null;
