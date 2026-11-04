@@ -27,7 +27,7 @@ its team page.
 
 ### Search
 - **The OPR answer is the team page's card.** "4215 opr" (and every one-team OPR or phase OPR question) shows Total OPR, Autonomous, TeleOp and Endgame as the team page's tiles: the same names, icons, colours, rank line ("OPR #612 of 8,308 with an OPR · top 8%") and rank bar, from one shared list both pages draw. The value in each tile is in its phase's colour. The yellow band behind the big OPR number is gone, and the card has the team page's plain border and header; the season chip, the rank and the chart stay.
-- **One reader for both.** The card's numbers come from the same function the team page reads its season numbers with, formatted the same way (73 rather than 73.0), so the two can't drift. Nothing is worked out during a search. (#PR)
+- **One reader for both.** The card's numbers come from the same function the team page reads its season numbers with, formatted the same way (73 rather than 73.0), so the two can't drift. Nothing is worked out during a search. (#532)
 
 ## 2.9.1 — 2026-11-03
 
