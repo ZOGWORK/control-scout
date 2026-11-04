@@ -38,11 +38,13 @@ export function useAnswerSeason(stated: number | null): number {
   return stated ?? current - 1;
 }
 
-/** The team page's profile of the team in that season; undefined while it loads or when it isn't this team's. */
-export function useTeamProfile(team: number | null | undefined, season: number): TeamProfile | undefined {
+/** The team page's profile of the team in that season: undefined while it loads, null when it couldn't be read (the
+ *  answer stands without its supporting detail, which is then left out rather than left loading). */
+export function useTeamProfile(team: number | null | undefined, season: number): TeamProfile | null | undefined {
   const r = useApi<TeamProfile>(team ? `/api/teams/${team}${qs({ season })}` : null);
   const p = r.data;
-  return p && p.team?.number === team && p.season === season ? p : undefined;
+  if (p && p.team?.number === team && p.season === season) return p;
+  return r.error ? null : undefined;
 }
 
 /** The card's title says only what the page's heading already says ("Record in 2025–26" under "Hypnotic Robotics
@@ -55,7 +57,7 @@ type Who = { number: number; name: string | null };
  *  whatever supports it. `season`: the badge in the header (the season the answer is about). */
 export function AnswerFrame({ teams, profile, season, title, hideTitle, sub, children, label, data }: {
   teams?: Who[];
-  profile?: TeamProfile;
+  profile?: TeamProfile | null;
   season?: number | null;
   title: string;
   /** The page's heading already says it: the title is for screen readers only. */
@@ -83,7 +85,7 @@ export function AnswerFrame({ teams, profile, season, title, hideTitle, sub, chi
 
 /** My Teams' card header: the number big and bold, the name, where it's from (the team page's facts line), the
  *  season and the full team page. */
-function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile; season?: number | null }) {
+function TeamHeader({ who, profile, season }: { who: Who; profile?: TeamProfile | null; season?: number | null }) {
   const t = profile?.team;
   const name = t?.name ?? who.name;
   const loc = t ? place(t.city, t.state, t.country) : null;
@@ -148,7 +150,8 @@ function TeamSide({ t, q, right, first }: { t: Who; q: string; right: boolean; f
 }
 
 /** The team page's season tiles (My Teams' Season): OPR with its world rank, prediction rating, record, events. */
-export function SeasonTiles({ profile, season }: { profile?: TeamProfile; season: number }) {
+export function SeasonTiles({ profile, season }: { profile?: TeamProfile | null; season: number }) {
+  if (profile === null) return null;
   if (!profile) return <div className="skeleton h-32 rounded-xl" aria-hidden data-season-tiles="loading" />;
   const s = profile.stats;
   const r = s?.record;
@@ -176,7 +179,7 @@ export function SeasonTiles({ profile, season }: { profile?: TeamProfile; season
 }
 
 /** The season's events as the team page lists them: name, date and place, then rank and record there. */
-export function SeasonEvents({ profile, season }: { profile?: TeamProfile; season: number }) {
+export function SeasonEvents({ profile, season }: { profile?: TeamProfile | null; season: number }) {
   const events = profile?.events ?? [];
   if (!events.length) return null;
   return (

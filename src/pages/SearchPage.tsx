@@ -206,7 +206,7 @@ export default function SearchPage() {
                   {apps.length ? (
                     // Worlds or states trips: one card with the team up top, a record card per trip inside.
                     <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} apps={apps} />
-                  ) : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} />}
+                  ) : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>

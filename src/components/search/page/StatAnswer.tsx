@@ -223,14 +223,14 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <figcaption className={H3}>{b.title}</figcaption>
       <div className="relative h-32 rounded-lg border border-border bg-muted/20">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
-          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-info" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-accent" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {pts.map((p) => {
-          const dot = <span className="block size-3 rounded-full border-2 border-info bg-card" />;
+          const dot = <span className="block size-3 rounded-full border-2 border-accent bg-card" />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
           return p.href
-            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className="absolute -translate-x-1/2 -translate-y-1/2 p-1 hover:[&>span]:bg-info">{dot}</Link>
+            ? <Link key={p.i} to={p.href} style={style} title={label} aria-label={label} className="absolute -translate-x-1/2 -translate-y-1/2 p-1 hover:[&>span]:bg-accent">{dot}</Link>
             : <span key={p.i} style={style} title={label} aria-label={label} role="img" className="absolute -translate-x-1/2 -translate-y-1/2 p-1">{dot}</span>;
         })}
       </div>
@@ -251,7 +251,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
   );
 }
 
-const TONE: Record<string, string> = { a: "bg-teal-500", b: "bg-chart-2", c: "bg-chart-3", d: "bg-chart-4" };
+const TONE: Record<string, string> = { a: "bg-chart-1", b: "bg-chart-2", c: "bg-chart-3", d: "bg-chart-4" };
 /** A phase column's thin underline, in its phase's colour (static strings: Tailwind only builds what it sees). */
 const BORDER: Partial<Record<Tone, string>> = { sky: "border-b-info", emerald: "border-b-success", violet: "border-b-violet-500" };
 

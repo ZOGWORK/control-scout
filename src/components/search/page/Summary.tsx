@@ -63,13 +63,13 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
         {worst > 1 && <span className="absolute left-0 top-[82%] -translate-y-1/2 text-[10px] tabular-nums text-muted-foreground" aria-hidden>#{worst}</span>}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
           <line x1="0" x2="100" y1="96" y2="96" className="stroke-border" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
-          {pts.length > 1 && <polyline points={path} fill="none" className="stroke-info" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={path} fill="none" className="stroke-accent" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {apps.map((a, i) => (
           <button key={a.id} type="button" onClick={() => jumpTo(a.id)} onMouseEnter={() => setOn(a.id)} onMouseLeave={() => setOn(null)} onFocus={() => setOn(a.id)} onBlur={() => setOn(null)}
             aria-label={`${a.seasonLabel}: ${[a.division && `${a.division} Division`, a.rank != null && `ranked #${a.rank}`, a.record, a.opr != null && `OPR ${a.opr.toFixed(1)}`].filter(Boolean).join(", ")}. Go to its card.`}
             style={{ left: `${x(i)}%`, top: `${a.rank == null ? 96 : y(a.rank)}%` }}
-            className={cn("absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-info bg-card hover:bg-info focus-visible:bg-info", on === a.id && "bg-info")} data-node={a.season} />
+            className={cn("absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-accent bg-card hover:bg-accent focus-visible:bg-accent", on === a.id && "bg-accent")} data-node={a.season} />
         ))}
       </div>
       <div className="mt-1 flex justify-between text-[11px] tabular-nums text-muted-foreground" aria-hidden>

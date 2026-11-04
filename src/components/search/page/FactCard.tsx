@@ -11,7 +11,7 @@ import type { SearchCard, SearchCardFact, SearchCardLine } from "../../../shared
 import { StatTile, type Tone } from "../../StatTile";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
-import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
+import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
 /** What a card is, as its subtitle: which records it read. */
 const SOURCE: Partial<Record<SearchCard["kind"], string>> = {
@@ -28,9 +28,10 @@ const SOURCE: Partial<Record<SearchCard["kind"], string>> = {
 
 const ICON: Partial<Record<SearchCard["kind"], LucideIcon>> = { rule: BookOpen, "next-event": CalendarDays, "next-match": CalendarDays, awards: Medal, "event-awards": Medal, info: Info };
 
-export function FactCard({ card, heading }: { card: SearchCard; heading?: string }) {
+/** `season`: the season the query named (its team hit's linkSeason, or one the card's title states); else the default. */
+export function FactCard({ card, heading, season: asked }: { card: SearchCard; heading?: string; season?: number | null }) {
   const team = card.team;
-  const season = useAnswerSeason(null);
+  const season = useAnswerSeason(asked ?? statedSeason(card.title));
   const profile = useTeamProfile(team?.number, season);
   const facts = card.facts ?? [];
   // A fact answer's lines are the dropdown's short form of the same facts: drawn once, as the facts.
