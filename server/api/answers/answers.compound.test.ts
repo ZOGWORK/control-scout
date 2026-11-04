@@ -115,6 +115,17 @@ describe("compound answers", () => {
     const none = await ask("teams from Oradell with opr over 200");
     expect(none.stat?.none).toMatch(/No team from Oradell with OPR over 200.*highest OPR among them is 114\.3 \(207 Critical Mass\)/);
   });
+  it("keeps a season said with the event, and never reads 'ever' as one season", () => {
+    expect(readCompound("4215 partners at NJ championship in 2024-25 who had opr over 80")).toMatchObject({ at: "nj championship", when: { season: 2024 } });
+    expect(readCompound("4215 vs 6980 vs 33950 which has highest reliability ever")).toBeNull();
+  });
+  it("shows every stat asked beside a list", async () => {
+    const a = await ask("teams from Oradell with opr over 100 and their rating");
+    expect(cells(a, /^Prediction rating/).map((c: any) => c.team)).toEqual(["207 Critical Mass", "4215 Hypnotic Robotics"]);
+  });
+  it("a capitalised side of common words is no team either", async () => {
+    expect(await namedTeam("When They Lose", new Set())).toBeNull();
+  });
   it("a country is a place too, never a city", () => {
     expect(readCompound("team in romania that went to worlds in 2026 and their opr")).toMatchObject({ kind: "list", country: { code: "RO" }, city: null, season: 2025 });
   });

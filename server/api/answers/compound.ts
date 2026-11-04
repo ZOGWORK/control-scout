@@ -151,7 +151,8 @@ export function readCompound(raw: string): CompoundQuestion | null {
   if ((m = new RegExp(String.raw`^((?:\d{1,5} (?:vs\.? |versus |and |or )?){2,3}\d{1,5}) (?:which|who)(?: one| team)? (?:has |have |is |had )?(?:the )?(?:highest|best|most|higher|better|greatest|strongest) (reliability|reliable|opr)${SIDE_END}`).exec(q))) {
     const teams = [...new Set(m[1].split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
     const w = when(m[3]);
-    if (teams.length >= 3 && teams.length <= 4 && w) return { kind: "set-best", teams, stat: /^reliab/.test(m[2]) ? "reliability" : "opr", when: w };
+    // "Ever" isn't one season's reliability: left to search rather than answered for one season.
+    if (teams.length >= 3 && teams.length <= 4 && w && !w.ever) return { kind: "set-best", teams, stat: /^reliab/.test(m[2]) ? "reliability" : "opr", when: w };
   }
 
   // "what was 4215 opr at their first event this season compared to last season".
@@ -181,7 +182,7 @@ export function readCompound(raw: string): CompoundQuestion | null {
     const w = when(m[6]);
     // "at <event>" names an event unless its words are only a season ("in 2024-25").
     const at = m[3] ? seasonWords(m[3]) : null;
-    const scoped = at && !at.rest ? { season: at.season, ever: at.ever, latest: at.latest } : null;
+    const scoped = at && (at.season != null || at.ever) ? { season: at.season, ever: at.ever, latest: at.latest } : null;
     if (w) return { kind: "side-threshold", core: m[1], side: /^p/.test(m[2]) ? "partners" : "opponents", at: at?.rest || null, threshold: { op: opOf(m[4]), value: Number(m[5]) }, when: scoped && w.season == null ? scoped : w };
   }
 

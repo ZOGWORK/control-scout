@@ -166,6 +166,16 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
       columns: [{ key: "team", label: "Team" }, { key: "division", label: "Division" }, { key: "rank", label: "Rank", num: true }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR there", num: true }],
       rows: at.map((r) => ({ cells: { team: String(r.team), division: (r.name.split(/\s+-\s+/).pop() ?? r.name).replace(/\s+Division$/i, ""), rank: r.rank != null ? `#${r.rank}` : "–", record: r.wins != null ? `${r.wins}-${r.losses ?? 0}-${r.ties ?? 0}` : "–", opr: num1(r.opr) }, href: eventHref(season, r.code, Number(r.team)) })) });
   }
+  // Stats asked for beside the list ("… and their rating") that the leaderboard's columns don't show: a table of them.
+  const shownCols = new Set<string>(["opr", "auto", "teleop", "endgame", "record", sortBy]);
+  const extra = [...new Set(c.outputs.filter((o) => !shownCols.has(o)))];
+  if (extra.length) {
+    const vals = await Promise.all(extra.map((o) => { const x = BOARD_STATS[o]; return all<{ team: number; v: number | null }>(`SELECT s.team, ${x.sql} v FROM team_season_stats s${x.join ? ` ${x.join}` : ""} WHERE s.season = ? AND s.team IN ${inList}`, [season, ...shown]); }));
+    const fmtOf = (o: string, v: number | null) => { const x = BOARD_STATS[o]; return v == null ? "–" : x.unit === "%" ? `${Math.round(v * 100)}%` : x.digits ? num1(v) : String(Math.round(v)); };
+    blocks.splice(1, 0, { kind: "table", title: extra.map((o) => BOARD_STATS[o].label).join(" and ") + `, ${S}`,
+      columns: [{ key: "team", label: "Team" }, ...extra.map((o) => ({ key: o, label: BOARD_STATS[o].label, num: true }))],
+      rows: rows.map((r) => ({ cells: { team: `${r.team} ${r.name ?? ""}`.trim(), ...Object.fromEntries(extra.map((o, i) => [o, fmtOf(o, vals[i].find((x) => Number(x.team) === Number(r.team))?.v ?? null)])) }, href: teamHref(Number(r.team), season) })) });
+  }
   const top = rows[0];
   return {
     ...answer,
@@ -367,10 +377,12 @@ export async function beatTopAnswer(team: AnswerTeam, msAll: TeamMatch[], scope:
 
 /** "4215 partners at NJ championship who had opr over 80": the team's partners (or opponents) at the event, with
  *  their OPR there (in a season: their season OPR), the ones over the threshold listed. */
-export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope, side: "partners" | "opponents", t: Threshold, codes: string[] = []): Promise<StatAnswer> {
+export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope, side: "partners" | "opponents", t: Threshold, finals: string | null = null): Promise<StatAnswer> {
   const ev = scope.event;
-  // At an event: its matches, a championship division's and its finals' together (`codes`).
-  const ms = ev && codes.length > 1 ? onRecord(msAll, { ...scope, event: undefined, season: ev.season }).filter((m) => codes.includes(m.code)) : onRecord(msAll, scope);
+  // A championship (`finals`, its parent event): the finals and every division, so a team from another division is
+  // read at its own division.
+  const codes = ev && finals ? (await all<{ code: string }>("SELECT code FROM events WHERE season = ? AND (code = ? OR division_code = ?)", [ev.season, finals, finals])).map((r) => r.code) : ev ? [ev.code] : [];
+  const ms = ev && finals ? onRecord(msAll, { ...scope, event: undefined, season: ev.season }).filter((m) => codes.includes(m.code)) : onRecord(msAll, scope);
   const tally = new Map<number, TeamMatch[]>();
   for (const m of ms) for (const o of m[side]) tally.set(o, [...(tally.get(o) ?? []), m]);
   const ids = [...tally.keys()];
@@ -378,7 +390,7 @@ export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], 
   const season = ev?.season ?? scope.season;
   if (ids.length && season != null) {
     const qs = ids.map(() => "?").join(",");
-    const at = [...new Set([...codes, ...ms.map((m) => m.code)])];
+    const at = codes;
     // At an event: each team's OPR from that event's matches; at a championship, the row with the most matches (its
     // own division's, never the finals' few).
     const [er, sr] = await Promise.all([
@@ -393,7 +405,7 @@ export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], 
   const where = ev ? "OPR there" : season != null ? `${seasonLabel(season)} OPR` : "OPR";
   const phrase = `${word} with ${where} ${opText(t)}`;
   const out = base(`${side}-opr-threshold`, `${word}${scopePhrase(scope)} with OPR ${opText(t)}`, team, scope,
-    `${word}: the teams on ${side === "partners" ? "the team's own" : "the other"} alliance in its matches on record${ev ? ` at the event${codes.length > 1 ? " (its division and the finals)" : ""}` : ""}, robots on the field. ${ev ? "OPR there: each team's stored OPR from that event's matches (at a championship, its own division's), without penalties, as its event page shows it; its season OPR beside it." : "OPR: each team's stored season OPR, without penalties, as its team page shows it."} ${RESULT_RULE}`, sourceOf(ms));
+    `${word}: the teams on ${side === "partners" ? "the team's own" : "the other"} alliance in its matches on record${ev ? ` at the event${finals ? " (its division and the finals)" : ""}` : ""}, robots on the field. ${ev ? "OPR there: each team's stored OPR from that event's matches (at a championship, its own division's), without penalties, as its event page shows it; its season OPR beside it." : "OPR: each team's stored season OPR, without penalties, as its team page shows it."} ${RESULT_RULE}`, sourceOf(ms));
   if (ev) out.scope = [...out.scope, seasonLabel(ev.season)];
   if (!ids.length) return { ...out, blocks: [], none: `${whoOf(team)} has no matches on record${scopePhrase(scope)}.` };
   if (season == null) return { ...out, blocks: [], none: "Name a season or an event: an OPR belongs to one season." };

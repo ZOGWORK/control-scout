@@ -71,7 +71,7 @@ async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Sid
   let found: Awaited<ReturnType<typeof sideTeams>> = null;
   // A side of only question and result words ("when they lose") names a team only by that exact name, never by
   // search's closest one ("Raiders of the Lost Bot", "The Loose Screws").
-  for (const best of words.length && words.every((w) => COMMON_WORDS.test(w)) ? [false] : [false, true]) {
+  for (const best of words.length && words.every((w) => COMMON_WORDS.test(w.toLowerCase())) ? [false] : [false, true]) {
     for (let n = words.length; n >= 1 && !found; n--) found = await sideTeams(words.slice(0, n).join(" "), prefer, best);
     if (found) break;
   }

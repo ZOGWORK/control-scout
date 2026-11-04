@@ -1017,10 +1017,11 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const extra = { season, ...(support.length ? { support } : {}) };
   if (facts.length > 1) {
     // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
-    const what = [...facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])), ...(asked2 ? [asked2.label.replace(/,.*$/, "").toLowerCase().replace(/^opr$/, "OPR")] : [])].join(" and ");
+    const what = [...facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])), ...(alsoLabel ? [alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()] : [])].join(" and ");
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-      card: { kind: "info", title: what, team, facts: [...facts.map(factOf), ...(asked2 ? [asked2] : [])], related, ...extra, lines: [...facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }), ...(asked2 ? [{ text: `${asked2.label}: ${asked2.values[0]}`, href: `/teams/${hit.ref}?season=${season}` }] : [])] },
+      card: { kind: "info", title: what, team, facts: [...facts.map(factOf), ...(asked2 ? [asked2] : [])], related, ...extra, lines: [...facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }), ...(asked2 ? [{ text: `${asked2.label}: ${asked2.values[0]}`, href: `/teams/${hit.ref}?season=${season}` }] : [])],
+        ...(alsoLabel && !asked2 ? { none: `${name} has no ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()} on record in ${S}.` } : {}) },
       understood: { kind: "team", label: `${name} · ${what}` },
     });
   }

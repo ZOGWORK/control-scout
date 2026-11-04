@@ -124,7 +124,7 @@ export async function compoundSearch(q: string, c: CompoundQuestion, resolve: Re
     case "margin": return done(a, await marginAnswer(team, await teamMatches(team.number), scope, c.result, c.margin), s.why);
     case "win-loss-average": return done(a, winLossAverageAnswer(team, await teamMatches(team.number), scope), s.why);
     case "beat-top": return done(a, await beatTopAnswer(team, await teamMatches(team.number), scope, c.n, c.by), s.why);
-    case "side-threshold": return done(a, await sideThresholdAnswer(team, await teamMatches(team.number), scope, c.side, c.threshold, family.map((x) => x.code)), s.why);
+    case "side-threshold": return done(a, await sideThresholdAnswer(team, await teamMatches(team.number), scope, c.side, c.threshold, family.length > 1 ? family.find((x) => x.division == null)?.code ?? null : null), s.why);
     case "event-picks": case "opr-excluding": {
       if (s.season == null) return null;
       const set = await teamEventSet(team.number);
