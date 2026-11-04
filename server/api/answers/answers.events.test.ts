@@ -325,6 +325,9 @@ describe("events, awards and Worlds history (260-query list)", () => {
     // "wins" and "match" alone, with nothing scoping them, are left as they were.
     expect(readStatQuestion("4215 wins")).toBeNull();
     expect(readStatQuestion("4215 match record")).toMatchObject({ id: "record" });
+    // A record at Worlds stays the record, its year read as the record reads it.
+    expect(readStatQuestion("4215 match record at worlds in 2025")).toMatchObject({ id: "record", scope: { championship: true, season: 2025 } });
+    expect(readStatQuestion("4215 match rank at new jersey championship")).toMatchObject({ id: "event-rank" });
   });
   it("one award only, or plainly none of it; the newest and the first award with their event", async () => {
     const think = await searchAnswer("4215 Think award", { limit: 25 });

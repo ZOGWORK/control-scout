@@ -383,7 +383,8 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     if (r.id === "results" && scope.championship && scope.year && scope.season != null) { scope.season -= 1; scope.year = false; }
     // Search reads plurals as their singular ("matches" → "match"): "match" alone names a team's matches only at an
     // event or Worlds ("4215 match record" is the record's).
-    if (r.id === "results" && m[0] === "match" && !scope.at && !scope.championship) continue;
+    // Nor a question that asks for a record, rank or OPR ("4215 match record at worlds in 2025" is the record's).
+    if (r.id === "results" && m[0] === "match" && (!(scope.at || scope.championship) || /\b(?:record|w-l-t|win[\s-]+loss|rank(?:ed|ing)?|placement|place[ds]?|finish(?:ed)?|seed(?:ed)?|opr)\b/.test(q))) continue;
     // A team's matches at Worlds need no one event ("4215 matches at worlds in 2025").
     if (r.needsEvent && !scope.at && !(r.id === "results" && scope.championship)) return null;
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
