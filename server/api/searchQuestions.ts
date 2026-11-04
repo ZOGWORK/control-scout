@@ -10,7 +10,7 @@
 // ("No Worlds appearances found in recorded event history"), with the closest real records under it; a year, a
 // season, an event or a date is never made up, and a next event or match is only one FIRST has published.
 import type { SearchAnswer, SearchCard, SearchCardLine, SearchHit } from "../../src/shared/api.js";
-import { awardLabel, dateRange, matchTime, place, seasonLabel } from "../../src/shared/format.js";
+import { awardLabel, dateRange, matchTime, place, possessive, seasonLabel } from "../../src/shared/format.js";
 import { eventToday } from "../../src/shared/eventDay.js";
 import { all } from "../db.js";
 import { ROSTER } from "../data/registrations.js";
@@ -140,8 +140,8 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     if (!card.lines.length) {
       const what = worlds ? "Worlds appearance" : "state championship";
       card.none = it.year != null
-        ? `No ${what} in ${it.year} found in ${who}'s recorded event history.`
-        : `No ${what}s found in ${who}'s recorded event history.`;
+        ? `No ${what} in ${it.year} found in ${possessive(who)} recorded event history.`
+        : `No ${what}s found in ${possessive(who)} recorded event history.`;
       // Its other trips when a year was asked; else (Worlds) its state championships, the closest real results.
       if (all_.length) card.closest = all_.map((x) => x.line);
       else if (worlds) {
@@ -167,7 +167,7 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     }));
     if (!card.lines.length) {
       const when = it.year != null ? ` in ${it.year}` : "";
-      card.none = it.kind === "wins" ? `No event wins${when} found in ${who}'s recorded history.` : `No awards${when} found in ${who}'s recorded history.`;
+      card.none = it.kind === "wins" ? `No event wins${when} found in ${possessive(who)} recorded history.` : `No awards${when} found in ${possessive(who)} recorded history.`;
       if (it.kind === "wins") {
         const other = await all<{ season: number; code: string; name: string; type: string; placement: number }>(
           "SELECT a.season, a.code, e.name, a.type, a.placement FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY e.start DESC LIMIT 5", [n]);

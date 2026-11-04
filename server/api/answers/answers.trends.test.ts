@@ -57,7 +57,7 @@ describe("trends", () => {
     expect((await searchAnswer("4215 ranking points", { limit: 25 })).stat!.headline).toMatchObject({ value: "1.50" });
   });
   it("a season's penalty total; OPR and record by season", async () => {
-    expect((await searchAnswer("4215 total penalties in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "148 points", label: "given in 11 qualification matches · 13.5 a match" });
+    expect((await searchAnswer("4215 total penalties in 2025-26", { limit: 25 })).stat!.headline).toMatchObject({ value: "148 points", label: "given in 11 qualification matches · 13.5 per match" });
     // Never a raw OPR across seasons (owner rule): the standing each season, its rank, no OPR number.
     const o = (await searchAnswer("4215 OPR by season", { limit: 25 })).stat!;
     expect(o).toMatchObject({ title: "OPR standing by season", headline: { value: "Top 8%", label: "worldwide by OPR in 2025–26" } });

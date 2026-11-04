@@ -175,9 +175,10 @@ describe("the answers", () => {
     expect(table && table.kind === "table" && table.rows.every((r) => /^\d[\d,]*$/.test(String(r.cells.total)))).toBe(true);
     expect(t.stat!.definition).toMatch(/no total is added up across seasons/);
   });
-  it("\"this season\" with nothing played in the season in progress says so in the line", async () => {
+  it("\"this season\" with nothing played in the season in progress: a clean season heading, the reason in the note", async () => {
     const a = await searchAnswer("4215 record this season", { limit: 25 });
-    expect(a.understood!.label).toMatch(/no 2026–27 matches yet, so their latest season/);
+    expect(a.understood!.label).toBe("Hypnotic Robotics (4215) · Record in 2025–26");
+    expect(a.stat!.definition).toContain(`"This season" here is 2025–26: no 2026–27 matches yet, so the team's latest season with matches on record.`);
   });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });
