@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.4 — 2026-11-03
+## 2.9.5 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
 
@@ -30,6 +30,59 @@ Search answers that already name a team no longer repeat it in a team card below
 - **Sentence-case labels.** Section labels and pills on the results page and in the search box ("Teams", "Top 10 by OPR", "Meetings, newest first", "You may also want to know") are no longer forced into capitals. Game names keep FIRST's own capitals.
 - **Touch-size targets.** On phones and touch screens the time filter, season and type pickers, Clear filters, suggestion pills, link chips, example chips, season tabs, the table's row chevron and the "View scouting profile" links are at least 44px tall. Desktop with a mouse keeps today's compact sizes.
 - **Footer follows the answer.** On the search page a short answer no longer leaves the footer pinned to the bottom of a mostly empty screen.
+
+## 2.9.4 — 2026-11-04
+
+How it works shows what the November engine research tried, and why none of it changed a prediction.
+
+### Highlights
+- [predict] Eight new lab notes: every idea tested on the engine in November
+- [predict] Each with its numbers against the current engine, on the same matches
+- [predict] Links to the full research note behind every card
+
+### Predictions
+- **November research in the lab notes.** How it works › Lab notes adds eight cards: three other rating systems (Massey, TrueSkill, Glicko-2), margin-of-victory Elo, a stronger pull toward the average for new robots, forgetting old matches faster or slower, reweighting the match phases, a separate playoff model, how much calibration can still gain, and a neural network. Each says in a line what was tried and why it didn't ship, and its Details give the Brier change on both seasons with the 95% range, next to a link to the full note in docs/engine/research-2026-11. Predictions are unchanged. (#535)
+
+## 2.9.3 — 2026-11-03
+
+Searches that used to give a confident wrong answer now give the right one, or say plainly what search can't do.
+
+### Highlights
+- [teams] "How many teams 2023" counts that season's teams
+- [teams] "Compare 4215 6980 16461" compares all three teams
+- [teams] "Top OPR last season" lists last season's leaders
+- [fixes] "How is OPR calculated" explains OPR, not a team
+- [fixes] "Teams near me" asks for a place, never reads "me" as Maine
+
+### Search
+- **Wrong answers fixed.** A 92-query check against the real data found searches that answered with the wrong thing, usually a team whose name shared a word. Each now answers what was asked (#513):
+  - A count of a named season ("how many teams 2023", "… in 2024-25", "… last season") is that season's count, not teams named "Spark team".
+  - "How is OPR calculated" is the OPR explanation, not the team CALculated Risk.
+  - "Teams near me" and "events near me" say where you are isn't known and suggest adding a place, instead of reading "me" as Maine or listing names with "event" in them.
+  - "Lowest OPR in New Jersey" and "worst teams" say search lists teams from the top, and link the full ranking.
+  - An event's best score without "at" ("highest score new jersey championship", "nj states highest score") is that event's. "NJ states" is New Jersey's championship, never a workshop with NJ in its name, and "worlds" is the FIRST Championship, never a Pre Worlds scrimmage.
+  - Three or four teams compared ("compare 4215 6980 16461", "compare 4215, 6980 and 16461") open Compare with every team, none dropped.
+  - A leaderboard with a season ("top opr last season", "best auto opr in texas 2024-25") is that season's, never the team Top Shelf BGS.
+  - A rookie list without "in" ("rookie teams new jersey", "nj rookie teams") is the place's rookie list.
+  - An event named with a game ("nj states decode", "worlds edison division centerstage", "nj states highest score decode") is that game's season, where it said "No matches found".
+  - A count of events in a bare year ("how many events in 2026") is the events held that calendar year, from either season; a season written as one ("2025-26") is that season.
+  - "Lowest OPR in NJ" links the Teams table sorted by that stat, lowest first.
+
+## 2.9.2 — 2026-11-03
+
+How FTC One Search works says plainly what the search does, for people and
+for search engines.
+
+### Highlights
+- [home] FTC One Search page opens with what you can search and how
+- [home] 20 example searches, each checked on the live site
+- [home] "How FTC One Search works" link on Home and on search results
+
+### Search
+- **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app (#531).
+- **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
+- **Answers that don't drift.** A question with a misspelt team name ("geer opr") always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
+- **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
 
 ## 2.9.1 — 2026-11-03
 

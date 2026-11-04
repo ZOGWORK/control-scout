@@ -70,6 +70,7 @@ export default function Home() {
         <span>FTC, with a clearer view.</span>
         <span className="flex flex-wrap gap-x-4 gap-y-1">
           <Link to="/methodology" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">How the numbers work</Link>
+          <Link to="/how-it-works/search" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">How FTC One Search works</Link>
           <Link to="/download" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Offline packs</Link>
           <Link to="/compare" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Compare teams</Link>
           <Link to="/donate" className="inline-flex items-center hover:text-text-base hover:underline max-sm:min-h-10">Support Control Scout</Link>
