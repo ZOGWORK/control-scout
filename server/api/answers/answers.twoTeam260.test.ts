@@ -99,7 +99,7 @@ describe("reading the 260 list's two-team questions", () => {
     // The superlatives keep their own readings.
     expect(id("4215 best alliance partner")).toBe("best-partner");
     expect(id("4215 most frequent partners")).toBe("frequent-partner");
-    expect(id("4215 win rate")).toBe("win-rate");
+    expect(id("4215 win rate")).toBe("win-percent");
   });
 });
 

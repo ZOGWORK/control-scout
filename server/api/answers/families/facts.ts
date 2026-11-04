@@ -42,12 +42,13 @@ const RULES: { id: FactId; re: RegExp }[] = [
   { id: "report-card", re: /\b(?:prediction\s+)?report\s+card\b|\bprediction\s+(?:accuracy|record)\b/ },
   // Only the predicted score: "will 4215 win its next match" and "when is 4215's next match" are the asks' own.
   { id: "next-match", re: /\bpredicted\s+score(?:\s+(?:for\s+)?(?:the\s+|its\s+)?next\s+match)?\b|\bnext\s+match\s+(?:prediction|forecast|predicted\s+score)\b/ },
-  { id: "rating", re: /\b(?:prediction\s+|engine\s+|predicted\s+)?rating\b/ },
+  // "reliability rating" is the reliability index, below.
+  { id: "rating", re: /(?<!\breliability\s)\b(?:prediction\s+|engine\s+|predicted\s+)?rating\b/ },
   // Search reads plurals as singular ("4215 event in 2025-26"), so both.
   { id: "events-place", re: /\bevents?\s+in\s+(?<what>.+)$/ },
   { id: "events-season", re: /\b(?:events?|competitions?|tournaments?)\b/ },
-  { id: "reliability", re: /\breliab(?:ility|le)\b|\bdependab(?:ility|le)\b/ },
-  { id: "schedule", re: /\b(?:schedule|draw)\s+(?:difficulty|strength|toughness)\b|\bstrength\s+of\s+schedule\b/ },
+  { id: "reliability", re: /\breliab(?:ility|le)(?:\s+(?:score|index|rating))?\b|\bdependab(?:ility|le)\b/ },
+  { id: "schedule", re: /\b(?:schedule|draw)\s+(?:difficulty|strength|toughness)\b|\b(?:strength|difficulty|toughness)\s+of\s+(?:the\s+|their\s+)?schedule\b/ },
   { id: "league-rank", re: /\bleague\s+(?:rank(?:ing)?|standing|place|position)\b/ },
   { id: "opr", re: /\bopr\b/ },
 ];
@@ -82,7 +83,8 @@ export function readTeamFact(raw: string): FactQuestion | null {
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
     // "past events in michigan", "recent events in nj": a time, not a team ("past" isn't PastaBots), the event sets' own.
     if ((r.id === "events-season" || r.id === "events-place") && /^\s*(?:past|recent|previous|latest|future|coming|all|every|the|list|show)\s*$/.test(rest)) return null;
-    const core = rest.replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
+    // "what does 4215's reliability score mean": the question's own words, never part of the team's name.
+    const core = (/^\s*what\b/.test(q) ? rest.replace(/\s(?:mean|means|stand for)\s*$/, " ") : rest).replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event };
     if (!core) return null;

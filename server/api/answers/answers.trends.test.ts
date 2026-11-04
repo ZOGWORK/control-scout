@@ -33,13 +33,16 @@ describe("trends", () => {
     expect(readStatQuestion("4215 record by season")).toMatchObject({ id: "record-by-season" });
     expect(readStatQuestion("4215 average penalties")).toMatchObject({ id: "avg-penalties" });
     expect(readStatQuestion("4215 total penalties in 2025-26")).toMatchObject({ id: "total-penalties", scope: { season: 2025 } });
-    expect(readStatQuestion("4215 win rate")).toMatchObject({ id: "win-rate" });
+    expect(readStatQuestion("4215 win rate by event")).toMatchObject({ id: "win-rate" });
+    // A plain win rate is wins over matches (families/matchStats.ts), any scope.
+    expect(readStatQuestion("4215 win rate")).toMatchObject({ id: "win-percent" });
+    expect(readStatQuestion("4215 win rate at worlds")).toMatchObject({ id: "win-percent", scope: { championship: true } });
     expect(readStatQuestion("4215 average alliance score by event")).toMatchObject({ id: "avg-score-by-event" });
     expect(readStatQuestion("4215 ranking points")).toMatchObject({ id: "ranking-points" });
     // A scope a trend can't apply is left to search.
-    expect(readStatQuestion("4215 win rate at worlds")).toBeNull();
+    expect(readStatQuestion("4215 opr history at worlds")).toBeNull();
     expect(readStatQuestion("2024 OPR by season")).toMatchObject({ id: "opr-by-season", core: "2024", scope: { season: null } });
-    for (const q of ["4215 total penalties at New Jersey Championship", "4215 total penalties at worlds", "4215 total penalties in playoffs", "4215 seasonal OPR in 2024-25", "4215 record by season 2024-25", "4215 win rate all time", "4215 OPR history ever"]) expect(readStatQuestion(q), q).toBeNull();
+    for (const q of ["4215 total penalties at New Jersey Championship", "4215 total penalties at worlds", "4215 total penalties in playoffs", "4215 seasonal OPR in 2024-25", "4215 record by season 2024-25", "4215 win rate by event all time", "4215 OPR history ever"]) expect(readStatQuestion(q), q).toBeNull();
   });
   it("by event in the latest season, rising or falling against the event before", async () => {
     const o = await searchAnswer("4215 OPR history", { limit: 25 });
@@ -53,7 +56,7 @@ describe("trends", () => {
     // Fewer penalty points is better: falling is good.
     const p = await searchAnswer("4215 average penalties", { limit: 25 });
     expect(p.stat!.blocks[0]).toMatchObject({ kind: "kpis", items: [{ value: "8.0" }, { label: "Trend", value: "Falling", tone: "good" }, { label: "Lowest" }] });
-    expect((await searchAnswer("4215 win rate", { limit: 25 })).stat!.headline).toMatchObject({ value: "50%" });
+    expect((await searchAnswer("4215 win rate by event", { limit: 25 })).stat!.headline).toMatchObject({ value: "50%" });
     expect((await searchAnswer("4215 ranking points", { limit: 25 })).stat!.headline).toMatchObject({ value: "1.50" });
   });
   it("a season's penalty total; OPR and record by season", async () => {

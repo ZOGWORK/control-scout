@@ -46,12 +46,36 @@ describe("StatAnswerCard, a team's OPR", () => {
     expect(h.className).not.toMatch(/bg-accent/);
     expect(h.textContent).toBe("101.6#612 of 8,308 worldwide · top 8%2025–26");
     expect(c.querySelector("[data-scope]")!.textContent).toBe("2025–26");
-    expect(c.querySelector("section")!.className).not.toMatch(/border-accent/);
+    expect(c.querySelector("[data-answer-frame]")!.className).not.toMatch(/accent/);
   });
-  it("leaves other stat answers as they were", () => {
-    const c = draw({ ...opr, intent: "wins-count", blocks: [{ kind: "kpis", items: [{ label: "Wins", value: "26" }] }] });
+  it("other stat answers: the team page's tiles too, no gold band or box anywhere", () => {
+    const c = draw({ ...opr, intent: "wins-count", blocks: [{ kind: "kpis", items: [{ label: "Wins", value: "26", sub: "2025–26" }] }] });
     expect(c.querySelector("[data-opr-tiles]")).toBeNull();
-    expect(c.querySelector("[data-headline]")!.className).toMatch(/bg-accent/);
+    expect(c.querySelector("[data-headline]")!.className).not.toMatch(/bg-accent/);
+    expect(c.querySelector("[data-kpi] > div")!.className).toContain(TONES.emerald.box.split(" ")[0]);
+    expect(c.innerHTML).not.toMatch(/(border|bg)-accent/);
+  });
+  it("the team's header up top: its number, name and the season it states", () => {
+    const c = draw(opr);
+    const h = c.querySelector("[data-answer-team]")!;
+    expect(h.textContent).toContain("4215");
+    expect(h.textContent).toContain("Hypnotic Robotics");
+    expect(c.querySelector("[data-answer-season]")!.textContent).toBe("2025–26");
+  });
+  it("a title the page heading already says is for screen readers only", () => {
+    const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
+    expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
+  });
+  it("phase bars and phase columns in the team page's phase colours", () => {
+    const c = draw({ ...opr, intent: "phase", blocks: [
+      { kind: "bars", title: "Phases", groups: [{ label: "x", items: [{ label: "Auto", value: 20 }, { label: "TeleOp", value: 60 }, { label: "Endgame", value: 10 }] }] },
+      { kind: "table", title: "By event", columns: [{ key: "e", label: "Event" }, { key: "a", label: "Auto", num: true }, { key: "t", label: "TeleOp", num: true }, { key: "g", label: "Endgame", num: true }], rows: [{ cells: { e: "Q", a: "1", t: "2", g: "3" } }] },
+    ] } as StatAnswer);
+    const bars = [...c.querySelectorAll('[data-block="bars"] li > span:nth-child(2) > span')].map((b) => b.className);
+    expect(bars[0]).toContain(TONES.sky.bar);
+    expect(bars[1]).toContain(TONES.emerald.bar);
+    expect(bars[2]).toContain(TONES.violet.bar);
+    expect([...c.querySelectorAll("th[data-phase]")].map((t) => t.getAttribute("data-phase"))).toEqual(["sky", "emerald", "violet"]);
   });
   it("two teams' tiles for one phase both show, each naming its team", () => {
     const c = draw({ ...opr, family: "two-team", intent: "phase-vs", blocks: [{ kind: "kpis", items: [
