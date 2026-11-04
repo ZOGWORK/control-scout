@@ -61,6 +61,13 @@ describe("\"4215 record\": the latest season's record", () => {
     expect(a.stat!.definition).toMatch(/World rank by win rate/);
     expect(a.stat!.definition).toMatch(/The season is 2025–26, the team's latest/);
   });
+  it("a team with no match on record keeps search's own team answer", async () => {
+    await run("INSERT INTO teams (number, name) VALUES (31999, 'Fresh Start')");
+    await rebuildSearch();
+    const a = await page("31999 record");
+    expect(a.stat).toBeUndefined();
+    expect(a.hits[0]).toMatchObject({ kind: "team", ref: "31999" });
+  });
   it("a record over several seasons or narrowed to Worlds has no season rank", async () => {
     const a = await page("4215 record all time");
     expect(a.stat?.blocks.some((b) => b.kind === "kpis")).toBe(false);
