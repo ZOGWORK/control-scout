@@ -188,6 +188,14 @@ describe("long, conversational queries", () => {
     expect(a.understood?.label).not.toMatch(/isn't part of this answer/);
   });
 
+  it("keeps a \"like\" that compares (Greptile on #655)", () => {
+    expect(longForm("what is like the opr for 4215")).toBe("4215 opr");
+    expect(longForm("what is the opr of teams like 4215") ?? "").not.toMatch(/teams 4215/);
+    const looks = "what does 4215's robot look like";
+    expect(longForm(looks) ?? looks).toContain("look like");
+    expect(longForm("who plays like 4215")).toBeNull();
+  });
+
   it("leaves short queries alone", () => {
     for (const q of ["4215 opr", "4215 worlds appearances", "4215 versus 6980 compare", "hypnotic robotics", "events 4215 went to this season"]) expect(longForm(q)).toBeNull();
   });
@@ -205,6 +213,15 @@ describe("a team number typed wrong (#621)", () => {
       expect(a.understood?.label, q).not.toMatch(/No team, event or match matched/);
     }
     expect((await ask("69-0")).didYouMean).toBe("6980");
+  });
+
+  it("offers a registered team with no matches yet, after the teams that played (Greptile on #655)", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (4216, 'Brand New Bots', 'Oradell', 'NJ', 'USA')");
+    await rebuildSearch();
+    const a = await numberFix("42-6");
+    expect(a?.hits.map((h) => h.ref)).toEqual(["4216"]);
+    // "421": 4215 has played, 4216 hasn't yet.
+    expect((await numberFix("421"))?.hits.map((h) => h.ref)).toEqual(["4215", "4216"]);
   });
 
   it("leaves real numbers, match codes and names alone", async () => {

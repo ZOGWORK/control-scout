@@ -277,7 +277,8 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
 const NUMBERISH = /^\d[\da-z_-]{0,4}\d$/i;
 
 /** "42-5" isn't a team, nor a name: the teams whose number is one edit away (a key changed, added or dropped; a
- *  non-digit only changed or dropped), the most recently active first, then the most matches played. Null when the
+ *  non-digit only changed or dropped) that search lists, the most recently active first, then the most matches played,
+ *  then teams with none yet. Null when the
  *  query isn't a number typed wrong, is a real team, or no team is that close. */
 export async function numberFix(typed: string): Promise<SearchAnswer | null> {
   const t = typed.trim();
@@ -295,10 +296,12 @@ export async function numberFix(typed: string): Promise<SearchAnswer | null> {
   near.delete(t);
   if (!near.size) return null;
   const nums = [...near].map(Number);
-  const rows = await all<{ team: number }>(`SELECT team, MAX(season) AS s, SUM(matches) AS m FROM team_season_stats WHERE matches > 0 AND team IN (${nums.map(() => "?").join(",")}) GROUP BY team ORDER BY s DESC, m DESC LIMIT 3`, nums);
+  // Every registered team that close (a new team has a page before its first match), ranked by its match history.
+  const rows = await all<{ team: number }>(`SELECT t.number AS team, MAX(s.season) AS s, COALESCE(SUM(s.matches), 0) AS m FROM teams t LEFT JOIN team_season_stats s ON s.team = t.number AND s.matches > 0 WHERE t.number IN (${nums.map(() => "?").join(",")}) GROUP BY t.number ORDER BY s IS NULL, s DESC, m DESC, t.number LIMIT 6`, nums);
   if (!rows.length) return null;
   const hits: SearchHit[] = [];
   for (const r of rows) {
+    if (hits.length >= 3) break;
     const h = (await search(String(r.team), 5, new Set(), new Set(["team"]))).find((x) => x.kind === "team" && x.ref === String(r.team));
     if (h) hits.push({ ...h, match: "fuzzy" });
   }

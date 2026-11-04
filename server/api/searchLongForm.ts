@@ -20,8 +20,10 @@ const OPENERS = [
   /^(?:i\s+(?:want|wanna|would\s+like|'d\s+like|need)\s+(?:to\s+)?(?:know|see|find\s+out)\s+)/,
   /^(?:do\s+you\s+know\s+|tell\s+me\s+|show\s+me\s+|give\s+me\s+|find\s+me\s+|please\s+)/,
 ];
-/** Spoken fillers anywhere in a question ("what is like the opr for 4215"): never what is asked. */
-const FILLERS = /\s(?:like|um+|uh+|basically|actually|literally|kinda|kind\s+of|sort\s+of)(?=\s)/g;
+/** Spoken fillers anywhere in a question ("what is like the opr for 4215"): never what is asked. "like" only where it
+ *  says nothing: never comparing ("teams like 4215", "robots like theirs", "what does 4215 look like"), nor before a
+ *  team's number. */
+const FILLERS = /\s(?:um+|uh+|basically|actually|literally|kinda|kind\s+of|sort\s+of|(?<!\b(?:teams?|robots?|ones?|someone|something|anything|similar|look|looks|looked|feel|feels|would|do|does|did|i|you|we|they)\s)like(?!\s+(?:#?\d+|them|theirs|their|it|this|that|those|these|team|robot)\b))(?=\s)/g;
 /** Closing fillers: "please", "for me", "right now", "thanks". */
 const CLOSERS = /\s+(?:please|pls|for\s+me|thanks|thank\s+you|right\s+now|currently|at\s+the\s+moment)$/;
 
