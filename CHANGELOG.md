@@ -17,8 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 2.9.3 — 2026-11-04
 
-How it works shows what the November engine research tried, and why none of
-it changed a prediction.
+How it works shows what the November engine research tried, and why none of it changed a prediction.
 
 ### Highlights
 - [predict] Eight new lab notes: every idea tested on the engine in November
