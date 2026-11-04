@@ -244,3 +244,26 @@ describe("precedence and parsing", () => {
     expect(a.understood?.label).toContain("Matches: Hypnotic Robotics (4215) and Bad Wolf (6980), either alliance");
   });
 });
+
+describe("the operator × operand × intent grid", () => {
+  // Every operator form, every way to name the second team, every kind of question: read as an expression with the
+  // right groups, and answered (a match list, a side by side or the first team's own stat), never a fallback.
+  const OPS: [string, "and" | "or" | "not"][] = [["and", "and"], ["&", "and"], ["or", "or"], ["|", "or"], ["not", "not"], ["-", "not"]];
+  const SECOND: [string, number][] = [["6980", 6980], ["bad wolf", 6980], ["\"Bad Wolf\"", 6980], ["Raider Robotics - Gold", 4360], ["Wingus & Dingus", 5110]];
+  const INTENTS = ["", "matches", "total matches", "total awards", "opr", "win rate", "record"];
+  for (const [op, kind] of OPS) for (const [second, team] of SECOND) for (const intent of INTENTS) {
+    const q = `4215 ${op === "-" ? `-${second}` : `${op} ${second}`}${intent ? ` ${intent}` : ""}`;
+    it(q, async () => {
+      const b = await readBoolean(q);
+      expect(b?.groups, q).toEqual(kind === "or" ? [[{ team: 4215, neg: false }], [{ team, neg: false }]] : [[{ team: 4215, neg: false }, { team, neg: kind === "not" }]]);
+      expect(b?.rest).toBe(intent);
+      const a = await ask(q);
+      expect(a.step, q).not.toBe("recovery");
+      expect(a.stat, q).toBeTruthy();
+      if (!intent || intent === "matches") expect(a.stat?.intent).toBe(`boolean-${kind}`);
+      else if (kind === "not") expect(a.stat?.team?.number).toBe(4215);
+      else expect(["opr-vs", "boolean-compare"]).toContain(a.stat?.intent);
+    });
+  }
+});
+
