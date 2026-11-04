@@ -27,7 +27,7 @@ export function NoResults({ query, understood, closest, onOpen }: {
       </div>
       {!!closest.length && (
         <section aria-label="Closest matches">
-          <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Closest matches <span className="normal-case tracking-normal">(not an exact match)</span></h2>
+          <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Closest matches (not an exact match)</h2>
           <ul className="overflow-hidden rounded-xl border border-border bg-card">
             {closest.map((h) => <li key={`${h.kind}:${h.ref}`} className="border-b border-border last:border-b-0"><ResultRow h={h} icon={h.kind === "team" ? "team" : h.kind} onOpen={() => onOpen(h)} /></li>)}
           </ul>

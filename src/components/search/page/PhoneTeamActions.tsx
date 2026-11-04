@@ -72,7 +72,7 @@ export function PhoneTeamCard({ team, name, season, picked, onPick, children }: 
         {children}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1.5" data-team-actions>
-        <button type="button" onClick={onPick} aria-pressed={picked} data-vs-compare className={cn(btn, "uppercase tracking-wide", picked ? "border-accent bg-accent text-accent-ink" : "border-accent/50 bg-accent/[0.1] text-accent-text")}>{picked ? "Picked ✓" : "VS Compare"}</button>
+        <button type="button" onClick={onPick} aria-pressed={picked} data-vs-compare className={cn(btn, picked ? "border-accent bg-accent text-accent-ink" : "border-accent/50 bg-accent/[0.1] text-accent-text")}>{picked ? "Picked ✓" : "VS Compare"}</button>
         <button type="button" onClick={shortlist} aria-pressed={flags.bookmarked} data-shortlist className={cn(btn, flags.bookmarked ? "border-accent/50 bg-accent/[0.1] text-accent-text" : "border-border bg-card text-foreground")}>
           {flags.bookmarked ? <BookmarkCheck className="size-4" aria-hidden /> : <Bookmark className="size-4" aria-hidden />}{flags.bookmarked ? "Shortlisted" : "Shortlist"}
         </button>

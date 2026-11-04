@@ -50,7 +50,7 @@ ${prefer}`;
     if (!children) return null;
     return (
       <div role="note" aria-label="Summary" data-search-summary className={cn("rounded-xl border border-border bg-card/60 px-4 py-3.5", className)}>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Summary</p>
+        <p className="text-xs font-semibold text-muted-foreground">Summary</p>
         <div className="mt-2.5">{children}</div>
         <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">Counted from the records below.</p>
       </div>
@@ -71,7 +71,7 @@ ${prefer}`;
   return (
     <div role="note" aria-label="Bruno AI's answer" data-bruno-answer
       className={cn("animate-[cs-call-in_300ms_ease-out] rounded-xl border border-violet-400/30 bg-violet-500/[0.07] px-4 py-3.5 motion-reduce:animate-none", className)}>
-      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-violet-700 dark:text-violet-300">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-700 dark:text-violet-300">
         <Sparkles className="size-3.5 shrink-0" />Bruno AI
       </p>
       {phone ? (

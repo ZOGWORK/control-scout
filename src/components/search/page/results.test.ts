@@ -14,6 +14,23 @@ describe("Compare links", () => {
   it("no season: the current one", () => expect(compareSeason(cmp("/compare?teams=4215,6980"))).toBeNull());
 });
 
+describe("answerTeams", () => {
+  it("a fact or stat answer's team", async () => {
+    const { answerTeams } = await import("./results");
+    expect(answerTeams({ card: { team: { number: 4215 } } }, [])).toEqual([4215]);
+    expect(answerTeams({ stat: { team: { number: 4215 } } }, [])).toEqual([4215]);
+  });
+  it("a two-team answer's both sides, from its teams (its title names neither: \"Their meetings and partnerships\")", async () => {
+    const { answerTeams } = await import("./results");
+    expect(answerTeams({ stat: { team: { number: 4215 }, teams: [{ number: 4215 }, { number: 6980 }] } }, [])).toEqual([4215, 6980]);
+  });
+  it("a Compare's sides; nothing named, nothing hidden", async () => {
+    const { answerTeams } = await import("./results");
+    expect(answerTeams(undefined, [cmp("/compare?teams=4215,6980")])).toEqual([4215, 6980]);
+    expect(answerTeams({ card: {} }, [])).toEqual([]);
+  });
+});
+
 describe("statusOf", () => {
   const today = "2026-11-02";
   it("uses the last day when known", async () => {
