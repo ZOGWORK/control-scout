@@ -5,7 +5,7 @@ import { Fragment, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
-  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, Flag, Gauge, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, Target, TrendingDown, TrendingUp, Trophy, Zap,
+  Award, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ClipboardList, ExternalLink, Eye, GraduationCap, Info, Link2, MapPin, Scale, Sparkles, Star, TrendingDown, TrendingUp, Trophy,
 } from "lucide-react";
 import { type ApiError, useApi, qs } from "../lib/api";
 import { NotFoundView } from "../components/NotFoundView";
@@ -28,7 +28,8 @@ import { MatchList } from "../components/predict";
 import { SeasonToggle } from "../components/SeasonToggle";
 import { cn } from "../components/cn";
 import { PROFILE_PERCENTILE_TEXT } from "../lib/textTones";
-import { Meter, StatTile, TONES, rankPc, type Tone } from "../components/StatTile";
+import { Meter, StatTile, TONES, rankPc } from "../components/StatTile";
+import { OPR_CARDS, OPR_TONE, oprRankHint } from "../components/oprCards";
 import { ago, awardLabel, dateRange, dayDate, int, num, place, seasonLabel, rankPct } from "../lib/format";
 import { eventTypeLabel } from "../lib/labels";
 import { copyLink } from "../lib/clipboard";
@@ -302,8 +303,7 @@ function Hero({ p, onSeason, fellBackFrom }: { p: TeamProfile; onSeason: (s: num
 // OPR + rating
 // ---------------------------------------------------------------------------
 
-const OPR_CARDS = [["np", "Total OPR", Target, "accent"], ["auto", "Autonomous", Zap, "sky"], ["teleop", "TeleOp", Gauge, "emerald"], ["endgame", "Endgame", Flag, "violet"]] as const satisfies readonly (readonly [string, string, unknown, Tone])[];
-const OPR_TONE: Record<string, Tone> = Object.fromEntries(OPR_CARDS.map(([k, , , tone]) => [k, tone]));
+// The tiles (names, icons, colours) are shared with search's OPR answer (../components/oprCards.ts).
 
 /** The hero's headline numbers, explained where they first appear (hover, or long-press on a phone; the
  *  Offensive power rating section right below says the same in full). */
@@ -326,13 +326,12 @@ export function OprSection({ p }: { p: TeamProfile }) {
       <Stagger className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {OPR_CARDS.map(([k, label, Icon, tone]) => {
           const stat = s?.opr[k];
-          const top = rankPct(stat?.rank, stat?.of);
           return (
             <StaggerItem key={k}>
               {/* Each stat in its own colour; only the open one gets the ring (data-selected), none at rest. */}
               <StatTile tone={tone} icon={Icon} label={label} value={num(stat?.value)} onClick={() => setOpen(open === k ? null : k)} selected={open === k}
                 action="Show event by event"
-                hint={<>{stat?.rank ? `OPR #${stat.rank.toLocaleString()} of ${stat.of?.toLocaleString()} with an OPR` : "Unranked"}{top && ` · ${top}`}</>}
+                hint={oprRankHint(stat?.rank, stat?.of)}
                 bar={<Meter parts={[{ pc: rankPc(stat?.rank, stat?.of), cls: TONES[tone].bar }]} />} />
             </StaggerItem>
           );
