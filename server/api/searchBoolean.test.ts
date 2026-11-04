@@ -244,3 +244,37 @@ describe("precedence and parsing", () => {
     expect(a.understood?.label).toContain("Matches: Hypnotic Robotics (4215) and Bad Wolf (6980), either alliance");
   });
 });
+
+describe("the operator × operand × intent grid", () => {
+  // Every operator form, every way to name the second team, every kind of question: read as an expression with the
+  // right groups, and answered (a match list, a side by side or the first team's own stat), never a fallback.
+  const OPS: [string, "and" | "or" | "not"][] = [["and", "and"], ["&", "and"], ["or", "or"], ["|", "or"], ["not", "not"], ["-", "not"]];
+  const SECOND: [string, number][] = [["6980", 6980], ["bad wolf", 6980], ["\"Bad Wolf\"", 6980], ["Raider Robotics - Gold", 4360], ["Wingus & Dingus", 5110]];
+  const INTENTS = ["", "matches", "total matches", "total awards", "opr", "win rate", "record"];
+  for (const [op, kind] of OPS) for (const [second, team] of SECOND) for (const intent of INTENTS) {
+    const q = `4215 ${op === "-" ? `-${second}` : `${op} ${second}`}${intent ? ` ${intent}` : ""}`;
+    it(q, async () => {
+      const b = await readBoolean(q);
+      expect(b?.groups, q).toEqual(kind === "or" ? [[{ team: 4215, neg: false }], [{ team, neg: false }]] : [[{ team: 4215, neg: false }, { team, neg: kind === "not" }]]);
+      expect(b?.rest).toBe(intent);
+      // The boolean reader itself answers (never a later reader's rewrite of the query).
+      const a = await booleanAnswer(q, reader, true);
+      expect(a?.stat, q).toBeTruthy();
+      const noSeason = (t = "") => t.replace(/ in \d{4}–\d\d/, "");
+      if (!intent || intent === "matches") expect(a!.stat!.intent).toBe(`boolean-${kind}`);
+      else {
+        // The stat asked, as the first team's own search answers it ("4215 record" alone is the team's card: this season's).
+        const own = (await ask(`4215 ${intent}`)).stat ?? (await ask(`4215 ${intent} this season`)).stat!;
+        if (kind === "not") {
+          expect(a!.stat!.team?.number).toBe(4215);
+          expect([a!.stat!.intent, a!.stat!.title, a!.stat!.headline]).toEqual([own.intent, own.title, own.headline]);
+        } else if (intent === "opr") expect(a!.stat!.intent).toBe("opr-vs");
+        else {
+          expect(a!.stat!.intent).toBe("boolean-compare");
+          expect(noSeason(a!.stat!.title.split(": ")[0])).toBe(noSeason(own.title));
+        }
+      }
+    });
+  }
+});
+
