@@ -143,13 +143,13 @@ describe("answers on their own", () => {
     // In the order asked.
     for (const q of ["4215 sponsors school", "4215 sponsors, school", "4215 sponsors and school"]) {
       const a = await ask(q);
-      expect(a.card?.title).toBe("Sponsors and School or organization");
+      expect(a.card?.title).toBe("Sponsors and school");
       expect(a.card?.lines.map((l) => l.text.split(":")[0])).toEqual(["Sponsors", "School or organization"]);
       expect(a.card?.lines[1]?.text).toMatch(/Oradell High School/);
     }
-    expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
+    expect((await ask("4215 school, website")).card?.title).toBe("School and website");
     // A two-word fact can come first.
-    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and Website");
+    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and website");
     // A team whose name ends in a fact word is read whole first: "Code Site"'s website, not "Code"'s site and website.
     await run("INSERT INTO teams (number, name, website) VALUES (31010, 'Code', 'https://code.example'), (31011, 'Code Site', 'https://codesite.example')");
     await rebuildSearch();

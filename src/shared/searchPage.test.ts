@@ -2,7 +2,7 @@
 // title takes), a Compare by both sides, a question by its team and what it asked, else the server's reading.
 import { describe, expect, it } from "vitest";
 import type { SearchAnswer, SearchHit } from "./api";
-import { badgeUnder, capWords, contextBadge, pageTitle, teamParts } from "./searchPage";
+import { badgeUnder, capWords, cardTitle, contextBadge, pageTitle, teamParts } from "./searchPage";
 
 const a = (hits: SearchHit[], extra: Partial<Omit<SearchAnswer, "understood">> & { understood?: { label: string } } = {}) => ({ q: "", hits, pages: [], step: "deterministic" as const, weak: false, ...extra });
 const team = (title: string): SearchHit => ({ kind: "team", ref: "18061", title, subtitle: "", season: 2025 });
@@ -45,15 +45,31 @@ describe("capWords", () => {
   });
 });
 
+describe("cardTitle (audit v2.8.9: sentence case, the team once, no \"Team 4215 —\" prefix)", () => {
+  const hyp = { number: 4215, name: "Hypnotic Robotics" };
+  it("names the team inside a sentence-case label", () => {
+    expect(cardTitle({ title: "Where they're from", team: hyp })).toBe("Where Hypnotic Robotics (4215) is from");
+    expect(cardTitle({ title: "Sponsors and school", team: hyp })).toBe("Sponsors and school for Hypnotic Robotics (4215)");
+    expect(cardTitle({ title: "Worlds appearances", team: { number: 7149, name: null } })).toBe("Worlds appearances for Team 7149");
+    expect(cardTitle({ title: "Highest scores in 2025–26 (DECODE)" })).toBe("Highest scores in 2025–26 (DECODE)");
+  });
+  it("titles a card page that way, never Title Case", () => {
+    const t = pageTitle(a([], { card: { kind: "info", title: "Where they're from", team: hyp, lines: [] } }), []);
+    expect(t).toBe("Where Hypnotic Robotics (4215) is from");
+    expect(t).not.toMatch(/^Team \d+ —/);
+  });
+});
+
 describe("badgeUnder", () => {
   it("drops a badge that only repeats the title, keeps one that adds to it", () => {
     expect(badgeUnder("League meets in New Jersey", "League meets in New Jersey")).toBeNull();
     expect(badgeUnder("Hypnotic Robotics (4215) vs Ultraviolet (20245)", "Hypnotic Robotics (4215) vs Ultraviolet (20245) — Compare")).toBeNull();
     expect(badgeUnder("Closest names to \"hypnotc\"", 'Closest names to "hypnotc" (did you mean "Hypnotic Robotics"?)')).toBeNull();
-    expect(badgeUnder("Team 7149 — Worlds Appearances", "Team 7149 ENFORCERS · Their worlds appearances")).toBe("Team 7149 ENFORCERS · Their worlds appearances");
+    expect(badgeUnder("Worlds appearances for ENFORCERS (7149)", "Team 7149 ENFORCERS · Their worlds appearances")).toBe("Team 7149 ENFORCERS · Their worlds appearances");
     // The same team and the same fact as the title: said once.
-    expect(badgeUnder("Team 6980 — Where They're From", "Bad Wolf (6980) · Where they're from")).toBeNull();
-    expect(badgeUnder("Team 6980 — Where They're From", "Hypnotic Robotics (4215) · Where they're from")).toBe("Hypnotic Robotics (4215) · Where they're from");
+    expect(badgeUnder("Where Bad Wolf (6980) is from", "Bad Wolf (6980) · Where they're from")).toBeNull();
+    expect(badgeUnder("Worlds appearances for ENFORCERS (7149)", "ENFORCERS (7149) · Worlds appearances")).toBeNull();
+    expect(badgeUnder("Where Bad Wolf (6980) is from", "Hypnotic Robotics (4215) · Where they're from")).toBe("Hypnotic Robotics (4215) · Where they're from");
     expect(badgeUnder("Simply Complex (18061)", null)).toBeNull();
     // A suggested name with its own brackets is still the whole tail.
     expect(badgeUnder('Closest names to "robotcs"', 'Closest names to "robotcs" (did you mean "Robotics (FTC)"?)')).toBeNull();
