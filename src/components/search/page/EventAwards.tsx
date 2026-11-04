@@ -57,7 +57,7 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
       )}
       {ev && (
         <div className="mt-5">
-          <Button asChild variant="secondary" className={TAP}>
+          <Button asChild variant="secondary" className={cn(TAP, "h-auto whitespace-normal py-2 text-left")}>
             <Link to={awardsHref(ev)} data-awards-page>Awards page for {ev.name}<ArrowRight aria-hidden /></Link>
           </Button>
         </div>
