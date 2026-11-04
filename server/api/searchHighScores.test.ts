@@ -67,21 +67,23 @@ describe("the answer", () => {
       href: "/events/2025/USNJCMP?match=qual:0:1",
     });
   });
-  it("a team's, in the latest season it played", async () => {
-    const a = await searchAnswer("4215 high score");
-    expect(a.card).toMatchObject({ title: "Highest scores in 2026–27", team: { number: 4215 } });
-    // 2026 has only a scrimmage for 4215: said plainly, its scrimmage score the closest record.
-    expect(a.card!.none).toMatch(/^No official 2026–27 matches for Hypnotic Robotics have been played yet, only scrimmages/);
-    expect(a.card!.closest!.map((l) => l.text)).toEqual(["115 points: Q1 at Kickoff Scrimmage"]);
+  // A team's best score is the stat answer's (server/api/answers/families/matches.ts), in every phrasing: the match
+  // picked by its own points, shown at the official score, from official events only (a scrimmage never counts).
+  it("a team's, in the latest season it played officially", async () => {
+    const a = await searchAnswer("4215 high score", { limit: 25 });
+    expect(a.card).toBeUndefined();
+    expect(a.stat).toMatchObject({ intent: "highest-score", headline: { value: "262 points", label: "Q1 at New Jersey Championship (official score, penalties included)", sub: expect.stringContaining("250 without penalties") } });
     expect(a.hits[0]).toMatchObject({ kind: "team", ref: "4215" });
-    const d = await searchAnswer("hypnotic best score in decode");
+    const d = await searchAnswer("hypnotic best score in decode", { limit: 25 });
     // The team's link opens the season asked about.
     expect(d.hits[0]).toMatchObject({ kind: "team", ref: "4215", section: "matches", linkSeason: 2025 });
-    expect(d.card!.lines.map((l) => l.text)).toEqual(["250 points: Q1 at New Jersey Championship", "190 points: Q2 at New Jersey Championship", "50 points: M9 at New Jersey Championship"]);
+    const ms = d.stat!.blocks.find((b) => b.kind === "matches");
+    expect(ms && ms.kind === "matches" && ms.rows.map((r) => `${r.label} ${r.own}`)).toEqual(["Q1 262", "Q2 190", "M9 50"]);
   });
   it("a team's best never counts a match it sat out", async () => {
-    const a = await searchAnswer("critical mass best score in decode");
-    expect(a.card!.lines.map((l) => l.text)).toEqual(["221 points: Q2 at New Jersey Championship", "180 points: Q1 at New Jersey Championship"]);
+    const a = await searchAnswer("critical mass best score in decode", { limit: 25 });
+    const ms = a.stat!.blocks.find((b) => b.kind === "matches");
+    expect(ms && ms.kind === "matches" && ms.rows.map((r) => `${r.label} ${r.own}`)).toEqual(["Q2 221", "Q1 900"]);
   });
   it("2020–21 and 2021–22: penalties came off the alliance's own score, and it says so", async () => {
     // A season's highest score with no team is the stat answer's (server/api/answers/families/topMatches.ts).

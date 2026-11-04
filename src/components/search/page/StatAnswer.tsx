@@ -179,8 +179,8 @@ function OprTiles({ items }: { items: Extract<StatBlock, { kind: "kpis" }>["item
         return (
           <StatTile key={k} tone={tone} icon={Icon} label={label}
             value={<span className={TONES[tone].text}>{it.value}</span>}
-            hint={oprRankHint(it.rank, it.of)}
-            bar={<Meter parts={[{ pc: rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} />
+            hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
+            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} />
         );
       })}
     </div>
