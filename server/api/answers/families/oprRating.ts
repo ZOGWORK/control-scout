@@ -6,7 +6,7 @@
 // average of stored event OPRs is the only arithmetic, and it says so.
 import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import { regionLabel, type Region } from "../../../../src/shared/regions.js";
+import { findRegions, regionLabel, type Region } from "../../../../src/shared/regions.js";
 import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES, WEEK_MS, weekOf } from "../../../../src/shared/rankings.js";
@@ -387,10 +387,12 @@ async function regionAnswer(f: OprRatingQuestion, team: Team, season: number, st
     // A place's lists rank the teams from there: a team from elsewhere is said to be, with its own place's question.
     const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team.number]);
     if (home && (home.country !== r.country || (home.state ?? "") !== r.state)) {
-      // Its region's own name (as its code is stored: "NSW" is New South Wales), which the question reads back.
-      const from = home.country ? regionLabel(`${home.country}:${home.state ?? ""}`) : null;
+      // Its region's own name (as its code is stored: "NSW" is New South Wales), which the question reads back;
+      // a code with no known name ("BZ") is said as its country, and only a known region gets the question.
+      const named = home.country ? findRegions(regionLabel(`${home.country}:${home.state ?? ""}`)).find((x) => x.country === home.country) : undefined;
+      const from = named?.name ?? home.country;
       const ask = `${team.number} ${by === "opr" ? "opr rank" : by === "rating" ? "rating" : "rank"} in ${from} in ${S}`;
-      return { ...b, blocks: from ? [{ kind: "related", title: `Its own ${from} ${list}`, queries: [ask] }] : [], none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: ${from ? `it's a team from ${from}, and` : ""} the ${r.name} ${list} rank teams from ${r.name} only.` };
+      return { ...b, blocks: named ? [{ kind: "related", title: `Its own ${from} ${list}`, queries: [ask] }] : [], none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: ${from ? `it's a team from ${from}, and` : ""} the ${r.name} ${list} rank teams from ${r.name} only.` };
     }
     return { ...b, none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: it needs ${RANKED_MIN_MATCHES}+ ${by === "opr" ? "matches" : "rated matches"} that season.` };
   }

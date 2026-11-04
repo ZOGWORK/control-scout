@@ -24,12 +24,17 @@ Search answers about one event work for every team, not only the teams it was fi
 - [teams] A division and the finals it reached count as one event
 - [fixes] A team that didn't play an event is told so, not left blank
 - [fixes] Teams numbered like a year (20205) are found again
+- [teams] "States", Worlds, venues and two teams at one event answer
 
 ### Search
 - **The team's own event.** "23268 matches at NJ championship" found two of Ultraviolet's events alike (the Turnpike Division and the finals) and showed an empty page; 4215 only played Parkway, so it never hit this. A championship named now takes in the division the team played and the finals it reached, read as one ("New Jersey Championship (Turnpike Division and finals)"), with the division's rank and OPR. Events of one name it played (an AM and a PM meet) are read together, and one match number at each is listed rather than picked. A division named outright is that division alone. (#665)
 - **Events a team didn't play.** "10809 record at NJ championship" says Crow Force didn't play at New Jersey Championship in 2025–26, naming the event checked, and lists the same question for the events it did play, instead of an empty page.
 - **Places.** A team from elsewhere asked its place on New Jersey's lists is told it's from its own state, with that state's question, not that it's short of matches.
 - **Worlds rating.** An off-season event after Worlds isn't rated, so "rating at worlds" now shows the rating a team finished Worlds on instead of "isn't stored".
+- **States.** "4215 matches at states in 2024" reads the team's own state championship that season (a year picks the season), lists every match, and links its other state championships; "states opr", "states rank" and "states wins and losses" answer directly. A team with none on record is told so.
+- **Worlds, kinds of event, last and first.** "worlds Ross" reads that Worlds division; "league meets this season", "at their last event" and "at their first event" read the team's own events. Won, lost and playoff filters apply at that event, and an event with more than one row gets an "Each event" table.
+- **Two teams at one event or venue.** "4215 and 6980 matches at river dell" finds the venue under any spelling it was stored with and lists their matches there; if one team wasn't there, it says so and names the event it played.
+- **Reused event codes.** "east bergen conference winning alliance" reads the East Bergen event, not the South Essex event that used the same code a season before. The distinctive words in a name decide; words like "league" or "conference" only break ties, and the latest season with that event wins.
 - **Team numbers.** A typed number is a typo only of a number as long: team 20205 no longer matches the year 2025, nor 20265 an event named "… 2026 Bishkek", so "when did 20265 start in FTC" finds the team.
 ## 3.0.9 — 2026-11-04
 
