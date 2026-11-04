@@ -26,7 +26,7 @@ Search answers that already name a team no longer repeat it in a team card below
 - [fixes] A short search answer keeps the footer right under it
 
 ### Search
-- **One card per team.** A fact, stat, Compare or head-to-head answer that names its team or teams no longer lists them again in a Teams card under it. One small "View scouting profile" row sits under the answer instead; a fact answer's row keeps the team's season badges (record, OPR, OPR rank) its card used to show. (#PR)
+- **One card per team.** A fact, stat, Compare or head-to-head answer that names its team or teams no longer lists them again in a Teams card under it. One small "View scouting profile" row sits under the answer instead; a fact answer's row keeps the team's season badges (record, OPR, OPR rank) its card used to show. (#524)
 - **Sentence-case labels.** Section labels and pills on the results page and in the search box ("Teams", "Top 10 by OPR", "Meetings, newest first", "You may also want to know") are no longer forced into capitals. Game names keep FIRST's own capitals.
 - **Touch-size targets.** On phones and touch screens the time filter, season and type pickers, Clear filters, suggestion pills, link chips, example chips, season tabs, the table's row chevron and the "View scouting profile" links are at least 44px tall. Desktop with a mouse keeps today's compact sizes.
 - **Footer follows the answer.** On the search page a short answer no longer leaves the footer pinned to the bottom of a mostly empty screen.
