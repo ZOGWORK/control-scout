@@ -247,8 +247,8 @@ export async function oprRatingAnswer(f: OprRatingQuestion, team: Team, deps: Op
     return {
       ...b, headline: { value: `${num(va)} vs ${num(vc)}`, label: `${PHASE_NAME[a]} ${Math.abs(d) < 0.05 ? "level with" : d > 0 ? `${num(Math.abs(d))} above` : `${num(Math.abs(d))} below`} ${PHASE_NAME[c]}`, sub: S, href: teamHref(team.number, season) },
       blocks: [
+        // The phase tiles in the team page's phase colours (a bar block's tones aren't the phase colours).
         { kind: "kpis", items: [ph("np", "OPR"), ph("auto", "Auto"), ph("teleop", "TeleOp"), ph("endgame", "Endgame")] },
-        { kind: "bars", title: `${PHASE_NAME[a]} against ${PHASE_NAME[c]}`, groups: [{ label: S, items: [{ label: PHASE_NAME[a], value: Math.round(Number(va) * 10) / 10, tone: "a" }, { label: PHASE_NAME[c], value: Math.round(Number(vc) * 10) / 10, tone: "b" }] }] },
       ],
     };
   }
