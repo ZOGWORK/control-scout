@@ -94,20 +94,24 @@ const NEXT_TITLES: Partial<Record<IntentId, string>> = { "next-event-wins": "Pre
 const NEXT_RULE = "From the engine's stored projection for the event (the event page's Forecast): thousands of simulated runs of the event's qualification schedule and alliance selection from the prediction ratings. Advancement counts competition-performance slots only (no award points). Nothing is simulated for a search.";
 
 /** The team's next event and the engine's stored projection for it, or the honest card when none is stored. */
-export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = new Date()): Promise<StatAnswer> {
+export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = new Date(), event?: { season: number; code: string }): Promise<StatAnswer> {
   const title = NEXT_TITLES[id] ?? "Prediction";
   // The events a team is listed for (a FIRST registration counts), as "when is <team>'s next event" reads them.
   // A day either side in UTC, then the venue's own today: the day after a meet, it's no longer the next event.
   const yesterday = new Date(now.getTime() - 864e5).toISOString().slice(0, 10);
-  const e = (await all<{ season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; timezone: string | null }>(
-    `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state, e.timezone FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
-     WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 10`, [team.number, yesterday]))
-    .find((x) => (x.end ?? x.start ?? "") >= eventToday(now.getTime(), x.timezone).from);
+  // An event named ("at New Jersey Championship") is that event, whenever it is; else the next one.
+  type Ev = { season: number; code: string; name: string; start: string | null; end: string | null; city: string | null; state: string | null; timezone: string | null };
+  const e = event
+    ? (await all<Ev>("SELECT season, code, name, start, end, city, state, timezone FROM events WHERE season = ? AND code = ?", [event.season, event.code]))[0]
+    : (await all<Ev>(
+      `SELECT DISTINCT e.season, e.code, e.name, e.start, e.end, e.city, e.state, e.timezone FROM ${ROSTER} et JOIN events e ON e.season = et.season AND e.code = et.code
+       WHERE et.team = ? AND COALESCE(e.end, e.start) >= ? ORDER BY e.start, e.code LIMIT 10`, [team.number, yesterday]))
+      .find((x) => (x.end ?? x.start ?? "") >= eventToday(now.getTime(), x.timezone).from);
   const S = seasonLabel(e ? Number(e.season) : CURRENT_SEASON);
-  const base = { family: "stat" as const, intent: id, title, team, scope: [S, "Next event"], definition: NEXT_RULE, source: e ? `${e.name}, ${S}` : `${team.number}'s published events` };
+  const base = { family: "stat" as const, intent: id, title, team, scope: [S, event ? e?.name ?? "Event" : "Next event"], definition: NEXT_RULE, source: e ? `${e.name}, ${S}` : `${team.number}'s published events` };
   if (!e) return { ...base, blocks: [], none: `No upcoming event is published for ${whoOf(team)} in ${S} yet, so there's no projection to show.` };
   const when = [dateRange(e.start, e.end), [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
-  const evLink: StatBlock = { kind: "links", title: "Next event", items: [{ label: e.name, sub: when, href: eventHref(Number(e.season), e.code, team.number) }] };
+  const evLink: StatBlock = { kind: "links", title: event ? "Event" : "Next event", items: [{ label: e.name, sub: when, href: eventHref(Number(e.season), e.code, team.number) }] };
   // The forecast's own switch (advancementOdds): off, the event page shows none, so search shows none either.
   if (!(await isEnabled("advancementOdds").catch(() => false))) {
     return { ...base, headline: { value: "Switched off", label: `${e.name} · ${when}`, href: eventHref(Number(e.season), e.code, team.number) }, blocks: [evLink], none: "Event forecasts are switched off just now, so no chance is shown." };

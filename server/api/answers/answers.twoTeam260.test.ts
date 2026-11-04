@@ -187,6 +187,20 @@ describe("the answers", () => {
     expect(JSON.stringify(off.stat)).not.toContain("22%");
     await setFlag("advancementOdds", true, "test");
   });
+  it("review fixes: a forecast for the event named, Compare opening on the card's season", async () => {
+    // The event asked about, not the team's next one.
+    const at = await ask("4215 advancement chances at Northeast League Meet");
+    expect(at.stat!.headline).toMatchObject({ value: "33%" });
+    expect(at.stat!.scope).toContain("Northeast League Meet");
+    // A place's events aren't one event: no forecast, never the next event's in its place.
+    const q1 = await ask("4215 chance to win an event at New Jersey Qualifier");
+    expect(JSON.stringify(q1.stat ?? {})).not.toContain("Northeast League Meet");
+    // Compare's hit opens on the season the card reads.
+    const c = await ask("4215 6980 33950 compare");
+    expect(c.hits[0]).toMatchObject({ kind: "compare" });
+    expect(c.hits[0].href).toContain(`season=${S}`);
+    expect((await ask(`4215 6980 33950 compare in ${S - 1}`)).hits[0].href).toContain(`season=${S - 1}`);
+  });
   it("review fixes: an awards season named, Compare's four-team limit, the full lists", async () => {
     // Awards in a season with none for either side: counted for that season, not every season.
     expect((await ask(`4215 awards vs 6980 ${S - 1}-${String(S % 100).padStart(2, "0")}`)).stat!.headline).toMatchObject({ value: "Even", label: "0 awards each" });

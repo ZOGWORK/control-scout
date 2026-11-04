@@ -87,6 +87,11 @@ const SEASON_COLS = "team, season, opr_np, opr_auto, opr_teleop, opr_endgame, ra
 
 /** Every team's row for the season named, else for the latest completed season when all of them played it, else the
  *  latest season all of them played (said so). */
+/** The season a compare card reads when none is named (seasonRows' choice). */
+export async function compareSeason(teams: number[]): Promise<number | null> {
+  return (await seasonRows(teams, null)).season;
+}
+
 async function seasonRows(teams: number[], season: number | null): Promise<{ season: number | null; why?: string; rows: (SeasonRow | undefined)[] }> {
   const rows = await all<SeasonRow>(`SELECT ${SEASON_COLS} FROM team_season_stats WHERE team IN (${teams.map(() => "?").join(",")}) AND matches > 0${season != null ? " AND season = ?" : ""} ORDER BY season DESC`, season != null ? [...teams, season] : teams);
   const of = (t: number, s: number) => rows.find((r) => Number(r.team) === t && Number(r.season) === s);
