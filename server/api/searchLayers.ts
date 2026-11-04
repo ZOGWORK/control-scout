@@ -16,9 +16,10 @@ import { regionOf } from "../../src/shared/searchEventQuery.js";
 import { SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { normalize } from "./fuzzy.js";
+import { longForm } from "./searchLongForm.js";
 import { AWARDS, FILLER, FORBIDDEN, type Found, INTENTS, type Intent, LEADER_STAT_WORDS, PARAPHRASES, PHASES, PRECEDENCE, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
 
-export type LayerId = "normalize" | "template" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
+export type LayerId = "normalize" | "template" | "longform" | "keyword" | "paraphrase" | "filler" | "scope" | "fallback";
 export type OutcomeResult = "answered" | "no-match" | "team-fallback" | "weak" | "name-search-only" | "empty" | "ambiguous";
 
 /** How a top-level search was answered, for failed-search reporting (never on the answer path, never sent to the app). */
@@ -45,7 +46,7 @@ const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
 /** A forbidden word an answer names in its own words, so it was read, not dropped. */
 const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/ };
 
-const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
+const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", longform: "1L", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
 /** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,
  *  scope as its tokens, and the tied intents when it was ambiguous. */
 export function traceOf(o: SearchOutcome | undefined) {
@@ -438,15 +439,11 @@ const same = (a: SearchAnswer, b: SearchAnswer) =>
   JSON.stringify([a.stat?.title, a.stat?.headline?.value, a.card?.kind, a.card?.title, a.understood?.label, a.hits[0]?.ref, a.hits[0]?.section])
   === JSON.stringify([b.stat?.title, b.stat?.headline?.value, b.card?.kind, b.card?.title, b.understood?.label, b.hits[0]?.ref, b.hits[0]?.section]);
 
-const CONNECTORS = new Set(["of", "in", "for", "at", "the", "a", "an", "to", "on", "during", "with", "is", "are", "does", "do"]);
-
-/** The reading line: how the query was read, appended to what the answer understood. */
-function readAs(a: SearchAnswer, typed: string, as: string, left: string[]): SearchAnswer {
+/** How the query was read, when a layer said it another way: the answer keeps its own label (the page's heading,
+ *  which never quotes a rewritten query) and the words it was read as go on a quiet "Showing: …" line. */
+function showing(a: SearchAnswer, typed: string, as: string): SearchAnswer {
   const u = a.understood ?? { kind: "names" as const, label: "" };
-  // Connectors ("the", "in") go unsaid: the line names the words that could look like part of the question.
-  const words = [...new Set(left)].filter((w) => w && !CONNECTORS.has(w));
-  const note = `read as "${as}"${words.length ? `, leaving out ${words.slice(0, 6).map((w) => `"${w}"`).join(", ")}${words.length > 6 ? " …" : ""}` : ""}`;
-  return { ...a, q: typed, understood: { ...u, label: u.label ? `${u.label} · ${note}` : note } };
+  return { ...a, q: typed, understood: { ...u, showing: as } };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -469,9 +466,11 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const done = (a: SearchAnswer, won: LayerId | null, x: Extracted, result?: OutcomeResult, filler: string[] = []): SearchAnswer => {
     // A forbidden word an answer read past ("4215 today opr", with or without filler) is named, never silently
     // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it.
-    const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""}`.toLowerCase();
-    // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match".
-    const unread = won ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own)) : [];
+    const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
+    // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match". A long
+    // question's rule reads its words itself ("when was the last time 4215 went worlds": the appearances, newest first).
+    const consumed = won === "longform" ? x0.forbidden.filter((w) => !tokens(a.understood?.showing ?? "").includes(w)) : [];
+    const unread = won ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
     if (unread.length && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${unread.map((w) => `"${w}"`).join(", ")} isn't part of this answer` } };
     const out = { ...a, q: typed };
     outcomes.set(out, {
@@ -490,9 +489,25 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
       if (!as) continue;
       layers.push(layer);
       const a = await run(as);
-      if (ok(a)) return done(readAs(a, typed, as, left), layer, x, "answered", left);
+      if (ok(a)) return done(showing(a, typed, as), layer, x, "answered", left);
     }
     return null;
+  };
+
+  // A direct answer: a card, or a stat (the dropdown's has only its intent: its blocks are built for /search alone).
+  const direct = (a: SearchAnswer) => ok(a) && !!(a.stat || a.card || a.intent?.kind.startsWith("stat-"));
+  // Long form: a long question said the short way, once; taken only for a direct answer.
+  let longDone = false;
+  const longTry = async () => {
+    if (longDone) return null;
+    longDone = true;
+    const lf = longForm(q0);
+    if (!lf) return null;
+    layers.push("longform");
+    const xl = await extract(lf);
+    if (template) { const a = await run(lf); if (direct(a)) return done(showing(a, typed, lf), "longform", xl); }
+    const kl = await keywordTry(lf, xl, "longform", xl.dropped);
+    return kl && direct(kl) ? kl : null;
   };
 
   // Layer 1.
@@ -504,7 +519,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
       // A filler word never decides the answer.
       if (strip.dropped.length && strip.q !== q0) {
         const bare = await run(strip.q);
-        if (ok(bare) && !same(bare, base)) { layers.push("filler"); return done(readAs(bare, typed, strip.q, strip.dropped), "filler", x0, "answered", strip.dropped); }
+        if (ok(bare) && !same(bare, base)) { layers.push("filler"); return done(showing(bare, typed, strip.q), "filler", x0, "answered", strip.dropped); }
       }
       // A definition question beats a name search (brief section 10): "what does opr mean" read "mean" as the start
       // of a team's name.
@@ -518,9 +533,14 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
         const k = await keywordTry(q0, x0, "keyword", x0.dropped);
         if (k && !same(k, base)) return k;
       }
+      // A long question Layer 1 answered only with names ("is 4215 better than 6980 at auto": the Compare; "who has
+      // 4215 played against the most": a team called "Most"): its short form's direct answer wins.
+      if (!direct(base)) { const lf = await longTry(); if (lf) return lf; }
       return done(base, "template", x0);
     }
   }
+  // Long form, when Layer 1 had no direct answer: the question said the short way (./searchLongForm.ts).
+  { const lf = await longTry(); if (lf) return lf; }
   // Layer 2.
   const k = await keywordTry(q0, x0, "keyword", x0.dropped);
   if (k) return k;
@@ -528,7 +548,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const p = paraphrase(q0);
   if (p.used.length) {
     layers.push("paraphrase");
-    if (template) { const a = await run(p.q); if (ok(a)) return done(readAs(a, typed, p.q, []), "paraphrase", await extract(p.q)); }
+    if (template) { const a = await run(p.q); if (ok(a)) return done(showing(a, typed, p.q), "paraphrase", await extract(p.q)); }
     const xp = await extract(p.q);
     const kp = await keywordTry(p.q, xp, "paraphrase", xp.dropped);
     if (kp) return kp;
@@ -537,7 +557,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const s = await stripFiller(p.used.length ? p.q : q0);
   if (s.dropped.length) {
     layers.push("filler");
-    if (template) { const a = await run(s.q); if (ok(a)) return done(readAs(a, typed, s.q, s.dropped), "filler", await extract(s.q), "answered", s.dropped); }
+    if (template) { const a = await run(s.q); if (ok(a)) return done(showing(a, typed, s.q), "filler", await extract(s.q), "answered", s.dropped); }
     const xs = await extract(s.q);
     const ks = await keywordTry(s.q, xs, "filler", [...s.dropped, ...xs.dropped]);
     if (ks) return ks;
@@ -553,7 +573,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
     if (canonical) {
       layers.push("scope");
       const a = await run(canonical);
-      if (ok(a)) return done(readAs(a, typed, canonical, xw.dropped), "scope", { ...xw, intents: [it.id] }, "answered", xw.dropped);
+      if (ok(a)) return done(showing(a, typed, canonical), "scope", { ...xw, intents: [it.id] }, "answered", xw.dropped);
     }
   }
   // Layer 6: the existing answer, with the candidates named when two intents fit equally.
