@@ -32,6 +32,14 @@ import { countryOf } from "../../src/shared/countries.js";
 
 const squash = (s: string) => s.replace(/\s+/g, " ").trim();
 const TEAM = String.raw`(\d{1,6}|[a-z0-9][\w'’&.-]*(?:\s+[\w'’&.-]+){0,4})`;
+/** A leaderboard's stat, as readLeaderboard (answers/read.ts) reads it after "teams by". */
+const BOARD = String.raw`(opr|auto opr|auto|teleop opr|teleop|endgame opr|endgame|win rate|prediction rating|rating)`;
+/** A season said at the end of a query. */
+const SEASON_WORDS = String.raw`(last season|last year|previous season|this season|this year|20\d\d\s*[-–/]\s*\d\d)`;
+/** Words that name a kind of event ("new jersey championship", "nj states"). */
+const EVENT_WORDS = /\b(?:championships?|champs|qualifiers?|quals|meets?|league|premier|states|tournaments?|scrimmages?|division|invitational|worlds)\b/;
+/** A bare kind of thing with no place ("teams", "events"), as search singularizes it. */
+const BARE_KIND = /^(?:(?:upcoming|ftc|all|the)\s+)*(teams?|events?|meets?|competitions?|tournaments?|qualifiers?|scrimmages?)$/;
 
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
  *  before the stat answers, whose readers would take the original the wrong way ("have 4215 and 6980 played each other"
@@ -47,6 +55,22 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = /^(\d{1,6}(?:\s+vs\.?\s+\d{1,6})?)\s+(.*?)\s*\b(?:at|in)\s+(?:the\s+)?(.+?)\s+(?:states|state championships?|state champs|championship)$/.exec(t)) && regionOf(m[3].split(" "))) {
     const r = regionOf(m[3].split(" "))!;
     return { q: squash(`${m[1]} ${m[2]} at ${r.name} championship`), pre: true };
+  }
+  // A leaderboard of a season named ("top opr last season", "best auto opr in nj 2024-25"): the leaderboard's own
+  // phrasing, so "top" is never read as a team's name (Top Shelf BGS).
+  if ((m = new RegExp(`^(?:the\\s+)?(?:top|best|highest|strongest)(?:\\s+(\\d{1,2}))?\\s+${BOARD}(?:\\s+teams?)?(?:\\s+(?:in\\s+)?(.+?))?\\s+(?:in\\s+|for\\s+|during\\s+)?${SEASON_WORDS}$`).exec(t))) {
+    const place = m[3] ? regionOf(m[3].split(" ")) : null;
+    if (!m[3] || place) return { q: squash(`top ${m[1] ?? 10} teams by ${m[2]}${place ? ` in ${place.name}` : ""} ${m[4]}`), pre: true };
+  }
+  // An event's best score, "at" or not ("highest score new jersey championship", "nj states highest score"). A
+  // place's "states" is its championship, never another event with the place in its name (a workshop).
+  if (((m = /^(?:the\s+)?(?:highest|best|top|record|max(?:imum)?)\s+(?:match\s+)?scores?\s+(?!(?:of|for|this|last)\s)(?:(?:at|in)\s+)?(?:the\s+)?(.+)$/.exec(t))
+    || (m = /^(.+?)\s+(?:highest|best|top|record)\s+(?:match\s+)?scores?$/.exec(t))) && EVENT_WORDS.test(m[1]) && !/^\d/.test(m[1])) {
+    const st = /^(.+?)\s+(?:states|state championships?|state champs)$/.exec(m[1]);
+    const r = st ? regionOf(st[1].split(" ")) : null;
+    // "Worlds" is the FIRST Championship (never a "Pre Worlds" scrimmage).
+    const at = r ? `${r.name.toLowerCase()} championship` : /^(?:worlds|world championships?)$/.test(m[1]) ? "first championship" : m[1];
+    if (`highest score at ${at}` !== t) return { q: `highest score at ${at}`, pre: true };
   }
   // "When did hypnotic last play", "when did 4215 play last", "when did they last compete": the team's most recent match.
   if ((m = new RegExp(`^when\\s+(?:did|was|were)\\s+${TEAM}\\s+(?:last\\s+(?:play|played|compete|competed|playing|competing)|(?:play|compete)\\s+last)$`).exec(t))) return { q: `${m[1]} last match`, pre: true };
@@ -75,6 +99,16 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   }
   // A team number with its home state after it ("6980 texas"): one team, the place adds nothing.
   if ((m = /^(\d{1,6})\s+(.+)$/.exec(t)) && regionOf(m[2].split(" ")) && regionOf(m[2].split(" "))!.name.toLowerCase() === m[2]) return { q: m[1], note: `a team number names one team, so "${titleCase(m[2])}" is left out` };
+  // Three or four teams side by side ("compare 4215 6980 16461", "compare 4215, 6980 and 16461"); Compare holds four.
+  // Two teams with a word between them are the rule below's.
+  if ((m = /^(?:compare|comparing|comparison of|compare teams?)\s+(.+)$/.exec(t))) {
+    const parts = m[1].split(/\s*,\s*(?:and\s+)?|\s+(?:and|with|&|vs\.?|versus)\s+/).map(squash).filter(Boolean);
+    // Numbers with only spaces between them are a list too (search drops the commas before this reads them).
+    const bare = parts.every((p) => /^\d{1,6}(?:\s+\d{1,6})*$/.test(p)) && parts.some((p) => p.includes(" "));
+    const list = bare ? parts.flatMap((p) => p.split(" ")) : parts;
+    if ((bare || list.length > 2) && list.length <= 4 && new Set(list).size === list.length && !(bare && list.some((n) => /^(?:19|20)\d\d$/.test(n)))
+      && list.every((p) => new RegExp(`^${TEAM}$`).test(p))) return { q: list.join(" vs ") };
+  }
   // Two teams side by side, however it's asked.
   if ((m = new RegExp(`^(?:compare|comparing|comparison of|compare teams?)\\s+${TEAM}\\s+(?:and|with|to|&|vs\\.?|versus)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
   if ((m = new RegExp(`^(?:is|are)\\s+${TEAM}\\s+(?:better|stronger|worse|weaker)\\s+than\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
@@ -93,7 +127,7 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   // A leader asked "in the world", "in FTC", "this season": the scope says nothing more (the season is the current one).
   if ((m = /^(.*\b(?:best|top|strongest|highest|most)\b.*?)\s+(?:in\s+(?:ftc|first tech challenge|the world)|worldwide|globally|overall|this season|this year|right now|currently)$/.exec(t))) return { q: m[1] };
   // "Near" a town is in it: there's no distance on record.
-  if ((m = /^(.*\bteams?)\s+(?:near|around|close to|by)\s+(.+)$/.exec(t))) return { q: `${m[1]} in ${m[2]}`, note: `Teams in ${titleCase(m[2])} (no distances are on record, so "near" reads as "in")` };
+  if ((m = /^(.*\bteams?)\s+(?:near|around|close to|by)\s+(?!(?:me|us)$)(.+)$/.exec(t))) return { q: `${m[1]} in ${m[2]}`, note: `Teams in ${titleCase(m[2])} (no distances are on record, so "near" reads as "in")` };
   // Who won Worlds, asked by a year said in words, by the season's game, or as "worlds winners".
   // "This year" and "last year" are the stat answer's own (answers/families/winners.ts, the owner's rule): the current
   // season, and the latest championship that has finished.
@@ -134,7 +168,10 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
     if (g && !/\b(?:in|during|the)\s*$/.test(`${g[1]} ${g[2]}`.trim()) && /^\d{1,6}$/.test(g[1])) return { q: squash(`${g[1]} ${g[2]} in ${s.game}`) };
   }
   // "My state", "near me": nothing on record says where the visitor is.
-  if ((m = /^(.+?)\s+(?:in my (?:state|area|region|city|town)|near me|around me|close to me|nearby)$/.exec(t))) return { q: m[1], note: `where you are isn't known, so this is everyone's: add a place ("${m[1]} in NJ")` };
+  // A bare "teams near me" or "events near me" is nearMeAnswer's: "teams" alone would match names ("Event Horizon").
+  // A rookie list said without "in" ("rookie teams new jersey", "nj rookie teams").
+  if (((m = /^rookies?(?:\s+teams?)?\s+(?!in\s|from\s)(.+)$/.exec(t)) || (m = /^(.+?)\s+rookies?(?:\s+teams?)?$/.exec(t))) && regionOf(m[1].split(" "))) return { q: `rookie teams in ${regionOf(m[1].split(" "))!.name.toLowerCase()}` };
+  if ((m = /^(.+?)\s+(?:in my (?:state|area|region|city|town)|near me|around me|close to me|nearby)$/.exec(t)) && !BARE_KIND.test(m[1])) return { q: m[1], note: `where you are isn't known, so this is everyone's: add a place ("${m[1]} in NJ")` };
   // New Jersey's halves name no region of their own.
   if (/\b(?:north|south|central|northern|southern)\s+jersey\b/.test(t)) return { q: t.replace(/\b(?:north|south|central|northern|southern)\s+jersey\b/, "new jersey"), note: "North, South and Central Jersey aren't separate regions: all of New Jersey" };
   return null;
@@ -272,13 +309,22 @@ export function explainAnswer(q: string): SearchAnswer | null {
 
 /** "how many teams in NJ", "how many teams are there", "how many events this season": a count; or null. */
 export async function countAnswer(q: string): Promise<SearchAnswer | null> {
-  const t = squash(q.toLowerCase().replace(/[?]/g, ""));
-  const m = /^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
+  let t = squash(q.toLowerCase().replace(/[?]/g, ""));
+  // A season at the end ("how many teams 2023", "… in 2024-25", "… last season"): that season's count. A bare year is
+  // the season it starts, as search reads one.
+  let season = CURRENT_SEASON;
+  const sm = /\s+(?:in\s+|during\s+|for\s+)?(?:the\s+)?(?:(last|previous) (?:season|year)|(20\d\d)(?:\s*[-–/]\s*(\d\d))?(?:\s+season)?)$/.exec(t);
+  if (sm && /^how many\s/.test(t)) {
+    if (sm[2] && sm[3] && (Number(sm[2]) + 1) % 100 !== Number(sm[3])) return null;
+    season = sm[1] ? CURRENT_SEASON - 1 : Number(sm[2]);
+    if (season > CURRENT_SEASON) return null;
+    t = t.slice(0, sm.index);
+  }
+  const m =/^how many\s+(?:ftc\s+)?(?:league\s+)?(teams?|events?|meets?|competitions?)\s*(?:are there|is there|exist|are|there are)?\s*(?:(?:in|from)\s+(.+?))?\s*(?:this season|this year|right now|now|in ftc|total)?\s*(?:are there|exist)?$/.exec(t);
   if (!m) return null;
   const teams = m[1].startsWith("team");
   const place = m[2] ? await placeOf(cased(q, m[2])) : null;
   if (m[2] && !place) return null;
-  const season = CURRENT_SEASON;
   const where = teams ? placeSql(place) : placeSql(place).replace(/\bt\./g, "e.");
   const meets = /^meet/.test(m[1]) || /\bleague\b/.test(t);
   const row = teams
@@ -295,6 +341,44 @@ export async function countAnswer(q: string): Promise<SearchAnswer | null> {
   return answer(q, {
     hits: [], pages: [{ title: teams ? "Browse the teams" : "Browse the events", href }],
     card: { kind: "info", title: label, lines: [{ text: `${n.toLocaleString("en-US")} ${what}${inPlace} in ${seasonLabel(season)}`, detail: teams ? "Registrations for the season, played or not" : "Every event on FIRST's schedule for the season", href }] },
+    understood: { kind: "question", label },
+  });
+}
+
+/** "teams near me", "events nearby": nothing on record says where the visitor is, so it says that and asks for a place,
+ *  never a list of names that happen to contain "team" or "event"; or null. */
+export function nearMeAnswer(q: string): SearchAnswer | null {
+  const t = squash(q.toLowerCase().replace(/[?]/g, ""));
+  const m = /^(.+?)\s+(?:in my (?:state|area|region|city|town)|near me|near us|around me|close to me|nearby)$/.exec(t);
+  const kind = m ? BARE_KIND.exec(m[1]) : null;
+  if (!kind) return null;
+  const teams = /^team/.test(kind[1]);
+  const what = teams ? "teams" : "events";
+  const label = `Where you are isn't known: add a place to see ${what} near you`;
+  const href = teams ? "/teams" : "/events";
+  return answer(q, {
+    hits: [], pages: [{ title: teams ? "Browse the teams" : "Browse the events", href }],
+    card: { kind: "info", title: label, lines: [
+      { text: `${titleCase(what)} in a state or country`, detail: `"${what} in NJ", "${what} in Texas"`, href: `/search?q=${encodeURIComponent(`${what} in NJ`)}` },
+      { text: `${titleCase(what)} in a town`, detail: `"${what} in Edison"`, href: `/search?q=${encodeURIComponent(`${what} in Edison`)}` },
+    ] },
+    understood: { kind: "question", label },
+  });
+}
+
+/** "lowest opr in nj", "worst teams": search ranks teams from the top only. It says so and links the full ranking, never
+ *  a team whose name has "worst" in it; or null. */
+export function bottomAnswer(q: string): SearchAnswer | null {
+  const t = squash(q.toLowerCase().replace(/[?]/g, ""));
+  const m = new RegExp(`^(?:the\\s+)?(?:lowest|worst|weakest|bottom)(?:\\s+\\d{1,2})?\\s+(?:(?:${BOARD.slice(1, -1)})(?:\\s+teams?)?|teams?|robots?)(?:\\s+by\\s+${BOARD})?(?:\\s+(?:in\\s+|from\\s+)?(.+))?$`).exec(t);
+  if (!m) return null;
+  const region = m[2] ? regionOf(m[2].split(" ")) : null;
+  if (m[2] && !region) return null;
+  const href = `/rankings${region ? `?region=${encodeURIComponent(region.key)}` : ""}`;
+  const label = "Search lists teams from the top, not the bottom";
+  return answer(q, {
+    hits: [], pages: [{ title: region ? `${region.name} rankings` : "Rankings", href }],
+    card: { kind: "info", title: label, lines: [{ text: `Every ranked team${region ? ` in ${region.name}` : ""}, in order`, detail: "Rankings lists them all, so you can read it from the end", href }] },
     understood: { kind: "question", label },
   });
 }

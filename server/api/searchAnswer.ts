@@ -37,7 +37,7 @@ import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { layeredAnswer } from "./searchLayers.js";
 import { booleanAnswer } from "./searchBoolean.js";
-import { countAnswer, eventPageAnswer, explainAnswer, monthAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { bottomAnswer, countAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -229,6 +229,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     return { ...a, q, understood: r.note ? { ...u, label: `${u.label} · ${r.note}` } : u };
   };
   if (rw && rw.q !== q && (rw.pre || /^who won worlds /.test(rw.q))) return rewritten(rw);
+
+  // 0. What a word means ("how is opr calculated"), before the stat answers read a word of it as a team's name
+  // ("CALculated Risk"); and the questions that name no team ("teams near me", "lowest opr in nj").
+  const said = opts.intents === false ? null : explainAnswer(q) ?? nearMeAnswer(q) ?? bottomAnswer(q);
+  if (said) return said;
 
   // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
   const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false }), { full: !!opts.full, pages: pagesFor(q) });
