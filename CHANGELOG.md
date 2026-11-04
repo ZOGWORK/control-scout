@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.0.0 — 2026-11-04
+
+Search answers a team's OPR and prediction rating the ways people ask: its rank worldwide or in a state, its best and worst events, Worlds, its trend and its rating's ± spread.
+
+### Highlights
+- [teams] Rating answers lead with the rating, its ± and world rank
+- [rankings] "4215 opr rank in New Jersey" gives its place in New Jersey
+- [teams] Best and worst event OPR, OPR at Worlds, OPR trend
+- [fixes] "Auto OPR versus TeleOp OPR" compares one team's own phases
+
+### Search
+- **Rating card.** "4215 rating" leads with the rating and its ± (98 ± 3.2) and its world rank (#525 worldwide), formatted as the team page's rating tile, then its parts.
+- **Ranks and places.** "opr rank worldwide", "rank worldwide" (OPR and rating), "percentile worldwide by opr" and "is 4215 in the top 10 percent" answer from the team page's world rank. "opr rank in New Jersey", "rating in New Jersey", "rank in New Jersey" and "place on the New Jersey leaderboard" give the place on that state's own list: the Teams list filtered to it by OPR, or Rankings filtered to it by rating.
+- **Events and Worlds.** "highest opr ever", "lowest opr", "opr at their best/worst event", "average opr across events this season" and "opr at worlds" (its division named) answer from the team's stored event OPRs. "rating at worlds" is the season rating it finished Worlds on; "best prediction rating ever" names the season and its last event.
+- **Trends and spread.** "opr trend over seasons" shows this season event by event and each season's standing; "rating trend" reads the weekly Rankings snapshot after each event; "prediction rating uncertainty" and "prediction confidence" give the ± and the matches rated; "penalty opr" gives the penalty points given away per match.
+- **Fixes.** "6980 auto opr versus teleop opr" compared 6980 with team 24357 Teleop Tigers; it now sets 6980's own Auto against its TeleOp. "4215 opr compared to the average team" read "the" as an event; it is now the world average over the teams the team page's rank counts, stated on the card. (#PRNUM)
+
 ## 2.9.9 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
