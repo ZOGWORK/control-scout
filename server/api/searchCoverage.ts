@@ -24,7 +24,7 @@ import { CURRENT_SEASON, SEASONS } from "../data/seasons.js";
 import { all, get } from "../db.js";
 import { RANKED_MIN_MATCHES } from "../../src/shared/rankings.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
-import { defaultRankingsSeason } from "./rankings.js";
+import { searchSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
@@ -100,6 +100,16 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
       if (!m[3] || place) return { q: squash(`top ${m[1] ?? 10} teams by ${m[2]}${place ? ` in ${place.name}` : ""} ${when}`), pre: true };
     }
   }
+  // A place's events with the season said in words ("events this season in New Jersey", "meets last season in nj"):
+  // the season written as one, which the event readers read. "This season" is the default season (the latest
+  // completed one, ./answers/season.ts), "last season" the one before it. Never a team's (a number) or a place-less set.
+  const rel = /(?:^|\s)(?:in\s+|during\s+|for\s+)?(?:the\s+)?(this|current|last|previous|past)\s+season(?=\s|$)/.exec(t);
+  if (rel && !/\d/.test(t)) {
+    const s = searchSeason() - (/^(?:last|previous|past)$/.test(rel[1]) ? 1 : 0);
+    const out = squash(`${t.slice(0, rel.index)} ${t.slice(rel.index + rel[0].length)} ${s}-${String((s + 1) % 100).padStart(2, "0")}`);
+    const e = readEventQuery(out);
+    if (e && (e.region || e.where)) return { q: out, pre: true };
+  }
   // An event's best score, "at" or not ("highest score new jersey championship", "nj states highest score"). A
   // place's "states" is its championship, never another event with the place in its name (a workshop).
   // A season or game named with it ("nj states highest score decode") stays, said as a season.
@@ -139,8 +149,8 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   // A team's partners and opponents: who it played with (or against) most often, every one counted.
   if ((m = /^(\d{1,6})\s+(?:alliance\s+)?(?:partners?|teammates?)$/.exec(t))) return { q: `${m[1]} most frequent partner`, pre: true };
   if ((m = /^(\d{1,6})\s+(?:opponents?|rivals?)$/.exec(t))) return { q: `${m[1]} most played opponent`, pre: true };
-  // "This season" for a team's events is the season in progress.
-  if ((m = /^(\d{1,6})\s+(?:events?|competitions?|tournaments?)\s+(?:this|current)\s+(?:season|year)$/.exec(t))) return { q: `${m[1]} events in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
+  // "This season" for a team's events is the default season, the latest completed one (./answers/season.ts).
+  if ((m = /^(\d{1,6})\s+(?:events?|competitions?|tournaments?)\s+(?:this|current)\s+(?:season|year)$/.exec(t))) return { q: `${m[1]} events in ${seasonLabel(searchSeason()).replace("–", "-")}`, pre: true };
   // A team's world rank: by OPR, as on Rankings.
   if ((m = /^(\d{1,6})\s+(?:world|global|worldwide|overall)\s+(?:rank|ranking|standing)$/.exec(t))) return { q: `${m[1]} opr`, note: "the world rank by OPR; the prediction rating has its own (\"" + m[1] + " prediction rating\")", pre: true };
   // A team's rank in a place, said with the place first ("4215 nj rank").
@@ -511,7 +521,7 @@ export async function bottomAnswer(q: string): Promise<SearchAnswer | null> {
   // teams" is.
   const word = m[2] ?? m[1] ?? "rating";
   const stat = BOARD_STATS[/rating/.test(word) ? "rating" : word === "win rate" ? "win-rate" : word.replace(/\s+opr$/, "")];
-  const season = await defaultRankingsSeason();
+  const season = searchSeason();
   const sorted = stat?.teamsSort ? teamsHref(season, stat, region) : null;
   const where = region ? ` in ${region.name}` : "";
   const href = sorted ? `${sorted}&dir=asc` : `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
@@ -713,7 +723,7 @@ export async function teamListAnswer(q: string): Promise<SearchAnswer | null> {
   }
   // Nothing below is asked: never a database read for an ordinary search.
   if (!/\b(?:best|top|strongest|highest|biggest|max(?:imum)?|undefeated|unbeaten|perfect|no losses|without a loss|win(?:ning|rate)?|improved|rookies?|oldest|newest|youngest|first[\s-]year|veteran|average|mean|avg|worlds|first championship|world championship)\b/.test(t)) return null;
-  const season = await defaultRankingsSeason();
+  const season = searchSeason();
   // A country's best: "best teams in canada", "top teams in romania" (a state's are the leaderboards').
   if ((m = /^(?:the\s+)?(?:best|top|strongest|highest[\s-]ranked)(?:\s+(\d+))?\s+(?:teams?|robots?)\s+(?:in|from|of)\s+(.+)$/.exec(t))) {
     const p = await placeOf(cased(q, m[2]));
@@ -1059,7 +1069,7 @@ export async function placeTeamsAnswer(q: string, prefer: ReadonlySet<string>): 
   // "Teams in Great Britain" names its place after "in", so it's never read this way.
   if (!/^(?:all\s+)?(?:the\s+)?teams?\s/.test(t) && /\b(?:best|top|strongest|highest|most|worst|rookie|oldest|newest|undefeated)\b/.test(m[1])) return null;
   const p = await placeOf(cased(q, m[1]));
-  const season = await defaultRankingsSeason();
+  const season = searchSeason();
   if (p) {
     const rows = await all<any>(`SELECT s.team, t.name, t.city, t.state, t.country, s.opr_np, ${PHASE_COLS}, s.wins, s.losses, s.ties FROM team_season_stats s JOIN teams t ON t.number = s.team WHERE s.season = ? AND s.matches >= ${RANKED_MIN_MATCHES} AND ${teamPageSql("s.team", "t.name")}${placeSql(p)} ORDER BY s.opr_np DESC, s.team LIMIT 25`, [season, ...placeArgs(p)]);
     const n = await get<{ n: number }>(`SELECT COUNT(*) n FROM team_seasons ts JOIN teams t ON t.number = ts.team WHERE ts.season = ?${placeSql(p)}`, [CURRENT_SEASON, ...placeArgs(p)]);
