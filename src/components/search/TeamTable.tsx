@@ -7,6 +7,10 @@ import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
+import { TONES } from "../StatTile";
+
+/** The top three's rank badges in the search podium's colours (./page/EventAwards.tsx): 1st green, 2nd blue, 3rd orange. */
+const TOP3: Record<number, string> = { 1: TONES.emerald.chip, 2: TONES.sky.chip, 3: TONES.orange.chip };
 
 const oneDp = (v: number | null) => (v == null ? "–" : (Math.round(v * 10) / 10).toFixed(1));
 const record = (r: TeamTableRow) => `${r.wins}-${r.losses}-${r.ties}`;
@@ -99,12 +103,12 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                   <tr className="border-t border-border" data-team-row={r.team}>
                     <td className="px-2 py-1.5 text-right tabular-nums">
                       {r.rank <= 3
-                        ? <span className="inline-flex size-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-foreground" data-rank-badge>{r.rank}</span>
+                        ? <span className={cn("inline-flex size-6 items-center justify-center rounded-full text-xs font-bold", TOP3[r.rank])} data-rank-badge>{r.rank}</span>
                         : <span className="text-xs text-muted-foreground">{r.rank}</span>}
                     </td>
                     <td className="px-2 py-1.5 max-md:w-full max-md:max-w-0 max-md:px-1.5">
-                      <Link to={r.href} className="line-clamp-2 break-words font-medium text-foreground hover:text-accent-text hover:underline max-md:-my-[13px] max-md:py-[13px] md:block md:truncate pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
-                      {r.location && <span className="block truncate text-[11px] text-muted-foreground">{r.location}</span>}
+                      <Link to={r.href} className="line-clamp-2 break-words font-medium text-foreground hover:text-accent-text hover:underline max-md:-my-[13px] max-md:py-[13px] md:block pointer-coarse:-my-[13px] pointer-coarse:py-[13px]"><span className="tabular-nums">{r.team}</span>{r.name && ` ${r.name}`}</Link>
+                      {r.location && <span className="block break-words text-[11px] text-muted-foreground">{r.location}</span>}
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>

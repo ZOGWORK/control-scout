@@ -187,7 +187,15 @@ export interface SearchCard {
   /** Under the facts asked, the rest of the team's card: where it's from, its region, and the season's record, OPR,
    *  rating and reliability as the team page shows them (only what `facts` doesn't already hold). */
   support?: SearchCardFact[];
+  /** An award-at-event answer's event, which /search links to on its Awards tab. */
+  event?: { season: number; code: string; name: string };
+  /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
+  award?: string;
+  /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
+  awards?: SearchCardAward[];
 }
+/** One award an event gave, as its Awards tab lists it: `name` as FIRST names it ("Inspire Award 2nd Place"). */
+export interface SearchCardAward { type: string; placement: number; team: number; teamName: string | null; name: string | null }
 /** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */
 export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */

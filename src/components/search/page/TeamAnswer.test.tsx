@@ -45,6 +45,15 @@ describe("answer card detail", () => {
     // Record and OPR are on the team page tiles already; the rest of the team's card is drawn once.
     expect([...c.querySelectorAll("[data-support] [data-fact]")].map((f) => f.getAttribute("data-fact"))).toEqual(["Region", "Reliability, 2024–25"]);
   });
+  it("where a team is from is drawn as a place: the place big, its city, state and country apart", () => {
+    const loc = draw().querySelector("[data-location]")!;
+    expect(loc.textContent).toContain("Oradell, NJ, USA");
+    expect([...loc.querySelectorAll("[data-location-parts] > span")].map((x) => x.textContent)).toEqual(["CityOradell", "StateNJ", "CountryUSA"]);
+    // A part missing (no city): the parts aren't guessed at, so they go unnamed.
+    cleanup();
+    const two = render(<MemoryRouter><FactCard card={{ ...card, facts: [{ label: "Where they're from", values: ["NJ, USA"] }] }} /></MemoryRouter>).container;
+    expect([...two.querySelectorAll("[data-location-parts] > span")].map((x) => x.textContent)).toEqual(["NJ", "USA"]);
+  });
   it("reads a season only from a real season label", () => {
     expect(statedSeason("Record in 2025–26")).toBe(2025);
     expect(statedSeason(null, "All seasons", "2024-25")).toBe(2024);

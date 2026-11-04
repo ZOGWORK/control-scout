@@ -16,6 +16,7 @@ import { ArrowRight, Info, RefreshCw, ScanSearch } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { seasonLabel } from "../lib/format";
 import { BrunoAnswer } from "../components/search/BrunoAnswer";
+import { EventAwardsAnswer } from "../components/search/page/EventAwards";
 import { useSubmittedSearch } from "../components/search/direct";
 import { SearchSkeleton } from "../components/search/SearchSkeleton";
 import { AnswerNotesView, useSearchHits, useSections } from "../components/search/SearchBox";
@@ -137,8 +138,11 @@ export default function SearchPage() {
   // The one right-hand panel (desktop): a versus query's head-to-head, else a question's computed summary.
   const panel: "versus" | "summary" | null = h2h ? "versus" : apps.length || quality ? "summary" : null;
   const aboutTeam = answer?.card?.team?.number ?? (quality && topTeam ? Number(topTeam.ref) : null);
+  // Search answered it directly (a card or a stat answer, not a guess): Bruno isn't asked, so the page never shows his
+  // card and the answer saying the same thing twice.
+  const answered = !!answer && !answer.weak && !!(answer.card || answer.stat);
   const summary = (
-    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} className="mb-4 lg:mb-0">
+    <BrunoAnswer q={q} prefer={prefer} ready={!busy && !stale} answered={answered} className="mb-4 lg:mb-0">
       {apps.length ? <><StatBanner stats={appearanceStats(apps, answer?.card?.kind === "worlds" ? "Worlds" : "states")} /><Timeline apps={apps} /></> : quality ? <QualityBanner s={quality} /> : null}
     </BrunoAnswer>
   );
@@ -218,7 +222,8 @@ export default function SearchPage() {
                   {apps.length ? (
                     // Worlds or states trips: one card with the team up top, a record card per trip inside.
                     <AppearancesAnswer team={answer!.card!.team} title={answer!.card!.title} heading={title} apps={apps} />
-                  ) : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
+                  ) : answer?.card?.kind === "event-awards" ? <EventAwardsAnswer card={answer.card} heading={title ?? undefined} />
+                    : answer?.card && <FactCard card={answer.card} heading={title ?? undefined} season={hits.find((h) => h.kind === "team" && !isCompare(h) && Number(h.ref) === answer.card!.team?.number)?.linkSeason} />}
                   {!!compares.length && (
                     <section aria-label="Compare" className="mb-5" data-section="compare">
                       <h2 className="mb-1.5 text-xs font-semibold text-muted-foreground">Compare</h2>
