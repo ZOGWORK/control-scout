@@ -146,7 +146,8 @@ export async function teamAtEventAnswer(q: string, limit: number, prefer: Readon
   const pick = found && "event" in found ? found : null;
   if (!intent?.topic && (!pick || (fuzzyScore(named, teamNameOf(team.title)) < 0.75 && !named.split(" ").includes(team.ref)))) return null;
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
-  if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts }, ...others];
+  // The event's season on the hit too: an older event's facts and link never sit beside this season's badge.
+  if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts, season: pick.event.season, linkSeason: pick.event.season }, ...others];
   // Several events matched in an older season ("4215 at northern league meet" from last season): that season's events,
   // never this season's unrelated ones.
   const season = found && "ambiguous" in found ? found.season : (await teamSeason(Number(team.ref), asked)).season;
