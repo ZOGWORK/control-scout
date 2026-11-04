@@ -322,7 +322,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // A compound question (filters joined, or two answers at once) before any single reader takes part of it.
   const comp = readCompound(q);
   if (comp) {
-    const a = await compoundSearch(q, comp, resolve, opts, { latestSeason, pickTeamEvent });
+    const a = await compoundSearch(q, comp, resolve, opts, { latestSeason, pickTeamEvent: (evs, words, season) => pickTeamEvent(evs, words, season)?.primary ?? null });
     if (a) return a;
   }
   // A season's highest-scoring matches before a leaderboard ("highest scoring matches at <event>" names no city).
