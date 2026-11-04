@@ -115,6 +115,9 @@ export interface SearchUnderstood {
   /** The hits are a labelled fallback, not the answer: "No league meets at X in New Jersey — showing all league meets
    *  in New Jersey instead". Show it above the list. */
   fallback?: string;
+  /** The query as search read it, when a layer said a long or wordy one the short way ("did 4215 win any awards last
+   *  season" → "4215 awards last season"): a quiet "Showing: …" line, never the heading (server/api/searchLayers.ts). */
+  showing?: string;
 }
 
 /** A site page a whole query word names ("records" → the records pages): listed apart, below the results. */
@@ -148,6 +151,9 @@ export interface SearchAnswer {
   stat?: StatAnswer;
   /** What the query was understood as (always set by the server's answer). */
   understood?: SearchUnderstood;
+  /** A team found but its question not answered directly: two or three questions search does answer about it, each
+   *  from what its records hold ("4215 worlds appearances", "4215 record 2025–26"), shown as taps. */
+  suggest?: string[];
 }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */

@@ -210,10 +210,10 @@ function EventRow({ e, team }: { e: TeamEventRow; team: number }) {
 }
 
 /** Questions search answers about the same team, each run as a search: plain pills, the app's own outline buttons. */
-export function RelatedQuestions({ queries, title = "Related questions" }: { queries: string[]; title?: string }) {
+export function RelatedQuestions({ queries, title = "Related questions", className = "mt-5" }: { queries: string[]; title?: string; className?: string }) {
   if (!queries.length) return null;
   return (
-    <nav aria-label={title} className="mt-5" data-block="related">
+    <nav aria-label={title} className={className} data-block="related">
       <h3 className={PART}>{title}</h3>
       <ul className="flex flex-wrap gap-2">
         {queries.map((q) => (

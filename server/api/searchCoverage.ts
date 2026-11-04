@@ -636,13 +636,38 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   return answer(q, { hits: [{ ...target, section: sec }, ...others], pages: pagesFor(q), understood: { kind: "names", label: `${tab} · ${target.title} (${seasonLabel(Number(s))})` } });
 }
 
+/** Two or three questions search answers about a team, each from what its records hold (a Worlds trip, an award, a
+ *  season of matches), the ones nearest what was asked first: a fallback's way on, never a dead end. */
+export async function teamSuggestions(team: number, asked: string): Promise<string[]> {
+  const played = await all<{ season: number }>("SELECT season FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC", [team]);
+  if (!played.length) return [];
+  const def = searchSeason();
+  const season = played.some((r) => r.season === def) ? def : played[0].season;
+  const worlds = !!(await get("SELECT 1 FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND e.type = 'FIRSTChampionship' AND s.matches > 0 LIMIT 1", [team]));
+  const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
+  const S = seasonLabel(season);
+  const options = [
+    { q: `${team} worlds appearances`, near: /(?:worlds?|championships?|cmp|houston)/, has: worlds },
+    { q: `${team} awards`, near: /(?:awards?|inspire|won|win)/, has: awards },
+    { q: `${team} highest score ever`, near: /(?:scores?|points?|best|highest|match(?:es)?)/, has: true },
+    { q: `${team} best alliance partner`, near: /(?:partners?|alliances?|with|teammates?|opponents?|against)/, has: true },
+    { q: `${team} record ${S}`, near: /(?:record|wins?|loss(?:es)?|did|do)/, has: true },
+    { q: `${team} opr ${S}`, near: /(?:opr|good|strong|rating|rank)/, has: true },
+  ].filter((x) => x.has);
+  const near = options.filter((x) => x.near.test(asked));
+  // The asked-about ones first, then the season's record and OPR, then the rest.
+  const order = [...near, ...options.filter((x) => /record|opr/.test(x.q)), ...options];
+  return [...new Set(order.map((x) => x.q))].slice(0, 3);
+}
+
 /** Words that may trail a team's name without being part of it ("bad wolf robotics", "ultraviolet team nj"). */
 const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc", "club", "the", "first", "tech", "challenge"]);
 
 /** The last stop before "no results": a team number in the query that's a real team, or a team's name with
  *  trailing words that aren't part of it. The team, and what wasn't read, said plainly. Null when neither. */
 export async function teamFallback(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
-  const ws = squash(q).split(" ");
+  // "4215's": the team's number.
+  const ws = squash(q).split(" ").map((w) => w.replace(/^(\d{1,6})['’]s$/, "$1"));
   // A number that's a team.
   const nums = [...new Set(ws.filter((w) => /^\d{1,6}$/.test(w)))];
   const found: SearchHit[] = [];
@@ -655,8 +680,10 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     const left = ws.filter((w) => w !== hit.ref).join(" ");
     const section: SearchSection | undefined = /\b(?:partners?|alliances?|pick|picks|opponents?|played with|played against)\b/i.test(left) ? "matches"
       : /\bevents?\b/i.test(left) ? "history" : /\b(?:matches|match|games?|scores?)\b/i.test(left) ? "matches" : undefined;
-    const label = `${nameOf(hit)} · "${left}" isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ": the rest is on their page"}`;
-    return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label } });
+    // Never the query echoed back (cleaning has already changed its words): what search can show instead, plainly.
+    const label = `${nameOf(hit)} · That question isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ": their page has the rest"}`;
+    const suggest = await teamSuggestions(Number(hit.ref), left);
+    return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label }, ...(suggest.length ? { suggest } : {}) });
   }
   if (found.length > 1 || nums.length) return null;
   // A name with trailing words: the words dropped from the end (a state or region too) until a team's whole name is left.

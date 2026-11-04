@@ -23,6 +23,7 @@ import { CompareCard, EventCard, HeadToHead, ResultRow, TeamCard, teamSeasons, t
 import { NoResults } from "../components/search/page/NoResults";
 import { StatAnswerCard } from "../components/search/page/StatAnswer";
 import { FactCard } from "../components/search/page/FactCard";
+import { RelatedQuestions } from "../components/search/page/TeamAnswer";
 import { PhoneSearchBar } from "../components/search/page/PhoneSearchBar";
 import { PhoneTeamCard } from "../components/search/page/PhoneTeamActions";
 import { CompareBar, CompareSheet, togglePick } from "../components/search/page/PhoneCompare";
@@ -156,6 +157,8 @@ export default function SearchPage() {
           <ScanSearch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span className="min-w-0 break-words">{badge}</span>
         </p>
       )}
+      {/* A long or wordy query said the short way: quietly, under the heading, which keeps the answer's own words. */}
+      {found && ax?.understood?.showing && <p className="mt-1.5 break-words text-xs text-muted-foreground" data-showing>Showing: {ax.understood.showing}</p>}
       <div className="mt-5" aria-live="polite">
         {!query ? <p className="text-sm text-muted-foreground">Search any FTC team, event or match with the search bar at the top.</p>
           // A failed search says so and offers the same search again (it never fixes itself while you wait).
@@ -185,6 +188,8 @@ export default function SearchPage() {
                   <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />{ax.understood.fallback}
                 </p>
               )}
+              {/* The team was found but not the answer: what search can answer about it, one tap each. */}
+              {!!ax?.suggest?.length && <RelatedQuestions queries={ax.suggest} title="Search can answer these about them" className="mb-5" />}
               {(events >= 2 || choices.seasons.length > 1 || filtersOn) && <div className="mb-4"><SearchFilters f={filters} seasons={choices.seasons} types={choices.types} counts={events ? counts : undefined} asked={askedTime} onChange={setFilters} /></div>}
               {/* Desktop: results left (65%), at most one panel right (35%), chosen by the query: a versus query's
                   head-to-head; else a question's summary (timeline, stats or standing) with the team's pages. With
