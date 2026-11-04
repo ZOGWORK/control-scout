@@ -36,6 +36,7 @@ import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
+import { refreshSearchSeason } from "./answers/season.js";
 import { layeredAnswer } from "./searchLayers.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { bottomAnswer, countAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
@@ -154,6 +155,8 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
 /** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  // The season a query naming none means (./answers/season.ts), read before the readers that use it.
+  await refreshSearchSeason();
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
   const asked = /\?\s*$/.test(String(raw ?? ""));
   const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true });

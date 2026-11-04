@@ -9,6 +9,7 @@ import type { SearchAnswer, SearchHit, SearchPageLink } from "../../../src/share
 import type { StatAnswer } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { CURRENT_SEASON } from "../../data/seasons.js";
+import { searchSeason } from "./season.js";
 import { teamNameOf } from "../../../src/shared/teamTitle.js";
 import { get } from "../../db.js";
 import { fuzzyScore } from "../fuzzy.js";
@@ -73,13 +74,17 @@ export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | 
   return best.e;
 }
 
-/** The team's latest season with matches at official events (a season of only scrimmages isn't one). */
-async function latestSeason(team: number, id?: IntentId): Promise<number | null> {
+/** The season a team's answer reads when none is named: the default season (the latest completed one, ./season.ts)
+ *  when the team has matches at official events in it, else the team's latest season with such matches (a season of
+ *  only scrimmages isn't one). `own`: the team's latest was used. */
+async function latestSeason(team: number, id?: IntentId): Promise<{ season: number; own: boolean } | null> {
   // A season of only scrimmages isn't one, nor one where the team is only on a roster (league rosters list teams that
-  // never took the field): the latest season with a match the answer counts.
+  // never took the field): a season with a match the answer counts.
   const official = officialClause();
   const ms = (await teamMatches(team)).filter((m) => official(m) && (!id || counts(id, m)));
-  return ms.length ? Math.max(...ms.map((m) => m.season)) : null;
+  if (!ms.length) return null;
+  const def = searchSeason();
+  return ms.some((m) => m.season === def) ? { season: def, own: false } : { season: Math.max(...ms.map((m) => m.season)), own: true };
 }
 
 /** The scope an answer covers: the season named, else "this season" or an intent that defaults to one as the team's
@@ -90,7 +95,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   if (s.at) {
     // An event the team attended, in the season asked for ("this season": the team's latest with matches); none (or two
     // alike): left to search's team-at-event answer, which lets the visitor pick.
-    const season = s.season ?? (s.latest ? await latestSeason(team, it.id) : null);
+    const season = s.season ?? (s.latest ? (await latestSeason(team, it.id))?.season ?? null : null);
     if (s.latest && season == null) return null;
     const e = pickTeamEvent((await teamEventSet(team)).events, s.at, season);
     if (!e) return null;
@@ -100,12 +105,13 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     const latest = await latestSeason(team, it.id);
     // A plain "4215 record" with no match on record is left to search's team answer (its stored season record).
     if (latest == null && it.id === "record" && !s.latest) return null;
-    scope.season = latest;
-    if (latest != null) scope.seasonWhy = !s.latest
-      ? `The season is ${seasonLabel(latest)}, the team's latest with matches on record.`
-      : latest !== CURRENT_SEASON
-        ? `"This season" here is ${seasonLabel(latest)}: no ${seasonLabel(CURRENT_SEASON)} matches yet, so the team's latest season with matches on record.`
-        : `"This season" here is ${seasonLabel(latest)}, the team's latest season with matches on record.`;
+    scope.season = latest?.season ?? null;
+    if (latest) {
+      const S = seasonLabel(latest.season), said = s.latest ? `"This season" here is ${S}` : `The season is ${S}`;
+      scope.seasonWhy = latest.own
+        ? `${said}: no ${seasonLabel(searchSeason())} matches on record, so the team's latest season with matches.`
+        : `${said}, the latest completed season (its FIRST Championship has finished).`;
+    }
   }
   return scope;
 }
@@ -332,15 +338,16 @@ function boardOfAsk(q: string): LeaderboardQuestion | null {
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's
  *  teams), worked out for the page only. A city no team lists is left to search. */
 async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
-  const city = b.kind === "city" ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
-  if (b.kind === "city" && !city) return null;
+  const isCity = b.kind === "city" || b.kind === "city-best";
+  const city = isCity ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
+  if (isCity && !city) return null;
   const st = BOARD_STATS[b.stat];
   const where = b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.kind === "city" ? `Teams${where}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
-    intent: { kind: `stat-leaderboard-${b.kind}`, pattern: b.kind === "city" ? "teams in [city]" : `${b.kind} [stat]${b.region ? " [place]" : ""}`, met: true, understood: [label] },
+    intent: { kind: `stat-leaderboard-${b.kind}`, pattern: b.kind === "city" ? "teams in [city]" : b.kind === "city-best" ? "best team in [city]" : `${b.kind} [stat]${b.region ? " [place]" : ""}`, met: true, understood: [label] },
   };
   // The search box gets a link to the answer page, never an empty answer.
   if (!opts.full) return { ...answer, pages: [{ title: label, href: `/search?q=${encodeURIComponent(q)}` }, ...opts.pages] };

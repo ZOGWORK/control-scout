@@ -22,7 +22,8 @@ import { possessive, seasonLabel } from "../../src/shared/format.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
-import { defaultRankingsSeason, rankings } from "./rankings.js";
+import { rankings } from "./rankings.js";
+import { searchSeason } from "./answers/season.js";
 import { search } from "./search.js";
 import { PHASE_COLS, tableOf } from "./teamTableRows.js";
 import { eventHit, localTodays } from "./searchEvents.js";
@@ -190,7 +191,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       return answer(q, { hits: [], pages: withPage(q, [{ title: "How predictions are calculated", href: "/methodology" }]), understood: { kind: "question", label: "How predictions are calculated: the methodology page" } });
 
     case "leaderboard": {
-      const season = await defaultRankingsSeason();
+      const season = searchSeason();
       if (!ask.region) {
         const r = await rankings({ season, week: null, places: [], page: 1 });
         const lines = r.rows.slice(0, 5).map((row) => teamLine(row.team, row.name, [`#${row.rank} worldwide`]));
@@ -216,7 +217,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
     }
 
     case "stat": {
-      const season = await defaultRankingsSeason();
+      const season = searchSeason();
       const where = ask.region ? " AND t.country = ? AND t.state = ?" : "";
       const col = STAT_COLUMN[ask.stat];
       const rows = await all<any>(
