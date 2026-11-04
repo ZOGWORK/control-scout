@@ -20,6 +20,8 @@ beforeAll(async () => {
     run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, ?, 'Houston', 'TX', 'USA', ?, ?, 't')", [season, code, name, type, start, start]);
   await ev(2024, "FTCCMP1EDIS", "FIRST Championship - FIRST Tech Challenge - Edison Division", "FIRSTChampionship", "2025-04-16");
   await ev(2024, "USNJCMP", "New Jersey Championship", "Championship", "2025-03-15");
+  // 2025–26's Championship is over too (none of these teams played it): 2025–26 is the latest completed season.
+  await ev(2025, "FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2026-04-29");
   await ev(2025, "USNJQ1", "New Jersey Qualifier", "Qualifier", "2026-01-10");
   await ev(2025, "USNJSCR", "Summer Scrimmage", "Scrimmage", "2026-07-01");
   const match = (season: number, code: string, n: number, time: string, red: [number, number], blue: [number, number], teams: [number, string, number?][], level = "qual") => Promise.all([
@@ -122,7 +124,7 @@ describe("the answers", () => {
     expect(r.stat!.headline).toMatchObject({ value: "2-1-0" });
     expect(r.stat!.blocks[0]).toMatchObject({ kind: "record", wins: 2, losses: 1, ties: 0 });
   });
-  it("this season: the team's latest season with matches, and it says so", async () => {
+  it("this season: the latest completed season, and it says so", async () => {
     const a = await searchAnswer("4215 average score this season", { limit: 25 });
     expect(a.stat!.headline).toMatchObject({ value: "106.7", sub: "2025–26" });
     expect(a.stat!.definition).toMatch(/"This season" here is 2025–26/);
@@ -175,10 +177,10 @@ describe("the answers", () => {
     expect(table && table.kind === "table" && table.rows.every((r) => /^\d[\d,]*$/.test(String(r.cells.total)))).toBe(true);
     expect(t.stat!.definition).toMatch(/no total is added up across seasons/);
   });
-  it("\"this season\" with nothing played in the season in progress: a clean season heading, the reason in the note", async () => {
+  it("\"this season\" while the season in progress isn't completed: a clean season heading, the reason in the note", async () => {
     const a = await searchAnswer("4215 record this season", { limit: 25 });
     expect(a.understood!.label).toBe("Hypnotic Robotics (4215) · Record in 2025–26");
-    expect(a.stat!.definition).toContain(`"This season" here is 2025–26: no 2026–27 matches yet, so the team's latest season with matches on record.`);
+    expect(a.stat!.definition).toContain(`"This season" here is 2025–26, the latest completed season (its FIRST Championship has finished).`);
   });
   it("the dropdown gets the same reading and hits, without the blocks", async () => {
     const a = await searchAnswer("4215 worlds record", { limit: 15 });

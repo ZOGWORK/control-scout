@@ -24,6 +24,7 @@ import { eventScopeAnswer } from "./families/eventScope.js";
 import { eventAnswer } from "./families/events.js";
 import { factAnswer, readTeamFact, type FactQuestion } from "./families/facts.js";
 import { counts, matchAnswer, whoOf } from "./families/matches.js";
+import { changeAnswer, readChange, type ChangeQuestion } from "./families/seasonChange.js";
 import { BOARD_STATS, LEADERBOARD_MAX, leaderboardAnswer, statWords } from "./families/leaderboard.js";
 import { everTopMatches, readTopMatches, topMatchesAnswer, type TopMatchesQuestion } from "./families/topMatches.js";
 import { penaltyTotalAnswer, trendAnswer } from "./families/trends.js";
@@ -146,6 +147,9 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
+  // "How much did 4215's OPR improve from last season to this season", "4215 rating change this season".
+  const change = readChange(q);
+  if (change) return changeSearch(q, change, resolve, opts);
   const two = readTwoTeam(q);
   if (two) return twoTeamSearch(q, two, resolve, opts);
   const it = readStatQuestion(q);
@@ -249,6 +253,24 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
   if (!opts.full) return answer;
   const stat = await factAnswer(f, team, (words, season) => findEvent(words, season, { anyPlayed: true }));
   return stat ? { ...answer, understood: { ...answer.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat } : null;
+}
+
+/** "How much did 4215's OPR improve from last season to this season": one team's number in two seasons, or its rating
+ *  across one season (./families/seasonChange.ts). */
+async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+  const base = await resolve(c.core);
+  const top = base.step !== "recovery" ? base.hits[0] : undefined;
+  if (!top || top.kind !== "team" || top.href) return null;
+  const team = { number: Number(top.ref), name: teamNameOf(top.title) || null };
+  const what = c.stat === "opr" ? "OPR" : "Prediction rating";
+  const label = `${whoOf(team)} · ${what} change, ${c.from != null ? `${seasonLabel(c.from)} to ` : ""}${seasonLabel(c.to)}`;
+  const answer: SearchAnswer = {
+    q, hits: [{ ...top, linkSeason: c.to }, ...base.hits.slice(1).filter((h) => !(h.kind === "team" && h.ref === top.ref))], pages: opts.pages, step: "deterministic", weak: false,
+    understood: { kind: "question", label, season: c.to },
+    intent: { kind: `stat-${c.stat}-change`, pattern: `[team] ${c.stat} change${c.from != null ? " [season] [season]" : " [season]"}`, met: true, understood: [`Team ${whoOf(team)}`, `${what} change`] },
+  };
+  if (!opts.full) return answer;
+  return { ...answer, stat: await changeAnswer(c, team) };
 }
 
 const FACT_TITLES: Record<FactQuestion["id"], string> = {

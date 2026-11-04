@@ -161,9 +161,9 @@ describe("winning alliances", () => {
     // "This year" is the current season (2026–27 here, not played): never last season's winners as this year's.
     expect((await searchAnswer("who won nj states this year", { limit: 25 })).stat?.headline).toBeUndefined();
   });
-  it('"last season" outside a championship question is the season before the current one', () => {
-    expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2025, lastYear: true } });
-    expect(readStatQuestion("4215 average score last season")).toMatchObject({ scope: { season: 2025 } });
+  it('"last season" outside a championship question is the season before the latest completed one', () => {
+    expect(readTwoTeam("4215 vs 6980 head to head last season")).toMatchObject({ id: "head-to-head", scope: { season: 2024, lastYear: true } });
+    expect(readStatQuestion("4215 average score last season")).toMatchObject({ scope: { season: 2024 } });
   });
   it("a Worlds division's other seasons are that division's", async () => {
     const a = await searchAnswer("decode edison division winners", { limit: 25 });

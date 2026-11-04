@@ -75,6 +75,16 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
     const place = m[3] ? regionOf(m[3].split(" ")) : null;
     if (!m[3] || place) return { q: squash(`top ${m[1] ?? 10} teams by ${m[2]}${place ? ` in ${place.name}` : ""} ${m[4]}`), pre: true };
   }
+  // A place's events with the season said in words ("events this season in New Jersey", "meets last season in nj"):
+  // the season written as one, which the event readers read. "This season" is the default season (the latest
+  // completed one, ./answers/season.ts), "last season" the one before it. Never a team's (a number) or a place-less set.
+  const rel = /(?:^|\s)(?:in\s+|during\s+|for\s+)?(?:the\s+)?(this|current|last|previous|past)\s+season(?=\s|$)/.exec(t);
+  if (rel && !/\d/.test(t)) {
+    const s = searchSeason() - (/^(?:last|previous|past)$/.test(rel[1]) ? 1 : 0);
+    const out = squash(`${t.slice(0, rel.index)} ${t.slice(rel.index + rel[0].length)} ${s}-${String((s + 1) % 100).padStart(2, "0")}`);
+    const e = readEventQuery(out);
+    if (e && (e.region || e.where)) return { q: out, pre: true };
+  }
   // An event's best score, "at" or not ("highest score new jersey championship", "nj states highest score"). A
   // place's "states" is its championship, never another event with the place in its name (a workshop).
   // A season or game named with it ("nj states highest score decode") stays, said as a season.
