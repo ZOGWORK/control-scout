@@ -37,11 +37,9 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [new RegExp(String.raw`^how\s+many\s+times\s+(?:has|have|did)\s+${T}\s+(?:beaten|beat|won\s+against|defeated|defeat)\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[1]} wins against ${m[2]}${m[3]}`],
   // Two teams side by side.
   [new RegExp(String.raw`^(?:is|was|are)\s+${T}\s+better\s+(?:than|then)\s+(?:team\s+)?(\d{1,6})\s+(?:at|in|during)\s+${PHASE}(.*)$`), (m) => `${m[1]} versus ${m[2]} who is better at ${phase(m[3])}${m[4]}`],
-  [new RegExp(String.raw`^(?:is|was|are)\s+${T}\s+better\s+(?:than|then)\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[1]} versus ${m[2]} compare${m[3]}`],
   [new RegExp(String.raw`^who\s+(?:has|have)\s+(?:won\s+more\s+awards|more\s+awards)\s+(?:team\s+)?(\d{1,6})\s+or\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[1]} versus ${m[2]} who has won more awards${m[3]}`],
   [new RegExp(String.raw`^who\s+(?:has|is)\s+(?:higher|better|more)\s+reliab(?:ility|le)\s+(?:team\s+)?(\d{1,6})\s+or\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[1]} versus ${m[2]} who has higher reliability${m[3]}`],
   [new RegExp(String.raw`^who\s+is\s+better\s+at\s+${PHASE}\s+(?:team\s+)?(\d{1,6})\s+or\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[2]} versus ${m[3]} who is better at ${phase(m[1])}${m[4]}`],
-  [new RegExp(String.raw`^compare\s+(?:team\s+)?(\d{1,6})\s+(?:and|with|to|vs\.?|versus)\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[1]} versus ${m[2]} compare${m[3]}`],
   [new RegExp(String.raw`^what\s+(?:are|is)\s+(?:the\s+)?(?:chances?|odds|probability)\s+(?:that\s+)?(?:team\s+)?(\d{1,6})\s+(?:beats?|wins?\s+against|defeats?)\s+(?:team\s+)?(\d{1,6})(.*)$`), (m) => `${m[1]} win probability against ${m[2]}${m[3]}`],
   // Predictions for the team's next event.
   [new RegExp(String.raw`^how\s+many\s+(?:matches\s+)?(?:wins|matches)\s+(?:is|will)\s+${T}\s+(?:predicted|expected|projected|going)\s+to\s+(?:get|win|have)(?:\s+at\s+(?:their|its|the)\s+next\s+(?:event|meet|competition))?(.*)$`), (m) => `${m[1]} predicted wins at their next event${m[2]}`],

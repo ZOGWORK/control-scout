@@ -647,12 +647,12 @@ export async function teamSuggestions(team: number, asked: string): Promise<stri
   const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
   const S = seasonLabel(season);
   const options = [
-    { q: `${team} worlds appearances`, near: /(?:worlds?|championships?|cmp|houston)/, has: worlds },
-    { q: `${team} awards`, near: /(?:awards?|inspire|won|win)/, has: awards },
-    { q: `${team} highest score ever`, near: /(?:scores?|points?|best|highest|match(?:es)?)/, has: true },
-    { q: `${team} best alliance partner`, near: /(?:partners?|alliances?|with|teammates?|opponents?|against)/, has: true },
-    { q: `${team} record ${S}`, near: /(?:record|wins?|loss(?:es)?|did|do)/, has: true },
-    { q: `${team} opr ${S}`, near: /(?:opr|good|strong|rating|rank)/, has: true },
+    { q: `${team} worlds appearances`, near: /\b(?:worlds?|championships?|cmp|houston)\b/, has: worlds },
+    { q: `${team} awards`, near: /\b(?:awards?|inspire|won|win)\b/, has: awards },
+    { q: `${team} highest score ever`, near: /\b(?:scores?|points?|best|highest|match(?:es)?)\b/, has: true },
+    { q: `${team} best alliance partner`, near: /\b(?:partners?|alliances?|with|teammates?|opponents?|against)\b/, has: true },
+    { q: `${team} record ${S}`, near: /\b(?:record|wins?|loss(?:es)?|did|do)\b/, has: true },
+    { q: `${team} opr ${S}`, near: /\b(?:opr|good|strong|rating|rank)\b/, has: true },
   ].filter((x) => x.has);
   const near = options.filter((x) => x.near.test(asked));
   // The asked-about ones first, then the season's record and OPR, then the rest.
