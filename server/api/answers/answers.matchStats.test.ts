@@ -98,6 +98,8 @@ describe("what's read", () => {
     expect(readTwoTeam("4215 record against 6980")).toMatchObject({ id: "head-to-head", a: "4215", b: "6980" });
     // "Biggest improvement" stays the season-over-season answer; only an improvement trend is the OPR trend.
     expect(readStatQuestion("4215 biggest improvement")).toMatchObject({ id: "most-improved-season" });
+    // Its season words stay the scope's: "this season" is read as everywhere else.
+    expect(readStatQuestion("4215 improvement trend this season")).toMatchObject({ id: "opr-history", scope: { latest: true }, core: "4215" });
   });
 
   it("a rules question about a penalty is left to the rules", () => {
