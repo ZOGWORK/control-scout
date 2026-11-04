@@ -16,7 +16,7 @@
 //   sim: the event simulator on fixed seeds against an older build (must be identical: it reads no served score).
 //        DATABASE_URL=file:<copy.db> npx tsx scripts/part12/margin-scale.ts sim - --against <3.4.0 dist dir>
 //   2. gate (seconds): fit s walk-forward on 2024–25, freeze it, judge 2025–26 as reused, and write the gate doc.
-//        npx tsx scripts/part12/margin-scale.ts gate <rows.json.gz> [--scale 0.92] [--json out.json] [--md out.md]
+//        npx tsx scripts/part12/margin-scale.ts gate <rows.json.gz> [--scale 0.92] [--json out.json]
 //
 // Fitting protocol (Part 9 / 12.5 rolling origins): every month from Oct 2024 is predicted with s fitted on the 365
 // days before it (rated events, ties included: they are real margins). Two fits per window: the least-squares slope
