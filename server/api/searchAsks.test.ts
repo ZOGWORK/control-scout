@@ -260,7 +260,8 @@ describe("who won an event (owner: \"who won nj states\")", () => {
       const a = await ask(q);
       expect(a.step, q).toBe("deterministic");
       expect(a.hits[0], q).toMatchObject({ kind: "event", ref: "2025:USNJCMP", section: "playoffs" });
-      expect(a.stat?.title, q).toBe("New Jersey Championship 2025–26 winning alliance");
+      expect(a.understood?.label, q).toBe("New Jersey Championship 2025–26 winning alliance");
+      expect(a.stat?.title, q).not.toBe(a.understood?.label);
       expect(a.stat?.headline?.value, q).toBe("23268 Ultraviolet, 6980 Bad Wolf");
       expect(a.stat?.blocks.find((b) => b.kind === "links" && b.title === "Inspire Award"), q).toMatchObject({ items: [{ label: "23268 Ultraviolet" }] });
     }

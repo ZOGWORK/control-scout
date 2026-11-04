@@ -8,6 +8,7 @@ import type { StatAnswer, StatBlock, StatMatchRow } from "../../../shared/search
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
+import { rangeCaption } from "../../../shared/format";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
@@ -204,7 +205,7 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <p className="mt-1 flex justify-between gap-2 text-[11px] tabular-nums text-muted-foreground" aria-hidden>
         <span className="truncate">{b.points[0].x}</span>{b.points.length > 1 && <span className="truncate text-right">{b.points[b.points.length - 1].x}</span>}
       </p>
-      <p className="text-[11px] text-muted-foreground">Low {lo}{b.unit ? ` ${b.unit}` : ""} · high {hi}{b.unit ? ` ${b.unit}` : ""} · {pts.length} on the chart</p>
+      <p className="text-[11px] text-muted-foreground">{rangeCaption(lo, hi, pts.length, b.unit)}</p>
       {/* Every point's value in words too: readable without hovering (phones), and by screen readers. */}
       <ol className="mt-1.5 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2" data-series-values>
         {b.points.map((p, i) => (

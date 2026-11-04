@@ -8,7 +8,7 @@
 //   Best season and most improved: by OPR rank among the season's ranked teams (as a top-percent share), since each
 //     season is a different game and its OPR numbers can't be compared across seasons.
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import { dateRange, place, seasonLabel } from "../../../../src/shared/format.js";
+import { dateRange, place, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { eventInScope, scopeChips, scopePhrase, type Scope } from "../clauses.js";
 import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { eventHref, teamHref } from "../matchSet.js";
@@ -167,7 +167,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
         if (!bestGain || gain > bestGain.gain) bestGain = { from: ranked[i - 1], to: ranked[i], gain };
       }
       const def = `Most improved: the biggest rise in OPR rank share from one season to the next. ${SEASON_RULE}`;
-      if (!bestGain || bestGain.gain <= 0) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: def, source: ssSource, none: ranked.length < 2 ? `${who} needs two ranked seasons in a row to compare.` : `${who}'s OPR rank didn't rise from one season to the next.` };
+      if (!bestGain || bestGain.gain <= 0) return { ...base, family: "superlative", intent: id, title, blocks: [seasonRows(ss, "Each season")], definition: def, source: ssSource, none: ranked.length < 2 ? `${who} needs two ranked seasons in a row to compare.` : `${possessive(who)} OPR rank didn't rise from one season to the next.` };
       return {
         ...base, family: "superlative", intent: id, title, source: ssSource, definition: def,
         headline: { value: seasonLabel(bestGain.to.season), label: `from top ${Math.round(100 * top(bestGain.from)!)}% to top ${Math.max(1, Math.round(100 * top(bestGain.to)!))}% by OPR rank`, sub: `OPR rank #${bestGain.from.rank} of ${bestGain.from.of} in ${seasonLabel(bestGain.from.season)} → #${bestGain.to.rank} of ${bestGain.to.of} in ${seasonLabel(bestGain.to.season)}`, href: teamHref(team.number, bestGain.to.season) },

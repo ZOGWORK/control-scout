@@ -18,7 +18,7 @@ import { RANKED_MIN_MATCHES, parsePlaces } from "../../src/shared/rankings.js";
 import { predictHref } from "../../src/shared/predictUrl.js";
 import { cleanTeamName } from "../../src/shared/teamTitle.js";
 import type { Region } from "../../src/shared/regions.js";
-import { seasonLabel } from "../../src/shared/format.js";
+import { possessive, seasonLabel } from "../../src/shared/format.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { CURRENT_SEASON, FIRST_PREDICT_SEASON, isLegacy } from "../data/seasons.js";
 import { all } from "../db.js";
@@ -244,7 +244,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const base = await opts.ask(`when is ${team.ref}'s next match`);
       const name = cleanTeamName(Number(team.ref), team.title.replace(/^\d+\s*\|\s*/, "")) ?? team.ref;
       const href = predictHref({ mode: "scheduled", pick: { kind: "team", team: Number(team.ref) } });
-      return { ...base, q, pages: withPage(q, [{ title: `Predict ${name}'s matches`, href }]), understood: { kind: "question", label: `Will ${name} (${team.ref}) win their next match? Their next match, and Predict` } };
+      return { ...base, q, pages: withPage(q, [{ title: `Predict ${possessive(name)} matches`, href }]), understood: { kind: "question", label: `Will ${name} (${team.ref}) win their next match? Their next match, and Predict` } };
     }
 
     case "predict-versus": {
@@ -279,7 +279,7 @@ export async function askAnswer(q: string, ask: Ask, opts: { prefer: ReadonlySet
       const season = CURRENT_SEASON;
       const name = cleanTeamName(Number(team.ref), team.title.replace(/^\d+\s*\|\s*/, "")) ?? team.ref;
       const href = predictHref({ mode: "advancement", team: Number(team.ref), season });
-      return answer(q, { hits: [{ ...team, section: "history" }], pages: withPage(q, [{ title: `${name}'s advancement odds`, href }]), understood: { kind: "question", label: `${name} (${team.ref}) · Advancement odds` } });
+      return answer(q, { hits: [{ ...team, section: "history" }], pages: withPage(q, [{ title: `${possessive(name)} advancement odds`, href }]), understood: { kind: "question", label: `${name} (${team.ref}) · Advancement odds` } });
     }
 
     case "award": {

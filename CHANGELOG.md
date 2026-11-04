@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 2.9.6 — 2026-11-04
+## 2.9.7 — 2026-11-04
 
 Search answers that already name a team no longer repeat it in a team card below, and every search section label reads in sentence case.
 
@@ -30,6 +30,20 @@ Search answers that already name a team no longer repeat it in a team card below
 - **Sentence-case labels.** Section labels and pills on the results page and in the search box ("Teams", "Top 10 by OPR", "Meetings, newest first", "You may also want to know") are no longer forced into capitals. Game names keep FIRST's own capitals.
 - **Touch-size targets.** On phones and touch screens the time filter, season and type pickers, Clear filters, suggestion pills, link chips, example chips, season tabs, the table's row chevron and the "View scouting profile" links are at least 44px tall. Desktop with a mouse keeps today's compact sizes.
 - **Footer follows the answer.** On the search page a short answer no longer leaves the footer pinned to the bottom of a mostly empty screen.
+
+## 2.9.6 — 2026-11-04
+
+FTC One Search answers read more cleanly: names, rates, captions and headings follow one set of wording rules.
+
+### Highlights
+- [fixes] "Hypnotic Robotics'" for a name ending in s, in every answer
+- [fixes] Rates say "per match", and every chart has one plain caption
+- [fixes] One 1st-place spelling, and no "Worlds finals finals" pill
+- [teams] Fact titles read "Where Hypnotic Robotics (4215) is from"
+- [fixes] A card's heading no longer repeats the page heading
+
+### Search
+- **Wording fixes from the v2.8.9 search display audit.** One possessive rule everywhere ("Hypnotic Robotics'", "Bad Wolf's"). Rates read "per match" as Compare has them ("8.4 per match", "points per match"). Charts end with one sentence ("Ranges from 52.4 to 101.6 across 5 values."). "1st-place" is the adjective ("1st-place finishes", "1st-place Inspire") and "1st place" the noun; the Worlds events pill no longer says "Worlds finals finals". A team fact's page title is sentence case with the team named once, in bold ("Where **Hypnotic Robotics (4215)** is from", "Sponsors and school for …"), never "Team 4215 — Where They're From". The head-to-head card is headed "Their meetings and partnerships" and a winning-alliance card "The champions and each division's winners", under page headings that name the teams and event. "This season" before the season in progress has a match now heads the page with the season it answers ("Average score in 2025–26"), the reason in the note. No number changes. (#525)
 
 ## 2.9.5 — 2026-11-04
 

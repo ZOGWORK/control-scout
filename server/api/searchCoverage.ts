@@ -742,6 +742,8 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   if (!row) return null;
   const name = nameOf(hit);
   const LABEL = { school: "School or organization", place: "Where they're from", rookie: "Rookie year", website: "Website", sponsors: "Sponsors" };
+  // Titles name the facts short and in sentence case ("Sponsors and school"); each line keeps its full label.
+  const TITLE = { ...LABEL, school: "School" };
   const read = (fact: typeof last): { text: string | null; detail?: string } => {
     if (fact === "school") return { text: row.school ? String(row.school) : null };
     if (fact === "place") return { text: [row.city, row.state, row.country].filter(Boolean).join(", ") || null };
@@ -761,7 +763,7 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const team = { number: Number(hit.ref), name: teamNameOf(hit.title) };
   if (facts.length > 1) {
     // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
-    const what = facts.map((f) => LABEL[f]).join(" and ");
+    const what = facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])).join(" and ");
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
       card: { kind: "info", title: what, team, facts: factsOf(facts), related, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
@@ -769,7 +771,7 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     });
   }
   const { text, detail } = read(last);
-  const what = LABEL[last];
+  const what = TITLE[last];
   // The card names the fact; its team is on the card already (card.team), so the page never says the team twice.
   const title = `${name} · ${what}`;
   return answer(q, {
