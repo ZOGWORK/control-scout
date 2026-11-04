@@ -235,7 +235,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     // Worlds with none of the latest season: every season the team went, as before.
     if (!s.at && !s.states) return scope;
     // No state championship of the team's: said so, with the events it did play.
-    if (!s.at) return { ...scope, states: false, event: { season: s.season != null ? (s.year ? s.season - 1 : s.season) : searchSeason(), code: "", name: "a state championship", absent: s.season != null ? true : "never" } };
+    if (!s.at) return { ...scope, states: false, event: { season: s.season != null ? (s.year ? s.season - 1 : s.season) : searchSeason(), code: "", name: s.season != null ? "a state championship" : "state championships", absent: s.season != null ? true : "never" } };
     if (s.at === THEIR_LAST || s.at === THEIR_FIRST || EVENT_KINDS.some(([re]) => re.test(s.at!))) return null;
     // None of the team's events: the event those words name, which the answer says the team didn't play.
     const named = await findEvent(s.at, s.year ? s.season! - 1 : season, { anyPlayed: true, closest: true });

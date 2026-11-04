@@ -165,7 +165,7 @@ describe("states, worlds and a team's own events (complex queries file)", () => 
     expect((await ask("4215 states wins and losses")).intent).toBe("record");
   });
   it("27, 56: a team with no state championship is told so", async () => {
-    expect((await ask("10809 matches at states")).none).toMatch(/^Crow Force \(10809\) has no state championship on record/);
+    expect((await ask("10809 matches at states")).none).toMatch(/^Crow Force \(10809\) has no state championships on record/);
   });
   it("32, 72, 73: Worlds is the latest completed season's, a division named is that division", async () => {
     for (const q of ["7149 matches at worlds", "7149 matches at worlds Ross division"]) {
