@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.9.3 — 2026-11-04
+
+How it works shows what the November engine research tried, and why none of
+it changed a prediction.
+
+### Highlights
+- [predict] Eight new lab notes: every idea tested on the engine in November
+- [predict] Each with its numbers against the current engine, on the same matches
+- [predict] Links to the full research note behind every card
+
+### Predictions
+- **November research in the lab notes.** How it works › Lab notes adds eight cards: three other rating systems (Massey, TrueSkill, Glicko-2), margin-of-victory Elo, a stronger pull toward the average for new robots, forgetting old matches faster or slower, reweighting the match phases, a separate playoff model, how much calibration can still gain, and a neural network. Each says in a line what was tried and why it didn't ship, and its Details give the Brier change on both seasons with the 95% range, next to a link to the full note in docs/engine/research-2026-11. Predictions are unchanged. (#535)
+
 ## 2.9.2 — 2026-11-03
 
 How FTC One Search works says plainly what the search does, for people and
