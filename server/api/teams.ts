@@ -4,7 +4,7 @@ import { CURRENT_SEASON } from "../data/seasons.js";
 import type { CompareView, ReportCard, ReportCardField, ShortlistTeam, TeamReportCards, TeamEventRow, TeamInfo, TeamProfile, TeamSchedule, TeamSeasonStats, TeamSummary } from "../../src/shared/api.js";
 import { matchViews } from "./matches.js";
 import { REPORT_PRIOR } from "../stats/reportCards.js";
-import { RELIABILITY_COLUMNS, reliabilityFromRow, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
+import { RELIABILITY_COLUMNS, consistencyFieldKey, reliabilityFromRow, type ConsistencyField, type Reliability, type ReliabilityResponse } from "../../src/shared/reliability.js";
 import { recordSql, recordsFromRows, wltText } from "../../src/shared/eventRecord.js";
 import { KEEP_COLUMNS, keepEvent, teamEventRows, teamEventsQuery } from "../../src/shared/teamEventRows.js";
 import { hasTeamPage } from "../../src/shared/teamPages.js";
@@ -16,11 +16,15 @@ import { eventSchedule } from "../predict/scheduleDifficulty.js";
  */
 export async function reliabilityMany(season: number, teams: number[]): Promise<ReliabilityResponse> {
   const ts = [...new Set(teams)];
-  const rows = ts.length ? await all<any>(`SELECT ${RELIABILITY_COLUMNS} FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ts.map(() => "?").join(",")})`, [season, ...ts]) : [];
+  const [rows, cf] = await Promise.all([
+    ts.length ? all<any>(`SELECT ${RELIABILITY_COLUMNS} FROM team_reliability WHERE season = ? AND code = '' AND team IN (0, ${ts.map(() => "?").join(",")})`, [season, ...ts]) : Promise.resolve([]),
+    kvGet<ConsistencyField>(consistencyFieldKey(season)),
+  ]);
   const field = rows.find((r) => Number(r.team) === 0);
   const fieldIndex = field ? Number(field.idx) : null;
-  const by = new Map(rows.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, fieldIndex)]));
-  return { season, fieldIndex, teams: teams.map((team) => ({ team, reliability: by.get(team) ?? null })) };
+  const by = new Map(rows.filter((r) => Number(r.team) !== 0).map((r) => [Number(r.team), reliabilityFromRow(r, fieldIndex, { consistency: true })]));
+  const consistencyField = cf && Number.isFinite(cf.variance) ? { variance: cf.variance, matches: cf.matches } : null;
+  return { season, fieldIndex, consistencyField, teams: teams.map((team) => ({ team, reliability: by.get(team) ?? null })) };
 }
 
 /** A team's stored season reliability (team 0 = the field, for its average index). Null when not computed. */
@@ -29,7 +33,7 @@ export async function teamReliability(season: number, team: number): Promise<Rel
   const own = rows.find((r) => Number(r.team) === team && team !== 0);
   if (!own) return null;
   const field = rows.find((r) => Number(r.team) === 0);
-  return reliabilityFromRow(own, field ? Number(field.idx) : null);
+  return reliabilityFromRow(own, field ? Number(field.idx) : null, { consistency: true });
 }
 
 export async function teamInfo(number: number): Promise<TeamInfo | null> {
@@ -144,18 +148,22 @@ export async function teamProfile(number: number, season?: number): Promise<Team
   const seasons = await teamSeasons(number);
   // Default: the newest season the team has results in (fall back to registered).
   let s = season;
+  let current: TeamEventRow[] | null = null;
   if (!s) {
     const withResults = await get<{ season: number }>("SELECT MAX(season) season FROM team_season_stats WHERE team = ? AND matches > 0", [number]);
-    // The current season is always listed (seasons[0]) but is only the default when the team is entered in
-    // it; otherwise the newest season it actually played, remote-only seasons included (they have no stats row).
-    const entered = !!(await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number]));
+    // The current season is always listed (seasons[0]) but is only the default when the page lists an event of it
+    // for the team (a league roster entry for a meet it skipped lists none, and opened on an empty season a team
+    // with years of results); otherwise the newest season it actually played, remote-only seasons included (they
+    // have no stats row).
+    if (await get("SELECT 1 FROM event_teams WHERE season = ? AND team = ? LIMIT 1", [CURRENT_SEASON, number])) current = await teamEvents(CURRENT_SEASON, number);
+    const entered = !!current?.length;
     s = entered || withResults?.season === CURRENT_SEASON ? CURRENT_SEASON : seasons.find((x) => x !== CURRENT_SEASON) ?? CURRENT_SEASON;
   }
   // Report cards and schedule difficulty are their own requests (teamReportCards, teamSchedule), asked for when
   // the team page's collapsed sections are first opened.
   const [stats, events, awardsAllTime] = await Promise.all([
     seasonStats(s, number),
-    teamEvents(s, number),
+    s === CURRENT_SEASON && current ? current : teamEvents(s, number),
     all<any>("SELECT a.season, a.code, e.name event, a.type, a.placement, a.name FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team = ? ORDER BY a.season DESC, e.start DESC", [number]),
   ]);
   return {

@@ -24,15 +24,18 @@ import { ruleAnswer } from "./searchRules.js";
 import { askAnswer, readAsk } from "./searchAsks.js";
 import { readRuleQuery } from "../../src/shared/searchRuleQuery.js";
 import { seasonLabel } from "../../src/shared/format.js";
-import { teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
-import { get } from "../db.js";
+import { cleanTeamName, searchTeamTitle, teamNameOf, teamWords } from "../../src/shared/teamTitle.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
+import { CURRENT_SEASON } from "../data/seasons.js";
+import { all, get } from "../db.js";
 import { fuzzyScore, normalize, wordScore, words } from "./fuzzy.js";
-import { search, searchIntent, teamAtEventAnswer } from "./search.js";
+import { ftsQuery, search, searchIntent, teamAtEventAnswer } from "./search.js";
 import { rerank } from "./searchLearn.js";
 import { intentAnswer, parseIntent } from "./searchIntents.js";
 import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
+import { layeredAnswer } from "./searchLayers.js";
 import { countAnswer, eventPageAnswer, explainAnswer, monthAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
@@ -53,6 +56,8 @@ export interface AnswerOptions {
   now?: number;
   /** How many rewrites (./searchCoverage.ts) led here: a rewrite is read once more at most, never in a loop. */
   rewrites?: number;
+  /** Set for every search searchAnswer makes inside a top-level one: the layers (./searchLayers.ts) run once, outside. */
+  inner?: boolean;
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
    *  Set by searchAnswer from the caller's limit (the page asks for SEARCH_PAGE_LIMIT) unless given. */
   full?: boolean;
@@ -105,12 +110,56 @@ const answer = (q: string, a: Partial<SearchAnswer> & Pick<SearchAnswer, "hits" 
 /** Only a site page's word ("contact", "rankings"): the page, named, never "matching contact". */
 const pageUnderstood = (q: string): SearchUnderstood => ({ kind: "names", label: `Pages: ${pagesFor(q).map((p) => p.title).join(", ")}` });
 
+/** "robo rebels nj", "bad wolf new jersey": a team name, then a place (its last one to three words). Null unless the
+ *  name alone is a team's whole name. The teams by that name in the place, or, when none is there, every team by
+ *  that name, saying the place has none. */
+async function namedInPlace(q: string, limit: number, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
+  const ws = q.trim().split(/\s+/);
+  for (let k = Math.min(3, ws.length - 1); k >= 1; k--) {
+    const region = regionOf(ws.slice(-k));
+    if (!region) continue;
+    const name = ws.slice(0, -k).join(" ");
+    const want = normalize(name);
+    if (!want) return null;
+    // Every team by that whole name: the candidates from the search index (accents and case folded, as search reads
+    // a name) with no cap, then the teams themselves with their stored state and country, so a team with no city on
+    // record still counts as in its state.
+    const fts = ftsQuery(name);
+    if (!fts) return null;
+    const refs = (await all<{ ref: string }>("SELECT ref FROM search WHERE search MATCH ? AND kind = 'team'", [fts])).map((r) => Number(r.ref)).filter(Number.isFinite);
+    if (!refs.length) return null;
+    const rows = (await all<any>(
+      `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last FROM teams t
+       LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
+       WHERE t.number IN (${refs.map(() => "?").join(",")}) AND ${teamPageSql("t.number", "t.name")} ORDER BY cs.season IS NOT NULL DESC, t.number`,
+      [CURRENT_SEASON, ...refs],
+    )).filter((t) => normalize(cleanTeamName(t.number, t.name) ?? "") === want);
+    if (!rows.length) return null;
+    const hit = (t: any): SearchHit => ({ kind: "team", ref: String(t.number), title: searchTeamTitle(t.number, t.name), subtitle: [t.city, t.state, t.country].filter(Boolean).join(", "), season: t.last == null ? null : Number(t.last) });
+    const there = rows.filter((t) => String(t.country ?? "").toLowerCase() === region.country.toLowerCase() && (!region.state || String(t.state ?? "").toLowerCase() === region.state.toLowerCase()));
+    const shown = cleanTeamName(rows[0].number, rows[0].name);
+    const label = there.length
+      ? `${there.length === 1 ? "The team" : `${there.length} teams`} named ${shown} in ${region.name}`
+      : `No team named ${shown} in ${region.name}: ${rows.length === 1 ? "the one" : `all ${rows.length}`} by that name`;
+    return answer(q, { hits: (there.length ? there : rows).slice(0, limit).map(hit), step: "deterministic", understood: { kind: "names", label } });
+  }
+  return null;
+}
+
 const recovery = (q: string, understood: string[], closest: SearchHit[] = []): SearchAnswer =>
   answer(q, { hits: [], step: "recovery", recovery: { understood, closest, browse: SEARCH_BROWSE } satisfies SearchRecovery });
 
-/** Search's answer for `raw` (docs/search.md). Plurals are read as their singular first (src/shared/searchQuery.ts),
- *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
+/** Search's answer for `raw` (docs/search.md). A top-level search goes through the layers (./searchLayers.ts,
+ *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
+  if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
+  const asked = /\?\s*$/.test(String(raw ?? ""));
+  return layeredAnswer(cleanQuery(raw), (q) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true }));
+}
+
+/** Layer 1, the readers' answer for `raw`. Plurals are read as their singular first (src/shared/searchQuery.ts),
+ *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
+export async function readerAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const typed = cleanQuery(raw);
   const read = singularize(typed);
   // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").
@@ -241,6 +290,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     const teams = (await search(q, limit, prefer)).filter((h) => h.kind === "team");
     return eventSetAnswer(q, { kinds: [], time: null, year: null, season: null, region, where: null, words: [] }, { now: opts.now, others: teams });
   }
+
+  // A team's whole name and then a place ("robo rebels nj", "bad wolf new jersey"): the teams by that name in that
+  // place, or plainly that none is there, with every team by the name.
+  const placed = opts.intents === false ? null : await namedInPlace(q, limit, prefer);
+  if (placed) return placed;
 
   // 1. A team number, alone or as "team 4215" / "team-4215" / "#4215".
   const num = /^(?:team)?[\s#-]*(\d{1,6})[.\s]*$/i.exec(q);

@@ -1,11 +1,12 @@
 // API contract shared by the server and the web app (types only).
-import type { Reliability } from "./reliability";
+import type { Reliability, SwingCell } from "./reliability";
 import type { ScheduleDifficulty, ScheduleDifficultyTeam } from "./scheduleDifficulty";
 import type { ConfidenceTier, Factor, FactorSheet, Forecast, Partners, TeamStrength } from "@control-scout/predict-engine";
 
 export type { ConfidenceTier, Factor, Forecast, Partners, TeamStrength };
 import type { BracketOdds } from "./bracketOdds";
 import type { StatAnswer } from "./searchStat";
+import type { TeamTable } from "./teamTable";
 export type { BracketOdds, BracketSeriesView, BracketAllianceOdds, BracketSlotView } from "./bracketOdds";
 
 /** The strongest real history between a lineup's robots (engine 2.4 partnership memory):
@@ -163,6 +164,9 @@ export interface SearchCard {
   none?: string;
   /** Under `none`: the closest real records (the team's state championship results), so it's never a dead end. */
   closest?: SearchCardLine[];
+  /** A list of teams ("teams in California"): the same teams as `lines`, as a table of their season numbers, which
+   *  /search draws in place of the lines (src/components/search/TeamTable.tsx). The dropdown keeps the lines. */
+  table?: TeamTable;
 }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
 export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string }
@@ -445,6 +449,8 @@ export interface FieldRow {
   rating: { np: number; sd: number; matches: number } | null;
   /** The team's season OPR (np) so far, across all its events: what the field looks like before this event starts. */
   seasonOpr?: number | null;
+  /** Swing at this event: the consistency stat (src/shared/reliability.ts). Absent when not computed. */
+  swing?: SwingCell | null;
   /** A league meet's own standing, from this meet's matches only (src/shared/meetStandings.ts). FIRST's rank and
    *  rp above are the league's running standing there. Absent: not a league meet; null: no counted match yet. */
   meet?: { rank: number; rs: number; tb: number[]; wins: number; losses: number; ties: number; played: number } | null;
@@ -545,6 +551,10 @@ export interface MatchExplanationView {
   reasons?: string[];
   teamsRed: (TeamStrength & { name: string | null })[];
   teamsBlue: (TeamStrength & { name: string | null })[];
+  /** Points each alliance loses to overlap (engine 2.11; 0 in playoffs): predicted score = Σ robots' np −
+   *  overlap + Σ opponents' pen. Optional: answers from before this field (an older server or pack) lack it. */
+  overlapRed?: number;
+  overlapBlue?: number;
   /** The match level the odds assume (a what-if with no level is a qualification match). */
   level?: "qual" | "playoff";
   /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */
@@ -591,6 +601,19 @@ export interface AccuracyBlock {
   /** Score ranges (engine 2.2+): how often real alliance scores landed inside the stated range. Null when no
    *  call in the block stated one (calls logged before 2.2). Scored the same way as the win calls. */
   ranges?: RangeCoverage | null;
+  /** Margin error: how far the predicted margin (red's expected score minus blue's) landed from the real one.
+   *  Null when no call in the block had a predicted score. Scored on the same calls as the win calls. */
+  margin?: MarginError | null;
+}
+
+export interface MarginError {
+  /** Calls with a predicted score (calls logged before the season's first rated match have none). */
+  n: number;
+  /** Mean absolute error of the predicted margin, in points. */
+  mae: number;
+  /** The same for always predicting a 0-point margin (the mean absolute real margin): the "no skill" line. */
+  baselineMae: number;
+  byLevel: { qual: { n: number; mae: number }; playoff: { n: number; mae: number } };
 }
 
 export interface RangeCoverage {

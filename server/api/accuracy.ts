@@ -6,7 +6,7 @@
 import { all, kvGet } from "../db.js";
 import { CURRENT_SEASON, PREDICT_SEASONS, SEASONS, bonusLabels } from "../data/seasons.js";
 import { ENGINE_VERSION, type ConfidenceTier } from "@control-scout/predict-engine";
-import type { AccuracyBlock, BonusAccuracy, RangeCoverage, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
+import type { AccuracyBlock, BonusAccuracy, MarginError, RangeCoverage, ReplayCoverage, ShadowScore, TrackRecord } from "../../src/shared/api.js";
 import { LIVE_THRESHOLD, pickHeadline } from "../../src/shared/ledger.js";
 import { matchViews } from "./matches.js";
 import { dataVersion } from "../predict/engine.js";
@@ -14,7 +14,9 @@ import { registerCache } from "../caches.js";
 
 export { LIVE_THRESHOLD };
 
-interface Row { p: number; y: number; tier: ConfidenceTier; level: string; time: string | null; ranges?: StatedRanges | null }
+interface Row { p: number; y: number; tier: ConfidenceTier; level: string; time: string | null; ranges?: StatedRanges | null; margin?: CallMargin | null }
+/** A call's predicted margin (red's expected score minus blue's) and the real one. */
+export interface CallMargin { predicted: number; actual: number }
 /** A call's stated score ranges (engine 2.2+) and the real scores. */
 export interface StatedRanges { level: number; red: [number, number]; blue: [number, number]; redScore: number; blueScore: number }
 
@@ -60,7 +62,37 @@ export function block(rows: Row[]): AccuracyBlock | null {
     weekly: [...weeks.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, xs]) => ({ week, n: xs.length, accuracy: acc(xs) })),
     upsets: decided.filter((r) => !right(r)).length,
     ranges: rangeCoverage(rows),
+    margin: marginError(rows),
   };
+}
+
+/**
+ * Margin error, scored on the same calls as the win calls: the mean absolute gap between the predicted margin
+ * (red's expected score minus blue's) and the real one, in points. Its "no skill" line is always predicting a
+ * 0-point margin (the mean absolute real margin). Calls with no predicted score (logged before the season's
+ * first rated match) have no margin and are left out. Null when no call in the block has one.
+ */
+export function marginError(rows: Row[]): MarginError | null {
+  const by = { qual: { n: 0, abs: 0 }, playoff: { n: 0, abs: 0 } };
+  let n = 0, abs = 0, base = 0;
+  for (const r of rows) {
+    const g = r.margin;
+    if (!g) continue;
+    const e = Math.abs(g.predicted - g.actual);
+    n++; abs += e; base += Math.abs(g.actual);
+    const l = r.level === "playoff" ? by.playoff : by.qual;
+    l.n++; l.abs += e;
+  }
+  if (!n) return null;
+  const lvl = (x: { n: number; abs: number }) => ({ n: x.n, mae: x.n ? x.abs / x.n : 0 });
+  return { n, mae: abs / n, baselineMae: base / n, byLevel: { qual: lvl(by.qual), playoff: lvl(by.playoff) } };
+}
+
+/** A ledger row's predicted and real margin, when it has both (null for a call with no predicted score). */
+export function callMargin(r: { no_score_basis?: unknown; red_mean?: unknown; blue_mean?: unknown; red_score?: unknown; blue_score?: unknown }): CallMargin | null {
+  if (Number(r.no_score_basis) || r.red_mean == null || r.blue_mean == null || r.red_score == null || r.blue_score == null) return null;
+  const predicted = Number(r.red_mean) - Number(r.blue_mean), actual = Number(r.red_score) - Number(r.blue_score);
+  return Number.isFinite(predicted) && Number.isFinite(actual) ? { predicted, actual } : null;
 }
 
 /** One alliance's bonus RP calls (engine slot order) and what it earned. */
@@ -256,12 +288,12 @@ async function seasonCoverage(): Promise<Map<number, ReplayCoverage>> {
 }
 
 async function computeTrackRecord(): Promise<TrackRecord> {
-  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score FROM predictions WHERE outcome IS NOT NULL");
+  const rows = await all<any>("SELECT kind, season, p_red p, outcome y, tier, level, match_time time, engine_version engine, model_id model, p_red_shadow ps, shadow_model_id sm, red_lo, red_hi, blue_lo, blue_hi, range_level, red_score, blue_score, red_mean, blue_mean, no_score_basis FROM predictions WHERE outcome IS NOT NULL");
   const coverage = await seasonCoverage();
   const bonus = await bonusCalls();
   const seasons = SEASONS.filter((s) => PREDICT_SEASONS.includes(s.season)).map((s) => {
     const of = (kind: string, engine?: string) => rows.filter((r) => r.kind === kind && Number(r.season) === s.season && (engine == null || r.engine === engine))
-      .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r) }));
+      .map((r) => ({ p: Number(r.p), y: Number(r.y), tier: r.tier, level: r.level, time: r.time, ranges: statedRanges(r), margin: callMargin(r) }));
     // Prospective evidence per engine version: each version's own calls only.
     const engines = [...new Set(rows.filter((r) => r.kind === "live" && Number(r.season) === s.season).map((r) => String(r.engine)))].sort();
     const liveByEngine = engines.map((engine) => { const b = block(of("live", engine))!; return { engine, n: b.n, decided: b.decided, accuracy: b.accuracy, brier: b.brier, logLoss: b.logLoss }; });

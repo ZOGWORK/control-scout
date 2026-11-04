@@ -6,7 +6,7 @@
 // held-out test.
 import { Link } from "react-router-dom";
 import { ArrowRight, FlaskConical } from "lucide-react";
-import { DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
+import { CONSISTENCY_MIN_MATCHES, CONSISTENCY_PRIOR, DEFAULT_BAND, DEFAULT_RATING_PARAMS, ENGINE_VERSION } from "@control-scout/predict-engine";
 import { useTitle } from "../lib/meta";
 import { REPORT_PRIOR } from "../shared/ledger";
 import { RELIABILITY_PRIOR, RELIABILITY_WEIGHTS } from "../shared/reliability";
@@ -72,6 +72,10 @@ export default function MethodologyPage() {
             <WorkedUpdate />
             <p>The gain starts high, so a team's first few matches teach the engine a lot, and it shrinks as evidence builds up. It never drops below a floor, so a team that genuinely improves mid-season still gets noticed.</p>
           </Prose>
+          <Prose id="rating-assumption">
+            <h3>What this assumes</h3>
+            <p>Splitting the miss only works because <strong>qualification partners are drawn at random</strong> and change every match. Over a season, a team is the one thing its alliances have in common, so its share shows through. In playoffs the same partners play every match, so their shares can't be told apart. That's why a playoff match moves a rating {RATING.playoffWeight === 0.5 ? "half" : `${Math.round(RATING.playoffWeight * 100)}%`} as much as a qualification match. Read a rating mostly as a qualification-match number.</p>
+          </Prose>
           <GainChart />
           <LearnSim />
           <Prose>
@@ -115,6 +119,18 @@ export default function MethodologyPage() {
             <p>Since engine 2.8 there is one more step, refitted on the latest two seasons of calls: the engine was a little <strong>too cautious</strong> (favourites it gave 70–80% won about two points more often than that), so every probability is stretched slightly away from 50%: its log-odds are multiplied by {(MODEL.contextual!.recalibration?.slope ?? 1).toFixed(3)}. That never changes which side is favoured, and it has no term for alliance colour. Checked month by month on matches after each fit, it brought the calls in the 50–80% range closer to how often they came true in both seasons tested.</p>
           </Prose>
           <Playground />
+          <Prose id="quals-playoffs">
+            <h3>Quals and playoffs</h3>
+            <p>Every prediction learns from the same ratings, and the ratings learn from every played match: qualifications and playoffs. Remote and hybrid events are left out. A playoff result moves a rating {Math.round(RATING.playoffWeight * 100)}% as much as a qualification result, because teams play differently in eliminations. What changes in a playoff call:</p>
+            <CleanList items={[
+              <><strong>Partners add up in full.</strong> The overlap cut above is for qualification alliances only.</>,
+              <><strong>Tighter score ranges.</strong> Playoff scores swing less, so the game-noise part of a range is {Math.round((MODEL.band ?? DEFAULT_BAND).playoff * 100)}% as large (in points², before rating uncertainty is added).</>,
+              <><strong>The win model knows it's a playoff.</strong> One of its inputs is whether the match is a playoff, so the same score gap can give slightly different odds.</>,
+              <><strong>No bonus RP odds.</strong> Playoffs give no ranking points, and the bonus model learns from qualification matches only. OPR and the reliability index also use qualification matches only.</>,
+              <><strong>Event simulations</strong> draw each robot's strength once per run from its current rating and don't update it inside the run. Simulated playoffs use the playoff settings above; a three-robot alliance fields its two strongest.</>,
+            ]} />
+            <p>The track record scores qualifiers and playoffs together and also shows each apart.</p>
+          </Prose>
           <Prose id="factors">
             <h3>The top 3 factors</h3>
             <p>On a prediction, the predicted margin splits <strong>exactly</strong> into four parts: the auto gap, the TeleOp gap, the endgame gap, and the difference in penalties each side gives away. The factors are the <strong>three largest</strong> of those four parts, so they explain most of the margin; the fourth (smallest) part makes up the rest. Each one is a piece of the actual prediction shown, never a separate story.</p>
@@ -132,6 +148,17 @@ export default function MethodologyPage() {
             <h3>Reliability: how dependable a robot has been</h3>
             <p>Next to OPR, team pages, Compare, pick lists and match reports show a <strong>reliability index</strong> from 0 to 100. It is an estimate made from qualification match results only, and its parts are always shown: <strong>no-shows</strong> (listed but not on the field), <strong>disqualifications</strong>, <strong>near-zero matches</strong>, <strong>swing</strong> (how much that estimated contribution moves from match to match), <strong>penalties</strong> given away against the season average, and how predictable its matches have been (the report card's miss spread). A near-zero match is when the alliance scored about what the partner's OPR alone would give. A robot playing defense, or a partner carrying the alliance, looks the same, so this is a hint and not proof of a dead robot.</p>
             <p>The index starts at 100 and loses {RELIABILITY_WEIGHTS.noShow} × the no-show rate, {RELIABILITY_WEIGHTS.dq} × the DQ rate, {RELIABILITY_WEIGHTS.nearZero} × the near-zero rate, {RELIABILITY_WEIGHTS.swing} × the swing, and up to {RELIABILITY_WEIGHTS.penalties * 1.5} each for penalties and predictability: nothing at half the season average or better, {RELIABILITY_WEIGHTS.penalties / 2} at the average, the full amount at twice it. Every part is pulled toward the season average as if the team had {RELIABILITY_PRIOR} more matches at it, so a few matches can't make a team look perfect or broken. These weights are a stated rule, not fitted. Members of a scouting workspace also see a second number that adds their own match notes (entries marked broken, disabled or no-show), clearly marked. Nobody outside that workspace ever sees it.</p>
+          </Prose>
+          <Prose id="swing">
+            <h3>Swing: how consistent a robot is</h3>
+            <p><strong>Swing</strong> is Control Scout's one consistency stat. It is the same number as the reliability index's swing part, worked out by the same engine function in Control Scout and Control Point, and it is the Swing column in event rankings, the world ranking and Compare. Lower is steadier. Everything in it comes from published qualification scores and the event's OPR, so you can redo it by hand:</p>
+            <ol>
+              <li><strong>Share</strong>: at the event, add up every alliance's non-penalty score and divide by the number of robots that were on the field. That is an average robot's share.</li>
+              <li><strong>Contribution</strong> in each match: the alliance's non-penalty score minus the partner's event OPR, divided by the share. Only matches with both robots on the field and the partner's OPR known count.</li>
+              <li><strong>Spread</strong>: the squared distance of each contribution from the team's own average at that event, added up (over all its events for the season, each event against its own average). Call it S over n matches.</li>
+              <li><strong>Pulled toward the field</strong>: swing = √((S + {CONSISTENCY_PRIOR} × V) ÷ (n + {CONSISTENCY_PRIOR})), where V is the same spread for every team in the season together (S over n for the whole field). So a few matches can't make a robot look rock steady or wild.</li>
+            </ol>
+            <p>±0.30 means a typical match lands within about a third of an average robot's share of the team's own average. Swing is shown from {CONSISTENCY_MIN_MATCHES} counted matches; below that the tables show "—" with the reason, and only the reliability index uses it (where the pull toward the field keeps it near average). It is not the report card's swing, which is the spread of the engine's misses. We picked this over the rating model's own variance because that one depends on the fitted model and fades with time, so nobody could check it from the score sheet. Predictions don't use swing: adding it changed no prediction.</p>
           </Prose>
         </section>
 
@@ -161,6 +188,18 @@ export default function MethodologyPage() {
             <h3>"What if we pick them?"</h3>
             <p>Because the simulator can force any pairing, the advancement tab answers partner questions. If you're likely to captain: "if we pick team X, our odds become…". If you're likely to be picked: "if captain Y picks us…". When this was tested on real alliances, knowing the actual partner cut the error on "this alliance wins the event" by about 16% compared with general after-quals odds (Brier 0.072 vs 0.086, in the engine's held-out test).</p>
             <p>For an event that has already happened, "Before the event" replays the ratings to the day before it started and hides its results. Its bonus ranking point odds learn only from results played before the event started. That's the forecast without hindsight.</p>
+          </Prose>
+          <Prose id="pick-helper">
+            <h3>Pick helper: partners that fill your gaps</h3>
+            <p>Scout's <Link to="/scout?tab=picks">Pick helper</Link> suggests the partners at an event that round out your alliance, not just the highest-rated ones left. It reads each team's four rating parts from above (auto, TeleOp without the endgame, endgame, and penalty points it gives away a match, to one decimal), as the stats runs store them. Nothing is rated on the spot, and no odds are shown.</p>
+            <CleanList items={[
+              <><strong>Alliance value.</strong> Add up its teams' ratings in each part. Fouls are added up too, then turned around so fewer is better.</>,
+              <><strong>Axes from 0 to 100.</strong> Auto, TeleOp and Endgame: the alliance's total ÷ the best <em>n</em> teams at this event in that part added up, where <em>n</em> is the alliance size. Few fouls: 1 − the alliance's fouls ÷ the <em>n</em> most-fouling teams here added up. Each is clamped to 0–1 and shown ×100.</>,
+              <><strong>Area.</strong> For <em>k</em> axes, ½·sin(2π/<em>k</em>)·Σ rᵢ·rᵢ₊₁, the last axis wrapping to the first. With four axes that's ½·(Auto·TeleOp + TeleOp·Endgame + Endgame·Few fouls + Few fouls·Auto); the full chart is 2. Area depends on the order, so the order is fixed: Auto, TeleOp, Endgame, Few fouls, clockwise from the top. "Covered" is area ÷ 2.</>,
+              <><strong>Suggestions.</strong> Every rated team not already on a posted alliance (or marked taken) is tried as your next partner; the top 5 by area are shown, ties to the higher rating. Each card lists the axes it raises and lowers, in axis points.</>,
+              <><strong>Alliance size.</strong> 3 when a posted alliance at the event has a second pick, otherwise 2; you can switch. A 3-team alliance plays two at a time, so its third team reads as depth.</>,
+            ]} />
+            <p>Area rewards an alliance that is strong on neighbouring axes, so a partner strong where you're weak usually beats one strong where you're already strong. It's a way to see gaps, not a prediction: it ignores how two robots share the field. The ratings split alliance scores between partners, which works best when partners change match to match, as in qualifications.</p>
           </Prose>
           <Prose id="projections">
             <h3>Live projections</h3>

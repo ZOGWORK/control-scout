@@ -74,8 +74,9 @@ export function canonicalRedirects(req: Request, res: Response, next: NextFuncti
   next();
 }
 
-/** A path that names a file (any extension, e.g. .png, .xml, .webmanifest): missing ones are a 404, never the app. */
-export const MISSING_FILE = /\.[A-Za-z0-9]+$/;
+/** A path that names a file (any extension, e.g. .png, .xml, .webmanifest): missing ones are a 404, never the app.
+ *  Not an event's pages (full or light): a code can end in what looks like one (FIRST's "63693260770.2649"). */
+export const MISSING_FILE = /^(?!\/(?:lite\/)?events\/\d+\/[^/]+(?:\/(?:display|overlay|match\/[^/]+))?\/?$).*\.[A-Za-z0-9]+$/i;
 
 /** The canonical URL for a page path: canonical origin + path, no trailing slash (a query only where the page passes one: /rankings). */
 export function canonicalUrl(path: string): string {

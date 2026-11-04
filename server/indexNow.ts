@@ -17,6 +17,8 @@ import { env } from "./env.js";
 import { RELEASE } from "./release.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
+import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./indexable.js";
+import { eventPath } from "../src/shared/eventCode.js";
 
 export const DEFAULT_KEY = "8da88d7fa9ed782383e804ed035f755e";
 export const ENDPOINT = "https://api.indexnow.org/indexnow";
@@ -25,6 +27,8 @@ export const MAIN_PAGES = ["/", "/faq", "/power-rankings", "/rankings", "/teams"
 export const MIN_GAP_MS = 3600_000;
 export const MAX_URLS = 10_000;
 const STATE_KEY = "indexnow";
+/** How many more batches one ping reads past while every one holds only pages left out. */
+const SKIP_BATCHES = 20;
 
 /** The protocol's key: 8–128 of a-z, A-Z, 0-9 and "-". */
 const KEY_RE = /^[A-Za-z0-9-]{8,128}$/;
@@ -40,8 +44,9 @@ interface State { accepted: boolean; cursor: Cursor; weeks: string[]; tried: str
  *  fit is left for the next ping, from where this one stops: nothing is skipped. */
 export async function changedEvents(cursor: Cursor, budget: number): Promise<{ paths: string[]; cursor: Cursor; more: boolean }> {
   const BATCH = 2000;
-  const events = await all<{ t: string; season: number; code: string }>(
-    `SELECT detail_synced_at t, season, code FROM events WHERE detail_synced_at IS NOT NULL AND (detail_synced_at, season, code) > (?, ?, ?)
+  // Each with whether its page is one to index (server/indexable.ts, the sitemap's rule): only those are sent.
+  const events = await all<{ t: string; season: number; code: string; ok: number }>(
+    `SELECT detail_synced_at t, season, code, ${eventHasDataSql("events")} ok FROM events WHERE detail_synced_at IS NOT NULL AND (detail_synced_at, season, code) > (?, ?, ?)
      ORDER BY detail_synced_at, season, code LIMIT ${BATCH + 1}`, [cursor.t, cursor.season, cursor.code]);
   const batch = events.slice(0, BATCH);
   const teams = new Map<string, number[]>();
@@ -49,7 +54,7 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
     const last = batch[batch.length - 1];
     const rows = await all<{ season: number; code: string; team: number }>(
       `SELECT et.season, et.code, et.team FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code
-       WHERE e.detail_synced_at IS NOT NULL AND (e.detail_synced_at, e.season, e.code) > (?, ?, ?) AND (e.detail_synced_at, e.season, e.code) <= (?, ?, ?)`,
+       WHERE ${teamIndexableSql("et.team")} AND e.detail_synced_at IS NOT NULL AND (e.detail_synced_at, e.season, e.code) > (?, ?, ?) AND (e.detail_synced_at, e.season, e.code) <= (?, ?, ?)`,
       [cursor.t, cursor.season, cursor.code, last.t, last.season, last.code]);
     for (const r of rows) { const k = `${r.season}:${r.code}`; teams.set(k, [...(teams.get(k) ?? []), r.team]); }
   }
@@ -59,7 +64,7 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
   let i = 0;
   for (; i < batch.length; i++) {
     const e = batch[i];
-    const add = [`/events/${e.season}/${encodeURIComponent(e.code)}`, ...(teams.get(`${e.season}:${e.code}`) ?? []).map((t) => `/teams/${t}`)].filter((x) => !seen.has(x));
+    const add = [...(e.ok && isReachableEventCode(e.code) ? [eventPath(e.season, e.code)] : []), ...(teams.get(`${e.season}:${e.code}`) ?? []).map((t) => `/teams/${t}`)].filter((x) => !seen.has(x));
     // An event and its teams go together; one bigger than a whole ping on its own still goes (cut to fit).
     if (paths.length + add.length > budget && paths.length) break;
     for (const x of add) seen.add(x);
@@ -68,6 +73,8 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
   }
   return { paths, cursor: at, more: i < batch.length || events.length > BATCH };
 }
+
+const sameCursor = (a: Cursor, b: Cursor) => a.t === b.t && a.season === b.season && a.code === b.code;
 
 type Fetch = (url: string, init: RequestInit) => Promise<Pick<globalThis.Response, "status" | "ok">>;
 
@@ -101,10 +108,17 @@ export async function pingIndexNow(opts: { now?: number; fetchImpl?: Fetch } = {
     // Weeks by their id, not their date: a week published later on the day of a ping is still new.
     const weeks = (await publishedWeeks().catch(() => [])).filter((w) => !w.sample && !state.weeks.includes(w.week)).map((w) => w.week);
     const fixed = [...main, ...weeks.map((w) => `/power-rankings/${w}`)].slice(0, MAX_URLS);
-    const ev = await changedEvents(state.cursor, MAX_URLS - fixed.length);
+    // A batch can hold only pages left out (server/indexable.ts: empty events, teams with no data): read on past it
+    // in this same ping, so it never stands in front of changed pages behind it.
+    let ev = await changedEvents(state.cursor, MAX_URLS - fixed.length);
+    for (let i = 0; !ev.paths.length && ev.more && i < SKIP_BATCHES; i++) ev = await changedEvents(ev.cursor, MAX_URLS - fixed.length);
     const urls = [...new Set([...fixed, ...ev.paths].map((p) => canonicalUrl(p)))];
-    // Nothing to send: no state written, so the hour isn't used up (a sync finishing soon after still pings).
-    if (!urls.length) return "nothing changed";
+    // Nothing to send: the hour isn't used up (a sync finishing soon after still pings), but the events read past
+    // are: the cursor is kept, so the next ping starts after them.
+    if (!urls.length) {
+      if (!sameCursor(ev.cursor, state.cursor)) await kvSet(STATE_KEY, { ...state, cursor: ev.cursor } satisfies State);
+      return "nothing changed";
+    }
     const key = indexNowKey();
     // Recorded first: a crash or a hang mid-request still waits an hour before the next try.
     await kvSet(STATE_KEY, { ...state, tried: nowIso });

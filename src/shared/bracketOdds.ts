@@ -67,7 +67,7 @@ export interface BracketSeriesView {
   /** The winning alliance, once decided. */
   winner: number | null;
   /** Both sides known and undecided: the favourite and its chance to win the series (from the current score). */
-  call: { alliance: number; p: number; tier: ConfidenceTier } | null;
+  call: { alliance: number; p: number; tier: ConfidenceTier; /** The favourite's chance in one game: with bestOf and the wins so far, p follows from it. */ game?: number } | null;
   /** A side still unknown: the likeliest winner of this series and how likely, from the simulation. */
   likely: { alliance: number; p: number } | null;
   /** The grand final's replay, played only if the lower-bracket alliance wins the first one. */
@@ -324,7 +324,7 @@ export function bracketOdds(input: BracketInput): BracketOdds {
     if (st.winner == null && !st.skipped && !st.pending) {
       if (a != null && b != null) {
         const pm = pMatch(a, b), pa = seriesWinProb(pm.p, node.bestOf, st.wins.get(a) ?? 0, st.wins.get(b) ?? 0);
-        call = pa >= 0.5 ? { alliance: a, p: pa, tier: pm.tier } : { alliance: b, p: 1 - pa, tier: pm.tier };
+        call = pa >= 0.5 ? { alliance: a, p: pa, tier: pm.tier, game: pm.p } : { alliance: b, p: 1 - pa, tier: pm.tier, game: 1 - pm.p };
         tiers.push(pm.tier);
       } else {
         const t = top(wonAt[k]);
@@ -435,7 +435,7 @@ function unknownOdds(season: number, shape: Shape | null, bySeries: Map<number, 
     let call: BracketSeriesView["call"] = null;
     if (sides && winner == null) {
       const [a, b] = sides, pm = pMatch(a, b), pa = seriesWinProb(pm.p, bestOf, wins.get(a) ?? 0, wins.get(b) ?? 0);
-      call = pa >= 0.5 ? { alliance: a, p: pa, tier: pm.tier } : { alliance: b, p: 1 - pa, tier: pm.tier };
+      call = pa >= 0.5 ? { alliance: a, p: pa, tier: pm.tier, game: pm.p } : { alliance: b, p: 1 - pa, tier: pm.tier, game: 1 - pm.p };
       tiers.push(pm.tier);
     }
     const slot = (a: number | null): BracketSlotView => ({ source: a != null ? `Alliance ${a}` : "To be decided", alliance: a, likely: null });

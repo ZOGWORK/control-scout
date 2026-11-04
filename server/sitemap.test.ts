@@ -1,5 +1,5 @@
-// sitemap.xml from the database: public pages, every team and event, apex URLs,
-// no personal pages; split into an index past the limit.
+// sitemap.xml from the database: the content pages, every team and event page with data (server/indexable.test.ts
+// has the rule's cases), apex URLs, no personal pages; split into an index past the limit.
 import { beforeAll, describe, expect, it } from "vitest";
 import { migrate, openDb, run, setDb } from "./db";
 import { buildSitemap, resetSitemapCache, sitemapEntries } from "./sitemap";
@@ -12,7 +12,7 @@ beforeAll(async () => {
   await run("INSERT INTO teams (number, name, updated_at) VALUES (4215, 'Hypnotic Robotics', '2026-10-01T10:00:00Z'), (18360, 'X', NULL), (5555, 'Rookies', NULL)");
   await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source, upstream_updated) VALUES (2025, 'USNJNOM3', 'Meet', '2025-11-08', '2025-11-08', 0, 0, 't', '2025-12-02T09:00:00Z'), (2026, 'FUTURE', 'Later', '2099-01-01', '2099-01-02', 0, 0, 't', NULL), (2019, '2019ALCMP', 'Alabama (history-only season)', '2020-02-21', '2020-02-22', 0, 0, 't', NULL), (2024, 'OLD', 'Old', '2024-12-07', '2024-12-07', 0, 0, 't', NULL)");
   // 4215 played USNJNOM3 (results marked changed later) and OLD, and both are registered for one that hasn't started.
-  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJNOM3', 4215), (2024, 'OLD', 4215), (2026, 'FUTURE', 4215), (2026, 'FUTURE', 18360), (2026, 'FUTURE', 5555)");
+  await run("INSERT INTO event_teams (season, code, team) VALUES (2025, 'USNJNOM3', 4215), (2024, 'OLD', 4215), (2026, 'FUTURE', 4215), (2026, 'FUTURE', 18360), (2026, 'FUTURE', 5555), (2019, '2019ALCMP', 18360)");
   // A league meet with results: on 4215's roster, but only 18360 took the field (4215 was a no-show), and only in a
   // playoff match (no qualification stats for it), which counts all the same.
   await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'LEAGUE', 'League meet', '2026-01-10', '2026-01-10', 0, 0, 't')");
@@ -28,9 +28,9 @@ describe("sitemap", () => {
     const locs = e.map((x) => x.loc);
     expect(locs).toContain("https://controlscout.org/");
     expect(locs).toContain("https://controlscout.org/teams/4215");
-    expect(locs).toContain("https://controlscout.org/privacy");
-    expect(locs).toContain("https://controlscout.org/terms");
-    expect(locs).toContain("https://controlscout.org/contact");
+    // Pages whose first HTML carries their content are listed; /predict (an input form) stays out, crawlable from its links.
+    for (const p of ["/privacy", "/terms", "/contact", "/teams", "/matches"]) expect(locs).toContain(`https://controlscout.org${p}`);
+    expect(locs).not.toContain("https://controlscout.org/predict");
     expect(locs).toContain("https://controlscout.org/faq");
     expect(locs).toContain("https://controlscout.org/rankings");
     expect(locs).toContain("https://controlscout.org/events/2025/USNJNOM3");
@@ -44,9 +44,12 @@ describe("sitemap", () => {
     // The source's change marker (late results move it past the event's last day); none when unknown.
     expect(e.find((x) => x.loc.endsWith("/events/2025/USNJNOM3"))!.lastmod).toBe("2025-12-02");
     expect(e.find((x) => x.loc.endsWith("/events/2026/FUTURE"))!.lastmod).toBeUndefined();
-    // The thin-page rule: a team only registered for an event that hasn't started yet has no page worth indexing.
-    expect(locs).not.toContain("https://controlscout.org/teams/5555");
-    expect(e.filter((x) => x.loc.includes("/teams/")).every((x) => !!x.lastmod)).toBe(true);
+    // A team only entered in an event that hasn't started: that event is on its page, so it's listed, with no lastmod
+    // until the event starts.
+    expect(e.find((x) => x.loc.endsWith("/teams/5555"))!.lastmod).toBeUndefined();
+    // An event with no teams and no matches (OLD's roster aside, every other here has one) is left out.
+    await run("INSERT INTO events (season, code, name, start, end, remote, hybrid, source) VALUES (2025, 'BARE', 'Kickoff', '2025-09-06', '2025-09-06', 0, 0, 't')");
+    expect((await sitemapEntries()).map((x) => x.loc)).not.toContain("https://controlscout.org/events/2025/BARE");
     // No Compare (empty until teams are picked; a pair is two team pages) and no /search (noindex).
     expect(locs.some((l) => /^https:\/\/[^/]+\/(compare|search)(\?|\/|$)/.test(l))).toBe(false);
     // The FTC One Search explainer is a public page.
@@ -72,7 +75,7 @@ describe("sitemap", () => {
 describe("missing files", () => {
   it("any extension counts as a file (so it 404s instead of serving the app)", async () => {
     const { MISSING_FILE } = await import("./seo");
-    for (const p of ["/missing.webmanifest", "/x.png", "/a/b.xml", "/robots.txt"]) expect(MISSING_FILE.test(p)).toBe(true);
-    for (const p of ["/teams/4215", "/events/2025/USNJNOM3", "/"]) expect(MISSING_FILE.test(p)).toBe(false);
+    for (const p of ["/missing.webmanifest", "/x.png", "/a/b.xml", "/robots.txt", "/events/2019/x/y.png"]) expect(MISSING_FILE.test(p)).toBe(true);
+    for (const p of ["/teams/4215", "/events/2025/USNJNOM3", "/", "/events/2019/63693260770.2649", "/events/2019/63693260770.2649/display", "/lite/events/2019/63693260770.2649", "/events/2019/63693260770.2649/match/qual:0:1"]) expect(MISSING_FILE.test(p)).toBe(false);
   });
 });

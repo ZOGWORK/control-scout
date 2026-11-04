@@ -3,7 +3,8 @@
 // bracket, awards + advancement, and advancement odds for any team there.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigationType, useParams, useSearchParams } from "react-router-dom";
-import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, Loader2, Luggage, MapPin, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
+import { pickHelperQuery } from "../shared/scoutSections";
+import { Award, CalendarDays, ChevronDown, Clock, ExternalLink, Gavel, Info, Loader2, Luggage, MapPin, Radar, Radio, RefreshCw, Search, Sparkles, Swords, Trophy, Tv, Users } from "lucide-react";
 import { BRACKETS, type Slot } from "@control-scout/predict-engine";
 import { advOddsBasis, rankingCoverage, unofficialNote } from "../lib/eventRankingNotes";
 import { useProjections } from "../lib/projections";
@@ -54,6 +55,7 @@ import { eventTab } from "../lib/eventTab";
 import { predictHref } from "../shared/predictUrl";
 import { hasTeamPage } from "../shared/teamPages";
 import { eventRoster, eventStanding } from "../shared/eventStanding";
+import { SWING_LINE, swingText, swingTitle } from "../shared/reliability";
 import { AllianceChip, AllianceOddsCard, BracketAccuracyNote, BracketSeries, OddsHeading } from "../components/PlayoffBracket";
 
 export default function EventPage() {
@@ -593,6 +595,9 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
       render: (r: FieldRow) => { const x = sched.get(r.team)?.remaining; return <ScheduleValue stat="scheduleDifficulty" v={x?.difficulty} opponents={x?.opponents} partners={x?.partners} rank={x ?? undefined} />; } }] : []),
     ...(meet ? [{ key: "avg", label: season >= 2025 ? "npAVG" : "Auto AVG", title: season >= 2025 ? "Average non-penalty points (the first tiebreaker)" : "Average auto points (the first tiebreaker)", value: (r: FieldRow) => r.meet?.tb[0] ?? null, align: "right" as const, render: (r: FieldRow) => num(r.meet?.tb[0] ?? null, 2), heat: true }] : []),
     { key: "opr", label: "OPR", value: (r) => r.opr.np, align: "right", render: (r) => num(r.opr.np), heat: true },
+    // Swing at this event, the consistency stat (src/shared/reliability.ts): lower = steadier, "—" below the minimum.
+    ...(field.some((r) => r.swing) ? [{ key: "swing", label: "Swing", title: SWING_LINE, value: (r: FieldRow) => r.swing?.value ?? null, asc: true, align: "right" as const, heat: true,
+      render: (r: FieldRow) => <span title={swingTitle(r.swing)}>{swingText(r.swing)}</span> }] : []),
     { key: "auto", label: "Auto", value: (r) => r.opr.auto, align: "right", render: (r) => num(r.opr.auto), hideOnMobile: true, heat: true },
     { key: "teleop", label: "TeleOp", value: (r) => r.opr.teleop, align: "right", render: (r) => num(r.opr.teleop), hideOnMobile: true, heat: true },
     { key: "endgame", label: "Endgame", value: (r) => r.opr.endgame, align: "right", render: (r) => num(r.opr.endgame), hideOnMobile: true, heat: true },
@@ -611,6 +616,7 @@ function RankingTable({ field, season, team, code, schedule }: { field: FieldRow
         </div>
       )}
       <SortTable key={view} rows={field} cols={cols} rowKey={(r) => r.team} initial={{ key: "rank", dir: "asc" }} csvName={`${code}-${season}-${meet ? "meet-" : ""}rankings`} highlight={(r) => r.team === team} empty="No teams registered yet." />
+      {field.some((r) => r.swing) && <p className="text-xs text-muted-foreground" data-swing-line>{SWING_LINE} <Link to="/methodology#swing" className="underline">How it's computed</Link></p>}
     </div>
   );
 }
@@ -682,9 +688,19 @@ function slotLabel(s: Slot): string {
   return `Loser M${s.loserOf}`;
 }
 
+/** To Scout's pick helper at this event: partners that fill an alliance's gaps (seasons with ratings only). */
+function PickHelperLink({ d }: { d: EventDetail }) {
+  if (!usePredictable(d.event.season)) return null;
+  return (
+    <Button variant="outline" size="sm" asChild className="max-sm:h-10">
+      <Link to={`/scout?${pickHelperQuery(d.event.season, d.event.code)}`}><Radar /> Pick helper</Link>
+    </Button>
+  );
+}
+
 function Playoffs({ d }: { d: EventDetail }) {
   const al = d.alliances;
-  if (!al.length) return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches." />;
+  if (!al.length) return <EmptyState icon={Trophy} title="Alliances not selected yet" description="Alliance selection happens after qualification matches. The pick helper shows which partners fill your gaps." action={<PickHelperLink d={d} />} />;
   const playoff = d.matches.filter((m) => m.level === "playoff");
   const bySeries = new Map<number, MatchView[]>();
   for (const m of playoff) bySeries.set(m.series, [...(bySeries.get(m.series) ?? []), m]);
@@ -701,7 +717,10 @@ function Playoffs({ d }: { d: EventDetail }) {
         <p className="rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-sm">Alliances are set; the playoff schedule isn't posted yet. The odds below come from the alliances alone and update after every series.</p>
       )}
       <div className="space-y-3">
-        {bracket && bracket.alliances.length > 0 && <OddsHeading bracket={bracket} />}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">{bracket && bracket.alliances.length > 0 && <OddsHeading bracket={bracket} />}</div>
+          <PickHelperLink d={d} />
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {al.map((a) => (
             <AllianceOddsCard key={a.number} odds={oddsBy.get(a.number)}>

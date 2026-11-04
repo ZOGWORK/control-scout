@@ -1,10 +1,11 @@
 // Site metadata (seasons, current season, data freshness) loaded once.
 import { siteTitle } from "../shared/teamTitle";
-import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { useApi } from "./api";
 import type { Meta } from "../shared/api";
 import { isWeek, parsePlaces, placeKey } from "../shared/rankings";
+import { eventPath, isEventCodeParam } from "../shared/eventCode";
 
 const Ctx = createContext<Meta | null>(null);
 
@@ -59,15 +60,20 @@ export function useTitle(title: string | null | undefined) {
 }
 
 /** The canonical form of a page path, the same as the server's: no trailing slash, event codes in
- *  upper case, team numbers without leading zeros (/events/2025/usnjnom3 → /events/2025/USNJNOM3).
- *  Event codes are only ever [A-Za-z0-9_-] (as on the server), so nothing is decoded and a
- *  malformed path is left as it is, never thrown on. */
+ *  upper case and URL-encoded (src/shared/eventCode.ts), team numbers without leading zeros
+ *  (/events/2025/usnjnom3 → /events/2025/USNJNOM3, /events/2019/2019INMeet10 → /events/2019/2019INMEET10).
+ *  A malformed path is left as it is, never thrown on. */
 export function canonicalPath(pathname: string): string {
   const p = pathname.length > 1 ? pathname.replace(/\/+$/, "") : "/";
+  const event = (m: string, s: string, c: string) => {
+    let code: string;
+    try { code = decodeURIComponent(c); } catch { return m; }
+    return isEventCodeParam(code) ? eventPath(s, code) : m;
+  };
   return p
-    .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})$/, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
+    .replace(/^\/events\/(\d{4})\/([^/]{1,120})$/, event)
     // The pit display's (and the stream overlay's) canonical is its event page (server/seoMeta.ts), so the TV screen folds into the page to find.
-    .replace(/^\/events\/(\d{4})\/([A-Za-z0-9_-]{1,40})\/(display|overlay)$/i, (_m, s: string, c: string) => `/events/${s}/${c.toUpperCase()}`)
+    .replace(/^\/events\/(\d{4})\/([^/]{1,120})\/(display|overlay)$/i, (m, s: string, c: string) => event(m, s, c))
     .replace(/^\/teams\/0*(\d+)$/, "/teams/$1")
     .replace(/^\/power-rankings\/(\d{4}-w\d{2})$/i, (_m, w: string) => `/power-rankings/${w.toLowerCase()}`);
 }
@@ -116,6 +122,17 @@ export function SearchRobotsSync() {
       m.name = "robots"; m.content = "noindex, follow"; m.setAttribute("data-search", "");
       document.head.appendChild(m);
     }
+  }, [pathname]);
+  return null;
+}
+
+/** A team or event page with nothing on it yet is served "noindex" (marked data-no-data: server/seoMeta.ts noData). It
+ *  holds for that page only: it goes once the visitor moves on to another page, which the server never judged. */
+export function NoDataRobotsSync() {
+  const { pathname } = useLocation();
+  const served = useRef(pathname);
+  useEffect(() => {
+    if (pathname !== served.current) document.querySelector('meta[name="robots"][data-no-data]')?.remove();
   }, [pathname]);
   return null;
 }

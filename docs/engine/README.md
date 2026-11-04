@@ -89,7 +89,11 @@ What the measurements showed:
 - **No-history teams vs teams with history:** in early matches, robots with no history beat the prior by about 2 points per robot, and robots with history miss by about 2. Moving the rookie z or the uncertainties doesn't help: the existing settings sit on a plateau.
 - **Region:** the per-region bias of newcomers holds from season to season (r = 0.75). This is the signal 2.7 uses.
 
-## Research brief 2026-11
+## Research program, November 2026 (R1–R7)
 
-`research-2026-11/` holds the comparisons the prediction-engine research brief asks for.
-- **Item 11, MLP baseline** (`mlp-baseline.md`): the WPI paper's MLP, on per-alliance skill-category features. It is judged on the same rolling origins as the engine. It loses to engine 3.3.0 on Brier, accuracy, log loss and margin MAE in both seasons, so the engine stays.
+Walk-forward research notes against the live engine, in `research-2026-11/` (scripts in `scripts/research/`, shared harness `scripts/research/lib.ts`):
+- [R2, shrinkage for low-sample teams](research-2026-11/r2-shrinkage.md): an empirical-Bayes prior strength per prior class. Measured, no change: it improves 2024–25 but not 2025–26.
+- [R4, recency and decay](research-2026-11/r4-recency.md): a per-match / per-week half-life curve with the "last event only" and "whole season" endpoints. The live gain floor already sits at the sweet spot: a robot's past result keeps half its weight for about 4 more matches. No change.
+- [R3, component importance](research-2026-11/r3-component-importance.md): TeleOp ≫ auto > endgame among the scoring phases; expected fouls add nothing to the win call. The auto reweighting candidate fails the gate (calibration on 2024–25, Brier and accuracy on 2025–26). No change.
+- [R5, margin-of-victory Elo](research-2026-11/r5-mov-elo.md): about 0.029 Brier behind standalone; as an extra input it doesn't clear the gate in both seasons, and plain Elo adds about as much. No change.
+- [Item 11, MLP baseline](research-2026-11/mlp-baseline.md): the WPI paper's MLP on per-alliance skill-category features, on the same rolling origins. It loses to engine 3.3.0 on Brier, accuracy, log loss and margin MAE in both seasons. The engine stays.

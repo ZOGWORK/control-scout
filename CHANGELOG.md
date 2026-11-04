@@ -15,6 +15,159 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 2.8.8 — 2026-11-03
+
+Every event opens now, whatever its code looks like, and the policy, help and record pages arrive with their words in place.
+
+### Highlights
+- [fixes] Every event opens, whatever its code looks like
+- [fixes] An event code in any case opens the same page
+- [speed] Privacy, terms, rules and contact pages arrive in full
+- [speed] Team and match records arrive with their top rows
+
+### Events
+- **Every event opens.** Older seasons' events whose codes FIRST wrote in mixed case or with punctuation, spaces or Cyrillic letters (2019INMeet10, NL'HKO, laredomeet 2, 63693260770.2649, about 260 of them, mostly 2019–20) were "Event not found". They open now, from any link, at any spelling of the code, and each has one address with the code in capitals, its light version too. (#491)
+
+### Pages
+- **Words before the app.** Privacy, terms, contact, donate and the rules quick reference arrive with their whole text, and the team and match record tables with the first 100 rows they open on, before the app has loaded. Search engines read them as visitors do, and the sitemap lists them again (the rules reference only while it is switched on).
+
+## 2.8.7 — 2026-11-03
+
+Swing, Control Scout's consistency stat, has its own column wherever teams are compared: how far a robot's estimated points move from match to match. The formula sits next to it, and Control Point shows the same number for the same matches.
+
+### Highlights
+- [rankings] A Swing column in event and world rankings: lower is steadier
+- [teams] Compare has a Swing row, best (steadiest) marked
+- [report] A one-line formula under each table, the full one on How it works
+- [fixes] Fewer than 5 counted matches shows "—" and says why
+
+### Teams
+- **Swing (consistency).** sd of (alliance non-penalty score − the partner's event OPR) ÷ the event's average robot share, over qualification matches, pulled toward the season's field as if 10 more matches. It's the same number as the reliability index's swing part, now computed by the prediction engine (3.4.0) so both apps use one function (#499). Event rankings show the team's swing at that event, the world ranking and Compare its season swing. Below 5 counted matches the cell reads "—", and its tooltip gives the reason.
+- **How it works.** A new "Swing" section works the formula step by step, so it can be checked by hand.
+- **Engine 3.4.0.** Predictions are unchanged: the replay of every predicted match since 2023–24 serves exactly what 3.3.0 did.
+
+## 2.8.6 — 2026-11-03
+
+A team's name with a place ("robo rebels nj") now finds the teams by that name, and says so plainly when none is there.
+
+### Highlights
+- [teams] "Robo rebels nj" lists every Robo Rebels when none is in NJ
+- [teams] A name and a state find that state's team by that name
+- [fixes] No more "No matches found" for a real team name and a place
+
+### Search
+- **A name and a place.** A team's whole name followed by a place ("robo rebels nj", "bad wolf new jersey") lists the teams by that name in that place, or, when none is there, says "No team named Robo Rebels in New Jersey" and lists every team by the name. Every team sharing the name is checked against its stored state and country, accents and case folded as search reads names, never a capped list. (#504)
+
+## 2.8.5 — 2026-11-03
+
+Predictions show more of their working. The track record adds margin error, every prediction says in one line what it learns from and what changes in playoffs, and a few numbers now come with the sum behind them. No prediction changed.
+
+### Highlights
+- [report] Track record shows margin error next to accuracy and Brier
+- [predict] Each prediction says what it learns from, and what playoffs change
+- [predict] The Lab writes each predicted score out from the robots' ratings
+- [predict] Best-of-3 series show the one-game chance behind them
+
+### Predictions
+- **Margin error.** The track record's ledger now shows how many points the predicted margin (red's predicted score minus blue's) missed by on average, against always guessing a tie, with qualifiers and playoffs apart. Live calls and the season replay stay separate, as always. (#488)
+- **Quals and playoffs, stated.** The match drawer, Know your match, the Lab, the factor sheet, projections, advancement odds, simulated rankings and the bracket each carry one short line: ratings learn from every played match, a playoff result counts half, and in playoffs partners add up in full, ranges are tighter and there are no bonus RPs. A new "Quals and playoffs" section on How it works has the details.
+- **Numbers you can check.** The match drawer and the Lab show the predicted margin ("Red by 12 (118 − 106)"). The Lab's ratings table adds each robot's penalties and writes each predicted score out: robots' ratings, minus the overlap cut, plus the other side's penalties. A best-of-3 series shows the one-game chance it comes from.
+
+## 2.8.4 — 2026-11-03
+
+Scout has a pick helper. Choose your team at an event and it suggests the partners that fill your alliance's gaps, each on a radar of auto, TeleOp, endgame and fouls over your own, with what it adds.
+
+### Highlights
+- [scout] Pick helper: partners that fill your alliance's gaps
+- [scout] A radar per partner over yours, with the share it covers
+- [scout] Each card says what it raises and what it costs
+- [scout] Open it from Scout or an event's Playoffs tab
+
+### Scout
+- **Pick helper.** A new Scout section (Scout → Pick helper, no account needed). Pick your team at an event, or your alliance if it's posted; the top 5 free partners are the ones whose alliance covers the most of a four-axis radar (Auto, TeleOp, Endgame, Few fouls), so a team strong where you're weak can beat a higher-rated one. Add a partner to plan a 3-team alliance's second pick, mark teams taken as alliance selection goes, and "Show the numbers" lists every rating used. Each axis is the alliance's total ÷ the best 2 (or 3) teams at the event added up; area is ½·sin(2π/4)·Σ rᵢ·rᵢ₊₁ (full method on How it works). It reads the engine ratings the stats runs already store; nothing is rated on request.
+- **Event page.** The Playoffs tab links to the pick helper for that event. (#492)
+
+## 2.8.3 — 2026-11-03
+
+A search that lists teams answers as one table: rank, team, OPR and its phases, penalties and record, with bars to compare at a glance.
+
+### Highlights
+- [teams] Team lists in search are one sortable table, OPR first
+- [teams] Bars for OPR and each phase, top three marked
+- [teams] On a phone, tap a row for its Auto, TeleOp, Endgame and Pen
+
+### Search
+- **List answers as a table.** "teams in california", "best teams in new jersey", a country's best, undefeated teams, win rate, most improved, best rookies and the stat leaderboards share one table: rank, team, OPR, Auto, DC (TeleOp from 2024–25, when it includes the endgame), Endgame, Pen and W-L-T. It opens best OPR first, and the OPR, phase and record headers re-sort it. Each row has a bar for its OPR and a bar for its phases (scaled to the largest phase total, since phases don't add up to the OPR); a phase below zero is labelled, not drawn. On a phone, rank, team, OPR and record stay in view and the phases open under the row. Every number is the team's stored season stats, the same ones its page shows; the page's first paint carries the table as plain HTML. (#498)
+
+## 2.8.2 — 2026-11-03
+
+Two searches the failed-search log caught now answer: when a team last played, and several of a team's listing facts at once.
+
+### Highlights
+- [teams] "When did hypnotic last play" opens their most recent match
+- [teams] "4215 sponsors school" answers both, each on its own line
+- [fixes] Headings keep "and" and "or" lower case
+
+### Search
+- **Fixes from the failed-search log.** "when did X last play" (or "play last", "last compete") reads as the team's most recent match. Several listing facts at once ("4215 sponsors school", "4215 rookie year, website") are each answered on their own line, in the order asked, with a team's whole name tried before any fact word is read off it. "last" is no longer called a word left out of a most-recent-match answer, and headings keep joining words small ("Sponsors and School or Organization"). (#496)
+
+## 2.8.1 — 2026-11-03
+
+Failed searches are filed the way search itself read them: search's own verdict decides whether a query failed and how, and one failing question lands on one issue however it was phrased.
+
+### Highlights
+- [report] A failed search is filed as search itself judged it
+- [report] One failing question, one issue, however it was typed
+- [fixes] An issue's Reproduce link opens the search exactly as typed
+
+### Search
+- **Failed-search reports follow search's own reading.** Search's layered reader now decides whether a query failed: an answer is never filed, a question two ways at once is filed as ambiguous with both readings named, and a team page shown for a question nobody asked of it ("4215 zzz") is an answer, not a failure. Issues aggregate under search's own key of the redacted query, so "4215 OPR rn?" and "4215 opr right now" are one issue. The Reproduce link in an issue now opens the latest query as typed rather than its shortened key, which could answer. Details in docs/failed-search-reporting.md. (#495)
+
+## 2.8.0 — 2026-11-03
+
+How a team's rating is read from alliance scores is now stated where the rating is shown, and "Before the event" odds load faster.
+
+### Highlights
+- [predict] Ratings say what they assume: random qualification partners
+- [predict] Playoff matches count half, because playoff partners are fixed
+- [speed] "Before the event" odds for a second team at an event load faster
+
+### Predictions
+- **What a rating assumes.** FTC only records alliance scores. The engine splits each alliance's miss equally between its robots, which separates a team from its partners only because qualification partners are drawn at random. Playoff alliances are fixed, so a playoff match moves a rating half as much. The How it works page (new "What this assumes" part), team pages and the world rankings now say so in one line. The numbers don't change. (#486)
+- **Faster "Before the event" views.** The ratings as they stood the day before an event are now worked out once per day for the current data, and shared by every team's odds and partner scenarios at that event and by every event starting that day. Before, each team's view replayed the season again. Same numbers.
+
+### Engine research notes
+- New notes in `docs/engine/research-2026-11/`: the DECODE score sheet mapped onto the engine's categories (no defense category, because no recorded data supports one), how per-team ratings come from alliance scores, and a check of every prediction endpoint for ratings computed inside a request.
+## 2.7.9 — 2026-11-03
+
+FTC One Search reads a question by its words when its phrasing doesn't match: any word order, extra words like "rn" or "please", and long conversational questions all get the same answer as the short form, with a line saying how it was read.
+
+### Highlights
+- [teams] "4215 from where" and "4215 where from" show where they're from
+- [teams] "4215 opr rn" gets the OPR card; filler words never change it
+- [teams] Long questions get the short form's answer, read back to you
+- [rankings] "highest opr california" works without "in", as with it
+
+### Search
+- **Word order, filler and long questions.** A question the readers miss is read again as a set of words: the team (number or name), what's asked, and any season, place or event, in any order. Filler ("rn", "please", "right now") and question words around them are left out, never inside a team's own name. "What was the OPR of this team called Hypnotic Robotics in the DECODE year" now answers as "4215 opr decode". The answer says how it was read ("read as …, leaving out …"). Two things that fit equally are named, never guessed, and a word like "not" or "today" is never silently dropped. A definition beats a team name ("what does opr mean"), and a leaderboard asked with a place but no "in" ("highest opr california", "opr leaders texas") is the leaderboard, not a guess at a team. Details in docs/search-layers.md. (#479)
+
+## 2.7.8 — 2026-11-03
+
+Search engines now get only the team and event pages that have something on them, and every address in the sitemap opens a real page.
+
+### Highlights
+- [fixes] Empty team and event pages wait for data before being indexed
+- [fixes] Every address in the sitemap opens a real page
+- [speed] Event list and world rankings arrive with their lists
+
+### Search engines
+- **Empty pages wait.** A team that has never played, won an award or entered an event of this season, and an event with no teams and no matches, still opens as usual but asks search engines not to index it, and leaves the sitemap. The day its first data arrives, it's indexed and listed again on its own. (#480)
+- **Every sitemap address opens.** Older events whose codes the site can't open (mixed case or punctuation, mostly 2019–20) are no longer listed. Pages the app draws from a heading alone (the team and match tables, Predict, Download, Rules, Privacy, Terms, Contact, Donate) stay findable from their links but aren't offered in the sitemap.
+- **Lists in the first HTML.** The event list shows this season's latest events, and the world rankings their teams, before the app has loaded.
+
+### Teams
+- **Opens on a season with results.** A team listed on this season's league roster for a meet it never played opened on an empty 2026–27, even with years of results. It now opens on its latest season with results, as other teams do; the season switcher still has 2026–27.
+
 ## 2.7.7 — 2026-11-03
 
 Searches that find no answer are now logged, so they can be fixed. Each one becomes a GitHub issue on the public repository: the query (with emails, phone numbers and keys taken out) and how search read it, nothing about who searched. Search itself works exactly as before.

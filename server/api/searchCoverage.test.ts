@@ -6,6 +6,7 @@ import { rebuildSearch } from "../stats/job";
 import { searchAnswer } from "./searchAnswer";
 import { explainAnswer, placeTeamsAnswer, rewriteQuery, teamListAnswer } from "./searchCoverage";
 import { CURRENT_SEASON } from "../data/seasons";
+import { pageMeta } from "../seoMeta";
 
 const S = 2025;
 const ask = (q: string) => searchAnswer(q, { limit: 25, learn: false });
@@ -138,6 +139,56 @@ describe("answers on their own", () => {
     expect(a.card?.team?.number).toBe(4215);
     expect(a.understood?.label).toMatch(/\(4215\) · /);
   });
+  it("several facts at once: each on its own line (failed-search #489)", async () => {
+    // In the order asked.
+    for (const q of ["4215 sponsors school", "4215 sponsors, school", "4215 sponsors and school"]) {
+      const a = await ask(q);
+      expect(a.card?.title).toBe("Sponsors and School or organization");
+      expect(a.card?.lines.map((l) => l.text.split(":")[0])).toEqual(["Sponsors", "School or organization"]);
+      expect(a.card?.lines[1]?.text).toMatch(/Oradell High School/);
+    }
+    expect((await ask("4215 school, website")).card?.title).toBe("School or organization and Website");
+    // A two-word fact can come first.
+    expect((await ask("4215 rookie year website")).card?.title).toBe("Rookie year and Website");
+    // A team whose name ends in a fact word is read whole first: "Code Site"'s website, not "Code"'s site and website.
+    await run("INSERT INTO teams (number, name, website) VALUES (31010, 'Code', 'https://code.example'), (31011, 'Code Site', 'https://codesite.example')");
+    await rebuildSearch();
+    const s = await ask("code site website");
+    expect(s.card?.team?.number).toBe(31011);
+    expect(s.card?.title).toBe("Website");
+  });
+  it("a team name and a place no one team has together: the place's, or plainly none there (failed-search #503)", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (31020, 'Robo Rebels', 'Troy', 'MI', 'USA'), (31021, 'Robo Rebels', 'Fremont', 'CA', 'USA')");
+    await rebuildSearch();
+    const none = await ask("robo rebels nj");
+    expect(none.hits.map((h) => h.ref).sort()).toEqual(["31020", "31021"]);
+    expect(none.understood?.label).toBe("No team named Robo Rebels in New Jersey: all 2 by that name");
+    const mi = await ask("robo rebels michigan");
+    expect(mi.hits.map((h) => h.ref)).toEqual(["31020"]);
+    expect(mi.understood?.label).toBe("The team named Robo Rebels in Michigan");
+    // Every team by the name counts, however many share it: the one in the place is never cut off by a result cap.
+    const many = Array.from({ length: 30 }, (_, i) => `(${32000 + i}, 'Gear Heads', 'Austin', 'TX', 'USA')`).join(", ");
+    await run(`INSERT INTO teams (number, name, city, state, country) VALUES ${many}, (32099, 'Gear Heads', 'Flint', 'MI', 'USA')`);
+    // A team with no city on record is still in its state.
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (32100, 'Lone Gear', NULL, 'NJ', 'USA')");
+    await rebuildSearch();
+    const gh = await ask("gear heads michigan");
+    expect(gh.hits.map((h) => h.ref)).toEqual(["32099"]);
+    expect((await ask("lone gear nj")).understood?.label).toBe("The team named Lone Gear in New Jersey");
+    // A name read as search reads it, accents folded: "cafe" finds "Café".
+    await run("INSERT INTO teams (number, name, city, state, country) VALUES (32101, 'Cafe Robotics', 'Austin', 'TX', 'USA'), (32102, 'Café Robotics', 'Newark', 'NJ', 'USA')");
+    await rebuildSearch();
+    expect((await ask("cafe robotics nj")).hits.map((h) => h.ref)).toEqual(["32102"]);
+  });
+  it("when a team last played: its most recent match (failed-search #487)", async () => {
+    expect(rewriteQuery("when did hypnotic last play")).toMatchObject({ q: "hypnotic last match", pre: true });
+    expect(rewriteQuery("when did 4215 play last")).toMatchObject({ q: "4215 last match" });
+    expect(rewriteQuery("when did hypnotic robotics last compete")).toMatchObject({ q: "hypnotic robotics last match" });
+    // Its answer is the most recent match, and "last" isn't called a word left out.
+    const a = await ask("when did 4215 last play");
+    expect(a.stat?.intent).toBe("recent-match");
+    expect(a.understood?.label ?? "").not.toMatch(/isn't part of this answer/);
+  });
   it("a country's teams by an alias, and 'best team' left to the leaderboards", async () => {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (31000, 'Lions', 'Leeds', NULL, 'United Kingdom')");
     expect((await ask("teams in great britain")).understood?.label).toMatch(/^Teams in United Kingdom/);
@@ -179,6 +230,45 @@ describe("Greptile on #465", () => {
     expect(a.hits.some((h) => /FIRST Championship/.test(h.title))).toBe(false);
   });
   it("a team named with a state it isn't in is never said to be in it", async () => {
-    expect((await ask("hypnotic robotics texas")).understood?.label ?? "").not.toMatch(/Texas/);
+    // It may say plainly that none is there, never that it is.
+    const label = (await ask("hypnotic robotics texas")).understood?.label ?? "";
+    expect(label.replace(/^No team named .+? in Texas/, "")).not.toMatch(/Texas/);
+  });
+});
+
+describe("a list of teams as a table", () => {
+  beforeAll(async () => {
+    // The phases each team page shows (team_season_stats), set here so the table has numbers to read.
+    await run("UPDATE team_season_stats SET opr_auto = opr_np / 4, opr_teleop = opr_np / 2, opr_endgame = 10, opr_pen = 2.5 WHERE season = ?", [S]);
+  });
+  it("a place's teams: a row per team with the stored phase OPRs, in the list's order", async () => {
+    const a = (await placeTeamsAnswer("teams in new jersey", new Set()))!;
+    const t = a.card!.table!;
+    expect(t.by).toBe("opr");
+    // From 2024–25 on the stored TeleOp OPR includes the endgame (as FIRST reports it): said so, never called DC.
+    expect(t.teleopWithEndgame).toBe(true);
+    expect(t.rows.map((r) => r.team)).toEqual(a.card!.lines.map((l) => Number(l.text.split(" ")[0])));
+    expect(t.rows[0]).toMatchObject({ rank: 1, team: 23268, name: "Ultraviolet", location: "Hackettstown, NJ", href: `/teams/23268?season=${S}`, opr: 157.9, auto: 39.475, dc: 78.95, endgame: 10, pen: 2.5, wins: 33, losses: 17, ties: 0 });
+    // The header context line is the same as before.
+    expect(a.understood?.label).toMatch(/registered for .*, best by OPR first$/);
+  });
+  it("a list ranked by another number carries it as its own column, in its own order", async () => {
+    const w = (await ask("teams with the highest win rate")).card!.table!;
+    expect(w).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
+    expect(w.rows[0]).toMatchObject({ team: 6980, asked: { display: "100%" } });
+    expect((await ask("undefeated teams")).card!.table!.rows.map((r) => r.team)).toEqual([6980]);
+    expect((await ask("best teams in romania")).card!.table!.rows[0]).toMatchObject({ team: 14270, dc: 100 });
+  });
+  it("a single team's answer keeps its card, with no table", async () => {
+    const a = await ask("4215 school");
+    expect(a.card?.kind).toBe("info");
+    expect(a.card?.table).toBeUndefined();
+  });
+  it("the first paint carries the whole table, no script needed", async () => {
+    const m = await pageMeta("/search", { q: "teams in new jersey" });
+    const html = m.bodyHtml ?? "";
+    expect(html).toMatch(/<table aria-label="Teams in New Jersey · best by OPR, [^"]+"><thead><tr><th scope="col">#<\/th><th scope="col">Team<\/th><th scope="col" title="[^"]+">OPR<\/th><th scope="col" title="[^"]+">Auto<\/th><th scope="col" title="Driver-controlled OPR, endgame included[^"]+">TeleOp<\/th><th scope="col" title="[^"]+">Endgame<\/th><th scope="col" title="[^"]+">Pen<\/th><th scope="col" title="[^"]+">W-L-T<\/th><\/tr><\/thead>/);
+    expect(html).toContain(`<tr><td>1</td><td><a href="/teams/23268?season=${S}">23268 Ultraviolet</a><br><small>Hackettstown, NJ</small></td><td>157.9</td><td>39.5</td><td>79.0</td><td>10.0</td><td>2.5</td><td>33-17-0</td></tr>`);
+    expect(html).toContain("don't add up to the OPR");
   });
 });

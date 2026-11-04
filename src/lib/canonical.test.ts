@@ -16,6 +16,19 @@ describe("canonicalPath (client) matches the server's canonical URLs", () => {
   });
 });
 
+describe("canonicalPath: FIRST's other codes (src/shared/eventCode.ts)", () => {
+  it("upper-cases and encodes them as the server's canonical does, however the address spells them", () => {
+    expect(canonicalPath("/events/2019/2019INMeet10")).toBe("/events/2019/2019INMEET10");
+    expect(canonicalPath("/events/2019/laredomeet%202")).toBe("/events/2019/LAREDOMEET%202");
+    expect(canonicalPath("/events/2024/NL'hko")).toBe("/events/2024/NL'HKO");
+    expect(canonicalPath("/events/2024/NL%27HKO")).toBe("/events/2024/NL'HKO");
+    expect(canonicalPath("/events/2021/RU%D0%BC%D0%BEs")).toBe(`/events/2021/${encodeURIComponent("RUМОS")}`);
+    expect(canonicalPath("/events/2019/63693260770.2649/display")).toBe("/events/2019/63693260770.2649");
+    // A code an address can't carry is left as written.
+    expect(canonicalPath("/events/2019/a%3Fb")).toBe("/events/2019/a%3Fb");
+  });
+});
+
 describe("canonicalPath: the pit display", () => {
   it("is canonical to its event page, as the server says", () => {
     expect(canonicalPath("/events/2025/usnjnom3/display")).toBe("/events/2025/USNJNOM3");
