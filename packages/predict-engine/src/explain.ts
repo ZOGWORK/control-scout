@@ -3,16 +3,19 @@
 // the top 3 factors behind the call, and a confidence tier.
 //
 // Built on predictMatch (no second model): the factors are an exact split of
-// the predicted margin, so they always add up to the gap between the two
-// expected scores —
+// the model's predicted margin, so they always add up to the gap between the
+// model's two expected scores (modelScoreA − modelScoreB) —
 //   margin = Σ_c (A_c − B_c) over auto / TeleOp / endgame
 //          + (B's penalties committed − A's penalties committed)
 // (penalties a side commits are added to the other side's score).
+// Engine 3.5: the SHOWN scores (predictedScoreA/B, ranges) are margin-calibrated
+// (matchModel.ts servedScores): shown margin = marginScale × that gap, total
+// unchanged. The factors and every probability stay on the model's scores.
 //
 // The confidence tier says how much of the call rests on real matches rather
 // than priors. Its thresholds are a stated rule, not a fitted value — see
 // CONFIDENCE_RULE — and are checked against the calibration ledger.
-import { predictMatch, type BandParams, type MatchPrediction, type NoiseParams, type PartnershipInput, type ScoreBand } from "./matchModel.js";
+import { DEFAULT_MARGIN, modelView, predictMatch, type BandParams, type MarginParams, type MatchPrediction, type NoiseParams, type PartnershipInput, type ScoreBand } from "./matchModel.js";
 import { PARTNERSHIP_PARAMS, partnershipFact, type PartnershipFact } from "./partnership.js";
 import type { CalibrationParams } from "./calibration.js";
 import { contextualFeatures, contextualModelById, contextualTerms, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
@@ -154,8 +157,16 @@ export function recentReasons(teams: number[], recent: (team: number) => RecentR
 export interface MatchExplanation {
   winProbA: number;
   winProbB: number;
+  /** The shown expected scores, whole points (engine 3.5: margin-calibrated, see modelScoreA/B and marginScale). */
   predictedScoreA: number;
   predictedScoreB: number;
+  /** The model's unrounded expected scores before margin calibration (engine 3.5): Σ robots' np − overlap + the
+   *  other side's penalties. The factors split modelScoreA − modelScoreB exactly; probabilities read these. */
+  modelScoreA: number;
+  modelScoreB: number;
+  /** The margin calibration behind the shown scores (engine 3.5): shown = midpoint ± marginScale × half the model's
+   *  margin, midpoint = (modelScoreA + modelScoreB) / 2. 1 = no calibration. */
+  marginScale: number;
   /** Central range of each final score: scoreBandA.level (80%) of real scores should land inside. */
   scoreRangeA: [number, number];
   scoreRangeB: [number, number];
@@ -220,6 +231,8 @@ export interface ExplainOptions {
   partnership?: PartnershipInput;
   /** How score ranges are drawn (FITTED_MODEL.band; the default holds the same values). */
   band?: BandParams;
+  /** Margin calibration of the shown scores (FITTED_MODEL.margin; the default holds the same value). Never moves a probability. */
+  margin?: MarginParams;
   /** Names used in factor sentences (default "Red" / "Blue"). */
   nameA?: string;
   nameB?: string;
@@ -233,6 +246,7 @@ function bonusOdds(season: number, src: BonusModelSource, p: { red: { mean: numb
   // A bonus is earned on the alliance's own non-penalty points: their mean is the lineup's np, their spread
   // the score's game noise + rating uncertainty (the event simulator draws them the same way).
   // A tie (engine 3.1) is priced on the final-score margin: the two alliances' totals, their spreads combined.
+  // `p` is modelView(prediction): the MODEL's margin, never the served (margin-calibrated, 3.5) one.
   const pTie = tieProbability({ mean: p.red.mean - p.blue.mean, sd: Math.hypot(p.red.sd, p.blue.sd) }, pA);
   const A = allianceBonusOdds(season, src.model, { mean: p.red.np, sd: p.red.sd }, pA, pTie);
   const B = allianceBonusOdds(season, src.model, { mean: p.blue.np, sd: p.blue.sd }, 1 - pA, pTie);
@@ -343,7 +357,7 @@ function sheetOf(book: RatingBook, teamsA: number[], teamsB: number[], p: MatchP
   let gain = 1;
   const grouped = new Map<ModelFactorId, number>();
   if (model) {
-    const x = contextualFeatures(book, teamsA, teamsB, { ...p, pRedWin: p.pRaw ?? p.pRedWin }, opts.context, model.coefficients.length);
+    const x = contextualFeatures(book, teamsA, teamsB, { ...modelView(p), pRedWin: p.pRaw ?? p.pRedWin }, opts.context, model.coefficients.length);
     if (x) {
       const t = contextualTerms(model, x);
       gain = t.gain;
@@ -393,7 +407,10 @@ export function explainMatch(book: RatingBook, teamsA: number[], teamsB: number[
 
 function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: ExplainOptions): MatchExplanation {
   const nameA = opts.nameA ?? "Red", nameB = opts.nameB ?? "Blue";
-  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band, partnership: opts.partnership });
+  const margin = opts.margin ?? DEFAULT_MARGIN;
+  const p = predictMatch(book, teamsA, teamsB, opts.noise, opts.calibration, { contextual: opts.contextual, context: opts.context, shadow: opts.shadow, band: opts.band, partnership: opts.partnership, margin });
+  // Probability paths below (factor sheet, tie, bonus odds) read `model`: the unscaled scores (engine 3.5).
+  const model = modelView(p);
   const A = teamsA.map((t) => strength(book, t));
   const B = teamsB.map((t) => strength(book, t));
   const sum = (xs: TeamStrength[], k: keyof TeamStrength) => xs.reduce((s, x) => s + (x[k] as number), 0);
@@ -450,7 +467,7 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
   const partnership = opts.partnership
     ? partnershipFact(opts.partnership.table, teamsA, teamsB, opts.partnership.season, opts.partnership.params ?? PARTNERSHIP_PARAMS, p.partnershipShift ?? 0)
     : null;
-  const factorSheet = sheetOf(book, teamsA, teamsB, p, opts, raw, ranked, partnership, nameA, nameB);
+  const factorSheet = sheetOf(book, teamsA, teamsB, model, opts, raw, ranked, partnership, nameA, nameB);
 
   const reasons = [...eventFormReasons(book, [...teamsA, ...teamsB], opts.context?.event), ...(opts.recent ? recentReasons([...teamsA, ...teamsB], opts.recent) : [])];
 
@@ -462,6 +479,9 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
     winProbB: 1 - p.pRedWin,
     predictedScoreA: Math.round(p.red.mean),
     predictedScoreB: Math.round(p.blue.mean),
+    modelScoreA: p.red.modelMean,
+    modelScoreB: p.blue.modelMean,
+    marginScale: margin.scale,
     scoreRangeA: [p.red.band.lo, p.red.band.hi],
     scoreRangeB: [p.blue.band.lo, p.blue.band.hi],
     scoreBandA: p.red.band,
@@ -480,6 +500,6 @@ function explainOn(book: RatingBook, teamsA: number[], teamsB: number[], opts: E
     overlapA: oA,
     overlapB: oB,
     reasons,
-    bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, p, p.pRedWin, { tier, reason }) : null,
+    bonus: opts.bonus ? bonusOdds(opts.bonus.season, opts.bonus.model, model, p.pRedWin, { tier, reason }) : null,
   };
 }

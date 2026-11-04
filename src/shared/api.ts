@@ -562,6 +562,9 @@ export interface MatchExplanationView {
    *  overlap + Σ opponents' pen. Optional: answers from before this field (an older server or pack) lack it. */
   overlapRed?: number;
   overlapBlue?: number;
+  /** Engine 3.5's margin calibration behind the shown scores: they move toward their middle so the margin is
+   *  marginScale × the gap between the two sums above (total unchanged). Optional: older answers lack it. */
+  marginScale?: number;
   /** The match level the odds assume (a what-if with no level is a qualification match). */
   level?: "qual" | "playoff";
   /** "contextual" (engine 2.0's win-probability model) or "legacy" (no reliability state yet). */

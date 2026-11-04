@@ -4,7 +4,7 @@
 // extend Forecaster and supply the data — ratings, stored results,
 // advancement records and award history.
 import { npOf, type RatingBook, type RatingParams } from "./rating.js";
-import { predictMatch, teamScoreVariance, type BandParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
+import { predictMatch, teamScoreVariance, type BandParams, type MarginParams, type NoiseParams, type ScoreBand } from "./matchModel.js";
 import type { CalibrationParams } from "./calibration.js";
 import type { ContextualModel, MatchContext } from "./contextual.js";
 import { bonusCount } from "./rules.js";
@@ -23,6 +23,8 @@ export interface PredictModel {
   rating: RatingParams; noise: Required<NoiseParams>; pick: PickModel;
   /** How stated score ranges are drawn (2.2+; absent = DEFAULT_BAND). */
   band?: BandParams;
+  /** Margin calibration of the served expected scores (3.5+; absent = DEFAULT_MARGIN). Never moves a probability. */
+  margin?: MarginParams;
   bonus: Record<string, BonusModel>; awards: AwardModel; accuracy?: unknown;
   calibration?: CalibrationParams;
   /** Contextual win-probability model (2.0+); absent = legacy calibrated Gaussian. */
@@ -90,6 +92,7 @@ export interface ForecastMatch {
    *  already include the result, so it wouldn't be a real prediction) and for
    *  playoff alliances listing three robots (which two played is unknown). */
   pRedWin: number | null;
+  /** Served expected scores (engine 3.5: margin-calibrated, AlliancePrediction.mean). Display only. */
   redMean: number | null;
   blueMean: number | null;
   /** Stated score ranges (80%) around redMean / blueMean, engine 2.2+; null when there is no prediction. */
@@ -214,7 +217,7 @@ export abstract class Forecaster {
   protected predict(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}) {
     const pairs = book.season != null ? this.partnerships(book.season) : null;
     return predictMatch(book, red, blue, this.model.noise, this.model.calibration, {
-      context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band,
+      context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band, margin: this.model.margin,
       ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
     });
   }
@@ -224,7 +227,7 @@ export abstract class Forecaster {
   protected explainOn(book: RatingBook, red: number[], blue: number[], ctx: MatchContext = {}, table?: PairLookup | null) {
     const pairs = table !== undefined ? table : book.season != null ? this.partnerships(book.season) : null;
     return explainMatch(book, red, blue, {
-      noise: this.model.noise, calibration: this.model.calibration, context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band,
+      noise: this.model.noise, calibration: this.model.calibration, context: ctx, contextual: this.model.contextual, shadow: this.model.contextual?.fallback, band: this.model.band, margin: this.model.margin,
       ...(pairs ? { partnership: { table: pairs, season: book.season! } } : {}),
     });
   }

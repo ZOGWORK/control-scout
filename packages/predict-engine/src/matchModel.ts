@@ -20,6 +20,16 @@
 // 80% interval score, tested on 2025–26; refitted the same way for 3.2, after
 // 2.7–2.11 sharpened the expected scores (docs/engine/part12/bands.md). It never feeds the win probability:
 // that still uses `sd`, so win odds are unchanged.
+//
+// Margin calibration (3.5): the model's expected margin is too wide (the real margin's slope on it is 0.90–0.94
+// on every rolling window; docs/engine/gates/gate-3.5.0-margin-scale-*.md). The SERVED expected scores shrink toward their midpoint m = (red + blue) / 2:
+//   red′ = m + s·(red − m),  blue′ = m − s·(m − blue)     (s = DEFAULT_MARGIN.scale = FITTED_MODEL.margin.scale)
+// so the shown margin is s × the model's and the total is unchanged; each range keeps its sd and is recentred on
+// the served score. This is presentation of the score only. EVERY probability reads the model's unscaled scores:
+// the Gaussian win chance and the contextual model's inputs (predictOn computes them before serveScores runs),
+// P(tie) and the bonus odds (explain.ts reads `modelMean`/`np`/`sd`), the factor sheet's log-odds (built from the
+// unscaled phase split), and the event simulator (sim.ts draws from the ratings, never from a served score).
+// A test (marginScale.test.ts) fails if any of them ever reads a served (scaled) score.
 import type { RatingBook } from "./rating.js";
 import { calibrateProb, type CalibrationParams } from "./calibration.js";
 import { contextualWinProbWith, sigmoid, type ContextualModel, type MatchContext, type ProbabilityModel } from "./contextual.js";
@@ -96,12 +106,34 @@ export interface ScoreDistribution {
 }
 
 export interface AlliancePrediction {
+  /** The SERVED expected score (engine 3.5: margin-calibrated around the match midpoint; see the header). Show this. */
   mean: number;
+  /** The model's expected score before margin calibration (engine 3.5). Probabilities read this, never `mean`. */
+  modelMean: number;
   /** sd behind the win probability (game noise + rating uncertainty; unchanged by the 2.2 ranges). */
   sd: number;
   np: number;
-  /** The stated score range (engine 2.2+). */
+  /** The stated score range (engine 2.2+), centred on the served `mean` (3.5); its sd is the model's. */
   band: ScoreBand;
+}
+
+/** Margin calibration of the served expected scores (engine 3.5; FITTED_MODEL.margin). */
+export interface MarginParams {
+  /** Served margin = scale × the model's margin, total unchanged (1 = off, the 3.4 scores). */
+  scale: number;
+}
+
+/** The fitted margin calibration. FITTED_MODEL.margin holds the same value (a test keeps them equal). */
+export const DEFAULT_MARGIN: MarginParams = { scale: 0.95 };
+
+/**
+ * The served pair of expected scores from the model's (engine 3.5): both shrink toward their midpoint by `scale`,
+ * so the margin scales and the total is unchanged. Display only: never feed the result to a probability.
+ */
+export function servedScores(red: number, blue: number, margin: MarginParams = DEFAULT_MARGIN): { red: number; blue: number } {
+  if (margin.scale === 1) return { red, blue };
+  const m = (red + blue) / 2;
+  return { red: m + margin.scale * (red - m), blue: m - margin.scale * (m - blue) };
 }
 
 export interface MatchPrediction {
@@ -145,6 +177,8 @@ export interface PredictOptions {
   partnership?: PartnershipInput;
   /** How score ranges are drawn (default DEFAULT_BAND, the same as FITTED_MODEL.band). */
   band?: BandParams;
+  /** Margin calibration of the served scores (default DEFAULT_MARGIN, the same as FITTED_MODEL.margin). Never moves a probability. */
+  margin?: MarginParams;
 }
 
 /** Standard normal CDF (Abramowitz–Stegun erf, |error| < 1.5e-7). */
@@ -216,11 +250,12 @@ function predictOn(book: RatingBook, red: number[], blue: number[], noise: Noise
   const r = book.allianceExpectation(red, level);
   const b = book.allianceExpectation(blue, level);
   const band = opts.band ?? DEFAULT_BAND;
+  // ---- Probability path: everything from here to serveScores reads the MODEL scores (mean = modelMean).
   const side = (own: typeof r, opp: typeof r, teams: number[]): AlliancePrediction => {
     const mean = own.np + opp.pen;
     const game = noise.a + noise.b * Math.max(0, mean);
     const d = distributionOf(book, teams, mean, own.uncertainty, noise, band, opts.context ?? {});
-    return { mean, np: own.np, sd: Math.sqrt(game * game + own.uncertainty), band: scoreBand(mean, d.sd, band.level) };
+    return { mean, modelMean: mean, np: own.np, sd: Math.sqrt(game * game + own.uncertainty), band: scoreBand(mean, d.sd, band.level) };
   };
   const rp = side(r, b, red), bp = side(b, r, blue);
   const raw = phi((rp.mean - bp.mean) / Math.sqrt(rp.sd ** 2 + bp.sd ** 2));
@@ -242,5 +277,19 @@ function predictOn(book: RatingBook, red: number[], blue: number[], noise: Noise
     out.pShadow = ps ? ps.p : (cal ? calibrateProb(raw, cal) : raw);
     out.shadowModelId = ps ? ps.model.id : "legacy";
   }
-  return out;
+  // ---- Served scores (3.5): every probability above is final; only the shown scores and range centres move.
+  return serveScores(out, opts.margin ?? DEFAULT_MARGIN);
+}
+
+/** Margin-calibrate a finished prediction's expected scores and recentre its ranges (same sd). Probabilities untouched. */
+function serveScores(p: MatchPrediction, margin: MarginParams): MatchPrediction {
+  const s = servedScores(p.red.modelMean, p.blue.modelMean, margin);
+  const at = (a: AlliancePrediction, mean: number): AlliancePrediction => ({ ...a, mean, band: scoreBand(mean, a.band.sd, a.band.level) });
+  return { ...p, red: at(p.red, s.red), blue: at(p.blue, s.blue) };
+}
+
+/** The prediction as the probability paths must see it: the model's scores, never the served ones (engine 3.5). */
+export function modelView(p: MatchPrediction): MatchPrediction {
+  if (p.red.mean === p.red.modelMean && p.blue.mean === p.blue.modelMean) return p;
+  return { ...p, red: { ...p.red, mean: p.red.modelMean }, blue: { ...p.blue, mean: p.blue.modelMean } };
 }
