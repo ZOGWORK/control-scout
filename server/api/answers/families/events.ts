@@ -31,10 +31,10 @@ const evRec = (e: TeamEvent) => (e.record ? `${e.record.wins}-${e.record.losses}
 const evRate = (e: TeamEvent) => { const r = e.record, g = r ? r.wins + r.losses + r.ties : 0; return r && g ? (r.wins + r.ties / 2) / g : 0; };
 const WORLDS_RULE = "Worlds: the FIRST Championship. One appearance per season the team attended it, shown as its division (where it ranked), with the finals noted when it played them.";
 
-function eventRows(evs: TeamEvent[], team: number, title: string): StatBlock {
+function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: boolean } = {}): StatBlock {
   return {
     kind: "table", title,
-    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, { key: "opr", label: "OPR", num: true }],
+    columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
     rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankText(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team) })),
   };
 }
@@ -86,7 +86,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       const def = `Ranked 1st: the team's qualification rank at the event was #1, a placement, not an award. ${FINISH_BASE} Winning Alliance and Inspire Award wins are a separate answer (${team.number} event wins).`;
       const related: StatBlock = { kind: "related", title: "Awards, listed apart", queries: [`${team.number} event wins`] };
       if (!firsts.length) return { ...base, family: "superlative", intent: id, title, blocks: [related], definition: def, source: evSource, none: `${who} wasn't ranked 1st at any event${where} on record (league meets aside).` };
-      const rows = eventRows(firsts, team.number, "Each one, newest first");
+      const rows = eventRows(firsts, team.number, "Each one, newest first", { opr: false });
       if (rows.kind === "table") rows.rows = rows.rows.map((r) => ({ ...r, cells: { ...r.cells, rank: `Ranked ${r.cells.rank}` } }));
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: def,
@@ -104,7 +104,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       });
       const title = `Worlds divisions${scope.season != null ? ` in ${seasonLabel(scope.season)}` : ""}`;
       if (!apps.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: WORLDS_RULE, source: evSource, none: `No Worlds appearances found in ${possessive(who)} recorded event history${scope.season != null ? ` for ${seasonLabel(scope.season)}` : ""}.` };
-      const rows = eventRows(apps.map((a) => a.division), team.number, "Each appearance, newest first");
+      const rows = eventRows(apps.map((a) => a.division), team.number, "Each appearance, newest first", { opr: false });
       if (rows.kind === "table") rows.rows = rows.rows.map((r, i) => (apps[i].finals ? { ...r, cells: { ...r.cells, event: `${r.cells.event} (played the finals)` } } : r));
       return {
         ...base, family: "aggregate", intent: id, title, source: evSource, definition: WORLDS_RULE,
