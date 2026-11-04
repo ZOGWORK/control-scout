@@ -28,7 +28,7 @@ Search fixes spelling: a mistyped team name, stat word, event word or place show
 ### Search
 - **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: "hypnotc robotics", "bad wolff", "enforcrs", "4215 recrod", "4215 awrds", "hypnotic oper", "new jersey champinship", "new jersy", "oradel". Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
 - **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
-- **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#PR)
+- **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
 
 ## 2.9.9 — 2026-11-04
 
