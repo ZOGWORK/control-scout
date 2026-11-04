@@ -17,16 +17,15 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 2.9.5 — 2026-11-04
 
-Predicted scores sit a little closer together: predicted margins ran about 5% wider than real ones, so the
-engine (3.5.0) now calibrates them. Win chances are exactly what they were.
+Predicted scores sit a little closer together: margins ran about 5% wide, so engine 3.5.0 calibrates them. Win chances are exactly what they were.
 
 ### Highlights
-- [predict] Predicted margins are 5% tighter, closer to real margins; totals unchanged
-- [predict] The Lab writes the calibration out step by step, so the shown score still adds up by hand
-- [report] How it works says what the margin calibration does and its value (0.95)
+- [predict] Predicted margins are 5% tighter, closer to real ones
+- [predict] The Lab writes the calibration out step by step
+- [report] How it works explains the margin calibration (0.95)
 
 ### Predictions
-- **Engine 3.5.0: margin calibration.** Replayed, the real margin came out about 0.95 of the predicted one, so both predicted scores now move toward their middle until the margin is 0.95 of the rating gap. The total is the same and each 80% range keeps its width, recentred. Margin error falls by about 0.1 point in both seasons tested (2024–25 −0.107 [−0.147, −0.064], 2025–26 −0.095 [−0.124, −0.066]), alliance score error a little too, and ranges hold as many real scores as before. Win chances, tie chances, bonus RP odds, event simulations and the factor sheet are bit-identical to 3.4.0 on every replayed match (docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md).
+- **Engine 3.5.0: margin calibration.** Replayed, the real margin came out about 0.95 of the predicted one, so both predicted scores now move toward their middle until the margin is 0.95 of the rating gap. The total is the same and each 80% range keeps its width, recentred. Margin error falls by about 0.1 point in both seasons tested (2024–25 −0.107 [−0.147, −0.064], 2025–26 −0.095 [−0.124, −0.066]), alliance score error a little too, and ranges hold as many real scores as before. Win chances, tie chances, bonus RP odds, event simulations and the factor sheet are bit-identical to 3.4.0 on every replayed match (docs/engine/gates/gate-3.5.0-margin-scale-snapshot-2026-10-14.md). (#534)
 - **Lab.** Under the ratings table, each alliance's sum is labelled "before calibration" and a second pair of lines writes the calibration out ("113.4 + 0.95 × 7.4 = 120.4 · shown 120"). The factors note says they split the rating gap, and that the margin is 0.95 of it.
 - **How it works.** The match section has one sentence on the calibration and its value, the factors section says the phases split the rating gap, and the settings table lists "Margin calibration (3.5) × 0.95".
 
