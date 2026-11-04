@@ -12,6 +12,8 @@ import { eventView } from "./api/eventView.js";
 import { resultChanges } from "./api/resultChanges.js";
 import { siteMeta } from "./api/meta.js";
 import { SEASON_NUMBERS } from "./data/seasons.js";
+import { storedEventCode } from "./eventCodes.js";
+import { isEventCodeParam } from "../src/shared/eventCode.js";
 
 export interface FirstPaint {
   /** The page's markup, as the app draws it. */
@@ -88,8 +90,8 @@ export async function teamFirstPaint(n: number, seasonRaw?: string): Promise<Fir
  */
 export async function eventFirstPaint(seasonRaw: string, codeRaw: string, search: string): Promise<FirstPaint | null> {
   const season = covered(seasonRaw);
-  if (season == null || !/^[A-Za-z0-9_-]{2,24}$/.test(codeRaw)) return null;
-  const code = codeRaw.toUpperCase();
+  if (season == null || !isEventCodeParam(codeRaw)) return null;
+  const code = await storedEventCode(season, codeRaw); // any case (src/shared/eventCode.ts)
   // The page asks with the address's own spelling (src/pages/EventPage.tsx): /api/events/2025/usnjcmp stays lowercase.
   const base = `/api/events/${seasonRaw}/${codeRaw}`;
   return draw(`/events/${seasonRaw}/${codeRaw}${search}`, `event ${season} ${code}`, async () => {

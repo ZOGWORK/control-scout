@@ -8,15 +8,17 @@ import { all } from "./db.js";
 import { canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
 import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./indexable.js";
+import { eventPath } from "../src/shared/eventCode.js";
+import { PRERENDERED_PAGES } from "../src/shared/prerendered.js";
+import { isEnabled } from "./flags.js";
 
 // The pages whose first HTML is their content (server/seoMeta.ts bodyHtml): the home page, the event list, the world
-// rankings, both How it works pages and the FAQ; power rankings below. Left out, though crawlable and indexable from
-// their links: pages whose first HTML is only a heading and a line until the app draws them (/teams and /matches,
-// the record tables; /predict; /download; /rules; /privacy, /terms, /contact, /donate), which a sitemap would offer as
-// near-empty pages. Never listed: /records (a redirect to /teams), /supporters (a redirect source too, and noindex),
-// Compare (empty until teams are picked; a pair is a view of two team pages), /search (noindex) and any filter,
-// sort or search variant (a ?query address).
-export const STATIC_PAGES = ["/", "/events", "/rankings", "/how-it-works/search", "/methodology", "/faq"];
+// rankings, the record tables (their top rows), both How it works pages, the FAQ and the plain content pages
+// prerendered at build (src/shared/prerendered.ts); power rankings below. Left out, though crawlable and indexable from
+// its links: /predict, an input form whose first HTML is a heading and a line. Never listed: /records and /support
+// (redirects), /supporters and /search (noindex), Compare (empty until teams are picked; a pair is a view of two team
+// pages) and any filter, sort or search variant (a ?query address).
+export const STATIC_PAGES = ["/", "/events", "/rankings", "/teams", "/matches", "/how-it-works/search", "/methodology", "/faq", ...Object.keys(PRERENDERED_PAGES)];
 export const CHUNK = 45_000; // under the 50,000-URL limit, and far under 50 MB
 
 interface Entry { loc: string; lastmod?: string }
@@ -55,13 +57,15 @@ export async function sitemapEntries(): Promise<Entry[]> {
   const lastmod = new Map(lastmods.map((t) => [t.number, t.lastmod]));
   // Power rankings: the hub and every published week, newest first (none until the first is; never sample weeks).
   const weeks = (await publishedWeeks()).filter((w) => !w.sample).reverse();
+  // The rules reference only while the owner has it on (flag rulesReference); off, its page is noindex.
+  const rulesOn = await isEnabled("rulesReference").catch(() => false);
   return [
-    ...STATIC_PAGES.map((p) => ({ loc: canonicalUrl(p) })),
+    ...STATIC_PAGES.filter((p) => p !== "/rules" || rulesOn).map((p) => ({ loc: canonicalUrl(p) })),
     ...(weeks.length ? [{ loc: canonicalUrl("/power-rankings"), lastmod: lastmodOf(weeks[0]) }] : []),
     ...weeks.map((w) => ({ loc: canonicalUrl(`/power-rankings/${w.week}`), lastmod: lastmodOf(w) })),
     // lastmod: the source's own change marker (late results, awards and advancement move it); none when unknown.
-    // Only a code the page can look up (the rest answer 404).
-    ...events.filter((e) => isReachableEventCode(e.code)).map((e) => ({ loc: canonicalUrl(`/events/${e.season}/${encodeURIComponent(e.code)}`), lastmod: day(e.upstream_updated) })),
+    // Only a code the page can look up, at its canonical address (upper case, encoded: src/shared/eventCode.ts).
+    ...events.filter((e) => isReachableEventCode(e.code)).map((e) => ({ loc: canonicalUrl(eventPath(e.season, e.code)), lastmod: day(e.upstream_updated) })),
     ...teamRows.map((t) => ({ loc: canonicalUrl(`/teams/${t.number}`), lastmod: day(lastmod.get(t.number)) })),
   ];
 }

@@ -6,14 +6,14 @@
 // looking itself up still finds it) but says noindex and stays out of the sitemap, until its first data arrives: then
 // the same rule, read on every request and every sitemap build, lets it in. Nothing is flipped by hand.
 //
-// An event page also has to be reachable at all: the app (and the API) look an event up by its code in upper case,
-// within [A-Z0-9_-]{2,24} (server/app.ts code()). FIRST's older seasons hold codes outside that ("2019INMeet10",
-// "USVTM(KO", "63693260770.2649"); their address answers 404, so it's never listed.
+// An event page also has to be reachable at all: its code has to be one an address can carry (src/shared/eventCode.ts:
+// any FIRST uses, in any case, but never one with "/", "?" or "#"); one that can't is never listed.
 import { CURRENT_SEASON, SEASON_NUMBERS } from "./data/seasons.js";
 import { teamPageSql } from "../src/shared/teamPages.js";
+import { isEventCodeParam } from "../src/shared/eventCode.js";
 
 /** Whether `code` (as stored) is an event code the page and the API can look up. */
-export const isReachableEventCode = (code: string): boolean => /^[A-Z0-9_-]{2,24}$/.test(code);
+export const isReachableEventCode = (code: string): boolean => isEventCodeParam(code);
 
 /** SQL, for the event in `e` (an events alias): it has teams (a roster, or FIRST's registrations while it has none,
  *  as the page counts them: data/registrations.ts ROSTER) or a played match. Constants only. */
