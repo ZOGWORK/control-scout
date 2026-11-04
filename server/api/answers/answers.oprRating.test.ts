@@ -40,6 +40,10 @@ beforeAll(async () => {
     await run("INSERT INTO event_teams (season, code, team, rank) VALUES (?, ?, 4215, 3)", [season, code]);
     await run("INSERT INTO team_event_stats (season, code, team, opr_np, opr_auto, opr_teleop, opr_endgame, matches) VALUES (?, ?, 4215, ?, ?, ?, ?, ?)", [season, code, opr, a, t, e, n]);
   }
+  // An off-season event after its 2023–24 Worlds: not rated, so the season's rating is still the one it finished Worlds on.
+  await ev(2023, "USNJOFF", "Summer Invitational", "OffSeason", "2024-06-01");
+  await run("INSERT INTO event_teams (season, code, team, rank) VALUES (2023, 'USNJOFF', 4215, 1)");
+  await run("INSERT INTO team_event_stats (season, code, team, matches) VALUES (2023, 'USNJOFF', 4215, 5)");
   // season, team, OPR, auto, teleop, endgame, OPR rank, ranked teams, matches, wins, rating, ± , rating rank, rated matches
   const rows = [
     [2023, 4215, 141.4, 47.3, 60, 38.9, 40, 6000, 15, 12, 139.2, 3.2, 84, 52], [2024, 4215, 144.8, 38.6, 106.2, 2, 30, 7600, 5, 5, 167.6, 3.2, 166, 42],
@@ -127,6 +131,16 @@ describe("answers", () => {
       expect((await ask(q)).headline, q).toMatchObject({ value: "#2 of 3", label: "in New Jersey by prediction rating", sub: expect.stringContaining("#2 of 3 in New Jersey by OPR") });
     }
     expect((await ask("6980 place on the New Jersey leaderboard")).headline).toMatchObject({ value: "#3 of 3" });
+  });
+  it("34, 55, 206 asked of a team from elsewhere: it's from there, not short of matches; its own place's list answers", async () => {
+    for (const q of ["8000 opr rank in New Jersey", "8000 rating in New Jersey", "8000 rank in New Jersey"]) {
+      const s = await ask(q);
+      expect(s.none, q).toMatch(/isn't on the New Jersey .* for 2025–26: it's a team from Texas, and the New Jersey .* rank teams from New Jersey only\./);
+      expect(s.blocks[0], q).toMatchObject({ kind: "related", queries: [expect.stringMatching(/^8000 .* in Texas$/)] });
+    }
+    expect((await ask("8000 opr rank in Texas")).headline).toMatchObject({ value: "#1 of 1", label: "in Texas by OPR" });
+    // A New Jersey team under 3 matches is still told why.
+    expect((await ask("9100 opr rank in New Jersey")).none).toMatch(/it needs 3\+ matches that season/);
   });
   it("36: OPR against the world's average team, the average stated", async () => {
     const s = await ask("4215 opr compared to the average team");

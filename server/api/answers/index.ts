@@ -89,8 +89,8 @@ export interface TeamEventPick { primary: TeamEvent; events: TeamEvent[]; name: 
 
 /** The team's events the words name: the best name match of every season it attended, the newest season on a tie (or
  *  the season named). The events of that season matching about as well are the same question asked of each ("Northern
- *  League Meet", an AM and a PM meet): all of them. A championship's division and its finals are one championship: a
- *  team that played both gets both, whichever name was typed ("NJ championship": its own division, never another's). */
+ *  League Meet", an AM and a PM meet): all of them. A championship named takes in the division the team played there
+ *  ("NJ championship": its own division and the finals it reached, never another team's division). */
 export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | null): TeamEventPick | null {
   const scored = evs.filter((e) => season == null || e.season === season)
     .map((e) => ({ e, s: Math.max(fuzzyScore(words, e.name), fuzzyScore(words, e.code)) }))
@@ -99,12 +99,13 @@ export function pickTeamEvent(evs: TeamEvent[], words: string, season: number | 
   const [best] = scored;
   if (!best) return null;
   const tied = scored.filter((x) => x.e.season === best.e.season && best.s - x.s < 0.05).map((x) => x.e);
-  const family = (e: TeamEvent) => e.division ?? e.code;
-  const fams = new Set(tied.map(family));
-  const events = evs.filter((e) => e.season === best.e.season && fams.has(family(e)));
+  // The championship named takes in the division the team played; a division named is that division alone.
+  const named = new Set(tied.map((e) => e.code));
+  const events = evs.filter((e) => e.season === best.e.season && (named.has(e.code) || (e.division != null && named.has(e.division))));
+  const families = new Set(events.map((e) => e.division ?? e.code)).size;
   // A division's rank and OPR are the team's own; its finals rank only the alliances that reached them.
-  const primary = events.length > 1 ? (events.find((e) => e.division != null && fams.size === 1) ?? best.e) : best.e;
-  return { primary, events, name: pickName(events, fams.size) };
+  const primary = events.length > 1 && families === 1 ? (events.find((e) => e.division != null) ?? best.e) : best.e;
+  return { primary, events, name: pickName(events, families) };
 }
 
 /** "New Jersey Championship (Turnpike Division and finals)", "P1-4 AM Northern League Meet and P1-4 PM Northern League
@@ -170,8 +171,8 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
       return { ...scope, season: null, event: { season: p.primary.season, code: p.primary.code, name: p.name, ...(codes.length > 1 ? { codes } : {}) } };
     }
     // None of the team's events: the event those words name, which the answer says the team didn't play.
-    const named = await findEvent(s.at, season, { anyPlayed: true });
-    if (!named || Math.max(fuzzyScore(s.at, named.name), fuzzyScore(s.at, named.code)) < 0.75) return null;
+    const named = await findEvent(s.at, season, { anyPlayed: true, closest: true });
+    if (!named) return null;
     return { ...scope, season: null, event: { season: Number(named.season), code: named.code, name: shortEvent(named.name, named.type ?? null), absent: true } };
   }
   if (s.season == null && !s.ever && (s.latest || it.defaultSeason === "latest") && PARTNER_LIST_INTENTS.has(it.id)) {
@@ -201,8 +202,11 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
 }
 
 /** An event by name for a team-less question (its newest season, or the season named). */
-async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean } = {}) {
-  const found = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
+async function findEvent(words: string, season: number | null, opts: { anyPlayed?: boolean; closest?: boolean } = {}) {
+  const hits = (await search(words, 8, new Set(), new Set(["event"]), season)).filter((h) => h.kind === "event");
+  // `closest`: only the events whose names match the words, the closest first (search may rank a shorter name first).
+  const fit = (h: (typeof hits)[number]) => fuzzyScore(words, h.title);
+  const found = opts.closest ? hits.filter((h) => fit(h) >= 0.75).sort((a, b) => fit(b) - fit(a)) : hits;
   const row = (s: number, code: string) => get<any>("SELECT season, code, name, type, start, end, division_code division FROM events WHERE season = ? AND code = ?", [s, code]);
   // A season named: the first event found that was held that season (search lists an event once, by its newest season,
   // so an older one is looked up by its code).

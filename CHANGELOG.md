@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.1 — 2026-11-04
+
+Search answers about one event work for every team, not only the teams it was first checked with.
+
+### Highlights
+- [teams] "NJ championship" reads the division the team played
+- [teams] A division and the finals it reached count as one event
+- [fixes] A team that didn't play an event is told so, not left blank
+- [fixes] Teams numbered like a year (20205) are found again
+
+### Search
+- **The team's own event.** "23268 matches at NJ championship" found two of Ultraviolet's events alike (the Turnpike Division and the finals) and showed an empty page; 4215 only played Parkway, so it never hit this. A championship named now takes in the division the team played and the finals it reached, read as one ("New Jersey Championship (Turnpike Division and finals)"), with the division's rank and OPR. Events of one name it played (an AM and a PM meet) are read together, and one match number at each is listed rather than picked. A division named outright is that division alone. (#000)
+- **Events a team didn't play.** "10809 record at NJ championship" says Crow Force didn't play at New Jersey Championship in 2025–26, naming the event checked, and lists the same question for the events it did play, instead of an empty page.
+- **Places.** A team from elsewhere asked its place on New Jersey's lists is told it's from its own state, with that state's question, not that it's short of matches.
+- **Worlds rating.** An off-season event after Worlds isn't rated, so "rating at worlds" now shows the rating a team finished Worlds on instead of "isn't stored".
+- **Team numbers.** A typed number is a typo only of a number as long: team 20205 no longer matches the year 2025, nor 20265 an event named "… 2026 Bishkek", so "when did 20265 start in FTC" finds the team.
+
 ## 3.0.7 — 2026-11-04
 
 Search answers questions about two or three teams, a team's partners and opponents, and predictions, each in one card from the stored numbers.
