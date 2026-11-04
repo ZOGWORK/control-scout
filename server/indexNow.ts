@@ -18,6 +18,7 @@ import { RELEASE } from "./release.js";
 import { canonicalOrigin, canonicalUrl } from "./seo.js";
 import { publishedWeeks } from "./powerRankings/store.js";
 import { eventHasDataSql, isReachableEventCode, teamIndexableSql } from "./indexable.js";
+import { eventPath } from "../src/shared/eventCode.js";
 
 export const DEFAULT_KEY = "8da88d7fa9ed782383e804ed035f755e";
 export const ENDPOINT = "https://api.indexnow.org/indexnow";
@@ -63,7 +64,7 @@ export async function changedEvents(cursor: Cursor, budget: number): Promise<{ p
   let i = 0;
   for (; i < batch.length; i++) {
     const e = batch[i];
-    const add = [...(e.ok && isReachableEventCode(e.code) ? [`/events/${e.season}/${encodeURIComponent(e.code)}`] : []), ...(teams.get(`${e.season}:${e.code}`) ?? []).map((t) => `/teams/${t}`)].filter((x) => !seen.has(x));
+    const add = [...(e.ok && isReachableEventCode(e.code) ? [eventPath(e.season, e.code)] : []), ...(teams.get(`${e.season}:${e.code}`) ?? []).map((t) => `/teams/${t}`)].filter((x) => !seen.has(x));
     // An event and its teams go together; one bigger than a whole ping on its own still goes (cut to fit).
     if (paths.length + add.length > budget && paths.length) break;
     for (const x of add) seen.add(x);

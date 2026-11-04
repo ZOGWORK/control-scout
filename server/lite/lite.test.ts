@@ -198,6 +198,13 @@ describe("addresses", () => {
     expect(fullHref("/lite/events/2025/USNJQ1")).toBe("/events/2025/USNJQ1");
     expect(fullHref("/lite/teams/18360", "?season=2024")).toBe("/teams/18360?season=2024");
     expect(fullHref("/lite/picklist", "?space=7")).toBe("/scout?space=7&tab=planning&view=picklist");
+    // Any event code FIRST uses, as typed or encoded: there and back at its one address (capitals, encoded).
+    expect(liteHref("/events/2019/63693260770.2649")).toBe("/lite/events/2019/63693260770.2649");
+    expect(liteHref("/events/2019/NL'hko/match/qual:0:1")).toBe("/lite/events/2019/NL'HKO/match/qual:0:1");
+    expect(liteHref("/events/2019/laredomeet%202")).toBe("/lite/events/2019/LAREDOMEET%202");
+    expect(fullHref("/lite/events/2024/USVTM(KO")).toBe("/events/2024/USVTM(KO");
+    expect(fullHref("/lite/events/2019/laredomeet%202/match/qual:0:1")).toBe("/events/2019/LAREDOMEET%202/match/qual:0:1");
+    expect(fullHref("/lite/events/2019/%E0%A4%A")).toBe("/"); // not a code: malformed encoding
     for (const p of ["/", "/events", "/predict", "/scout", "/scout?view=entries"]) expect(liteHref(p.split("?")[0], p.includes("?") ? p.slice(p.indexOf("?")) : "")).toBeNull();
   });
 });

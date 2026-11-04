@@ -28,8 +28,9 @@ describe("sitemap", () => {
     const locs = e.map((x) => x.loc);
     expect(locs).toContain("https://controlscout.org/");
     expect(locs).toContain("https://controlscout.org/teams/4215");
-    // Pages the app draws (their first HTML a heading and a line) stay out; they're crawlable from their links.
-    for (const p of ["/privacy", "/terms", "/contact", "/teams", "/matches", "/predict"]) expect(locs).not.toContain(`https://controlscout.org${p}`);
+    // Pages whose first HTML carries their content are listed; /predict (an input form) stays out, crawlable from its links.
+    for (const p of ["/privacy", "/terms", "/contact", "/teams", "/matches"]) expect(locs).toContain(`https://controlscout.org${p}`);
+    expect(locs).not.toContain("https://controlscout.org/predict");
     expect(locs).toContain("https://controlscout.org/faq");
     expect(locs).toContain("https://controlscout.org/rankings");
     expect(locs).toContain("https://controlscout.org/events/2025/USNJNOM3");
@@ -74,7 +75,7 @@ describe("sitemap", () => {
 describe("missing files", () => {
   it("any extension counts as a file (so it 404s instead of serving the app)", async () => {
     const { MISSING_FILE } = await import("./seo");
-    for (const p of ["/missing.webmanifest", "/x.png", "/a/b.xml", "/robots.txt"]) expect(MISSING_FILE.test(p)).toBe(true);
-    for (const p of ["/teams/4215", "/events/2025/USNJNOM3", "/"]) expect(MISSING_FILE.test(p)).toBe(false);
+    for (const p of ["/missing.webmanifest", "/x.png", "/a/b.xml", "/robots.txt", "/events/2019/x/y.png"]) expect(MISSING_FILE.test(p)).toBe(true);
+    for (const p of ["/teams/4215", "/events/2025/USNJNOM3", "/", "/events/2019/63693260770.2649", "/events/2019/63693260770.2649/display", "/lite/events/2019/63693260770.2649", "/events/2019/63693260770.2649/match/qual:0:1"]) expect(MISSING_FILE.test(p)).toBe(false);
   });
 });
