@@ -18,6 +18,9 @@ export interface TeamMatch {
   alliance: "red" | "blue";
   /** With penalties (the result), and without (the alliance's own points). */
   own: number; opp: number; ownNp: number | null; oppNp: number | null;
+  /** The alliance's phase points (as the match's own breakdown stores them: TeleOp as FIRST reports it) and the
+   *  penalty points it gave away (its fouls, the other alliance's gain); null where the match has no breakdown. */
+  ownAuto: number | null; ownTeleop: number | null; ownEndgame: number | null; ownPen: number | null; oppPen: number | null;
   /** On the team's win-loss record (eventRecord's rule: a qualification surrogate isn't, a playoff team sitting out isn't). */
   counted: boolean;
   /** The team's robot was on the field (its alliance's score is one it helped make). */
@@ -27,6 +30,7 @@ export interface TeamMatch {
 }
 
 const TTL_MS = 5 * 60_000, MAX = 300;
+const num = (v: unknown) => (v == null ? null : Number(v));
 const cache = new Map<number, { at: number; rows: Promise<TeamMatch[]> }>();
 registerCache("Search answers: team matches", () => cache.clear());
 
@@ -48,7 +52,8 @@ async function load(team: number): Promise<TeamMatch[]> {
   const [ms, others] = await Promise.all([
     all<any>(
       `SELECT x.season, x.code, x.level, x.series, x.number, x.alliance, x.surrogate, x.on_field, m.label, COALESCE(m.time, e.start) date,
-              m.red_total, m.blue_total, m.red_np, m.blue_np, e.name event, e.type, e.country, e.state, e.division_code
+              m.red_total, m.blue_total, m.red_np, m.blue_np, m.red_auto, m.blue_auto, m.red_teleop, m.blue_teleop,
+              m.red_endgame, m.blue_endgame, m.red_pen, m.blue_pen, e.name event, e.type, e.country, e.state, e.division_code
        FROM match_teams x
        JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
        JOIN events e ON e.season = x.season AND e.code = x.code
@@ -72,6 +77,8 @@ async function load(team: number): Promise<TeamMatch[]> {
       alliance: red ? "red" : "blue", own, opp,
       ownNp: (red ? r.red_np : r.blue_np) == null ? null : Number(red ? r.red_np : r.blue_np),
       oppNp: (red ? r.blue_np : r.red_np) == null ? null : Number(red ? r.blue_np : r.red_np),
+      ownAuto: num(red ? r.red_auto : r.blue_auto), ownTeleop: num(red ? r.red_teleop : r.blue_teleop), ownEndgame: num(red ? r.red_endgame : r.blue_endgame),
+      ownPen: num(red ? r.red_pen : r.blue_pen), oppPen: num(red ? r.blue_pen : r.red_pen),
       counted: onRecord(r.level, { surrogate: !!Number(r.surrogate), onField: Number(r.on_field ?? 1) === 1 }),
       onField: Number(r.on_field ?? 1) === 1,
       result: own > opp ? "W" : own < opp ? "L" : "T",
