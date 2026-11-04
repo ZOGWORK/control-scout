@@ -37,6 +37,7 @@ import { parseQuestion, questionAnswer } from "./searchQuestions.js";
 import { highScoreAnswer, parseHighScore } from "./searchHighScores.js";
 import { statAnswer } from "./answers/index.js";
 import { layeredAnswer } from "./searchLayers.js";
+import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { bottomAnswer, countAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
@@ -60,6 +61,8 @@ export interface AnswerOptions {
   rewrites?: number;
   /** Set for every search searchAnswer makes inside a top-level one: the layers (./searchLayers.ts) run once, outside. */
   inner?: boolean;
+  /** False: no spelling correction (./spelling.ts), for the corrected query's own search. */
+  spell?: boolean;
   /** A stat answer's blocks are worked out (/search and its first paint, never the dropdown): ./answers/index.ts.
    *  Set by searchAnswer from the caller's limit (the page asks for SEARCH_PAGE_LIMIT) unless given. */
   full?: boolean;
@@ -155,6 +158,16 @@ const recovery = (q: string, understood: string[], closest: SearchHit[] = []): S
  *  docs/search-layers.md): the readers below are Layer 1, and a query they miss is read again by its words. */
 export async function searchAnswer(raw: string, opts: AnswerOptions = {}): Promise<SearchAnswer> {
   if (opts.inner || opts.intents === false || opts.rewrites) return readerAnswer(raw, opts);
+  const a = await typedAnswer(raw, opts);
+  // Then its spelling (./spelling.ts): a misspelled query is read again corrected, and the better answer kept. Never
+  // a quoted phrase, which asks for exactly those words.
+  if (opts.spell === false || String(raw ?? "").includes('"')) return a;
+  const asked = /\?\s*$/.test(String(raw ?? ""));
+  return spelled(cleanQuery(raw), a, (q) => searchAnswer(asked ? `${q}?` : q, { ...opts, spell: false }));
+}
+
+/** searchAnswer for the query as typed. */
+async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const asked = /\?\s*$/.test(String(raw ?? ""));
   const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true });
   // Boolean operators and quoted phrases are read from the query as typed, before cleaning drops '"' and '|'
@@ -404,8 +417,11 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // typed but not it ("hipnotic robotics"). Words found only in a school, city or venue ("River Dell") are results,
   // labelled as fuzzy matches, never a "correction" to some unrelated name.
   const top = marked[0];
-  const nearName = top.match === "fuzzy" && fuzzyScore(searchIntent(rest)?.rest ?? rest, nameOf(top)) >= 0.6;
-  if (!nearName) return answer(q, { hits: marked, step: "deterministic" });
+  const named = searchIntent(rest)?.rest ?? rest;
+  const nearName = top.match === "fuzzy" && fuzzyScore(named, nameOf(top)) >= 0.6;
+  // Two names as close as each other ("molt bots": Volt Bots and Bolt Bots): both are listed, neither is guessed.
+  const tie = nearName && marked[1]?.kind === top.kind && marked[1].match === "fuzzy" && fuzzyScore(named, nameOf(marked[1])) >= fuzzyScore(named, nameOf(top));
+  if (!nearName || tie) return answer(q, { hits: marked, step: "deterministic" });
   const topic = (intent ?? searchIntent(rest, true))?.phrase;
   return answer(q, { hits: marked, step: "did-you-mean", didYouMean: `${nameOf(top)}${topic ? ` ${topic}` : ""}` });
 }

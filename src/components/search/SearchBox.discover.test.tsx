@@ -150,9 +150,27 @@ describe("did you mean", () => {
     fireEvent.change(input, { target: { value: "hypnotik robotcs" } });
     await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
     await reply(/q=hypnotik/, answer("hypnotik robotcs", { step: "did-you-mean", didYouMean: "hypnotic robotics", hits: [t("4215", "Hypnotic Robotics")] }));
-    expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean “hypnotic robotics”? Showing results for that, not “hypnotik robotcs”.");
+    expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean: hypnotic robotics. Showing results for that, not “hypnotik robotcs”.");
     // Typing on: the old correction (dimmed, stale) never names the new text as the mistake.
     fireEvent.change(input, { target: { value: "6980" } });
-    expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean “hypnotic robotics”? Showing results for that.");
+    expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean: hypnotic robotics. Showing results for that.");
+  });
+  it("the correction is a tap: it puts the corrected query in the box, which searches it", async () => {
+    const { input, focus } = mount();
+    focus();
+    fireEvent.change(input, { target: { value: "4215 recrod" } });
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await reply(/q=4215%20recrod/, answer("4215 recrod", { step: "did-you-mean", didYouMean: "4215 record", hits: [t("4215", "Hypnotic Robotics")] }));
+    fireEvent.click(document.querySelector("[data-did-you-mean-link]")!);
+    expect((input as HTMLInputElement).value).toBe("4215 record");
+    expect(document.activeElement).toBe(input);
+  });
+  it("a fix offered beside results for the query as typed says only \"Did you mean\"", async () => {
+    const { input, focus } = mount();
+    focus();
+    fireEvent.change(input, { target: { value: "hypnotic oper" } });
+    await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
+    await reply(/q=hypnotic%20oper/, answer("hypnotic oper", { step: "deterministic", didYouMean: "hypnotic opr", hits: [t("4215", "Hypnotic Robotics")] }));
+    expect(document.querySelector("[data-did-you-mean]")?.textContent).toBe("Did you mean: hypnotic opr");
   });
 });

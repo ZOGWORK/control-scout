@@ -600,7 +600,7 @@ async function searchMeta(raw: string): Promise<PageMeta> {
   // The badge says what was understood; with none (nothing found), the reading's own lines do. A fallback is always
   // said, so substitute events are never shown as the answer.
   const fallback = answer.understood?.fallback;
-  const said = [notes.didYouMean ? `Showing results for “${esc(notes.didYouMean)}”` : "", ...(badge ? (fallback ? [esc(fallback)] : []) : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
+  const said = [notes.didYouMean ? (notes.corrected ? `Showing results for “${esc(notes.didYouMean)}”` : `Did you mean: ${esc(notes.didYouMean)}`) : "", ...(badge ? (fallback ? [esc(fallback)] : []) : notes.understood.map(esc)), notes.gap ? `<b>${esc(notes.gap)}</b>` : ""].filter(Boolean);
   // A question's direct answer (server/api/searchQuestions.ts), as the page shows it: its records, or its plain
   // "none found" with the closest records under it.
   const c = answer.card;

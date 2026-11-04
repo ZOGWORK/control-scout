@@ -150,11 +150,18 @@ export function useSections(hits: SearchHit[], answer: SearchAnswer | undefined,
 }
 
 /** What the query was read as, above the rows: a correction, Bruno AI's reading, or what was understood.
- *  A correction is always labelled as one, never a silent swap: "Did you mean …?", and (given `query`) what was typed. */
-export function AnswerNotesView({ notes, refining, className, query }: { notes: AnswerNotes; refining?: boolean; className?: string; query?: string }) {
+ *  A correction is always labelled as one, never a silent swap: "Did you mean: …", and (given `query`) what was typed.
+ *  `onDidYouMean` makes the correction a tap that runs it. */
+export function AnswerNotesView({ notes, refining, className, query, onDidYouMean }: { notes: AnswerNotes; refining?: boolean; className?: string; query?: string; onDidYouMean?: (q: string) => void }) {
   const lines: ReactNode[] = [];
   if (notes.didYouMean) {
-    lines.push(<span data-did-you-mean>Did you mean <b className="font-medium text-foreground">“{notes.didYouMean}”</b>? Showing results for that{query ? <>, not “{query}”</> : ""}.</span>);
+    const fix = notes.didYouMean;
+    // Kept off the field's focus (as the rows are), so a tap in the header's list lands before it closes.
+    const said = onDidYouMean
+      ? <button type="button" data-did-you-mean-link onMouseDown={(e) => e.preventDefault()} onClick={() => onDidYouMean(fix)}
+        className="font-medium text-accent-text underline decoration-accent/40 underline-offset-2 hover:decoration-accent">{fix}</button>
+      : <b className="font-medium text-foreground">{fix}</b>;
+    lines.push(<span data-did-you-mean>Did you mean: {said}{notes.corrected === false ? "" : <>. Showing results for that{query ? <>, not “{query}”</> : ""}.</>}</span>);
   }
   for (const u of notes.understood) lines.push(u);
   if (notes.gap) lines.push(<span className="inline-flex items-start gap-1 rounded-md border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-foreground"><Info className="mt-px size-3 shrink-0 text-warning" />{notes.gap}</span>);
@@ -571,7 +578,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
                 : full ? <>No team, event or match matches “{query}” yet. Check the spelling, or try a team number or an event name. The full results page has places to browse.</> : <>Nothing matches “{query}”.</>}</p>
             ) : (
               <>
-                <AnswerNotesView notes={notes} refining={refining} query={stale ? undefined : query} className="px-3 pb-1 pt-1.5" />
+                <AnswerNotesView notes={notes} refining={refining} query={stale ? undefined : query} className="px-3 pb-1 pt-1.5" onDidYouMean={setQ} />
                 {answer?.card && <AnswerCard card={answer.card} compact onOpen={(href) => { if (remember) addRecentSearch(query); go({ ...searchPagePick(query), href }); }} />}
                 {sections.map((s) => (
                   <div key={s.id} role="group" aria-label={s.title}>

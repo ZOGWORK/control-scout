@@ -18,7 +18,10 @@ export interface AnswerSection { id: SectionId; title: string; rows: AnswerRow[]
 
 /** The lines above the rows: what the query was read as. */
 export interface AnswerNotes {
+  /** The query read another way, offered as a tap ("Did you mean: hypnotic robotics"). */
   didYouMean?: string;
+  /** The results are didYouMean's, not the query as typed. */
+  corrected?: boolean;
   understood: string[];
   /** What was asked but doesn't exist yet ("There's no reputation score…"), beside the closest real result. */
   gap?: string;
@@ -62,7 +65,11 @@ export function answerSections(answer: SearchAnswer, ai?: SearchAnswer | null): 
   } else if (ai?.recovery?.ai) {
     notes.ai = { refined: ai.recovery.ai.refined, found: false };
   }
-  if (answer.step === "did-you-mean" && answer.didYouMean) notes.didYouMean = answer.didYouMean;
+  // A correction the answer is read as, or a spelling fix offered beside the results as typed (server/api/spelling.ts).
+  if (answer.didYouMean) {
+    notes.didYouMean = answer.didYouMean;
+    notes.corrected = answer.step !== "deterministic";
+  }
   if (answer.intent) { notes.understood = [`Understood: ${answer.intent.understood.join(" · ")}`]; if (answer.intent.gap) notes.gap = answer.intent.gap; }
   // A shared name still to pick ("Which \"ultraviolet\"? 2 teams have that name: …"): the question, above the choices.
   if (answer.understood?.kind === "compare" && /^Which "/.test(answer.understood.label)) notes.understood = [...notes.understood, answer.understood.label];
