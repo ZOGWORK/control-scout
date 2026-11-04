@@ -122,7 +122,7 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     {phases && (
                       <td className="py-1 pr-1 md:hidden">
                         <button type="button" onClick={() => toggle(r.team)} aria-expanded={isOpen} aria-controls={more} aria-label={`${isOpen ? "Hide" : "Show"} phases for ${name}`} data-expand={r.team}
-                          className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
+                          className="inline-flex size-[44px] items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground">
                           <ChevronDown className={cn("size-4 transition-transform", isOpen && "rotate-180")} aria-hidden />
                         </button>
                       </td>

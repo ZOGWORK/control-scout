@@ -491,7 +491,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
           <p className="flex items-center justify-between px-3 pb-1 pt-1.5 text-xs font-semibold text-muted-foreground">
             Recent searches
             <button type="button" onPointerDown={keep} onMouseDown={keep} onClick={clearRecentSearches}
-              className="rounded px-1.5 py-0.5 text-[11px] font-medium text-accent-text hover:underline pointer-coarse:min-h-11">Clear</button>
+              className="rounded px-1.5 py-0.5 text-[11px] font-medium text-accent-text hover:underline pointer-coarse:min-h-[44px]">Clear</button>
           </p>
           {suggestions.slice(0, recentCount).map((x, i) => (
             <div key={x.text} {...suggestion(i)} data-recent
@@ -508,7 +508,7 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
             const i = recentCount + j;
             return (
               <span key={x.text} {...suggestion(i)} data-example
-                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-md:min-h-11 pointer-coarse:min-h-11", i === active ? "border-accent bg-accent/[0.12]" : "border-border hover:border-accent/60")}>
+                className={cn("inline-flex cursor-pointer items-center rounded-full border px-3 py-1 text-foreground max-md:min-h-[44px] pointer-coarse:min-h-[44px]", i === active ? "border-accent bg-accent/[0.12]" : "border-border hover:border-accent/60")}>
                 {x.text}
               </span>
             );

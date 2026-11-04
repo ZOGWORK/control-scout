@@ -16,14 +16,14 @@ export function SearchFilters({ f, seasons, types, counts, onChange }: { f: Page
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-lg border border-border bg-card p-0.5">
         {WHEN.map((w) => (
           <button key={w.v} type="button" role="radio" aria-checked={f.when === w.v} aria-label={counts ? `${w.label}, ${counts[w.v]} ${counts[w.v] === 1 ? "event" : "events"}` : undefined} onClick={() => onChange({ ...f, when: w.v })}
-            className={cn("rounded-md px-3 py-1 text-xs font-medium max-md:min-h-11 pointer-coarse:min-h-11", f.when === w.v ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>
+            className={cn("rounded-md px-3 py-1 text-xs font-medium max-md:min-h-[44px] pointer-coarse:min-h-[44px]", f.when === w.v ? "bg-accent text-accent-ink" : "text-muted-foreground hover:text-foreground")}>
             {w.label}{counts && <span className={cn("ml-1.5 tabular-nums", f.when === w.v ? "opacity-80" : counts[w.v] === 0 && "opacity-60")} aria-hidden data-count>{counts[w.v]}</span>}
           </button>
         ))}
       </div>
       {(seasons.length > 1 || f.season != null) && (
         <Select value={f.season != null ? String(f.season) : "all"} onValueChange={(v) => onChange({ ...f, season: v === "all" ? null : Number(v) })}>
-          <SelectTrigger size="sm" aria-label="Season" className="w-auto min-w-28 max-md:min-h-11 pointer-coarse:min-h-11"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" aria-label="Season" className="w-auto min-w-28 max-md:min-h-[44px] pointer-coarse:min-h-[44px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All seasons</SelectItem>
             {[...new Set([...seasons, ...(f.season != null ? [f.season] : [])])].sort((a, b) => b - a).map((s) => <SelectItem key={s} value={String(s)}>{seasonLabel(s)}</SelectItem>)}
@@ -32,7 +32,7 @@ export function SearchFilters({ f, seasons, types, counts, onChange }: { f: Page
       )}
       {(types.length > 1 || f.type != null) && (
         <Select value={f.type ?? "all"} onValueChange={(v) => onChange({ ...f, type: v === "all" ? null : v })}>
-          <SelectTrigger size="sm" aria-label="Event type" className="w-auto min-w-32 max-md:min-h-11 pointer-coarse:min-h-11"><SelectValue /></SelectTrigger>
+          <SelectTrigger size="sm" aria-label="Event type" className="w-auto min-w-32 max-md:min-h-[44px] pointer-coarse:min-h-[44px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All event types</SelectItem>
             {types.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -41,7 +41,7 @@ export function SearchFilters({ f, seasons, types, counts, onChange }: { f: Page
         </Select>
       )}
       {anyFilter(f) && (
-        <button type="button" onClick={() => onChange({ when: "all", season: null, type: null })} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-11">
+        <button type="button" onClick={() => onChange({ when: "all", season: null, type: null })} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]">
           <X className="size-3.5" aria-hidden />Clear filters
         </button>
       )}

@@ -68,7 +68,7 @@ export function EventCard({ h, onOpen, seasons }: { h: SearchHit; onOpen: (h: Se
         <div role="group" aria-label={`${title}: season`} className="relative z-10 mb-2 flex flex-wrap gap-1" data-season-tabs>
           {seasons.map((x) => (
             <button key={x.ref} type="button" aria-pressed={x.ref === cur.ref} onClick={() => setPick(x.ref)}
-              className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums max-md:min-h-11 max-md:px-3 max-md:text-xs pointer-coarse:min-h-11 pointer-coarse:px-3", x.ref === cur.ref ? "bg-accent text-accent-ink" : "bg-muted text-muted-foreground hover:text-foreground")}>
+              className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium tabular-nums max-md:min-h-[44px] max-md:px-3 max-md:text-xs pointer-coarse:min-h-[44px] pointer-coarse:px-3", x.ref === cur.ref ? "bg-accent text-accent-ink" : "bg-muted text-muted-foreground hover:text-foreground")}>
               {x.season != null ? seasonLabel(x.season) : "—"}
             </button>
           ))}
@@ -137,7 +137,7 @@ export function TeamCard({ h, summary, bare, onOpen }: { h: SearchHit; summary?:
 }
 
 /** A small text link that is an action: 44px tall on phones and touch screens, today's size with a mouse. */
-const ACTION_LINK = "inline-flex items-center gap-1 text-xs font-semibold text-accent-text hover:underline max-md:min-h-11 pointer-coarse:min-h-11";
+const ACTION_LINK = "inline-flex items-center gap-1 text-xs font-semibold text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
 
 /** Under an answer that names its teams (a fact, a stat, a Compare, a head-to-head): one small row on to their
  *  scouting profiles, in place of a team card that would repeat them. `numbers`: a fact answer's one team also shows
@@ -226,7 +226,7 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
           ))}
         </dl>
       ) : <p className="mt-3 text-xs text-muted-foreground">No season numbers yet for these teams.</p>}
-      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline pointer-coarse:min-h-11">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
+      <Link to={hitHref(h)} className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-text hover:underline pointer-coarse:min-h-[44px]">View full comparison<ArrowRight className="size-4" aria-hidden /></Link>
     </aside>
   );
 }
