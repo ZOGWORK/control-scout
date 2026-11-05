@@ -127,7 +127,8 @@ export default function SearchPage() {
   const shownTitle = strong && title!.includes(strong)
     ? <span className="font-medium">{title!.slice(0, title!.indexOf(strong))}<strong className="font-bold" data-title-team>{strong}</strong>{title!.slice(title!.indexOf(strong) + strong.length)}</span>
     : title;
-  const badge = !found || !ax ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
+  // A comparison says what it compares in its own card: no reading badge repeating the teams.
+  const badge = !found || !ax || (answer?.stat && comparisonOf(answer.stat)) ? null : badgeUnder(title!, contextBadge({ ...ax, hits }, notes.understood));
   const open = (h: SearchHit) => logPick(h);
   // Phase 2 summary: a championship question's records as a timeline and stats; "how good is X" as X's standing.
   const apps = useMemo(() => appearances(answer?.card), [answer?.card]);
