@@ -433,12 +433,13 @@ async function notStatAnswer(raw: string, q: string, read: Reader, full: boolean
   if (!hit || hit.href) return null;
   const who = whoOf({ number: team, name: teamNameOf(hit.title) || null });
   // The example leaves out a team this one really played against most: played matches, both robots on the field, and
-  // never a number the reader takes for a year beside a team's (so the example is one it answers).
+  // a number the reader takes the same way as this team's (both year-like or neither, its rule), so the example is
+  // one it answers.
   const other = (await get<{ team: number }>(
     `SELECT y.team FROM match_teams x JOIN match_teams y ON y.season = x.season AND y.code = x.code AND y.level = x.level AND y.series = x.series AND y.number = x.number AND y.alliance <> x.alliance
        JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
      WHERE x.team = ? AND m.played = 1 AND COALESCE(x.on_field, 1) = 1 AND COALESCE(y.on_field, 1) = 1
-       AND (y.team NOT BETWEEN ${YEAR_MIN} AND ${YEAR_MAX} OR ? BETWEEN ${YEAR_MIN} AND ${YEAR_MAX})
+       AND (y.team BETWEEN ${YEAR_MIN} AND ${YEAR_MAX}) = (? BETWEEN ${YEAR_MIN} AND ${YEAR_MAX})
      GROUP BY y.team ORDER BY COUNT(*) DESC, y.team LIMIT 1`, [team, team]))?.team;
   const example = other != null ? `${team} not ${other}` : `${team} not <another team's number>`;
   const line = `"not" leaves a team out ("${example}"); "${words}" isn't a team, so nothing was left out`;

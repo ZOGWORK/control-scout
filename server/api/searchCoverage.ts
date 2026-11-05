@@ -89,8 +89,9 @@ export async function namedParts(q: string): Promise<Set<string>> {
       const part = ws.slice(i, i + len);
       if (part.length < len || !regionPartOf(part)) continue;
       let named = idx.place(part.join(" "))?.kind === "city";
-      // The part and the words after it, as far as an event's name could run.
-      for (let k = i + len; !named && k <= Math.min(ws.length, i + len + 3); k++) named = await ctx.isEvent(ws.slice(i, k).join(" "));
+      // The part and at least one word after it, as far as an event's name could run: the part alone ("north texas")
+      // is only some words of a longer name, which the query didn't type.
+      for (let k = i + len + 1; !named && k <= Math.min(ws.length, i + len + 3); k++) named = await ctx.isEvent(ws.slice(i, k).join(" "));
       if (named) out.add(part.join(" "));
     }
   }
@@ -259,11 +260,14 @@ export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()):
   if ((m = /^(.+?)\s+(?:in my (?:state|area|region|city|town)|near me|around me|close to me|nearby)$/.exec(t)) && !BARE_KIND.test(m[1])) return { q: m[1], note: `where you are isn't known, so this is everyone's: add a place ("${m[1]} in NJ")` };
   // A part of a region ("north jersey", "northern california") names no region of its own: the whole region, said so.
   const ws = t.split(" ");
+  // The words as typed, for the regions read by case ("northern IN" is Indiana, "northern in" isn't).
+  const typedWs = squash(q).split(" ");
+  const as = typedWs.length === ws.length ? typedWs : ws;
   for (let i = 0; i + 1 < ws.length; i++) {
     for (const len of [3, 2]) {
       // Never words of a whole region ("south wales" in New South Wales) or of a stored town or event.
-      const whole = [1, 2].some((b) => i - b >= 0 && regionOf(ws.slice(i - b, i + len)));
-      const part = i + len <= ws.length && !whole && !named.has(ws.slice(i, i + len).join(" ")) ? regionPartOf(ws.slice(i, i + len)) : null;
+      const whole = [1, 2].some((b) => i - b >= 0 && regionOf(as.slice(i - b, i + len)));
+      const part = i + len <= ws.length && !whole && !named.has(ws.slice(i, i + len).join(" ")) ? regionPartOf(as.slice(i, i + len)) : null;
       if (part) return { q: [...ws.slice(0, i), part.region.name.toLowerCase(), ...ws.slice(i + len)].join(" "), note: `${titleCase(part.part)} isn't a separate region: all of ${part.region.name}` };
     }
   }

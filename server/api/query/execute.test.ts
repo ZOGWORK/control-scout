@@ -130,8 +130,11 @@ describe("place and time are applied and stated", () => {
     expect(idx.place("east brunswick")).toMatchObject({ kind: "city", city: "East Brunswick" });
     expect(idx.place("northern in", "northern IN")).toMatchObject({ kind: "region", state: "IN", part: "northern IN" });
     for (const q of ["highest score in east brunswick", "north texas championship"]) expect(rewriteQuery(q, await namedParts(q)), q).toBeNull();
-    // A part with nothing stored by that name is still the whole region.
+    // A part with nothing stored by that name is still the whole region, even when an event's longer name starts
+    // with it ("North Texas Championship"), and a region read by its case keeps it ("northern IN" is Indiana).
     expect(rewriteQuery("events in north jersey", await namedParts("events in north jersey"))?.q).toBe("events in new jersey");
+    expect(rewriteQuery("rookie teams in north texas", await namedParts("rookie teams in north texas"))?.q).toBe("rookie teams in texas");
+    expect(rewriteQuery("rookie teams in northern IN", await namedParts("rookie teams in northern IN"))?.q).toBe("rookie teams in indiana");
   });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");

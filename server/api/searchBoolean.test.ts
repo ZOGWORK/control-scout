@@ -182,6 +182,12 @@ describe("failed searches filed against this reader", () => {
       await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCMP', 'qual', 0, ?, 4215, 'red', 1), (2025, 'USNJCMP', 'qual', 0, ?, ?, 'blue', ?)", [n, n, opp, onField]);
     }
     expect((await ask("4215 not opr")).understood?.label).toContain('"4215 not 6980"');
+    // A year-like team's example is a year-like number too: the reader never mixes the two.
+    for (const [n, opp] of [[60, 4215], [61, 4215], [62, 4215], [63, 1999]]) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCMP', 'qual', 0, ?, ?, null, 1, 100, 100, 90, 90, 't')", [n, `Q${n}`]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCMP', 'qual', 0, ?, 2024, 'red', 1), (2025, 'USNJCMP', 'qual', 0, ?, ?, 'blue', 1)", [n, n, opp]);
+    }
+    expect((await ask("2024 not opr")).understood?.label).toContain('"2024 not 1999"');
   });
 });
 
