@@ -90,7 +90,7 @@ describe("a season's highest scores, by its game", () => {
   it("a totals-only match's estimated split is never a TeleOp or Endgame record, and its row shows Auto only", async () => {
     expect(rows(await ask("highest teleop score in decode"))[0].ownNp).not.toBe(185);
     const row185 = rows(await ask("highest score in decode")).find((r) => r.ownNp === 185)!;
-    expect(row185.phases).toEqual({ auto: 20 });
+    expect(row185.phases).toEqual({ auto: 20, pen: 0 });
     // Its reported Auto still counts.
     expect(rows(await ask("highest auto score in decode")).some((r) => r.ownNp === 185)).toBe(true);
   });
@@ -151,8 +151,8 @@ describe("a season's highest scores, by its game", () => {
       expect(rows(s)[0], q).toMatchObject({ ranked: phase, phases: { [phase!]: best } });
     }
     // A period in a place: New Jersey's best endgame in INTO THE DEEP.
-    expect(rows(await ask("highest teleop score in into the deep"))[0].phases).toEqual({ auto: 50, teleop: 150, endgame: 30, teleopWithEndgame: true });
-    expect(rows(await ask("highest teleop score in centerstage"))[0].phases).toEqual({ auto: 40, teleop: 110, endgame: 30 });
+    expect(rows(await ask("highest teleop score in into the deep"))[0].phases).toEqual({ auto: 50, teleop: 150, endgame: 30, pen: 0, teleopWithEndgame: true });
+    expect(rows(await ask("highest teleop score in centerstage"))[0].phases).toEqual({ auto: 40, teleop: 110, endgame: 30, pen: 20 });
     const nj = await ask("highest endgame score in nj in into the deep");
     expect(nj.title).toBe("Highest endgame scores in INTO THE DEEP (2024–25) in New Jersey");
     expect(nj.headline?.value).toBe("45 endgame points");

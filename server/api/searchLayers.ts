@@ -585,7 +585,8 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const cands = x0.intents.length > 1 && clean(x0) ? x0.intents : xw.weak.length > 1 && clean(xw) ? xw.weak : [];
   if (cands.length > 1) {
     const u = fallback.understood ?? { kind: "team" as const, label: "" };
-    const line = `read as ${x0.teams[0]} with ${cands.join(" or ")}: say which`;
+    // Said as a question, never as the parser's own words (no "read as" on the page: the search results guide §7).
+    const line = `${x0.teams[0]}: ${cands.join(" or ")}? Say which`;
     return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line } }, null, { ...x0, intents: cands }, "ambiguous");
   }
   return done(fallback, null, x0);

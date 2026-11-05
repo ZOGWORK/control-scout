@@ -45,3 +45,17 @@ export const PROFILE_PERCENTILE_TEXT = "text-accent-display";
 
 /** Chart legends (ChartContainer): each label in the foreground colour, its swatch keeping the series colour. */
 export const CHART_LEGEND_TEXT = "[&_.recharts-legend-item-text]:!text-foreground";
+
+/** Compared teams' hues in search answers (the search results guide: hue means team, nothing else): team A, B and C
+ *  as bar fills and swatches (violet, orange, teal: index.css --color-team-*), never as text (values are printed in
+ *  the foreground). At most three per card; a fourth team gets the neutral ink. */
+export const TEAM_FILL = ["bg-team-a", "bg-team-b", "bg-team-c"] as const;
+export const teamFill = (i: number) => TEAM_FILL[i] ?? "bg-foreground/50";
+
+/** A place's chip in search lists (rank pills, the leaderboard's top three, match boxes): neutral, bold, no hue (hue
+ *  means team only); the medal icon beside it says podium. */
+export const PODIUM_CHIP: Record<number, string> = {
+  1: "bg-muted text-foreground ring-1 ring-border",
+  2: "bg-muted text-foreground ring-1 ring-border",
+  3: "bg-muted text-foreground ring-1 ring-border",
+};

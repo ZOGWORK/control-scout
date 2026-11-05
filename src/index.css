@@ -48,6 +48,13 @@
   --color-line: var(--sh-border);
   --color-info: #38bdf8;
   --color-success: #34d399;
+  /* Compared teams' hues (search answers): violet against orange, the app's own chart-4 and chart-5, opposite enough to
+     read as two sides at a glance and apart under every colour vision (violet always the darker). Not volt (primary
+     action and winner), not sky or rose (the alliances). Team C is the stat tiles' teal. Bars and swatches only; a
+     winner is bold, never a team hue. Dim and Midnight keep dark's. textTones.test.ts holds each to 4.5:1 on the card. */
+  --color-team-a: #a78bfa;
+  --color-team-b: #fb923c;
+  --color-team-c: #2dd4bf;
   --color-warning: #fb923c;
   --color-danger: #fb7185;
   /* Status colours as small text. On dark they are the bright shades above; on light (html.light) a deeper
@@ -149,6 +156,9 @@ html.light {
   --color-accent-text: #875200;
   --color-info: #0ea5e9;
   --color-success: #10b981;
+  --color-team-a: #6d28d9;
+  --color-team-b: #c2410c;
+  --color-team-c: #0f766e;
   --color-warning: #f97316;
   --color-danger: #f43f5e;
   --color-red-alliance: #f43f5e;

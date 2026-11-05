@@ -78,22 +78,28 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen };
 }
 
-interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null; red_auto: number | null; red_teleop: number | null; red_endgame: number | null; blue_auto: number | null; blue_teleop: number | null; blue_endgame: number | null; breakdown: number | null }
-const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.blue_auto, m.blue_teleop, m.blue_endgame, m.breakdown";
+interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;
+  red_auto: number | null; red_teleop: number | null; red_endgame: number | null; red_pen: number | null; blue_auto: number | null; blue_teleop: number | null; blue_endgame: number | null; blue_pen: number | null; breakdown: number | null }
+const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.breakdown";
 /** An alliance's ranked points: one period's ("auto"), else its points without penalties (its total where none are kept). */
 /** TeleOp as FIRST reports it (and the team page shows it): with the endgame from 2024–25 on. */
 const scoreSql = (s: "red" | "blue", phase: Phase | null, season: number) =>
   phase === "teleop" && reportedTeleopIncludesEndgame(season) ? `(m.${s}_teleop + m.${s}_endgame)` : phase ? `m.${s}_${phase}` : `COALESCE(m.${s}_np, m.${s}_total)`;
 /** A match FIRST posted as totals only (`breakdown` 0): its Auto is reported, its TeleOp/Endgame split estimated. */
 const estimated = (r: Row) => r.breakdown != null && Number(r.breakdown) === 0;
-/** An alliance's reported points by period (TeleOp as reported); an estimated split's TeleOp and Endgame left out. */
-const phasesOf = (r: Row, s: "red" | "blue"): StatMatchRow["phases"] | null => {
-  const [a, t, e] = [r[`${s}_auto`], r[`${s}_teleop`], r[`${s}_endgame`]];
+/** An alliance's reported points by period (TeleOp as reported) and the penalty points it gave away; an estimated
+ *  split's TeleOp and Endgame left out. */
+const phasesOf = (r: Row, s: "red" | "blue"): StatMatchRow["phases"] => {
+  const [a, t, e, pen] = [r[`${s}_auto`], r[`${s}_teleop`], r[`${s}_endgame`], n0(r[`${s}_pen`])];
   if (a == null) return null;
-  if (estimated(r) || t == null || e == null) return { auto: Number(a) };
-  return { auto: Number(a), teleop: Number(t) + (reportedTeleopIncludesEndgame(r.season) ? Number(e) : 0), endgame: Number(e), ...(reportedTeleopIncludesEndgame(r.season) ? { teleopWithEndgame: true } : {}) };
+  if (estimated(r) || t == null || e == null) return { auto: Number(a), pen };
+  const withEnd = reportedTeleopIncludesEndgame(r.season);
+  return { auto: Number(a), teleop: Number(t) + (withEnd ? Number(e) : 0), endgame: Number(e), pen, ...(withEnd ? { teleopWithEndgame: true } : {}) };
 };
 const np = (r: Row, side: "red" | "blue") => (side === "red" ? r.red_np ?? r.red_total : r.blue_np ?? r.blue_total) ?? 0;
+const n0 = (v: number | null | undefined) => (v == null ? null : Number(v));
+/** The official winner (penalties included), null on a tie. */
+const winnerOf = (r: Row): "red" | "blue" | null => { const red = Number(r.red_total) || 0, blue = Number(r.blue_total) || 0; return red > blue ? "red" : blue > red ? "blue" : null; };
 
 /** The matches' scope: official events of the season, in the place or the event asked. */
 function where(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null) {
@@ -173,26 +179,28 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""} in ${seasonLabel(season)} yet.` };
-  const row = (r: Row & { side: "red" | "blue" }): StatMatchRow => {
+  const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => {
     const other = r.side === "red" ? "blue" : "red";
     const own = Number(r.side === "red" ? r.red_total : r.blue_total) || 0, opp = Number(r.side === "red" ? r.blue_total : r.red_total) || 0;
     return {
       label: r.label, href: matchHref(r), event: { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }, season: seasonLabel(r.season),
-      date: (r.time ?? r.start)?.slice(0, 10) ?? null, alliance: r.side, own, opp, ownNp: np(r, r.side), result: own > opp ? "W" : own < opp ? "L" : "T",
-      partners: named(r, r.side), opponents: named(r, other),
-      ...(phasesOf(r, r.side) ? { phases: phasesOf(r, r.side)! } : {}), ...(phase ? { ranked: phase } : {}),
+      date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) || null, alliance: r.side, own, opp, ownNp: np(r, r.side), oppNp: np(r, other), result: own > opp ? "W" : own < opp ? "L" : "T",
+      partners: named(r, r.side), opponents: named(r, other), type: r.type, phases: phasesOf(r, r.side), rank: i + 1, ...(phase ? { ranked: phase } : {}),
     };
   };
   const best = top.alliances[0];
+  // One list per question, a match box each (no bar chart repeating it): the alliance scores, then the combined.
   const blocks: StatBlock[] = [
-    { kind: "bars", title: `Top ${top.alliances.length} alliance ${P ? `${P.toLowerCase()} ` : ""}scores`, groups: [{ label: P ? `${P} scores` : "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label}`, value: r.score })) }] },
-    { kind: "matches", title: P ? `Highest alliance ${P.toLowerCase()} scores` : "Highest alliance scores", rows: top.alliances.map(row) },
+    { kind: "matches", title: P ? `Top ${top.alliances.length} alliance ${P.toLowerCase()} scores` : `Top ${top.alliances.length} alliance scores`, rows: top.alliances.map(row) },
     { kind: "table", title: `Highest combined ${P ? `${P.toLowerCase()} ` : ""}scores (both alliances)`, columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
-      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r.score_red}–${r.score_blue}` : `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })) },
+      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r.score_red}–${r.score_blue}` : `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) },
+        href: matchHref(r), eventHref: eventHref(r.season, r.code), type: r.type, teams: { red: named(r, "red"), blue: named(r, "blue") }, winner: winnerOf(r) })) },
   ];
+  const bestTotal = Number(best.side === "red" ? best.red_total : best.blue_total);
   return {
     ...base, blocks,
-    headline: { value: `${best.score} ${P ? `${P.toLowerCase()} ` : ""}points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null), `${best.side === "red" ? "Red" : "Blue"}: ${named(best, best.side).map((l) => l.label).join(", ")}`].filter(Boolean).join(" · "), href: matchHref(best) },
+    headline: { value: `${best.score} ${P ? `${P.toLowerCase()} ` : ""}points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [!phase && Number.isFinite(bestTotal) && bestTotal !== best.score ? `${bestTotal} with penalties` : "", seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null)].filter(Boolean).join(" · "), href: matchHref(best), type: best.type,
+      teams: named(best, best.side), alliance: best.side },
   };
 }
 

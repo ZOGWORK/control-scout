@@ -20,6 +20,8 @@ import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { eventHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { BOARD_STATS, statWords } from "./leaderboard.js";
+import { compareBlock, leadHeadline } from "../compareBlock.js";
+import { reliabilityRows } from "./twoTeam.js";
 import { LIST_CAP, RESULT_RULE, SCORE_RULE, pct, recText, record, sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
@@ -450,17 +452,15 @@ export async function reliabilitySetAnswer(teams: AnswerTeam[], season: number |
   const R = rs as NonNullable<(typeof rs)[number]>[];
   const top = Math.max(...R.map((r) => r.index));
   const leaders = teams.filter((_, i) => R[i].index === top);
-  const parts: [string, (r: (typeof R)[number]) => string | number][] = [["Index", (r) => r.index], ["Matches", (r) => r.matches], ["No-shows", (r) => r.noShows], ["Disqualified", (r) => r.dqs], ["Near-zero matches", (r) => r.nearZero], ["Swing", (r) => r.parts.swing.toFixed(2)], ["Penalties given away vs field", (r) => `${r.parts.penaltyRatio.toFixed(2)}×`]];
-  const sorted = teams.map((t, i) => ({ t, r: R[i] })).sort((a, b) => b.r.index - a.r.index);
+  // The index on its 0–100 scale and the parts that count against a team; matches played and the field go in the
+  // context line.
+  const block = compareBlock("Reliability", teams, reliabilityRows(R), s, "100");
+  const crow = block.kind === "compare" ? block.rows : [];
+  const head = leadHeadline(teams, crow[0], [teams.map((t, i) => `${t.number} ${R[i].matches}`).join(", ") + " qualification matches", R[0].fieldIndex != null ? `field average ${R[0].fieldIndex}` : null], leaders.length === 1 ? teamHref(leaders[0].number, s) : undefined);
   return {
     ...out,
-    headline: { value: leaders.length > 1 ? `Tied: ${leaders.map((t) => t.number).join(", ")}` : whoOf(leaders[0]), label: `Highest reliability: ${top} out of 100`, sub: `${sorted.map((x) => `${x.t.number} ${x.r.index}`).join(" · ")}${R[0].fieldIndex != null ? ` · field average ${R[0].fieldIndex}` : ""}`, ...(leaders.length === 1 ? { href: teamHref(leaders[0].number, s) } : {}) },
-    blocks: [
-      { kind: "kpis", items: sorted.map(({ t, r }) => ({ label: whoOf(t), value: String(r.index), sub: `out of 100 · ${r.matches} qualification matches`, href: teamHref(t.number, s), ...(r.index === top ? { tone: "accent" as const } : {}) })) },
-      { kind: "bars", title: "Reliability index", groups: [{ label: seasonLabel(s), items: teams.map((t, i) => ({ label: String(t.number), value: R[i].index, tone: (["a", "b", "c", "d"] as const)[i % 4] })) }] },
-      { kind: "table", title: "Breakdown", columns: [{ key: "part", label: "Part" }, ...teams.map((t) => ({ key: String(t.number), label: String(t.number), num: true }))],
-        rows: parts.map(([part, f]) => ({ cells: { part, ...Object.fromEntries(teams.map((t, i) => [String(t.number), f(R[i])])) } })) },
-    ],
+    headline: leaders.length > 1 ? { ...head, value: `Tied at ${top}: ${leaders.map((t) => t.number).join(", ")}` } : head,
+    blocks: [block],
   };
 }
 
