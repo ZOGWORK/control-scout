@@ -28,7 +28,7 @@ Home's search chips wrap onto rows instead of sliding sideways, a chip is shown 
 ### Home
 - **Chips on rows.** The hour's six chips under Home's search wrap onto rows of a fixed height: three from a small tablet up, two on a phone. Each chip is measured once, and the most that fit whole are packed onto the rows, a leaderboard and a sentence or filtered search kept first; one that doesn't fit is left out, never cut off, and the "Try" hint walks only through the chips showing. Nothing scrolls sideways, and the list is the same height every hour, so the change on the hour never moves the page. On a touch screen each chip's tap area is 44px, with the rows far enough apart that two never overlap. (#735)
 - **All six on a desktop.** Each hour's six are picked to fit a desktop's three rows whole, even in the narrow column beside the globe, so a desktop never leaves one out.
-- **Spelled right.** The three chips that showed off "Did you mean" with a misspelled name ("Hypnotik robotics OPR") are gone, and that kind of chip with them: shown as a thing to try, a typo read as ours. `npm run suggestions:check` now also fails a chip whose query or label search would correct, against the stored team, event and place names, or that spells a named team otherwise than the team's own name.
+- **Spelled right.** The three chips that showed off "Did you mean" with a misspelled team name are gone, and that kind of chip with them: shown as a thing to try, a typo read as ours. Spelling correction still works behind the scenes, and a real typo still gets its "Did you mean" line. `npm run suggestions:check` now also fails a chip whose query or label search would correct, against the stored team, event and place names, or that spells a named team otherwise than the team's own name.
 
 ## 3.2.3 — 2026-11-05
 
@@ -132,13 +132,13 @@ Search answers the failed searches filed since 3.1.4: an event named without "at
 ### Highlights
 - [teams] "What rank did 4215 get in the east bergen conference"
 - [rankings] "Teleop ranked", "best auto sorted lowest to highest"
-- [fixes] "4215matches", "winnng", "appreacne" and cut-off words read
+- [fixes] Run-together, jumbled and cut-off words are read as meant
 - [fixes] A number with no team shows the closest team numbers
 - [teams] A team that skipped an event: the reason, and its real events
 
 ### Search
 - **An event named beside the team.** An event's rank, OPR and results, and the forecasts, read the event wherever the query names it ("what rank did 4215 conference", "predicted chances of 4215 east bergen conference"), as one of the team's own events; "conference" alone is the team's conference tournament. Words that name none of its events leave the question as it was. (#694)
-- **Typed together, misspelled, cut off.** A team number typed against the next word ("23268matches") is two words. A long word with its letters jumbled ("appreacne") reaches search's own word, "winnng" is "winning", and "east bergen conference winner" is the event's winning alliance. A query cut off mid-word is read without it, a trip question ("when was the first time enforcers whe") as the Worlds one, offered as a correction.
+- **Typed together, misspelled, cut off.** A team number typed against the next word is two words. A long word with its letters jumbled reaches search's own word, a word missing a letter is the word meant, and "east bergen conference winner" is the event's winning alliance. A query cut off mid-word is read without it (a Worlds trip question cut off at its last word is still the Worlds one), offered as a correction.
 - **Numbers with no team.** A single digit or a number no team has ("676767") shows the closest real team numbers, as "238" did, never an empty page; a placeholder entry's number says it has no page.
 - **Sorts in plain words.** "Best team sorted by auto", "teleop ranked", "sorted lowest to highest" (the bottom of the list, each team's place counted from the top) and "best auto and endgame" (the two OPRs added) are the phase-OPR leaderboards. "What is the bet" and "what is the best time" offer "what is the best team".
 - **A rating change with no team.** "Predicted changes" says a change is one team's and asks it of the season's top-rated teams; "4215 predicted change" is its rating change.
@@ -275,13 +275,13 @@ Three fixes to the two-team and forecast answers from 3.0.7's last review.
 Search fixes spelling: a mistyped team name, stat word, event word or place shows "Did you mean: …", which you can tap, and the best match for it.
 
 ### Highlights
-- [teams] Mistyped team names reach the team: "hypnotc robotics"
+- [teams] A team name typed with a slip still reaches the team
 - [teams] Search shows "Did you mean: …" and runs it on a tap
-- [fixes] Mistyped words like "recrod" or "awrds" still answer
+- [fixes] Stat words typed with a slip (record, awards) still answer
 - [fixes] Two names equally close are both shown, never guessed
 
 ### Search
-- **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: "hypnotc robotics", "bad wolff", "enforcrs", "4215 recrod", "4215 awrds", "hypnotic oper", "new jersey champinship", "new jersy", "oradel". Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
+- **Spelling correction.** Every word of four letters or more is checked against a vocabulary built from the stored data (team names, schools, event names and venues, cities and regions) and search's own words (OPR, record, awards, Worlds, Inspire, playoffs, qualifiers, the game names, the question words). A word that isn't in it and is one letter off (two in long words) is corrected: in a team's name, a stat word, an event word or a place. Numbers, event codes, words typed in capitals, words of three letters or fewer, any word of a team's name and plain forms of known words ("winning", "placed") are never changed. No AI is involved.
 - **The better answer wins.** Search reads the query as typed and as corrected, and keeps the corrected answer only when it is better (a direct answer, results that match, or more results naming the corrected words). It is labelled "Did you mean: …. Showing results for that, not …"; the corrected query is a link that runs it. When the query as typed found as much, its results stay and the fix is only offered.
 - **No guessing.** A word two names fit equally ("molt": Volt Bots, Bolt Bots) is left as typed and both teams are listed. The name matcher no longer labels one of two equally close names as "Did you mean". (#584)
 
@@ -428,7 +428,7 @@ Searches people tried that found nothing now answer: a match by its event's code
   - A leaderboard by a game or a season ("best auto in decode", "best scoring auto in decode", "top auto opr decode", "best auto opr in 2025-26") is that season's, never a team named "We are the best".
   - "Events", "events this season" and "meets" list the season's events, never the team Event Horizon.
   - A team's matches at Worlds with no season ("4215 matches at worlds", "… in worlds") are from the last Worlds it went to.
-  - A misspelled game with an event ("jackson division dcode") and a question opened with filler ("so like what was 4215 last game") are read as meant.
+  - A game's name typed with a slip next to an event, and a question opened with filler ("so like what was 4215 last game"), are read as meant.
 
 ## 2.9.9 — 2026-11-04
 
@@ -553,7 +553,7 @@ for search engines.
 ### Search
 - **A clearer FTC One Search page.** /how-it-works/search now opens with what FTC One Search is, then five plain sections: what you can search, how to use it, example searches, what makes it unique and where to go next. The step-by-step walkthrough follows as before. The title, headings and opening paragraphs are in the page's first response, so search engines read them without running the app (#531).
 - **Example searches you can trust.** Every example on the page was run on the live site before it was listed, with the kind of answer it returns: a team, a match, a comparison, OPR and its phase splits, average score, prediction rating, advancement odds, records, counts, leaderboards and more.
-- **Answers that don't drift.** A question with a misspelt team name ("geer opr") always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
+- **Answers that don't drift.** A question with a misspelt team name always answers about the same team. Before, the team it picked could follow what other people had clicked; now clicks only reorder the list of results, never the team an answer is about.
 - **Found from more places.** Home's footer and the bottom of every search results page link to How FTC One Search works.
 
 ## 2.9.1 — 2026-11-03
@@ -1052,7 +1052,7 @@ FTC One Search finds every meet held at a venue, past seasons too, and its lines
 
 ### Search
 - **A venue spans every season.** "Meets in River Dell High School" with no year lists its meets from every season in date order (upcoming first, then past, most recent first), so the Past filter has the past ones to show. "Past meets at …" lists only those.
-- **Venues match loosely.** Punctuation, "HS" or "H.S." for "High School", "Regional", and a letter or two off ("River DeHigh School", "River Dale High School") are the same venue. A city counts when the place typed is that city ("meets in Oradel").
+- **Venues match loosely.** Punctuation, "HS" or "H.S." for "High School", "Regional", and a letter or two off are the same venue. A city counts when the place typed is that city ("meets in Oradell").
 - **Honest fallbacks.** With nothing to show, a time word goes before the venue: "No past meets at Dumont High School in the data — showing meets at Dumont High School instead".
 - **Lines say what you typed.** "Meets in New Jersey" (no longer "League meets"), "League meets in New Jersey" when you type "league", "Tournaments in New Jersey", and "NJ states" reads "State championships in New Jersey". Kinds that share no type are each named ("Meets and tournaments").
 - **Stat leaders, any scope.** "Best teleop in the world", "highest OPR this season", "most wins of all time" and "best driver controlled worldwide" show that stat's leaderboard, the same as "best teleop"; "best auto in NJ" or "best auto in New Jersey" shows New Jersey's. "Top", "strongest", "greatest" and "number one" read as "best"; "autonomous" as auto; "driver" or "driver controlled" as teleop. (#461)
@@ -1093,7 +1093,7 @@ FTC One Search answers "who won NJ states": the winning alliance and the Inspire
 - [fixes] "TX states" lists state championships, not the FIRST Championship
 
 ### Search
-- **Who won an event.** "Who won NJ states", "who won the New Jersey Championship", "winners of 2024-25 NJ states" and misspellings like "who won new jesey states" answer the newest finished championship of that place (or the event named, its newest finished season). The answer shows the winning alliance as FIRST records it (each division's, at a championship with divisions) and the Inspire Award winner, and opens the event on its playoffs. "Won" is never read as a name word. An event with no results recorded says so plainly. "Who won Inspire at …" still lists that award's winners.
+- **Who won an event.** "Who won NJ states", "who won the New Jersey Championship", "winners of 2024-25 NJ states", misspelled or not, answer the newest finished championship of that place (or the event named, its newest finished season). The answer shows the winning alliance as FIRST records it (each division's, at a championship with divisions) and the Inspire Award winner, and opens the event on its playoffs. "Won" is never read as a name word. An event with no results recorded says so plainly. "Who won Inspire at …" still lists that award's winners.
 - **"States" is a state's own championship.** "TX states" lists Texas's state and regional championships, never the FIRST Championship held in Houston, and its line reads "State championships in Texas". "NJ states events" now reads as state championships too, not as all events. (#456)
 
 ## 2.5.3 — 2026-11-03
@@ -1164,12 +1164,12 @@ FTC One Search: "Top teams in NJ" and "Highest OPR" join the example searches.
 FTC One Search reads a misspelled place, and "states" as a state's championship, across every season.
 
 ### Highlights
-- [fixes] "new jesey states" finds New Jersey's championships, not a guess
+- [fixes] A misspelled state with "states" finds its championships
 - [history] A state's championships list every season, newest first
 - [fixes] "NJ states" means the state championship, never "stats"
 
 ### Search
-- **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name ("new jesey", "pensylvania", "meets in new jersy") is read as that place. The line above the results says so: "Championships in New Jersey (from "new jesey")". It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
+- **A misspelled place is that place.** When the query names a kind of event, a near miss of a state's or province's full name is read as that place, and the line above the results says what was typed. It allows one letter off per word and two in all, and only when exactly one place is that close. A code is never guessed, and it is never a did-you-mean to an event's name.
 - **"States" is the state championship.** "NJ states", "NJ state champs", "New Jersey champs" and "New Jersey state championship" all read as New Jersey's championship.
 - **Every season, newest first.** A championship asked for with no year, season or time lists that place's championships from every season in the data, newest season first, so this season's (upcoming or finished) is on top. Seasons in between with none on record are named ("none on record for 2021–22"). Divisions are listed with their championship. When there are more than a page holds, the newest come first, the line says how many there are in all, and a link opens the full list on Events. A year or a season ("2024-25 NJ states") still scopes it to that one. (#450)
 - **Rules: whole words for short ones.** A short word in a rules question matches only itself or its endings: "pinning" finds the pinning rule (G421), no longer a rule that mentions pinch points.
@@ -1341,7 +1341,7 @@ FTC One Search says each thing once at the top of its results: the title, then a
 
 ### Search
 - **No repeated badge.** The badge under the title says how a search was read. When that reading is already the title ("League meets in New Jersey", or two teams side by side), the badge is left out, so the top of the page says it once. Badges that add something, like a team's name under its Worlds trips, stay.
-- **Did you mean, once.** For a misspelt name, the title reads "Closest names to “hypnotc”" and the suggestion appears once, on its own line above the results. Results and their order are unchanged. (#439)
+- **Did you mean, once.** For a misspelt name, the title reads "Closest names to" what was typed, and the suggestion appears once, on its own line above the results. Results and their order are unchanged. (#439)
 
 ## 2.3.5 — 2026-11-02
 
@@ -1378,7 +1378,7 @@ FTC One Search understands places, venues, dates and years: "upcoming meets in N
 - **Order.** A set of events is listed by date, never by relevance: upcoming events soonest first, then past ones most recent first. The two groups never mix.
 - **What was understood.** Every answer says what search understood ("League meets in New Jersey", "Upcoming league meets in New Jersey at River Dell High School"), shown where /search said "Showing:". It never names a single event for a set of events.
 - **Honest fallbacks.** A venue or time with no events falls back to the closest real set and says so: "No league meets in New Jersey at Nonexistent High School — showing league meets in New Jersey instead".
-- **Corrections only for typos.** "Did you mean" is kept for a near miss to a name ("hipnotic robotics"). Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
+- **Corrections only for typos.** "Did you mean" is kept for a near miss to a name. Words found only in a school, city or venue are results, marked as such, and a query whose words only match one at a time lists them as closest matches instead of an answer.
 - **One reading everywhere.** The header box and /search work the answer out the same way on the same full list; the box shows the first rows of the page's list, in the same order. "New Jersey" and "NJ" both list the state's events link, then its events, then its teams. (#434)
 
 ## 2.3.3 — 2026-11-02
@@ -2161,14 +2161,14 @@ Press Enter for every result, and ask search a question: when a team went to Wor
 - [teams] Enter opens "Here's what we found": every result for your search
 - [history] "when did hypnotic go to worlds" answers from its event history
 - [teams] "what events did hypnotic win", "has bad wolf won anything" answered
-- [teams] "badwolf" finds Bad Wolf: names typed without spaces still match
+- [teams] Names typed without spaces still find the team
 - [speed] The home globe holds still while you type, so typing stays smooth
 
 ### Search
 - **Enter goes to the full results.** With nothing highlighted, Enter opens /search for what you typed; the arrow keys or the pointer pick a row, and Enter opens that row. Every list ends with "See all results for …", which goes to the same page, and a search that finds nothing shows a hint and that row, never "Nothing matches" alone.
 - **Here's what we found.** The results page says what the search was read as ("Showing: Hypnotic Robotics (4215) vs Bad Wolf (6980) — Compare"), puts a question's answer at the top, then teams, events, matches and pages. Its address is the search, so Back and sharing work.
 - **Questions.** "when did hypnotic robotics go to worlds" lists the team's FIRST Championship appearances (division, rank, record, awards); a year or team with none says so plainly and shows the closest real results (its other trips, or its state championship). "what events did hypnotic win", "has bad wolf won anything", and "when is hypnotic's next event" or "next match" answer from the stored events, awards and schedule; nothing is made up when none is published.
-- **Names.** Words typed together ("badwolf") match a name's words side by side; "hypnotics" still finds Hypnotic Robotics. "hypnotic vs bad wolf awards" opens Compare on its events and awards. A name that only matches a team that never played (a test sign-up) counts as not found, so versus never opens a Compare with it.
+- **Names.** Words typed together match a name's words side by side; "hypnotics" still finds Hypnotic Robotics. "hypnotic vs bad wolf awards" opens Compare on its events and awards. A name that only matches a team that never played (a test sign-up) counts as not found, so versus never opens a Compare with it.
 - **Typing.** The last results stay on screen, dimmed, while the next ones load, instead of the list emptying at every key.
 
 ### Home
@@ -2319,7 +2319,7 @@ Search understands what you're asking about a team or event: "hypnotic awards" o
 - [teams] Ask search about a team: "4215 awards", "hypnotic opr"
 - [teams] The top team answers with its own numbers right in the results
 - [teams] Results open on what you asked about: awards, events, odds
-- [fixes] Misspelled words like "awrds" still find the answer
+- [fixes] Misspelled stat words still find the answer
 
 ### Search
 - **Ask about something.** Add a topic to a team or event: awards, matches, ranking points, OPR, record, stats, rankings, odds or playoffs ("hypnotic awards", "4215 ranking points", "new jersey championship odds"). Before, any extra word made the search come back empty.
