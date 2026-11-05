@@ -1,7 +1,7 @@
 // Home's suggestion pool and the hourly pick: every family of answer is in the pool, each chip fits, and each hour
 // gives six of different families, with a leaderboard and a sentence or filtered query, the same in every browser.
 import { describe, expect, it } from "vitest";
-import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type SuggestionKind } from "./homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, fitChips, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
 
 const KINDS: SuggestionKind[] = ["team", "opr", "rating", "record", "matches", "awards", "worlds", "versus", "three", "leaderboard", "winners", "predict", "spelling", "question", "filters"];
 const T0 = Date.UTC(2026, 10, 4, 0, 0);
@@ -52,5 +52,46 @@ describe("suggestionsAt", () => {
   it("never names one team twice in an hour", () => {
     const clashes = hours.filter((h) => { const t = suggestionsAt(h).flatMap(suggestionTeams); return new Set(t).size !== t.length; }).length;
     expect(clashes).toBe(0);
+  });
+});
+
+describe("fitChips", () => {
+  const rowsOf = (widths: number[], order: number[], width: number, gap: number) => {
+    let rows = 0, used = Infinity;
+    for (const i of order) { if (used + gap + widths[i] > width) { rows++; used = widths[i]; } else used += gap + widths[i]; }
+    return rows;
+  };
+  it("keeps every chip, in order, when they all fit", () => {
+    expect(fitChips([100, 100, 100, 100], 400, 8, 2)).toEqual([0, 1, 2, 3]);
+  });
+  it("keeps the most that fit whole, wrapping onto no more than its rows, and drops one too wide for any row", () => {
+    const widths = [200, 200, 100, 250, 90, 80, 320];
+    const order = fitChips(widths, 300, 0, 2);
+    expect(order).toHaveLength(4);
+    expect(order).not.toContain(6);
+    expect(rowsOf(widths, order, 300, 0)).toBeLessThanOrEqual(2);
+  });
+  it("packs rows to keep more than the hour's own order would", () => {
+    // In order 180, 150, 180 would take three rows; packed (180+100, 150) three fit on two.
+    const widths = [180, 150, 180, 100];
+    const order = fitChips(widths, 290, 8, 2);
+    expect(order).toHaveLength(3);
+    expect(rowsOf(widths, order, 290, 8)).toBeLessThanOrEqual(2);
+  });
+  it("keeps a leaderboard and a sentence query over others of the same width", () => {
+    const order = fitChips([150, 150, 150, 150], 310, 8, 1, ["team", "leaderboard", "opr", "question"]);
+    expect(order).toEqual([1, 3]);
+  });
+  it("lays out every hour's six at phone widths on no more than two rows, keeping at least two", () => {
+    const w = (s: HomeSuggestion) => 44 + 7.2 * suggestionLabel(s).length;
+    for (const h of hours.slice(0, 24 * 7)) {
+      const six = suggestionsAt(h);
+      const ws = six.map(w);
+      for (const width of [288, 358]) {
+        const order = fitChips(ws, width, 7, 2, six.map((s) => s.kind));
+        expect(rowsOf(ws, order, width, 7)).toBeLessThanOrEqual(2);
+        expect(order.length).toBeGreaterThanOrEqual(2);
+      }
+    }
   });
 });

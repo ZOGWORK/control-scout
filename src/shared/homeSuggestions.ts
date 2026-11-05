@@ -157,3 +157,31 @@ export function suggestionsAt(now: number, pool: readonly HomeSuggestion[] = HOM
 /** Which of the six the placeholder can show ("Try “…”"): queries short enough for the field that type as they
  *  read (a spelling mistake shown as the thing to try would read as our typo). */
 export const placeholderable = (s: HomeSuggestion) => s.kind !== "spelling" && s.q.length <= 30;
+
+/** Which chips to show, in what order, when they wrap onto `rows` rows `width` wide with `gap` between chips: the
+ *  most that fit whole, keeping a leaderboard and a sentence or filtered query where it can, then the earliest. A
+ *  chip that fits nowhere is left out (it is never cut). Returns indexes into `widths`, row by row, so a list that
+ *  wraps in this order uses no more than `rows` rows, as close to the given order as that allows. */
+export function fitChips(widths: readonly number[], width: number, gap: number, rows: number, kinds: readonly SuggestionKind[] = []): number[] {
+  const n = widths.length;
+  const fits = (row: number[]) => row.reduce((w, i) => w + widths[i], 0) + gap * Math.max(0, row.length - 1) <= width;
+  const must = (k: SuggestionKind) => k === "leaderboard" || k === "question" || k === "filters";
+  let best: number[] = []; let bestScore = -1;
+  // Every way of putting each chip on a row, or on none (rows + 1 choices each): at most 4^6, small.
+  const total = (rows + 1) ** n;
+  for (let code = 0; code < total; code++) {
+    const bins: number[][] = Array.from({ length: rows }, () => []);
+    let c = code;
+    for (let i = 0; i < n; i++) { const b = c % (rows + 1); c = Math.floor(c / (rows + 1)); if (b < rows) bins[b].push(i); }
+    if (!bins.every(fits)) continue;
+    const kept = bins.flat();
+    // More chips first, then the must-have kinds, then the earliest chips (a lower mask of left-out ones).
+    const left = Array.from({ length: n }, (_, i) => (kept.includes(i) ? 0 : 1 << (n - 1 - i))).reduce((a, b) => a + b, 0);
+    const score = kept.length * 1e6 + kept.filter((i) => kinds[i] && must(kinds[i])).length * 1e4 + (2 ** n - left);
+    const order = bins.flatMap((b) => [...b].sort((x, y) => x - y));
+    // Of equal ones, the order closest to the hour's own (the first to differ comes earlier).
+    const earlier = () => { const d = order.findIndex((x, i) => x !== best[i]); return d >= 0 && order[d] < best[d]; };
+    if (score > bestScore || (score === bestScore && earlier())) { bestScore = score; best = order; }
+  }
+  return best;
+}

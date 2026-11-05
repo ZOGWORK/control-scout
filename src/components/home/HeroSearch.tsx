@@ -5,13 +5,13 @@
 // Presentation only: the box underneath is the same SearchBox, so what it finds is the search's own answer.
 // The chips are drawn by the app alone (the server's first paint keeps their space empty) from the clock, so a
 // cached or prerendered page still shows this hour's six, and nothing is fetched for them.
-import { useEffect, useMemo, useState, type ComponentType, type Ref } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type Ref, type RefObject } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeftRight, Award, CalendarClock, Crown, Gauge, Globe, ListFilter, ListOrdered, MapPin, Medal, MessageCircleQuestion, SpellCheck, Swords, TrendingUp, Users } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { addRecentSearch } from "../search/discover";
-import { SUGGESTION_HOUR_MS, placeholderable, suggestionLabel, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "../../shared/homeSuggestions";
+import { SUGGESTION_HOUR_MS, fitChips, placeholderable, suggestionLabel, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "../../shared/homeSuggestions";
 import type { SearchHit } from "../../shared/api";
 
 /** Each family's name (read with the chip) and icon. */
@@ -66,18 +66,66 @@ export function useRotatingExample(paused: boolean, reduced: boolean, count: num
   return i % Math.max(1, count);
 }
 
+/** The chips that fit `list`'s rows, in the order to draw them. The list keeps a fixed height (two or three rows);
+ *  each chip's width is measured once, drawn in the hour's order, and then the most that fit whole are packed onto
+ *  the rows (fitChips), the rest left out, never cut off. Packed again when the list's width changes, measured again
+ *  when the fonts arrive; before paint each time. Without layout (a test) all of them show, in order. */
+export function useFittingChips(list: RefObject<HTMLUListElement | null>, items: HomeSuggestion[]): HomeSuggestion[] {
+  const [fit, setFit] = useState<{ items: HomeSuggestion[]; shown: HomeSuggestion[] } | null>(null);
+  const widths = useRef(new Map<string, number>());
+  const [fonts, setFonts] = useState(0);
+  const current = fit?.items === items ? fit.shown : null;
+  useEffect(() => {
+    let live = true;
+    document.fonts?.ready.then(() => { if (live) { widths.current.clear(); setFit(null); setFonts((n) => n + 1); } });
+    return () => { live = false; };
+  }, []);
+  useLayoutEffect(() => {
+    const ul = list.current;
+    if (!ul) return;
+    const pack = () => {
+      const cs = getComputedStyle(ul);
+      const px = (v: string) => parseFloat(v) || 0;
+      const width = Math.floor(ul.getBoundingClientRect().width) - px(cs.paddingLeft) - px(cs.paddingRight);
+      const height = ul.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
+      const chip = ul.querySelector("button")?.getBoundingClientRect().height ?? 0;
+      const ws = items.map((s) => widths.current.get(s.q) ?? 0);
+      if (!width || !chip || ws.some((w) => !w)) { setFit({ items, shown: items }); return; }
+      const rows = Math.max(1, Math.floor((height + px(cs.rowGap) + 0.5) / (chip + px(cs.rowGap))));
+      const order = fitChips(ws, width, Math.ceil(px(cs.columnGap)), rows, items.map((s) => s.kind));
+      const shown = order.map((i) => items[i]);
+      setFit((was) => (was?.items === items && was.shown.length === shown.length && was.shown.every((s, i) => s === shown[i]) ? was : { items, shown }));
+    };
+    // First draw (all of them, in order): measure each chip, then pack.
+    if (items.some((s) => !widths.current.has(s.q))) {
+      for (const li of [...ul.children] as HTMLElement[]) {
+        const b = li.firstElementChild;
+        if (li.dataset.q && b) widths.current.set(li.dataset.q, Math.ceil(b.getBoundingClientRect().width));
+      }
+    }
+    pack();
+    let w = ul.clientWidth;
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { if (ul.clientWidth !== w) { w = ul.clientWidth; pack(); } });
+    ro?.observe(ul);
+    return () => ro?.disconnect();
+  }, [list, items, fonts]);
+  return current ?? items;
+}
+
 export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRef: Ref<HTMLInputElement>; onEscape: () => void; hint: string; initialQuery?: string }) {
   const nav = useNavigate();
   const reduced = useReducedMotion() === true;
   const [focused, setFocused] = useState(false);
   const six = useHourSuggestions();
-  const typeable = six.filter(placeholderable);
-  const shown = typeable[useRotatingExample(focused, reduced, typeable.length)] ?? six[0];
+  const listRef = useRef<HTMLUListElement>(null);
+  const drawn = useFittingChips(listRef, six);
+  const typeable = drawn.filter(placeholderable);
+  const shown = typeable[useRotatingExample(focused, reduced, typeable.length)] ?? drawn[0] ?? six[0];
   // A chip run counts as a recent search, like one typed and entered.
   const run = (q: string) => { addRecentSearch(q); nav(hitHref(searchPagePick(q))); };
   return (
     // The field speaks for itself: its label and placeholder, no heading or tag around it.
-    <section aria-label="Search" className="@container/chips mt-6 max-sm:mt-4 max-w-[38rem]">
+    <section aria-label="Search" className="mt-6 max-sm:mt-4 max-w-[38rem]">
       <div onFocus={() => setFocused(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         <SearchBox
           size="lg" inputRef={inputRef} onEscape={onEscape} hint={hint} tour="search" initialQuery={initialQuery} discover
@@ -87,18 +135,20 @@ export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRe
           className="cs-hero-search w-full"
         />
       </div>
-      {/* This hour's six, one tap each. Where two of the widest chips (SUGGESTION_LABEL_MAX, about 245px) fit side by
-          side (32rem), they wrap inside three rows' room, which any six fill at most, so the hourly change never moves
-          the page; in a narrower column (a phone, or beside the globe, where some sixes would need five rows) they
-          are one row that scrolls sideways, the same height whichever six. A chip keeps its
-          drawn size; its tap area is 44px on a touch screen (tap-44), and the row's padding keeps that inside the
-          scroller, the chips where they were. */}
-      <ul aria-label="Example searches" className="mt-[calc(0.75rem-7px)] flex gap-2 overflow-x-auto py-[7px] [scrollbar-width:none] max-sm:-mx-4 max-sm:px-4 @min-[32rem]/chips:mt-3 @min-[32rem]/chips:min-h-[7.75rem] @min-[32rem]/chips:flex-wrap @min-[32rem]/chips:content-start @min-[32rem]/chips:overflow-visible @min-[32rem]/chips:py-0">
-        {six.map((s) => { const K = KINDS[s.kind]; const label = suggestionLabel(s); return (
-          <li key={s.q} className="shrink-0">
+      {/* This hour's six, one tap each, wrapping onto rows of a fixed height: three from a small tablet up, two on a
+          phone. The most that fit whole are packed onto the rows (useFittingChips) and any that don't are left out,
+          never cut off. Nothing scrolls sideways and the hourly change never moves the page. A chip is drawn 2.25rem
+          tall; on a touch screen its tap area is 44px (tap-44), and the row gap and padding are wide enough that two
+          rows' tap areas never overlap or reach outside the list. */}
+      <ul
+        ref={listRef} aria-label="Example searches"
+        className="flex flex-wrap content-start gap-x-2 overflow-hidden [--chip-h:2.25rem] [--chip-py:max(0px,calc((44px-var(--chip-h))/2))] [--chip-gy:max(0.5rem,calc(2*var(--chip-py)))] gap-y-(--chip-gy) py-(--chip-py) mt-[calc(0.75rem-var(--chip-py))] h-[calc(2*var(--chip-h)+var(--chip-gy)+2*var(--chip-py))] sm:h-[calc(3*var(--chip-h)+2*var(--chip-gy)+2*var(--chip-py))]"
+      >
+        {drawn.map((s) => { const K = KINDS[s.kind]; const label = suggestionLabel(s); return (
+          <li key={s.q} data-q={s.q} className="max-w-full shrink-0">
             <button
               type="button" onClick={() => run(s.q)} aria-label={`${K.label}: search “${s.q}”`}
-              className={"tap-44 inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm transition-colors hover:border-accent/60 hover:text-foreground "
+              className={"tap-44 inline-flex h-(--chip-h) items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm transition-colors hover:border-accent/60 hover:text-foreground "
                 + (s === shown && !focused ? "border-accent/50 bg-accent/10 text-foreground" : "border-border bg-card text-text-muted")}
             >
               <K.icon className="size-3.5 shrink-0 text-accent" />{label}

@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.4 — 2026-11-05
+
+Home's search chips wrap onto rows instead of sliding sideways, and a chip is shown whole or not at all.
+
+### Highlights
+- [home] Search chips wrap onto rows: nothing slides sideways
+- [home] Every chip shows whole, never cut off mid-word
+- [home] Phones keep two rows of chips, packed to fit the most
+- [home] Three rows on tablets and desktops; the hour's change never shifts
+
+### Home
+- **Chips on rows.** The hour's six chips under Home's search wrap onto rows of a fixed height: three from a small tablet up, two on a phone. Each chip is measured once, and the most that fit whole are packed onto the rows, a leaderboard and a sentence or filtered search kept first; one that doesn't fit is left out, never cut off, and the "Try" hint walks only through the chips showing. Nothing scrolls sideways, and the list is the same height every hour, so the change on the hour never moves the page. On a touch screen each chip's tap area is 44px, with the rows far enough apart that two never overlap.
+
 ## 3.2.1 — 2026-11-05
 
 Search answer cards follow the search results guide: comparisons say the result once, bars start at zero, and colour means team.
