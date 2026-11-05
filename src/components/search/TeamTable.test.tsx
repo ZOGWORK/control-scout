@@ -27,7 +27,7 @@ describe("TeamTable", () => {
     const first = within(container.querySelector('[data-team-row="100"]') as HTMLElement);
     expect(first.getByRole("link").getAttribute("href")).toBe("/teams/100?season=2025");
     expect(first.getByText("150.0")).toBeTruthy();
-    expect(first.getByText("8-2-0")).toBeTruthy();
+    expect(first.getByLabelText("8 wins, 2 losses, 0 ties").textContent).toBe("8-2-0");
     // Rank badges for the top three only.
     expect(container.querySelectorAll("[data-rank-badge]")).toHaveLength(3);
     // The OPR bar is scaled to the best OPR listed: #1 full, #4 at 40%.

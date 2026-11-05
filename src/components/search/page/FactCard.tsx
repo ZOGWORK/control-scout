@@ -11,6 +11,7 @@ import type { SearchCard, SearchCardFact, SearchCardLine } from "../../../shared
 import { StatTile, type Tone } from "../../StatTile";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
+import { ResultPill, RichText } from "./answerCells";
 import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
 /** What a card is, as its subtitle: which records it read. */
@@ -180,10 +181,10 @@ function Lines({ lines, icon: Icon }: { lines: SearchCardLine[]; icon?: LucideIc
             {Icon && <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Icon className="size-4" aria-hidden /></span>}
             <span className="min-w-0 flex-1">
               <span className="block break-words font-medium text-foreground group-hover:text-accent-text">{l.text}</span>
-              {l.detail && <span className="mt-0.5 block text-xs text-muted-foreground">{l.detail}</span>}
+              {l.detail && <span className="mt-0.5 block text-xs text-muted-foreground"><RichText text={l.detail} /></span>}
               {!!l.results?.length && (
                 <span className="mt-2 flex flex-wrap gap-1.5" data-results>
-                  {l.results.map((r, j) => <span key={j} className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">{r}</span>)}
+                  {l.results.map((r, j) => <ResultPill key={j} text={r} />)}
                 </span>
               )}
             </span>

@@ -62,9 +62,18 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   return { season, game: hs.game, ever: ever && season == null, region, event: event || null };
 }
 
-interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null }
-const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np";
+interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null;
+  red_auto: number | null; red_teleop: number | null; red_endgame: number | null; red_pen: number | null; blue_auto: number | null; blue_teleop: number | null; blue_endgame: number | null; blue_pen: number | null; breakdown: number | null }
+const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.red_pen, m.blue_auto, m.blue_teleop, m.blue_endgame, m.blue_pen, m.breakdown";
 const np = (r: Row, side: "red" | "blue") => (side === "red" ? r.red_np ?? r.red_total : r.blue_np ?? r.blue_total) ?? 0;
+const n0 = (v: number | null | undefined) => (v == null ? null : Number(v));
+/** An alliance's points by phase, as stored (TeleOp without the endgame), and the penalty points it gave away; null
+ *  when the match has no breakdown (breakdown 0: only totals were posted). */
+const phasesOf = (r: Row, s: "red" | "blue") => {
+  if (r.breakdown != null && Number(r.breakdown) === 0) return null;
+  const p = { auto: n0(r[`${s}_auto`]), teleop: n0(r[`${s}_teleop`]), endgame: n0(r[`${s}_endgame`]), pen: n0(r[`${s}_pen`]) };
+  return p.auto == null && p.teleop == null && p.endgame == null ? null : p;
+};
 
 /** The matches' scope: official events of the season, in the place or the event asked. */
 function where(season: number, region: Region | null, event: { season: number; code: string } | null) {
@@ -137,25 +146,28 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""} in ${seasonLabel(season)} yet.` };
-  const row = (r: Row & { side: "red" | "blue" }): StatMatchRow => {
+  const row = (r: Row & { side: "red" | "blue" }, i: number): StatMatchRow => {
     const other = r.side === "red" ? "blue" : "red";
     const own = Number(r.side === "red" ? r.red_total : r.blue_total) || 0, opp = Number(r.side === "red" ? r.blue_total : r.red_total) || 0;
     return {
       label: r.label, href: matchHref(r), event: { label: shortEvent(r.name, r.type), href: eventHref(r.season, r.code) }, season: seasonLabel(r.season),
-      date: (r.time ?? r.start)?.slice(0, 10) ?? null, alliance: r.side, own, opp, ownNp: np(r, r.side), result: own > opp ? "W" : own < opp ? "L" : "T",
-      partners: named(r, r.side), opponents: named(r, other),
+      date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) || null, alliance: r.side, own, opp, ownNp: np(r, r.side), oppNp: np(r, other), result: own > opp ? "W" : own < opp ? "L" : "T",
+      partners: named(r, r.side), opponents: named(r, other), type: r.type, phases: phasesOf(r, r.side), rank: i + 1,
     };
   };
   const best = top.alliances[0];
+  // One list per question, a match box each (no bar chart repeating it): the alliance scores, then the combined.
   const blocks: StatBlock[] = [
-    { kind: "bars", title: `Top ${top.alliances.length} alliance scores`, groups: [{ label: "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label}`, value: r.score })) }] },
-    { kind: "matches", title: "Highest alliance scores", rows: top.alliances.map(row) },
+    { kind: "matches", title: `Top ${top.alliances.length} alliance scores`, rows: top.alliances.map(row) },
     { kind: "table", title: "Highest combined scores (both alliances)", columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
-      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })) },
+      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) },
+        href: matchHref(r), eventHref: eventHref(r.season, r.code), type: r.type, teams: { red: named(r, "red"), blue: named(r, "blue") } })) },
   ];
+  const bestTotal = Number(best.side === "red" ? best.red_total : best.blue_total);
   return {
     ...base, blocks,
-    headline: { value: `${best.score} points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null), `${best.side === "red" ? "Red" : "Blue"}: ${named(best, best.side).map((l) => l.label).join(", ")}`].filter(Boolean).join(" · "), href: matchHref(best) },
+    headline: { value: `${best.score} points`, label: `${best.label} at ${shortEvent(best.name, best.type)}`, sub: [Number.isFinite(bestTotal) && bestTotal !== best.score ? `${bestTotal} with penalties` : "", seasonLabel(best.season), dateRange((best.time ?? best.start)?.slice(0, 10) ?? null)].filter(Boolean).join(" · "), href: matchHref(best), type: best.type,
+      teams: named(best, best.side), alliance: best.side },
   };
 }
 

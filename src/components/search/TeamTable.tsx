@@ -8,6 +8,7 @@ import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
 import { TONES } from "../StatTile";
+import { RecordText } from "./page/answerCells";
 
 /** The top three's rank badges in the search podium's colours (./page/EventAwards.tsx): 1st green, 2nd blue, 3rd orange. */
 const TOP3: Record<number, string> = { 1: TONES.emerald.chip, 2: TONES.sky.chip, 3: TONES.orange.chip };
@@ -112,16 +113,16 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>
-                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute bottom-1 left-1 h-1 rounded-full bg-foreground/25" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
+                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute bottom-1 left-1 h-1 rounded-full bg-teal-500/70" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
-                      <td className="px-2 py-1.5 text-right tabular-nums max-md:hidden">{oneDp(r.auto)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums max-md:hidden">{oneDp(r.dc)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums max-md:hidden">{oneDp(r.endgame)}</td>
+                      <td className={cn("px-2 py-1.5 text-right tabular-nums max-md:hidden", TONES.sky.text)}>{oneDp(r.auto)}</td>
+                      <td className={cn("px-2 py-1.5 text-right tabular-nums max-md:hidden", TONES.emerald.text)}>{oneDp(r.dc)}</td>
+                      <td className={cn("px-2 py-1.5 text-right tabular-nums max-md:hidden", TONES.violet.text)}>{oneDp(r.endgame)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground max-md:hidden">{oneDp(r.pen)}</td>
                     </>}
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{record(r)}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums"><RecordText text={record(r)} /></td>
                     {phases && <td className="px-2 py-1.5 max-md:hidden">{bar(r)}</td>}
                     {phases && (
                       <td className="py-1 pr-1 md:hidden">

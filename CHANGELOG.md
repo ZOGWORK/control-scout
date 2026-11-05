@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.8 — 2026-11-04
+
+Search answer cards speak the team page's colours, and match lists are match boxes with both alliances' teams.
+
+### Highlights
+- [appearance] Ranks as podium pills; W-L-T wins green, losses red
+- [appearance] Event type and season chips, OPR bars against the best
+- [appearance] Top scores: match boxes with both alliances and phases
+- [appearance] Combined scores list red and blue teams as chips
+- [appearance] Phone tables keep numbers; season and date fold under
+
+### Search
+- **One colour language.** Every answer's table draws a rank as a pill (1st green, 2nd blue, 3rd orange with a medal, the rest neutral), a W-L-T record with wins green and losses red, a season as a badge, a win or loss as its chip, an award with its icon and an OPR with a small bar against the best one listed (in its phase's colour for an Auto, TeleOp or Endgame column). An event's name carries its type's colour, and the headline event gets a marker and its type and season as chips. Two teams side by side mark each row's better number; a best row gets a trophy. Leaderboards colour their records and phase numbers.
+- **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams as chips and their scores big (the winner marked, the loser muted, the score with penalties under it when it differs) and the listed alliance's points by phase. The highest-scoring matches card drops its bar chart, so each match shows once, and the headline names the alliance's teams.
+- **Combined scores.** The highest combined scores list each match's red and blue teams, its event with its type, the winning side bold and a thin bar scaled from the lowest listed to the top.
+- **Phones.** An event table's season and date fold under the event's name, so the columns left are numbers; combined-score rows are two lines.
+
 ## 3.1.4 — 2026-11-04
 
 Search answers questions that join filters or ask two things at once, each filter it read named on the card and applied.

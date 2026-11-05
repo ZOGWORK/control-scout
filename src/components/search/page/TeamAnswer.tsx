@@ -15,6 +15,7 @@ import { Meter, RecordMeter, StatTile, TONES, rankPc } from "../../StatTile";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
+import { EventMarker, RankPill, RecordText } from "./answerCells";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
 export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
@@ -199,11 +200,11 @@ function EventRow({ e, team }: { e: TeamEventRow; team: number }) {
     <li className="border-t border-border first:border-t-0">
       <Link to={`/events/${e.season}/${e.code}?team=${team}`} className="flex min-h-[44px] items-center gap-3 px-3.5 py-2.5 hover:bg-muted/50">
         <span className="min-w-0 flex-1">
-          <span className="block break-words text-sm font-medium text-foreground">{e.name}</span>
+          <span className="block break-words text-sm font-medium text-foreground"><EventMarker type={e.type} />{e.name}<EventMarker type={e.type} chip /></span>
           <span className="block text-xs text-muted-foreground">{[e.start ? dateRange(e.start, e.end) : null, where].filter(Boolean).join(" · ")}</span>
         </span>
-        {e.rank != null && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold tabular-nums text-foreground">#{e.rank}</span><span className="block text-[11px] text-muted-foreground">rank</span></span>}
-        {rec && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold tabular-nums text-foreground">{rec}</span><span className="block text-[11px] text-muted-foreground">record</span></span>}
+        {e.rank != null && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold"><RankPill text={`#${e.rank}`} /></span><span className="block text-[11px] text-muted-foreground">rank</span></span>}
+        {rec && <span className="shrink-0 text-right"><span className="block font-display text-base font-semibold tabular-nums text-foreground"><RecordText text={rec} /></span><span className="block text-[11px] text-muted-foreground">record</span></span>}
       </Link>
     </li>
   );

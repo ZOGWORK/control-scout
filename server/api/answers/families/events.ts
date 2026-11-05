@@ -35,7 +35,7 @@ function eventRows(evs: TeamEvent[], team: number, title: string, opts: { opr?: 
   return {
     kind: "table", title,
     columns: [{ key: "event", label: "Event" }, { key: "season", label: "Season" }, { key: "date", label: "Date" }, { key: "rank", label: "Rank" }, { key: "record", label: "W-L-T" }, ...(opts.opr === false ? [] : [{ key: "opr", label: "OPR", num: true }])],
-    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankText(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team) })),
+    rows: evs.slice(0, 25).map((e) => ({ cells: { event: e.name, season: seasonLabel(e.season), date: dateRange(e.start, e.end), rank: rankText(e), record: evRec(e), opr: opr(e.opr) }, href: eventHref(e.season, e.code, team), type: e.type })),
   };
 }
 
@@ -75,7 +75,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: rule, source: evSource, none: none("ranked events") };
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: rule,
-        headline: { value: rankText(e), label: e.name, sub: [e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        headline: { value: rankText(e), label: e.name, sub: [e.record ? `${evRec(e)} there` : "", seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
         blocks: [eventRows(sorted.slice(0, 5), team.number, best ? "Best finishes" : "Lowest finishes")],
       };
     }
@@ -121,7 +121,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       if (!e) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: EVENT_RULE, source: evSource, none: none("events") };
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: EVENT_RULE,
-        headline: { value: e.name, label: [e.rank != null ? `Ranked #${e.rank}${e.of ? ` of ${e.of}` : ""}` : "", e.opr != null ? `OPR ${opr(e.opr)}` : ""].filter(Boolean).join(" · ") || "No rank posted", sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        headline: { value: e.name, label: [e.rank != null ? `Ranked #${e.rank}${e.of ? ` of ${e.of}` : ""}` : "", e.opr != null ? `OPR ${opr(e.opr)}` : ""].filter(Boolean).join(" · ") || "No rank posted", sub: [seasonLabel(e.season), dateRange(e.start, e.end), place(e.city, e.state)].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
         blocks: [eventRows(id === "first-event" ? evs.slice(0, 5) : [...evs].reverse().slice(0, 5), team.number, id === "first-event" ? "First events" : "Latest events")],
       };
     }
@@ -137,7 +137,7 @@ export function eventAnswer(id: IntentId, team: AnswerTeam, set: { events: TeamE
       const season = set.seasons.find((s) => s.season === e.season);
       return {
         ...base, family: "superlative", intent: id, title, source: evSource, definition: def,
-        headline: { value: `OPR ${opr(e.opr)}`, label: e.name, sub: [seasonLabel(e.season), season ? `season OPR rank ${topText(season)}` : ""].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number) },
+        headline: { value: `OPR ${opr(e.opr)}`, label: e.name, sub: [seasonLabel(e.season), season ? `season OPR rank ${topText(season)}` : ""].filter(Boolean).join(" · "), href: eventHref(e.season, e.code, team.number), type: e.type },
         blocks: [
           { kind: "bars", title: "OPR by phase at that event", groups: [{ label: e.name, items: [{ label: "Auto", value: e.auto, tone: "a" }, { label: "TeleOp", value: e.teleop, tone: "b" }, { label: "Endgame", value: e.endgame, tone: "c" }] }] },
           eventRows(per.length > 1 ? per : withOpr.slice(0, 5), team.number, per.length > 1 ? "Best OPR event each season" : "Best OPR events"),

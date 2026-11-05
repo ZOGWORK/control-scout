@@ -29,6 +29,14 @@ export interface StatMatchRow {
   result: "W" | "L" | "T";
   partners?: StatLink[];
   opponents?: StatLink[];
+  /** The other alliance's score without penalties. */
+  oppNp?: number | null;
+  /** The event's type as FIRST lists it ("Qualifier", "FIRSTChampionship"): its Events-card colour. */
+  type?: string | null;
+  /** The alliance's points by phase (TeleOp without the endgame, as stored) and the penalty points it gave away. */
+  phases?: { auto: number | null; teleop: number | null; endgame: number | null; pen: number | null } | null;
+  /** Its place in a ranked list (1 is the top score). */
+  rank?: number;
 }
 
 /** One team on a leaderboard. `value` is the asked stat (as `display` shows it); `parts`, an OPR's split. */
@@ -61,8 +69,13 @@ export type StatBlock =
       split?: { quals: StatRecord; playoffs: StatRecord } }
   /** Matches, best first or newest first as `title` says. */
   | { kind: "matches"; title: string; rows: StatMatchRow[]; more?: string }
-  /** Rows of named columns; a row may link (its first cell is the link text). */
-  | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean }[]; more?: string }
+  /** Rows of named columns; a row may link (its first cell is the link text). A row about one event may carry its
+   *  `type` (FIRST's event type, "Qualifier"): its name then gets the Events cards' type colour. */
+  | { kind: "table"; title: string; columns: { key: string; label: string; num?: boolean }[]; rows: { cells: Record<string, string | number | null>; href?: string; strong?: boolean; type?: string | null;
+      /** The event the row's match was at, linked from its event cell (a match row's link is the match). */
+      eventHref?: string;
+      /** A match row's two alliances, as team chips in their alliance colours. */
+      teams?: { red: StatLink[]; blue: StatLink[] } }[]; more?: string }
   /** A value over time (events or seasons, oldest first): drawn as a line. */
   | { kind: "series"; title: string; unit?: string; points: { x: string; y: number | null; href?: string; note?: string }[] }
   /** Values as horizontal bars (phase split, two teams side by side). */
@@ -92,7 +105,9 @@ export interface StatAnswer {
   /** What the answer covers, as chips ("FIRST Championship events", "All seasons"). */
   scope: string[];
   /** The one number the question asks for, read first. */
-  headline?: { value: string; label: string; sub?: string; href?: string };
+  /** `type`: the headline is one event, of FIRST's event type (null when FIRST lists none): drawn with its type chip. */
+  /** `teams` and `alliance`: the headline is one alliance's score, its teams drawn as chips in its colour. */
+  headline?: { value: string; label: string; sub?: string; href?: string; type?: string | null; teams?: StatLink[]; alliance?: "red" | "blue" };
   blocks: StatBlock[];
   /** The rule applied, in words ("Highest score: the alliance's points without penalties, …"). */
   definition: string;
