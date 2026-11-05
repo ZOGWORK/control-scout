@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.2.7 — 2026-11-05
+## 3.2.9 — 2026-11-05
 
 Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback.
 
@@ -29,6 +29,33 @@ Search finds matches by what made them stand out: the closest, the most lopsided
 - **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match and every filter on the card. One match asked for is the headline, with the next few in a table under it. Matches asked for ("closest matches") are one ranked table. Each match is printed once. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final. (#769)
 - **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one.
 - **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship.
+
+## 3.2.8 — 2026-11-05
+
+The site looks as it did yesterday, and the owner has a dog theme to switch on whenever they like.
+
+### Highlights
+- [appearance] Page colours back as they were: graphite, white, soft grey and black
+- [appearance] No pink background or drawn dogs and bones
+- [appearance] Compared teams in sky blue, orange and green again
+- [appearance] A dog theme the owner can turn on: a yellow tint and a real dog photo
+
+### Appearance
+- **As before.** The pink page and sidebar in every theme, the drawn dogs and bones across the page, and the pink browser bar are gone: Light is white again, Dim soft grey, Dark graphite and Midnight black. (#771)
+- **Team colours.** Compared teams on search answers are sky blue, orange and green again, as the results guide's colour-blind-safe set.
+- **Dog theme.** A new switch in the owner console's Features tab, off until the owner turns it on: every theme's page and sidebar tinted yellow, with a real dog photo faintly across the background. Cards, text and answer colours stay as they are.
+
+## 3.2.7 — 2026-11-05
+
+Searching a team's number or name now shows its highlights: its standout matches of the season, each with its video when one exists.
+
+### Highlights
+- [teams] A team search shows its best matches of the season
+- [teams] Each highlight says why it's there: best score, biggest win, playoffs
+- [teams] Highlights with a match video play right on the answer
+
+### Search
+- **A team's highlights.** A search for one team alone ("4215", or its name) opens the results page, which answers with its standout matches of its latest season with matches (or the season the search names, "4215 2024-25"): its best score (points without penalties), biggest win, latest playoff win, best Auto and closest win, each match listed once under the first reason it meets, with a label saying which. Only matches its robot played in count, and points are never compared across seasons. Each match box links to the match, and the answer's video plays the best score's clip when the match has one, with each other highlight's clip one tap away. A team with no match on record still opens its team page straight away (#770).
 
 ## 3.2.6 — 2026-11-05
 

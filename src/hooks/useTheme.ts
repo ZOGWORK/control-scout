@@ -2,13 +2,16 @@
 import { useEffect, useState } from "react";
 import { usePersonal } from "../lib/personal";
 import type { ThemeChoice } from "../shared/personal";
+import { useFlag } from "../lib/flags";
 
 const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches;
 
 /** The palette a choice paints (System: Light or Dark, from the device). Dim and Midnight are dark themes. */
 export type Palette = Exclude<ThemeChoice, "system">;
 /** The browser's bar colour per palette: each one's page background (src/index.css). */
-export const THEME_COLOR: Record<Palette, string> = { light: "#fdedf6", dim: "#3d1a2e", dark: "#2b0f20", midnight: "#1a0612" };
+export const THEME_COLOR: Record<Palette, string> = { light: "#ffffff", dim: "#1e1f23", dark: "#0a0a0b", midnight: "#000000" };
+/** The same with the owner's dog theme on (dogTheme): each palette's yellow-tinted page (src/index.css, html.dog). */
+export const DOG_THEME_COLOR: Record<Palette, string> = { light: "#fff8dc", dim: "#2a2513", dark: "#17130a", midnight: "#0b0903" };
 
 export function useTheme() {
   const { state } = usePersonal();
@@ -31,11 +34,13 @@ export function useTheme() {
 export function ThemeSync() {
   const { palette } = useTheme();
   const { state } = usePersonal();
+  const dog = useFlag("dogTheme");
   useEffect(() => {
     const root = document.documentElement.classList;
     for (const p of ["light", "dim", "midnight"] as const) root.toggle(p, palette === p);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[palette]);
-  }, [palette]);
+    root.toggle("dog", dog);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", (dog ? DOG_THEME_COLOR : THEME_COLOR)[palette]);
+  }, [palette, dog]);
   useEffect(() => { document.documentElement.classList.toggle("compact", state.settings.density === "compact"); }, [state.settings.density]);
   useEffect(() => { document.documentElement.classList.toggle("ambient-off", state.settings.ambient === false); }, [state.settings.ambient]);
   return null;

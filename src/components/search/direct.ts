@@ -3,6 +3,8 @@
 // results page with one card on it. Read off the server's own answer for the query (the one the dropdown shows), so
 // the box guesses nothing: one deterministic team hit that is the team typed, or an event whose code was typed.
 // Anything else (a question, a place, a versus, a topic like "6980 record", two teams named alike) opens /search.
+// A team goes there by way of /search: the results page's own answer may carry the team's highlights (its standout
+// matches, server/api/answers/highlights.ts), and then the page stays; with none, it goes on to the team's page.
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 import type { SearchAnswer, SearchHit } from "../../shared/api";
@@ -12,7 +14,7 @@ import { teamNameOf } from "../../shared/teamTitle";
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 export function directHit(a: SearchAnswer | undefined, query: string): SearchHit | null {
-  if (!a || a.step !== "deterministic" || a.card || !a.hits.length) return null;
+  if (!a || a.step !== "deterministic" || a.card || a.stat || !a.hits.length) return null;
   const q = norm(query);
   const top = a.hits[0];
   if (top.kind === "event") return top.match !== "fuzzy" && norm(top.ref.split(":")[1] ?? "") === q ? top : null;

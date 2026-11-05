@@ -48,6 +48,8 @@ describe("what names one thing exactly (directHit)", () => {
     expect(directHit(one("bad wolff", BAD_WOLF, { step: "did-you-mean", didYouMean: "bad wolf" }), "bad wolff")).toBeNull();
     expect(directHit({ q: "99999", hits: [], pages: [], step: "recovery", weak: true }, "99999")).toBeNull();
     expect(directHit(undefined, "6980")).toBeNull();
+    // The results page's answer has the team's highlights: that page stays.
+    expect(directHit(one("6980", BAD_WOLF, { stat: { family: "superlative", intent: "team-highlights", title: "Highlights", scope: [], headline: { value: "1", label: "x" }, blocks: [], definition: "", source: "" } }), "6980")).toBeNull();
   });
   it("an event code: that event (the server's first, the current season's)", () => {
     const ev = (ref: string): SearchHit => ({ kind: "event", ref, title: "x", subtitle: "", season: 2026, match: "exact" });
@@ -92,7 +94,7 @@ describe("Enter and the magnifier on a search box", () => {
     fireEvent.click(screen.getByRole("button", { name: "back" }));
     expect(at()).toBe("/events");
   });
-  it("\"team 6980\" and \"Bad Wolf\" (the answer already in): the team's page, by the magnifier too", async () => {
+  it("\"team 6980\" and \"Bad Wolf\" (the answer already in): the team's page by way of /search, by the magnifier too", async () => {
     const input = mount();
     for (const q of ["team 6980", "Bad Wolf"]) {
       act(() => input.focus());
@@ -100,8 +102,18 @@ describe("Enter and the magnifier on a search box", () => {
       await act(async () => { vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS + 5); });
       await answerWith(one(q, BAD_WOLF));
       fireEvent.click(screen.getByRole("button", { name: "Run search" }));
+      expect(at()).toBe(`/search?q=${encodeURIComponent(q)}`); // only the results page's answer says if it has highlights
+      await answerWith(one(q, BAD_WOLF));
       expect(at()).toBe("/teams/6980");
     }
+  });
+  it("\"6980\" with highlights in the results page's answer: that page stays", async () => {
+    const input = mount();
+    fireEvent.change(input, { target: { value: "6980" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await answerWith(one("6980", BAD_WOLF, { stat: { family: "superlative", intent: "team-highlights", title: "Highlights", scope: [], headline: { value: "1", label: "x" }, blocks: [], definition: "", source: "" } }));
+    expect(at()).toBe("/search?q=6980");
+    expect(screen.getByTestId("results").textContent).toBe("answer");
   });
   it("\"ultraviolet\" (two teams by that name): the results page", async () => {
     const input = mount();

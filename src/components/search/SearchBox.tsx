@@ -466,10 +466,11 @@ export function SearchBox({ onPick, kinds, placeholder, label, size = "md", clas
   const openFull = () => runQuery(query);
   // A query that names one thing exactly (a team number, "team 6980", one team's whole name, an event code), as the
   // server's answer for it reads: straight to its page. Anything else, the full results page. With the answer not in
-  // yet, /search at once (never a wait here), which goes on to that one page itself when its answer names one.
+  // yet, /search at once (never a wait here), which goes on to that one page itself when its answer names one. A team
+  // always goes by /search: only the results page's answer says whether it has highlights to show (direct.ts).
   const openDirectOrFull = () => {
     const d = !idle && !busy && !stale ? directHit(answer, query) : null;
-    if (d) pick(d);
+    if (d && d.kind !== "team") pick(d);
     else { markDirect(query); openFull(); }
   };
   // Enter, the keyboard's Search key and the magnifier: the highlighted row (Enter only); with none, the full results
