@@ -68,16 +68,17 @@ export function useRotatingExample(paused: boolean, reduced: boolean, count: num
 
 /** The chips that fit `list`'s rows, in the order to draw them. The list keeps a fixed height (two or three rows);
  *  each chip's width is measured once, drawn in the hour's order, and then the most that fit whole are packed onto
- *  the rows (fitChips), the rest left out, never cut off. Packed again when the list's width changes, measured again
- *  when the fonts arrive; before paint each time. Without layout (a test) all of them show, in order. */
+ *  the rows (fitChips), the rest left out, never cut off. Packed again when the list's width changes; measured
+ *  again when the fonts arrive or a drawn chip changes size (the root text size steps up at 768px and can be set in
+ *  Settings); before paint each time. Without layout (a test) all of them show, in order. */
 export function useFittingChips(list: RefObject<HTMLUListElement | null>, items: HomeSuggestion[]): HomeSuggestion[] {
   const [fit, setFit] = useState<{ items: HomeSuggestion[]; shown: HomeSuggestion[] } | null>(null);
   const widths = useRef(new Map<string, number>());
-  const [fonts, setFonts] = useState(0);
+  const [run, setRun] = useState(0);
   const current = fit?.items === items ? fit.shown : null;
   useEffect(() => {
     let live = true;
-    document.fonts?.ready.then(() => { if (live) { widths.current.clear(); setFit(null); setFonts((n) => n + 1); } });
+    document.fonts?.ready.then(() => { if (live) { widths.current.clear(); setFit(null); setRun((n) => n + 1); } });
     return () => { live = false; };
   }, []);
   useLayoutEffect(() => {
@@ -96,19 +97,23 @@ export function useFittingChips(list: RefObject<HTMLUListElement | null>, items:
       const shown = order.map((i) => items[i]);
       setFit((was) => (was?.items === items && was.shown.length === shown.length && was.shown.every((s, i) => s === shown[i]) ? was : { items, shown }));
     };
+    const drawn = () => ([...ul.children] as HTMLElement[]).flatMap((li) => (li.dataset.q && li.firstElementChild ? [[li.dataset.q, li.firstElementChild] as const] : []));
+    const widthOf = (b: Element) => Math.ceil(b.getBoundingClientRect().width);
     // First draw (all of them, in order): measure each chip, then pack.
-    if (items.some((s) => !widths.current.has(s.q))) {
-      for (const li of [...ul.children] as HTMLElement[]) {
-        const b = li.firstElementChild;
-        if (li.dataset.q && b) widths.current.set(li.dataset.q, Math.ceil(b.getBoundingClientRect().width));
-      }
-    }
+    if (items.some((s) => !widths.current.has(s.q))) for (const [q, b] of drawn()) widths.current.set(q, widthOf(b));
     pack();
     let w = ul.clientWidth;
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => { if (ul.clientWidth !== w) { w = ul.clientWidth; pack(); } });
+    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      // A drawn chip of a new width: the text size changed, so every width is stale. Draw all six and measure again.
+      if (drawn().some(([q, b]) => { const now = widthOf(b); return now > 0 && now !== widths.current.get(q); })) {
+        widths.current.clear(); setFit(null); setRun((n) => n + 1); return;
+      }
+      if (ul.clientWidth !== w) { w = ul.clientWidth; pack(); }
+    });
     ro?.observe(ul);
+    for (const [, b] of drawn()) ro?.observe(b);
     return () => ro?.disconnect();
-  }, [list, items, fonts]);
+  }, [list, items, run, current]);
   return current ?? items;
 }
 
