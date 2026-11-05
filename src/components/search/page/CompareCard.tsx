@@ -63,7 +63,7 @@ export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
       )}
       <footer className="mt-5 border-t border-border pt-3" data-definition>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span className="min-w-0 flex-1">{b.scale ? `Bars from 0 to each row's max (${b.scale}) · ` : ""}<span data-source>{stat.source}.</span></span>
+          <span className="min-w-0 flex-1">{b.scale ? `Bars start at 0; each row's max is ${b.scale} · ` : ""}<span data-source>{stat.source}.</span></span>
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={note} aria-label="How this is counted"
             className="inline-flex size-[44px] shrink-0 items-center justify-center rounded-md hover:bg-muted hover:text-foreground" data-method>
             <Info className="size-4" aria-hidden />

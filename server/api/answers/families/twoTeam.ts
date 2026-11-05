@@ -127,7 +127,7 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
     // The win rate on its own scale, 0 to 100%; the records and matches played as the context line.
     const block = compareBlock("Win rate", [a, b], [
       { label: "Win rate", total: true, values: [rateOf(rA), rateOf(rB)], max: 1, show: (v) => (v == null ? "–" : `${Math.round(100 * v)}%`), better: "higher", gap: (g) => `+${Math.round(100 * g)}%` },
-    ], s.season, "0 to 100%");
+    ], s.season, "100%");
     const rows = block.kind === "compare" ? block.rows : [];
     return {
       ...base,
@@ -147,7 +147,7 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
   // ranks go in the context line, said once.
   const cols = (opr ? ["opr_np", "opr_auto", "opr_teleop", "opr_endgame"] : ["rating_np", "rating_auto", "rating_teleop", "rating_endgame"]) as StatColumn[];
   const scale = await seasonScale(s.season!, cols);
-  const bars: StatBlock = compareBlock(opr ? "OPR" : "Prediction rating", [a, b], (["Total", "Auto", "TeleOp", "Endgame"] as const).map((label, i) => ({ label, total: i === 0, values: [va[i], vb[i]], max: scale[cols[i]], better: "higher" as const })), s.season, `season ${seasonLabel(s.season!)} highs`);
+  const bars: StatBlock = compareBlock(opr ? "OPR" : "Prediction rating", [a, b], (["Total", "Auto", "TeleOp", "Endgame"] as const).map((label, i) => ({ label, total: i === 0, values: [va[i], vb[i]], max: scale[cols[i]], better: "higher" as const })), s.season, `the ${seasonLabel(s.season!)} high, rounded up`);
   const rows = bars.kind === "compare" ? bars.rows : [];
   const rankText = (r: SeasonRow) => (opr ? (r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked") : r.rating_rank ? `#${r.rating_rank.toLocaleString("en-US")} worldwide` : "unranked");
   const context = [rankText(ra), rankText(rb), decidedText(rows), opr ? null : `±${Math.round(ra.rating_sd ?? 0)} and ±${Math.round(rb.rating_sd ?? 0)} uncertainty`];
@@ -259,7 +259,7 @@ export async function phaseSideBySide(phase: "auto" | "teleop" | "endgame", a: A
   if (va == null || vb == null) return { ...base, blocks: [], none: s.season == null ? `${whoOf(a)} and ${whoOf(b)} have no season they both played.` : `No ${seasonLabel(s.season)} ${P} OPR for ${[va == null ? whoOf(a) : "", vb == null ? whoOf(b) : ""].filter(Boolean).join(" and ")}.` };
   const col = `opr_${phase}` as StatColumn;
   const scale = await seasonScale(s.season!, [col]);
-  const block = compareBlock(`${P} OPR`, [a, b], [{ label: P, total: true, values: [va, vb], max: scale[col], better: "higher" }], s.season, `season ${seasonLabel(s.season!)} high`);
+  const block = compareBlock(`${P} OPR`, [a, b], [{ label: P, total: true, values: [va, vb], max: scale[col], better: "higher" }], s.season, `the ${seasonLabel(s.season!)} high, rounded up`);
   const rows = block.kind === "compare" ? block.rows : [];
   const rankText = (r?: SeasonRow) => (rk(r) ? `#${rk(r)!.toLocaleString("en-US")} of ${(r!.ranked_teams ?? 0).toLocaleString("en-US")} in ${P}` : `unranked in ${P}`);
   return {
@@ -281,7 +281,8 @@ export function reliabilityRows(rs: Reliability[]): CompareInput[] {
   ];
   return [
     { label: "Reliability", total: true, values: rs.map((r) => r.index), max: 100, show: (v) => String(v ?? "–"), better: "higher", gap: (g) => `+${Math.round(g)}` },
-    ...parts.map(([label, v, show]): CompareInput => ({ label, values: rs.map(v), show: (_, i) => show(rs[i]), better: "lower", gap: (g) => (Number.isInteger(g) ? String(g) : g.toFixed(2)) })),
+    // The gap says which way is better: "4 fewer", "0.10 lower".
+    ...parts.map(([label, v, show]): CompareInput => ({ label, values: rs.map(v), show: (_, i) => show(rs[i]), better: "lower", gap: (g) => (Number.isInteger(g) ? `${g} fewer` : `${g.toFixed(2)} lower`) })),
   ];
 }
 
@@ -294,7 +295,7 @@ export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope:
   if (s.season == null) return { ...base, blocks: [], none: `${whoOf(a)} and ${whoOf(b)} have no season they both played.` };
   const [ra, rb] = await Promise.all([teamReliability(s.season, a.number), teamReliability(s.season, b.number)]);
   if (!ra || !rb) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} reliability for ${[!ra ? whoOf(a) : "", !rb ? whoOf(b) : ""].filter(Boolean).join(" and ")} yet.` };
-  const block = compareBlock("Reliability", [a, b], reliabilityRows([ra, rb]), s.season, "0 to 100");
+  const block = compareBlock("Reliability", [a, b], reliabilityRows([ra, rb]), s.season, "100");
   const rows = block.kind === "compare" ? block.rows : [];
   return {
     ...base,
@@ -318,7 +319,7 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
   const block = compareBlock("Awards", [a, b], [
     { label: "Total", total: true, values: [na, nb], max: allMax, show: (v) => String(v ?? 0), better: "higher", gap: (g) => `+${g}` },
     ...(seasons.length > 1 ? seasons.map((x, i) => ({ label: seasonLabel(x), values: [of(a.number, x), of(b.number, x)], max: seasonMax[i], show: (v: number | null | undefined) => String(v ?? 0), better: "higher" as const, gap: (g: number) => `+${g}` })) : []),
-  ], null, "the most any team has won");
+  ], null, "the most any team has won, rounded up");
   if (block.kind === "compare" && block.rows.length > 5) block.rows = block.rows.slice(0, 5);
   const crow = block.kind === "compare" ? block.rows : [];
   return {
@@ -354,7 +355,7 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
   const block = compareBlock("Season numbers", teams, [
     ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], total: k === "np", values: rows.map((r) => r[`opr_${k}`]), max: scale[`opr_${k}`], better: "higher" as const })),
     { label: "Rating", values: rows.map((r) => r.rating_np), max: scale.rating_np, better: "higher" },
-  ], season, `season ${seasonLabel(season)} highs`);
+  ], season, `the ${seasonLabel(season)} high, rounded up`);
   const crow = block.kind === "compare" ? block.rows : [];
   const two = teams.length === 2;
   const who = (i: number) => (two ? "" : `${teams[i].number} `);

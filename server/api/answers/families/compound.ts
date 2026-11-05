@@ -452,7 +452,7 @@ export async function reliabilitySetAnswer(teams: AnswerTeam[], season: number |
   const leaders = teams.filter((_, i) => R[i].index === top);
   // The index on its 0–100 scale and the parts that count against a team; matches played and the field go in the
   // context line.
-  const block = compareBlock("Reliability", teams, reliabilityRows(R), s, "0 to 100");
+  const block = compareBlock("Reliability", teams, reliabilityRows(R), s, "100");
   const crow = block.kind === "compare" ? block.rows : [];
   const head = leadHeadline(teams, crow[0], [teams.map((t, i) => `${t.number} ${R[i].matches}`).join(", ") + " qualification matches", R[0].fieldIndex != null ? `field average ${R[0].fieldIndex}` : null], leaders.length === 1 ? teamHref(leaders[0].number, s) : undefined);
   return {

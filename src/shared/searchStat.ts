@@ -90,7 +90,7 @@ export type StatBlock =
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
       teleopWithEndgame?: boolean }
   /** Two or more teams compared (server/api/answers/compareBlock.ts): a row per metric, Total first and then by the
-   *  gap, each on its own scale from zero. `scale`: where the scales come from, for the footnote. */
+   *  gap, each on its own scale from zero. `scale`: what each row's max is, for the footnote ("100", "the 2025–26 high, rounded up"). */
   | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[]; scale?: string }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }

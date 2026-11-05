@@ -15,7 +15,7 @@ const VS: StatAnswer = {
   family: "two-team", intent: "opr-vs", title: "OPR: 23268 vs 7149 in 2025–26", team: { number: 23268, name: "Ultraviolet" }, teams: [{ number: 23268, name: "Ultraviolet" }, { number: 7149, name: "ENFORCERS" }], scope: ["2025–26"],
   headline: { value: "23268 leads 157.9 – 115.3", label: "+42.6", sub: "#144 of 8,308 · #446 of 8,308 · TeleOp decided it (+32.3)", href: "/teams/23268?season=2025" },
   blocks: [
-    { kind: "compare", title: "OPR", scale: "season 2025–26 highs", teams: [{ label: "23268", href: "/teams/23268" }, { label: "7149", href: "/teams/7149" }], rows: [
+    { kind: "compare", title: "OPR", scale: "the 2025–26 high, rounded up", teams: [{ label: "23268", href: "/teams/23268" }, { label: "7149", href: "/teams/7149" }], rows: [
       { label: "Total", values: ["157.9", "115.3"], nums: [157.9, 115.3], max: 250, best: 0, gap: "+42.6", diff: 42.6 },
       { label: "TeleOp", values: ["101.0", "68.7"], nums: [101, 68.7], max: 150, best: 0, gap: "+32.3", diff: 32.3 },
       { label: "Auto", values: ["36.5", "41.6"], nums: [36.5, 41.6], max: 60, best: 1, gap: "+5.1", diff: 5.1 },
