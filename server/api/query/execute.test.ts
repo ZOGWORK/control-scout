@@ -102,6 +102,27 @@ describe("one question, any phrasing, any team", () => {
   });
 });
 
+describe("what the pipeline leaves to the other readers", () => {
+  it("never answers a filter it can't apply", async () => {
+    const { parseQuery } = await import("./parse");
+    const { parseContext } = await import("./context");
+    const ctx = await parseContext(NOW);
+    for (const q of ["4215 and 6980 same alliance matches", "4215 average score without penalties", "4215 highest score without penalties"]) {
+      expect((await parseQuery(q, ctx)).complete, q).toBe(false);
+    }
+  });
+  it("season side-by-sides never take a place", async () => {
+    const a = await ask("4215 vs 6980 opr in romania");
+    expect(a.stat?.scope ?? []).not.toContain("Events in Romania");
+  });
+  it("margin of victory is wins only", async () => {
+    const { parseQuery } = await import("./parse");
+    const { parseContext } = await import("./context");
+    expect(await parseQuery("4215 margin of victory on average", await parseContext(NOW))).toMatchObject({ intent: "average-margin", symbols: expect.arrayContaining(["outcome:W"]), complete: true });
+    expect((await stat("4215 margin of victory on average")).title).toMatch(/^Average winning margin/);
+  });
+});
+
 describe("years", () => {
   it("a year is that season; none is the latest; a future year is said, never the latest", async () => {
     expect((await stat("4215 record 2025")).title).toBe("Record in 2025–26");
