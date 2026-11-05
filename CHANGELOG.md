@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.4 — 2026-11-05
 
-"North Jersey", "Northern California" and every other part of a region now read as that whole region, said so. (#PRNUM)
+"North Jersey", "Northern California" and every other part of a region now read as that whole region, said so. (#722)
 
 ### Highlights
 - [fixes] "Highest score in central jersey" reads New Jersey, said so
