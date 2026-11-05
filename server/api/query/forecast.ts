@@ -82,7 +82,9 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     ? { label: `Open in Predict: ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: Number(ev.season), red: [a.number], blue: [b.number] }) }
     : { label: `Open in Predict: ${a.number} at ${name}`, href: predictHref({ mode: "advancement", season: Number(ev.season), code: ev.code, team: a.number }) };
   const links: StatBlock = { kind: "links", title: "Open", items: [predict, { label: name, sub: when, href: eventHref(Number(ev.season), ev.code, a.number) }] };
-  // Predict printed once: as the chance's action when the card has one, else in the links.
+  // Predict printed once: as the chance's action when the card has one ("Open in Predict", short enough for a phone's
+  // button), else in the links.
+  const act = { label: "Open in Predict", href: predict.href };
   const withoutPredict: StatBlock = { ...links, items: links.items.filter((l) => l !== predict) };
   const base: Omit<StatAnswer, "blocks"> = {
     family: b ? "two-team" : "stat", intent: b ? "pipeline-two-predict-event" : "pipeline-team-predict-event", title, team: a, ...(b ? { teams } : {}),
@@ -98,7 +100,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     const f = await nextEventPrediction("event-win-chance", a, new Date(now), { season: Number(ev.season), code: ev.code }, Number(ev.season));
     // The chance to win it on its 0–100% bar, with Predict as the card's one action.
     const pre = await projectionOf(ev, a.number);
-    const chance: StatBlock | null = pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it starts", action: predict } : null;
+    const chance: StatBlock | null = pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it starts", action: act } : null;
     return { ...f, title, intent: base.intent, scope: [...f.scope, "Not played yet"], blocks: [...(chance ? [chance] : []), ...f.blocks.filter((x) => x.kind !== "links"), chance ? withoutPredict : links], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
   }
   // The matches: the team's (or both teams'), qualifications and playoffs, at the event and its divisions; one still to
@@ -137,9 +139,9 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   // The chance on its 0–100% bar: the next match's, else the average over the matches played, else the event's.
   const nextRow = next ? ms[table.indexOf(next)] : undefined;
   const note = nextRow ? await rangedCall(Number(ev.season), lineup(nextRow.red), lineup(nextRow.blue), nextRow.level, side(nextRow)).catch(() => null) : null;
-  const chance: StatBlock | null = next ? { kind: "chance", p: next.pWin, who: String(a.number), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), before it's played`, ...(note ? { note } : {}), action: predict }
-    : done.length ? { kind: "chance", p: expWins / done.length, who: String(a.number), label: `average chance to win each ${b ? "meeting" : "match"}, before it was played`, action: predict }
-    : pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it started", action: predict } : null;
+  const chance: StatBlock | null = next ? { kind: "chance", p: next.pWin, who: String(a.number), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), before it's played`, ...(note ? { note } : {}), action: act }
+    : done.length ? { kind: "chance", p: expWins / done.length, who: String(a.number), label: `average chance to win each ${b ? "meeting" : "match"}, before it was played`, action: act }
+    : pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it started", action: act } : null;
   const label = kind === "live" ? "logged live before each match" : "walk-forward replay (not logged live)";
   // Two teams always on the same footing (all partners, or all opponents) say so in the title, not a column.
   const sides = new Set(table.map((r) => r.row.cells.as));
@@ -149,7 +151,8 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const blocks: StatBlock[] = [
     ...(chance ? [chance] : []),
     { kind: "kpis", items: [
-      { label: "Before: expected wins", value: done.length ? expWins.toFixed(1) : "–", sub: done.length ? `of ${done.length} match${done.length === 1 ? "" : "es"} played, ${label}` : ms.length ? "None played yet" : "No match predictions stored" },
+      // Expected wins are the headline's once any match is played: printed once.
+      ...(done.length ? [] : [{ label: "Before: expected wins", value: "–", sub: ms.length ? "None played yet" : "No match predictions stored" }]),
       { label: "After: record", value: done.length ? `${wins}-${losses}-${ties}` : "–", sub: rank?.rank != null ? `Ranked #${rank.rank}` : undefined },
       ...(pre ? [{ label: "Before: projected rank", value: pre.rank ? `#${Math.round(pre.rank.p50)}` : "–", sub: `Win the event ${pct(pre.pWin)} · playoffs ${pct(pre.pPlayoff)}` }] : []),
       { label: "After: event", value: won ? "Won" : rank?.rank != null ? `#${rank.rank}` : "–", ...(won ? { tone: "good" as const } : {}) },
