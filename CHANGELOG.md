@@ -26,7 +26,7 @@ Home's search chips wrap onto rows instead of sliding sideways, and a chip is sh
 - [home] Three rows on tablets and desktops; the hour's change never shifts
 
 ### Home
-- **Chips on rows.** The hour's six chips under Home's search wrap onto rows of a fixed height: three from a small tablet up, two on a phone. Each chip is measured once, and the most that fit whole are packed onto the rows, a leaderboard and a sentence or filtered search kept first; one that doesn't fit is left out, never cut off, and the "Try" hint walks only through the chips showing. Nothing scrolls sideways, and the list is the same height every hour, so the change on the hour never moves the page. On a touch screen each chip's tap area is 44px, with the rows far enough apart that two never overlap.
+- **Chips on rows.** The hour's six chips under Home's search wrap onto rows of a fixed height: three from a small tablet up, two on a phone. Each chip is measured once, and the most that fit whole are packed onto the rows, a leaderboard and a sentence or filtered search kept first; one that doesn't fit is left out, never cut off, and the "Try" hint walks only through the chips showing. Nothing scrolls sideways, and the list is the same height every hour, so the change on the hour never moves the page. On a touch screen each chip's tap area is 44px, with the rows far enough apart that two never overlap. (#735)
 
 ## 3.2.1 — 2026-11-05
 
