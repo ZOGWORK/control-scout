@@ -63,11 +63,11 @@ async function matchHits(q: string): Promise<SearchHit[]> {
   return out;
 }
 
-/** A query that also asks about something ("hypnotic ranking points", "4215 awards"): the topic, its words as
+/** A query that also asks about something ("hypnotic ranking points", "12345 awards"): the topic, its words as
  *  canonical ("ranking points"), and the words left to search for. Null when nothing would be left, or nothing dropped.
  *  `typos`: a topic word may be misspelled ("awrds", "ranking ponts"), within the name search's own edit allowance. */
 export function searchIntent(q: string, typos = false): { topic: SearchTopic | null; phrase: string | null; rest: string } | null {
-  // A question's punctuation and possessives go ("what are 4215's ranking points?" reads as "4215 ranking points").
+  // A question's punctuation and possessives go ("what are 12345's ranking points?" reads as "12345 ranking points").
   const ws = q.trim().replace(/[?!,]/g, " ").replace(/['’]s\b/gi, "").split(/\s+/).filter(Boolean);
   const lower = ws.map((w) => w.toLowerCase());
   let topic: SearchTopic | null = null, phrase: string | null = null, at = -1, len = 0;
@@ -85,13 +85,37 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
 /** `prefer`: the visitor's own teams/events ("team:16321", "event:2025:AUBRQ2") —
  *  my team, tracked and shortlisted — rank above other matches of the same strength.
  *  `kinds`: only these kinds of hit (an events-only box), chosen before the limit so other kinds can't crowd them out.
- *  A query that also asks about something ("hypnotic awards", "4215 ranking points", "USNJCMP odds") finds what the
+ *  A query that also asks about something ("hypnotic awards", "12345 ranking points", "USNJCMP odds") finds what the
  *  rest names, each hit opening on that part of its page (SearchHit.section), and the top team carries the numbers
  *  asked about (SearchHit.facts). A team or event whose own name has the words ("Match Point") still comes first.
  *  Words like "team", and misspelled topic words ("hypnotic awrds"), count only when the whole query finds nothing. */
 /** `season`: the season a query named ("last season", "2024-25"): a team's numbers and links are that season's. */
 /** `asked`: the query as typed ended in "?" (a question: its own words name nothing, src/shared/searchQuery.ts). */
 export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>, season?: number | null, asked = false): Promise<SearchHit[]> {
+  const version = (await kvGet<string>("search:version")) ?? "0";
+  if (version !== memoVersion) { memo.clear(); memoVersion = version; }
+  // The one flag search reads (a team's schedule difficulty) is part of the key.
+  const difficulty = await isEnabled("scheduleDifficulty").catch(() => false);
+  const key = JSON.stringify([q, limit, [...prefer].sort(), kinds ? [...kinds].sort() : null, season ?? null, asked, difficulty]);
+  let m = memo.get(key);
+  if (!m || Date.now() - m.at > SEARCH_MEMO_MS) {
+    if (memo.size >= SEARCH_MEMO_MAX) memo.delete(memo.keys().next().value!);
+    m = { at: Date.now(), hits: searchOnce(q, limit, prefer, kinds, season, asked) };
+    memo.set(key, m);
+    m.hits.catch(() => memo.delete(key));
+  }
+  return (await m.hits).map((h) => ({ ...h }));
+}
+
+/** search() by its arguments, for one search index version: one answer looks the same words up many times (each
+ *  reader and layer asks for the team or the word again), and a word that finds nothing scans every name. A minute
+ *  at most, so a fact outside the index is soon seen. */
+const SEARCH_MEMO_MAX = 500, SEARCH_MEMO_MS = 60_000;
+const memo = new Map<string, { at: number; hits: Promise<SearchHit[]> }>();
+let memoVersion: string | null = null;
+registerCache("search-memo", () => memo.clear());
+
+async function searchOnce(q: string, limit: number, prefer: ReadonlySet<string>, kinds: ReadonlySet<SearchHit["kind"]> | undefined, season: number | null | undefined, asked: boolean): Promise<SearchHit[]> {
   const at = await teamAtEventAnswer(q, limit, prefer, kinds, season);
   if (at) return at;
   const full = await searchWords(q, limit, prefer, kinds, asked);
@@ -148,7 +172,7 @@ export async function teamAtEventAnswer(q: string, limit: number, prefer: Readon
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
   // The event's season on the hit too: an older event's facts and link never sit beside this season's badge.
   if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts, season: pick.event.season, linkSeason: pick.event.season }, ...others];
-  // Several events matched in an older season ("4215 at northern league meet" from last season): that season's events,
+  // Several events matched in an older season ("12345 at northern league meet" from last season): that season's events,
   // never this season's unrelated ones.
   const season = found && "ambiguous" in found ? found.season : (await teamSeason(Number(team.ref), asked)).season;
   const events = season == null ? [] : await teamEvents(Number(team.ref), season);

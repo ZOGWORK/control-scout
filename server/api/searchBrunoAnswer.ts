@@ -44,7 +44,7 @@ const lineText = (l: SearchCardLine) => {
   return more ? `${l.text}: ${more}` : l.text;
 };
 
-/** "Won New Jersey Championship (2024–25): winning alliance 4215 Hypnotic Robotics, 23268 Ultraviolet; Inspire Award
+/** "Won New Jersey Championship (2024–25): winning alliance 12345 Hypnotic Robotics, 23268 Ultraviolet; Inspire Award
  *  23268 Ultraviolet", or null when no winner is recorded (an event not held yet). */
 async function eventWinners(h: SearchHit): Promise<string | null> {
   const [season, code] = h.ref.split(":");

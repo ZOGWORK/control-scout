@@ -58,7 +58,7 @@ export function awardsTitle(id: IntentId, opts: { award?: string; pick?: "first"
 export async function awardsAnswer(id: IntentId, team: AnswerTeam, scope: Scope, opts: { count: boolean; award?: string; pick?: "first" | "latest" }): Promise<StatAnswer | null> {
   if (!["event-wins", "inspire-awards", "finalist-finishes", "total-awards", "award-split", "awards"].includes(id)) return null;
   const every = await awardRows(team.number, scope);
-  // One award named ("4215 design award"), or Inspire for its newest or earliest: only those rows.
+  // One award named ("12345 design award"), or Inspire for its newest or earliest: only those rows.
   // FIRST stores its Leadership Award as a Winner too: never a Winning Alliance (as winners.ts reads them).
   const rows = opts.award ? every.filter((r) => r.type === opts.award && !(r.type === "Winner" && /leadership/i.test(r.award ?? ""))) : id === "inspire-awards" && opts.pick ? every.filter((r) => r.type === "Inspire") : every;
   const who = whoOf(team), where = scopePhrase(scope);

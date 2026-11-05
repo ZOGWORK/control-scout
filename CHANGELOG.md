@@ -15,6 +15,91 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.9 — 2026-11-05
+
+Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results. (#730)
+
+### Highlights
+- [predict] "Predicted chances of a team at an event" gets an answer
+- [predict] The win chance is a 0–100% bar, with Open in Predict
+- [fixes] No answer shows the closest teams and events as full cards
+- [fixes] How FTC One Search works describes the search as it is now
+
+### Changes
+- **Prediction answers.** A team's prediction at a named event leads with its chance (the next match's, else the average over the matches played, else the event's) as a number and a bar on a 0–100% scale. The next match shows its predicted score with its ranges. Open in Predict is the card's one action, and expected wins print once.
+- **No answer.** One sentence says what's missing; the closest teams and events follow as full cards, with searches that answer about them.
+- **How it works.** The search page's explainer covers reading a question in any order, the season rule, widening in a stated order and worked-out measures.
+
+## 3.2.8 — 2026-11-05
+
+Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to. (#729)
+
+### Highlights
+- [fixes] "When did a team last lose a match" shows that loss
+- [fixes] "Longest losing streak" counts losses, not wins
+- [fixes] "Who did they lose to the most" lists the teams that beat them
+- [fixes] "Where is a team based out of" and "how old is it" answer
+
+### Changes
+- **Wins and losses as a filter.** A team's first, most recent and last few matches, and its longest streak, read a win or a loss said with them, and the card's title says which.
+- **Lost to.** "Lose to", "lost to" and "beaten by" list the opponents that beat the team, most often first. "Most often" is how often, never the best partner.
+- **Team facts.** "Based out of" reads as where a team is from and "how old" as its rookie year; "if any" never stops an answer.
+
+## 3.2.7 — 2026-11-05
+
+Lists of teams answer however they're asked: the lowest first, a town, a country by its people, undefeated. (#728)
+
+### Highlights
+- [rankings] "Who has the highest auto OPR in NJ" lists the teams
+- [rankings] "Worst teleop OPR in Romania" lists the lowest first
+- [rankings] "Best team in Cluj-Napoca, Romania" and "Romanian teams" work
+- [rankings] "Any team with a perfect record" lists undefeated teams
+
+### Changes
+- **Leaderboards said any way.** A list of teams by a season stat reads with or without "team", lowest first ("worst", "lowest"), for a whole country, a town with its state or country after it, a country by its people's word, a count at the end ("top 3") and undefeated teams. "Just curious", "only" and other asides are never read as a team's name.
+- **Season.** No season said reads the current season once a team is ranked in it, and otherwise shows last season and says so.
+
+## 3.2.6 — 2026-11-05
+
+Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback. (#727)
+
+### Highlights
+- [fixes] "Closest match in Romania last month" answers with the match
+- [fixes] "Biggest upset in New Jersey" and "best comeback in Michigan" work
+- [fixes] Filter by quals, playoffs, finals or league meets in any match question
+- [fixes] No season said reads this season, or says it's showing last season
+
+### Changes
+- **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match, the next few under it and every filter on the card. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final.
+- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one.
+- **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship.
+
+## 3.2.5 — 2026-11-05
+
+Search is checked against 533 questions people wrote for it, and the slow ones are fast. (#726)
+
+### Highlights
+- [speed] Team lists filtered by Worlds or an award: under a second, not 45
+- [speed] Long questions no longer look the same words up again and again
+- [report] Search is measured on 533 questions people wrote, by pattern
+
+### Changes
+- **Held-out questions.** `npm run search:heldout` asks the 200 unique queries, the 260-query list and the complex queries, and sorts every answer into a pattern (answered, fallback only, team card only, a place or time not stated, words not read), with the pass rate per set and per pattern.
+- **Speed.** A search remembers the names it looked up for a minute (per index version), so one long question no longer searches the same word dozens of times. Lists filtered by Worlds or an award read each team's own events and awards by index, not the whole season's for every team.
+
+## 3.2.4 — 2026-11-05
+
+"North Jersey", "Northern California" and every other part of a region now read as that whole region, said so. (#722)
+
+### Highlights
+- [fixes] "Highest score in central jersey" reads New Jersey, said so
+- [fixes] Any part of a state ("northern california") is the whole state
+- [fixes] "Not" help shows a real opponent of the team you typed
+
+### Changes
+- **Parts of a region.** A direction before a region ("north jersey", "northern california", "western new york") is read as that whole region, since parts aren't on record, and the answer says so. A place named that way by itself ("North Carolina", "West Virginia", "Northern Ireland") stays itself. This replaces a rule written only for New Jersey, and now works in every kind of question, including a week's best score ("highest score in central jersey this week" no longer finds a team called Central).
+- **"Not" help.** When "not" is followed by a word that isn't a team, the example now leaves out a team that team has really played against.
+
 ## 3.2.3 — 2026-11-05
 
 Failed searches are grouped by how they failed, so the words search misses most rise to the top. (#721)

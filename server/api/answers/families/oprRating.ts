@@ -67,7 +67,7 @@ const RULES: { id: OprRatingId; re: RegExp }[] = [
   { id: "rating-trend", re: /\b(?:prediction\s+)?rating\s+(?:trend|history|over\s+time|progression|by\s+(?:event|week)|graph|chart)\b/ },
   { id: "rating-best", re: /\b(?:best|highest|peak|top|max(?:imum)?)\s+(?:prediction\s+|engine\s+)?rating\b/ },
   { id: "rating-rank", re: /\b(?:prediction\s+)?rating\s+(?:rank(?:ing)?|place|position|standing)\b|\brank(?:ed|ing)?\s+by\s+(?:prediction\s+)?rating\b/ },
-  // "4215 rating in New Jersey": its place on that region's rankings (a season after "in" is the rating card's own).
+  // "12345 rating in New Jersey": its place on that region's rankings (a season after "in" is the rating card's own).
   { id: "rating-rank", re: /\b(?:prediction\s+)?rating(?=\s+(?:in|on|across|within)\s)/ },
   { id: "rank", re: /\b(?:rank(?:ing)?|place|position|standing)\b/ },
 ];
@@ -83,9 +83,9 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
   for (const r of RULES) {
     const m = r.re.exec(q);
     if (!m) continue;
-    // The generic "rank" names no stat: taken only for a place or the world ("4215 rank worldwide", "4215 place on
-    // the New Jersey leaderboard"), and never beside a stat word another rule or answer reads ("4215 endgame opr
-    // rank", "4215 rank at the New Jersey Championship").
+    // The generic "rank" names no stat: taken only for a place or the world ("12345 rank worldwide", "12345 place on
+    // the New Jersey leaderboard"), and never beside a stat word another rule or answer reads ("12345 endgame opr
+    // rank", "12345 rank at the New Jersey Championship").
     if (r.id === "rank" && (/\b(?:opr|rating|auto|tele-?op|end\s?game|score|record|award|match|qual|finish|average|avg|mean|best|worst|highest|lowest|league|event|seed)/.test(q) || /\bat\s/.test(q))) continue;
     if (r.id === "rating-rank" && /\bat\s/.test(q)) continue;
     // A top share or a percentile with no stat named is by OPR (the team page's standing); a rating one isn't read.
@@ -105,10 +105,10 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
       const found = regionOf(p.groups.place.trim().split(" "));
       if (found) { region = found; words = ` ${words} `.replace(p[0], " "); }
     }
-    // A region is for a rank; "4215 rating in New Jersey" is its place on that region's ranking.
+    // A region is for a rank; "12345 rating in New Jersey" is its place on that region's ranking.
     if (region && !["opr-rank", "rating-rank", "rank", "opr-vs-team-average"].includes(id)) return null;
     if (world && region) return null;
-    // A rank with no stat named is a world or a place's rank; "4215 rating in 2024-25" is the rating card's.
+    // A rank with no stat named is a world or a place's rank; "12345 rating in 2024-25" is the rating card's.
     if (id === "rank" && !world && !region) continue;
     if (id === "rating-rank" && !region && !/\b(?:rank|place|position|standing)/.test(m[0])) return null;
     const core = squash(words.replace(FILLER, " ").replace(/\b(?:highest|lowest|best|worst|average|vs|versus|compared|with|percent|top)\b/g, " "));
@@ -121,7 +121,7 @@ export function readOprRating(raw: string): OprRatingQuestion | null {
     if (pct != null && (pct < 1 || pct > 99)) return null;
     return { id, core, season: scope.season, region, ever: scope.ever, ...(phases ? { phases } : {}), ...(pct != null ? { pct } : {}) };
   }
-  // "4215 opr at worlds", "4215 rating at the first championship": the OPR or the rating, Worlds only.
+  // "12345 opr at worlds", "12345 rating at the first championship": the OPR or the rating, Worlds only.
   const { scope, rest } = readScope(q);
   if (scope.championship && !scope.at && !scope.level && !scope.alliance) {
     const which = /\bopr\b/.test(rest) && !/\b(?:auto|tele-?op|end\s?game|rank|vs|versus)\b/.test(rest) ? "opr-worlds" : /\brating\b/.test(rest) && !/\b(?:rank|vs|versus)\b/.test(rest) ? "rating-worlds" : null;
