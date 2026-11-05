@@ -45,7 +45,8 @@ const TABLE: [string, Sym][] = [
   ["closest|tightest|narrowest|nail biter|nailbiter", { k: "agg", v: "closest" }],
   ["next|upcoming|coming up", { k: "agg", v: "next" }],
   // Metrics.
-  ["score|scores|scored|scoring|points|point|pts|total points", { k: "metric", v: "score" }],
+  // "Total points" is two words read apart: a sum ("total") of scores ("points").
+  ["score|scores|scored|scoring|points|point|pts", { k: "metric", v: "score" }],
   ["margin|margin of victory|point differential|differential|point diff|spread|blowout|blowouts", { k: "metric", v: "margin" }],
   ["record|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
   ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],

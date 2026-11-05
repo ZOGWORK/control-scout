@@ -95,7 +95,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
   // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
   const yearOk = (y: number) => teamNums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|season|from)\\s+(?:the\\s+)?${y}\\b`).test(q);
-  const { time, rest } = readTime(q, ctx.today, yearOk);
+  const { time, rest, unread } = readTime(q, ctx.today, yearOk);
   // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
   let at = 0;
   const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
@@ -206,8 +206,16 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // One event: a second one named ("at nj championship at turnpike division") is left unexplained, never dropped.
     if (!p.event && await ctx.isEvent(words())) {
-      p.event = { words: words(), typed: typed() };
-      toks.slice(from, to + 1).forEach((t) => (t.used = true));
+      // The event words the lexicon read beside it ("northern league meet": "meet") stay in its name when the name
+      // with them is an event too, so a meet is never read as the league's tournament.
+      let a = from, b = to;
+      while (b + 1 < toks.length && EVENT_NAME_WORDS.has(toks[b + 1].w)) b++;
+      while (a > 0 && EVENT_NAME_WORDS.has(toks[a - 1].w)) a--;
+      const span = (x: number, y: number) => toks.slice(x, y + 1);
+      const wide = (a !== from || b !== to) && await ctx.isEvent(span(a, b).map((t) => t.w).join(" "));
+      const [x, y] = wide ? [a, b] : [from, to];
+      p.event = { words: span(x, y).map((t) => t.w).join(" "), typed: span(x, y).map((t) => t.typed).join(" ") };
+      span(x, y).forEach((t) => (t.used = true));
       symbols.delete("thing:event");
       continue;
     }
@@ -229,6 +237,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // A name several teams share: picked by fixed rules (pickShared below), with the place named as one of them.
   for (const t of p.teams) if (t.candidates) Object.assign(t, pickShared(t, p, ctx));
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
+  if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
   p.symbols = [...symbols];
   const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null });
@@ -246,7 +255,8 @@ function pickShared(slot: TeamSlot, p: Parsed, ctx: ParseContext): Partial<TeamS
   const mine = cands.filter((t) => ctx.prefer?.has(`team:${t.number}`));
   if (mine.length === 1) return take(mine[0], "your team");
   if (mine.length > 1) cands = mine;
-  const place = p.place, others = p.teams.filter((t) => t !== slot).map((t) => ctx.names.team(t.number)).filter((t): t is TeamName => !!t);
+  // Only teams already settled count as "the other team": a name still shared holds an arbitrary first candidate.
+  const place = p.place, others = p.teams.filter((t) => t !== slot && (!t.candidates || t.rule)).map((t) => ctx.names.team(t.number)).filter((t): t is TeamName => !!t);
   const inPlace = (t: TeamName) => !!place && t.country === place.country && (place.state == null || t.state === place.state) && (place.city == null || t.city === place.city);
   const local = place ? cands.filter(inPlace) : [];
   if (local.length === 1) return take(local[0], `the one in ${place!.name}`);

@@ -28,6 +28,11 @@ const MON = MONTHS.map((m) => m.slice(0, 3));
 /** The FTC season a date falls in: September on starts the next season. */
 export const seasonOfDate = (iso: string): number => { const [y, m] = iso.split("-").map(Number); return m >= 9 ? y : y - 1; };
 const iso = (y: number, m: number, d: number) => new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10);
+/** A date that exists (month 0-based), else null: "February 30" or "2026-13-45" is never moved to another day. */
+const realDay = (y: number, m: number, d: number): string | null => {
+  const s = iso(y, m, d);
+  return s === `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}` ? s : null;
+};
 const addDays = (day: string, n: number) => new Date(new Date(`${day}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
 const monthIndex = (w: string) => { const i = MON.indexOf(w.slice(0, 3)); return i >= 0 && (w.length <= 4 || MONTHS[i].startsWith(w.replace(/\.$/, ""))) ? i : -1; };
 const label = (from: string, to: string) => {
@@ -60,7 +65,9 @@ function windowOf(w: (typeof WINDOWS)[number][1], today: string): { from: string
   return { from: r.from ?? today, to: r.to ?? today };
 }
 
-export interface TimeRead { time: TimeSlot | null; rest: string }
+/** `unread`: a date that doesn't exist ("february 30, 2026"), taken out of `rest` so no other reader takes its words,
+ *  and left unexplained. */
+export interface TimeRead { time: TimeSlot | null; rest: string; unread?: string }
 
 /** The time `q` (lower case, words) names, and `q` without its words. `today` is YYYY-MM-DD. A bare four-digit year
  *  is read only when `yearOk` says so (a number could be a team's: the parser decides). */
@@ -72,13 +79,17 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
 
   // A date: "on mar 15 2026", "march 15, 2026", "3/15/2026", "2026-03-15".
   let m = /\b(?:on\s+)?([a-z]{3,9}\.?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(20\d\d)\b/.exec(rest);
-  if (m && monthIndex(m[1]) >= 0) {
-    const day = iso(Number(m[3]), monthIndex(m[1]), Number(m[2]));
+  const said = m && monthIndex(m[1]) >= 0 ? realDay(Number(m[3]), monthIndex(m[1]), Number(m[2])) : null;
+  if (m && monthIndex(m[1]) >= 0 && !said) { cut(m); return { time: null, rest: rest.replace(/\s+/g, " ").trim(), unread: m[0].trim() }; }
+  if (m && said) {
+    const day = said;
     cut(m); return out({ kind: "window", from: day, to: day, season: seasonOfDate(day), label: label(day, day), typed: m[0].trim() });
   }
   m = /\b(?:on\s+)?(20\d\d)-(\d\d)-(\d\d)\b|\b(?:on\s+)?(\d{1,2})\/(\d{1,2})\/(20\d\d)\b/.exec(rest);
-  if (m) {
-    const day = m[1] ? `${m[1]}-${m[2]}-${m[3]}` : iso(Number(m[6]), Number(m[4]) - 1, Number(m[5]));
+  const numeric = m ? (m[1] ? realDay(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : realDay(Number(m[6]), Number(m[4]) - 1, Number(m[5]))) : null;
+  if (m && !numeric) { cut(m); return { time: null, rest: rest.replace(/\s+/g, " ").trim(), unread: m[0].trim() }; }
+  if (m && numeric) {
+    const day = numeric;
     cut(m); return out({ kind: "window", from: day, to: day, season: seasonOfDate(day), label: label(day, day), typed: m[0].trim() });
   }
   // A window relative to today.

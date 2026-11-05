@@ -73,7 +73,10 @@ export const INTENTS: IntentRule[] = [
   R("average-margin", 1, ["agg:mean", "metric:margin"], ["outcome:W", "outcome:L", "metric:win", "thing:match"]),
   R("total-points", 1, ["agg:sum", "metric:score"], ["thing:match"]),
   R("total-matches", 1, ["agg:count", "thing:match"], ["agg:sum"]),
+  // "Total" alone counts things too ("12345 total matches", "total events", "total awards").
+  R("total-matches", 1, ["agg:sum", "thing:match"], []),
   R("total-events", 1, ["agg:count", "thing:event"], ["agg:sum"], { noEvent: true }),
+  R("total-events", 1, ["agg:sum", "thing:event"], [], { noEvent: true }),
   R("seasons-count", 1, ["agg:count", "thing:season"], [], { noEvent: true }),
   R("longest-streak", 1, ["agg:max", "metric:streak"], ["metric:win", "outcome:W"]),
   R("current-streak", 1, ["metric:streak"], ["agg:last", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
@@ -84,6 +87,7 @@ export const INTENTS: IntentRule[] = [
   R("qual-matches", 1, ["level:qual", "thing:match"], ["list"], { noEvent: true }),
   // Awards.
   R("total-awards", 1, ["agg:count", "metric:award"], ["agg:sum", "metric:win"]),
+  R("total-awards", 1, ["agg:sum", "metric:award"], ["metric:win"]),
   R("awards", 1, ["metric:award"], ["list", "agg:first", "agg:last", "metric:win"]),
   // At one event.
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),

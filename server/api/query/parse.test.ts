@@ -137,3 +137,37 @@ describe("time", () => {
     expect(seasonOfDate("2026-08-31")).toBe(2025);
   });
 });
+
+describe("review fixes", () => {
+  it("never moves a date that doesn't exist to another day", () => {
+    expect(readTime("highest score on february 30, 2026", "2026-11-04").time).toBeNull();
+    expect(readTime("highest score on 2026-13-45", "2026-11-04").time).toBeNull();
+    expect(readTime("highest score on 2/30/2026", "2026-11-04").time).toBeNull();
+    expect(readTime("highest score on february 28, 2026", "2026-11-04").time).toMatchObject({ from: "2026-02-28" });
+    expect(readTime("highest score on february 30, 2026", "2026-11-04")).toMatchObject({ time: null, unread: "on february 30, 2026" });
+  });
+  it("an impossible date leaves the question unread", async () => {
+    expect(await parse("4215 highest score on february 30, 2026")).toMatchObject({ complete: false });
+  });
+  it("reads \"total\" with points, matches, events and awards", async () => {
+    expect(await parse("4215 total points")).toMatchObject({ intent: "total-points", complete: true });
+    expect(await parse("4215 total matches")).toMatchObject({ intent: "total-matches", complete: true });
+    expect(await parse("4215 total events")).toMatchObject({ intent: "total-events", complete: true });
+    expect(await parse("4215 total awards")).toMatchObject({ intent: "total-awards", complete: true });
+  });
+  it("keeps an event word the lexicon read beside an event's name", async () => {
+    const c: ParseContext = { ...ctx, isEvent: async (w) => ["northern league", "northern league meet"].includes(w) };
+    expect((await parseQuery("4215 rank at northern league meet", c)).event?.words).toBe("northern league meet");
+  });
+  it("leaves two shared names that only settle each other unread", async () => {
+    const names = buildNames([
+      ...TEAMS,
+      { number: 30001, name: "Twin Gears", city: "A", state: "NJ", country: "USA", lastPlayed: 2026 },
+      { number: 30002, name: "Twin Gears", city: "B", state: "MI", country: "USA", lastPlayed: 2026 },
+      { number: 30003, name: "Mirror Bots", city: "C", state: "NJ", country: "USA", lastPlayed: 2026 },
+      { number: 30004, name: "Mirror Bots", city: "D", state: "MI", country: "USA", lastPlayed: 2026 },
+    ], []);
+    const p = await parseQuery("twin gears vs mirror bots", { ...ctx, names });
+    expect(p.complete).toBe(false);
+  });
+});
