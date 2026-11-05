@@ -198,6 +198,18 @@ describe("forecasts", () => {
   });
 });
 
+describe("failure patterns", () => {
+  it("one pattern for every team that fails the same way, the unread word kept beside it", async () => {
+    const { failurePattern } = await import("./pattern");
+    const a = await failurePattern("4215 opr scorecard", NOW), b = await failurePattern("hypnotic robotics opr scorecard", NOW), c = await failurePattern("24033 opr scoresheet", NOW);
+    expect(a).toEqual({ key: "intent: team opr · slots: team · not read: 1 word", missed: ["scorecard"] });
+    expect(b.key).toBe(a.key);
+    expect(c).toEqual({ key: a.key, missed: ["scoresheet"] });
+    // No name or number ever in the pattern.
+    expect((await failurePattern("6980 vs 17713 zzz", NOW)).key).not.toMatch(/6980|17713/);
+  });
+});
+
 describe("years", () => {
   it("a year is that season; none is the latest; a future year is said, never the latest", async () => {
     expect((await stat("4215 record 2025")).title).toBe("Record in 2025–26");
