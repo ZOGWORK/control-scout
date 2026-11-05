@@ -137,7 +137,8 @@ describe("combined scores", () => {
       rows: [{ cells: { rank: 1, combined: 205, score: "100–105", match: "Q1", event: "Texas Qualifier", date: "Mar 1, 2026" }, href: "/m", eventHref: "/events/2025/TX", type: "Qualifier", teams: { red: [{ label: "1 A", href: "/teams/1" }], blue: [{ label: "2 B", href: "/teams/2" }] }, winner: "red" }] }] };
     const c = html(<StatAnswerCard stat={stat} />);
     expect(c.querySelector("[data-match-row] .text-red-alliance-text")!.className).toContain("font-bold");
-    expect(c.querySelector("[data-match-row] .text-blue-alliance-text.opacity-80")).toBeTruthy();
+    // The loser muted, not a faded alliance colour (that falls under 4.5:1).
+    expect(c.querySelector("[data-match-row] [aria-label^=Red] > span:last-child")!.className).toBe("text-muted-foreground");
     expect([...c.querySelectorAll("[data-match-row] [data-team-chip]")].map((t) => t.getAttribute("data-team-chip"))).toEqual(["1", "2"]);
     // The combined bar from zero, in neutral ink.
     const bar = c.querySelector<HTMLElement>("[data-combined] [data-bar]")!;

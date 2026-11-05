@@ -102,7 +102,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>
-                      {r.opr != null && r.opr > 0 && <span aria-hidden className={cn("absolute bottom-1 left-1 h-1 rounded-full", INK_BAR)} style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar data-value={r.opr} data-scale={oprMax} />}
+                      {/* The bar inset in its own track, so its length is exactly OPR / max of the track. */}
+                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute inset-x-1 bottom-1 h-1"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${(r.opr / oprMax) * 100}%` }} data-opr-bar data-bar data-value={r.opr} data-scale={oprMax} /></span>}
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>

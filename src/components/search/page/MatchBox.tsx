@@ -25,7 +25,7 @@ export function TeamChip({ t, side, self }: { t: StatLink; side: "red" | "blue";
   return (
     <Link to={t.href} title={t.label} className={cn("inline-flex min-h-7 min-w-0 max-w-full items-center gap-1 rounded-md border px-1.5 text-xs hover:underline", TAP,
       side === "red" ? "border-red-alliance/30 bg-red-alliance/10" : "border-blue-alliance/30 bg-blue-alliance/10", self && "ring-1 ring-foreground/40")} data-team-chip={num}>
-      <b className={cn("font-semibold tabular-nums", side === "red" ? "text-red-alliance-text" : "text-blue-alliance-text")}>{num}</b>
+      <b className={cn("font-semibold tabular-nums", side === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{num}</b>
       {rest.length > 0 && <span className="truncate text-muted-foreground">{rest.join(" ")}</span>}
     </Link>
   );
@@ -36,11 +36,12 @@ const PHASES: ["auto" | "teleop" | "endgame" | "pen", string][] = [["auto", "Aut
 export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
   const other = r.alliance === "red" ? "blue" : "red";
   // A team's own row lists its partners without it: the team goes first on its own alliance (the row's own team, else
-  // the card's; its name from the card when the row has only the number).
+  // the card's). The card's team is named in the card's header, so its chip is the number alone (each name once).
   const own = r.self ?? (team ? { label: String(team.number), href: `/teams/${team.number}` } : null);
-  const named = own && team && own.label === String(team.number) && team.name ? { ...own, label: `${team.number} ${team.name}` } : own;
-  const self: StatLink[] = named && !(r.partners ?? []).some((p) => p.href.split("?")[0] === named.href.split("?")[0]) ? [named] : [];
-  const sides = { [r.alliance]: [...self, ...(r.partners ?? [])], [other]: r.opponents ?? [] } as Record<"red" | "blue", StatLink[]>;
+  const path = (t: StatLink) => t.href.split("?")[0];
+  const self: StatLink[] = own && !(r.partners ?? []).some((p) => path(p) === path(own)) ? [own] : [];
+  const short = (t: StatLink) => (team && path(t) === `/teams/${team.number}` ? { ...t, label: String(team.number) } : t);
+  const sides = { [r.alliance]: [...self, ...(r.partners ?? [])].map(short), [other]: (r.opponents ?? []).map(short) } as Record<"red" | "blue", StatLink[]>;
   // The listed score without penalties where the row ranks by it (the other side's then too), else the official ones.
   const np = r.ownNp != null;
   const score = { [r.alliance]: { shown: np ? r.ownNp! : r.own, total: r.own }, [other]: { shown: np && r.oppNp != null ? r.oppNp : r.opp, total: r.opp } } as Record<"red" | "blue", { shown: number; total: number }>;
@@ -67,12 +68,12 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
               <div key={s} className={cn("flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1.5", s === "red" ? "bg-red-alliance/[0.08]" : "bg-blue-alliance/[0.08]")} data-alliance={s} data-won={won ? "" : undefined}>
                 <span className="sr-only">{s === "red" ? "Red" : "Blue"} alliance{won ? ", won" : lost ? ", lost" : ""}: </span>
                 <span className="flex min-w-0 flex-1 flex-wrap gap-1">
-                  {sides[s].length ? sides[s].map((t) => <TeamChip key={t.href} t={t} side={s} self={t === self[0]} />) : <span className="text-xs text-muted-foreground">Teams not listed</span>}
+                  {sides[s].length ? sides[s].map((t) => <TeamChip key={t.href} t={t} side={s} self={!!self.length && path(t) === path(self[0])} />) : <span className="text-xs text-muted-foreground">Teams not listed</span>}
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="flex items-center justify-end gap-1.5">
                     {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background" aria-hidden>W</span>}
-                    <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-text" : "text-blue-alliance-text")}>{sc.shown}</b>
+                    <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-ink" : "text-blue-alliance-text")}>{sc.shown}</b>
                   </span>
                   {sc.total !== sc.shown && <span className="block text-[11px] text-muted-foreground">{sc.total} with penalties</span>}
                 </span>
