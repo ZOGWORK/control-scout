@@ -171,3 +171,20 @@ describe("review fixes", () => {
     expect(p.complete).toBe(false);
   });
 });
+
+describe("shared names in any order", () => {
+  it("a name settled on its own settles the other, whichever is typed first", async () => {
+    const names = buildNames([
+      ...TEAMS,
+      // Twin Gears: one in NJ, one in MI, both newest. Mirror Bots: the NJ one played most recently.
+      { number: 30001, name: "Twin Gears", city: "A", state: "NJ", country: "USA", lastPlayed: 2026 },
+      { number: 30002, name: "Twin Gears", city: "B", state: "MI", country: "USA", lastPlayed: 2026 },
+      { number: 30003, name: "Mirror Bots", city: "C", state: "NJ", country: "USA", lastPlayed: 2026 },
+      { number: 30004, name: "Mirror Bots", city: "D", state: "MI", country: "USA", lastPlayed: 2024 },
+    ], []);
+    for (const q of ["twin gears vs mirror bots", "mirror bots vs twin gears"]) {
+      const p = await parseQuery(q, { ...ctx, names });
+      expect(p.teams.map((t) => t.number).sort(), q).toEqual([30001, 30003]);
+    }
+  });
+});

@@ -235,7 +235,15 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
 
   p.teams.sort((a, b) => a.at - b.at);
   // A name several teams share: picked by fixed rules (pickShared below), with the place named as one of them.
-  for (const t of p.teams) if (t.candidates) Object.assign(t, pickShared(t, p, ctx));
+  // In passes, so a name settled on its own (newest season, your team) can then settle the one beside it, in any order.
+  for (let more = true; more;) {
+    more = false;
+    for (const t of p.teams) {
+      if (!t.candidates || t.rule) continue;
+      const pick = pickShared(t, p, ctx);
+      if (pick.rule) { Object.assign(t, pick); more = true; }
+    }
+  }
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
