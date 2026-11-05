@@ -144,7 +144,9 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const place = f.region?.name ?? null;
   const filters = [f.finals ? "finals" : f.level === "qual" ? "qualification" : f.level === "playoff" ? "playoff" : null].filter(Boolean)[0];
   const typed = [f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null].filter(Boolean).join(" ");
-  const title = `${(filters ? `${ms.title.replace(/match/, `${filters} match`)}` : ms.title)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
+  // A list asked for is titled as one ("Biggest upsets in California"), its table under no heading of its own.
+  const head = f.list ? ms.plural : ms.title;
+  const title = `${(filters ? `${head.replace(/match/, `${filters} match`)}` : head)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
   const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
     ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.decided ? ["No ties"] : []), "Official events"];
   const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches at official events held in person, with both alliances' points on record.`;
@@ -167,7 +169,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
     columns: [{ key: "rank", label: "#", num: true }, { key: "value", label: column }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
     rows: rs.map((r, i) => ({ cells: { rank: from + i, value: show(Number(r.v)), score: `${r.red_total}–${r.blue_total}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })),
   });
-  if (f.list) return { ...base, blocks: [table(rows, 1, ms.plural)] };
+  if (f.list) return { ...base, blocks: [table(rows, 1, "")] };
   return {
     ...base, blocks: rows.length > 1 ? [table(rows.slice(1), 2, `The next ${rows.length - 1}`)] : [],
     headline: {
