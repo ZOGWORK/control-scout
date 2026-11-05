@@ -53,13 +53,14 @@ export function compareRow(x: CompareInput): CompareRow {
   return { ...base, best: order[0].i, gap: (x.gap ?? ((g) => `+${one(g)}`))(d), diff: d };
 }
 
-/** The rows in reading order: the Total first, then every other row with bars by its gap, largest first (the one
- *  that decided it comes second), then the rows of values only, as given. */
+/** The rows in reading order: the Total first, then every other row with a scale by its gap, largest first (the one
+ *  that decided it comes second; a row below zero shows values only but keeps its place by gap), then the rows of
+ *  values only, as given. */
 export function compareRows(rows: CompareInput[]): CompareRow[] {
   const built = rows.map((x) => ({ x, r: compareRow(x) }));
   const total = built.filter((b) => b.x.total);
-  const bars = built.filter((b) => !b.x.total && b.r.max != null).sort((a, b) => (b.r.diff ?? -1) - (a.r.diff ?? -1));
-  const rest = built.filter((b) => !b.x.total && b.r.max == null);
+  const bars = built.filter((b) => !b.x.total && b.x.max != null).sort((a, b) => (b.r.diff ?? -1) - (a.r.diff ?? -1));
+  const rest = built.filter((b) => !b.x.total && b.x.max == null);
   return [...total, ...bars, ...rest].map((b) => b.r);
 }
 
@@ -95,7 +96,8 @@ const PHASE_ROWS = new Set(["Auto", "TeleOp", "Endgame"]);
 /** The phase after the Total that decided it: the phase with the largest gap, when it went the leader's way. */
 export function decidingPhase(rows: CompareRow[]): CompareRow | null {
   const total = rows[0];
-  const p = rows.slice(1).find((r) => PHASE_ROWS.has(r.label));
+  // The phase with the largest gap, whatever order the rows are in.
+  const p = rows.slice(1).filter((r) => PHASE_ROWS.has(r.label)).sort((a, b) => (b.diff ?? -1) - (a.diff ?? -1))[0];
   return total?.best != null && p && p.best === total.best && (p.diff ?? 0) > 0 ? p : null;
 }
 

@@ -40,5 +40,14 @@ describe("compare rows", () => {
     const [r] = compareRows([{ label: "Auto", values: [-2, -10], max: 40, better: "higher" }]);
     expect(r).toMatchObject({ values: ["-2.0", "-10.0"], note: "below zero: no bars", best: 0 });
     expect(r.max).toBeUndefined();
+    // It keeps its place by gap, and can be the phase that decided it.
+    const rows = compareRows([
+      { label: "Total", total: true, values: [70, 20], max: 80, better: "higher" },
+      { label: "Auto", values: [10, -30], max: 40, better: "higher" },
+      { label: "TeleOp", values: [50, 45], max: 60, better: "higher" },
+      { label: "Endgame", values: [10, 5], max: 20, better: "higher" },
+    ]);
+    expect(rows.map((x) => x.label)).toEqual(["Total", "Auto", "TeleOp", "Endgame"]);
+    expect(decidedText(rows)).toBe("Auto decided it (+40.0)");
   });
 });
