@@ -193,6 +193,11 @@ describe("forecasts", () => {
     const k = (await stat("4215 garden qualifier prediction")).blocks.find((b) => b.kind === "kpis");
     expect(k && k.kind === "kpis" && k.items.find((i) => i.label === "After: event")?.value).not.toBe("Won");
   });
+  it("two teams who never met there: said so, never one team's event odds", async () => {
+    const s = await stat("4215 vs 10809 at golden qualifier prediction");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toMatch(/No prediction was stored .* meeting at Golden Qualifier/);
+  });
   it("a team not listed at the event is told so, never another event", async () => {
     expect((await stat("24033 garden qualifier prediction")).none).toContain("isn't listed at Garden Qualifier");
   });
