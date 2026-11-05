@@ -160,7 +160,10 @@ export default function SearchDocsPage() {
             <h3>What it listens for</h3>
             <CleanList items={[
               <><strong>Places.</strong> A US state or Canadian province by its name or two-letter code, and a few Australian ones. Codes that are also English words (OR, IN, ME, HI, OK and others) count only in capitals, so "how many teams in OR" means Oregon while a lowercase "or" stays an ordinary word. In an event search, a state name with a small typo ("upcoming meets in new jesey") is read as the place, and the label says so. After "in", "at", "near" or "from", other words are read as a city or venue ("HS" matches "High School"). Countries work by name, and "USA", "UK" and "England" are understood.</>,
-              <><strong>Time.</strong> Today, tomorrow, this or next weekend, week or month, upcoming, past, a month name, a year or a season. "2024" means events held in 2024; "2023-24" means that season. A month belongs to the season it falls in (the season runs September to August). With no time given, events come from the current season, except championships, which cover every season.</>,
+              <><strong>Time.</strong> Today, tomorrow, yesterday, this or next weekend, last week or month, upcoming, past, a month name, a year or a season, each read against today. "2024" means events held in 2024; "2023-24" means that season. A month belongs to the season it falls in (the season runs September to August). With no time given, events come from the current season, except championships, which cover every season.</>,
+              <><strong>Seasons.</strong> A question about one team reads that team's latest season. A question about a place, a leaderboard or everyone reads the current season, and when it has nothing yet, the season before, said on the card. A season you type always wins.</>,
+              <><strong>Any order.</strong> "Closest match in Romania last month" and "Romania last month closest match" are the same question: each word fills its slot wherever it is. Asides ("just curious", "if any") are skipped, never read as a team's name.</>,
+              <><strong>Worked-out measures.</strong> Closest and most lopsided matches, upsets, comebacks, a team's losing streak and the teams it lost to are each worked out by one rule, printed on the card under "How this is counted". An upset is a favourite's loss: the losing alliance had over a 50% predicted chance. What the data doesn't hold is never guessed.</>,
               <><strong>Kinds of events.</strong> Meet, qualifier, league, championship, scrimmage and the like, singular or plural. Short forms are understood too: "champs", "cmp", "quals", "worlds", "states".</>,
               <><strong>Comparisons.</strong> "vs", "versus", "v" or "against" between two to four teams opens Compare. "compare A and B", "is A better than B" and two bare team numbers are reworded to the same thing. "who would win A or B" adds the match prediction.</>,
               <><strong>Words it skips.</strong> Small words (in, at, on, the, a, an, for, of, this) never have to match, and question words (how, what, who, is, does…) are dropped when the query reads as a question. A friendly opening ("tell me about", "how good is") is set aside and the rest is searched.</>,
@@ -184,7 +187,7 @@ export default function SearchDocsPage() {
           <SectionHead num="08" eyebrow="When nothing fits" title="It tells you, instead of guessing" />
           <EmptyFigure />
           <Prose>
-            <p>When no team, event or match matches all of your words, the page says so plainly and shows what it understood. Below that come up to ten <strong>closest matches</strong>, each labelled "not an exact match" and showing which of your words it did match, plus links to browse every event and team. A closest match is a lead to check, not an answer.</p>
+            <p>When nothing answers your words, the page says so in one sentence. Below that come the <strong>closest real results</strong>, up to three teams or events as full cards, then searches that do answer about them (a team's record or OPR, an event's winners), plus links to browse every event and team. A closest result is a lead to check, never the answer. A question about a team that search can't answer yet shows that team's card with what it can answer instead.</p>
           </Prose>
         </section>
 
@@ -402,21 +405,16 @@ function ResultsFigure() {
 /** Figure 4: the "nothing matched" page (an illustration). */
 function EmptyFigure() {
   return (
-    <Figure label="Figure 4" title="When nothing matches exactly" note="illustration" narrow
-      caption={<>Closest matches are listed with the words they share with your query, and never shown as the answer.</>}>
+    <Figure label="Figure 4" title="When nothing answers" note="illustration" narrow
+      caption={<>The closest real results are full cards under one sentence that says what's missing, and never shown as the answer.</>}>
       <div className="grid gap-3">
-        <div className="pop rounded-xl border border-border bg-muted/40 p-3" style={{ ["--i" as string]: 0 }}>
-          <p className="font-display text-base font-semibold text-foreground">Nothing matched “hypnotic zebras” exactly.</p>
-          <p className="font-mono text-xs text-muted-foreground">We understood: No team, event or match matched all of “hypnotic zebras”</p>
+        <p className="pop font-display text-base font-semibold text-foreground" style={{ ["--i" as string]: 0 }}>Search has no answer for “hypnotic zebras”; these are the closest real results.</p>
+        <div className="pop grid gap-1.5 rounded-xl border border-border p-3" style={{ ["--i" as string]: 1 }}>
+          <span className="block rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs text-foreground">4215 · Hypnotic Robotics · Oradell, NJ</span>
+          <span className="block rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs text-foreground">24173 · E.Z. (Electric Zebras)</span>
         </div>
-        <div className="pop grid gap-1.5 rounded-xl border border-dashed border-border p-3" style={{ ["--i" as string]: 1 }}>
-          <p className="font-display text-sm font-semibold text-foreground">Closest matches <span className="font-mono text-[11px] font-normal text-muted-foreground">(not an exact match)</span></p>
-          <span className="bar-h flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs text-foreground" style={{ ["--i" as string]: 2 }}>
-            <span>4215 · Hypnotic Robotics</span><span className="rounded border border-border px-1.5 text-[11px] text-muted-foreground">matched: hypnotic</span>
-          </span>
-          <span className="bar-h flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/60 px-2.5 py-1.5 font-mono text-xs text-foreground" style={{ ["--i" as string]: 3 }}>
-            <span>24173 · E.Z. (Electric Zebras)</span><span className="rounded border border-border px-1.5 text-[11px] text-muted-foreground">matched: zebras</span>
-          </span>
+        <div className="pop flex flex-wrap gap-2" style={{ ["--i" as string]: 2 }}>
+          {["4215 record", "4215 opr", "24173 record"].map((q) => <span key={q} className="rounded-lg border border-border px-2.5 py-1 font-mono text-xs text-foreground">{q}</span>)}
         </div>
       </div>
     </Figure>
