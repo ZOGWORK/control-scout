@@ -27,8 +27,8 @@ Search finds matches by what made them stand out: the closest, the most lopsided
 
 ### Search
 - **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match and every filter on the card. One match asked for is the headline, with the next few in a table under it. Matches asked for ("closest matches") are one ranked table. Each match is printed once. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final. (#769)
-- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one. (#769)
-- **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship. (#769)
+- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one.
+- **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship.
 
 ## 3.2.6 — 2026-11-05
 
