@@ -1,12 +1,12 @@
 // FTC One Search's layered query path (docs/search-layers.md). The existing readers stay Layer 1; the layers after
 // it read a query the readers missed as a set of words, so word order, filler and conversational scaffolding never
 // lose a clear question. Every layer is rules and word lists (./searchCatalog.ts): no model, no AI, no guessing.
-//   0  normalization   "#4215" is 4215; case is folded for the word layers only (state codes like "IN" read by case)
+//   0  normalization   "#12345" is 12345; case is folded for the word layers only (state codes like "IN" read by case)
 //   1  templates       the existing readers (searchAnswer.ts), unchanged
 //   2  keywords        team + intent + scope found anywhere in the query, everything else scaffolding or filler
 //   3  paraphrases     PARAPHRASES said the catalog's way, then Layers 1 and 2 again
 //   4  filler          FILLER taken out (never inside a team's full name), then Layers 1 and 2 again
-//   5  weak signals    a team and one word that can mean only one intent ("4215 where")
+//   5  weak signals    a team and one word that can mean only one intent ("12345 where")
 //   6  fallback        the existing answer: the team page and what wasn't answered, or the recovery state
 // A filler word never decides an answer: when a query answered at Layer 1 answers differently, and also directly,
 // without its filler ("what is opr please" read "please" as the team Please Don't Explode), the filler-free answer wins.
@@ -35,7 +35,7 @@ export interface SearchOutcome {
   team: string | null;
   /** Intents the keyword layer found (two or more when ambiguous). */
   intents: string[];
-  /** Intents a weak word pointed at when no keyword did ("4215 based": location), answered or not. */
+  /** Intents a weak word pointed at when no keyword did ("12345 based": location), answered or not. */
   weak: string[];
   scope: { season?: string; place?: string; event?: string };
   /** Filler and scaffolding words left out. */
@@ -77,11 +77,11 @@ export function setLayersForTest(l: { template?: boolean; keyword?: boolean }): 
 // ---------------------------------------------------------------------------------------------------------------
 // Layer 0: normalization.
 
-/** What Layer 1 reads: the query as typed, a team number's leading "#" taken off ("#4215 opr"). Nothing else changes. */
+/** What Layer 1 reads: the query as typed, a team number's leading "#" taken off ("#12345 opr"). Nothing else changes. */
 export const normalizeQuery = (q: string): string => q.replace(/(^|\s)#+(?=\d)/g, "$1").replace(/\s+/g, " ").trim();
 
 const SEASON_TOKEN = /^(20\d\d)[-–/](\d\d(?:\d\d)?)$/;
-/** The words the later layers read: lowercased, accents and punctuation folded, "4215's" as 4215, a season ("2024-25",
+/** The words the later layers read: lowercased, accents and punctuation folded, "12345's" as 12345, a season ("2024-25",
  *  "2024–25") kept whole. */
 export function tokens(q: string): string[] {
   const out: string[] = [];
@@ -210,7 +210,7 @@ export interface Extracted {
   unknown: string[];
   /** The canonical phrasing for the one intent, when there is one. */
   canonical: string | null;
-  /** Any team intent the catalog doesn't list ("longest win streak of 4215"): the team first, then the other words
+  /** Any team intent the catalog doesn't list ("longest win streak of 12345"): the team first, then the other words
    *  in the order typed, filler and scaffolding left out, as Layer 1's team-first phrasings read them. */
   teamFirst: string | null;
   intent: Intent | null;
@@ -294,8 +294,8 @@ export async function extract(q: string): Promise<Extracted> {
   for (const n of teamNums) if (await teamExists(n)) found.teams.push(n); else unknown.push(n);
   const markNumber = (n: string) => { for (const { t } of nums) if (String(Number(t.w)) === n) t.team = n; };
   found.teams.forEach(markNumber);
-  // A name beside a typed number is a second team only when the query joins them ("4215 vs bad wolf"); else its
-  // words are the question's ("total awards 4215" isn't two teams).
+  // A name beside a typed number is a second team only when the query joins them ("12345 vs bad wolf"); else its
+  // words are the question's ("total awards 12345" isn't two teams).
   const joined = strong.has("versus") || toks.some((t) => t.kind === "join");
   for (const n of named) {
     if (found.teams.includes(n)) continue;
@@ -464,11 +464,11 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const strip = await stripFiller(q0);
   const normalized = strip.q.toLowerCase();
   const done = (a: SearchAnswer, won: LayerId | null, x: Extracted, result?: OutcomeResult, filler: string[] = []): SearchAnswer => {
-    // A forbidden word an answer read past ("4215 today opr", with or without filler) is named, never silently
+    // A forbidden word an answer read past ("12345 today opr", with or without filler) is named, never silently
     // dropped. The reading line quotes the query, so only what the answer itself says counts as naming it.
     const own = `${(a.understood?.label ?? "").split(" · read as ")[0]} ${a.stat?.title ?? ""} ${a.card?.headline ?? ""} ${a.card?.none ?? ""}`.toLowerCase();
     // An answer can name the word its own way: "when did hypnotic last play" is its "Most recent match". A long
-    // question's rule reads its words itself ("when was the last time 4215 went worlds": the appearances, newest first).
+    // question's rule reads its words itself ("when was the last time 12345 went worlds": the appearances, newest first).
     // A compound answer (./answers/compound.ts) reads every clause it joins ("… and their opr"), or isn't given.
     const consumed = won === "longform" ? x0.forbidden.filter((w) => !tokens(a.understood?.showing ?? "").includes(w)) : [];
     const unread = won && !a.intent?.kind.startsWith("stat-compound-") ? x0.forbidden.filter((w) => !own.includes(w) && !SAID_AS[w]?.test(own) && !consumed.includes(w)) : [];
@@ -534,8 +534,8 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
         const k = await keywordTry(q0, x0, "keyword", x0.dropped);
         if (k && !same(k, base)) return k;
       }
-      // A long question Layer 1 answered only with names ("is 4215 better than 6980 at auto": the Compare; "who has
-      // 4215 played against the most": a team called "Most"): its short form's direct answer wins.
+      // A long question Layer 1 answered only with names ("is 12345 better than 67890 at auto": the Compare; "who has
+      // 12345 played against the most": a team called "Most"): its short form's direct answer wins.
       if (!direct(base)) { const lf = await longTry(); if (lf) return lf; }
       return done(base, "template", x0);
     }
@@ -566,7 +566,7 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   // Layer 5: a weak signal pointing at one intent.
   const xw = p.used.length ? await extract(p.q) : x0;
   const weakIt = xw.weak.length === 1 ? INTENTS.find((i) => i.id === xw.weak[0])! : null;
-  // Scope the weak word's intent can't take blocks it, as for a strong one ("4215 based 2024-25" isn't the listing).
+  // Scope the weak word's intent can't take blocks it, as for a strong one ("12345 based 2024-25" isn't the listing).
   const fits = (it: Intent, f: Found) => (!f.season || it.scope.includes("season")) && (!f.place || it.scope.includes("place")) && (!f.event || it.scope.includes("event"));
   if (keyword && weakIt && fits(weakIt, xw.found) && !xw.intents.length && !xw.forbidden.length && !xw.unknown.length) {
     const it = weakIt;

@@ -1,8 +1,8 @@
 // How a team's number changed, from stored rows only (never worked out per request):
-//   "how much did 4215's opr improve from last season to this season" → both seasons' OPR (the team page's season
+//   "how much did 12345's opr improve from last season to this season" → both seasons' OPR (the team page's season
 //     rows), the difference, and the world standing each season (OPR in points is a different game each season, so
 //     the standing is the like-for-like comparison, said so)
-//   "how much did 4215's rating change this season" → the rating in the earliest and the last stored week of the
+//   "how much did 12345's rating change this season" → the rating in the earliest and the last stored week of the
 //     season (the weekly Rankings snapshots, ranking_snapshots), the difference, the weeks between, and the team
 //     page's live rating beside them
 // No season named: "this season" is the default season (the latest completed one, ../season.ts), "last season" the one
@@ -32,7 +32,7 @@ function seasonIn(words: string): number | null | undefined {
   return scope.season ?? (scope.latest ? searchSeason() : null);
 }
 
-/** "how much did 4215's opr improve from last season to this season", "4215 rating change this season", or null. */
+/** "how much did 12345's opr improve from last season to this season", "12345 rating change this season", or null. */
 export function readChange(raw: string): ChangeQuestion | null {
   const q = raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ").replace(/\s+/g, " ").trim();
   const m = new RegExp(String.raw`^(?:how much (?:did|has|have|does) |what (?:was|is) )?(?:the )?(.+?) (opr|(?:prediction )?rating) (?:${CHANGE})(?: by)?(?: (.+))?$`).exec(q);

@@ -3,17 +3,17 @@
 // What the query asks is read first (a match list, or a stat side by side), then the operators say which teams it
 // covers. Fixed rules, no model: a match list is filtered from the teams' stored matches (./answers/matchSet.ts), a
 // stat is each team's own stored answer. A full team name that holds an operator word ("Nuts and Bolts") stays a name.
-//   "4215 and 6980", "4215 & 6980 matches"   the matches both teams played in, on either alliance, newest first
-//   "4215 or 6980", "4215 | 6980"            the matches either team played in, each once
-//   "4215 not 6980", "4215 -6980"            4215's matches without 6980 in them
-//   "4215 and 6980 opr", "4215 or 6980 opr"  both teams' OPR side by side ("4215 vs 6980 opr")
-//   "4215 not 6980 opr"                      4215's OPR
+//   "12345 and 67890", "12345 & 67890 matches"   the matches both teams played in, on either alliance, newest first
+//   "12345 or 67890", "12345 | 67890"            the matches either team played in, each once
+//   "12345 not 67890", "12345 -67890"            12345's matches without 67890 in them
+//   "12345 and 67890 opr", "12345 or 67890 opr"  both teams' OPR side by side ("12345 vs 67890 opr")
+//   "12345 not 67890 opr"                      12345's OPR
 //   "\"Raider Robotics\""                    the teams named exactly that, then names holding the phrase
 // "vs", "compare", "who wins" and "have … and … played" keep their own readings (./searchCoverage.ts, ./answers/read.ts).
 import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
 import type { LeaderboardRow, StatAnswer, StatBlock } from "../../src/shared/searchStat.js";
 import { reportedTeleopIncludesEndgame } from "../data/seasons.js";
-import { all } from "../db.js";
+import { all, get } from "../db.js";
 import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { teamNameOf } from "../../src/shared/teamTitle.js";
@@ -48,7 +48,7 @@ function tokenize(raw: string): Tok[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(raw))) {
     if (m[1] != null) { if (m[1].trim()) out.push({ phrase: m[1].trim() }); continue; }
-    // "-" right before a quote is NOT on the phrase (4215 -"bad wolf"); a dash standing alone stays a word.
+    // "-" right before a quote is NOT on the phrase (12345 -"bad wolf"); a dash standing alone stays a word.
     if (m[2] === "-" && raw[re.lastIndex] === '"') { out.push({ op: "not" }); continue; }
     for (const piece of m[2].split(/([&|])/).filter(Boolean)) {
       if (piece === "&") out.push({ op: "and" });
@@ -107,7 +107,7 @@ async function teamOf(t: Tok | Tok[]): Promise<number | null> {
 }
 
 /** The boolean expression `raw` is (the query as typed, quotes and all), or null: no operator between two teams, a
- *  term that isn't one team, or words before the teams (a question the readers answer: "compare 4215 and 6980"). */
+ *  term that isn't one team, or words before the teams (a question the readers answer: "compare 12345 and 67890"). */
 export async function readBoolean(raw: string): Promise<BoolQuery | null> {
   const toks = await protectNames(tokenize(String(raw ?? "").slice(0, 120)));
   if (!toks.some(isOp)) return null;
@@ -123,7 +123,7 @@ export async function readBoolean(raw: string): Promise<BoolQuery | null> {
   if (!joins.every((j) => j.length === 1 || (j.length === 2 && j[0] !== "not" && j[1] === "not"))) return null;
   const terms: number[] = [];
   for (const r of runs.slice(0, -1)) { const n = await teamOf(r); if (n == null) return null; terms.push(n); }
-  // The last run: the longest start that names a team, the rest is what's asked ("6980 opr").
+  // The last run: the longest start that names a team, the rest is what's asked ("67890 opr").
   const last = runs[runs.length - 1];
   let rest = "", lastTeam: number | null = null;
   for (let k = last.length; k >= 1 && lastTeam == null; k--) {
@@ -132,7 +132,7 @@ export async function readBoolean(raw: string): Promise<BoolQuery | null> {
   }
   if (lastTeam == null) return null;
   terms.push(lastTeam);
-  // A year beside a team number is a season, as search reads "4215 and 2024" (never two teams).
+  // A year beside a team number is a season, as search reads "12345 and 2024" (never two teams).
   const year = (n: number) => n >= 1990 && n <= 2099;
   if (terms.some(year) && !terms.every(year)) return null;
   // Groups: OR starts one, AND and NOT join the term to it; NOT marks the term after it.
@@ -144,7 +144,7 @@ export async function readBoolean(raw: string): Promise<BoolQuery | null> {
   const ops = joins.flat();
   const teams = new Set(terms);
   if (teams.size < 2 || teams.size > MAX_TEAMS) return null;
-  // Every group needs a team it's about ("or not 6980" alone isn't a list), and no team both wanted and not.
+  // Every group needs a team it's about ("or not 67890" alone isn't a list), and no team both wanted and not.
   if (groups.some((g) => !g.some((l) => !l.neg) || g.some((l) => !l.neg && g.some((x) => x.neg && x.team === l.team)))) return null;
   if (OWN_READING.test(rest)) return null;
   return { groups, rest, ops: [...new Set(ops)] };
@@ -163,7 +163,7 @@ function newestFirst(ms: TeamMatch[]): (a: TeamMatch, b: TeamMatch) => number {
     || Number(b.level === "playoff") - Number(a.level === "playoff") || Number(b.level === "playoff" && b.series === 0) - Number(a.level === "playoff" && a.series === 0) || b.series - a.series || b.number - a.number;
 }
 
-/** The expression in words: "4215 and 6980", "4215 or 6980", "4215 without 6980". */
+/** The expression in words: "12345 and 67890", "12345 or 67890", "12345 without 67890". */
 function said(groups: Lit[][]): string {
   return groups.map((g) => {
     const pos = g.filter((l) => !l.neg).map((l) => String(l.team)), neg = g.filter((l) => l.neg).map((l) => String(l.team));
@@ -196,7 +196,7 @@ async function matchListAnswer(b: BoolQuery, scope: Scope, who: Map<number, Answ
   const teams = [...sets.keys()];
   const counts: StatBlock = { kind: "kpis", items: teams.map((t) => ({ label: whoOf(who.get(t) ?? { number: t, name: null }), value: String(sets.get(t)!.length), sub: `match${sets.get(t)!.length === 1 ? "" : "es"}${where}`, href: teamHref(t, scope.season) })) };
   if (!hits.length) {
-    // An empty AND says so plainly, with each team's own count to re-scope from ("4215 or 6980").
+    // An empty AND says so plainly, with each team's own count to re-scope from ("12345 or 67890").
     const anyOr = teams.join(" or ");
     const none = and2 ? `${whoOf(who.get(teams[0])!)} and ${whoOf(who.get(teams[1])!)} have no shared matches${where}.`
       : b.groups.length === 1 && b.groups[0].every((l) => !l.neg) ? `No match${where} has all of ${teams.join(", ")} in it.`
@@ -220,7 +220,7 @@ async function matchListAnswer(b: BoolQuery, scope: Scope, who: Map<number, Answ
   };
 }
 
-/** "4215 and 6980 shared matches" as a list for two teams named another way ("4215 versus 6980 matches together"):
+/** "12345 and 67890 shared matches" as a list for two teams named another way ("12345 versus 67890 matches together"):
  *  the same AND list, so both wordings give the one answer. */
 export function sharedMatchList(a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
   return matchListAnswer({ groups: [[{ team: a.number, neg: false }, { team: b.number, neg: false }]], rest: "", ops: ["and"] }, scope, new Map([[a.number, a], [b.number, b]]));
@@ -231,7 +231,7 @@ type Reader = (q: string) => Promise<SearchAnswer>;
 /** One team's own answer to what's asked, when it is a stat answer about that team. */
 async function ownStat(read: Reader, team: number, rest: string, full: boolean): Promise<SearchAnswer | null> {
   let a = await read(`${team} ${rest}`);
-  // A stat search answers on its own only with a scope ("4215 record" is the team's card): this season, said so.
+  // A stat search answers on its own only with a scope ("12345 record" is the team's card): this season, said so.
   const { scope } = readScope(` ${rest} `);
   if (!a.intent?.kind.startsWith("stat-") && scope.season == null && !scope.latest && !scope.ever && !scope.championship && !scope.states) a = await read(`${team} ${rest} this season`);
   if (a.step === "recovery" || !a.intent?.kind.startsWith("stat-")) return null;
@@ -274,7 +274,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
     return full ? { ...a, stat: await matchListAnswer(b, scope, who) } : a;
   }
 
-  // Two teams' matches at an event or a venue ("4215 and 6980 matches at river dell"): their meetings there, which
+  // Two teams' matches at an event or a venue ("12345 and 67890 matches at river dell"): their meetings there, which
   // the stat answers resolve for both teams (answers/index.ts meetingsAt). The limits already read go with it, so a
   // season, a side or "in playoffs" still applies.
   if (MATCH_WORDS.test(rest) && rs.at && wanted.length === 2 && !left.length && b.ops.every((o) => o === "and")) {
@@ -291,7 +291,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
     const a = await ownStat(read, teams[0], b.rest, full);
     return a && { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label}${note}` } };
   }
-  // Two teams' OPR or prediction rating: the side-by-side answer itself ("4215 vs 6980 opr").
+  // Two teams' OPR or prediction rating: the side-by-side answer itself ("12345 vs 67890 opr").
   if (teams.length === 2) {
     const vs = `${teams[0]} vs ${teams[1]} ${b.rest}`;
     const two = readTwoTeam(vs);
@@ -381,7 +381,7 @@ async function sideBySide(what: string, teams: number[], stats: StatAnswer[], na
 /** A query that opens with one quoted phrase (`"Raider Robotics"`): the teams named exactly that first, then the names
  *  that hold the phrase word for word; never a name that only has the words apart, and when none holds it, that said
  *  plainly (the quotes are never dropped). With what's asked after it (`"bad wolf" opr`), the one team named exactly
- *  that is answered; a name several teams share lists them, asking which. A quoted question (`"4215 opr"`) is read as
+ *  that is answered; a name several teams share lists them, asking which. A quoted question (`"12345 opr"`) is read as
  *  the question. */
 async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | null> {
   const toks = tokenize(String(raw ?? "").slice(0, 120));
@@ -416,7 +416,7 @@ async function phraseAnswer(raw: string, read: Reader): Promise<SearchAnswer | n
   return { q, hits, pages: pagesFor(q), step: "deterministic", weak: false, understood: { kind: "names", label: `${label}${unread}` } };
 }
 
-/** "4215 not opr": NOT before a word that isn't a team. NOT leaves a team out of a list; it can't leave out a stat, so
+/** "12345 not opr": NOT before a word that isn't a team. NOT leaves a team out of a list; it can't leave out a stat, so
  *  the answer says so plainly and offers what was likely meant, never the team page as if it had answered. */
 async function notStatAnswer(raw: string, q: string, read: Reader, full: boolean): Promise<SearchAnswer | null> {
   const toks = await protectNames(tokenize(String(raw ?? "").slice(0, 120)));
@@ -429,7 +429,12 @@ async function notStatAnswer(raw: string, q: string, read: Reader, full: boolean
   const hit = (await read(String(team))).hits.find((h) => h.kind === "team" && h.ref === String(team));
   if (!hit || hit.href) return null;
   const who = whoOf({ number: team, name: teamNameOf(hit.title) || null });
-  const line = `"not" leaves a team out ("${team} not 6980"); "${words}" isn't a team, so nothing was left out`;
+  // The example leaves out a team this one really played against most, from its matches.
+  const other = (await get<{ team: number }>(
+    `SELECT y.team FROM match_teams x JOIN match_teams y ON y.season = x.season AND y.code = x.code AND y.level = x.level AND y.series = x.series AND y.number = x.number AND y.alliance <> x.alliance
+     WHERE x.team = ? GROUP BY y.team ORDER BY COUNT(*) DESC, y.team LIMIT 1`, [team]))?.team;
+  const example = other != null ? `${team} not ${other}` : `${team} not <another team's number>`;
+  const line = `"not" leaves a team out ("${example}"); "${words}" isn't a team, so nothing was left out`;
   const a: SearchAnswer = {
     q, hits: [{ ...hit, facts: undefined, events: undefined }], pages: pagesFor(q), step: "deterministic", weak: false,
     understood: { kind: "question", label: `${who} · ${line}` }, intent: { kind: "boolean-not", pattern: "[team] not [word]", met: false, understood: [`Team ${who}`, line] },
@@ -438,7 +443,7 @@ async function notStatAnswer(raw: string, q: string, read: Reader, full: boolean
   const ask = (x: string) => ({ label: x, href: `/search?q=${encodeURIComponent(x)}` });
   const stat: StatAnswer = {
     family: "stat", intent: "boolean-not", title: `${team} not ${words}`, team: { number: team, name: teamNameOf(hit.title) || null }, scope: [],
-    none: `"Not" leaves a team out of a list, as in "${team} not 6980" (${team}'s matches without 6980). "${words}" isn't a team, so there's nothing to leave out.`,
+    none: `"Not" leaves a team out of a list, as in "${example}" (${team}'s matches without ${other ?? "that team"}). "${words}" isn't a team, so there's nothing to leave out.`,
     definition: RULE, source: "No numbers read: the query names no team after \"not\"",
     blocks: [{ kind: "links", title: "Did you mean", items: [ask(`${team} ${words}`), ask(`${team} matches`)] }],
   };

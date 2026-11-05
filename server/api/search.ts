@@ -63,11 +63,11 @@ async function matchHits(q: string): Promise<SearchHit[]> {
   return out;
 }
 
-/** A query that also asks about something ("hypnotic ranking points", "4215 awards"): the topic, its words as
+/** A query that also asks about something ("hypnotic ranking points", "12345 awards"): the topic, its words as
  *  canonical ("ranking points"), and the words left to search for. Null when nothing would be left, or nothing dropped.
  *  `typos`: a topic word may be misspelled ("awrds", "ranking ponts"), within the name search's own edit allowance. */
 export function searchIntent(q: string, typos = false): { topic: SearchTopic | null; phrase: string | null; rest: string } | null {
-  // A question's punctuation and possessives go ("what are 4215's ranking points?" reads as "4215 ranking points").
+  // A question's punctuation and possessives go ("what are 12345's ranking points?" reads as "12345 ranking points").
   const ws = q.trim().replace(/[?!,]/g, " ").replace(/['’]s\b/gi, "").split(/\s+/).filter(Boolean);
   const lower = ws.map((w) => w.toLowerCase());
   let topic: SearchTopic | null = null, phrase: string | null = null, at = -1, len = 0;
@@ -85,7 +85,7 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
 /** `prefer`: the visitor's own teams/events ("team:16321", "event:2025:AUBRQ2") —
  *  my team, tracked and shortlisted — rank above other matches of the same strength.
  *  `kinds`: only these kinds of hit (an events-only box), chosen before the limit so other kinds can't crowd them out.
- *  A query that also asks about something ("hypnotic awards", "4215 ranking points", "USNJCMP odds") finds what the
+ *  A query that also asks about something ("hypnotic awards", "12345 ranking points", "USNJCMP odds") finds what the
  *  rest names, each hit opening on that part of its page (SearchHit.section), and the top team carries the numbers
  *  asked about (SearchHit.facts). A team or event whose own name has the words ("Match Point") still comes first.
  *  Words like "team", and misspelled topic words ("hypnotic awrds"), count only when the whole query finds nothing. */
@@ -148,7 +148,7 @@ export async function teamAtEventAnswer(q: string, limit: number, prefer: Readon
   const others = hits.filter((h) => h !== team).slice(0, limit - 1);
   // The event's season on the hit too: an older event's facts and link never sit beside this season's badge.
   if (pick) return [{ ...team, atEvent: `${pick.event.season}:${pick.event.code}`, facts: pick.facts, season: pick.event.season, linkSeason: pick.event.season }, ...others];
-  // Several events matched in an older season ("4215 at northern league meet" from last season): that season's events,
+  // Several events matched in an older season ("12345 at northern league meet" from last season): that season's events,
   // never this season's unrelated ones.
   const season = found && "ambiguous" in found ? found.season : (await teamSeason(Number(team.ref), asked)).season;
   const events = season == null ? [] : await teamEvents(Number(team.ref), season);

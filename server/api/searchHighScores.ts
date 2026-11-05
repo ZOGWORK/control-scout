@@ -1,4 +1,4 @@
-// "World record score bio buzz", "highest score this season", "4215 high score in DECODE": the best match scores of a
+// "World record score bio buzz", "highest score this season", "12345 high score in DECODE": the best match scores of a
 // season, or of one team in it, from the stored matches (docs/search.md). A record is the alliance's score without
 // penalties (fouls the other alliance committed aren't the alliance's own points), highest first, the score with
 // penalties beside it; only official events count (qualifiers, league play, championships, premier events), never
@@ -28,7 +28,7 @@ export interface HighScoreQuestion {
   season: number | null;
   /** The game's name when it was named ("BIOBUZZ"). */
   game: string | null;
-  /** What's left: a team ("4215", "hypnotic robotics"), or "" for the whole season. */
+  /** What's left: a team ("12345", "hypnotic robotics"), or "" for the whole season. */
   core: string;
 }
 
@@ -119,7 +119,7 @@ export async function highScoreAnswer(q: string, it: HighScoreQuestion, team: Se
 
 const key = (r: { season: number; code: string; level: string; series: number; number: number }, side: string) => `${r.season}|${r.code}|${r.level}|${r.series}|${r.number}|${side}`;
 
-/** Each listed alliance's teams that played ("4215 Hypnotic Robotics"), by match and side: a playoff alliance's team
+/** Each listed alliance's teams that played ("12345 Hypnotic Robotics"), by match and side: a playoff alliance's team
  *  sitting the match out isn't on it, and never gets its score as a team's best (on_field, above too). */
 async function alliances(rows: ScoreRow[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();

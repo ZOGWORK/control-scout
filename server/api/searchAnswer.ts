@@ -1,12 +1,12 @@
 // Search's one answer for every surface (the header box, /search, the address bar's search): docs/search.md.
 //
 // Fixed rules, in order, every one deterministic:
-//   0. A question search answers directly ("when did hypnotic go to worlds", "has bad wolf won anything", "4215's next
+//   0. A question search answers directly ("when did hypnotic go to worlds", "has bad wolf won anything", "12345's next
 //      event"): the team it names, and a card built from the stored data (./searchQuestions.ts).
-//   1. A team number ("4215", "team 4215", "team-4215") is that team alone; a number with no team is the recovery state.
+//   1. A team number ("12345", "team 12345", "team-12345") is that team alone; a number with no team is the recovery state.
 //   2. Two or more teams joined by "vs"/"versus" open Compare.
 //   3. Otherwise the search itself (names, numbers, codes, matches, topic words: server/api/search.ts), with short forms
-//      spelled out ("champs") and the name-and-topic reading taken when it fits better ("team talos" vs "team 4215").
+//      spelled out ("champs") and the name-and-topic reading taken when it fits better ("team talos" vs "team 12345").
 //   4. Nothing for the whole query: each word on its own; a result matching more words ranks higher, and words that
 //      match nothing are ignored.
 // Before 2: a season, region, ranking or missing view read from the query (./searchIntents.ts).
@@ -176,7 +176,7 @@ async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnsw
   const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true });
   // Boolean operators and quoted phrases are read from the query as typed, before cleaning drops '"' and '|'
   // (./searchBoolean.ts); a query without them goes through the layers exactly as before.
-  // A question the search pipeline reads completely ("4215 and 6980 matches together") is its answer, whatever
+  // A question the search pipeline reads completely ("12345 and 67890 matches together") is its answer, whatever
   // operator words it holds: "and" there joins two teams of one question, not two searches.
   const operators = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? ""));
   if (operators && !String(raw ?? "").includes('"') && opts.intents !== false && (await pipelineReads(cleanQuery(raw), opts.now, opts.prefer))) return layeredAnswer(cleanQuery(raw), reader);
@@ -253,7 +253,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
   if (piped) return piped;
 
-  // 0. A phrasing the readers below miss, said the way they read it ("compare 4215 and 6980" → "4215 vs 6980"):
+  // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so
   // before the stat answers read it; every other rewrite after them, which answer a team's own stats first.
   const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q) : null;
@@ -269,7 +269,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const said = opts.intents === false ? null : explainAnswer(q) ?? nearMeAnswer(q) ?? (await bottomAnswer(q));
   if (said) return said;
 
-  // 0. A stat question about a team ("4215 highest score in worlds", "4215 worlds record"): ./answers/index.ts.
+  // 0. A stat question about a team ("12345 highest score in worlds", "12345 worlds record"): ./answers/index.ts.
   const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false, learn: false }), { full: !!opts.full, pages: pagesFor(q) });
   if (stat) return stat;
 
@@ -282,7 +282,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     if (direct) return direct;
   }
 
-  // 0. A question a view answers ("top teams in New Jersey", "highest OPR", "will 4215 win their next match", "who won
+  // 0. A question a view answers ("top teams in New Jersey", "highest OPR", "will 12345 win their next match", "who won
   // Inspire at …", "how are predictions calculated"): that view's numbers and link (./searchAsks.ts).
   const ask = opts.intents === false ? null : readAsk(q);
   if (ask) {
@@ -313,7 +313,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
     if (team) return questionAnswer(q, question, team, base.hits.slice(1), pagesFor(q));
   }
 
-  // 0c. A conversational opening ("how good is simply complex", "where is 4215"): the question's frame, never part of
+  // 0c. A conversational opening ("how good is simply complex", "where is 12345"): the question's frame, never part of
   // a name. What follows it is searched, with what the opening asks about ("how good is": the season's OPR, rank and
   // record) read as that topic.
   const conv = opts.intents === false ? q : conversationQuery(q);
@@ -342,12 +342,12 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const placed = opts.intents === false ? null : await namedInPlace(q, limit, prefer);
   if (placed) return placed;
 
-  // 1. A team number, alone or as "team 4215" / "team-4215" / "#4215".
+  // 1. A team number, alone or as "team 12345" / "team-12345" / "#12345".
   const num = /^(?:team)?[\s#-]*(\d{1,6})[.\s]*$/i.exec(q);
   if (num) {
     const n = String(Number(num[1]));
     const found = (await search(n, 5, prefer)).find((h) => h.kind === "team" && h.ref === n);
-    // A season named in words ("4215 last season"): the team opens on it, as with a typed year.
+    // A season named in words ("12345 last season"): the team opens on it, as with a typed year.
     const team = found && opts.season != null ? { ...found, linkSeason: opts.season, subtitle: [seasonLabel(opts.season), found.subtitle].filter(Boolean).join(" · ") } : found;
     return team ? answer(q, { hits: [team], step: "deterministic" }) : recovery(q, [`A team number: ${n}`, `No FTC team ${n} on record`]);
   }
@@ -365,7 +365,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   }
 
   // 2. Teams side by side (in a season, when one is named).
-  // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 4215").
+  // Only a season written as one ("2024-25") counts here: a bare 2000–2099 is as likely a team ("2024 vs 12345").
   const vsSeason = /(?:^|\s)20\d\d\s*[-–/]\s*\d\d(?=\s|$)/.test(q) ? seasonOf(q) : { season: null, rest: q };
   const vs = await versusAnswer(vsSeason.rest, prefer, vsSeason.season ?? opts.season ?? null);
   if (vs) return vs;

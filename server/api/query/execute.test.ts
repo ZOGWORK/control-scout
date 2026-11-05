@@ -111,6 +111,11 @@ describe("place and time are applied and stated", () => {
     expect(s.headline).toBeFalsy();
     expect(s.none).toContain("Nothing in 2025–26 or 2024–25 either");
   });
+  it("part of a region is all of it, said so", async () => {
+    const a = await ask("highest scoring match in northern california this week");
+    expect(a.stat?.scope).toContain("California");
+    expect(a.understood?.label).toMatch(/Northern California isn't a separate region: all of California$/);
+  });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");
     expect(s.title).toBe("Highest-scoring match on Mar 14, 2026, DECODE 2025–26");

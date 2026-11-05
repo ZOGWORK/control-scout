@@ -193,7 +193,7 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
 const base = (intent: string, title: string, team: AnswerTeam, scope: Scope, definition: string, source: string) =>
   ({ family: "aggregate" as const, intent, title, team, scope: scopeChips(scope), definition, source });
 
-/** "4215 opr at their first event this season compared to last season": the first (or last) event of each season with
+/** "12345 opr at their first event this season compared to last season": the first (or last) event of each season with
  *  a stored OPR there, side by side. */
 export function eventPairAnswer(team: AnswerTeam, evs: TeamEvent[], seasons: TeamSeason[], which: "first" | "last", pair: [number, number]): StatAnswer {
   const pick = (s: number) => { const xs = playedEvents(evs, s).filter((e) => e.opr != null); return which === "first" ? xs[0] : xs[xs.length - 1]; };
@@ -219,7 +219,7 @@ export function eventPairAnswer(team: AnswerTeam, evs: TeamEvent[], seasons: Tea
 
 const possessive = (t: AnswerTeam) => possessiveOf(t.name ?? `Team ${t.number}`);
 
-/** "4215 matches where they lost by less than 10 points": the team's wins or losses by a margin. */
+/** "12345 matches where they lost by less than 10 points": the team's wins or losses by a margin. */
 export async function marginAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope, result: "W" | "L", margin: Threshold): Promise<StatAnswer> {
   const ms = onRecord(msAll, scope);
   const same = ms.filter((m) => m.result === result);
@@ -242,7 +242,7 @@ export async function marginAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: 
   };
 }
 
-/** "4215 opr if you exclude their worst event": the season's stored per-event OPRs, averaged with and without the
+/** "12345 opr if you exclude their worst event": the season's stored per-event OPRs, averaged with and without the
  *  worst (or best) one, beside the stored season OPR. */
 export function oprExcludingAnswer(team: AnswerTeam, evs: TeamEvent[], seasons: TeamSeason[], season: number, drop: "worst" | "best", why?: string): StatAnswer {
   const S = seasonLabel(season);
@@ -272,7 +272,7 @@ export function oprExcludingAnswer(team: AnswerTeam, evs: TeamEvent[], seasons: 
   };
 }
 
-/** "4215 best event by rank and worst event by opr in same season": two picks from one season's events. */
+/** "12345 best event by rank and worst event by opr in same season": two picks from one season's events. */
 export function eventPicksAnswer(team: AnswerTeam, evs: TeamEvent[], season: number, picks: { pick: "best" | "worst"; by: "rank" | "opr" | "record" }[], why?: string): StatAnswer {
   const S = seasonLabel(season);
   const xs = playedEvents(evs, season);
@@ -305,7 +305,7 @@ export function eventPicksAnswer(team: AnswerTeam, evs: TeamEvent[], season: num
   };
 }
 
-/** "4215 average score when they win versus when they lose". */
+/** "12345 average score when they win versus when they lose". */
 export function winLossAverageAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope): StatAnswer {
   const ms = onRecord(msAll, scope, true);
   const w = ms.filter((m) => m.result === "W"), l = ms.filter((m) => m.result === "L");
@@ -332,7 +332,7 @@ export function winLossAverageAnswer(team: AnswerTeam, msAll: TeamMatch[], scope
   };
 }
 
-/** "Did 4215 ever beat a team ranked top 10 worldwide": its wins over an opponent ranked in the world's top N that
+/** "Did 12345 ever beat a team ranked top 10 worldwide": its wins over an opponent ranked in the world's top N that
  *  season (the opponent's final stored rank), and every meeting with one. */
 export async function beatTopAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope, n: number, by: "rating" | "opr"): Promise<StatAnswer> {
   const ms = onRecord(msAll, scope);
@@ -378,7 +378,7 @@ export async function beatTopAnswer(team: AnswerTeam, msAll: TeamMatch[], scope:
   };
 }
 
-/** "4215 partners at NJ championship who had opr over 80": the team's partners (or opponents) at the event, with
+/** "12345 partners at NJ championship who had opr over 80": the team's partners (or opponents) at the event, with
  *  their OPR there (in a season: their season OPR), the ones over the threshold listed. */
 export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], scope: Scope, side: "partners" | "opponents", t: Threshold, finals: string | null = null): Promise<StatAnswer> {
   const ev = scope.event;
@@ -430,7 +430,7 @@ export async function sideThresholdAnswer(team: AnswerTeam, msAll: TeamMatch[], 
   };
 }
 
-/** "4215 vs 6980 vs 33950 which has highest reliability": three or four teams' reliability side by side, the season
+/** "12345 vs 67890 vs 33950 which has highest reliability": three or four teams' reliability side by side, the season
  *  named, else the latest completed season when every team has one, else the latest they all have. */
 export async function reliabilitySetAnswer(teams: AnswerTeam[], season: number | null): Promise<StatAnswer> {
   const rows = await all<{ season: number; team: number }>(`SELECT season, team FROM team_reliability WHERE code = '' AND team IN (${teams.map(() => "?").join(",")})${season != null ? " AND season = ?" : ""} ORDER BY season DESC`, [...teams.map((t) => t.number), ...(season != null ? [season] : [])]);
@@ -462,7 +462,7 @@ export async function reliabilitySetAnswer(teams: AnswerTeam[], season: number |
   };
 }
 
-/** "4215 awards and record in 2025-26 combined": the answers asked for, one after the other on one card, with a
+/** "12345 awards and record in 2025-26 combined": the answers asked for, one after the other on one card, with a
  *  summary row of each one's number first. */
 export function combinedAnswer(team: AnswerTeam, scope: Scope, parts: StatAnswer[], summary: { label: string; value: string; sub?: string; href?: string }[]): StatAnswer {
   const names = parts.map((p) => p.title.replace(scopePhrase(scope), "").trim());

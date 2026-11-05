@@ -25,8 +25,10 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
   if (!p.complete || !p.intent) return null;
-  const a = await execute(p, opts);
+  let a = await execute(p, opts);
   if (!a) return null;
+  // Part of a region ("north jersey") is read as all of it, and the card says so.
+  if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // How the query was read, slot by slot: the card states the filters it applied.
   return { ...a, intent: { ...(a.intent ?? { kind: `pipeline-${p.intent}`, pattern: p.intent, met: true, understood: [] }), understood: describe(p) } };
 }

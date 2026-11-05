@@ -15,6 +15,19 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.4 — 2026-11-05
+
+"North Jersey", "Northern California" and every other part of a region now read as that whole region, said so. (#PRNUM)
+
+### Highlights
+- [fixes] "Highest score in central jersey" reads New Jersey, said so
+- [fixes] Any part of a state ("northern california") is the whole state
+- [fixes] "Not" help shows a real opponent of the team you typed
+
+### Changes
+- **Parts of a region.** A direction before a region ("north jersey", "northern california", "western new york") is read as that whole region, since parts aren't on record, and the answer says so. A place named that way by itself ("North Carolina", "West Virginia", "Northern Ireland") stays itself. This replaces a rule written only for New Jersey, and now works in every kind of question, including a week's best score ("highest score in central jersey this week" no longer finds a team called Central).
+- **"Not" help.** When "not" is followed by a word that isn't a team, the example now leaves out a team that team has really played against.
+
 ## 3.2.3 — 2026-11-05
 
 Failed searches are grouped by how they failed, so the words search misses most rise to the top. (#721)

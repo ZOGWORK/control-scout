@@ -192,7 +192,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         blocks.push({ kind: "record", title: "On red", ...red }, { kind: "record", title: "On blue", ...blue },
           { kind: "bars", title: "Win rate by colour", unit: "%", groups: [{ label: "Win rate", items: [{ label: "Red", value: rate(red), tone: "a" }, { label: "Blue", value: rate(blue), tone: "b" }] }] });
       } else {
-        // Qualifications and playoffs apart, when the matches hold both ("4215 states record": 15-5-0 and 9-7-0).
+        // Qualifications and playoffs apart, when the matches hold both ("12345 states record": 15-5-0 and 9-7-0).
         const quals = ms.filter((m) => m.level !== "playoff"), playoffs = ms.filter((m) => m.level === "playoff");
         blocks.push({ kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) });
       }
