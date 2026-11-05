@@ -21,6 +21,8 @@ import { all, get } from "../../../db.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { teamHref } from "../matchSet.js";
+import { seasonOfDate } from "../../query/time.js";
+import { searchToday } from "../../searchEvents.js";
 
 export const LEADERBOARD_MAX = 25;
 
@@ -42,23 +44,31 @@ export const BOARD_STATS: Record<string, BoardStat> = {
 
 export type BoardKind = "top" | "rookie" | "improved" | "city" | "city-best";
 /** `best`: "best team in New Jersey by OPR", one team asked for: titled so, the next few listed under it. */
-export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean }
+export interface BoardQuestion { kind: BoardKind; stat: BoardStat; n: number; region: Region | null; city: string | null; season: number | null; seasonWhy?: string; best?: boolean;
+  /** The lowest first ("worst teleop OPR in Romania"). */
+  lowest?: boolean;
+  /** Teams with no losses that season only ("undefeated teams", "a perfect record"). */
+  undefeated?: boolean;
+  /** A town within the region ("best team in Cluj-Napoca, Romania, by OPR"): the teams from it. */
+  town?: string | null }
 
 /** A stat's name inside a sentence ("by win rate", "by OPR"). */
 export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : st.label.toLowerCase());
 const fmt = (v: number | null, st: BoardStat) => (v == null ? "–" : st.unit === "%" ? `${Math.round(v * 100)}%` : st.digits ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)));
 
 /** The Teams page's season table, filtered and sorted as this list (src/lib/records/urlState.ts reads these). */
-export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false): string | null {
+export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false, lowest = false): string | null {
   if (!st.teamsSort) return null;
   const p = new URLSearchParams({ view: "season", season: String(season) });
   const iso = region ? countryOf(region.country)?.code : null;
   if (region && iso) { p.set("country", iso); p.set("state", region.state); }
   p.set("sort", st.teamsSort);
+  if (lowest) p.set("dir", "asc");
   p.set("filter", `and-qualMatchesPlayed.gte.${RANKED_MIN_MATCHES}${rookie ? ` rookieYear.eq.${season}` : ""}-`);
   return `/teams?${p}`;
 }
-const rankingsHref = (season: number, region: Region | null) => `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
+// A whole country's key ends in ":" ("Romania:"); Rankings reads a country alone without it.
+const rankingsHref = (season: number, region: Region | null) => `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key.replace(/:$/, ""))}` : ""}`;
 
 const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matches that season, as on Rankings, from the season numbers each team page shows (OPR and averages without penalties).`;
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
@@ -67,37 +77,41 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   if (b.kind === "city") return cityAnswer(b.city!);
   const season = b.season ?? searchSeason();
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
-  if (b.kind === "city-best") return cityBestAnswer(b, season, why);
-  const where = b.region ? ` in ${b.region.name}` : " worldwide";
-  const regionSql = b.region ? " AND t.country = ? AND t.state = ?" : "";
-  const regionArgs = b.region ? [b.region.country, b.region.state] : [];
-  const chips = [b.region?.name ?? "Worldwide", seasonLabel(season)];
+  if (b.kind === "city-best") return b.season == null ? cityBestNow(b) : cityBestAnswer(b, season, why);
+  // A region, or a whole country (no state); a town in it narrows to the teams from there.
+  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : " worldwide";
+  const regionSql = `${b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}`;
+  const regionArgs = [...(b.region ? [b.region.country, ...(b.region.state ? [b.region.state] : [])] : []), ...(b.town ? [b.town] : [])];
+  const chips = [...(b.town ? [b.town] : []), b.region?.name ?? "Worldwide", seasonLabel(season)];
   if (b.kind === "improved") return improvedAnswer(b, season, where, regionSql, regionArgs, chips, why);
   const st = b.stat;
   const rookie = b.kind === "rookie";
-  const ranked = `s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}`;
+  const ranked = `s.season = ? AND ${st.id === "rating" ? "s.rating_matches" : "s.matches"} >= ? AND ${st.sql} IS NOT NULL AND ${teamPageSql("s.team", "t.name")}${regionSql}${rookie ? " AND t.rookie_year = ?" : ""}${b.undefeated ? " AND s.losses = 0" : ""}`;
   const from = `team_season_stats s JOIN teams t ON t.number = s.team${st.join ? ` ${st.join}` : ""}`;
   const args = [season, RANKED_MIN_MATCHES, ...regionArgs, ...(rookie ? [season] : [])];
   const [rows, count] = await Promise.all([
     all<{ team: number; name: string | null; city: string | null; state: string | null; country: string | null; v: number | null; opr: number | null; auto: number | null; teleop: number | null; endgame: number | null; pen: number | null; wins: number; losses: number; ties: number; matches: number }>(
       `SELECT s.team, t.name, t.city, t.state, t.country, ${st.sql} v, s.opr_np opr, s.opr_auto auto, s.opr_teleop teleop, s.opr_endgame endgame, s.opr_pen pen, s.wins, s.losses, s.ties, s.matches
        FROM ${from} WHERE ${ranked}
-       ORDER BY v DESC, ${st.id === "rating" ? "" : "s.wins DESC, "}s.team LIMIT ?`, [...args, b.n]),
+       ORDER BY v ${b.lowest ? "ASC" : "DESC"}, ${st.id === "rating" ? "" : `s.wins ${b.lowest ? "ASC" : "DESC"}, `}s.team LIMIT ?`, [...args, b.n]),
     get<{ n: number }>(`SELECT COUNT(*) n FROM ${from} WHERE ${ranked}`, args),
   ]);
-  const title = rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.best ? `Best team${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
-  // Rankings has no rookie filter: a rookie rating list gets no link rather than one to every team.
-  const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" && !rookie ? rankingsHref(season, b.region) : null;
-  const definition = `${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${why}`;
+  const title = b.undefeated ? `Undefeated teams${where} by ${statWords(st)}` : rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.lowest ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}`
+    : b.best ? `Best team${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  // A link opens the same list or none: Rankings has no rookie filter and no lowest-first order, and neither page
+  // takes a town or undefeated teams, so those get no link rather than one to a different list.
+  const href = b.town || b.undefeated ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.lowest)
+    : st.id === "rating" && !rookie && !b.lowest ? rankingsHref(season, b.region) : null;
+  const definition = `${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${b.lowest ? "The lowest first. " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${why}`;
   const total = Number(count?.n ?? 0);
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers of ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where}` };
-  if (!rows.length) return { ...base, blocks: [], none: `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };
+  if (!rows.length) return { ...base, blocks: [], none: b.undefeated ? `No team${where} with ${RANKED_MIN_MATCHES}+ matches is undefeated in ${seasonLabel(season)}.` : `No ${rookie ? "rookie " : ""}team${where} has played ${RANKED_MIN_MATCHES}+ matches in ${seasonLabel(season)} yet.` };
   const top = rows[0];
   const num = (v: number | null) => (v == null ? null : Number(v));
   const shown = (r: (typeof rows)[number]) => (st.id === "record" ? record(r) : fmt(r.v, st));
   const board: StatBlock = {
-    kind: "leaderboard", title: rookie ? `Rookie teams by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
-    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
+    kind: "leaderboard", title: rookie ? `Rookie teams by ${st.label}` : b.lowest ? `Lowest ${rows.length} by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
+    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}), ...(b.lowest ? { lowest: true } : {}),
     note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}`,
     rows: rows.map((r, i) => ({
       rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
@@ -110,7 +124,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   };
   return {
     ...base,
-    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.id === "record" ? `Record ${record(top)}` : `${st.label} ${fmt(top.v, st)}, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`, sub: b.best ? `#1 of ${total.toLocaleString("en-US")} ranked${where}` : `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.id === "record" ? `Record ${record(top)}` : `${st.label} ${fmt(top.v, st)}, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`, sub: b.lowest ? `Lowest of ${total.toLocaleString("en-US")} ranked${where}` : b.best ? `#1 of ${total.toLocaleString("en-US")} ranked${where}` : `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
     blocks: [board],
   };
 }
@@ -141,6 +155,18 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
       rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), before: `#${r.r0} (${share(r.r0, r.n0)})`, now: `#${r.r1} (${share(r.r1, r.n1)})`, opr: r.o1 == null ? "–" : (Math.round(r.o1 * 10) / 10).toFixed(1) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
     }],
   };
+}
+
+/** A city's best with no season said, as every place answer (docs/search-pipeline.md, "Leaderboards"): the current
+ *  season once a team of the city is ranked in it, else the one before, said on the card. */
+async function cityBestNow(b: BoardQuestion): Promise<StatAnswer> {
+  const current = seasonOfDate(searchToday());
+  const now = await cityBestAnswer(b, current, "");
+  if (now.headline) return now;
+  const before = await cityBestAnswer(b, current - 1, "");
+  if (!before.headline) return now;
+  const note = `No ${seasonLabel(current)} ranked teams yet in ${before.scope[0]}; showing ${seasonLabel(current - 1)}`;
+  return { ...before, scope: [note, ...before.scope], definition: `${before.definition} ${note}: no season was named, so the current one was read first, and it has none yet.` };
 }
 
 /** "Best team in Oradell": the city's teams ranked by OPR in the season (3+ matches), the best first. */

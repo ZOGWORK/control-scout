@@ -5,6 +5,8 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
+import { namedParts, rewriteQuery } from "../searchCoverage";
+import { names } from "./names";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
 // Wednesday 2026-03-18: "this week" is Mar 16–22, 2026, inside the 2025–26 season.
@@ -19,6 +21,7 @@ beforeAll(async () => {
   const teams: [number, string, string, string, string][] = [
     [4215, "Hypnotic Robotics", "Oradell", "NJ", "USA"], [6980, "Bad Wolf", "Fair Lawn", "NJ", "USA"], [24033, "Alphatronic", "Cluj-Napoca", "CJ", "Romania"],
     [17713, "Delta Force", "Arad", "AR", "Romania"], [10809, "Crow Force", "Los Angeles", "CA", "USA"], [5555, "Never Listed", "Fresno", "CA", "USA"],
+    [30010, "Brunswick Bots", "East Brunswick", "NJ", "USA"], [30011, "Keystone Bots", "Erie", "PA", "USA"], [30012, "Liberty Bots", "Reading", "PA", "USA"],
   ];
   for (const [n, name, city, state, country] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -31,6 +34,8 @@ beforeAll(async () => {
   await ev("USCAQ0", "Winter Qualifier", "Qualifier", "2026-01-24", "CA", "USA");
   await ev("ROCMP", "Romania Championship", "Championship", "2026-03-14", "B", "Romania");
   await ev("FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2026-04-29", "TX", "USA");
+  await ev("USTXNOCMP", "North Texas Championship", "Championship", "2026-02-28", "TX", "USA");
+  await ev("USPAQ1", "Keystone Qualifier", "Qualifier", "2026-02-07", "PA", "USA");
   let n = 0;
   const match = async (code: string, day: string, red: number, blue: number, reds: number[], blues: number[]) => {
     n++;
@@ -47,9 +52,23 @@ beforeAll(async () => {
   await match("USCAQ0", "2026-01-24", 260, 110, [10809], [5555]);
   await match("ROCMP", "2026-03-14", 300, 140, [24033], [17713]);
   await match("ROCMP", "2026-03-14", 120, 330, [24033], [17713]);
+  // Pennsylvania: a tie and a 10-point win (the closest match is the tie; the closest win never is).
+  await match("USPAQ1", "2026-02-07", 100, 100, [30011], [30012]);
+  await match("USPAQ1", "2026-02-07", 120, 110, [30011], [30012]);
   for (const t of [4215, 6980, 24033, 17713, 10809, 5555]) {
     await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams WHERE team = ?", [t]);
   }
+  // The engine's predictions for the two Garden Qualifier matches: one logged live, one replayed (a card shows one kind).
+  await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at) VALUES ('live', 2025, 'USNJQ1', 'qual', 0, 1, '[4215,6980]', '[10809]', 0.7, 140, 100, 'high', 't', '2026-01-09'), ('live', 2025, 'USNJQ1', 'qual', 0, 2, '[4215]', '[6980]', 0.6, 110, 100, 'medium', 't', '2026-01-09'), ('backtest', 2025, 'USNJQ1', 'qual', 0, 2, '[4215]', '[6980]', 0.2, 90, 120, 'medium', 't', '2026-01-09')");
+  // A meeting still to come at the same event, its call saved before any rated match (win odds only, no score).
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (2025, 'USNJQ1', 'qual', 0, 99, 'Q99', '2026-01-10T18:00:00Z', 0, 't')");
+  await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, no_score_basis, tier, engine_version, predicted_at) VALUES ('live', 2025, 'USNJQ1', 'qual', 0, 99, '[4215]', '[6980]', 0.55, 100, 100, 1, 'low', 't', '2026-01-09')");
+  // Matches the cards never count, for the eval's truth: one at a remote event, one with no points without penalties.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, source) VALUES (2025, 'USOHR1', 'Remote Qualifier', 'Qualifier', 'Town', 'OH', 'USA', '2025-12-01', '2025-12-01', 1, 't'), (2025, 'USOHQ1', 'Buckeye Qualifier', 'Qualifier', 'Town', 'OH', 'USA', '2025-12-02', '2025-12-02', 0, 't')");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USOHR1', 'qual', 0, 1, 'Q1', '2025-12-01T10:00:00Z', 1, 500, 500, 10, 10, 't'), (2025, 'USOHQ1', 'qual', 0, 1, 'Q1', '2025-12-02T10:00:00Z', 1, 999, NULL, 0, NULL, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USOHR1', 'qual', 0, 1, 5555, 'red', 1), (2025, 'USOHQ1', 'qual', 0, 1, 5555, 'red', 1)");
+  // A Leadership Award is filed as a "Winner" too: never the event won.
+  await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJQ1', 4215, 'Winner', 'Leadership Award', 1)");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -104,6 +123,20 @@ describe("place and time are applied and stated", () => {
     expect(s.headline).toBeFalsy();
     expect(s.none).toContain("Nothing in 2025–26 or 2024–25 either");
   });
+  it("part of a region is all of it, said so", async () => {
+    const a = await ask("highest scoring match in northern california this week");
+    expect(a.stat?.scope).toContain("California");
+    expect(a.understood?.label).toMatch(/Northern California isn't a separate region: all of California$/);
+  });
+  it("never a part of a region when the words are a whole region, a stored town or an event", async () => {
+    expect(rewriteQuery("rookie teams in new south wales")?.q ?? "").not.toContain("new wales");
+    const idx = await names();
+    expect(idx.place("east brunswick")).toMatchObject({ kind: "city", city: "East Brunswick" });
+    expect(idx.place("northern in", "northern IN")).toMatchObject({ kind: "region", state: "IN", part: "northern IN" });
+    for (const q of ["highest score in east brunswick", "north texas championship"]) expect(rewriteQuery(q, await namedParts(q)), q).toBeNull();
+    // A part with nothing stored by that name is still the whole region.
+    expect(rewriteQuery("events in north jersey", await namedParts("events in north jersey"))?.q).toBe("events in new jersey");
+  });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");
     expect(s.title).toBe("Highest-scoring match on Mar 14, 2026, DECODE 2025–26");
@@ -130,6 +163,11 @@ describe("one question, any phrasing, any team", () => {
       expect(s.title, q).toMatch(/^Matches with (4215 and 6980|6980 and 4215)$/);
       expect(s.headline?.value, q).toBe("2");
     }
+  });
+  it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
+    const a = await ask("hypnotc-robotics highest score");
+    expect(a.stat?.team?.number).toBe(4215);
+    expect(a.didYouMean).toBe("Hypnotic Robotics highest score");
   });
 });
 
@@ -160,6 +198,143 @@ describe("what the pipeline leaves to the other readers", () => {
     const { parseContext } = await import("./context");
     expect(await parseQuery("4215 margin of victory on average", await parseContext(NOW))).toMatchObject({ intent: "average-margin", symbols: expect.arrayContaining(["outcome:W"]), complete: true });
     expect((await stat("4215 margin of victory on average")).title).toMatch(/^Average winning margin/);
+  });
+});
+
+describe("the match finder: matches by a measure, every filter applied and stated", () => {
+  it("the closest, the most lopsided and the lowest, in a place and a season", async () => {
+    const close = await stat("closest match in new jersey this season");
+    expect(close.headline).toMatchObject({ value: "40-point margin", label: expect.stringMatching(/^Q2 /) });
+    expect(close.scope).toEqual(expect.arrayContaining(["2025–26", "New Jersey"]));
+    expect(close.definition).toMatch(/^The margin is /);
+    expect((await stat("most lopsided match in romania this season")).headline?.value).toBe("210-point margin");
+    expect((await stat("lowest scoring match in california this season")).headline?.value).toBe("210 points");
+  });
+  it("an upset by the call saved before the match; no season said is the current one, then the one before, said so", async () => {
+    // November 2026: 2026–27 has begun, with nothing played in New Jersey yet.
+    const a = await ask("biggest upset in new jersey", Date.parse("2026-11-04T12:00:00Z"));
+    expect(a.stat?.headline?.value).toBe("60% favourite lost");
+    expect(a.stat?.scope[0]).toBe("No 2026–27 matches yet in New Jersey; showing 2025–26");
+    expect(a.understood?.label).toMatch(/2025–26 · No 2026–27 matches yet in New Jersey$/);
+    // An upset is only a favourite's loss: a win the winner was expected to get is never one.
+    const t = a.stat?.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.every((r) => Number(String(r.cells.value).slice(0, -"% favourite lost".length)) > 50)).toBe(true);
+    // "Last season" is the one before the current one, for a place as for the world.
+    expect((await ask("biggest upset in new jersey last season", Date.parse("2026-11-04T12:00:00Z"))).stat?.scope[0]).toBe("2025–26");
+  });
+  it("the highest score with no season said: the current one, then the one before, as every place answer", async () => {
+    const a = await ask("highest score in new jersey", Date.parse("2026-11-04T12:00:00Z"));
+    expect(a.stat?.scope).toContain("No 2026–27 scored matches yet in New Jersey; showing 2025–26");
+  });
+  it("a win or a loss said with the closest is a decided match, never a tie", async () => {
+    expect((await stat("closest match in pennsylvania this season")).headline?.value).toBe("Tie");
+    const s = await stat("closest win in pennsylvania this season");
+    expect(s.headline?.value).toBe("10-point margin");
+    expect(s.scope).toContain("No ties");
+  });
+  it("a match type with nothing in it is said, never another type's matches", async () => {
+    const s = await stat("closest playoff match in new jersey this season");
+    expect(s.headline).toBeUndefined();
+    expect(s.scope).toContain("Playoff matches");
+  });
+  it("the finals are the finder's filter only: a team's finals record is never its playoff record", async () => {
+    expect((await ask("4215 record in finals matches only")).stat?.title ?? "").not.toMatch(/playoffs/i);
+  });
+  it("a comeback needs the auto points: none on record is said with the rule", async () => {
+    expect((await stat("biggest comeback in california this season")).none).toMatch(/^None of the 2 played matches in California in 2025–26 is one: a comeback is a match won/);
+  });
+});
+
+describe("a win or a loss said with a team's match question is a filter", () => {
+  it("the most recent loss, the first win, the last losses and the longest losing streak", async () => {
+    const lost = await stat("when did 4215 last lose a match");
+    expect(lost.title).toMatch(/^Most recent loss/);
+    expect(lost.headline?.value).toMatch(/^Lost /);
+    const won = await stat("4215 first win");
+    expect(won.title).toMatch(/^First win/);
+    expect(won.headline?.value).toMatch(/^Won /);
+    const last = await stat("4215 last 2 losses");
+    expect(last.title).toMatch(/^Last 2 losses/);
+    // The fixture's 4215 has lost once: that one, said as one.
+    expect(last.headline?.label).toBe("in the last 1 loss, oldest to newest L");
+    expect((await stat("longest losing streak for 4215")).title).toMatch(/^Longest losing streak/);
+    // No outcome said: every match, as before.
+    expect((await stat("4215 last match")).title).toMatch(/^Most recent match/);
+  });
+  it("losing to someone is the opponents that beat the team; winning a match, its wins", async () => {
+    for (const q of ["who did 4215 lose to the most times", "teams 4215 lost to most often"]) expect((await stat(q)).title, q).toMatch(/^Teams lost to most often/);
+    // A count of them is another question: never answered with the one that beat it most.
+    expect((await ask("how many teams has 4215 lost to")).stat?.title ?? "").not.toMatch(/^Teams lost to most often/);
+    expect((await stat("did 4215 ever win a match")).title).toMatch(/^Match wins/);
+    // "Most often" is how often, never the best: the partners list, not the best partner.
+    expect((await stat("4215 partners most often")).title).toMatch(/^Alliance partners/);
+  });
+});
+
+describe("forecasts", () => {
+  it("a team at a named event: before and after side by side, Predict open on it", async () => {
+    for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
+      const a = await ask(q);
+      const s = a.stat as StatAnswer;
+      expect(s.title, q).toBe("Prediction vs result at Garden Qualifier");
+      // Live only: the replayed row for Q2 never joins the live ones.
+      expect(s.headline, q).toMatchObject({ value: "1.3 → 1 wins", sub: expect.stringContaining("logged live before each match") });
+      const t = s.blocks.find((b) => b.kind === "table");
+      expect(t && t.kind === "table" && t.rows.map((r) => [r.cells.before, r.cells.after, r.cells.called]), q).toEqual([["70% · 140–100", "W 150–90", "Yes"], ["60% · 110–100", "L 80–120", "No"], ["55%", "Not played yet", "–"]]);
+      // Predict is the card's own action (below), so the page lists it nowhere else; the search box keeps the link.
+      expect(a.pages.map((x) => x.title), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      expect((await searchAnswer(q, { limit: 25, full: false, now: NOW })).pages[0], q).toMatchObject({ title: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+      // The chance on its 0–100% bar leads: the next match still to come (Q99, 55%), Predict its one action and
+      // printed nowhere else on the card.
+      expect(s.blocks[0], q).toMatchObject({ kind: "chance", p: 0.55, who: "4215", label: "to win the next match (Q99), before it's played", action: { label: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" } });
+      const links = s.blocks.filter((b) => b.kind === "links").flatMap((b) => (b.kind === "links" ? b.items : []));
+      expect(links.map((l) => l.label), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      // The chance's percentage is printed once: no tile repeats it.
+      const tiles = s.blocks.flatMap((b) => (b.kind === "kpis" ? b.items.map((i) => i.value) : []));
+      expect(tiles, q).not.toContain("55%");
+    }
+  });
+  it("two teams at an event: their meetings, before and after", async () => {
+    const s = await stat("4215 vs 6980 at garden qualifier prediction");
+    expect(s.title).toBe("Prediction vs result: 4215 and 6980 at Garden Qualifier");
+    const t = s.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.map((r) => r.cells.as)).toEqual(["partners", "opponents", "opponents"]);
+  });
+  it("a Leadership Award filed as a Winner is never the event won", async () => {
+    const k = (await stat("4215 garden qualifier prediction")).blocks.find((b) => b.kind === "kpis");
+    expect(k && k.kind === "kpis" && k.items.find((i) => i.label === "After: event")?.value).not.toBe("Won");
+  });
+  it("two teams who never met there: said so, never one team's event odds", async () => {
+    const s = await stat("4215 vs 10809 at golden qualifier prediction");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toMatch(/No prediction was stored .* meeting at Golden Qualifier/);
+  });
+  it("a team not listed at the event is told so, never another event", async () => {
+    expect((await stat("24033 garden qualifier prediction")).none).toContain("isn't listed at Garden Qualifier");
+  });
+});
+
+describe("the eval's truth", () => {
+  it("counts the matches the cards count: never a remote event's, never one without its points", async () => {
+    const { teamTruth, newestSeason } = await import("./eval/truth");
+    expect(await teamTruth(5555, 2025)).toMatchObject({ wins: 0, losses: 2, ties: 0, matches: 2, high: [110] });
+    expect(await newestSeason(5555)).toBe(2025);
+    // The card agrees.
+    expect((await stat("5555 highest score")).headline?.value).toBe("110 points");
+  });
+});
+
+describe("failure patterns", () => {
+  it("one pattern for every team that fails the same way, the unread word kept beside it", async () => {
+    const { failurePattern } = await import("./pattern");
+    const a = await failurePattern("4215 opr scorecard", NOW), b = await failurePattern("hypnotic robotics opr scorecard", NOW), c = await failurePattern("24033 opr scoresheet", NOW);
+    expect(a).toEqual({ key: "intent: team opr · slots: team · not read: 1 word", missed: ["scorecard"] });
+    expect(b.key).toBe(a.key);
+    expect(c).toEqual({ key: a.key, missed: ["scoresheet"] });
+    // No name or number ever in the pattern.
+    expect((await failurePattern("6980 vs 17713 zzz", NOW)).key).not.toMatch(/6980|17713/);
+    // With no intent read, what it did read keeps different questions apart.
+    expect((await failurePattern("4215 rp zzz qqq", NOW)).key).not.toBe((await failurePattern("4215 reliability zzz qqq", NOW)).key);
   });
 });
 

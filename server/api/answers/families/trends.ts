@@ -123,7 +123,7 @@ export function seasonTrend(id: "opr-by-season" | "record-by-season", team: Answ
   };
 }
 
-/** "4215 total penalties in 2025-26": the penalty points the team's alliances gave away that season, event by event. */
+/** "12345 total penalties in 2025-26": the penalty points the team's alliances gave away that season, event by event. */
 export function penaltyTotalAnswer(team: AnswerTeam, set: { events: TeamEvent[] }, scope: Scope): StatAnswer {
   const season = seasonOf(scope, set.events);
   const evs = set.events.filter((e) => e.season === season && e.matches > 0 && e.avgPen != null);
