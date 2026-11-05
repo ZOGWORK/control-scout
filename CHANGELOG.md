@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.3 — 2026-11-05
 
-Search gains a reader that takes a question apart into its parts, in any word order: the groundwork for answering any phrasing the same way. Answers don't change yet. (#PR)
+Search gains a reader that takes a question apart into its parts, in any word order: the groundwork for answering any phrasing the same way. Answers don't change yet. (#736)
 
 ### Highlights
 - [report] Search reads a question's parts in any word order
