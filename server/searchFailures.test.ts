@@ -223,6 +223,9 @@ describe("failure patterns (docs/search-pipeline.md)", () => {
   it("a query that is only personal data has no pattern: skipped as before", async () => {
     expect(await patternFor("jane@example.com")).toBeNull();
   });
+  it("personal data in a question never splits its pattern", async () => {
+    expect((await patternFor("xyzzyq jane@example.com"))?.key).toBe((await patternFor("xyzzyq"))?.key);
+  });
   it("two flushes at once never lose words", async () => {
     const key = "pattern: intent: team opr · slots: team · not read: 1 word";
     noteSearch("4215 opr aaa", fallback("4215 opr aaa", "opr aaa"), "192.0.2.41", null, clock, key, ["aaa"]);

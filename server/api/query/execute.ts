@@ -32,7 +32,9 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
   const near = p.teams.filter((t) => t.via === "near" && t.name);
   if (near.length) {
-    const fixed = near.reduce((s, t) => s.replace(new RegExp(t.typed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), t.name!), q);
+    // The words as typed, whatever stood between them ("hypnotc-robotics"), so the spelling replaces them.
+    const typedAt = (typed: string) => new RegExp(typed.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^\\p{L}\\p{N}]+"), "iu");
+    const fixed = near.reduce((s, t) => s.replace(typedAt(t.typed), t.name!), q);
     a = { ...a, step: "did-you-mean", didYouMean: fixed };
   }
   // How the query was read, slot by slot: the card states the filters it applied.

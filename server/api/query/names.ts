@@ -73,6 +73,7 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
           // Same first letter, as a near-miss of a name starts as the name does.
           if (k[0] !== f[0]) continue;
           const d = edits(f, k);
+          if (d > most) continue;
           if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
         }
       }

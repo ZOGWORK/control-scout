@@ -186,7 +186,8 @@ export async function patternFor(q: string, now = Date.now()): Promise<{ key: st
   try {
     // Nothing left once personal data is out: no pattern, so the query's own key is skipped as before.
     if (onlyRedacted(safeQuery(q))) return null;
-    const p = await failurePattern(safeQuery(q), now);
+    // Read without the placeholders, so a question with personal data in it is the same pattern as one without.
+    const p = await failurePattern(safeQuery(q).replace(/\[(?:token|email|phone)\]/g, " ").replace(/\s+/g, " ").trim(), now);
     return { key: `pattern: ${p.key}`, missed: p.missed.map(redact).filter((w) => !onlyRedacted(w)) };
   } catch {
     return null;
