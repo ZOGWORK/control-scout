@@ -1878,7 +1878,7 @@ CREATE INDEX search_failures_issue ON search_failures (issue_number);
     sql: `
 -- Failed searches are filed by pattern (server/api/query/pattern.ts, docs/search-pipeline.md "Failure patterns"):
 -- a row's key is "pattern: …" (what search read, no names or numbers), and missed counts the words its queries left
--- unread (JSON word → count, the most frequent 500 kept, 20 listed on the issue). Rows keyed by one query (before) keep '{}'..
+-- unread (JSON word → count, the most frequent 500 kept, 20 listed on the issue). Rows keyed by one query (before) keep '{}'.
 ALTER TABLE search_failures ADD COLUMN missed TEXT NOT NULL DEFAULT '{}';
 `,
   },
