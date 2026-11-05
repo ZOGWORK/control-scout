@@ -61,6 +61,20 @@ describe("slots", () => {
     expect(await parse("4215 rank at nj states")).toMatchObject({ intent: "event-rank", states: true, place: { state: "NJ" } });
     expect((await parse("alphatronic wins from bucharest")).place).toMatchObject({ kind: "city", country: "Romania" });
   });
+  it("reads a region code, a country and a place before their words are read as anything else", async () => {
+    expect((await parse("4215 record in ME")).place).toMatchObject({ kind: "region", state: "ME" });
+    expect((await parse("4215 record in IN")).place).toMatchObject({ kind: "region", state: "IN" });
+    expect((await parse("4215 record in united states")).place).toMatchObject({ kind: "country", country: "USA" });
+    expect(await parse("4215 record in united states")).toMatchObject({ states: false, complete: true });
+    // "or" in lower case is a word, never Oregon.
+    expect((await parse("4215 or 6980 opr")).place).toBeNull();
+  });
+  it("never drops a second event: the parse is left incomplete", async () => {
+    expect((await parse("4215 record at nj championship at turnpike division")).complete).toBe(false);
+  });
+  it("a limit or a match number never makes a team's number a year", async () => {
+    expect(await parse("2024 last 5 matches")).toMatchObject({ teams: [{ number: 2024 }], n: 5, time: null, intent: "last-matches" });
+  });
   it("reads a limit, a match number and a match type", async () => {
     expect(await parse("4215 last 5 matches")).toMatchObject({ intent: "last-matches", n: 5 });
     expect(await parse("top 5 teams by opr in nj")).toMatchObject({ intent: "leaderboard", n: 5, place: { state: "NJ" } });
@@ -109,6 +123,9 @@ describe("time", () => {
     expect(t("on mar 15, 2026")).toMatchObject({ from: "2026-03-15", to: "2026-03-15", season: 2025 });
     expect(t("in march")).toMatchObject({ from: "2027-03-01", to: "2027-03-31", season: 2026 });
     expect(t("march 2026")).toMatchObject({ from: "2026-03-01", season: 2025 });
+    expect(t("in may")).toMatchObject({ from: "2027-05-01", to: "2027-05-31", season: 2026 });
+    expect(t("may 2026")).toMatchObject({ from: "2026-05-01", to: "2026-05-31", season: 2025 });
+    expect(t("may")).toBeNull();
     expect(t("2024-25")).toMatchObject({ kind: "season", season: 2024 });
     expect(t("into the deep")).toMatchObject({ kind: "season", season: 2024 });
     expect(t("2025")).toMatchObject({ kind: "season", season: 2025, year: 2025 });
