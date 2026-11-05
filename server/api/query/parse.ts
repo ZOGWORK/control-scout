@@ -63,7 +63,7 @@ export interface ParseContext {
   prefer?: ReadonlySet<string>;
 }
 
-type Tok = { w: string; typed: string; used: boolean; alliance?: boolean };
+type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?: "red" | "blue" };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** The kind words an event's name can end with. */
@@ -182,7 +182,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
     for (const s of e.syms) {
       if (s.k === "level") p.level = s.v;
-      else if (s.k === "alliance") p.alliance = s.v;
+      else if (s.k === "alliance") { p.alliance = s.v; e.words.forEach((_, j) => (toks[i + j].side = s.v)); }
       else if (s.k === "worlds") p.worlds = true;
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
@@ -236,7 +236,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     }
     // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean". A name can start with a word
     // read as filler ("the roocats": The Robocats) or a colour read as an alliance, so the words just before the run are
-    // tried with it first; a colour taken into the name is no longer the alliance.
+    // tried with it first; a colour taken into the name is no longer an alliance, and the alliance is the one the
+    // phrases outside the name said ("on red blue lanternfsh": red).
     if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
     for (const k of [2, 1, 0]) {
       const start = from - k;
@@ -246,7 +247,12 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
       span.forEach((t) => (t.used = true));
-      if (span.some((t) => t.alliance) && !toks.some((t) => t.alliance && !span.includes(t))) { symbols.delete(`alliance:${p.alliance}`); p.alliance = null; }
+      if (span.some((t) => t.alliance)) {
+        const side = toks.filter((t) => t.side && !span.includes(t)).pop()?.side ?? null;
+        symbols.delete("alliance:red"); symbols.delete("alliance:blue");
+        p.alliance = side;
+        if (side) symbols.add(`alliance:${side}`);
+      }
       break;
     }
   }

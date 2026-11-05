@@ -42,6 +42,9 @@ describe("slots", () => {
     expect(ctx.names.nearTeam("dexxa")).toBeNull();
     // A colour the lexicon read as an alliance can start the name: the whole name is nearer than its last word alone.
     expect(await parseQuery("blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006, via: "near" }], alliance: null, complete: true });
+    // An alliance said apart from the name stays: the one said outside the name.
+    expect(await parseQuery("on red blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006 }], alliance: "red" });
+    expect(await parseQuery("red alliance blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006 }], alliance: "red" });
   });
   it("drops a possessive after any letter, so a name in another script never leaves a stray 's'", async () => {
     expect(await parse("what is 30009 Mitspe Yam/מצפה ים's lowest score")).toMatchObject({ teams: [{ number: 30009 }], intent: "lowest-score" });
