@@ -29,7 +29,7 @@ Every search answer card now passes the results guide's checks: colour means tea
 - **One check for every card.** A test now draws each kind of search answer (comparisons, top matches and match boxes, a single match, leaderboards, a record, stat tiles, event results, trends, phase bars, a prediction at an event, a relaxed time window, a match video, event awards, team facts, Worlds trips and their summary, "how good is" a team) and holds each to the results guide: every bar as long as its number from zero (within 5%), hue for teams only and red and blue only for alliances, no gold on data, at most three hues, nothing said twice, no parser or debug text, and every piece of text at 4.5:1 in Light, Dim, Dark and Midnight.
 - **Neutral where it isn't a team.** An award's podium is told by its steps, icons and places, not green, blue and orange. A Worlds trip's rank, record, OPR and awards are plain pills, its marked trip a solid label, and the summary's numbers, rank line and win-rate ring neutral ink. A team's location tile drops its blue. A trend line is no longer gold.
 - **Honest bars.** The leaderboard's OPR bar was 0.5rem short of its number; it now sits in its own track at exactly OPR over the best. A record's split bar uses the unrounded win share.
-- **Readable alliances.** On Dim, red alliance numbers take rose 400 (rose 500 fell to 3.8:1 on a match box's tint), and a losing alliance's score in the combined table is muted grey instead of faded red or blue. (#PR)
+- **Readable alliances.** On Dim, red alliance numbers take rose 400 (rose 500 fell to 3.8:1 on a match box's tint), and a losing alliance's score in the combined table is muted grey instead of faded red or blue. (#759)
 
 ## 3.2.4 — 2026-11-05
 
