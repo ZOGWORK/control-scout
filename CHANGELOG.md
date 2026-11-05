@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.2 — 2026-11-04
 
-Search is now checked every day against questions it has never seen, built from the data, with every answer under a second. (#PRNUM)
+Search is now checked every day against questions it has never seen, built from the data, with every answer under a second. (#719)
 
 ### Highlights
 - [fixes] Long team names (seven words and more) are read whole
