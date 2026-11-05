@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.9 — 2026-11-05
+
+Home's search chips change every hour, six at a time from a pool that shows each kind of answer search gives.
+
+### Highlights
+- [home] Six new search chips every hour, the same for everyone
+- [home] Chips for OPR, records, Worlds, awards, winners and more
+- [home] Questions in a sentence and searches with several filters
+- [home] The box's "Try" hint walks through the hour's chips
+
+### Home
+- **Suggestions that rotate.** The six chips under Home's search are picked each UTC hour from about 70 queries: team facts, OPR by phase, prediction rating, records with quals and playoffs apart, matches at an event or Worlds, awards, Worlds trips, two and three teams compared, leaderboards, event winners, next events, a misspelt name, questions in a sentence and searches joining several filters. Never two of one kind, always a leaderboard and a sentence or filtered search, and no team twice. A long query shows a short label and runs in full. The pick is worked out from the clock, so nothing extra loads and a cached page still changes on the hour.
+- **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found. (#705)
+- **Taps and room.** On a touch screen each chip's tap area is 44px tall, with the chip drawn the same size as before. Where the search column is too narrow for three rows to hold any six (a phone, or beside the globe), the chips are one row that scrolls sideways, so the hourly change never moves the page.
+
 ## 3.1.8 — 2026-11-05
 
 Search reads a season's best scores by its game, without penalties or by period, and common words never name a team.
