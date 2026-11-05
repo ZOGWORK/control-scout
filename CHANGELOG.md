@@ -29,7 +29,7 @@ When a question's time window has nothing in it, search widens it one step at a 
 
 ## 3.1.9 — 2026-11-04
 
-Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data.
+Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data. (#713)
 
 ### Highlights
 - [teams] Any word order, any filler: one question gets one answer card
