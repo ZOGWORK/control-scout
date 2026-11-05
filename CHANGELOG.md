@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.0 — 2026-11-04
+
+When a question's time window has nothing in it, search widens it one step at a time and says so on the card.
+
+### Highlights
+- [teams] Nothing this week? The season's answer, marked as relaxed
+- [rankings] "Highest-scoring match in California this week" always answers
+- [fixes] A place, an event or a year named is never widened
+
+### Changes
+- **Relaxed filters, stated.** When nothing matches a date window ("this week", "last weekend", "in March"), search widens it to that window's season. If that season has nothing yet, it uses the season before. The card's first chip says what changed ("Relaxed: this week → 2025–26"), the heading ends "relaxed from this week to 2025–26", and the note under the card lists each step it tried. A place, an event, a team or a year named is never widened: "in 2024-25" with nothing there says so.
+
 ## 3.1.9 — 2026-11-04
 
 Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data.
