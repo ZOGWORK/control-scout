@@ -17,10 +17,10 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.5 — 2026-11-05
 
-Search is checked against 533 questions people wrote for it, and the slow ones are fast. (#PRNUM)
+Search is checked against 533 questions people wrote for it, and the slow ones are fast. (#726)
 
 ### Highlights
-- [speed] Lists of teams that went to Worlds or won an award: under a second, not 45
+- [speed] Team lists filtered by Worlds or an award: under a second, not 45
 - [speed] Long questions no longer look the same words up again and again
 - [report] Search is measured on 533 questions people wrote, by pattern
 

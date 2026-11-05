@@ -8,13 +8,14 @@
 //
 //   npm run search:heldout                    the shipped snapshot, every set
 //   npm run search:heldout -- --set q260 --out .data/heldout.jsonl
+//   npm run search:heldout -- --only "closest"   the questions with these words only
 //   DATABASE_URL=file:.data/scout.db npm run search:heldout
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const flag = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
-const SET = flag("set"), OUT = flag("out");
+const SET = flag("set"), OUT = flag("out"), ONLY = flag("only")?.toLowerCase();
 if (!process.env.DATABASE_URL) {
   const dir = join(tmpdir(), "control-scout-search-eval");
   mkdirSync(dir, { recursive: true });
@@ -42,7 +43,7 @@ await forecasterFor(CURRENT_SEASON);
 await forecasterFor(season);
 const FILLER = new Set(LEXICON.filter((e) => e.syms.every((x) => x.k === "filler")).flatMap((e) => e.words));
 const sets = (JSON.parse(readFileSync(join(import.meta.dirname, "search-heldout.json"), "utf8")) as { set: string; n: number; q: string }[])
-  .filter((x) => !SET || x.set === SET);
+  .filter((x) => (!SET || x.set === SET) && (!ONLY || x.q.toLowerCase().includes(ONLY)));
 
 type Row = { set: string; n: number; q: string; ms: number; intent: string | null; filters: string[]; place: string | null; time: string | null; card: string; stated: boolean; pattern: string; unread: string[] };
 const rows: Row[] = [];
@@ -61,7 +62,7 @@ for (const x of sets) {
   const placeStated = !place || text.includes(fold(place)) || /isnt a separate region/.test(text);
   // "This season", "last season": the season it resolved to, whichever that is (the card names it).
   const timeStated = !p.time || /relaxed|no .* yet|showing \d{4}/.test(text) || text.includes(fold(p.time.label))
-    || (p.time.kind === "season" && /20\d\d 2[0-9]/.test(text)) || (p.time.kind === "ever" && /every season|all seasons|each season|ever/.test(text))
+    || (p.time.kind === "season" && /\b20\d\d 2[0-9]\b/.test(text)) || (p.time.kind === "ever" && /every season|all seasons|each season|ever/.test(text))
     || (p.time.year != null && text.includes(String(p.time.year)));
   // An events question's answer is the list of events, its place and time in the heading.
   const answered = !!s || !!a.card || (a.understood?.kind === "events" && !a.understood.fallback);
@@ -77,6 +78,7 @@ for (const x of sets) {
     : leftOut || (piped && unread.length) ? "words not read"
     : "pass";
   const card = s ? `${s.title} = ${s.headline?.value ?? s.none ?? "–"}` : a.card ? `${a.card.title}${a.card.none ? ` = ${a.card.none}` : ""}` : `(${a.understood?.kind ?? "none"}) ${a.understood?.label ?? ""}`;
+  if (ONLY) console.log(JSON.stringify({ q: x.q, time: p.time, text, placeStated, timeStated }));
   rows.push({ ...x, ms: Math.round(ms), intent: p.intent ?? s?.intent ?? null, filters: [...(s?.scope ?? [])], place, time, card, stated: placeStated && timeStated, pattern, unread });
 }
 
