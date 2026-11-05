@@ -16,6 +16,7 @@ import { DataStatus } from "../DataStatus";
 import { cn } from "../cn";
 import { eventState, homeReplays, shortDay, usageView, type RecordView } from "./homeModel";
 import { headlineRule, LEDGER_MODE } from "../../shared/ledger";
+import { CURRENT_ENGINE, CURRENT_ENGINE_ROWS } from "../howitworks/currentEngine";
 
 const fmt = (n: number) => n.toLocaleString();
 
@@ -199,7 +200,7 @@ function CalendarRow({ e }: { e: EventListItem }) {
 // --- The public prediction record ---------------------------------------------------
 
 type RecordTab = "replay" | "soFar";
-const RECORD_TAB: Record<RecordTab, string> = { replay: "Season replay", soFar: "This season so far" };
+const RECORD_TAB: Record<RecordTab, string> = { replay: "Last season", soFar: "This season so far" };
 
 export function PredictionRecord() {
   const state = useApi<TrackRecord>("/api/predict/accuracy");
@@ -211,6 +212,10 @@ export function PredictionRecord() {
   const tabs = (["replay", "soFar"] as const).filter((k) => k === "replay" || views[k]);
   const tab = views[chosen] ? chosen : "replay";
   const view = views[tab];
+  // Last season leads with today's engine on the month-by-month test (How it works › Accuracy) when that season
+  // has one; the site's own full-season replay is named beside it.
+  const eng = tab === "replay" && view && !view.noneDecided ? CURRENT_ENGINE_ROWS.find((r) => r.seasonYear === view.season) : undefined;
+  const tabN = (k: RecordTab) => (k === "replay" && eng ? eng.matches : views[k]!.block.n);
   return (
     <section aria-labelledby="record-title" className="min-w-0 rounded-2xl border border-line bg-card p-5 max-sm:p-4 @2xl/home:p-6">
       <Kicker>The public track record</Kicker>
@@ -225,15 +230,31 @@ export function PredictionRecord() {
               className="mt-4 rounded-xl border border-line p-1">
               {tabs.map((k) => (
                 <ToggleGroupItem key={k} value={k} size="lg" className="gap-1.5 rounded-lg px-3 text-sm max-sm:h-10 aria-checked:bg-accent/10 aria-checked:text-accent-text aria-checked:ring-1 aria-checked:ring-inset aria-checked:ring-accent/50 dark:aria-checked:bg-accent/10"
-                  aria-label={`${RECORD_TAB[k]}, ${fmt(views[k]!.block.n)} scored`}>
+                  aria-label={`${RECORD_TAB[k]}, ${fmt(tabN(k))} scored`}>
                   {RECORD_TAB[k]}
-                  <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(views[k]!.block.n)}</span>
+                  <span aria-hidden className="font-mono text-xs tabular-nums text-text-muted">{fmt(tabN(k))}</span>
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
           )}
           <div id="record-evidence" role="region" aria-live="polite" aria-label={RECORD_TAB[tab]} className="mt-4">
-            {!view ? (
+            {view && eng ? (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Engine {CURRENT_ENGINE.version} · tested month by month{view.isHeadline && " · the headline"}</p>
+                <p className="font-display text-6xl font-semibold tabular-nums text-accent-text">{pct(eng.accuracy, 1).replace("%", "")}<span className="text-3xl">%</span></p>
+                <p className="mt-1 text-sm text-text-muted">Correct winner · {view.seasonLabel}, each month predicted by an engine fitted only on the year before</p>
+                <div className="mt-4">
+                  <div className="flex h-2 overflow-hidden rounded-full bg-text-base/15" role="img" aria-label={`${fmt(eng.correct)} correct, ${fmt(eng.matches - eng.correct)} missed of ${fmt(eng.matches)} decisive calls`}>
+                    <div className="bg-accent" style={{ width: `${(eng.correct / eng.matches) * 100}%` }} />
+                  </div>
+                  <p className="mt-2 flex justify-between text-sm tabular-nums"><span>{fmt(eng.correct)} correct</span><span className="text-text-muted">{fmt(eng.matches - eng.correct)} missed</span></p>
+                </div>
+                <p className="mt-2 text-xs text-text-muted">
+                  {`${fmt(eng.matches)} matches with a winner at rated events, not calls made in advance. The site’s replay of every ${view.seasonLabel} match in order scores ${view.split ? `${pct(view.block.accuracy, 1)} on ${fmt(view.split.decided)} decisive calls` : pct(view.block.accuracy, 1)}; the two use different match lists.`}
+                  {` Engine v${t.engineVersion} serves predictions now · updated ${ago(t.generatedAt)}.`}
+                </p>
+              </>
+            ) : !view ? (
               <p className="rounded-xl border border-dashed border-line px-4 py-6 max-sm:py-4 text-sm text-text-muted">No replayed season is on record yet.</p>
             ) : (
               <>

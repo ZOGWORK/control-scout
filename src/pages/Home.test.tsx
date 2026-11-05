@@ -234,11 +234,14 @@ describe("Home", () => {
     data = { "/api/predict/accuracy": { seasons, engineVersion: "3.2.0", liveThreshold: LIVE_THRESHOLD, headline: pickHeadline(seasons), recentCalls: [], generatedAt: new Date().toISOString() } };
     mount();
     const radios = screen.getAllByRole("radio");
-    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["Season replay, 41,743 scored", "This season so far, 1,087 scored"]);
+    expect(radios.map((r) => r.getAttribute("aria-label"))).toEqual(["Last season, 36,572 scored", "This season so far, 1,087 scored"]);
     expect(radios[0].getAttribute("aria-checked")).toBe("true");
-    expect(screen.getByText("Season replay · the headline")).toBeTruthy();
-    expect(screen.getByText("73.8")).toBeTruthy();
-    expect(screen.getByText(/The headline is the 2025–26 DECODE replay/)).toBeTruthy();
+    // Last season leads with engine 3.5's month-by-month test; the site's full replay is named beside it.
+    expect(screen.getByText("Engine 3.5 · tested month by month · the headline")).toBeTruthy();
+    expect(screen.getByText("74.8")).toBeTruthy();
+    expect(screen.getByText("27,354 correct")).toBeTruthy();
+    expect(screen.getByText("9,218 missed")).toBeTruthy();
+    expect(screen.getByText(/replay of every 2025–26 DECODE match in order scores 73\.8% on 41,405 decisive calls/)).toBeTruthy();
     fireEvent.click(radios[1]);
     expect(screen.getByText("Season replay · 2026–27 BIOBUZZ so far")).toBeTruthy();
     expect(screen.getByText("68.4")).toBeTruthy();
