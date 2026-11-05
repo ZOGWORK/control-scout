@@ -24,6 +24,8 @@ export interface MatchFind {
   level: "qual" | "playoff" | null;
   /** The finals only: a classic bracket's "F" series, a double-elimination bracket's grand final and its replay. */
   finals: boolean;
+  /** A win or a loss said ("closest win"): decided matches only, never a tie. */
+  decided?: boolean;
   /** FIRST event types ("LeagueMeet"), with the words for them; none: every official event. */
   kind: { types: string[]; label: string } | null;
   /** How many to list; the first is the answer. */
@@ -102,6 +104,7 @@ function where(f: MatchFind) {
   if (f.window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(f.window.from, f.window.to); }
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
   if (f.finals) sql.push(FINAL);
+  if (f.decided) sql.push("m.red_total <> m.blue_total");
   return { sql: sql.join(" AND "), args };
 }
 
@@ -136,7 +139,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const typed = [f.kind ? `at ${f.kind.label.toLowerCase()}` : null, place ? `in ${place}` : null, f.window ? f.window.label : null].filter(Boolean).join(" ");
   const title = `${(filters ? `${ms.title.replace(/match/, `${filters} match`)}` : ms.title)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
   const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
-    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), "Official events"];
+    ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), ...(f.decided ? ["No ties"] : []), "Official events"];
   const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches at official events held in person, with both alliances' points on record.`;
   const where2 = `${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
