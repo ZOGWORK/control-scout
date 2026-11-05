@@ -213,6 +213,8 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
+  if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
+  if (s.window) scope.window = s.window;
   if (s.outOfState) {
     // "Out-of-state events": outside the team's own state, as its team page lists it.
     const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team]);
@@ -361,6 +363,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     return f ? factSearch(q, f, resolve, opts) : null;
   }
   if (it.noTeam) return winnersSearch(q, it, opts);
+  return statAnswerOf(q, it, resolve, opts);
+}
+
+/** The answer to a stat question already read (by ./read.ts, or by the search pipeline from its slots), or null when
+ *  its team isn't found. */
+export async function statAnswerOf(q: string, it: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const base = await resolve(it.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
@@ -510,7 +518,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
 
 /** "Highest scoring games in decode", "top scores in nj this season", "highest scoring match ever": no team, a
  *  season's best alliance and combined scores, worked out for the page only. */
-async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const label = `Highest-scoring matches${t.region ? ` in ${t.region.name}` : t.event ? ` at ${t.event}` : ""}${t.ever ? ", each season" : t.season != null ? `, ${seasonLabel(t.season)}` : ""}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
@@ -677,7 +685,7 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
 
 /** "4215 vs 6980 head to head", "4215 OPR vs 6980": both teams found by search as typed (a team number or a name it
  *  matches outright), else left to Compare's own versus answer, which asks about a shared name. */
-async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // Each side by Compare's own rules (a number, an exact name, the one that has played, the newest); a name several
   // teams share is left to Compare, which asks which one.
   const [na, nb] = await Promise.all([namedTeam(two.a, new Set()), namedTeam(two.b, new Set())]);
@@ -689,6 +697,8 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   const s = two.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
+  if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
+  if (s.window) scope.window = s.window;
   // "This season" for the meetings: the first team's latest season with matches; for season numbers, the latest both played.
   if (MEETING_IDS.has(two.id) && s.season == null && s.latest) {
     const ms = (await teamMatches(a.number)).filter(officialClause());
@@ -853,7 +863,7 @@ function boardOfAsk(q: string): LeaderboardQuestion | null {
 
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's
  *  teams), worked out for the page only. A city no team lists is left to search. */
-async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const isCity = b.kind === "city" || b.kind === "city-best";
   const city = isCity ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
   if (isCity && !city) return null;

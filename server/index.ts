@@ -23,6 +23,7 @@ import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
 import { warmTypoIndex } from "./api/search.js";
+import { names as warmNames } from "./api/query/names.js";
 import { seasonCutoffs } from "./api/matchReport.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
@@ -81,6 +82,7 @@ warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track 
 warmSpelling().then(() => log("spelling ready")).catch((e) => log(`spelling not ready: ${(e as Error).message}`))
   // Then search's typo index (every name's words, numbered: about a second cold), so a deploy's first typo doesn't wait.
   .then(() => warmTypoIndex()).then(() => log("typo index ready")).catch((e) => log(`typo index not ready: ${(e as Error).message}`));
+warmNames().then(() => log("search names ready")).catch((e) => log(`search names not ready: ${(e as Error).message}`));
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous

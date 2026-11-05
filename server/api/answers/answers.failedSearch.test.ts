@@ -116,10 +116,11 @@ describe("an event named beside the team, with no \"at\"", () => {
       expect(a.stat?.scope).toContain("East Bergen Conference Northern League Tournament");
     }
   });
-  it("only the team's own events: words that name none of them leave the question to search (10809, 30030, 20265)", async () => {
+  it("an event the team didn't play: never another event's rank, the card says so (10809, 30030, 20265)", async () => {
     for (const t of [10809, 30030, 20265]) {
       const a = await full(`what rank did ${t} get in the east bergen conference`);
-      expect(a.intent?.kind ?? "", String(t)).not.toBe("stat-event-rank");
+      expect(a.stat?.headline, String(t)).toBeUndefined();
+      expect(a.stat?.none ?? "", String(t)).toMatch(/didn't play at East Bergen Conference Northern League Tournament/);
     }
     // Nothing beside the team at all: unchanged.
     expect(readStatQuestion("4215 rank")).toBeNull();
