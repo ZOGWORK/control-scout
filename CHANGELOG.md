@@ -20,7 +20,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results. (#PRNUM)
 
 ### Highlights
-- [predict] "Predicted chances of a team at an event" answers in the card
+- [predict] "Predicted chances of a team at an event" gets an answer
 - [predict] The win chance is a 0–100% bar, with Open in Predict
 - [fixes] No answer shows the closest teams and events as full cards
 - [fixes] How FTC One Search works describes the search as it is now
