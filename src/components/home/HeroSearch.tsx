@@ -7,7 +7,7 @@
 // cached or prerendered page still shows this hour's six, and nothing is fetched for them.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type Ref, type RefObject } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeftRight, Award, CalendarClock, Crown, Gauge, Globe, ListFilter, ListOrdered, MapPin, Medal, MessageCircleQuestion, SpellCheck, Swords, TrendingUp, Users } from "lucide-react";
+import { ArrowLeftRight, Award, CalendarClock, Crown, Gauge, Globe, ListFilter, ListOrdered, MapPin, Medal, MessageCircleQuestion, Swords, TrendingUp, Users } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { SearchBox, hitHref, searchPagePick } from "../search/SearchBox";
 import { addRecentSearch } from "../search/discover";
@@ -28,7 +28,6 @@ const KINDS: Record<SuggestionKind, { label: string; icon: ComponentType<{ class
   leaderboard: { label: "Leaderboard", icon: Medal },
   winners: { label: "Winners", icon: Crown },
   predict: { label: "Prediction", icon: CalendarClock },
-  spelling: { label: "Spelling", icon: SpellCheck },
   question: { label: "Question", icon: MessageCircleQuestion },
   filters: { label: "Filters", icon: ListFilter },
 };

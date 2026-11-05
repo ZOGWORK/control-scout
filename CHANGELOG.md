@@ -17,16 +17,18 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.4 — 2026-11-05
 
-Home's search chips wrap onto rows instead of sliding sideways, and a chip is shown whole or not at all.
+Home's search chips wrap onto rows instead of sliding sideways, a chip is shown whole or not at all, and none is misspelled.
 
 ### Highlights
 - [home] Search chips wrap onto rows: nothing slides sideways
 - [home] Every chip shows whole, never cut off mid-word
-- [home] Phones keep two rows of chips, packed to fit the most
-- [home] Three rows on tablets and desktops; the hour's change never shifts
+- [home] Desktops show all six chips every hour; phones the most that fit
+- [fixes] No more misspelled example searches among the chips
 
 ### Home
 - **Chips on rows.** The hour's six chips under Home's search wrap onto rows of a fixed height: three from a small tablet up, two on a phone. Each chip is measured once, and the most that fit whole are packed onto the rows, a leaderboard and a sentence or filtered search kept first; one that doesn't fit is left out, never cut off, and the "Try" hint walks only through the chips showing. Nothing scrolls sideways, and the list is the same height every hour, so the change on the hour never moves the page. On a touch screen each chip's tap area is 44px, with the rows far enough apart that two never overlap. (#735)
+- **All six on a desktop.** Each hour's six are picked to fit a desktop's three rows whole, even in the narrow column beside the globe, so a desktop never leaves one out.
+- **Spelled right.** The three chips that showed off "Did you mean" with a misspelled name ("Hypnotik robotics OPR") are gone, and that kind of chip with them: shown as a thing to try, a typo read as ours. `npm run suggestions:check` now also fails a chip whose query or label search would correct, against the stored team, event and place names, or that spells a named team otherwise than the team's own name.
 
 ## 3.2.3 — 2026-11-05
 

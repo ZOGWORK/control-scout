@@ -1,9 +1,9 @@
 // Home's suggestion pool and the hourly pick: every family of answer is in the pool, each chip fits, and each hour
 // gives six of different families, with a leaderboard and a sentence or filtered query, the same in every browser.
 import { describe, expect, it } from "vitest";
-import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, fitChips, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, DESKTOP_CHIPS, allFit, chipWidthEstimate, fitChips, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type HomeSuggestion, type SuggestionKind } from "./homeSuggestions";
 
-const KINDS: SuggestionKind[] = ["team", "opr", "rating", "record", "matches", "awards", "worlds", "versus", "three", "leaderboard", "winners", "predict", "spelling", "question", "filters"];
+const KINDS: SuggestionKind[] = ["team", "opr", "rating", "record", "matches", "awards", "worlds", "versus", "three", "leaderboard", "winners", "predict", "question", "filters"];
 const T0 = Date.UTC(2026, 10, 4, 0, 0);
 const hours = Array.from({ length: 24 * 60 }, (_, h) => T0 + h * SUGGESTION_HOUR_MS);
 
@@ -48,6 +48,15 @@ describe("suggestionsAt", () => {
     for (let i = 1; i < hours.length; i++) expect(suggestionsAt(hours[i]).map((s) => s.q)).not.toEqual(suggestionsAt(hours[i - 1]).map((s) => s.q));
     const seen = new Set(hours.flatMap((h) => suggestionsAt(h).map((s) => s.q)));
     expect(HOME_SUGGESTIONS.filter((s) => !seen.has(s.q)).map((s) => s.q)).toEqual([]);
+  });
+  it("fits every hour's six whole on a desktop's rows, beside the globe too", () => {
+    const short = hours.filter((h) => !allFit(suggestionsAt(h).map(chipWidthEstimate), DESKTOP_CHIPS.width, DESKTOP_CHIPS.gap, DESKTOP_CHIPS.rows)).length;
+    expect(short).toBe(0);
+    // allFit agrees with fitChips keeping all of them.
+    for (const h of hours.slice(0, 48)) {
+      const ws = suggestionsAt(h).map(chipWidthEstimate);
+      for (const w of [300, 390, 500]) expect(allFit(ws, w, 8, 2)).toBe(fitChips(ws, w, 8, 2).length === ws.length);
+    }
   });
   it("never names one team twice in an hour", () => {
     const clashes = hours.filter((h) => { const t = suggestionsAt(h).flatMap(suggestionTeams); return new Set(t).size !== t.length; }).length;
