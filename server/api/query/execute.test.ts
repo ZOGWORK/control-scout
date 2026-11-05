@@ -5,6 +5,8 @@ import { migrate, openDb, run, setDb } from "../../db";
 import { rebuildSearch } from "../../stats/job";
 import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
+import { namedParts, rewriteQuery } from "../searchCoverage";
+import { names } from "./names";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
 // Wednesday 2026-03-18: "this week" is Mar 16–22, 2026, inside the 2025–26 season.
@@ -19,6 +21,7 @@ beforeAll(async () => {
   const teams: [number, string, string, string, string][] = [
     [4215, "Hypnotic Robotics", "Oradell", "NJ", "USA"], [6980, "Bad Wolf", "Fair Lawn", "NJ", "USA"], [24033, "Alphatronic", "Cluj-Napoca", "CJ", "Romania"],
     [17713, "Delta Force", "Arad", "AR", "Romania"], [10809, "Crow Force", "Los Angeles", "CA", "USA"], [5555, "Never Listed", "Fresno", "CA", "USA"],
+    [30010, "Brunswick Bots", "East Brunswick", "NJ", "USA"],
   ];
   for (const [n, name, city, state, country] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -31,6 +34,7 @@ beforeAll(async () => {
   await ev("USCAQ0", "Winter Qualifier", "Qualifier", "2026-01-24", "CA", "USA");
   await ev("ROCMP", "Romania Championship", "Championship", "2026-03-14", "B", "Romania");
   await ev("FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2026-04-29", "TX", "USA");
+  await ev("USTXNOCMP", "North Texas Championship", "Championship", "2026-02-28", "TX", "USA");
   let n = 0;
   const match = async (code: string, day: string, red: number, blue: number, reds: number[], blues: number[]) => {
     n++;
@@ -119,6 +123,15 @@ describe("place and time are applied and stated", () => {
     const a = await ask("highest scoring match in northern california this week");
     expect(a.stat?.scope).toContain("California");
     expect(a.understood?.label).toMatch(/Northern California isn't a separate region: all of California$/);
+  });
+  it("never a part of a region when the words are a whole region, a stored town or an event", async () => {
+    expect(rewriteQuery("rookie teams in new south wales")?.q ?? "").not.toContain("new wales");
+    const idx = await names();
+    expect(idx.place("east brunswick")).toMatchObject({ kind: "city", city: "East Brunswick" });
+    expect(idx.place("northern in", "northern IN")).toMatchObject({ kind: "region", state: "IN", part: "northern IN" });
+    for (const q of ["highest score in east brunswick", "north texas championship"]) expect(rewriteQuery(q, await namedParts(q)), q).toBeNull();
+    // A part with nothing stored by that name is still the whole region.
+    expect(rewriteQuery("events in north jersey", await namedParts("events in north jersey"))?.q).toBe("events in new jersey");
   });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");

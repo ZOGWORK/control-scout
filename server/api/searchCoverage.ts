@@ -28,6 +28,8 @@ import { searchSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
+import { names } from "./query/names.js";
+import { parseContext } from "./query/context.js";
 import { seasonStats } from "./teams.js";
 import { REGION_RULESETS, pointsSystem } from "../data/roadmapRules.js";
 import { FORECAST_RUNS } from "../../src/shared/projections.js";
@@ -76,7 +78,26 @@ function seasonWord(t: string, typos = false): { season: string; rest: string; g
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
  *  before the stat answers, whose readers would take the original the wrong way ("have 12345 and 67890 played each other"
  *  read "67890 played each other" as a team's name). */
-export function rewriteQuery(q: string): { q: string; note?: string; pre?: true } | null {
+/** The direction-and-region words in `q` that name something stored ("East Brunswick", a town; "North Texas
+ *  Championship", an event): rewriteQuery keeps them as typed. Nothing to look up unless a direction word is there. */
+export async function namedParts(q: string): Promise<Set<string>> {
+  const ws = squash(q.toLowerCase()).split(" "), out = new Set<string>();
+  if (!ws.some((w) => regionPartOf([w, "jersey"]))) return out;
+  const [idx, ctx] = await Promise.all([names(), parseContext()]);
+  for (let i = 0; i + 1 < ws.length; i++) {
+    for (const len of [3, 2]) {
+      const part = ws.slice(i, i + len);
+      if (part.length < len || !regionPartOf(part)) continue;
+      let named = idx.place(part.join(" "))?.kind === "city";
+      // The part and the words after it, as far as an event's name could run.
+      for (let k = i + len; !named && k <= Math.min(ws.length, i + len + 3); k++) named = await ctx.isEvent(ws.slice(i, k).join(" "));
+      if (named) out.add(part.join(" "));
+    }
+  }
+  return out;
+}
+
+export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()): { q: string; note?: string; pre?: true } | null {
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
   // Whether two teams have met: their head-to-head (every match they played on opposite alliances).
@@ -240,7 +261,9 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   const ws = t.split(" ");
   for (let i = 0; i + 1 < ws.length; i++) {
     for (const len of [3, 2]) {
-      const part = i + len <= ws.length ? regionPartOf(ws.slice(i, i + len)) : null;
+      // Never words of a whole region ("south wales" in New South Wales) or of a stored town or event.
+      const whole = [1, 2].some((b) => i - b >= 0 && regionOf(ws.slice(i - b, i + len)));
+      const part = i + len <= ws.length && !whole && !named.has(ws.slice(i, i + len).join(" ")) ? regionPartOf(ws.slice(i, i + len)) : null;
       if (part) return { q: [...ws.slice(0, i), part.region.name.toLowerCase(), ...ws.slice(i + len)].join(" "), note: `${titleCase(part.part)} isn't a separate region: all of ${part.region.name}` };
     }
   }

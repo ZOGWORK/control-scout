@@ -41,7 +41,7 @@ import { layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
 import { pipelineAnswer, pipelineReads } from "./query/execute.js";
-import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
+import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, namedParts, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
 /** A top result scoring under this against what was typed is a correction ("did you mean"), not a match. */
@@ -256,7 +256,7 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   // 0. A phrasing the readers below miss, said the way they read it ("compare 12345 and 67890" → "12345 vs 67890"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so
   // before the stat answers read it; every other rewrite after them, which answer a team's own stats first.
-  const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q) : null;
+  const rw = opts.intents !== false && (opts.rewrites ?? 0) < 2 ? rewriteQuery(q, await namedParts(q)) : null;
   const rewritten = async (r: { q: string; note?: string }) => {
     const a = await searchAnswer(opts.asked ? `${r.q}?` : r.q, { ...opts, rewrites: (opts.rewrites ?? 0) + 1 });
     const u = a.understood ?? understoodOf(a);

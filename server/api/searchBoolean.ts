@@ -37,6 +37,9 @@ type Op = "and" | "or" | "not";
 type Tok = { op: Op } | { word: string } | { phrase: string };
 /** A literal: a team, or (negated) not that team. An expression is OR of AND groups. */
 interface Lit { team: number; neg: boolean }
+/** A number this wide beside a team's is read as a year (a season), never a second team. */
+const YEAR_MIN = 1990, YEAR_MAX = 2099;
+
 export interface BoolQuery { groups: Lit[][]; rest: string; ops: Op[]; phrase?: string }
 
 const isOp = (t: Tok): t is { op: Op } => "op" in t;
@@ -133,7 +136,7 @@ export async function readBoolean(raw: string): Promise<BoolQuery | null> {
   if (lastTeam == null) return null;
   terms.push(lastTeam);
   // A year beside a team number is a season, as search reads "12345 and 2024" (never two teams).
-  const year = (n: number) => n >= 1990 && n <= 2099;
+  const year = (n: number) => n >= YEAR_MIN && n <= YEAR_MAX;
   if (terms.some(year) && !terms.every(year)) return null;
   // Groups: OR starts one, AND and NOT join the term to it; NOT marks the term after it.
   const groups: Lit[][] = [[{ team: terms[0], neg: false }]];
@@ -429,10 +432,14 @@ async function notStatAnswer(raw: string, q: string, read: Reader, full: boolean
   const hit = (await read(String(team))).hits.find((h) => h.kind === "team" && h.ref === String(team));
   if (!hit || hit.href) return null;
   const who = whoOf({ number: team, name: teamNameOf(hit.title) || null });
-  // The example leaves out a team this one really played against most, from its matches.
+  // The example leaves out a team this one really played against most: played matches, both robots on the field, and
+  // never a number the reader takes for a year beside a team's (so the example is one it answers).
   const other = (await get<{ team: number }>(
     `SELECT y.team FROM match_teams x JOIN match_teams y ON y.season = x.season AND y.code = x.code AND y.level = x.level AND y.series = x.series AND y.number = x.number AND y.alliance <> x.alliance
-     WHERE x.team = ? GROUP BY y.team ORDER BY COUNT(*) DESC, y.team LIMIT 1`, [team]))?.team;
+       JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+     WHERE x.team = ? AND m.played = 1 AND COALESCE(x.on_field, 1) = 1 AND COALESCE(y.on_field, 1) = 1
+       AND (y.team NOT BETWEEN ${YEAR_MIN} AND ${YEAR_MAX} OR ? BETWEEN ${YEAR_MIN} AND ${YEAR_MAX})
+     GROUP BY y.team ORDER BY COUNT(*) DESC, y.team LIMIT 1`, [team, team]))?.team;
   const example = other != null ? `${team} not ${other}` : `${team} not <another team's number>`;
   const line = `"not" leaves a team out ("${example}"); "${words}" isn't a team, so nothing was left out`;
   const a: SearchAnswer = {

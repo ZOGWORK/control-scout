@@ -88,8 +88,6 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
       // A region by its name or code (a two-letter code that's also a word only as typed in capitals).
       const r = regionOf((typed ?? w).split(/\s+/)) ?? (f.length >= 5 ? nearRegion(f) : null);
       if (r) return { kind: "region", country: r.country, state: r.state, city: null, name: r.name };
-      const half = regionPartOf(f.split(" "));
-      if (half) return { kind: "region", country: half.region.country, state: half.region.state, city: null, name: half.region.name, part: half.part };
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
       const stored = countries.get(f) ?? [...countries.values()].find((c) => countryOf(c) && countryOf(c) === countryOf(w));
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
@@ -98,6 +96,10 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
         const t = [...town.values()][0];
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };
       }
+      // A part of a region ("north jersey", "northern IN"), as typed so a code in capitals still reads: after a stored
+      // town of that name ("East Brunswick" is a town, never New Brunswick).
+      const half = regionPartOf((typed ?? w).split(/\s+/));
+      if (half) return { kind: "region", country: half.region.country, state: half.region.state, city: null, name: half.region.name, part: half.part };
       return null;
     },
   };
