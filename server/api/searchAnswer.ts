@@ -40,6 +40,7 @@ import { refreshSearchSeason } from "./answers/season.js";
 import { layeredAnswer } from "./searchLayers.js";
 import { spelled } from "./spelling.js";
 import { booleanAnswer } from "./searchBoolean.js";
+import { pipelineAnswer, pipelineReads } from "./query/execute.js";
 import { bottomAnswer, countAnswer, eventCodeAnswer, eventPageAnswer, explainAnswer, monthAnswer, nearMeAnswer, placeTeamsAnswer, rewriteQuery, teamFactAnswer, teamFallback, teamListAnswer, worldsAnswer } from "./searchCoverage.js";
 
 export const MAX_QUERY = 80;
@@ -175,7 +176,11 @@ async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnsw
   const reader = (q: string) => readerAnswer(asked ? `${q}?` : q, { ...opts, inner: true });
   // Boolean operators and quoted phrases are read from the query as typed, before cleaning drops '"' and '|'
   // (./searchBoolean.ts); a query without them goes through the layers exactly as before.
-  const bool = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? "")) ? await booleanAnswer(String(raw ?? ""), reader, opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) : null;
+  // A question the search pipeline reads completely ("4215 and 6980 matches together") is its answer, whatever
+  // operator words it holds: "and" there joins two teams of one question, not two searches.
+  const operators = /["&|-]|\b(?:and|or|not)\b/i.test(String(raw ?? ""));
+  if (operators && !String(raw ?? "").includes('"') && opts.intents !== false && (await pipelineReads(cleanQuery(raw), opts.now, opts.prefer))) return layeredAnswer(cleanQuery(raw), reader);
+  const bool = operators ? await booleanAnswer(String(raw ?? ""), reader, opts.full ?? (opts.limit ?? 12) >= SEARCH_PAGE_LIMIT) : null;
   // Cut to the caller's limit like every other answer (a quoted name adds the teams named exactly that).
   if (bool) return { ...bool, hits: bool.hits.slice(0, opts.limit ?? 12) };
   return layeredAnswer(cleanQuery(raw), reader);
@@ -241,6 +246,12 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   const limit = opts.limit ?? 12, prefer = opts.prefer ?? new Set<string>();
   const q = read;
   if (!q) return recovery(q, ["Nothing typed yet: try a team number, a team or event name, or a match like USNJCMP Q12"]);
+
+  // 0. The search pipeline (./query/, docs/search-pipeline.md): the query parsed into slots in any word order and run
+  // as one structured question over the stored data. A query it can't read completely goes on to the readers below.
+  // It reads the words as typed: plurals are its lexicon's to read, and a team's name keeps its own ("Robotics").
+  const piped = opts.intents === false ? null : await pipelineAnswer(opts.typed ?? q, { full: !!opts.full, pages: pagesFor(q), now: opts.now, prefer, resolve: (core) => searchAnswer(core, { ...opts, intents: false, learn: false }) });
+  if (piped) return piped;
 
   // 0. A phrasing the readers below miss, said the way they read it ("compare 4215 and 6980" → "4215 vs 6980"):
   // ./searchCoverage.ts. Who won Worlds by a year or a game ("who won worlds last year" → "… 2024-25") is said so

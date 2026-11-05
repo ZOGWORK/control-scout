@@ -63,12 +63,14 @@ export interface ParseContext {
 }
 
 type Tok = { w: string; typed: string; used: boolean };
+/** The kind words an event's name can end with. */
+const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** Every word of a lexicon phrase: a team's name beside one ("bad wolf offensive power rating") still ends there. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
 const symKey = (s: Sym): string | null => {
   switch (s.k) {
-    case "agg": case "metric": case "thing": case "level": case "alliance": case "outcome": case "prep": case "award": return `${s.k}:${s.v}`;
+    case "agg": case "metric": case "thing": case "level": case "alliance": case "outcome": case "prep": case "award": case "per": return `${s.k}:${s.v}`;
     case "filler": return null;
     default: return s.k;
   }
@@ -108,9 +110,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (span.some((t) => t.used) || span.every((t) => isLex(t.w) || /^\d+$/.test(t.w))) continue;
       // After "in" or "from", a place's name is the place ("teams from Texas"), whatever team shares it.
       if (/^(?:in|from|at|near)$/.test(toks[i - 1]?.w ?? "") && ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "))) continue;
-      // A name covers its whole run of unknown words: "robotics" alone isn't the team in "hypnotc robotics".
+      // A one-word name covers its whole run of unknown words: "robotics" alone isn't the team in "hypnotc robotics".
+      // A longer name is specific enough beside another ("hypnotic robotics bad wolf").
       const loose = (t: Tok | undefined) => !!t && !t.used && !isLex(t.w) && !/^\d+$/.test(t.w);
-      if (loose(toks[i - 1]) || loose(toks[i + len])) continue;
+      if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
       // A number typed beside its own name ("4215 hypnotic robotics") is one team.
@@ -178,10 +181,13 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
-    if (await ctx.isEvent(words())) {
-      if (!p.event) p.event = { words: words(), typed: typed() };
-      toks.slice(from, to + 1).forEach((t) => (t.used = true));
-      symbols.delete("thing:event");
+    // An event's name takes in the kind word that ends it ("Northern League Meet", "league meets").
+    const kind = toks[to + 1] && KIND_WORDS.has(toks[to + 1].w) ? 1 : 0;
+    const named = toks.slice(from, to + 1 + kind);
+    if (await ctx.isEvent(named.map((t) => t.w).join(" "))) {
+      if (!p.event) p.event = { words: named.map((t) => t.w).join(" "), typed: named.map((t) => t.typed).join(" ") };
+      named.forEach((t) => (t.used = true));
+      if (!toks.some((t) => !named.includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
       continue;
     }
     // A place with an event word after it, read as both: "California events".
@@ -204,7 +210,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   p.leftover = toks.filter((t) => !t.used).map((t) => t.typed);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
   p.symbols = [...symbols];
-  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null });
+  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null });
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;

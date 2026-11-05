@@ -6,7 +6,7 @@
 export type Agg = "max" | "min" | "mean" | "median" | "sum" | "count" | "first" | "last" | "closest" | "next";
 export type Metric =
   | "score" | "margin" | "record" | "win" | "loss" | "tie" | "winrate" | "opr" | "rating" | "rank" | "award" | "penalty"
-  | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "playoffs";
+  | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs";
 export type Thing = "match" | "event" | "season" | "team";
 
 export type Sym =
@@ -28,6 +28,7 @@ export type Sym =
   | { k: "prep"; v: "in" | "at" | "from" | "by" | "with" | "for" }
   | { k: "award"; v: string }
   | { k: "list" }
+  | { k: "per"; v: "match" | "event" | "rate" }
   | { k: "nopen" };
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean. Longer phrases win over
@@ -36,7 +37,7 @@ const TABLE: [string, Sym][] = [
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best", { k: "agg", v: "max" }],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
-  ["average|avg|mean|typical|per match|per game|on average", { k: "agg", v: "mean" }],
+  ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
   ["total|sum|combined total|all together|altogether", { k: "agg", v: "sum" }],
   ["how many|number of|count|count of|how often|times", { k: "agg", v: "count" }],
@@ -65,7 +66,8 @@ const TABLE: [string, Sym][] = [
   ["opponent|opponents|rival|rivals|nemesis|enemy|enemies", { k: "metric", v: "opponent" }],
   ["ranking points|rp|rps", { k: "metric", v: "rp" }],
   ["range|score range|spread of scores", { k: "metric", v: "range" }],
-  ["consistency|consistent|reliability|reliable", { k: "metric", v: "consistency" }],
+  ["consistency|consistent|score consistency", { k: "metric", v: "consistency" }],
+  ["reliability|reliable|dependability|dependable", { k: "metric", v: "reliability" }],
   // What is counted or listed.
   ["match|matches|game|games|round|rounds|qualification match", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],
@@ -98,6 +100,10 @@ const TABLE: [string, Sym][] = [
   ["by|sorted by|ranked by|ordered by", { k: "prep", v: "by" }],
   ["for|of", { k: "prep", v: "for" }],
   ["list|show all|all of|every|each|history|log", { k: "list" }],
+  // "Per match", "per event", "rate": how a count is divided.
+  ["per match|per game|a match|a game|each match|every match|per round", { k: "per", v: "match" }],
+  ["per event|each event|every event|per competition|per tournament|by event", { k: "per", v: "event" }],
+  ["rate", { k: "per", v: "rate" }],
   // Filler: the question's frame and conversation, never part of a name.
   ["the|a|an|is|are|was|were|be|been|has|have|had|do|does|did|what|whats|which|who|whom|how|when|where|why|please|pls|plz|thanks|thank you|hey|hi|hello|yo|ok|okay|so|just|really|actually|basically|like|um|uh|rn|right now|at the moment|currently|now|today's|show|show me|tell|tell me|give|give me|get|find|lookup|look up|search|i want|i want to know|i wanna know|i need|can you|could you|would you|let me know|let me see|i'd like|id like|want|need|know|see|me|my|us|our|their|its|his|her|they|them|it|team's|teams'|ftc|first tech challenge|tech challenge|stat|stats|statistics|info|information|data|number|numbers|result|results|did they|ever had|on record|official|overall|all|any|some|there|here|that|this|these|those|than|then|to|on|into|about|up|out|off|over|under|ago|yet|still|also|too|much|many|good|well|very|quite|pretty|kind of|sort of|exactly|anyone|anybody|someone|somebody|got|get|gets|getting", { k: "filler" }],
 ];

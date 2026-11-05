@@ -13,6 +13,7 @@ export type PipelineIntent =
   | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
   | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
   | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "playoff-matches" | "qual-matches"
+  | "match-lookup" | "avg-penalties" | "inspire-awards" | "finalist-finishes"
   // Two teams.
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
@@ -31,6 +32,8 @@ export interface IntentRule {
   noEvent?: boolean;
   /** A count asked for ("top 5", "last 10 matches"). */
   n?: boolean;
+  /** A match's number given ("match 12", "q12"). */
+  matchNo?: boolean;
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
@@ -68,7 +71,8 @@ export const INTENTS: IntentRule[] = [
   R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
   R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match"]),
   R("win-percent", 1, ["metric:winrate"], ["thing:match"]),
-  R("average-score", 1, ["agg:mean", "metric:score"], ["thing:match", "nopen"]),
+  R("average-score", 1, ["agg:mean", "metric:score"], ["thing:match", "nopen", "per:match"]),
+  R("average-score", 1, ["metric:score", "per:match"], ["thing:match", "nopen"]),
   R("median-score", 1, ["agg:median", "metric:score"], ["thing:match"]),
   R("average-margin", 1, ["agg:mean", "metric:margin"], ["outcome:W", "outcome:L", "metric:win", "thing:match"]),
   R("total-points", 1, ["agg:sum", "metric:score"], ["thing:match"]),
@@ -77,7 +81,8 @@ export const INTENTS: IntentRule[] = [
   R("seasons-count", 1, ["agg:count", "thing:season"], [], { noEvent: true }),
   R("longest-streak", 1, ["agg:max", "metric:streak"], ["metric:win", "outcome:W"]),
   R("current-streak", 1, ["metric:streak"], ["agg:last", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
-  R("penalties", 1, ["metric:penalty"], ["agg:mean", "thing:match"]),
+  R("avg-penalties", 1, ["agg:mean", "metric:penalty"], ["thing:match"]),
+  R("penalties", 1, ["metric:penalty"], ["thing:match", "per:match", "per:event", "per:rate", "agg:mean"]),
   R("score-range", 1, ["metric:range"], ["metric:score"]),
   R("score-consistency", 1, ["metric:consistency"], ["metric:score"]),
   R("playoff-matches", 1, ["level:playoff", "thing:match"], ["list"], { noEvent: true }),
@@ -86,6 +91,7 @@ export const INTENTS: IntentRule[] = [
   R("total-awards", 1, ["agg:count", "metric:award"], ["agg:sum", "metric:win"]),
   R("awards", 1, ["metric:award"], ["list", "agg:first", "agg:last", "metric:win"]),
   // At one event.
+  R("match-lookup", 1, ["thing:match"], ["metric:score", "metric:record", "metric:win", "metric:loss"], { event: true, matchNo: true }),
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
@@ -104,12 +110,15 @@ export const INTENTS: IntentRule[] = [
   R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list", "same-side"]),
   R("shared-matches", 2, ["same-side"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
-  R("head-to-head", 2, ["vs", "metric:record"], ["thing:match", "and"]),
   R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
-  R("opr-vs", 2, ["metric:opr"], ["vs", "compare", "and"]),
-  R("rating-vs", 2, ["metric:rating"], ["vs", "compare", "and"]),
-  R("awards-vs", 2, ["metric:award"], ["vs", "compare", "and", "agg:max", "agg:count"]),
+  // "4215 and 6980 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
+  R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),
+  R("opr-vs", 2, ["metric:opr", "compare"], []),
+  R("rating-vs", 2, ["metric:rating", "vs"], ["compare"]),
+  R("rating-vs", 2, ["metric:rating", "compare"], []),
+  R("awards-vs", 2, ["metric:award", "vs"], ["compare", "agg:max", "agg:count", "metric:win"]),
+  R("awards-vs", 2, ["metric:award", "compare"], ["agg:max", "agg:count", "metric:win"]),
   R("compare", 2, ["compare"], ["vs", "and"]),
   R("compare", 2, ["vs"], []),
   // No team: the best matches anywhere, and ranked lists of teams.
@@ -124,7 +133,7 @@ export const SLOT_SYMBOLS = /^(?:level|alliance|worlds|states|award|prep|filler)
 export interface IntentPick { rule: IntentRule; unexplained: string[] }
 
 /** The rule for these symbols, `teams` teams named and an event named or not, or null. */
-export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean }): IntentPick | null {
+export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean; matchNo?: boolean }): IntentPick | null {
   const atEvent = opts.event || symbols.has("states");
   const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
   let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
@@ -133,11 +142,13 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
     if (rule.event && !atEvent) continue;
     if (rule.noEvent && opts.event) continue;
     if (rule.n && !opts.n) continue;
+    // A match's number is only a match lookup's, and a match lookup needs one.
+    if (!!rule.matchNo !== !!opts.matchNo && (rule.matchNo || rule.event)) continue;
     if (!rule.all.every((s) => symbols.has(s))) continue;
     const took = new Set([...rule.all, ...(rule.opt ?? [])]);
     // A match type is a scope for every rule but the match-type lists themselves.
     const unexplained = asked.filter((s) => !took.has(s) && !/^level:/.test(s));
-    const score = rule.all.length * 2 + (rule.opt ?? []).filter((s) => symbols.has(s)).length - unexplained.length * 3 + (rule.n ? 1 : 0);
+    const score = rule.all.length * 2 + (rule.opt ?? []).filter((s) => symbols.has(s)).length - unexplained.length * 3 + (rule.n ? 1 : 0) + (rule.matchNo ? 1 : 0);
     if (!best || score > best.score) best = { rule, score, unexplained };
   }
   return best ? { rule: best.rule, unexplained: best.unexplained } : null;

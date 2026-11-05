@@ -15,6 +15,23 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.9 — 2026-11-04
+
+Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data.
+
+### Highlights
+- [teams] Any word order, any filler: one question gets one answer card
+- [rankings] Highest-scoring match in California this week, filters applied
+- [teams] A country is a place: "Alphatronic record in Romania"
+- [fixes] A future year says it has no events yet, never the latest season
+
+### Changes
+- **One search pipeline.** A question is parsed into slots (teams, event, place, time window, match type, side, award, highest or lowest, a count) in any word order, with filler ignored, and run as one structured question over the stored matches, events and awards. "4215 highest score", "highest score 4215", "what is the best score for 4215" and "score highest 4215 rn" read the same and show the same card, for any team. The card lists what was read.
+- **Time is relative to today.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season. "This week" filters matches by their date, and the card says "This week".
+- **Places.** A state, a province, a country ("in Romania") or a region code filters events by where they were held. A team-specific question with no place keeps the team's own events. A query with no place is never read as New Jersey.
+- **Years.** A year is that season. With no year, the latest season. A year with no events on record yet ("4215 record 2027") says so, with the latest as a question to ask, and never answers with the latest season.
+- **One highest-scoring match.** "The highest-scoring match" lists that one match with both alliances, their teams, the event and the date. "Matches" or "top 5" lists several.
+
 ## 3.1.5 — 2026-11-04
 
 How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.
