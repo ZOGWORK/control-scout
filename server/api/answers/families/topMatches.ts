@@ -203,7 +203,6 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
   const alliances: StatBlock = { kind: "matches", title: one ? `Highest alliance ${P ? `${P.toLowerCase()} ` : ""}score` : P ? `Top ${top.alliances.length} alliance ${P.toLowerCase()} scores` : `Top ${top.alliances.length} alliance scores`, rows: top.alliances.map(row) };
   const blocks: StatBlock[] = one ? [alliances] : [
     alliances,
-    { kind: "matches", title: P ? `Top ${top.alliances.length} alliance ${P.toLowerCase()} scores` : `Top ${top.alliances.length} alliance scores`, rows: top.alliances.map(row) },
     { kind: "table", title: `Highest combined ${P ? `${P.toLowerCase()} ` : ""}scores (both alliances)`, columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
       rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r.score_red}–${r.score_blue}` : `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) },
         href: matchHref(r), eventHref: eventHref(r.season, r.code), type: r.type, teams: { red: named(r, "red"), blue: named(r, "blue") }, winner: winnerOf(r) })) },

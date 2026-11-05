@@ -43,6 +43,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   // The OPR's thin bar scales to the best OPR listed.
   const oprMax = Math.max(1e-9, ...table.rows.map((r) => r.opr ?? 0));
   const onSort = (key: TeamSortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: firstDir(key) }));
+  // The list's own order: its places as the server sent them (a lowest-first list's run down from the largest).
+  const ownDir: Sort["dir"] = table.rows.length > 1 && table.rows[0].rank > table.rows[table.rows.length - 1].rank ? "desc" : "asc";
   const toggle = (team: number) => setOpen((o) => { const n = new Set(o); if (n.has(team)) n.delete(team); else n.add(team); return n; });
 
   const th = "px-2 py-1.5 font-medium whitespace-nowrap max-md:px-1.5";
@@ -67,8 +69,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
         <table className="w-full text-sm" aria-label={label}>
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
             <tr>
-              <th scope="col" aria-sort={sort.key === "rank" ? "ascending" : "none"} className={cn(th, "w-8 text-right")}>
-                <button type="button" onClick={() => setSort({ key: "rank", dir: "asc" })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground max-md:min-h-[44px] max-md:min-w-6 pointer-coarse:min-h-[44px]", sort.key === "rank" && "text-foreground")}>#</button>
+              <th scope="col" aria-sort={sort.key === "rank" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className={cn(th, "w-8 text-right")}>
+                <button type="button" onClick={() => setSort({ key: "rank", dir: ownDir })} title="The list's own order" data-sort="rank" className={cn("rounded hover:text-foreground max-md:min-h-[44px] max-md:min-w-6 pointer-coarse:min-h-[44px]", sort.key === "rank" && "text-foreground")}>#</button>
               </th>
               <th scope="col" className={th}>Team</th>
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}

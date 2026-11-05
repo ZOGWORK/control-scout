@@ -129,6 +129,8 @@ describe("a season's highest scores, by its game", () => {
       const s = await ask(q);
       expect(s.title, q).toBe(`Highest-scoring matches, ${game}`);
       expect(s.headline?.value, q).toBe(`${best} points`);
+      // The alliance scores once, then the combined.
+      expect(s.blocks.map((b) => b.kind), q).toEqual(["matches", "table"]);
     }
   });
   it("a place's best in a season", async () => {

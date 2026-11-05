@@ -62,11 +62,13 @@ describe("teamTableOfLeaderboard", () => {
     const t = lb("win-rate");
     expect(t).toMatchObject({ by: "rank", asked: { label: "Win rate" } });
     expect(t.rows[0].asked).toEqual({ value: 0.65, display: "65%" });
-  });  it("a lowest-first list opens lowest first on its own column, never a second copy of it", () => {
+  });
+  it("a lowest-first list opens lowest first on its own column, never a second copy of it", () => {
     const t = teamTableOfLeaderboard("teleop", "TeleOp OPR", [], false, true);
     expect(t).toMatchObject({ by: "dc", dir: "asc" });
     expect(t.asked).toBeUndefined();
-    // A list in its own order already ("rank") needs no direction.
-    expect(teamTableOfLeaderboard("win-rate", "Win rate", [], false, true).dir).toBeUndefined();
+    // By its place, counted from the top: the lowest has the largest, so the places run down.
+    expect(teamTableOfLeaderboard("win-rate", "Win rate", [], false, true)).toMatchObject({ by: "rank", dir: "desc" });
+    expect(teamTableOfLeaderboard("win-rate", "Win rate", []).dir).toBeUndefined();
   });
 });

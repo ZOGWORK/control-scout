@@ -13,6 +13,7 @@ import { isEnabled } from "../../flags.js";
 import { eventFit } from "../answers/index.js";
 import { eventHref, matchHref, shortEvent } from "../answers/matchSet.js";
 import { nextEventPrediction } from "../answers/families/predict.js";
+import { wonEventByRules } from "../answers/families/winners.js";
 import { readProjections } from "../../projections/store.js";
 import { readyForecaster, recentRecords } from "../../predict/engine.js";
 import { plusMinus } from "../../../src/shared/scoreRange.js";
@@ -62,19 +63,10 @@ export async function eventFor(words: string, teams: number[], year: number | nu
 
 interface Pred { code: string; level: string; series: number; number: number; red: string; blue: string; p_red: number; red_mean: number; blue_mean: number; no_score_basis: number | null; red_score: number | null; blue_score: number | null; played: number; kind: string; label: string | null }
 
-/** Whether `team` won the event: on the winning side of its last playoff match (the final), at the event itself, not a
- *  division. With no playoff on record, the event's Winning Alliance award (a Leadership Award is filed as a "Winner"
- *  too, so never that). */
-async function wonEvent(season: number, code: string, team: number): Promise<boolean> {
-  const f = await get<{ alliance: string; red_total: number; blue_total: number }>(
-    `SELECT x.alliance, m.red_total, m.blue_total FROM matches m JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.team = ?
-     WHERE m.season = ? AND m.code = ? AND m.level = 'playoff' AND m.played = 1 AND m.red_total IS NOT NULL
-       AND NOT EXISTS (SELECT 1 FROM matches l WHERE l.season = m.season AND l.code = m.code AND l.level = 'playoff' AND l.played = 1 AND (l.series > m.series OR (l.series = m.series AND l.number > m.number)))`, [team, season, code]);
-  if (f) return f.alliance === "red" ? f.red_total > f.blue_total : f.blue_total > f.red_total;
-  const final = await get("SELECT 1 FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1 LIMIT 1", [season, code]);
-  if (final) return false;
-  return !!(await get("SELECT 1 FROM awards WHERE season = ? AND code = ? AND team = ? AND type = 'Winner' AND COALESCE(name, '') NOT LIKE '%eadership%' LIMIT 1", [season, code, team]));
-}
+/** Whether `team` won the event, by the winners answer's own rules (server/api/answers/families/winners.ts): the
+ *  stored final (series 0 when the bracket has one) once it's decided, else the Winning Alliance award. Mid-event,
+ *  an early round's winner never reads as the event's. */
+const wonEvent = wonEventByRules;
 
 /** Before and after at `ev` for `teams` (one team, or two teams' meetings). */
 export async function forecastAt(teams: { number: number; name: string | null }[], ev: Ev, listed: boolean, now: number): Promise<StatAnswer> {
