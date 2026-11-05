@@ -160,4 +160,21 @@ describe("review fixes", () => {
     expect(a.intent?.understood?.[0]).toMatch(/^Intent:/);
     expect(a.stat?.intent).not.toBe("finalist-finishes");
   });
+  it("a week across the season's start keeps each season's points apart", async () => {
+    const ev = (season: number, code: string, start: string) =>
+      run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (?, ?, ?, 'Qualifier', 'Town', 'NJ', 'USA', ?, ?, 't')", [season, code, `${code} Qualifier`, start, start]);
+    await ev(2025, "USNJLATE", "2026-08-31");
+    await ev(2026, "USNJEARLY", "2026-09-02");
+    const m = async (season: number, code: string, day: string, red: number) => {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (?, ?, 'qual', 0, 1, 'Q1', ?, 1, ?, ?, 50, 50, 't')", [season, code, `${day}T10:00:00Z`, red, red]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (?, ?, 'qual', 0, 1, 4215, 'red', 1)", [season, code]);
+      await run("INSERT OR IGNORE INTO event_teams (season, code, team, rank) VALUES (?, ?, 4215, 1)", [season, code]);
+    };
+    await m(2025, "USNJLATE", "2026-08-31", 400);
+    await m(2026, "USNJEARLY", "2026-09-02", 90);
+    clearAllCaches();
+    const s = await stat("4215 highest score this week", Date.parse("2026-09-03T12:00:00Z"));
+    const each = s.blocks.find((b) => b.kind === "table" && /each season/.test(b.title));
+    expect(each, JSON.stringify(s.blocks.map((b) => b.kind))).toBeTruthy();
+  });
 });

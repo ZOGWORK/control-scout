@@ -82,8 +82,9 @@ export async function matchStatAnswer(id: IntentId, team: AnswerTeam, all0: Team
   const fouls = (m: TeamMatch) => `${m.label} at ${m.event}${m.ownNp != null && m.own > m.ownNp ? `, ${m.own - m.ownNp} from the other alliance's fouls` : ""}`;
   // Points are never compared across seasons: with several and none named, the latest season's (said so).
   const seasons = [...new Set(pool.map((m) => m.season))].sort((a, b) => b - a);
-  const pointsSeason = scope.season ?? seasons[0] ?? null;
-  const several = scope.season == null && seasons.length > 1;
+  // A date window can hold two (a week across the season's start): its latest season's points, said so.
+  const several = (scope.season == null || !!scope.window) && seasons.length > 1;
+  const pointsSeason = several ? seasons[0] : scope.season ?? seasons[0] ?? null;
   const pts = several ? pool.filter((m) => m.season === pointsSeason) : pool;
   const pointsNote = several ? ` Each season is a different game, so points are never compared across seasons: the answer is ${seasonLabel(pointsSeason!)}'s, the latest here.` : "";
   const base = { team, scope: scopeChips(several ? { ...scope, season: pointsSeason } : scope), source: sourceOf(pool) };

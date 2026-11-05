@@ -124,8 +124,9 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         ] },
         matchesBlock(`${high ? "Best scores" : "Lowest scores"} by points without penalties${note ? `, ${seasonLabel(top.season)}` : ""}`, pick.slice(0, 5)),
       ];
-      // Each season is a different game: its best (or worst) beside the others, never compared as one record.
-      if (scope.season == null) {
+      // Each season is a different game: its best (or worst) beside the others, never compared as one record. A date
+      // window can hold two (a week across the season's start).
+      if (scope.season == null || scope.window) {
         const per = bySeason(ms).map(([s, xs]) => ({ s, m: [...xs].sort((a, b) => (high ? np(b) - np(a) || b.own - a.own : np(a) - np(b) || a.own - b.own))[0] }));
         if (per.length > 1) blocks.push({ kind: "table", title: `${high ? "Best" : "Lowest"} score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "np", label: "Without penalties", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }], rows: per.map(({ s, m }) => ({ cells: { season: seasonLabel(s), score: m.own, np: np(m), match: m.label, event: m.event }, href: row(m).href, strong: m === top })) });
       }
