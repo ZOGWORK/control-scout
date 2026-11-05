@@ -60,10 +60,12 @@ for (const x of sets) {
   // A place is stated by its name (or the region it's a part of, said so); a time by its words, its season or a
   // relaxation the card says.
   const placeStated = !place || text.includes(fold(place)) || /isnt a separate region/.test(text);
-  // "This season", "last season": the season it resolved to, whichever that is (the card names it).
+  // "This season", "last season": the season it resolved to, whichever that is (the card names it); a season said is
+  // that season, and a month said is that month and year (its first three letters and the year on the card).
   const timeStated = !p.time || /relaxed|no .* yet|showing \d{4}/.test(text) || text.includes(fold(p.time.label))
-    || (p.time.kind === "season" && /\b20\d\d 2[0-9]\b/.test(text)) || (p.time.kind === "ever" && /every season|all seasons|each season|ever/.test(text))
-    || (p.time.year != null && text.includes(String(p.time.year)));
+    || (p.time.kind === "season" && (p.time.season == null ? /\b20\d\d 2[0-9]\b/.test(text) : text.includes(fold(seasonLabel(p.time.season)))))
+    || (p.time.kind === "ever" && /every season|all seasons|each season|ever/.test(text))
+    || (p.time.kind === "window" && p.time.year != null && fold(p.time.label).split(" ").filter((w) => w && w !== "in").every((w) => text.includes(w.slice(0, 3))));
   // An events question's answer is the list of events, its place and time in the heading.
   const answered = !!s || !!a.card || (a.understood?.kind === "events" && !a.understood.fallback);
   // A word left unread counts against the pipeline's own answers (it read the query and must explain every word) and
