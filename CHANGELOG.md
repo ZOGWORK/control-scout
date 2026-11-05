@@ -15,6 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.7 — 2026-11-04
+
+Search answers misspelled questions about four times faster, and filtered team lists in well under a second.
+
+### Highlights
+- [speed] A misspelled search answers about four times faster
+- [speed] Filtered team lists answer in under a second, not a minute
+- [speed] A search asked again within a minute answers at once
+- [fixes] A page's first slow search tries once more before saying so
+
+### Search
+- **Typos, faster.** Search's in-memory typo scan scores each distinct name word once per word typed (about a third of the work), skips the spelling distance for words whose letters are already too different, and reuses its working rows. Spelling correction skips the same words. Every score is the same number as before. (#PR)
+- **Repeated reads kept.** The search index's reads and the event lists a search reads are kept until the data or the index changes, so the readings of one search (and a correction's second reading) share them. A whole answer is kept for a minute.
+- **Places.** "Events at River Dell High School" and "events in Oradell" work out each venue's spelling once, and each time zone's date format once, instead of once per event per search.
+- **Measured.** `scripts/search-bench.ts` asks a running server 365 queries (the 260 list, the complex queries, misspellings) and checks every answer against an earlier run's.
+- **Filtered lists.** "NJ teams that won Inspire" and "teams that went to Worlds" looked up each team's awards and events the slow way: 30 to 100 seconds a list, holding up every other request meanwhile. A new index (migration 72) and a reordered lookup make them a few tens of milliseconds.
+- **Slow searches.** A page's first search that runs out of time now tries once more before showing "Search is slow", as every other search already did.
+
 ## 3.1.4 — 2026-11-04
 
 Search answers questions that join filters or ask two things at once, each filter it read named on the card and applied.

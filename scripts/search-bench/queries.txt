@@ -1,0 +1,369 @@
+# FTC One Search latency benchmark (scripts/search-bench.ts): the 260 list, the complex-query list, then misspellings.
+## list-260
+where is 4215 from
+4215 sponsors and school
+6980 location
+what school is 33950 from
+when did 4215 start in FTC
+what is team 4215 called
+who are 4215's sponsors
+6980 Bad Wolf school and city
+33950 First Street Kids location
+7149 Enforcers where are they from
+4215 rookie season
+17670 Raider Robotics location
+4215 organization name
+what is team 6980 called
+4215 city and state
+33950 sponsors
+4215 region
+6980 region
+4215 team profile summary
+7149 sponsors and school
+4215 opr
+4215 auto opr
+4215 teleop opr
+4215 endgame opr
+4215 penalty opr
+6980 opr this season
+4215 opr last season
+4215 opr at worlds
+4215 opr at the New Jersey championship
+4215 highest opr ever
+4215 lowest opr
+4215 opr trend over seasons
+4215 opr rank worldwide
+4215 opr rank in New Jersey
+6980 opr rank
+4215 opr compared to the average team
+4215 component opr breakdown
+33950 opr
+7149 opr
+how much did 4215's opr improve from last season to this season
+4215 opr at their best event
+4215 opr at their worst event
+4215 average opr across events this season
+6980 auto opr versus teleop opr
+4215 endgame opr rank
+4215 rating
+4215 prediction rating uncertainty
+4215 win probability against 6980
+4215 versus 6980 prediction
+4215 predicted score against 6980
+4215 rating trend
+6980 rating
+33950 rating
+4215 rating rank
+4215 rating in New Jersey
+4215 predicted wins at their next event
+4215 chance to win an event
+4215 chance to advance to worlds
+4215 prediction confidence
+6980 versus 4215 who wins
+4215 expected margin against 6980
+4215 rating last season
+4215 rating at worlds
+4215 best prediction rating ever
+how much did 4215's rating change this season
+4215 record
+4215 record this season
+4215 record last season
+4215 record at worlds
+4215 record in quals
+4215 record in playoffs
+4215 win rate
+4215 win streak
+4215 losing streak
+4215 total matches played
+4215 total wins all time
+4215 total losses all time
+4215 ties all time
+6980 record
+33950 record
+4215 wins against 6980
+how many matches has 4215 won at worlds
+how many matches has 4215 lost at worlds
+4215 longest win streak ever
+4215 current streak
+4215 record at New Jersey events
+4215 record at out-of-state events
+4215 playoff record this season
+4215 quals record this season
+4215 average score this season
+4215 highest score ever
+4215 highest score at worlds
+4215 lowest score ever
+4215 best match
+4215 worst match
+4215 highest scoring match this season
+4215 lowest scoring match this season
+4215 average score all time
+4215 average score at worlds
+4215 average score in playoffs
+4215 average score in quals
+4215 score range this season
+4215 score in their last match
+4215 score in their first match this season
+6980 highest score ever
+33950 highest score ever
+4215 highest alliance score
+4215 match with the most penalties
+4215 match with the highest auto score
+4215 match with the highest teleop score
+4215 match with the highest endgame score
+4215 scores over 200
+4215 matches where they scored over 150
+4215 median score this season
+4215 score consistency
+meets in New Jersey
+upcoming meets in New Jersey
+past meets in New Jersey
+events 4215 went to this season
+events 4215 went to last season
+events 6980 went to this season
+events 4215 won outright
+events 4215 placed first in
+events 4215 won Inspire in
+has 4215 ever won an event
+has 4215 ever won Inspire
+4215 best event ever
+4215 worst event ever
+4215 events at worlds
+championship divisions 4215 played in
+4215 worlds appearances
+6980 worlds appearances
+33950 worlds appearances
+7149 worlds appearances
+events in Oradell New Jersey
+events at River Dell High School
+upcoming events this weekend
+events this season in New Jersey
+events last season in New Jersey
+4215 event schedule this season
+4215 reliability
+4215 penalty points
+4215 fouls per match
+4215 penalty rate
+4215 strength of schedule
+4215 easiest opponent this season
+4215 hardest opponent this season
+4215 trend over their last 5 matches
+4215 form in their last 5 matches
+4215 improvement trend
+4215 consistency rating
+what does 4215's reliability score mean
+6980 reliability
+4215 penalties at worlds
+4215 penalties in playoffs
+4215 average penalties per event
+4215 difficulty of schedule this season
+4215 performance against top teams
+4215 performance against rookie teams
+4215 late season form versus early season form
+awards 4215 has won
+4215 Inspire awards
+4215 latest Inspire award
+4215 awards this season
+4215 awards last season
+4215 awards at worlds
+6980 awards
+33950 awards
+4215 Design award
+4215 Motivate award
+4215 Think award
+4215 Connect award
+4215 Innovate award
+4215 Control award
+4215 Judges Choice award
+4215 winning alliance awards
+4215 total awards count
+4215 first award ever
+4215 most recent award
+4215 awards at New Jersey events
+4215 best alliance partner
+4215 worst alliance partner
+4215 most common alliance partner
+4215 most common opponent
+4215 record against 6980
+4215 versus 6980 head to head
+4215 versus 6980 matches together
+4215 alliance partners at worlds
+4215 opponents at worlds
+4215 alliance partners this season
+4215 opponents this season
+6980 best partner
+4215 teams they beat most often
+4215 teams they lost to most often
+4215 partner with the highest combined opr
+4215 opponent with the highest opr they faced
+4215 versus 33950 head to head
+4215 and 6980 shared matches
+4215 alliance partner win rate
+4215 opponent win rate against them
+top 10 teams by opr in New Jersey
+top 10 teams by opr worldwide
+top 10 teams by rating in New Jersey
+top teams in New Jersey
+top rookie teams in New Jersey
+4215 rank in New Jersey
+4215 rank worldwide
+4215 percentile worldwide by opr
+is 4215 in the top 10 percent worldwide
+best team in New Jersey by opr
+best team in Oradell
+top 5 teams by auto opr in New Jersey
+top 5 teams by teleop opr in New Jersey
+top 5 teams by endgame opr in New Jersey
+top 5 teams by win rate in New Jersey
+top 5 teams by reliability in New Jersey
+New Jersey leaderboard by rating
+New Jersey leaderboard by record
+4215 place on the New Jersey leaderboard
+6980 place on the New Jersey leaderboard
+ftc decode winning alliance
+decode championship winning alliance
+4215 worlds record
+4215 highest score in worlds
+4215 worlds events list
+4215 worlds divisions
+4215 worlds best rank
+4215 worlds best finish
+4215 worlds wins
+4215 worlds losses
+who won the ftc championship in 2025
+winning alliance at the New Jersey state championship
+winning alliance at 4215's last event
+4215 championship appearances count
+6980 worlds best rank
+4215 versus 6980 compare
+4215 6980 33950 compare
+who should 4215 pick as an alliance partner
+4215 advancement chances
+4215 predicted to make playoffs at their next event
+4215 next match
+4215 matches at worlds in 2025
+4215 match against 6980 at worlds
+USNJNEM6 event
+events at Columbia High School
+meets near Oradell
+4215 scouting profile
+4215 team page summary
+how does FTC One Search work
+can robots descore
+what is opr in FTC
+how is rating calculated
+how are predictions made
+what is a reliability score
+how does worlds qualification work
+4215 versus 6980 who is better at auto
+4215 versus 6980 who is better at teleop
+4215 versus 6980 who is better at endgame
+4215 versus 6980 who has higher reliability
+4215 versus 6980 who has won more awards
+## complex
+4215 matches at states
+4215 and 6980 matches together at NJ championship
+top 5 NJ teams by auto opr who also won inspire
+4215 vs 6980 at worlds who scored higher
+what was 4215's opr at their first event this season compared to last season
+teams from Oradell with opr over 100
+4215 matches where they lost by less than 10 points
+4215 awards and record in 2025-26 combined
+who won inspire at East Bergen League Tournament 2026
+4215 partners at NJ championship who had opr over 80
+did 4215 ever beat a team ranked top 10 worldwide
+4215's best event by rank and worst event by opr in same season
+hypnotic robotics opr rn
+where is bad wolf from and what is their record
+4215 matches at states in 2024
+teams in NJ that went to worlds in 2025 and their opr
+4215 vs 6980 vs 33950 which has highest reliability
+what is 4215's average score when they win versus when they lose
+4215's record in playoffs at NJ championship
+show me 4215's matches at the March 15 2026 NJ championship
+4215 opr if you exclude their worst event
+hypnotik robotics opr
+4215 and 6980 opr
+4215 not 6980 record
+4215 matches at NJ championship
+4215 matches at league tournament
+6980 matches at states
+4215 matches at East Bergen League Tournament
+4215 matches at P3-6 meet
+6980 matches at P2-8 meet
+33950 matches at Essex Conference
+7149 matches at worlds Ross division
+4215 matches at states in 2025
+4215 matches at states in 2026
+4215 playoff matches at states
+4215 quals matches at states
+4215 matches they won at states
+4215 matches they lost at states
+6980 matches at East Bergen tournament
+4215 matches at championship Parkway division
+4215 matches at championship Turnpike division
+4215 matches at league meets this season
+4215 matches at their last event
+4215 matches at their first event this season
+4215 at states
+4215 states record
+4215 states opr
+4215 states rank
+6980 at states
+4215 state championship matches
+4215 New Jersey state championship matches
+4215 states 2024 matches
+4215 states 2025 matches
+4215 states 2026 matches
+7149 matches at states
+33950 matches at states
+what did 4215 do at states
+4215 states wins and losses
+4215 state championship record
+4215 state championship opr
+## misspelled
+4215 state championship rank
+ultraviolet nj lasetest matches
+4215 lasetest matches
+hypnotc robotics
+hipnotic robotics
+bad wolff
+enforcrs
+hypnotic oper
+4215 oper
+4215 recrod
+4215 awrds
+new jersey champinship
+qualifer new jersey
+new jersy
+oradel
+teams in oradel
+4215 wrolds
+bad wolf inspyre
+4215 matchs at states
+6980 locaton
+where is 4215 form
+4215 sponsers
+4215 rookie yeer
+4215 higest score
+4215 avarage score
+highest opr in new jersy
+top teams in nj by opr this seson
+4215 playof record
+4215 autonomus opr
+4215 endgmae opr
+who won inspyre at nj championship
+4215 vs 6980 reliablity
+4215 qualfication matches
+4215 upcomming events
+bad wolf matchs
+first street kids locaton
+raider robotics recrod
+enforcers awrds
+ultravoilet opr
+4215 tealeop opr
+4215 penalites
+4215 elimination recrod
+new jersey championshp parkway divison
+hypnotic robotcs latest matches
+teams near oradel
