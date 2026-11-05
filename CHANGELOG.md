@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.2 — 2026-11-04
+
+Search is now checked every day against questions it has never seen, built from the data, with every answer under a second. (#PRNUM)
+
+### Highlights
+- [fixes] Long team names (seven words and more) are read whole
+- [fixes] "Mean score for a team" is the average, not a definition
+- [speed] Repeat searches for a team's name skip a second lookup
+- [report] Every change checks search's cards against the match tables
+
+### Changes
+- **Search eval.** Each run draws teams at random from the latest season and asks about them in many ways: every phrase search knows for "highest", "score" and the rest, the team by number or name, in any order, with or without "what is" and "?". Each answer is checked against the match tables: the record, the highest, lowest and average score, a year typed, a future year, no place added, a place and a week stated, a matchup's forecast with Predict open, a misspelled name. Every answer must come back within a second.
+- **Fixes it found.** A team name of seven words or more was never read whole, so its questions fell to the slow path (2.7 s, now about 30 ms). "Mean scoring for …" showed what "mean" means instead of the average. A team's name already looked up isn't searched for as an event again.
+
 ## 3.2.1 — 2026-11-04
 
 Ask for a team's prediction at an event and search shows the forecast before and the result after, side by side. (#717)

@@ -59,7 +59,7 @@ export interface ParseContext {
   isEvent: (words: string) => Promise<boolean>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
-  /** The visitor's own teams ("team:4215"), first when several share a name. */
+  /** The visitor's own teams ("team:12345"), first when several share a name. */
   prefer?: ReadonlySet<string>;
 }
 
@@ -116,7 +116,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
-  for (let len = Math.min(ctx.names.longest, 6); len >= 1; len--) {
+  for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
     for (let i = 0; i + len <= toks.length; i++) {
       const span = toks.slice(i, i + len);
       if (span.some((t) => t.used) || span.every((t) => isLex(t.w) || /^\d+$/.test(t.w))) continue;
@@ -128,7 +128,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
-      // A number typed beside its own name ("4215 hypnotic robotics") is one team.
+      // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
       }
@@ -188,7 +188,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (k && s.k !== "award") symbols.add(k);
     }
   }
-  // One-word awards beside an award word: "design award", "4215 think awards".
+  // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
   }
@@ -210,7 +210,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // An event's name takes in the kind word that ends it ("Northern League Meet", "league meets"). One event: a
-    // second one named ("at nj championship at turnpike division") is left unexplained, never dropped.
+    // second one named ("at nj championship at northern division") is left unexplained, never dropped.
     const kind = toks[to + 1] && KIND_WORDS.has(toks[to + 1].w) ? 1 : 0;
     const named = toks.slice(from, to + 1 + kind);
     if (!p.event && await ctx.isEvent(named.map((t) => t.w).join(" "))) {
@@ -244,7 +244,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
-  // The awards side-by-side counts every award: one award named ("4215 vs 6980 inspire awards") is left to the
+  // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
@@ -276,7 +276,7 @@ function pickShared(slot: TeamSlot, p: Parsed, ctx: ParseContext): Partial<TeamS
   return {};
 }
 
-/** The slots in words, for the card's "Read as" line: "Intent: highest score · Team 4215 · In California · This week". */
+/** The slots in words, for the card's "Read as" line: "Intent: highest score · Team 12345 · In California · This week". */
 export function describe(p: Parsed): string[] {
   return [
     p.intent ? `Intent: ${p.intent.replace(/-/g, " ")}` : "",

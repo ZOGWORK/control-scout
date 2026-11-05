@@ -37,7 +37,7 @@ export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySe
   return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event);
 }
 
-/** The award answers that take "first" and "latest" ("4215 latest Inspire award"). */
+/** The award answers that take "first" and "latest" ("12345 latest Inspire award"). */
 const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards"]);
 
 /** The intents that are a stat answer's own (server/api/answers/read.ts IntentId), by the same name. */

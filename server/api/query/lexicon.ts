@@ -133,11 +133,11 @@ export const LEXICON: Entry[] = [
 ].sort((a, b) => b.words.length - a.words.length);
 
 /** The one-word award names that are everyday words too ("design", "control", "reach"): an award only beside an award
- *  word ("design award") or as what an awards question names ("4215 design awards"). */
+ *  word ("design award") or as what an awards question names ("12345 design awards"). */
 export const AWARD_ONE_WORD: Map<string, string> = new Map(
   AWARD_WORDS.flatMap(([ps, type]) => ps.split("|").filter((p) => !/\s/.test(p)).map((p) => [p, type] as [string, string])));
 
-/** Words that make a run of words an event's name ("East Bergen Conference", "Turnpike Division"). */
+/** Words that make a run of words an event's name ("East Bergen Conference", "Northern Division"). */
 export const EVENT_NAME_WORDS = new Set([
   "championship", "championships", "champs", "qualifier", "qualifiers", "qualifying", "league", "meet", "tournament", "conference",
   "invitational", "scrimmage", "premier", "division", "regional", "showcase", "classic", "open", "cup", "challenge", "super",

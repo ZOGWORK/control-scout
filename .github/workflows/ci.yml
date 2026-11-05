@@ -64,3 +64,19 @@ jobs:
           name: perf
           path: perf.json
           if-no-files-found: ignore
+
+  # The search eval (scripts/search-eval.ts, docs/search-pipeline.md "Eval"): questions generated from the lexicon and
+  # the shipped snapshot's teams, each card checked against the tables, every answer under 1 s warm. A new sample each
+  # day (the seed is printed, so a failure can be run again with --seed).
+  search-eval:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund --loglevel=error
+      - name: Search eval
+        run: DATA_DIR="$RUNNER_TEMP/evaldata" DATABASE_URL="file:$RUNNER_TEMP/evaldata/scout.db" CS_NO_SCHEDULER=1 npm run search:eval

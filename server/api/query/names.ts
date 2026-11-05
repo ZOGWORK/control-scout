@@ -19,6 +19,9 @@ export interface Names {
   place(words: string, typed?: string): Place | null;
   /** The longest team name, in words (the parser looks no further). */
   longest: number;
+  /** Whether a word starts the way some word of an event's name or code does (its first three letters): words that
+   *  share no start with any event can't name one, so the event search is skipped for them. */
+  eventStem(word: string): boolean;
 }
 
 /** Lower case, accents and punctuation dropped, single spaces: how names are compared. */
@@ -27,7 +30,7 @@ export const fold = (s: string): string => s.normalize("NFKD").replace(/\p{M}/gu
 interface Row { number: number; name: string | null; city: string | null; state: string | null; country: string | null; lastPlayed?: number | null }
 
 /** The index for these rows (tests build one from fixtures). */
-export function buildNames(teams: Row[], places: { city: string | null; state: string | null; country: string | null }[]): Names {
+export function buildNames(teams: Row[], places: { city: string | null; state: string | null; country: string | null; name?: string | null; code?: string | null }[]): Names {
   const byNumber = new Map<number, TeamName>(), byName = new Map<string, TeamName[]>();
   let longest = 1;
   for (const t of teams) {
@@ -46,12 +49,15 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
     const where = `${p.country}:${p.state ?? ""}`;
     (towns.get(k) ?? towns.set(k, new Map()).get(k)!).set(where, { country: p.country, state: p.state, city: p.city! });
   }
+  const stems = new Set<string>();
+  for (const p of places) for (const w of fold(`${p.name ?? ""} ${p.code ?? ""}`).split(" ")) if (w.length >= 3) stems.add(w.slice(0, 3));
   const countries = new Map<string, string>();
   for (const p of [...teams, ...places]) if (p.country) countries.set(fold(p.country), p.country);
   return {
     team: (n) => byNumber.get(n),
     teamsNamed: (w) => byName.get(fold(w)) ?? [],
     longest,
+    eventStem: (w) => stems.has(fold(w).slice(0, 3)),
     place(w, typed) {
       const f = fold(w);
       if (!f) return null;
@@ -80,7 +86,7 @@ export async function names(): Promise<Names> {
   const n = Promise.all([
     all<Row>(`SELECT t.number, t.name, t.city, t.state, t.country, p.last lastPlayed FROM teams t
       LEFT JOIN (SELECT team, MAX(season) last FROM team_event_stats WHERE matches > 0 GROUP BY team) p ON p.team = t.number`),
-    all<{ city: string | null; state: string | null; country: string | null }>("SELECT DISTINCT city, state, country FROM events"),
+    all<{ city: string | null; state: string | null; country: string | null; name: string | null; code: string | null }>("SELECT city, state, country, name, code FROM events"),
   ]).then(([teams, places]) => buildNames(teams, places));
   cache = { version, names: n };
   n.catch(() => { if (cache?.names === n) cache = null; });

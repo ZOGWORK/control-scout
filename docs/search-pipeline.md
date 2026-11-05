@@ -89,6 +89,31 @@ stripped:
 No parser branch names a team, event, division or place. The hard-coding is in templates (fixed phrasings), in
 per-reader synonym lists and in example copy.
 
+## Eval
+
+`npm run search:eval` (`scripts/search-eval.ts`, CI job `search-eval`) asks search questions it has never seen and
+checks every card against the tables.
+
+- **Questions come from data, not a list.** `server/api/query/eval/generate.ts` takes each question as lexicon symbols
+  (`agg:max` + `metric:score`) and says it with every phrase the lexicon has for them, the team said several ways
+  (number, name, "team N", both, possessive), a frame ("what is", "show me", "?") and the team before or after the
+  words. Teams are drawn at random from the latest season's (a different sample each day; `--seed` repeats one).
+- **Truth comes from the tables.** `server/api/query/eval/truth.ts` reads the record, the highest, lowest and average
+  score from `matches` and `match_teams` by the cards' own stated rules, never through search's code.
+- **Checks:** every paraphrase gives the same card for the right team; its number is the data's; a year typed is that
+  season and a future year says it has no events; no place typed puts no place on the card; a place and a window are
+  stated, or the window relaxed and said; a matchup gives the winner, scores and odds with Predict open on the two
+  teams; a name with a letter dropped still reaches the team; every answer is back in under 1 s warm (p50 and p95 are
+  printed beside it).
+- `server/api/query/hardcode.test.ts` runs the brief's grep on every change: no team, event or place in the
+  pipeline's code. `server/api/query/eval/generate.test.ts` checks every paraphrase the generator can make reads as
+  its question.
+
+What its first runs found and fixed: team names longer than six words were never read whole (a seven-word name fell
+to the slow legacy chain at 2.7 s, now 30 ms); "mean" in "mean scoring for …" let a definition card replace the
+average; the event check searched again for every repeat of a name (now remembered per index, and skipped for words
+that start like no event's).
+
 ## Plan (one PR per group)
 
 1. **Slot parser, intent and synonym tables, time and place resolution** (`server/api/query/`), with tests that read
@@ -101,7 +126,7 @@ per-reader synonym lists and in example copy.
    odds; Open in Predict pre-filled.
 5. **Evaluation harness**: `scripts/search-eval.ts` generates unseen paraphrases from the data model (random teams,
    events, places and windows; shuffled order, filler, synonyms) and checks each answer against the team page, event
-   page and match rows, with a latency check. Runs in CI on the shipped snapshot.
+   page and match rows, with a latency check. Runs in CI on the shipped snapshot. See "Eval" above.
 6. **Aggregated failure patterns**: failed searches are counted by intent, missed word and relaxed filter, and
    reviewed weekly. This replaces the per-query "Failed search" issues.
 7. **Delete the old per-query branches** the harness shows are covered.
