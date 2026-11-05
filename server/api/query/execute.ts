@@ -185,11 +185,12 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (!p.teams.length && intent === "top-matches") {
     if (p.event || p.worlds || p.states || p.level || p.alliance || (p.place && p.place.kind === "city")) return null;
-    // "The highest-scoring match": one match; "matches", "scores", "top 5": a list.
-    const plural = /\b(?:matches|games|scores)\b/.test(said);
+    // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
+    // decode"): a list.
+    const one = /\b(?:match|game)\b/.test(said) && !/\b(?:matches|games|scores)\b/.test(said);
     const t: TopMatchesQuestion = {
       season: scope.ever ? scope.season : placeSeason(p, scope.season, opts), game: null, ever: scope.ever, region: regionOf(p), event: null,
-      ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : plural ? {} : { n: 1 }),
+      ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
     };
     const a = await topSearch(p.q, t, opts);
     // No season said: the current one, then the one before (as the match finder does).
@@ -209,7 +210,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (stats.length > 1) stats = stats.filter((s) => s !== "record" && s !== "wins");
     if (stats.length > 1) return null;
     // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, the top 10.
-    const one = /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
+    // A sort asked ("best team sorted by auto") is the list.
+    const one = /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said) && !/\b(?:sorted|ranked|ordered) by\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
     const town = p.place?.kind === "city" ? p.place : null;
     // A whole country's or a town's list with no stat said is left to the readers that list them by OPR.
     if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated) return null;

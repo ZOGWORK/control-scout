@@ -40,6 +40,16 @@ describe("appearances", () => {
     expect(stats.find((s) => s.label === "Win rate")).toEqual({ label: "Win rate", value: "48.3%", note: "14–15–0 in quals" });
     expect(stats.some((s) => /OPR/.test(s.label))).toBe(false);
   });
+  it("names each season with its game where the server sends one, on the card and in the streak and best-rank notes", () => {
+    const g = (l: ReturnType<typeof line>, game: string) => ({ ...l, game });
+    const named = card([g(line("2022–23", "Ochoa", 3, "9-2-0", 114.8), "POWERPLAY"), g(line("2023–24", "Edison", 10, "8-2-0", 127.2), "CENTERSTAGE")]);
+    const a = appearances(named);
+    expect(a.map((x) => x.seasonName)).toEqual(["2022–23 POWERPLAY", "2023–24 CENTERSTAGE"]);
+    expect(a[1].game).toBe("CENTERSTAGE");
+    const stats = appearanceStats(a);
+    expect(stats.find((s) => s.label === "Consecutive")?.note).toBe("2022–23 POWERPLAY to 2023–24 CENTERSTAGE");
+    expect(stats.find((s) => s.label === "Best division rank")?.note).toBe("2022–23 POWERPLAY");
+  });
   it("reads nothing from a card it can't read whole (the plain card stays)", () => {
     expect(appearances({ ...enforcers, lines: [{ text: "x", detail: "no season" }] })).toEqual([]);
     expect(appearances({ ...enforcers, kind: "awards" })).toEqual([]);

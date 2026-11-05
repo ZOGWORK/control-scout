@@ -205,7 +205,7 @@ Failed-search reporting (`server/searchFailures.ts`, `docs/failed-search-reporti
 pattern, not its query: `server/api/query/pattern.ts` parses it and keeps the intent read, the slots filled (team,
 teams, place, event, window, count…), the symbols left unexplained and how many words weren't read. Names, numbers
 and places never appear in it, so every team's "… opr scorecard" is one issue. The unread words are counted under
-the pattern (`search_failures.missed`, migration 72) and listed on the issue, the most frequent first: the word most
+the pattern (`search_failures.missed`, migration 73) and listed on the issue, the most frequent first: the word most
 often missed is the synonym to add. One issue per pattern replaces one issue per query.
 
 ## Plan (one PR per group)

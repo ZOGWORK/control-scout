@@ -1,29 +1,30 @@
-// A search answer's list of teams as one table (src/shared/teamTable.ts): a row per team with its season OPR (a bar
-// under it, scaled to the best OPR listed), the OPR's phases with a stacked bar of them, the penalties it gives away
-// and its record. The OPR, phase and record headers re-sort the rows already sent; nothing is fetched or worked out.
+// A search answer's list of teams as one table (src/shared/teamTable.ts): a row per team with its season OPR (a thin
+// neutral bar under it, from zero to the best OPR listed), each of the OPR's phases, the penalties it gives away and
+// its record; no hue on any of it (the search results guide: hue means team only). The OPR, phase and record headers re-sort the rows already sent; nothing is fetched or worked out.
 // On a phone the rank, team, OPR and record stay in the row, and the phases open under it on a tap.
 import { Fragment, useId, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowDown, ArrowUp, ChevronDown } from "lucide-react";
 import { firstDir, hasPhases, phaseNote, sortTeamRows, teamColumns, type TeamSortKey, type TeamTable as Table, type TeamTableRow } from "../../shared/teamTable";
 import { cn } from "../cn";
-import { TONES } from "../StatTile";
+import { INK_BAR, RecordText } from "./page/answerCells";
+import { PODIUM_CHIP } from "../../lib/textTones";
 
-/** The top three's rank badges in the search podium's colours (./page/EventAwards.tsx): 1st green, 2nd blue, 3rd orange. */
-const TOP3: Record<number, string> = { 1: TONES.emerald.chip, 2: TONES.sky.chip, 3: TONES.orange.chip };
+/** The top three's rank badges: bordered and bold, no hue. */
+const TOP3: Record<number, string> = PODIUM_CHIP;
 
 const oneDp = (v: number | null) => (v == null ? "–" : (Math.round(v * 10) / 10).toFixed(1));
 const record = (r: TeamTableRow) => `${r.wins}-${r.losses}-${r.ties}`;
 
-/** The phases, in the order every row stacks them, with their colours (the team page's: auto sky, TeleOp emerald,
- *  endgame violet). Penalties are points given away, so they stand apart at the end of the bar. `withEndgame`: the
+/** The phases, in the order every row lists them. Penalties are points given away, so they stand apart at the end.
+ *  `withEndgame`: the
  *  season's TeleOp includes the endgame, so it's named TeleOp and the bar leaves the endgame out (never drawn twice). */
 export function phaseSegments(withEndgame = false) {
   return [
-    { key: "auto", label: "Auto", tone: "bg-info", drawn: true },
-    { key: "dc", label: withEndgame ? "TeleOp" : "DC", tone: "bg-success", drawn: true },
-    { key: "endgame", label: "Endgame", tone: "bg-violet-500", drawn: !withEndgame },
-    { key: "pen", label: "Pen (given away)", tone: "bg-danger/70", drawn: true },
+    { key: "auto", label: "Auto", drawn: true },
+    { key: "dc", label: withEndgame ? "TeleOp" : "DC", drawn: true },
+    { key: "endgame", label: "Endgame", drawn: !withEndgame },
+    { key: "pen", label: "Pen (given away)", drawn: true },
   ] as const;
 }
 
@@ -39,11 +40,8 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
   const columns = teamColumns(withEndgame);
   const def = (k: TeamSortKey) => columns.find((c) => c.key === k)?.def;
   const segments = phaseSegments(withEndgame);
-  const drawn = segments.filter((p) => p.drawn);
-  // The OPR bars scale to the best OPR listed; the phase bars to the biggest drawn phase total listed (never the OPR).
+  // The OPR's thin bar scales to the best OPR listed.
   const oprMax = Math.max(1e-9, ...table.rows.map((r) => r.opr ?? 0));
-  const pos = (v: number | null) => Math.max(0, v ?? 0);
-  const phaseMax = Math.max(1e-9, ...table.rows.map((r) => drawn.reduce((t, p) => t + pos(r[p.key]), 0)));
   const onSort = (key: TeamSortKey) => setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: firstDir(key) }));
   const toggle = (team: number) => setOpen((o) => { const n = new Set(o); if (n.has(team)) n.delete(team); else n.add(team); return n; });
 
@@ -59,16 +57,9 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
       </th>
     );
   };
-  // A negative OPR (a fit below zero) gets no segment, and the bar's label says so rather than reading it as zero.
-  const bar = (r: TeamTableRow, wide?: boolean) => (
-    <span role="img" aria-label={drawn.map((p) => `${p.label} ${oneDp(r[p.key])}${(r[p.key] ?? 0) < 0 ? " (below zero, not drawn)" : ""}`).join(", ")} className={cn("flex h-2 items-center gap-px", wide ? "w-full" : "w-28")} data-phase-bar>
-      {drawn.map((p) => (
-        <span key={p.key} className={cn("h-full first:rounded-l-sm last:rounded-r-sm", p.tone, p.key === "pen" && pos(r.pen) > 0 && "ml-1 rounded-sm")} style={{ width: `${(pos(r[p.key]) / phaseMax) * 100}%` }} />
-      ))}
-    </span>
-  );
-  // Every column: rank, team, (asked), OPR, (four phases), record, (the phase bar and the phone's toggle).
-  const cols = 4 + (table.asked ? 1 : 0) + (phases ? 6 : 0);
+  // Every column: rank, team, (asked), OPR, (four phases), record, (the phone's toggle). No stacked phase bar: each
+  // phase is its own column.
+  const cols = 4 + (table.asked ? 1 : 0) + (phases ? 5 : 0);
 
   return (
     <figure data-team-table data-sort-key={sort.key} data-sort-dir={sort.dir}>
@@ -83,13 +74,12 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
               {table.asked && sortTh("asked", table.asked.label, "max-md:whitespace-normal max-md:leading-tight", table.asked.label)}
               {sortTh("opr", "OPR", "md:w-28")}
               {phases && <>
-                {sortTh("auto", "Auto", "max-md:hidden border-b-2 border-b-info")}
-                {sortTh("dc", withEndgame ? "TeleOp" : "DC", "max-md:hidden border-b-2 border-b-success")}
-                {sortTh("endgame", "Endgame", "max-md:hidden border-b-2 border-b-violet-500")}
+                {sortTh("auto", "Auto", "max-md:hidden")}
+                {sortTh("dc", withEndgame ? "TeleOp" : "DC", "max-md:hidden")}
+                {sortTh("endgame", "Endgame", "max-md:hidden")}
                 {sortTh("pen", "Pen", "max-md:hidden")}
               </>}
               {sortTh("record", "W-L-T")}
-              {phases && <th scope="col" className={cn(th, "max-md:hidden")}><span className="sr-only">Phases, scaled to the biggest total listed</span></th>}
               {phases && <th scope="col" className="w-8 md:hidden"><span className="sr-only">Phases</span></th>}
             </tr>
           </thead>
@@ -112,17 +102,16 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                     </td>
                     {table.asked && <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums text-foreground" data-asked>{r.asked?.display ?? "–"}</td>}
                     <td className="relative px-2 py-1.5 text-right font-semibold tabular-nums text-foreground" data-opr>
-                      {r.opr != null && r.opr > 0 && <span aria-hidden className="absolute bottom-1 left-1 h-1 rounded-full bg-foreground/25" style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar />}
+                      {r.opr != null && r.opr > 0 && <span aria-hidden className={cn("absolute bottom-1 left-1 h-1 rounded-full", INK_BAR)} style={{ width: `calc(${(r.opr / oprMax) * 100}% - 0.5rem)` }} data-opr-bar data-value={r.opr} data-scale={oprMax} />}
                       <span className="relative">{oneDp(r.opr)}</span>
                     </td>
                     {phases && <>
-                      <td className="px-2 py-1.5 text-right tabular-nums max-md:hidden">{oneDp(r.auto)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums max-md:hidden">{oneDp(r.dc)}</td>
-                      <td className="px-2 py-1.5 text-right tabular-nums max-md:hidden">{oneDp(r.endgame)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground max-md:hidden">{oneDp(r.auto)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground max-md:hidden">{oneDp(r.dc)}</td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-foreground max-md:hidden">{oneDp(r.endgame)}</td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground max-md:hidden">{oneDp(r.pen)}</td>
                     </>}
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{record(r)}</td>
-                    {phases && <td className="px-2 py-1.5 max-md:hidden">{bar(r)}</td>}
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums"><RecordText text={record(r)} /></td>
                     {phases && (
                       <td className="py-1 pr-1 md:hidden">
                         <button type="button" onClick={() => toggle(r.team)} aria-expanded={isOpen} aria-controls={more} aria-label={`${isOpen ? "Hide" : "Show"} phases for ${name}`} data-expand={r.team}
@@ -138,12 +127,11 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
                         <dl className="grid grid-cols-4 gap-1 text-[11px]">
                           {segments.map((p) => (
                             <div key={p.key}>
-                              <dt className="flex items-center gap-1 text-muted-foreground"><span className={cn("size-2 rounded-sm", p.drawn ? p.tone : "bg-muted-foreground/40")} aria-hidden />{p.key === "pen" ? "Pen" : p.label}</dt>
+                              <dt className="text-muted-foreground">{p.key === "pen" ? "Pen" : p.label}</dt>
                               <dd className="font-medium tabular-nums text-foreground">{oneDp(r[p.key])}</dd>
                             </div>
                           ))}
                         </dl>
-                        <div className="mt-1.5">{bar(r, true)}</div>
                       </td>
                     </tr>
                   )}
@@ -155,9 +143,6 @@ export function TeamTable({ table, label }: { table: Table; label: string }) {
       </div>
       {phases && (
         <figcaption className="mt-1.5 space-y-1 text-[11px] text-muted-foreground" data-legend>
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {drawn.map((p) => <span key={p.key} className="inline-flex items-center gap-1"><span className={cn("size-2 rounded-sm", p.tone)} aria-hidden />{p.label}</span>)}
-          </span>
           <span className="block" data-phase-note>{phaseNote(withEndgame)}</span>
         </figcaption>
       )}

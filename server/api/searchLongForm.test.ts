@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { SearchAnswer } from "../../src/shared/api";
 import { migrate, openDb, run, setDb } from "../db";
 import { rebuildSearch } from "../stats/job";
-import { CURRENT_SEASON } from "../data/seasons";
+import { CURRENT_SEASON, gameOf } from "../data/seasons";
 import { searchAnswer } from "./searchAnswer";
 import { refreshSearchSeason, resetSearchSeason } from "./answers/season";
 import { longForm } from "./searchLongForm";
@@ -215,13 +215,13 @@ describe("long, conversational queries", () => {
 describe("the first or the last time, by a team's name", () => {
   const label = (s: number) => `${s}–${String(s + 1).slice(2)}`;
   it.each([
-    ["when was the first time hypnotic robotics went to worlds", "4215", `First went to Worlds in ${label(L)} (Franklin)`],
-    ["when was the last time hypnotic robotics went to worlds", "4215", `Last went to Worlds in ${label(S)} (Edison)`],
-    ["when was the first time enforcers went to worlds", "7149", `First went to Worlds in ${label(S)} (Edison)`],
-    ["when did critical mass first go to worlds?", "207", `First went to Worlds in ${label(L)} (Franklin)`],
-    ["when was the last time critical mass went to worlds", "207", `Last went to Worlds in ${label(CURRENT_SEASON)} (Jemison)`],
-    ["when did first street kids first go to worlds", "33950", `First went to Worlds in ${label(S)} (Edison)`],
-    ["when was the last time 4215 went to states", "4215", `Last went to states in ${label(S)} (New Jersey Championship)`],
+    ["when was the first time hypnotic robotics went to worlds", "4215", `First went to Worlds in ${label(L)} · ${gameOf(L)}, Franklin Division`],
+    ["when was the last time hypnotic robotics went to worlds", "4215", `Last went to Worlds in ${label(S)} · ${gameOf(S)}, Edison Division`],
+    ["when was the first time enforcers went to worlds", "7149", `First went to Worlds in ${label(S)} · ${gameOf(S)}, Edison Division`],
+    ["when did critical mass first go to worlds?", "207", `First went to Worlds in ${label(L)} · ${gameOf(L)}, Franklin Division`],
+    ["when was the last time critical mass went to worlds", "207", `Last went to Worlds in ${label(CURRENT_SEASON)} · ${gameOf(CURRENT_SEASON)}, Jemison Division`],
+    ["when did first street kids first go to worlds", "33950", `First went to Worlds in ${label(S)} · ${gameOf(S)}, Edison Division`],
+    ["when was the last time 4215 went to states", "4215", `Last went to states in ${label(S)} · ${gameOf(S)}, New Jersey Championship`],
   ])("%s → team %s, \"%s\"", async (q, team, headline) => {
     const a = await ask(q);
     expect(a.card?.kind, q).toBe(/states/.test(q) ? "states" : "worlds");
@@ -232,7 +232,7 @@ describe("the first or the last time, by a team's name", () => {
 
   it("reads a typo of worlds after the filler is gone", async () => {
     const a = await ask("when was the first time enforcers went to worldes");
-    expect(a.card).toMatchObject({ kind: "worlds", team: { number: 7149 }, headline: `First went to Worlds in ${label(S)} (Edison)` });
+    expect(a.card).toMatchObject({ kind: "worlds", team: { number: 7149 }, headline: `First went to Worlds in ${label(S)} · ${gameOf(S)}, Edison Division` });
     expect(a.didYouMean).toMatch(/worlds$/);
   });
 

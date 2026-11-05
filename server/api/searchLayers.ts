@@ -44,7 +44,7 @@ export interface SearchOutcome {
 
 const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
 /** A forbidden word an answer names in its own words, so it was read, not dropped. */
-const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/ };
+const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/, and: /\s\+\s/ };
 
 const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", longform: "1L", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
 /** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,
@@ -585,7 +585,8 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
   const cands = x0.intents.length > 1 && clean(x0) ? x0.intents : xw.weak.length > 1 && clean(xw) ? xw.weak : [];
   if (cands.length > 1) {
     const u = fallback.understood ?? { kind: "team" as const, label: "" };
-    const line = `read as ${x0.teams[0]} with ${cands.join(" or ")}: say which`;
+    // Said as a question, never as the parser's own words (no "read as" on the page: the search results guide §7).
+    const line = `${x0.teams[0]}: ${cands.join(" or ")}? Say which`;
     return done({ ...fallback, understood: { ...u, label: u.label ? `${u.label} · ${line}` : line } }, null, { ...x0, intents: cands }, "ambiguous");
   }
   return done(fallback, null, x0);

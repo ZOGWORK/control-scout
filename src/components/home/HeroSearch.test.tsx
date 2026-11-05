@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
-// Home's search block: it says any search works, the placeholder walks through the examples (holding while the
-// field has focus, and never moving under reduced motion), each example chip runs its own query on /search, and
-// Enter on an empty field never searches for the example showing in it.
+// Home's search block: it says any search works, the chips are this UTC hour's six (and change on the hour), the
+// placeholder walks through the ones that fit it (holding while the field has focus, and never moving under reduced
+// motion), each chip runs its own full query on /search, and Enter on an empty field never searches for the example
+// showing in it.
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { RECENT_KEY } from "../search/discover";
-import { HERO_EXAMPLES, HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
+import { SUGGESTION_HOUR_MS, placeholderable, suggestionLabel, suggestionsAt } from "../../shared/homeSuggestions";
+import { HERO_EXAMPLE_MS, HeroSearch, heroPlaceholder } from "./HeroSearch";
 
 let reduced = false;
 vi.mock("motion/react", async (orig) => ({ ...(await orig<typeof import("motion/react")>()), useReducedMotion: () => reduced }));
@@ -27,7 +29,13 @@ const show = () => render(
 );
 const field = () => screen.getByRole("combobox");
 
-beforeEach(() => { reduced = false; localStorage.clear(); vi.useFakeTimers(); });
+/** A fixed hour, so the six are known. */
+const HOUR = Date.UTC(2026, 10, 4, 15, 20);
+const six = () => suggestionsAt(HOUR);
+const typeable = () => six().filter(placeholderable);
+const chips = () => [...screen.getByRole("list", { name: "Example searches" }).querySelectorAll("button")];
+
+beforeEach(() => { reduced = false; localStorage.clear(); vi.useFakeTimers(); vi.setSystemTime(HOUR); });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe("HeroSearch", () => {
@@ -42,36 +50,45 @@ describe("HeroSearch", () => {
     expect(screen.queryByText("Search teams, events, matches, predictions, and records.")).toBeNull();
   });
 
-  it("cycles the placeholder through every example, and holds while the field has focus", () => {
+  it("shows this hour's six, by their short labels, and the next hour's six once the hour turns", () => {
     show();
-    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(0));
+    expect(chips().map((b) => b.textContent)).toEqual(six().map(suggestionLabel));
+    const next = suggestionsAt(HOUR + SUGGESTION_HOUR_MS);
+    act(() => { vi.advanceTimersByTime(SUGGESTION_HOUR_MS); });
+    expect(chips().map((b) => b.textContent)).toEqual(next.map(suggestionLabel));
+  });
+
+  it("cycles the placeholder through the six it can show, and holds while the field has focus", () => {
+    expect(typeable().length).toBeGreaterThan(1);
+    show();
+    const [a, b] = typeable();
+    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(a));
     act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS); });
-    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(1));
-    act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS * (HERO_EXAMPLES.length - 1)); });
-    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(0));
+    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(b));
+    act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS * (typeable().length - 1)); });
+    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(a));
     fireEvent.focus(field());
     act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS * 3); });
-    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(0));
+    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(a));
     fireEvent.blur(field());
     act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS); });
-    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(1));
+    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(b));
   });
 
   it("never moves under reduced motion", () => {
     reduced = true;
     show();
     act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS * 4); });
-    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(0));
+    expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(typeable()[0]));
   });
 
-  it("runs an example's query when its chip is tapped", () => {
+  it("runs a chip's full query when it is tapped, not its short label", () => {
     show();
-    const list = screen.getByRole("list", { name: "Example searches" });
-    expect(list.querySelectorAll("button")).toHaveLength(HERO_EXAMPLES.length);
-    const { q } = HERO_EXAMPLES[1];
-    fireEvent.click(screen.getByRole("button", { name: `Versus: search “${q}”` }));
-    expect(screen.getByTestId("at").textContent).toBe(`/search?q=${encodeURIComponent(q)}`);
-    expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")).toContain(q);
+    expect(chips()).toHaveLength(6);
+    const board = six().find((s) => s.kind === "leaderboard")!;
+    fireEvent.click(screen.getByRole("button", { name: `Leaderboard: search “${board.q}”` }));
+    expect(screen.getByTestId("at").textContent).toBe(`/search?q=${encodeURIComponent(board.q)}`);
+    expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]")).toContain(board.q);
   });
 
   it("never searches for the example in the placeholder", () => {

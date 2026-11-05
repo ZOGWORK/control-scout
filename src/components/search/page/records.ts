@@ -10,6 +10,10 @@ export interface Appearance {
   /** The season's first year (2021 for 2021–22). */
   season: number;
   seasonLabel: string;
+  /** The season's game ("CENTERSTAGE"), as the server names it (SearchCardLine.game); null when not given. */
+  game: string | null;
+  /** "2023–24 CENTERSTAGE": the season said with its game, where a card or a stat names one. */
+  seasonName: string;
   /** "FIRST Championship - Houston - … - Franklin Division" → title "Franklin Division", badges ["FIRST Championship"]. */
   name: string;
   title: string;
@@ -54,7 +58,7 @@ export function appearance(l: SearchCardLine): Appearance | null {
   }
   const { title, badges } = eventName(l.text);
   return {
-    id: `rec-${season}`, season, seasonLabel: sm[0], name: l.text, title, badges,
+    id: `rec-${season}`, season, seasonLabel: sm[0], game: l.game ?? null, seasonName: l.game ? `${sm[0]} ${l.game}` : sm[0], name: l.text, title, badges,
     division: title !== l.text ? title.replace(/\s+division$/i, "") : null,
     when: rest[0] ?? null, place: rest[1] ?? null, rank, record, opr, more, href: l.href,
   };
@@ -83,9 +87,9 @@ export function appearanceStats(apps: Appearance[], where?: string): Stat[] {
     run = apps[i].season === apps[i - 1].season + 1 ? { len: run.len + 1, from: run.from } : { len: 1, from: i };
     if (run.len > best.len) best = { ...run };
   }
-  out.push({ label: "Consecutive", value: String(best.len), note: best.len > 1 ? `${apps[best.from].seasonLabel} to ${apps[best.from + best.len - 1].seasonLabel}` : apps[best.from].seasonLabel });
+  out.push({ label: "Consecutive", value: String(best.len), note: best.len > 1 ? `${apps[best.from].seasonName} to ${apps[best.from + best.len - 1].seasonName}` : apps[best.from].seasonName });
   const ranked = apps.filter((a) => a.rank != null);
-  if (ranked.length) { const b = ranked.reduce((x, y) => (y.rank! < x.rank! ? y : x)); out.push({ label: "Best division rank", value: `#${b.rank}`, note: b.seasonLabel }); }
+  if (ranked.length) { const b = ranked.reduce((x, y) => (y.rank! < x.rank! ? y : x)); out.push({ label: "Best division rank", value: `#${b.rank}`, note: b.seasonName }); }
   const games = apps.map((a) => /^(\d+)-(\d+)-(\d+)$/.exec(a.record ?? "")).filter((m): m is RegExpExecArray => !!m).map((m) => m.slice(1, 4).map(Number));
   if (games.length) {
     const [w, l, t] = games.reduce((s, g) => s.map((v, i) => v + g[i]), [0, 0, 0]);

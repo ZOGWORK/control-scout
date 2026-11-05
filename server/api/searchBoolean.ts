@@ -300,7 +300,7 @@ export async function booleanAnswer(raw: string, read: Reader, full: boolean): P
     const two = readTwoTeam(vs);
     if (two && two.id !== "head-to-head") {
       const a = await read(vs);
-      if (a.intent?.kind === `stat-${two.id}` && (!full || a.stat)) return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label} · read as "${vs}"${note}` } };
+      if (a.intent?.kind === `stat-${two.id}` && (!full || a.stat)) return { ...a, q, understood: a.understood && { ...a.understood, label: `${a.understood.label}${note}` } };
     }
   }
   // Any other stat: each team's own answer, its headline in one table, read as each team's own search reads it (a

@@ -15,161 +15,132 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.2.9 — 2026-11-05
-
-Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results. (#730)
-
-### Highlights
-- [predict] "Predicted chances of a team at an event" gets an answer
-- [predict] The win chance is a 0–100% bar, with Open in Predict
-- [fixes] No answer shows the closest teams and events as full cards
-- [fixes] How FTC One Search works describes the search as it is now
-
-### Changes
-- **Prediction answers.** A team's prediction at a named event leads with its chance (the next match's, else the average over the matches played, else the event's) as a number and a bar on a 0–100% scale. The next match shows its predicted score with its ranges. Open in Predict is the card's one action, and expected wins print once.
-- **No answer.** One sentence says what's missing; the closest teams and events follow as full cards, with searches that answer about them.
-- **How it works.** The search page's explainer covers reading a question in any order, the season rule, widening in a stated order and worked-out measures.
-
-## 3.2.8 — 2026-11-05
-
-Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to. (#729)
-
-### Highlights
-- [fixes] "When did a team last lose a match" shows that loss
-- [fixes] "Longest losing streak" counts losses, not wins
-- [fixes] "Who did they lose to the most" lists the teams that beat them
-- [fixes] "Where is a team based out of" and "how old is it" answer
-
-### Changes
-- **Wins and losses as a filter.** A team's first, most recent and last few matches, and its longest streak, read a win or a loss said with them, and the card's title says which.
-- **Lost to.** "Lose to", "lost to" and "beaten by" list the opponents that beat the team, most often first. "Most often" is how often, never the best partner.
-- **Team facts.** "Based out of" reads as where a team is from and "how old" as its rookie year; "if any" never stops an answer.
-
-## 3.2.7 — 2026-11-05
-
-Lists of teams answer however they're asked: the lowest first, a town, a country by its people, undefeated. (#728)
-
-### Highlights
-- [rankings] "Who has the highest auto OPR in NJ" lists the teams
-- [rankings] "Worst teleop OPR in Romania" lists the lowest first
-- [rankings] "Best team in Cluj-Napoca, Romania" and "Romanian teams" work
-- [rankings] "Any team with a perfect record" lists undefeated teams
-
-### Changes
-- **Leaderboards said any way.** A list of teams by a season stat reads with or without "team", lowest first ("worst", "lowest"), for a whole country, a town with its state or country after it, a country by its people's word, a count at the end ("top 3") and undefeated teams. "Just curious", "only" and other asides are never read as a team's name.
-- **Season.** No season said reads the current season once a team is ranked in it, and otherwise shows last season and says so.
-
-## 3.2.6 — 2026-11-05
-
-Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback. (#727)
-
-### Highlights
-- [fixes] "Closest match in Romania last month" answers with the match
-- [fixes] "Biggest upset in New Jersey" and "best comeback in Michigan" work
-- [fixes] Filter by quals, playoffs, finals or league meets in any match question
-- [fixes] No season said reads this season, or says it's showing last season
-
-### Changes
-- **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match, the next few under it and every filter on the card. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final.
-- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one.
-- **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship.
-
-## 3.2.5 — 2026-11-05
-
-Search is checked against 533 questions people wrote for it, and the slow ones are fast. (#726)
-
-### Highlights
-- [speed] Team lists filtered by Worlds or an award: under a second, not 45
-- [speed] Long questions no longer look the same words up again and again
-- [report] Search is measured on 533 questions people wrote, by pattern
-
-### Changes
-- **Held-out questions.** `npm run search:heldout` asks the 200 unique queries, the 260-query list and the complex queries, and sorts every answer into a pattern (answered, fallback only, team card only, a place or time not stated, words not read), with the pass rate per set and per pattern.
-- **Speed.** A search remembers the names it looked up for a minute (per index version), so one long question no longer searches the same word dozens of times. Lists filtered by Worlds or an award read each team's own events and awards by index, not the whole season's for every team.
-
-## 3.2.4 — 2026-11-05
-
-"North Jersey", "Northern California" and every other part of a region now read as that whole region, said so. (#722)
-
-### Highlights
-- [fixes] "Highest score in central jersey" reads New Jersey, said so
-- [fixes] Any part of a state ("northern california") is the whole state
-- [fixes] "Not" help shows a real opponent of the team you typed
-
-### Changes
-- **Parts of a region.** A direction before a region ("north jersey", "northern california", "western new york") is read as that whole region, since parts aren't on record, and the answer says so. A place named that way by itself ("North Carolina", "West Virginia", "Northern Ireland") stays itself. This replaces a rule written only for New Jersey, and now works in every kind of question, including a week's best score ("highest score in central jersey this week" no longer finds a team called Central).
-- **"Not" help.** When "not" is followed by a word that isn't a team, the example now leaves out a team that team has really played against.
-
 ## 3.2.3 — 2026-11-05
 
-Failed searches are grouped by how they failed, so the words search misses most rise to the top. (#721)
+Search reads a question as its parts in any word order and answers from the data: matches by what made them stand out, lists of teams asked any way, a team's wins and losses, and predictions on a 0–100% bar. (#710)
 
 ### Highlights
-- [report] Failed searches grouped by pattern, not one entry per query
-- [report] The words search couldn't read, counted, most missed first
-- [fixes] No team name or number in a failure pattern
+- [teams] Any word order: one question, one card, its filters named
+- [fixes] "Closest match in Romania last month" answers with the match
+- [rankings] "Worst teleop OPR in Romania" lists the lowest first
+- [predict] A team's chance at an event: a 0–100% bar, Open in Predict
+- [fixes] No answer shows the closest teams and events as full cards
 
-### Changes
-- **One entry per pattern.** A failed search is filed under what search read (the intent, which slots were filled, what was left unexplained), with every team, number and place left out. Every query that fails the same way adds to that one entry and its examples, where before each query had its own.
-- **Missed words.** Each pattern counts the words its queries left unread and lists them, the most frequent first: the word at the top is usually a phrase search should learn. Entries filed per query before this release are left as they are.
+### Search pipeline
+- **Any order.** A question is read into slots (teams, event, place, time, match type, side, award, highest or lowest, a count) in any word order, asides skipped, and run as one structured question over the stored matches, events and awards. "12345 highest score", "highest score 12345" and "what is the best score for 12345" show the same card, for any team, and the card names each filter it applied.
+- **Time and place.** "This week", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" are read against today. A state, a province, a country, a region code, or any part of a region ("north jersey", "northern california", read as the whole region and said so) filters where events were held. A year with no events yet says so, never the latest season.
+- **Seasons.** A question about one team reads that team's latest season. A place, a leaderboard or everyone reads the current season, and when it has nothing yet the season before, said on the card. A season you type always wins.
+- **Widened in a stated order.** A window with nothing in it widens one step at a time (this week, then its season, then the season before), and the card says what changed. A place, an event, a team or a year named is never widened.
 
-## 3.2.2 — 2026-11-04
+### Answers
+- **Match finder.** The closest, most lopsided, lowest scoring, most penalised, biggest upset and best comeback matches, filtered by place, time, quals, playoffs, finals or league meets. Upsets and comebacks follow one rule printed under "How this is counted"; an upset is only a favourite's loss.
+- **Leaderboards any way.** Lists of teams by a season stat read with or without "team", lowest first, for a country, a town, a country by its people's word ("Romanian teams"), a count at the end and undefeated teams.
+- **Wins and losses.** A team's first, latest and last few matches and its longest streak read a win or a loss said with them; "lost to" lists the teams that beat it, most often first. "Based out of" and "how old" answer.
+- **Predictions.** A team's prediction at a named event leads with its chance as a number and a bar on a 0–100% scale, the next match's predicted score with its ranges, before and after match by match, and Open in Predict as the card's one action.
+- **No answer.** One sentence says what's missing, then the closest real teams and events as full cards and searches that answer about them, never an empty page.
+- **How it works.** How FTC One Search works describes the search as it is: reading in any order, the season rule, widening and worked-out measures.
 
-Search is now checked every day against questions it has never seen, built from the data, with every answer under a second. (#719)
+### Checks
+- **Search eval.** Every change asks search about teams drawn from the latest season in many phrasings, checks each card against the match tables, and fails any answer slower than a second. `npm run search:heldout` asks 533 questions people wrote and sorts each answer by pattern.
+- **Failure patterns.** Failed searches are filed by how they failed, with no team, number or place in the pattern, and the words search couldn't read are counted, most missed first (migration 73).
+- **Speed.** A search remembers the names it looked up for a minute, so a long question no longer looks the same word up dozens of times. A team name of seven words or more is read whole.
 
-### Highlights
-- [fixes] Long team names (seven words and more) are read whole
-- [fixes] "Mean score for a team" is the average, not a definition
-- [speed] Repeat searches for a team's name skip a second lookup
-- [report] Every change checks search's cards against the match tables
+## 3.2.1 — 2026-11-05
 
-### Changes
-- **Search eval.** Each run draws teams at random from the latest season and asks about them in many ways: every phrase search knows for "highest", "score" and the rest, the team by number or name, in any order, with or without "what is" and "?". Each answer is checked against the match tables: the record, the highest, lowest and average score, a year typed, a future year, no place added, a place and a week stated, a matchup's forecast with Predict open, a misspelled name. Every answer must come back within a second.
-- **Fixes it found.** A team name of seven words or more was never read whole, so its questions fell to the slow path (2.7 s, now about 30 ms). "Mean scoring for …" showed what "mean" means instead of the average. A team's name already looked up isn't searched for as an event again. A team's name with a letter missing ("the roocats") is that team, with a "Did you mean", when no other team's name is as close; when two are, search doesn't guess.
-
-## 3.2.1 — 2026-11-04
-
-Ask for a team's prediction at an event and search shows the forecast before and the result after, side by side. (#717)
-
-### Highlights
-- [predict] "Predicted chances of 4215 at East Bergen": before vs after
-- [predict] Each match: predicted win chance and score beside the result
-- [predict] Open in Predict, filled in with the team and the event
-- [predict] Two teams at an event: their meetings, predicted and played
-
-### Changes
-- **Before and after.** A prediction question that names an event ("predicted chances of 4215 east bergen conference", "east bergen conference 4215 forecast 2025") shows, for that event, what the engine predicted before each match beside what happened. That means the win chance and predicted score next to the result, whether the call was right, expected wins against actual wins, and the stored pre-event projection when there is one. The match predictions come from the log made before each match. Where a match wasn't logged live, the card uses the walk-forward replay and says so. The two are never mixed on one card.
-- **Which event.** With no year, it's the latest event of that name the team is listed at. With a year, the one held that year. A team that isn't listed there is told so, and no other event is shown instead. An event still to come shows its forecast only.
-- **Open in Predict** sits at the top of the page links, opened on the team at that event, or on the two teams for a matchup. The two-team call's own link reads "Open in Predict" too.
-
-## 3.2.0 — 2026-11-04
-
-When a question's time window has nothing in it, search widens it one step at a time and says so on the card. (#715)
+Search answer cards follow the search results guide: comparisons say the result once, bars start at zero, and colour means team.
 
 ### Highlights
-- [teams] Nothing this week? The season's answer, marked as relaxed
-- [rankings] "Highest-scoring match in California this week" always answers
-- [fixes] A place, an event or a year named is never widened
+- [appearance] One headline per comparison: who leads and by how much
+- [appearance] Paired bars from zero, each row on its own season scale
+- [appearance] Colour means team only: violet and orange bars
+- [appearance] No phase, podium or win colours on answer data
+- [fixes] No "read as" text; team names printed once per card
 
-### Changes
-- **Relaxed filters, stated.** When nothing matches a date window ("this week", "last weekend", "in March"), search widens it to that window's season. If that season has nothing yet, it uses the season before. The card's first chip says what changed ("Relaxed: this week → 2025–26"), the heading ends "relaxed from this week to 2025–26", and the note under the card lists each step it tried. A place, an event, a team or a year named is never widened: "in 2024-25" with nothing there says so.
+### Search
+- **Comparison cards.** Two- and three-team answers (OPR, rating, phase, record, reliability, awards, compare) are one card: the teams named once in the title, one headline with the result and the gap, one context line (ranks, records, the phase that decided it), then a row per metric. Each row has a bar per team from zero to the row's own maximum, printed as "max N", and the gap on the right. The Total comes first, then the rest by the size of the gap, five rows at most. A row's maximum is the season's highest, rounded up, so the same number draws the same bar on every card that season. The team header strip, the second season pill and the stat tiles are gone; the method sits behind an info button, and "Open in Predict" is the one button.
+- **Team colours.** Teams are violet and orange (the app's own chart colours; teal for a third team), apart under every colour vision and each at least 4.5:1 against the card in Light, Dim, Dark and Midnight. They are used only on bars and swatches. A winner is bold with its "+N", not coloured.
+- **No hue on other data.** Phases, ranks, podium places, records, results, event types and stat tiles are neutral on every answer card. Red and blue stay only where they mark an alliance. OPR and combined-score bars are neutral and start at zero.
+- **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams and scores (the winner marked, the loser muted) and the listed alliance's points by phase.
+- **Less meta text.** Boolean queries no longer add "read as" to their label, and an unclear query asks "awards or location? Say which". (#709)
 
-## 3.1.9 — 2026-11-04
+## 3.2.0 — 2026-11-05
 
-Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data. (#713)
+Search answers misspelled questions about four times faster, and filtered team lists in well under a second.
 
 ### Highlights
-- [teams] Any word order, any filler: one question gets one answer card
-- [rankings] Highest-scoring match in California this week, filters applied
-- [teams] A country is a place: "Alphatronic record in Romania"
-- [fixes] A future year says it has no events yet, never the latest season
+- [speed] A misspelled search answers about four times faster
+- [speed] Filtered team lists answer in under a second, not a minute
+- [speed] A search asked again within a minute answers at once
+- [fixes] A page's first slow search tries once more before saying so
+
+### Search
+- **Typos, faster.** Search's in-memory typo scan scores each distinct name word once per word typed (about a third of the work), skips the spelling distance for words whose letters are already too different, and reuses its working rows. Spelling correction skips the same words. Every score is the same number as before. (#716)
+- **Repeated reads kept.** The search index's reads and the event lists a search reads are kept until the data or the index changes, so the readings of one search (and a correction's second reading) share them. A whole answer is kept for a minute.
+- **Places.** "Events at River Dell High School" and "events in Oradell" work out each venue's spelling once, and each time zone's date format once, instead of once per event per search.
+- **Measured.** `scripts/search-bench.ts` asks a running server 365 queries (the 260 list, the complex queries, misspellings) and checks every answer against an earlier run's.
+- **Filtered lists.** "NJ teams that won Inspire" and "teams that went to Worlds" looked up each team's awards and events the slow way: 30 to 100 seconds a list, holding up every other request meanwhile. A new index (migration 72) and a reordered lookup make them a few tens of milliseconds.
+- **Slow searches.** A page's first search that runs out of time now tries once more before showing "Search is slow", as every other search already did.
+
+## 3.1.9 — 2026-11-05
+
+Home's search chips change every hour, six at a time from a pool that shows each kind of answer search gives.
+
+### Highlights
+- [home] Six new search chips every hour, the same for everyone
+- [home] Chips for OPR, records, Worlds, awards, winners and more
+- [home] Questions in a sentence and searches with several filters
+- [home] The box's "Try" hint walks through the hour's chips
+
+### Home
+- **Suggestions that rotate.** The six chips under Home's search are picked each UTC hour from about 70 queries: team facts, OPR by phase, prediction rating, records with quals and playoffs apart, matches at an event or Worlds, awards, Worlds trips, two and three teams compared, leaderboards, event winners, next events, a misspelt name, questions in a sentence and searches joining several filters. Never two of one kind, always a leaderboard and a sentence or filtered search, and no team twice. A long query shows a short label and runs in full. The pick is worked out from the clock, so nothing extra loads and a cached page still changes on the hour.
+- **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found. (#705)
+- **Taps and room.** On a touch screen each chip's tap area is 44px tall, with the chip drawn the same size as before. Where the search column is too narrow for three rows to hold any six (a phone, or beside the globe), the chips are one row that scrolls sideways, so the hourly change never moves the page.
+
+## 3.1.8 — 2026-11-05
+
+Search reads a season's best scores by its game, without penalties or by period, and common words never name a team.
+
+### Highlights
+- [rankings] "Highest score in decode without penalties": the season's best
+- [rankings] "Highest auto score in centerstage", each period's best
+- [fixes] Words like "without", "team" and "best" never name a team alone
+
+### Search
+- **A season's best, by its game.** "What was the highest score in decode without penalties" is DECODE's (2025–26) best alliance score with penalties taken off: the match, its event, both alliances, the score with and without penalties and its auto, teleop and endgame points in their phase colours. Each season's game name, in any spelling ("center stage", "into the deep"), is read from the season list, and a place narrows it ("highest score in nj in into the deep").
+- **One period's best.** "Highest auto score in centerstage", "top teleop scores in decode", "highest endgame score in nj in into the deep": the season's best alliance scores in that period, and both alliances' combined, the period marked on each match.
+- **Common words name no team.** A question whose leftover words are only common ones ("without", "team", "best", "the", "robotics", …) names no team, however many team names hold them ("T.W.C.A. (Team Without a Cool Acronym)" for "without"). Beside a word of a name's own ("team without a cool acronym", "sparks") they still find it, and a name typed whole is still found. (#712)
+
+## 3.1.7 — 2026-11-05
+
+Search answers the failed searches filed since 3.1.4: an event named without "at", numbers typed against words, typos, bare numbers and sorts said in plain words.
+
+### Highlights
+- [teams] "What rank did 4215 get in the east bergen conference"
+- [rankings] "Teleop ranked", "best auto sorted lowest to highest"
+- [fixes] "4215matches", "winnng", "appreacne" and cut-off words read
+- [fixes] A number with no team shows the closest team numbers
+- [teams] A team that skipped an event: the reason, and its real events
+
+### Search
+- **An event named beside the team.** An event's rank, OPR and results, and the forecasts, read the event wherever the query names it ("what rank did 4215 conference", "predicted chances of 4215 east bergen conference"), as one of the team's own events; "conference" alone is the team's conference tournament. Words that name none of its events leave the question as it was. (#694)
+- **Typed together, misspelled, cut off.** A team number typed against the next word ("23268matches") is two words. A long word with its letters jumbled ("appreacne") reaches search's own word, "winnng" is "winning", and "east bergen conference winner" is the event's winning alliance. A query cut off mid-word is read without it, a trip question ("when was the first time enforcers whe") as the Worlds one, offered as a correction.
+- **Numbers with no team.** A single digit or a number no team has ("676767") shows the closest real team numbers, as "238" did, never an empty page; a placeholder entry's number says it has no page.
+- **Sorts in plain words.** "Best team sorted by auto", "teleop ranked", "sorted lowest to highest" (the bottom of the list, each team's place counted from the top) and "best auto and endgame" (the two OPRs added) are the phase-OPR leaderboards. "What is the bet" and "what is the best time" offer "what is the best team".
+- **A rating change with no team.** "Predicted changes" says a change is one team's and asks it of the season's top-rated teams; "4215 predicted change" is its rating change.
+- **An event a team didn't play.** The card says why, from the records: a team from another state or country, else the kinds of events it played that season (or none, with its latest season's), and links each of those events' pages.
+- **Worlds trips name their game.** "Last went to Worlds in 2023–24 · CENTERSTAGE, Edison Division": the headline, each trip and the streak and best-rank notes say the season's game. The trip asked about is marked, and ranks, records, OPRs, awards and the summary numbers take the team page's colours.
+
+## 3.1.6 — 2026-11-05
+
+The home track record leads with today's engine: 74.8% of 2025–26 winners called right.
+
+### Highlights
+- [home] The track record's big number is engine 3.5's month-by-month test
+- [home] 27,354 correct and 9,218 missed on 2025–26 matches with a winner
+- [home] The site's full-season replay (73.8%) is named right below it
 
 ### Changes
-- **One search pipeline.** A question is parsed into slots (teams, event, place, time window, match type, side, award, highest or lowest, a count) in any word order, with filler ignored, and run as one structured question over the stored matches, events and awards. "4215 highest score", "highest score 4215", "what is the best score for 4215" and "score highest 4215 rn" read the same and show the same card, for any team. The card lists what was read.
-- **Time is relative to today.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season. "This week" filters matches by their date, and the card says "This week".
-- **Places.** A state, a province, a country ("in Romania") or a region code filters events by where they were held. A team-specific question with no place keeps the team's own events. A query with no place is never read as New Jersey.
-- **Years.** A year is that season. With no year, the latest season. A year with no events on record yet ("4215 record 2027") says so, with the latest as a question to ask, and never answers with the latest season.
-- **One highest-scoring match.** "The highest-scoring match" lists that one match with both alliances, their teams, the event and the date. "Matches" or "top 5" lists several.
+- **Today's engine on the home page.** The track record's "Last season" tab (was "Season replay") shows engine 3.5 on the month-by-month test from How it works › Accuracy: 74.8% on 2025–26, 27,354 of 36,572 matches with a winner at rated events. The line below names the site's own replay of every match in order (73.8% on 41,405 decisive calls) and says the two use different match lists. "This season so far" is unchanged. (#720)
 
 ## 3.1.5 — 2026-11-04
 

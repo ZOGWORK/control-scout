@@ -91,11 +91,13 @@ export async function pairPrediction(intent: string, title: string, a: AnswerTea
 }
 
 const NEXT_TITLES: Partial<Record<IntentId, string>> = { "next-event-wins": "Predicted wins, next event", "event-win-chance": "Chance to win their next event", "advance-chance": "Advancement chance", "playoff-chance": "Playoff chance, next event" };
+/** The title for an event named ("Chance to win" at it), not the next one. */
+export const predictTitle = (id: IntentId) => (NEXT_TITLES[id] ?? "Prediction").replace(/,? (?:their )?next event$/, "");
 const NEXT_RULE = "From the engine's stored projection for the event (the event page's Forecast): thousands of simulated runs of the event's qualification schedule and alliance selection from the prediction ratings. Advancement counts competition-performance slots only (no award points). Nothing is simulated for a search.";
 
 /** The team's next event and the engine's stored projection for it, or the honest card when none is stored. */
 export async function nextEventPrediction(id: IntentId, team: AnswerTeam, now = new Date(), event?: { season: number; code: string }, season: number | null = null): Promise<StatAnswer> {
-  const title = NEXT_TITLES[id] ?? "Prediction";
+  const title = event ? predictTitle(id) : NEXT_TITLES[id] ?? "Prediction";
   // The events a team is listed for (a FIRST registration counts), as "when is <team>'s next event" reads them.
   // A day either side in UTC, then the venue's own today: the day after a meet, it's no longer the next event.
   const yesterday = new Date(now.getTime() - 864e5).toISOString().slice(0, 10);

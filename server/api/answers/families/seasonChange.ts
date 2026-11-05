@@ -32,10 +32,14 @@ function seasonIn(words: string): number | null | undefined {
   return scope.season ?? (scope.latest ? searchSeason() : null);
 }
 
-/** "how much did 12345's opr improve from last season to this season", "12345 rating change this season", or null. */
+/** "how much did 12345's opr improve from last season to this season", "12345 rating change this season", "12345
+ *  predicted change", or null. With no team ("predicted changes", "rating change"), `core` is "": the answer asks for
+ *  one. */
 export function readChange(raw: string): ChangeQuestion | null {
   const q = raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,.]/g, " ").replace(/\s+/g, " ").trim();
-  const m = new RegExp(String.raw`^(?:how much (?:did|has|have|does) |what (?:was|is) )?(?:the )?(.+?) (opr|(?:prediction )?rating) (?:${CHANGE})(?: by)?(?: (.+))?$`).exec(q);
+  const m = new RegExp(String.raw`^(?:how much (?:did|has|have|does) |what (?:was|is|are) )?(?:the )?(?:(.+?) )?(opr|(?:prediction |predicted )?rating|predicted|prediction|predictions) (?:${CHANGE})(?: by)?(?: (.+))?$`).exec(q);
+  // The prediction's own words never name a team ("prediction rating change" isn't Post-Production Team's).
+  if (m) m[1] = (m[1] ?? "").replace(/\b(?:the|predicted|prediction|predictions)\b/g, " ").replace(/\s+/g, " ").trim();
   if (!m || /\b(?:vs|versus|and|or)\b/.test(m[1])) return null;
   const stat = m[2] === "opr" ? "opr" : "rating";
   const tail = (m[3] ?? "").trim();

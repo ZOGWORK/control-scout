@@ -1,0 +1,53 @@
+// The comparison rows the search results guide asks for (.claude/search-viz-guide-2026-11-05.txt §3, §10): each row's
+// scale a round number at or above its values, Total first and then the rows by the size of their gap.
+import { describe, expect, it } from "vitest";
+import { compareRows, decidedText, leadHeadline, niceMax } from "./compareBlock";
+
+describe("compare rows", () => {
+  it("a scale is a round number at or above the season's high", () => {
+    expect(niceMax(157.9)).toBe(160);
+    expect(niceMax(241.3)).toBe(250);
+    expect(niceMax(36.5)).toBe(40);
+    expect(niceMax(7.2)).toBe(8);
+    expect(niceMax(0)).toBe(1);
+  });
+  it("Total first, then the bar rows by gap, then the rows of values; the scale never below a value", () => {
+    const rows = compareRows([
+      { label: "Total", total: true, values: [157.9, 115.3], max: 160, better: "higher" },
+      { label: "Auto", values: [36.5, 41.6], max: 40, better: "higher" },
+      { label: "TeleOp", values: [101, 68.7], max: 120, better: "higher" },
+      { label: "Matches", values: [32, 31], better: null },
+    ]);
+    expect(rows.map((r) => r.label)).toEqual(["Total", "TeleOp", "Auto", "Matches"]);
+    // A season scale read before a team passed it: rounded up again, so the bar stays inside the row.
+    expect(rows[2]).toMatchObject({ max: 45, nums: [36.5, 41.6], best: 1, gap: "+5.1" });
+    expect(rows[3].max).toBeUndefined();
+    expect(decidedText(rows)).toBe("TeleOp decided it (+32.3)");
+    const teams = [{ number: 23268, name: "Ultraviolet" }, { number: 7149, name: "ENFORCERS" }];
+    expect(leadHeadline(teams, rows[0], ["#144 of 8,308", "#446 of 8,308", decidedText(rows)])).toEqual({ value: "23268 leads 157.9 – 115.3", label: "+42.6", sub: "#144 of 8,308 · #446 of 8,308 · TeleOp decided it (+32.3)" });
+  });
+  it("a tie or a missing value names no one", () => {
+    const [even] = compareRows([{ label: "Total", total: true, values: [50, 50], max: 60, better: "higher" }]);
+    expect(leadHeadline([{ number: 1, name: null }, { number: 2, name: null }], even, [])).toMatchObject({ value: "Even at 50.0" });
+    const [gap] = compareRows([{ label: "Total", total: true, values: [50, null], max: 60, better: "higher" }]);
+    expect(gap.best).toBeNull();
+    // Two of three level at the top: they are named, at their shared value, never the trailing team's.
+    const three = [1, 2, 3].map((n) => ({ number: n, name: null }));
+    const [top2] = compareRows([{ label: "Total", total: true, values: [10, 20, 20], max: 30, better: "higher" }]);
+    expect(leadHeadline(three, top2, [])).toMatchObject({ value: "2 and 3 tie at 20.0" });
+  });
+  it("a value below zero gets no bars, and the row says why", () => {
+    const [r] = compareRows([{ label: "Auto", values: [-2, -10], max: 40, better: "higher" }]);
+    expect(r).toMatchObject({ values: ["-2.0", "-10.0"], note: "below zero: no bars", best: 0 });
+    expect(r.max).toBeUndefined();
+    // It keeps its place by gap, and can be the phase that decided it.
+    const rows = compareRows([
+      { label: "Total", total: true, values: [70, 20], max: 80, better: "higher" },
+      { label: "Auto", values: [10, -30], max: 40, better: "higher" },
+      { label: "TeleOp", values: [50, 45], max: 60, better: "higher" },
+      { label: "Endgame", values: [10, 5], max: 20, better: "higher" },
+    ]);
+    expect(rows.map((x) => x.label)).toEqual(["Total", "Auto", "TeleOp", "Endgame"]);
+    expect(decidedText(rows)).toBe("Auto decided it (+40.0)");
+  });
+});

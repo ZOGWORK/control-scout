@@ -7,6 +7,7 @@ import { onRecord } from "../../../src/shared/eventRecord.js";
 import type { StatLink, StatMatchRow } from "../../../src/shared/searchStat.js";
 import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { CHAMPIONSHIP_TYPE } from "./clauses.js";
+import { reportedTeleopIncludesEndgame } from "../../data/seasons.js";
 
 export interface TeamMatch {
   season: number; code: string; level: string; series: number; number: number; label: string;
@@ -115,12 +116,20 @@ export async function teamLinks(numbers: Iterable<number>): Promise<Map<number, 
   return out;
 }
 
+/** The alliance's points by period, TeleOp as FIRST reports it (with the endgame from 2024–25 on, as the season's
+ *  top-match lists show it); a missing split stays missing. */
+function phasesOf(m: TeamMatch): NonNullable<StatMatchRow["phases"]> {
+  const withEnd = reportedTeleopIncludesEndgame(m.season) && m.ownTeleop != null && m.ownEndgame != null;
+  return { auto: m.ownAuto, teleop: withEnd ? m.ownTeleop! + m.ownEndgame! : m.ownTeleop, endgame: m.ownEndgame, pen: m.ownPen, ...(withEnd ? { teleopWithEndgame: true } : {}) };
+}
+
 /** A match as an answer's row, with its teams named (`links` from teamLinks). */
 export function matchRow(m: TeamMatch, links: Map<number, StatLink>, team?: number): StatMatchRow {
   const link = (n: number) => links.get(n) ?? { label: String(n), href: teamHref(n) };
   return {
     label: m.label, href: matchHref(m), event: { label: m.event, href: eventHref(m.season, m.code, team) }, season: seasonLabel(m.season),
     date: m.date ? dateRange(m.date.slice(0, 10)) : null, alliance: m.alliance, own: m.own, opp: m.opp, ownNp: m.ownNp, result: m.result,
-    partners: m.partners.map(link), opponents: m.opponents.map(link),
+    partners: m.partners.map(link), opponents: m.opponents.map(link), oppNp: m.oppNp, type: m.type, ...(team != null ? { self: link(team) } : {}),
+    phases: m.ownAuto != null || m.ownTeleop != null || m.ownEndgame != null ? phasesOf(m) : null,
   };
 }

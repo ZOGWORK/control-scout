@@ -17,7 +17,7 @@
 // the app asks /api/search/refine after these results are on screen (./searchBruno.ts).
 import type { SearchAnswer, SearchHit, SearchRecovery, SearchUnderstood } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, SEARCH_FILLER, SEARCH_PAGE_LIMIT, SEARCH_TOPICS, TOPIC_LABEL, VERSUS, cardWho, onlyPageWords, pagesFor, showingLine } from "../../src/shared/search.js";
-import { conversationQuery, isQuestionForm, nameWords, singularize } from "../../src/shared/searchQuery.js";
+import { conversationQuery, isQuestionForm, nameWords, onlyCommonWords, singularize } from "../../src/shared/searchQuery.js";
 import { readEventQuery, regionOf } from "../../src/shared/searchEventQuery.js";
 import { eventSetAnswer } from "./searchEvents.js";
 import { versusAnswer } from "./searchCompare.js";
@@ -186,11 +186,15 @@ async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnsw
   return layeredAnswer(cleanQuery(raw), reader);
 }
 
+/** A team number typed against the next word ("23268matches at nj championship"): the two words apart. Three letters
+ *  or more, so an ordinal ("2nd", "10th") or a match code ("q12") stays as typed. */
+export const unglue = (q: string): string => q.replace(/(^|\s)(\d{1,6})(\p{L}{3,})(?=\s|$)/gu, "$1$2 $3");
+
 /** Layer 1, the readers' answer for `raw`. Plurals are read as their singular first (src/shared/searchQuery.ts),
  *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
 export async function readerAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const typed = cleanQuery(raw);
-  const read = singularize(typed);
+  const read = singularize(unglue(typed));
   // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").
   // One reading for every surface (brief Requirement 2): the answer is worked out on the page's full list, whatever
   // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
@@ -270,7 +274,9 @@ async function answerFor(read: string, opts: AnswerOptions): Promise<SearchAnswe
   if (said) return said;
 
   // 0. A stat question about a team ("12345 highest score in worlds", "12345 worlds record"): ./answers/index.ts.
-  const stat = opts.intents === false ? null : await statAnswer(q, (core) => searchAnswer(core, { ...opts, intents: false, learn: false }), { full: !!opts.full, pages: pagesFor(q) });
+  // Common words alone ("without", "team", "best") name no team (COMMON_WORDS), however many names hold them.
+  const resolve = (core: string): Promise<SearchAnswer> => (onlyCommonWords(core) ? Promise.resolve(answer(core, { hits: [], step: "deterministic" })) : searchAnswer(core, { ...opts, intents: false, learn: false }));
+  const stat = opts.intents === false ? null : await statAnswer(q, resolve, { full: !!opts.full, pages: pagesFor(q) });
   if (stat) return stat;
 
   // 0. Then the other rewrites, and a question answered on its own: what a word means, a count, the FIRST Championship,

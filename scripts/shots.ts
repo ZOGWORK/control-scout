@@ -35,7 +35,7 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name", "--cookie-file"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name", "--cookie-file", "--clock"]);
 // --cookie-file <file>: a "name=value" cookie (e.g. cs_session=<a local test account's session>) for pages
 // that need a signed-in account, such as /owner. Read from a file so the value never lands in shell history
 // or the output; only sent to a localhost base.
@@ -121,6 +121,14 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     const host = new URL(BASE).hostname;
     if (!["localhost", "127.0.0.1"].includes(host)) { console.error("--cookie-file only works against a localhost base"); process.exit(1); }
     await ctx.addCookies([{ name: COOKIE.name, value: COOKIE.value, domain: host, path: "/", httpOnly: true, sameSite: "Lax" }]);
+  }
+  // --clock <ISO time>: the page's clock reads that moment (timers still run), for anything picked by the hour
+  // (Home's headline and suggestion chips).
+  const clock = opt("clock");
+  if (clock) {
+    const at = new Date(clock);
+    if (Number.isNaN(at.getTime())) { console.error("--clock: give an ISO time, e.g. 2026-11-04T15:00:00Z"); process.exit(1); }
+    await ctx.clock.setFixedTime(at);
   }
   if (Object.keys(STORAGE).length) await ctx.addInitScript((entries) => { for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v); }, STORAGE);
   // The first-visit privacy banner would sit on every shot: answer it ("No thanks") unless --banner asks to see it.
