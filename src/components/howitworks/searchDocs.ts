@@ -21,7 +21,7 @@ export const SEARCH_STEPS: { title: string; body: string; example: string; detai
     title: "Widen in a stated order",
     body: "Nothing in the time asked? It widens one step at a time, and says so on the card.",
     example: "highest score in California this week",
-    detail: "A window with nothing in it widens in a fixed order: this week, then the season. A place or leaderboard question with no season named reads the current season, and when it has nothing yet, the season before (\"No 2026–27 matches yet in California; showing 2025–26\"). Every other filter is kept as asked. A year you typed is never widened.",
+    detail: "A window with nothing in it widens in a fixed order: this week, then its season, then the season before. A place or leaderboard question with no season named reads the current season, and when it has nothing yet, the season before (\"No 2026–27 matches yet in California; showing 2025–26\"). Every other filter is kept as asked. A year you typed is never widened.",
   },
   {
     title: "Answer the question",

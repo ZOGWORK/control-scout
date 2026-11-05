@@ -29,12 +29,16 @@ async function projectionOf(ev: Ev, team: number) {
 }
 
 /** A match's call as the engine makes it now, with its score ranges, the team's side first ("Predicted 138 ±14 –
- *  92 ±12"): a stored call keeps no range. Null when live predictions are off or the engine isn't built yet. */
-async function rangedCall(season: number, red: number[], blue: number[], level: string, own: "red" | "blue"): Promise<string | null> {
+ *  92 ±12"), as the match page makes it (its event's form in): a stored call keeps no range. Null when live
+ *  predictions are off, the engine isn't built yet, or the season has no rated match (the match page shows no score
+ *  then either: the ratings are carried over from the last game). */
+async function rangedCall(season: number, code: string, red: number[], blue: number[], level: string, own: "red" | "blue"): Promise<string | null> {
   if (!(await isEnabled("livePredictions").catch(() => false))) return null;
-  const f = readyForecaster(season);
-  if (!f) return null;
-  const x = (await f).explain(season, red, blue, level === "playoff" ? "playoff" : "qual", undefined, await recentRecords(season, [...red, ...blue]));
+  const p = readyForecaster(season);
+  if (!p) return null;
+  const f = await p;
+  if (!f.seasonEvents(season).length) return null;
+  const x = f.explain(season, red, blue, level === "playoff" ? "playoff" : "qual", code, await recentRecords(season, [...red, ...blue]));
   if (!x) return null;
   const [mo, ro, mp, rp] = own === "red" ? [x.predictedScoreA, x.scoreRangeA, x.predictedScoreB, x.scoreRangeB] : [x.predictedScoreB, x.scoreRangeB, x.predictedScoreA, x.scoreRangeA];
   return `Predicted ${Math.round(mo)} ±${plusMinus(mo, ro)} – ${Math.round(mp)} ±${plusMinus(mp, rp)}, the engine's call with its 80% ranges`;
@@ -101,7 +105,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     // The chance to win it on its 0–100% bar, with Predict as the card's one action.
     const pre = await projectionOf(ev, a.number);
     const chance: StatBlock | null = pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it starts", action: act } : null;
-    return { ...f, title, intent: base.intent, scope: [...f.scope, "Not played yet"], blocks: [...(chance ? [chance] : []), ...f.blocks.filter((x) => x.kind !== "links"), chance ? withoutPredict : links], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
+    return { ...once({ ...f, blocks: [...(chance ? [chance] : []), ...f.blocks.filter((x) => x.kind !== "links"), chance ? withoutPredict : links] }), title, intent: base.intent, scope: [...f.scope, "Not played yet"], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
   }
   // The matches: the team's (or both teams'), qualifications and playoffs, at the event and its divisions; one still to
   // be played shows its saved call with no result yet.
@@ -138,7 +142,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const called = table.filter((r) => r.row.cells.called === "Yes").length, decided = table.filter((r) => r.row.cells.called !== "–").length;
   // The chance on its 0–100% bar: the next match's, else the average over the matches played, else the event's.
   const nextRow = next ? ms[table.indexOf(next)] : undefined;
-  const note = nextRow ? await rangedCall(Number(ev.season), lineup(nextRow.red), lineup(nextRow.blue), nextRow.level, side(nextRow)).catch(() => null) : null;
+  const note = nextRow ? await rangedCall(Number(ev.season), nextRow.code, lineup(nextRow.red), lineup(nextRow.blue), nextRow.level, side(nextRow)).catch(() => null) : null;
   const chance: StatBlock | null = next ? { kind: "chance", p: next.pWin, who: String(a.number), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), before it's played`, ...(note ? { note } : {}), action: act }
     : done.length ? { kind: "chance", p: expWins / done.length, who: String(a.number), label: `average chance to win each ${b ? "meeting" : "match"}, before it was played`, action: act }
     : pre ? { kind: "chance", p: pre.pWin, who: String(a.number), label: "to win the event, before it started", action: act } : null;
@@ -161,13 +165,26 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     ...(ms.length ? [{ kind: "table" as const, title: `Before (win chance · predicted score) and after, match by match${asTitle}`, columns: [{ key: "match", label: "Match" }, ...(asColumn ? [{ key: "as", label: "As" }] : []), { key: "before", label: "Before" }, { key: "after", label: "After" }, { key: "called", label: "Right" }], rows: table.map((r) => r.row) }] : []),
     chance ? withoutPredict : links,
   ];
-  return {
+  return once({
     ...base, blocks,
     headline: done.length
       ? { value: `${expWins.toFixed(1)} → ${wins} wins`, label: `expected before, won after${b ? `, in their ${done.length} meeting${done.length === 1 ? "" : "s"}` : ""}`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
       : next
         ? { value: pct(next.pWin), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), not played yet`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
         : { value: pre ? pct(pre.pWin) : "–", label: "to win the event, before it started", sub: [S, when].filter(Boolean).join(" · "), href: predict.href },
-  };
+  });
+}
+
+/** The chance printed once (the results guide, §7): with a chance bar, a headline or a tile of the same percentage
+ *  goes, its details kept under the bar. */
+function once(a: StatAnswer): StatAnswer {
+  const c = a.blocks.find((x): x is Extract<StatBlock, { kind: "chance" }> => x.kind === "chance");
+  if (!c) return a;
+  const same = pct(c.p);
+  const head = a.headline?.value === same ? a.headline : undefined;
+  const note = [head?.sub, c.note].filter(Boolean).join(" · ");
+  const blocks = a.blocks.map((x) => (x === c ? { ...c, ...(note ? { note } : {}) }
+    : x.kind === "kpis" ? { ...x, items: x.items.filter((i) => i.value !== same) } : x)).filter((x) => x.kind !== "kpis" || x.items.length);
+  return { ...a, blocks, ...(head ? { headline: undefined } : {}) };
 }
 

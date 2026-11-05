@@ -7,13 +7,15 @@ import { CalendarDays, Shield } from "lucide-react";
 import type { SearchHit } from "../../../shared/api";
 import { EventCard, TeamCard } from "./ResultCards";
 import { RelatedQuestions } from "./TeamAnswer";
+import { seasonLabel } from "../../../shared/format";
 
-/** Searches that answer about the closest results: a team's record and OPR, an event's winners. At most four. */
+/** Searches that answer about the closest results: a team's record and OPR, an event's winners in the card's own
+ *  season (an event's name is reused year to year). At most four. */
 export function relatedFor(closest: SearchHit[]): string[] {
   const out: string[] = [];
   for (const h of closest) {
     if (h.kind === "team") out.push(`${h.ref} record`, `${h.ref} opr`);
-    else if (h.kind === "event") out.push(`who won ${h.title}`);
+    else if (h.kind === "event") out.push(`who won ${h.title}${h.season != null ? ` ${seasonLabel(h.season).replace("–", "-")}` : ""}`);
   }
   return [...new Set(out)].slice(0, 4);
 }

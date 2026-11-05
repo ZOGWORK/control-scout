@@ -289,6 +289,9 @@ describe("forecasts", () => {
       expect(s.blocks[0], q).toMatchObject({ kind: "chance", p: 0.55, who: "4215", label: "to win the next match (Q99), before it's played", action: { label: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" } });
       const links = s.blocks.filter((b) => b.kind === "links").flatMap((b) => (b.kind === "links" ? b.items : []));
       expect(links.map((l) => l.label), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      // The chance's percentage is printed once: no tile repeats it.
+      const tiles = s.blocks.flatMap((b) => (b.kind === "kpis" ? b.items.map((i) => i.value) : []));
+      expect(tiles, q).not.toContain("55%");
     }
   });
   it("two teams at an event: their meetings, before and after", async () => {
