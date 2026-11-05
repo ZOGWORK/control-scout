@@ -232,9 +232,10 @@ function MatchRow({ r }: { r: StatMatchRow }) {
           {/* The alliance's points by period, in the phases' own colours; the period ranked in bold. */}
           {r.phases && (
             <p className="mt-1 flex flex-wrap gap-1 text-[11px]" data-phases>
-              {(["auto", "teleop", "endgame"] as const).map((k) => (
+              {(["auto", "teleop", "endgame"] as const).filter((k) => r.phases![k] != null).map((k) => (
                 <span key={k} className={cn("inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5", TONES[OPR_TONE[k]].chip, r.ranked === k && "font-semibold ring-1 ring-current")} data-phase={k}>
-                  <span className="opacity-80">{k === "auto" ? "Auto" : k === "teleop" ? "Teleop" : "Endgame"}</span><b className="tabular-nums">{r.phases![k]}</b>
+                  {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
+                  <span className="opacity-80">{k === "auto" ? "Auto" : k === "teleop" ? (r.phases!.teleopWithEndgame ? "Teleop + endgame" : "Teleop") : "Endgame"}</span><b className="tabular-nums">{r.phases![k]}</b>
                 </span>
               ))}
             </p>

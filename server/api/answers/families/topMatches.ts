@@ -8,7 +8,7 @@ import type { Region } from "../../../../src/shared/regions.js";
 import { dateRange, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { all, get } from "../../../db.js";
-import { SEASONS, gameOf as gameOfSeason, ownScorePenalties } from "../../../data/seasons.js";
+import { SEASONS, gameOf as gameOfSeason, ownScorePenalties, reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { parseHighScore } from "../../searchHighScores.js";
 import { OFFICIAL_TYPES } from "../clauses.js";
 import { eventHref, matchHref, shortEvent, teamLinks } from "../matchSet.js";
@@ -78,20 +78,28 @@ export function readTopMatches(raw: string): TopMatchesQuestion | null {
   return { season, game: hs.game, ever: ever && season == null, region, event: event || null, phase: ph ? phaseOf(ph[1]) : null, noPenalties: !!noPen };
 }
 
-interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null; red_auto: number | null; red_teleop: number | null; red_endgame: number | null; blue_auto: number | null; blue_teleop: number | null; blue_endgame: number | null }
-const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.blue_auto, m.blue_teleop, m.blue_endgame";
+interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; end: string | null; red_total: number | null; red_np: number | null; blue_total: number | null; blue_np: number | null; red_auto: number | null; red_teleop: number | null; red_endgame: number | null; blue_auto: number | null; blue_teleop: number | null; blue_endgame: number | null; breakdown: number | null }
+const COLS = "m.season, m.code, m.level, m.series, m.number, m.label, m.time, e.name, e.type, e.start, e.end, m.red_total, m.red_np, m.blue_total, m.blue_np, m.red_auto, m.red_teleop, m.red_endgame, m.blue_auto, m.blue_teleop, m.blue_endgame, m.breakdown";
 /** An alliance's ranked points: one period's ("auto"), else its points without penalties (its total where none are kept). */
-const scoreSql = (s: "red" | "blue", phase: Phase | null) => (phase ? `m.${s}_${phase}` : `COALESCE(m.${s}_np, m.${s}_total)`);
-/** An alliance's points by period, when the match keeps them. */
-const phasesOf = (r: Row, s: "red" | "blue") => {
+/** TeleOp as FIRST reports it (and the team page shows it): with the endgame from 2024–25 on. */
+const scoreSql = (s: "red" | "blue", phase: Phase | null, season: number) =>
+  phase === "teleop" && reportedTeleopIncludesEndgame(season) ? `(m.${s}_teleop + m.${s}_endgame)` : phase ? `m.${s}_${phase}` : `COALESCE(m.${s}_np, m.${s}_total)`;
+/** A match FIRST posted as totals only (`breakdown` 0): its Auto is reported, its TeleOp/Endgame split estimated. */
+const estimated = (r: Row) => r.breakdown != null && Number(r.breakdown) === 0;
+/** An alliance's reported points by period (TeleOp as reported); an estimated split's TeleOp and Endgame left out. */
+const phasesOf = (r: Row, s: "red" | "blue"): StatMatchRow["phases"] | null => {
   const [a, t, e] = [r[`${s}_auto`], r[`${s}_teleop`], r[`${s}_endgame`]];
-  return a == null || t == null || e == null ? null : { auto: Number(a), teleop: Number(t), endgame: Number(e) };
+  if (a == null) return null;
+  if (estimated(r) || t == null || e == null) return { auto: Number(a) };
+  return { auto: Number(a), teleop: Number(t) + (reportedTeleopIncludesEndgame(r.season) ? Number(e) : 0), endgame: Number(e), ...(reportedTeleopIncludesEndgame(r.season) ? { teleopWithEndgame: true } : {}) };
 };
 const np = (r: Row, side: "red" | "blue") => (side === "red" ? r.red_np ?? r.red_total : r.blue_np ?? r.blue_total) ?? 0;
 
 /** The matches' scope: official events of the season, in the place or the event asked. */
-function where(season: number, region: Region | null, event: { season: number; code: string } | null) {
+function where(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null) {
   const sql = [`m.season = ? AND m.played = 1 AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`];
+  // TeleOp and Endgame records only from reported splits, never a totals-only match's estimate.
+  if (phase === "teleop" || phase === "endgame") sql.push("(m.breakdown IS NULL OR m.breakdown != 0)");
   const args: (string | number)[] = [season, ...OFFICIAL_TYPES];
   if (region) { sql.push("e.country = ? AND e.state = ?"); args.push(region.country, region.state); }
   if (event) { sql.push("(e.code = ? OR e.division_code = ?)"); args.push(event.code, event.code); }
@@ -99,23 +107,23 @@ function where(season: number, region: Region | null, event: { season: number; c
 }
 
 const SIDE_FROM = "FROM matches m JOIN events e ON e.season = m.season AND e.code = m.code";
-const side = (s: "red" | "blue", w: string, phase: Phase | null = null) => `SELECT ${COLS}, '${s}' side, ${scoreSql(s, phase)} score ${SIDE_FROM} WHERE ${w} AND ${scoreSql(s, phase)} IS NOT NULL`;
+const side = (s: "red" | "blue", w: string, season: number, phase: Phase | null = null) => `SELECT ${COLS}, '${s}' side, ${scoreSql(s, phase, season)} score ${SIDE_FROM} WHERE ${w} AND ${scoreSql(s, phase, season)} IS NOT NULL`;
 
 /** One season's best alliance score only (the "ever" table's row). */
 async function bestOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null) {
-  const w = where(season, region, event);
+  const w = where(season, region, event, phase);
   // select-star: the derived table's own columns (side() names each one), not a table's.
-  return (await get<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql, phase)} UNION ALL ${side("blue", w.sql, phase)}) ORDER BY score DESC, start, code, label LIMIT 1`, [...w.args, ...w.args])) ?? null;
+  return (await get<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql, season, phase)} UNION ALL ${side("blue", w.sql, season, phase)}) ORDER BY score DESC, start, code, label LIMIT 1`, [...w.args, ...w.args])) ?? null;
 }
 
 /** The top alliance scores (each side its own row) and the top combined scores, in one season's scope. */
 async function topOf(season: number, region: Region | null, event: { season: number; code: string } | null, phase: Phase | null = null) {
-  const w = where(season, region, event);
+  const w = where(season, region, event, phase);
   const from = SIDE_FROM;
   const [alliances, combined, count] = await Promise.all([
     // select-star: the derived table's own columns (side() names each one), not a table's.
-    all<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql, phase)} UNION ALL ${side("blue", w.sql, phase)}) ORDER BY score DESC, start, code, label LIMIT ?`, [...w.args, ...w.args, TOP_MATCHES]),
-    all<Row & { score: number }>(`SELECT ${COLS}, ${scoreSql("red", phase)} + ${scoreSql("blue", phase)} score ${from} WHERE ${w.sql} AND ${scoreSql("red", phase)} IS NOT NULL AND ${scoreSql("blue", phase)} IS NOT NULL ORDER BY score DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, TOP_MATCHES]),
+    all<Row & { side: "red" | "blue"; score: number }>(`SELECT * FROM (${side("red", w.sql, season, phase)} UNION ALL ${side("blue", w.sql, season, phase)}) ORDER BY score DESC, start, code, label LIMIT ?`, [...w.args, ...w.args, TOP_MATCHES]),
+    all<Row & { score: number; score_red: number; score_blue: number }>(`SELECT ${COLS}, ${scoreSql("red", phase, season)} score_red, ${scoreSql("blue", phase, season)} score_blue, ${scoreSql("red", phase, season)} + ${scoreSql("blue", phase, season)} score ${from} WHERE ${w.sql} AND ${scoreSql("red", phase, season)} IS NOT NULL AND ${scoreSql("blue", phase, season)} IS NOT NULL ORDER BY score DESC, e.start, m.code, m.label LIMIT ?`, [...w.args, TOP_MATCHES]),
     get<{ n: number }>(`SELECT COUNT(*) n ${from} WHERE ${w.sql}`, w.args),
   ]);
   return { alliances, combined, count: Number(count?.n ?? 0) };
@@ -161,7 +169,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     : `Highest-scoring matches${at}, ${gameOf(season)} ${seasonLabel(season)}`;
   const base = {
     family: "superlative" as const, intent: "season-top-matches", title, scope: [seasonLabel(season), ...(place ? [place] : []), "Official events"],
-    definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period (penalties are never a period's points); a combined score is both alliances'. ` : ""}${ownScorePenalties(season) ? RULE_OWN : RULE}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
+    definition: `${phase ? `An alliance's ${P!.toLowerCase()} score is its own points in that period${phase === "teleop" && reportedTeleopIncludesEndgame(season) ? ", with the endgame, as FIRST reports TeleOp this season" : ""} (penalties are never a period's points); a combined score is both alliances'.${phase !== "auto" ? " A match posted as totals only has no reported split and isn't counted." : ""} ` : ""}${ownScorePenalties(season) ? RULE_OWN : RULE}${t.season == null && !ev ? ` The season is ${gameOf(season)} (${seasonLabel(season)}), the latest with official matches played.` : ""}`,
     source: `From ${top.count.toLocaleString("en-US")} played match${top.count === 1 ? "" : "es"} at official events, ${scopeWords}`,
   };
   if (!top.alliances.length) return { ...base, blocks: [], none: `No played matches at official events${place ? ` in ${place}` : ""} in ${seasonLabel(season)} yet.` };
@@ -180,7 +188,7 @@ export async function topMatchesAnswer(t: TopMatchesQuestion, findEvent: (words:
     { kind: "bars", title: `Top ${top.alliances.length} alliance ${P ? `${P.toLowerCase()} ` : ""}scores`, groups: [{ label: P ? `${P} scores` : "Alliance scores", items: top.alliances.map((r, i) => ({ label: `${i + 1}. ${r.label}`, value: r.score })) }] },
     { kind: "matches", title: P ? `Highest alliance ${P.toLowerCase()} scores` : "Highest alliance scores", rows: top.alliances.map(row) },
     { kind: "table", title: `Highest combined ${P ? `${P.toLowerCase()} ` : ""}scores (both alliances)`, columns: [{ key: "rank", label: "#", num: true }, { key: "combined", label: "Combined", num: true }, { key: "score", label: "Red–Blue" }, { key: "match", label: "Match" }, { key: "event", label: "Event" }, { key: "date", label: "Date" }],
-      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r[`red_${phase}`]}–${r[`blue_${phase}`]}` : `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })) },
+      rows: top.combined.map((r, i) => ({ cells: { rank: i + 1, combined: r.score, score: phase ? `${r.score_red}–${r.score_blue}` : `${np(r, "red")}–${np(r, "blue")}`, match: r.label, event: shortEvent(r.name, r.type), date: dateRange((r.time ?? r.start)?.slice(0, 10) ?? null) }, href: matchHref(r) })) },
   ];
   return {
     ...base, blocks,
@@ -199,12 +207,14 @@ export async function everTopMatches(t: TopMatchesQuestion, findEvent: Parameter
   const per = (await Promise.all(seasons.map(async (s) => ({ s, r: await bestOf(s, t.region, ev ? { season: s, code: ev.code } : null, t.phase ?? null) })))).filter((p) => p.r);
   if (!per.length) return latest;
   const gameOf = (s: number) => gameOfSeason(s) ?? seasonLabel(s);
-  const table: StatBlock = { kind: "table", title: "Highest alliance score each season (each season is a different game)", columns: [{ key: "season", label: "Season" }, { key: "score", label: "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
+  // A period asked: every heading says which ("Highest alliance auto score each season").
+  const p = t.phase ? `${PHASE_LABEL[t.phase].toLowerCase()} ` : "";
+  const table: StatBlock = { kind: "table", title: `Highest alliance ${p}score each season (each season is a different game)`, columns: [{ key: "season", label: "Season" }, { key: "score", label: t.phase ? `${PHASE_LABEL[t.phase]} score` : "Score", num: true }, { key: "match", label: "Match" }, { key: "event", label: "Event" }],
     rows: per.map(({ s, r }) => ({ cells: { season: `${gameOf(s)} ${seasonLabel(s)}`, score: r!.score, match: r!.label, event: shortEvent(r!.name, r!.type) }, href: matchHref(r!), strong: s === per[0].s })) };
   const place = ev ? ` at ${shortEvent(ev.name, ev.type)}` : t.region ? ` in ${t.region.name}` : "";
   // The latest season's lists only when it has scores here (a place's newest season may have none yet).
   return {
-    ...latest, none: undefined, title: `Highest-scoring match each season${place}`, scope: ["Every season", ...latest.scope.slice(1)], blocks: [table, ...(latest.headline ? latest.blocks : [])],
+    ...latest, none: undefined, title: t.phase ? `Highest ${p}score each season${place}` : `Highest-scoring match each season${place}`, scope: ["Every season", ...latest.scope.slice(1)], blocks: [table, ...(latest.headline ? latest.blocks : [])],
     definition: `${latest.definition} Each season is a different game that scores on its own scale, so there is no all-time record: each season's best is listed apart, and the latest season's lists below.`,
   };
 }

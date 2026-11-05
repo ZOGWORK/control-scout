@@ -53,6 +53,10 @@ beforeAll(async () => {
       }
     }
   }
+  // A DECODE match FIRST posted as totals only: its split an estimate (all of it TeleOp), never a TeleOp or Endgame record.
+  n++;
+  await run(`INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, red_auto, red_teleop, red_endgame, red_pen, blue_total, blue_np, blue_auto, blue_teleop, blue_endgame, blue_pen, breakdown, source)
+    VALUES (2025, 'USTXQ1', 'qual', 0, ?, ?, '2026-01-10T11:00:00Z', 1, 185, 185, 20, 165, 0, 0, 50, 50, 10, 40, 0, 0, 0, 't')`, [n, `Q${n}`]);
   await rebuildSearch();
 });
 
@@ -79,6 +83,21 @@ describe("common words never name a team by themselves", () => {
 });
 
 describe("a season's highest scores, by its game", () => {
+  it("a totals-only match's estimated split is never a TeleOp or Endgame record, and its row shows Auto only", async () => {
+    expect(rows(await ask("highest teleop score in decode"))[0].ownNp).not.toBe(185);
+    const row185 = rows(await ask("highest score in decode")).find((r) => r.ownNp === 185)!;
+    expect(row185.phases).toEqual({ auto: 20 });
+    // Its reported Auto still counts.
+    expect(rows(await ask("highest auto score in decode")).some((r) => r.ownNp === 185)).toBe(true);
+  });
+  it("each season's best of one period, every heading naming it", async () => {
+    const s = await ask("highest auto score ever");
+    expect(s.title).toBe("Highest auto score each season");
+    const table = s.blocks.find((b) => b.kind === "table") as Extract<StatBlock, { kind: "table" }>;
+    expect(table.title).toBe("Highest alliance auto score each season (each season is a different game)");
+    expect(table.columns.find((c) => c.key === "score")?.label).toBe("Auto score");
+    expect(table.rows.map((r) => r.cells.score)).toEqual([60, 50, 70]);
+  });
   it("reads the game (each spelling), penalties said and a period", () => {
     expect(readTopMatches("what was the highest score in decode without penalties")).toMatchObject({ season: 2025, noPenalties: true, phase: null, region: null });
     expect(readTopMatches("highest score in center stage")).toMatchObject({ season: 2023, noPenalties: false });
@@ -95,10 +114,10 @@ describe("a season's highest scores, by its game", () => {
     // 190 without penalties beats the 210 that had 60 penalty points in it.
     expect(s.headline?.value).toBe("190 points");
     const top = rows(s)[0];
-    expect(top).toMatchObject({ alliance: "red", ownNp: 190, own: 195, opp: 90, phases: { auto: 50, teleop: 110, endgame: 30 } });
+    expect(top).toMatchObject({ alliance: "red", ownNp: 190, own: 195, opp: 90, phases: { auto: 50, teleop: 140, endgame: 30, teleopWithEndgame: true } });
     expect(top.partners!.map((p) => p.label)).toEqual(["6980 Bad Wolf", "16091 T.W.C.A. (Team Without a Cool Acronym)"]);
     expect(top.opponents!.map((p) => p.label)).toEqual(["4215 Hypnotic Robotics", "25334 Best Robotics"]);
-    expect(rows(s)[1]).toMatchObject({ ownNp: 150, own: 210 });
+    expect(rows(s).find((r) => r.own === 210)).toMatchObject({ ownNp: 150 });
   });
   it("each season's best, by its game's name in any spelling", async () => {
     const cases: [string, string, number][] = [["highest score in decode", "DECODE 2025–26", 190], ["highest score in into the deep", "INTO THE DEEP 2024–25", 200], ["highest score in center stage", "CENTERSTAGE 2023–24", 180]];
@@ -117,7 +136,8 @@ describe("a season's highest scores, by its game", () => {
   it("one period's best in each of three seasons, its colour's period marked", async () => {
     const cases: [string, string, StatMatchRow["ranked"], number][] = [
       ["highest auto score in centerstage", "Highest auto scores in CENTERSTAGE (2023–24)", "auto", 70],
-      ["highest teleop score in into the deep", "Highest teleop scores in INTO THE DEEP (2024–25)", "teleop", 120],
+      // TeleOp as FIRST reports it from 2024–25 on: with the endgame (120 + 30).
+      ["highest teleop score in into the deep", "Highest teleop scores in INTO THE DEEP (2024–25)", "teleop", 150],
       ["highest endgame score in decode", "Highest endgame scores in DECODE (2025–26)", "endgame", 30],
     ];
     for (const [q, title, phase, best] of cases) {
@@ -127,6 +147,8 @@ describe("a season's highest scores, by its game", () => {
       expect(rows(s)[0], q).toMatchObject({ ranked: phase, phases: { [phase!]: best } });
     }
     // A period in a place: New Jersey's best endgame in INTO THE DEEP.
+    expect(rows(await ask("highest teleop score in into the deep"))[0].phases).toEqual({ auto: 50, teleop: 150, endgame: 30, teleopWithEndgame: true });
+    expect(rows(await ask("highest teleop score in centerstage"))[0].phases).toEqual({ auto: 40, teleop: 110, endgame: 30 });
     const nj = await ask("highest endgame score in nj in into the deep");
     expect(nj.title).toBe("Highest endgame scores in INTO THE DEEP (2024–25) in New Jersey");
     expect(nj.headline?.value).toBe("45 endgame points");
