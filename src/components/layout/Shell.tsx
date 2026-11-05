@@ -305,7 +305,9 @@ export function Shell({ children }: { children: ReactNode }) {
     <MotionConfig reducedMotion="user">
       <TooltipProvider delayDuration={250}>
         {/* At least a screen tall; sideways overflow is clipped (clip, not hidden: no scroll box, so the sticky bars still stick). */}
-        <div className="flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
+        {/* isolate: the dog layer (z -1) paints over this pink background but under the page. */}
+        <div className="isolate flex min-h-dvh w-full overflow-x-clip bg-primary text-text-base">
+          <div aria-hidden className="dog-bg" data-dog-bg />
           <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-accent-ink">Skip to content</a>
           {!bare && <Sidebar rail={collapsed || !wide} wide={wide} onToggle={toggle} onMenu={openMenu} />}
           <div className="flex min-w-0 flex-1 flex-col">

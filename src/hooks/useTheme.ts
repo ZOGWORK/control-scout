@@ -8,7 +8,7 @@ const prefersLight = () => typeof window !== "undefined" && window.matchMedia?.(
 /** The palette a choice paints (System: Light or Dark, from the device). Dim and Midnight are dark themes. */
 export type Palette = Exclude<ThemeChoice, "system">;
 /** The browser's bar colour per palette: each one's page background (src/index.css). */
-export const THEME_COLOR: Record<Palette, string> = { light: "#ffffff", dim: "#1e1f23", dark: "#0a0a0b", midnight: "#000000" };
+export const THEME_COLOR: Record<Palette, string> = { light: "#fdedf6", dim: "#3d1a2e", dark: "#2b0f20", midnight: "#1a0612" };
 
 export function useTheme() {
   const { state } = usePersonal();
