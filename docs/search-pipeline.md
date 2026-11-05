@@ -128,11 +128,11 @@ the order. Each measure is one rule, printed on the card under "How this is coun
 | closest | "closest", "tightest", "smallest margin" | the difference in final scores, penalties in; a tie is closest |
 | most lopsided | "most lopsided", "blowout", "biggest score gap" | the same difference, largest first |
 | most penalties | "most penalty points" | both alliances' final scores less their points without penalties |
-| biggest upset | "upset", "underdog won" | a favourite's loss: the losing alliance had over a 50% predicted chance before the match (the call saved live, else its replay), highest first; with no call saved, the larger summed season rating that lost |
+| biggest upset | "upset", "underdog won" | a favourite's loss: the losing alliance had over a 50% predicted chance before the match (the call saved live, else its replay), highest first; with no call saved for any of the matches, the larger summed season rating that lost |
 | biggest comeback | "comeback", "came back" | won by the alliance behind after auto, furthest behind first |
 
 The finals are a classic bracket's "F" series, or a double-elimination bracket's grand final and its if-needed
-replay (the bracket the event's posted series fit, from the engine's `BRACKETS`). Only the finder applies the finals:
+replay (the event's bracket by its alliance count, from the engine's `BRACKETS`). Only the finder applies the finals:
 any other answer said with them is left to the readers after it, never answered for every playoff match.
 
 No season said (or "this season") reads the season today is in; when it has none of the matches asked for yet it
