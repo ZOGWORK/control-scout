@@ -8,7 +8,7 @@ import { CURRENT_SEASON, isLegacy } from "../data/seasons.js";
 import type { SearchHit } from "../../src/shared/api.js";
 import { SEARCH_FILLER, SEARCH_TOPICS, TOPIC_LABEL, sectionFor, type SearchTopic } from "../../src/shared/search.js";
 import { teamAtEvent, teamEvents, teamFacts, teamSeason } from "./searchFacts.js";
-import { allowedEdits, editDistance, fuzzyScore, normalize, scoreWords, trigramQuery, words } from "./fuzzy.js";
+import { allowedEdits, charSet, editDistance, fuzzyScore, joinedWords, normalize, trigramQuery, wordScore, words } from "./fuzzy.js";
 import { kvGet } from "../db.js";
 import { isEnabled } from "../flags.js";
 import { findRegions } from "../../src/shared/regions.js";
@@ -17,6 +17,7 @@ import { teamPageSql } from "../../src/shared/teamPages.js";
 import { searchTeamTitle, teamNameOf } from "../../src/shared/teamTitle.js";
 import { nameWords, onlyCommonWords } from "../../src/shared/searchQuery.js";
 import { placeHit } from "./searchEvents.js";
+import { searchRead } from "./searchReads.js";
 
 /** Turn free text into a safe FTS5 query: every word as a quoted prefix term. */
 export function ftsQuery(q: string): string | null {
@@ -189,7 +190,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     const preferred = [...prefer].map((k) => /^team:(\d+)$/.exec(k)?.[1]).filter(Boolean).map(Number);
     const ranges: [number, number][] = [];
     for (let m = 1; p * m < 1_000_000; m *= 10) ranges.push([p * m, (p + 1) * m - 1]);
-    const rows = await all<any>(
+    const rows = await searchRead<any>(
       `SELECT t.number, t.name, t.city, t.state, t.country, cs.season last
        FROM teams t LEFT JOIN team_seasons cs ON cs.team = t.number AND cs.season = ?
        WHERE (${ranges.map(() => "t.number BETWEEN ? AND ?").join(" OR ")}) AND ${teamPageSql("t.number", "t.name")}
@@ -218,9 +219,9 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     if (!cands.has(k)) cands.set(k, { kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, name });
   };
   const fts = ftsQuery(query);
-  if (fts) for (const r of await all<any>(`SELECT kind, ref, season, weight, title, subtitle, terms FROM search WHERE search MATCH ?${kindSql} ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60`, [fts, ...kindArgs])) add(r, `${r.title} ${r.subtitle} ${r.terms ?? ""}`);
+  if (fts) for (const r of await searchRead<any>(`SELECT kind, ref, season, weight, title, subtitle, terms FROM search WHERE search MATCH ?${kindSql} ORDER BY bm25(search, 0, 0, 0, 0, 10.0, 2.0, 1.0) LIMIT 60`, [fts, ...kindArgs])) add(r, `${r.title} ${r.subtitle} ${r.terms ?? ""}`);
   const tri = /[a-z]/i.test(query) ? trigramQuery(query) : null;
-  if (tri) for (const r of await all<any>(`SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE search_fuzzy MATCH ?${kindSql} ORDER BY bm25(search_fuzzy) LIMIT 150`, [tri, ...kindArgs])) add(r, `${r.title} ${r.name}`);
+  if (tri) for (const r of await searchRead<any>(`SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy WHERE search_fuzzy MATCH ?${kindSql} ORDER BY bm25(search_fuzzy) LIMIT 150`, [tri, ...kindArgs])) add(r, `${r.title} ${r.name}`);
   const ranked = [...cands.values()]
     .map((c) => ({ c, s: Math.max(fuzzyScore(query, c.title), fuzzyScore(query, c.name), fuzzyScore(query, `${c.title} ${c.subtitle}`) * 0.95) }))
     .filter((x) => x.s >= 0.6)
@@ -237,8 +238,17 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     // (scoreWords), so a name lacking any one word's chunks is out ("highest scoring games decode" scans the few
     // names with all four, not every name with "in" in it).
     const qb = qs.map((q) => bigrams(q)).filter((b) => b.size);
-    const scanned = (await fuzzyRows()).filter((r) => allow(r.kind) && !unnamed(r.kind, r.title) && qb.every((b) => { for (const x of b) if (r.bigrams.has(x)) return true; return false; }))
-      .map((r) => ({ r, s: scoreWords(qs, r.words) })).filter((x) => x.s >= 0.6)
+    const index = await fuzzyIndex();
+    const scores = qs.map((q) => index.scorer(q));
+    // scoreWords on every name, each name word's score read from the query word's scores; the 2-letter chunks are
+    // then checked on the few names that score (both are filters, so the order doesn't change which pass).
+    const passed: { r: FuzzyRow; s: number }[] = [];
+    for (const r of index.rows) {
+      if (!allow(r.kind) || unnamed(r.kind, r.title)) continue;
+      const s = scoreIds(qs, scores, r);
+      if (s >= 0.6) passed.push({ r, s });
+    }
+    const scanned = passed.filter(({ r }) => qb.every((b) => { for (const x of b) if (r.bigrams.has(x)) return true; return false; }))
       .map((x) => (prefer.has(`${x.r.kind}:${x.r.ref}`) ? { ...x, s: x.s + 0.1 } : x)) // same preference as the indexed path
       .sort((a, b) => b.s - a.s || b.r.weight - a.r.weight || (b.r.season ?? 0) - (a.r.season ?? 0));
     // Room for the older seasons newestSeasons drops.
@@ -255,28 +265,110 @@ function newestSeasons(hits: SearchHit[], query: string): SearchHit[] {
   return hits.filter((h) => { if (h.kind !== "event") return true; const [s, code] = h.ref.split(":"); return Number(s) >= (newest.get(code) ?? 0); });
 }
 
-interface FuzzyRow { kind: "team" | "event"; ref: string; season: number | null; weight: number; title: string; subtitle: string; words: string[]; bigrams: Set<string> }
+/** A name of the typo index: its words, and each adjacent pair of them run together (joinedWords), as the index's
+ *  word numbers (FuzzyIndex.words). */
+interface FuzzyRow { kind: "team" | "event"; ref: string; season: number | null; weight: number; title: string; subtitle: string; words: Int32Array; joined: Int32Array; bigrams: Set<string> }
+
+/** The typo index in memory: every name, and every distinct word in them, numbered (the names' own words first, then
+ *  the pairs run together that no name has as a word). A name word scores the same against a query word in every
+ *  name it's in, so each is scored once per query word (`scores`) instead of once per name: about a third as many. */
+interface FuzzyIndex {
+  rows: FuzzyRow[];
+  words: string[];
+  /** How many of `words` are names' own words (the rest are only pairs run together). */
+  plain: number;
+  /** A query word's scores against the words (Scorer). Kept for the last few query words, so the readings of one
+   *  search, and the searches after it, share them. */
+  scorer(q: string): Scorer;
+}
+
+/** A query word's score against each index word (wordScore), as a code into SCORE_VALUES (`codes`), worked out by
+ *  `score` the first time the scan reads that word (UNSCORED until then). */
+interface Scorer { codes: Uint8Array; score: (id: number) => number }
+
+/** wordScore's values, by code (a code is a byte, so a query word's scores take one byte a word). */
+const SCORE_VALUES: number[] = [0, 1, 0.95, 0.8, 0.65, 0.6];
+const UNSCORED = 255;
+const scoreCode = (s: number) => { let i = SCORE_VALUES.indexOf(s); if (i < 0) { i = SCORE_VALUES.length; SCORE_VALUES.push(s); } return i; };
+
+/** scoreWords(qs, row's words, row's pairs), each word's score read from `scores` (one per query word, worked out
+ *  where not yet): the same sum, in the same order, so the same number. */
+export function scoreIds(qs: string[], scores: Scorer[], r: FuzzyRow): number {
+  if (!qs.length || !r.words.length) return 0;
+  let total = 0, lastIdx = -1, inOrder = 0;
+  for (let k = 0; k < qs.length; k++) {
+    const { codes, score } = scores[k];
+    let best = 0, bestIdx = -1;
+    for (let i = 0; i < r.words.length; i++) {
+      const id = r.words[i], c = codes[id];
+      const s = c === UNSCORED ? score(id) : SCORE_VALUES[c];
+      if (s > best) { best = s; bestIdx = i; }
+    }
+    if (qs[k].length >= 5) for (let i = 0; i < r.joined.length; i++) {
+      const id = r.joined[i], c = codes[id];
+      const s = c === UNSCORED ? score(id) : SCORE_VALUES[c];
+      if (s > best) { best = s; bestIdx = i; }
+    }
+    if (best === 0) return 0;
+    total += best;
+    if (bestIdx > lastIdx) inOrder++;
+    lastIdx = bestIdx;
+  }
+  const avg = total / qs.length;
+  return Math.min(1, avg + (qs.length > 1 && inOrder === qs.length ? 0.03 : 0));
+}
 
 /** A word's 2-letter chunks, each in letter order ("ea" and "ae" are one chunk), so a typo that swaps two letters
  *  ("gaer" for "gear") still shares one with the word. */
 const bigrams = (s: string) => { const out = new Set<string>(); for (const w of s.split(" ")) for (let i = 0; i + 2 <= w.length; i++) out.add(w[i] < w[i + 1] ? w[i] + w[i + 1] : w[i + 1] + w[i]); return out; };
-let rowsCache: { version: string; rows: Promise<FuzzyRow[]> } | null = null;
+
+/** How many query words keep their scores (each a byte per index word, ~120 KB). */
+const KEPT_SCORES = 48;
+
+/** The typo index built from search_fuzzy's rows. */
+export function buildFuzzyIndex(rs: { kind: "team" | "event"; ref: string; season: number | null; weight: number | null; title: string; subtitle: string; name: string }[]): FuzzyIndex {
+  const ids = new Map<string, number>(), list: string[] = [];
+  const id = (w: string) => { let n = ids.get(w); if (n === undefined) { n = list.length; ids.set(w, n); list.push(w); } return n; };
+  const split = rs.map((r) => words(`${r.title} ${r.name}`));
+  const own = split.map((ws) => Int32Array.from(ws, id));
+  const plain = list.length;
+  const rows = rs.map((r, i): FuzzyRow => ({
+    kind: r.kind, ref: r.ref, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, title: r.title, subtitle: r.subtitle,
+    words: own[i], joined: Int32Array.from(joinedWords(split[i]), id),
+    bigrams: bigrams(normalize(`${r.title} ${r.name}`)),
+  }));
+  const kept = new Map<string, Scorer>();
+  const scorer = (q: string): Scorer => {
+    const hit = kept.get(q);
+    if (hit) { kept.delete(q); kept.set(q, hit); return hit; }
+    // A query word under 5 letters is never scored against a pair run together (scoreWords), so it needs only the
+    // names' own words.
+    const codes = new Uint8Array(q.length >= 5 ? list.length : plain).fill(UNSCORED);
+    const set = charSet(q);
+    const score = (n: number) => { const s = wordScore(q, list[n], set); codes[n] = scoreCode(s); return s; };
+    const made: Scorer = { codes, score };
+    kept.set(q, made);
+    if (kept.size > KEPT_SCORES) kept.delete(kept.keys().next().value!);
+    return made;
+  };
+  return { rows, words: list, plain, scorer };
+}
+
+let indexCache: { version: string; index: Promise<FuzzyIndex> } | null = null;
 
 /** The typo index in memory (reloaded when the search index is rebuilt). */
-async function fuzzyRows(): Promise<FuzzyRow[]> {
+async function fuzzyIndex(): Promise<FuzzyIndex> {
   const version = (await kvGet<string>("search:version")) ?? "0";
-  if (rowsCache?.version === version) return rowsCache.rows;
-  const rows = all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy").then((rs) => rs.map((r) => ({
-    kind: r.kind, ref: r.ref, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, title: r.title, subtitle: r.subtitle,
-    words: words(`${r.title} ${r.name}`),
-    bigrams: bigrams(normalize(`${r.title} ${r.name}`)),
-  })));
-  rowsCache = { version, rows };
+  if (indexCache?.version === version) return indexCache.index;
+  const index = all<any>("SELECT kind, ref, season, weight, title, subtitle, name FROM search_fuzzy").then(buildFuzzyIndex);
+  indexCache = { version, index };
   // A failed read (e.g. a brief database outage) must not stick: the next search retries.
-  rows.catch(() => { if (rowsCache?.rows === rows) rowsCache = null; });
-  return rows;
+  index.catch(() => { if (indexCache?.index === index) indexCache = null; });
+  return index;
 }
-registerCache("Search typo index", () => { rowsCache = null; });
+registerCache("Search typo index", () => { indexCache = null; });
+/** Builds the typo index ahead of the first search that needs it (server start). */
+export const warmTypoIndex = async (): Promise<void> => { await fuzzyIndex(); };
 
 /** What the search index holds and how (server/stats/job.ts rebuildSearch): raised when that changes, so a server
  *  running the new code rebuilds the index once instead of waiting for the next stats run.

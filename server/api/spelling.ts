@@ -19,7 +19,7 @@ import { SEASONS } from "../data/seasons.js";
 import { REGION_PHRASES } from "../../src/shared/regions.js";
 import { SEARCH_FILLER, SEARCH_PAGES, SEARCH_TOPICS, pagesFor } from "../../src/shared/search.js";
 import { CONVERSATIONAL, EVENT_WORDS, PLURALS, QUESTION_WORDS, STOPWORDS, TIME_WORDS } from "../../src/shared/searchQuery.js";
-import { allowedEdits, editDistance, normalize, words } from "./fuzzy.js";
+import { allowedEdits, charSet, editDistance, normalize, setsApart, words } from "./fuzzy.js";
 import { FALLBACK_NOTE, carryOutcome } from "./searchLayers.js";
 import { AWARDS, FILLER, INTENTS, LEADER_STAT_WORDS, PARAPHRASES, PHASES, SCAFFOLD, WEAK_SIGNALS } from "./searchCatalog.js";
 
@@ -72,6 +72,9 @@ export interface Vocab {
   own: Map<string, 1 | 2>;
   /** Every word a correction may reach, by length. */
   byLength: Map<number, string[]>;
+  /** Each of those words' characters (charSet), in the same order: worked out once, so a typed word is measured
+   *  (editDistance) only against the words whose letters are near enough to be within its edits (setsApart). */
+  setsByLength: Map<number, Int32Array>;
 }
 
 const phraseWords = (ps: Iterable<string>) => [...ps].flatMap((p) => words(p));
@@ -120,7 +123,8 @@ export function buildVocab(teams: TeamRow[], events: EventRow[]): Vocab {
     if (!/^\p{L}+$/u.test(w)) continue;
     (byLength.get(w.length) ?? byLength.set(w.length, []).get(w.length)!).push(w);
   }
-  return { keep, count, teamWords: [...team], own, byLength };
+  const setsByLength = new Map([...byLength].map(([len, ws]) => [len, Int32Array.from(ws, (w) => charSet(w))]));
+  return { keep, count, teamWords: [...team], own, byLength, setsByLength };
 }
 
 let vocabCache: { version: string; vocab: Promise<Vocab> } | null = null;
@@ -192,8 +196,12 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
   if (!max || v.keep.has(w) || formOfKnown(w, v.keep)) return null;
   const seen = v.count.get(w) ?? 0;
   const found: { word: string; d: number; own: number; slip: boolean; n: number }[] = [];
+  const set = charSet(w);
   for (let len = w.length - max; len <= w.length + max; len++) {
-    for (const c of v.byLength.get(len) ?? []) {
+    const list = v.byLength.get(len) ?? [], sets = v.setsByLength.get(len);
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (sets && setsApart(set, sets[i], max)) continue;
       if (c === w || pluralPair(c, w)) continue;
       const d = editDistance(w, c, max);
       if (d > max) continue;
