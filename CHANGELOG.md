@@ -15,7 +15,7 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.2.8 — 2026-11-05
+## 3.2.9 — 2026-11-05
 
 Search answers say each fact once: the number you asked for, its context, then what's new, with how it's counted one tap away.
 
@@ -30,6 +30,21 @@ Search answers say each fact once: the number you asked for, its context, then w
 - **How it's counted, one tap away.** Every answer's method is behind an info button beside one footnote line, as on comparisons, instead of a paragraph in the card.
 - **A ranking shows what it ranks by.** A list of teams ranked by Auto, TeleOp or Endgame shows that column on a phone instead of the total OPR.
 - **No highlights for an unanswered question.** A question about a team that search can't answer yet ("will 4215 win the NJ championship") says so with its suggested searches, without the team's highlights under it (#772).
+
+## 3.2.8 — 2026-11-05
+
+The site looks as it did yesterday, and the owner has a dog theme to switch on whenever they like.
+
+### Highlights
+- [appearance] Page colours back as they were: graphite, white, soft grey and black
+- [appearance] No pink background or drawn dogs and bones
+- [appearance] Compared teams in sky blue, orange and green again
+- [appearance] A dog theme the owner can turn on: a yellow tint and a real dog photo
+
+### Appearance
+- **As before.** The pink page and sidebar in every theme, the drawn dogs and bones across the page, and the pink browser bar are gone: Light is white again, Dim soft grey, Dark graphite and Midnight black. (#771)
+- **Team colours.** Compared teams on search answers are sky blue, orange and green again, as the results guide's colour-blind-safe set.
+- **Dog theme.** A new switch in the owner console's Features tab, off until the owner turns it on: every theme's page and sidebar tinted yellow, with a real dog photo faintly across the background. Cards, text and answer colours stay as they are.
 
 ## 3.2.7 — 2026-11-05
 

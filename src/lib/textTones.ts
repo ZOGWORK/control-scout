@@ -47,8 +47,8 @@ export const PROFILE_PERCENTILE_TEXT = "text-accent-display";
 export const CHART_LEGEND_TEXT = "[&_.recharts-legend-item-text]:!text-foreground";
 
 /** Compared teams' hues in search answers (the search results guide: hue means team, nothing else): team A, B and C
- *  as bar fills and swatches (violet, orange, teal: index.css --color-team-*), never as text (values are printed in
- *  the foreground). At most three per card; a fourth team gets the neutral ink. */
+ *  as bar fills and swatches, never as text (values are printed in the foreground). At most three per card; a fourth
+ *  team gets the neutral ink. Tokens in index.css (--color-team-*). */
 export const TEAM_FILL = ["bg-team-a", "bg-team-b", "bg-team-c"] as const;
 export const teamFill = (i: number) => TEAM_FILL[i] ?? "bg-foreground/50";
 
