@@ -51,6 +51,7 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
     <li className="flex h-full min-w-0 flex-col gap-2.5 rounded-xl border border-border bg-card p-3" data-match-box={r.label}>
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         {r.rank != null && <RankBadge rank={r.rank} />}
+        {r.note && <span className="rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-semibold text-foreground" data-note>{r.note}</span>}
         <Link to={r.href} className={cn("inline-flex items-center font-display text-base font-semibold text-foreground hover:text-accent-text hover:underline", TAP)}>{r.label}</Link>
         <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
           <Link to={r.event.href} className="break-words font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.event.label}</Link>

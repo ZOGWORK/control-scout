@@ -85,6 +85,9 @@ const CARDS: Record<string, () => HTMLElement> = {
     headline: { value: "290 points", label: "Q10 at NJ Championship" }, blocks: [{ kind: "matches", title: "Top alliance scores", rows: [match(0)] }] }),
   "match video (AnswerVideo)": () => draw(<AnswerVideoProvider video={{ main: { videoId: "xnQFL9T27fY", t: 30, kind: "recording", match: "Q10" }, rows: { [match(1).href]: { videoId: "xnQFL9T27fY", t: 90, kind: "recording", match: "Q11" } } } satisfies SearchVideo}>
     <StatAnswerCard stat={{ ...base, family: "superlative", intent: "season-top-matches", title: "Highest-scoring matches", headline: { value: "290 points", label: "Q10 at NJ Championship", href: match(0).href }, blocks: [{ kind: "matches", title: "Top alliance scores", rows: [match(0), match(1)] }] }} /></AnswerVideoProvider>),
+  "team highlights (labelled match boxes)": () => card({ ...base, family: "superlative", intent: "team-highlights", title: "Highlights, 2025–26", team: { number: 4215, name: "Hypnotic Robotics" },
+    headline: { value: "290 points", label: "Best score: Q10 at NJ Championship", sub: "300 with penalties · Won 300–200", href: match(0).href },
+    blocks: [{ kind: "matches", title: "2 standout matches", rows: [{ ...match(0, { rank: undefined }), note: "Best score" }, { ...match(1, { rank: undefined, label: "M4" }), note: "Latest playoff win" }] }] }),
   "event awards": () => draw(<EventAwardsAnswer card={{ kind: "event-awards", title: "Inspire Award · NJ Championship · 2025–26", lines: [], award: "Inspire", event: { season: 2025, code: "USNJCMP", name: "NJ Championship" },
     awards: [{ type: "Inspire", placement: 1, team: 30439, teamName: "Cool Name", name: "Inspire Award" }, { type: "Inspire", placement: 2, team: 207, teamName: "Critical Mass", name: "Inspire Award 2nd Place" },
       { type: "Inspire", placement: 3, team: 13617, teamName: "Bectobots", name: "Inspire Award 3rd Place" }, { type: "Think", placement: 1, team: 6980, teamName: "Bad Wolf", name: "Think Award" }] } satisfies SearchCard} />),
@@ -103,6 +106,7 @@ const NAMES: Record<keyof typeof CARDS, string[]> = {
   leaderboard: ["Ultraviolet", "ENFORCERS"],
   "team record": [], "stat tiles, OPR by phase": [], "event result (table)": [], "over time (series)": [], bars: [], "prediction at an event (#752)": [],
   "relaxed window chip (#749)": [], "match video (AnswerVideo)": [],
+  "team highlights (labelled match boxes)": [],
   "event awards": ["Cool Name", "Critical Mass", "Bectobots", "Bad Wolf"],
   "team facts": ["Hypnotic Robotics"],
   "Worlds trips": ["Hypnotic Robotics"],
