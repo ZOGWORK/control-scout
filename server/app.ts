@@ -383,9 +383,12 @@ export function createApp(opts: { dist?: string } = {}) {
         noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
       }).catch(() => {});
       // A search for one team alone ("4215") on the results page: the team's highlights as its answer
-      // (server/api/answers/highlights.ts), its matches' videos with it. Never in the header's short list.
-      const lone = ans.understood?.kind === "team" && !ans.stat && !ans.card && limit >= SEARCH_PAGE_LIMIT && ans.hits.filter((x) => x.kind === "team").length === 1 ? ans.hits.find((x) => x.kind === "team") : undefined;
-      const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }).catch(() => null) : null;
+      // (server/api/answers/highlights.ts), its matches' videos with it. Never in the header's short list, and never for
+      // a topic about the team (a section, facts, an event pick). A season asked for ("4215 2024-25") is the one shown.
+      const one = ans.hits.filter((x) => x.kind === "team");
+      const lone = ans.understood?.kind === "team" && !ans.stat && !ans.card && limit >= SEARCH_PAGE_LIMIT && one.length === 1
+        && !one[0].section && !one[0].href && !one[0].atEvent && !one[0].facts?.length && !one[0].events?.length ? one[0] : undefined;
+      const highlights = lone ? await teamHighlights({ number: Number(lone.ref), name: teamParts(lone.title)?.name ?? null }, lone.linkSeason).catch(() => null) : null;
       const full = highlights ? { ...ans, stat: highlights } : ans;
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       const [hits, video] = await Promise.all([withTeamStats(full.hits), answerVideo(full).catch(() => undefined)]);

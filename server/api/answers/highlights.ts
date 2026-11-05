@@ -25,9 +25,10 @@ function best(xs: TeamMatch[], by: (m: TeamMatch) => number): TeamMatch | undefi
   return xs.reduce<TeamMatch | undefined>((a, m) => (a == null || by(m) > by(a) ? m : a), undefined);
 }
 
-/** The highlights answer, or null when the team has no played match on record. */
-export async function teamHighlights(team: { number: number; name: string | null }): Promise<StatAnswer | null> {
-  const all = (await teamMatches(team.number)).filter((m) => m.onField);
+/** The highlights answer for `asked` (a season the search named) or else the team's latest season with matches; null
+ *  when it has no played match in that season. */
+export async function teamHighlights(team: { number: number; name: string | null }, asked?: number): Promise<StatAnswer | null> {
+  const all = (await teamMatches(team.number)).filter((m) => m.onField && (asked == null || m.season === asked));
   if (!all.length) return null;
   const season = Math.max(...all.map((m) => m.season));
   const xs = all.filter((m) => m.season === season);
@@ -45,7 +46,7 @@ export async function teamHighlights(team: { number: number; name: string | null
     family: "superlative", intent: "team-highlights", title: `Highlights, ${S}`, team, scope: [S],
     headline: { value: `${np(top)} points`, label: `Best score: ${top.label} at ${top.event}`, sub: `${top.own !== np(top) ? `${top.own} with penalties · ` : ""}${top.result === "W" ? "Won" : top.result === "L" ? "Lost" : "Tied"} ${top.own}–${top.opp}`, href: rows[0].href },
     blocks: [{ kind: "matches", title: `${picks.length} standout ${picks.length === 1 ? "match" : "matches"}`, rows }],
-    definition: `The team's standout matches of ${S}, its latest season with matches: its best score (points without penalties), biggest win (by margin), latest playoff win, best Auto and closest win, each match once. Only matches its robot played in. A match with a video plays here.`,
+    definition: `The team's standout matches of ${S}${asked == null ? ", its latest season with matches" : ""}: its best score (points without penalties), biggest win (by margin), latest playoff win, best Auto and closest win, each match once. Only matches its robot played in. A match with a video plays here.`,
     source: `From ${xs.length} ${xs.length === 1 ? "match" : "matches"} in ${S}`,
   };
 }

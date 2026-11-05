@@ -25,7 +25,7 @@ Searching a team's number or name now shows its highlights: its standout matches
 - [teams] Highlights with a match video play right on the answer
 
 ### Search
-- **A team's highlights.** A search for one team alone ("4215", or its name) answers with its standout matches of its latest season with matches: its best score (points without penalties), biggest win, latest playoff win, best Auto and closest win, each match listed once under the first reason it meets, with a label saying which. Only matches its robot played in count, and points are never compared across seasons. Each match box links to the match, and the answer's video plays the best score's clip when the match has one, with each other highlight's clip one tap away (#770).
+- **A team's highlights.** A search for one team alone ("4215", or its name) opens the results page, which answers with its standout matches of its latest season with matches (or the season the search names, "4215 2024-25"): its best score (points without penalties), biggest win, latest playoff win, best Auto and closest win, each match listed once under the first reason it meets, with a label saying which. Only matches its robot played in count, and points are never compared across seasons. Each match box links to the match, and the answer's video plays the best score's clip when the match has one, with each other highlight's clip one tap away. A team with no match on record still opens its team page straight away (#770).
 
 ## 3.2.6 — 2026-11-05
 
