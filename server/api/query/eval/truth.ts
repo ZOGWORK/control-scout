@@ -59,10 +59,13 @@ export async function teamsPlayed(season: number): Promise<{ number: number; nam
   return rows.map((r) => ({ number: Number(r.number), name: r.name, state: r.state, country: r.country, unique: !!r.name && names.get(fold(r.name)) === 1 }));
 }
 
-/** Two teams that met (on opposite alliances) in `season`, for the matchup questions. */
+/** A team this one met (on opposite alliances) in `season`, both with a prediction rating that season, for the
+ *  matchup questions: a pair with no rating gets a card saying so, which is right but isn't a forecast to check. */
 export async function opponentsOf(team: number, season: number): Promise<number | null> {
   const r = await get<{ team: number }>(
     `SELECT y.team FROM match_teams x JOIN match_teams y ON y.season = x.season AND y.code = x.code AND y.level = x.level AND y.series = x.series AND y.number = x.number
+       JOIN team_season_stats a ON a.season = x.season AND a.team = x.team AND a.rating_np IS NOT NULL
+       JOIN team_season_stats b ON b.season = y.season AND b.team = y.team AND b.rating_np IS NOT NULL
      WHERE x.team = ? AND x.season = ? AND y.alliance <> x.alliance ORDER BY y.team LIMIT 1`, [team, season]);
   return r ? Number(r.team) : null;
 }

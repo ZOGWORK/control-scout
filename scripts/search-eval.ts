@@ -128,12 +128,13 @@ for (const t of teams) {
     const open = links.some((l) => /^Open in Predict/.test(l.title) && l.href.includes(`red=${t.number}`) && l.href.includes(`blue=${opp}`));
     check(!!h && /favoured|rated higher|even/i.test(String(h.value)) && /\d+% to win · predicted \d+–\d+/.test(String(h.label)) && open, `matchup · "${q}": ${card(a)} · ${h?.label ?? ""}; links ${links.map((l) => l.title).join(", ")}`);
   }
-  // A misspelled name: one letter dropped from its longest word.
+  // A misspelled name: one letter dropped from its longest word. Only a typo that is nearer this team's name than any
+  // other's ("deltv" is as near several teams' DeltaV): one a reader could tell apart.
   if (t.name && t.unique) {
     const words = t.name.split(/\s+/), long = words.reduce((x, y) => (y.length > x.length ? y : x));
-    if (long.length >= 6) {
-      const i = 1 + Math.floor(r() * (long.length - 2));
-      const typo = words.map((w) => (w === long ? w.slice(0, i) + w.slice(i + 1) : w)).join(" ").toLowerCase();
+    const i = 1 + Math.floor(r() * (long.length - 2));
+    const typo = words.map((w) => (w === long ? w.slice(0, i) + w.slice(i + 1) : w)).join(" ").toLowerCase();
+    if (long.length >= 6 && index.nearTeam(typo)?.number === t.number) {
       const a = await ask(`${typo} record`);
       const reached = a.stat?.team?.number === t.number || a.hits.slice(0, 3).some((h) => h.kind === "team" && h.ref === String(t.number)) || !!a.didYouMean?.toLowerCase().includes(long.toLowerCase());
       check(reached, `misspelled · "${typo} record" (${t.name}): ${card(a)}; did you mean ${a.didYouMean ?? "–"}`);

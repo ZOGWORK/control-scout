@@ -27,6 +27,7 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
     names: idx,
     today: searchToday(now),
     prefer,
+    nearTeam: async (words) => idx.nearTeam(words),
     isEvent(words) {
       const hit = seen.get(words);
       if (hit) return hit;
