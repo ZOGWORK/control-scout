@@ -201,6 +201,20 @@ describe("forecasts", () => {
   it("a team not listed at the event is told so, never another event", async () => {
     expect((await stat("24033 garden qualifier prediction")).none).toContain("isn't listed at Garden Qualifier");
   });
+  it("a season or a game named finds that season's event", async () => {
+    for (const q of ["4215 garden qualifier prediction 2025-26", "4215 garden qualifier prediction in decode"]) {
+      expect((await stat(q)).title, q).toBe("Prediction vs result at Garden Qualifier");
+    }
+  });
+  it("a live log that covers only some played matches: the replay for all of them, none dropped", async () => {
+    // Romania Championship's two matches (5 and 6): live for one only, the replay for both.
+    await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at) VALUES ('live', 2025, 'ROCMP', 'qual', 0, 5, '[24033]', '[17713]', 0.6, 200, 150, 'high', 't', '2026-03-13'), ('backtest', 2025, 'ROCMP', 'qual', 0, 5, '[24033]', '[17713]', 0.65, 210, 150, 'high', 't', '2026-03-13'), ('backtest', 2025, 'ROCMP', 'qual', 0, 6, '[24033]', '[17713]', 0.55, 190, 170, 'high', 't', '2026-03-13')");
+    clearAllCaches();
+    const s = await stat("24033 romania championship prediction");
+    const t = s.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows).toHaveLength(2);
+    expect(s.headline?.sub).toMatch(/walk-forward replay/);
+  });
 });
 
 describe("years", () => {

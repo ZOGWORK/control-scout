@@ -20,15 +20,16 @@ import { EVENT_FIT } from "./context.js";
 interface Ev { season: number; code: string; name: string; type: string | null; start: string | null; end: string | null }
 const pct = (p: number) => `${Math.round(100 * p)}%`;
 
-/** The event the words name for these teams: the year asked (held that year), else the latest one they're listed at,
- *  else the latest of that name (and the answer says they aren't listed). Null when no event has that name. */
-export async function eventFor(words: string, teams: number[], year: number | null): Promise<{ ev: Ev; listed: boolean } | null> {
+/** The event the words name for these teams: the year asked (held that year) or the season named, else the latest one
+ *  they're listed at, else the latest of that name (and the answer says they aren't listed). Null when no event has
+ *  that name. */
+export async function eventFor(words: string, teams: number[], year: number | null, season: number | null = null): Promise<{ ev: Ev; listed: boolean } | null> {
   const hits = (await search(words, 25, new Set(), new Set(["event"]))).filter((h) => h.kind === "event" && eventFit(words, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
   if (!hits.length) return null;
   // Every season of each event named (a code is reused year to year), by name.
   const codes = [...new Set(hits.map((h) => h.ref.split(":")[1]))];
   const rows = await all<Ev>(`SELECT season, code, name, type, start, end FROM events WHERE code IN (${codes.map(() => "?").join(", ")}) ORDER BY start DESC`, codes);
-  const named = rows.filter((e) => eventFit(words, e.name, e.code) >= EVENT_FIT && (year == null || (e.start ?? "").startsWith(String(year))));
+  const named = rows.filter((e) => eventFit(words, e.name, e.code) >= EVENT_FIT && (year == null || (e.start ?? "").startsWith(String(year))) && (season == null || Number(e.season) === season));
   if (!named.length) return null;
   const listed = await all<{ season: number; code: string }>(`SELECT DISTINCT season, code FROM ${ROSTER} r WHERE team IN (${teams.map(() => "?").join(", ")}) AND (${named.map(() => "(season = ? AND code = ?)").join(" OR ")})`,
     [...teams, ...named.flatMap((e) => [e.season, e.code])]);
@@ -78,8 +79,12 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const lineup = (side: string): number[] => { try { const v = JSON.parse(side); return Array.isArray(v) ? v.map(Number) : []; } catch { return side.split(",").map(Number); } };
   const has = (side: string, n: number) => lineup(side).includes(n);
   const mine = rows.filter((r) => teams.every((t) => has(r.red, t.number) || has(r.blue, t.number)));
-  // One kind per card: live when any match was logged live, else the replay.
-  const kind = mine.some((r) => r.kind === "live") ? "live" : "backtest";
+  // One kind per card: live when the live log covers every match played (it skips one with too little lead time or
+  // no known lineup), else the replay, so no played match drops out of the table or the record.
+  const key = (r: Pred) => `${r.code}|${r.level}|${r.series}|${r.number}`;
+  const playedBy = (k: string) => new Set(mine.filter((r) => r.kind === k && Number(r.played) === 1).map(key));
+  const playedKeys = new Set(mine.filter((r) => Number(r.played) === 1).map(key)), live = playedBy("live");
+  const kind = mine.some((r) => r.kind === "live") && [...playedKeys].every((k) => live.has(k)) ? "live" : "backtest";
   const ms = mine.filter((r) => r.kind === kind);
   // The pre-event projection, only while event forecasts are switched on (as on the event page).
   const odds = await isEnabled("advancementOdds").catch(() => false);

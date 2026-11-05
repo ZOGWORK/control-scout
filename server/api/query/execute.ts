@@ -107,9 +107,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   // which ("predicted score next match", "predicted wins at their next event").
   if ((intent === "team-predict" || intent === "two-predict") && p.event) {
     if (scope.level || scope.alliance || scope.place || scope.area || scope.window || p.worlds || p.states) return null;
+    // A calendar year ("2025") is the event held that year; a season or a game named ("2025-26", "decode") its season.
     const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
-    if (p.time && year == null) return null;
-    const found = await eventFor(p.event.words, p.teams.map((t) => t.number), year);
+    const season = p.time?.kind === "season" && p.time.year == null && !p.time.relative && p.time.season != null ? p.time.season : null;
+    if (p.time && year == null && season == null) return null;
+    const found = await eventFor(p.event.words, p.teams.map((t) => t.number), year, season);
     if (!found) return null;
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now());
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
