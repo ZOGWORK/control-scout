@@ -305,9 +305,11 @@ export function resetSearchFailures() { pending.clear(); buffer.clear(); Object.
 export const EXAMPLES_MAX = 5;
 /** The unread words an issue lists, the most frequent first. */
 export const MISSED_MAX = 20;
-/** The unread words a pattern's row keeps counting (bounded): far more than it lists, so a word that starts being
- *  missed often can still climb into the listed ones. */
+/** The unread words a pattern's row keeps counting (bounded): far more than it lists. */
 export const MISSED_KEEP = 500;
+/** Of those, the places kept for the words just seen that aren't among the most counted: a word that starts being
+ *  missed often keeps its count from flush to flush and climbs, however many words already have high counts. */
+export const MISSED_FRESH = 100;
 
 /** Each word of one query counted once per time it appears, the same whether its pattern is new or buffered. */
 function tally(m: Map<string, number>, words: string[]): Map<string, number> {
@@ -315,11 +317,15 @@ function tally(m: Map<string, number>, words: string[]): Map<string, number> {
   return m;
 }
 
-/** Two tallies of missed words as one, the most frequent first, MISSED_KEEP at most. */
+/** Two tallies of missed words as one, the most frequent first, MISSED_KEEP at most: the most counted, then the
+ *  words in `b` (just seen), then the rest. */
 export function mergeMissed(a: Record<string, number>, b: Iterable<[string, number]>): Record<string, number> {
-  const m = new Map(Object.entries(a));
-  for (const [w, n] of b) m.set(w, (m.get(w) ?? 0) + n);
-  return Object.fromEntries([...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, MISSED_KEEP));
+  const m = new Map(Object.entries(a)), seen = new Set<string>();
+  for (const [w, n] of b) { m.set(w, (m.get(w) ?? 0) + n); seen.add(w); }
+  const byCount = [...m].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]));
+  const top = byCount.slice(0, MISSED_KEEP - MISSED_FRESH), rest = byCount.slice(MISSED_KEEP - MISSED_FRESH);
+  const kept = [...top, ...[...rest.filter(([w]) => seen.has(w)), ...rest.filter(([w]) => !seen.has(w))].slice(0, MISSED_FRESH)];
+  return Object.fromEntries(kept.sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])));
 }
 
 interface Row {
@@ -391,23 +397,31 @@ export function onRows(batch: Buffered[], onRecord: Set<string>): Buffered[] {
   return [...out.values()];
 }
 
+/** Reads the rows' examples and word tallies and writes them back merged, in one write transaction: another server
+ *  flushing the same pattern waits, so neither erases the other's words. */
 async function writeBatch(batch: Buffered[]) {
   const asked = [...new Set(batch.flatMap((b) => [b.key, b.legacy]))];
-  const rows = await all<{ key: string; examples: string; missed: string }>(`SELECT key, examples, missed FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, asked);
-  const had = new Map(rows.map((r) => [r.key, JSON.parse(r.examples) as string[]]));
-  const hadMissed = new Map(rows.map((r) => [r.key, JSON.parse(r.missed || "{}") as Record<string, number>]));
-  const items = onRows(batch, new Set(had.keys()));
-  await db().batch(items.map((b) => {
-    const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
-    const reading = JSON.stringify(b.failure.trace);
-    return {
-      sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, missed, count, first_seen, last_seen)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (key) DO UPDATE SET count = count + excluded.count, last_seen = MAX(last_seen, excluded.last_seen),
-              result_type = excluded.result_type, intent = excluded.intent, reading = excluded.reading, label = excluded.label, examples = excluded.examples, missed = excluded.missed`,
-      args: [b.key, keyHash(b.key), b.failure.type, b.failure.intent, reading, b.label, JSON.stringify(examples), JSON.stringify(mergeMissed(hadMissed.get(b.key) ?? {}, b.missed)), b.count, new Date(b.first).toISOString(), new Date(b.last).toISOString()],
-    };
-  }), "write");
+  const tx = await db().transaction("write");
+  try {
+    const rows = (await tx.execute({ sql: `SELECT key, examples, missed FROM search_failures WHERE key IN (${asked.map(() => "?").join(",")})`, args: asked })).rows as unknown as { key: string; examples: string; missed: string }[];
+    const had = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.examples)) as string[]]));
+    const hadMissed = new Map(rows.map((r) => [String(r.key), JSON.parse(String(r.missed || "{}")) as Record<string, number>]));
+    const items = onRows(batch, new Set(had.keys()));
+    await tx.batch(items.map((b) => {
+      const examples = [...b.examples, ...(had.get(b.key) ?? []).filter((e) => !b.examples.includes(e))].slice(0, EXAMPLES_MAX);
+      const reading = JSON.stringify(b.failure.trace);
+      return {
+        sql: `INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, missed, count, first_seen, last_seen)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT (key) DO UPDATE SET count = count + excluded.count, last_seen = MAX(last_seen, excluded.last_seen),
+                result_type = excluded.result_type, intent = excluded.intent, reading = excluded.reading, label = excluded.label, examples = excluded.examples, missed = excluded.missed`,
+        args: [b.key, keyHash(b.key), b.failure.type, b.failure.intent, reading, b.label, JSON.stringify(examples), JSON.stringify(mergeMissed(hadMissed.get(b.key) ?? {}, b.missed)), b.count, new Date(b.first).toISOString(), new Date(b.last).toISOString()],
+      };
+    }));
+    await tx.commit();
+  } finally {
+    tx.close();
+  }
 }
 
 // --- GitHub issues --------------------------------------------------------------------------------------------

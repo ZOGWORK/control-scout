@@ -59,15 +59,22 @@ and the owner's re-check both read the outcome this way (`outcomeTrace`).
 When there is no outcome (a copy of the answer, or a caller outside `/api/search`), the reading is taken from the
 answer itself (`readTrace`), with the intent words of the redundancy brief's section 6 (`INTENT_WORDS`).
 
-## One issue per query
+## One issue per pattern
 
-- **Key.** Search's own key (`searchKey`) of the redacted query (`keyFor`): personal data out first (so the key
-  holds `[email]`, never the address), then lowercase, punctuation out, spaces collapsed, `#4215` → `4215`, then
-  search's filler out (rn, right now, currently, please, and the rest of its `FILLER`), never inside a team's full
-  name. "4215 opr rn" and "4215 opr right now" share one issue. Word order is kept: "4215 from where" and "4215 where
-  from" are two issues. If search's key can't be worked out, the reporter's own (`reportKey`, the same steps with its
-  own filler list) is used. A query already on record under the key it got before 2.8.1 (`reportKey`) stays on
-  that row, so its issue, count and dismissal carry over and no second issue opens.
+- **Key.** The failure's pattern (`patternFor`, `server/api/query/pattern.ts`): `pattern: ` and what search read
+  from the redacted query (personal data out first): the intent, which slots were filled (team, teams, place,
+  event, window, count…), the symbols left unexplained and how many words weren't read. No name, number or place is
+  in it, so "4215 opr zzz" and "6980 opr zzz" share one issue. A query that is only personal data has no pattern and
+  isn't filed. The pattern is worked out only for an answer that failed, after the answer is sent.
+- **Missed words.** Each pattern's row counts the words its queries left unread (`search_failures.missed`, migration
+  73): the 400 most counted are kept, plus 100 places for the words seen most recently, so a word that starts being
+  missed often keeps its count and climbs. The issue lists the 20 most counted. The tally is read and written back
+  in one write transaction, so two servers flushing the same pattern never lose each other's words.
+- **Before 3.2.3 (historical).** Failures were keyed per query, by search's own key of the redacted query (`keyFor`,
+  `searchKey`: lowercase, punctuation and search's filler out, word order kept), or before 2.8.1 by the reporter's own
+  (`reportKey`). Those rows and their issues stay as they are, with their counts and dismissals. A pattern never lands
+  on one of them: a query that used to fail under its own key now goes to its pattern's issue. `keyFor` is still the
+  key when no pattern can be worked out.
 - **Title.** `Failed search: <key>`, the key cut at 80 characters with "…". The full query is in the body. `@` and
   `#<digit>` get a zero-width space so a title can't mention anyone or link an issue.
 - **Body.** Result type, count, first seen, last seen, Reproduce link (`https://controlscout.org/search?q=<latest query as typed>`, never the key, which may answer once filler is dropped),

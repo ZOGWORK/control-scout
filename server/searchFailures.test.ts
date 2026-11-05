@@ -13,7 +13,7 @@ import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
   counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
-  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, MISSED_MAX, mergeMissed, patternFor } from "./searchFailures";
+  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 
 let server: Server;
@@ -207,10 +207,15 @@ describe("failure patterns (docs/search-pipeline.md)", () => {
   it("rows keep counting well past the words an issue lists, so a newly frequent word can climb", () => {
     const many = Object.fromEntries(Array.from({ length: MISSED_KEEP + 5 }, (_, i) => [`w${i}`, 100]));
     expect(Object.keys(mergeMissed(many, []))).toHaveLength(MISSED_KEEP);
-    // Twenty words at 100 each: a new word missed once a flush is kept, and overtakes them.
-    let m: Record<string, number> = Object.fromEntries(Array.from({ length: MISSED_MAX }, (_, i) => [`old${i}`, 100]));
-    for (let i = 0; i < 101; i++) m = mergeMissed(m, [["new", 1]]);
+    // A full tally, every word at 100: a new word missed once a flush keeps its count, and overtakes them all.
+    let m: Record<string, number> = Object.fromEntries(Array.from({ length: MISSED_KEEP }, (_, i) => [`old${i}`, 100]));
+    for (let i = 0; i < 101; i++) {
+      m = mergeMissed(m, [["new", 1]]);
+      expect(Object.keys(m)).toHaveLength(MISSED_KEEP);
+    }
     expect(Object.entries(m).sort((a, b) => b[1] - a[1])[0]).toEqual(["new", 101]);
+    // The most counted are never pushed out to make room.
+    expect(m.old0).toBe(100);
   });
   it("a word repeated in one query counts the same whether its pattern is new or buffered", async () => {
     const key = "pattern: intent: team opr · slots: team · not read: 2 words";
