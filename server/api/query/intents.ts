@@ -42,8 +42,8 @@ const R = (id: PipelineIntent, teams: 0 | 1 | 2, all: string[], opt: string[] = 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
 export const INTENTS: IntentRule[] = [
   // One team: the best or worst of its matches.
-  R("highest-score", 1, ["agg:max", "metric:score"], ["thing:match", "thing:event", "nopen"]),
-  R("lowest-score", 1, ["agg:min", "metric:score"], ["thing:match", "thing:event", "nopen"]),
+  R("highest-score", 1, ["agg:max", "metric:score"], ["thing:match", "thing:event"]),
+  R("lowest-score", 1, ["agg:min", "metric:score"], ["thing:match", "thing:event"]),
   R("biggest-win", 1, ["agg:max", "metric:win"], ["metric:margin", "thing:match", "outcome:W"]),
   R("biggest-win", 1, ["agg:max", "metric:margin"], ["outcome:W", "thing:match"]),
   R("biggest-loss", 1, ["agg:max", "metric:loss"], ["metric:margin", "thing:match", "outcome:L"]),
@@ -71,8 +71,8 @@ export const INTENTS: IntentRule[] = [
   R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
   R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match"]),
   R("win-percent", 1, ["metric:winrate"], ["thing:match"]),
-  R("average-score", 1, ["agg:mean", "metric:score"], ["thing:match", "nopen", "per:match"]),
-  R("average-score", 1, ["metric:score", "per:match"], ["thing:match", "nopen"]),
+  R("average-score", 1, ["agg:mean", "metric:score"], ["thing:match", "per:match"]),
+  R("average-score", 1, ["metric:score", "per:match"], ["thing:match"]),
   R("median-score", 1, ["agg:median", "metric:score"], ["thing:match"]),
   R("average-margin", 1, ["agg:mean", "metric:margin"], ["outcome:W", "outcome:L", "metric:win", "thing:match"]),
   R("total-points", 1, ["agg:sum", "metric:score"], ["thing:match"]),
@@ -107,8 +107,8 @@ export const INTENTS: IntentRule[] = [
   R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs"]),
   // Two teams.
   R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match"]),
-  R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list", "same-side"]),
-  R("shared-matches", 2, ["same-side"], ["vs", "and", "thing:match", "list"]),
+  // Either alliance: "on the same alliance" (partners only) isn't a filter the shared list takes, so it stays unexplained.
+  R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list"]),
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
   R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),

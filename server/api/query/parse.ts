@@ -36,7 +36,8 @@ export interface Parsed {
   n: number | null;
   /** "match 12", "q12": a match's number. */
   matchNumber: number | null;
-  /** Penalty points left out of scores. */
+  /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
+   *  incomplete. */
   noPenalties: boolean;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
@@ -175,16 +176,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
-    const s = e.sym;
-    if (s.k === "level") p.level = s.v;
-    else if (s.k === "alliance") p.alliance = s.v;
-    else if (s.k === "worlds") p.worlds = true;
-    else if (s.k === "states") p.states = true;
-    else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
-    else if (s.k === "nopen") p.noPenalties = true;
-    else if (s.k === "agg" && !p.agg) p.agg = s.v;
-    const k = symKey(s);
-    if (k && s.k !== "award") symbols.add(k);
+    for (const s of e.syms) {
+      if (s.k === "level") p.level = s.v;
+      else if (s.k === "alliance") p.alliance = s.v;
+      else if (s.k === "worlds") p.worlds = true;
+      else if (s.k === "states") p.states = true;
+      else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
+      else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "agg" && !p.agg) p.agg = s.v;
+      const k = symKey(s);
+      if (k && s.k !== "award") symbols.add(k);
+    }
   }
   // One-word awards beside an award word: "design award", "4215 think awards".
   if (symbols.has("metric:award")) {
@@ -239,6 +241,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   p.symbols = [...symbols];
   const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null });
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
+  // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
+  // parse is left incomplete rather than answered with penalties in.
+  if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
 }

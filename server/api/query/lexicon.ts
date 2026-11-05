@@ -31,9 +31,12 @@ export type Sym =
   | { k: "per"; v: "match" | "event" | "rate" }
   | { k: "nopen" };
 
-/** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean. Longer phrases win over
- *  shorter ones at the same place, so "win rate" is one metric, never "win" and "rate". */
-const TABLE: [string, Sym][] = [
+/** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
+ *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
+ *  metric, never "win" and "rate". */
+const TABLE: [string, Sym | Sym[]][] = [
+  ["margin of victory|victory margin|winning margin|margin of win", [{ k: "metric", v: "margin" }, { k: "outcome", v: "W" }]],
+  ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
   // Aggregations.
   ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best", { k: "agg", v: "max" }],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
@@ -118,12 +121,12 @@ export const AWARD_WORDS: [string, string][] = [
   ["finalist|finalists|finalist alliance|runner up|runners up|runner-up", "Finalist"], ["volunteer|volunteer award", "Volunteer"],
 ];
 
-export interface Entry { words: string[]; sym: Sym }
+export interface Entry { words: string[]; syms: Sym[] }
 const split = (p: string) => p.toLowerCase().split(/\s+/).filter(Boolean);
 /** Every phrase as its words, the longest first (the parser's greedy match). */
 export const LEXICON: Entry[] = [
-  ...AWARD_WORDS.flatMap(([ps, type]) => ps.split("|").filter((p) => /\s/.test(p) || p === "inspire" || p === "finalist" || p === "finalists").map((p) => ({ words: split(p), sym: { k: "award", v: type } as Sym }))),
-  ...TABLE.flatMap(([ps, sym]) => ps.split("|").map((p) => ({ words: split(p), sym }))),
+  ...AWARD_WORDS.flatMap(([ps, type]) => ps.split("|").filter((p) => /\s/.test(p) || p === "inspire" || p === "finalist" || p === "finalists").map((p) => ({ words: split(p), syms: [{ k: "award", v: type } as Sym] }))),
+  ...TABLE.flatMap(([ps, sym]) => ps.split("|").map((p) => ({ words: split(p), syms: Array.isArray(sym) ? sym : [sym] }))),
 ].sort((a, b) => b.words.length - a.words.length);
 
 /** The one-word award names that are everyday words too ("design", "control", "reach"): an award only beside an award

@@ -95,7 +95,9 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
-    if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window)) return null;
+    // Season side-by-sides (OPR, rating, awards, a forecast) read whole seasons: only the meetings take an event, a
+    // place, a window, a match type or a side.
+    if (!MEETINGS.has(id) && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.window || scope.place || scope.area)) return null;
     return twoTeamSearch(p.q, { id, scope, a: String(p.teams[0].number), b: String(p.teams[1].number) }, opts.resolve, opts);
   }
   if (!p.teams.length && intent === "top-matches") {
