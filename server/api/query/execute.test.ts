@@ -50,6 +50,13 @@ beforeAll(async () => {
   for (const t of [4215, 6980, 24033, 17713, 10809, 5555]) {
     await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams WHERE team = ?", [t]);
   }
+  // The engine's predictions for the two Garden Qualifier matches: one logged live, one replayed (a card shows one kind).
+  await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, tier, engine_version, predicted_at) VALUES ('live', 2025, 'USNJQ1', 'qual', 0, 1, '[4215,6980]', '[10809]', 0.7, 140, 100, 'high', 't', '2026-01-09'), ('live', 2025, 'USNJQ1', 'qual', 0, 2, '[4215]', '[6980]', 0.6, 110, 100, 'medium', 't', '2026-01-09'), ('backtest', 2025, 'USNJQ1', 'qual', 0, 2, '[4215]', '[6980]', 0.2, 90, 120, 'medium', 't', '2026-01-09')");
+  // A meeting still to come at the same event, its call saved before any rated match (win odds only, no score).
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (2025, 'USNJQ1', 'qual', 0, 99, 'Q99', '2026-01-10T18:00:00Z', 0, 't')");
+  await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, no_score_basis, tier, engine_version, predicted_at) VALUES ('live', 2025, 'USNJQ1', 'qual', 0, 99, '[4215]', '[6980]', 0.55, 100, 100, 1, 'low', 't', '2026-01-09')");
+  // A Leadership Award is filed as a "Winner" too: never the event won.
+  await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJQ1', 4215, 'Winner', 'Leadership Award', 1)");
   await rebuildSearch();
   clearAllCaches();
 });
@@ -160,6 +167,39 @@ describe("what the pipeline leaves to the other readers", () => {
     const { parseContext } = await import("./context");
     expect(await parseQuery("4215 margin of victory on average", await parseContext(NOW))).toMatchObject({ intent: "average-margin", symbols: expect.arrayContaining(["outcome:W"]), complete: true });
     expect((await stat("4215 margin of victory on average")).title).toMatch(/^Average winning margin/);
+  });
+});
+
+describe("forecasts", () => {
+  it("a team at a named event: before and after side by side, Predict open on it", async () => {
+    for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
+      const a = await ask(q);
+      const s = a.stat as StatAnswer;
+      expect(s.title, q).toBe("Prediction vs result at Garden Qualifier");
+      // Live only: the replayed row for Q2 never joins the live ones.
+      expect(s.headline, q).toMatchObject({ value: "1.3 → 1 wins", sub: expect.stringContaining("logged live before each match") });
+      const t = s.blocks.find((b) => b.kind === "table");
+      expect(t && t.kind === "table" && t.rows.map((r) => [r.cells.before, r.cells.after, r.cells.called]), q).toEqual([["70% · 140–100", "W 150–90", "Yes"], ["60% · 110–100", "L 80–120", "No"], ["55%", "Not played yet", "–"]]);
+      expect(a.pages[0], q).toMatchObject({ title: "Open in Predict: 4215 at Garden Qualifier", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+    }
+  });
+  it("two teams at an event: their meetings, before and after", async () => {
+    const s = await stat("4215 vs 6980 at garden qualifier prediction");
+    expect(s.title).toBe("Prediction vs result: 4215 and 6980 at Garden Qualifier");
+    const t = s.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.map((r) => r.cells.as)).toEqual(["partners", "opponents", "opponents"]);
+  });
+  it("a Leadership Award filed as a Winner is never the event won", async () => {
+    const k = (await stat("4215 garden qualifier prediction")).blocks.find((b) => b.kind === "kpis");
+    expect(k && k.kind === "kpis" && k.items.find((i) => i.label === "After: event")?.value).not.toBe("Won");
+  });
+  it("two teams who never met there: said so, never one team's event odds", async () => {
+    const s = await stat("4215 vs 10809 at golden qualifier prediction");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toMatch(/No prediction was stored .* meeting at Golden Qualifier/);
+  });
+  it("a team not listed at the event is told so, never another event", async () => {
+    expect((await stat("24033 garden qualifier prediction")).none).toContain("isn't listed at Garden Qualifier");
   });
 });
 

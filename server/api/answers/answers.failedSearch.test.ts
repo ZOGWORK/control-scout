@@ -109,10 +109,10 @@ describe("an event named beside the team, with no \"at\"", () => {
   });
   it("a forecast for the event named (4215, 6980, 23268)", async () => {
     for (const [t] of NJ_TEAMS) {
+      // The search pipeline's before-and-after card (server/api/query/forecast.ts) at that event.
       const a = await full(`predicted chances of ${t} east bergen conference`);
-      expect(a.intent?.kind).toBe("stat-event-win-chance");
-      expect(a.intent?.understood[1]).toBe("Chance to win at East Bergen Conference Northern League Tournament");
-      expect(a.stat?.title).toBe("Chance to win");
+      expect(a.intent?.kind).toBe("stat-pipeline-team-predict-event");
+      expect(a.stat?.title).toMatch(/at East Bergen Conference Northern League Tournament$/);
       expect(a.stat?.scope).toContain("East Bergen Conference Northern League Tournament");
     }
   });

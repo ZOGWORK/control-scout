@@ -218,7 +218,7 @@ describe("two teams", () => {
     const w = await searchAnswer("4215 win chance vs 6980", { limit: 25 });
     // No ratings built in a test: the stored ratings said plainly, never a made-up score (the engine's call when built).
     expect(w.stat!.headline).toMatchObject({ value: "4215 rated higher", label: "by 8.0 points per match" });
-    expect(w.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ items: [{ label: "Predict 4215 vs 6980" }, {}] });
+    expect(w.stat!.blocks.find((b) => b.kind === "links")).toMatchObject({ items: [{ label: "Open in Predict: 4215 vs 6980" }, {}] });
   });
   it("opponents and partners, and teams never played", async () => {
     const t = await searchAnswer("4215 toughest opponent", { limit: 25 });
