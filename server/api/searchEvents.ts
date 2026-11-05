@@ -16,10 +16,11 @@ import type { SearchAnswer, SearchEventInfo, SearchHit, SearchUnderstood } from 
 import { eventSetLabel, eventTypesOf, timeWindow, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { STOPWORDS } from "../../src/shared/searchQuery.js";
 import { SEARCH_BROWSE, SEARCH_PAGE_LIMIT, pagesFor } from "../../src/shared/search.js";
-import { eventStatus } from "../../src/shared/eventDay.js";
+import { eventStatus, localDate } from "../../src/shared/eventDay.js";
 import { seasonLabel } from "../../src/shared/format.js";
 import { wordScore, words } from "./fuzzy.js";
-import { all, get } from "../db.js";
+import { get } from "../db.js";
+import { searchRead } from "./searchReads.js";
 import { CURRENT_SEASON, SEASON_NUMBERS } from "../data/seasons.js";
 import { edits, type Region } from "../../src/shared/regions.js";
 
@@ -37,10 +38,8 @@ export function localTodays(now: number): (timezone: string | null) => string {
 }
 
 export function localToday(now: number, timezone: string | null): string {
-  if (timezone) {
-    try { return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now); } catch { /* unknown zone */ }
-  }
-  return searchToday(now);
+  // An unknown zone: UTC's date.
+  return (timezone ? localDate(now, timezone) : null) ?? searchToday(now);
 }
 
 /** Every query word is in `text` (a whole word, its start, or within the typo allowance). */
@@ -50,9 +49,17 @@ const allIn = (qs: string[], text: string) => { const ws = words(text); return q
 /** A venue or city as one run of letters: punctuation, little words and "Regional" out, "HS" as "high school"
  *  ("River Dell Regional H.S." is "riverdellhighschool"). */
 function compact(s: string): string {
-  const ws = s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\bh\.?\s*s\b\.?/g, " high school ").replace(/[^\p{L}\p{N}]+/gu, " ").split(" ");
-  return ws.filter((w) => w && !STOPWORDS.has(w) && w !== "regional").join("");
+  // Each venue and city is compacted once, not once a search: a place query reads every event's.
+  let c = compacted.get(s);
+  if (c === undefined) {
+    const ws = s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\bh\.?\s*s\b\.?/g, " high school ").replace(/[^\p{L}\p{N}]+/gu, " ").split(" ");
+    c = ws.filter((w) => w && !STOPWORDS.has(w) && w !== "regional").join("");
+    if (compacted.size > 100_000) compacted.clear();
+    compacted.set(s, c);
+  }
+  return c;
 }
+const compacted = new Map<string, string>();
 /** Whether `text` (a stored venue, or a city: `whole`) is the place typed: a venue holds the words typed (or they
  *  hold it); either is a letter or two off (one per eight letters), its first five letters the same ("Dumont High
  *  School" is never "Dimond High School"). */
@@ -71,7 +78,7 @@ function exactPlace(typed: string, r: Row): boolean {
 
 /** The states (country:state) where some event's venue or city is the place as typed (exactPlace). */
 async function exactStates(typed: string): Promise<Set<string>> {
-  const all_ = await all<Row>("SELECT venue, city, state, country FROM events WHERE venue IS NOT NULL OR city IS NOT NULL");
+  const all_ = await searchRead<Row>("SELECT venue, city, state, country FROM events WHERE venue IS NOT NULL OR city IS NOT NULL");
   return new Set(all_.filter((r) => exactPlace(typed, r)).map((r) => `${r.country}:${r.state}`));
 }
 
@@ -80,10 +87,18 @@ async function exactStates(typed: string): Promise<Set<string>> {
  *  Bosco Prep High School in Ramsey. */
 function atPlace(typed: string, r: Row): boolean {
   if (samePlace(typed, r.venue) || samePlace(typed, r.city, true)) return true;
-  const have = new Set(words(r.venue ?? ""));
   const qs = words(typed).filter((w) => !STOPWORDS.has(w));
-  return qs.length > 0 && qs.every((w) => have.has(w));
+  if (!qs.length) return false;
+  const v = r.venue ?? "";
+  let have = venueWords.get(v);
+  if (!have) {
+    have = new Set(words(v));
+    if (venueWords.size > 100_000) venueWords.clear();
+    venueWords.set(v, have);
+  }
+  return qs.every((w) => have.has(w));
 }
+const venueWords = new Map<string, Set<string>>();
 
 const placeOf = (r: Row) => [r.city, r.state, r.country].filter(Boolean).join(", ");
 
@@ -123,7 +138,8 @@ async function rowsFor(e: EventQuery, now: number, drop: { where?: boolean; time
     if (w.from) { where.push("COALESCE(end, start) >= ?"); args.push(w.from); }
     if (w.to) { where.push("start <= ?"); args.push(w.to); }
   }
-  let rows = await all<Row>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args);
+  // A copy: the rows read are shared (./searchReads.ts), and an every-season list is sorted in place below.
+  let rows = [...(await searchRead<Row>(`SELECT season, code, name, type, venue, city, state, country, start, end, timezone FROM events WHERE ${where.join(" AND ")}`, args))];
   if (e.time === "upcoming" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") >= dayAt(r.timezone));
   if (e.time === "past" && !drop.time) rows = rows.filter((r) => (r.end ?? r.start ?? "") < dayAt(r.timezone));
   // The kind of event: its type, or (no type stored) the word in its name ("… League Meet"). The most specific word
