@@ -35,7 +35,7 @@
 
   /* Volt & Carbon (Control Point modern, dark) */
   --color-primary: var(--sh-background);
-  --color-secondary: #240c1b;
+  --color-secondary: #0e0e10;
   --color-elevated: var(--sh-popover);
   --color-accent: #ffc700;
   --color-accent-hover: #ffd633;
@@ -48,13 +48,12 @@
   --color-line: var(--sh-border);
   --color-info: #38bdf8;
   --color-success: #34d399;
-  /* Compared teams' hues (search answers): violet against orange, the app's own chart-4 and chart-5, opposite enough to
-     read as two sides at a glance and apart under every colour vision (violet always the darker). Not volt (primary
-     action and winner), not sky or rose (the alliances). Team C is the stat tiles' teal. Bars and swatches only; a
-     winner is bold, never a team hue. Dim and Midnight keep dark's. textTones.test.ts holds each to 4.5:1 on the card. */
-  --color-team-a: #a78bfa;
-  --color-team-b: #fb923c;
-  --color-team-c: #2dd4bf;
+  /* Compared teams' hues (the search results guide, Okabe–Ito, safe for every colour vision): team A, B, C on bars
+     and swatches only, never text, never a phase or a winner. Dark's are the light-on-dark steps; Dim and Midnight
+     keep them. textTones.test.ts holds each to 3:1 against the card as a graphic. */
+  --color-team-a: #56b4e9;
+  --color-team-b: #e69f00;
+  --color-team-c: #009e73;
   --color-warning: #fb923c;
   --color-danger: #fb7185;
   /* Status colours as small text. On dark they are the bright shades above; on light (html.light) a deeper
@@ -104,7 +103,7 @@
 }
 
 :root {
-  --sh-background: #2b0f20; /* The page is pink in every theme: a deep pink on the dark ones, so light text keeps its contrast. */
+  --sh-background: #0a0a0b;
   --sh-foreground: #f4f4f5;
   --sh-card: #111113;
   --sh-card-foreground: #f4f4f5;
@@ -126,7 +125,7 @@
 }
 
 html.light {
-  --sh-background: #fdedf6;
+  --sh-background: #ffffff;
   --sh-foreground: #09090b;
   --sh-card: #ffffff;
   --sh-card-foreground: #09090b;
@@ -141,7 +140,7 @@ html.light {
   --sh-chart-3: #059669;
   --sh-chart-4: #7c3aed;
   --sh-chart-5: #ea580c;
-  --color-secondary: #fdedf6;
+  --color-secondary: #fafafa;
   --color-accent: #eab308;
   --color-accent-hover: #ca8a04;
   --color-accent-soft: #eab3081f;
@@ -156,9 +155,9 @@ html.light {
   --color-accent-text: #875200;
   --color-info: #0ea5e9;
   --color-success: #10b981;
-  --color-team-a: #6d28d9;
-  --color-team-b: #c2410c;
-  --color-team-c: #0f766e;
+  --color-team-a: #0072b2;
+  --color-team-b: #d55e00;
+  --color-team-c: #009e73;
   --color-warning: #f97316;
   --color-danger: #f43f5e;
   --color-red-alliance: #f43f5e;
@@ -186,7 +185,7 @@ html.light {
    dark's), so each one swaps only the surfaces, text and lines. Dim: soft dark grey, text a step down from white,
    so nothing glares. Midnight: true black for night and OLED screens, cards one step up so they still read. */
 html.dim {
-  --sh-background: #3d1a2e;
+  --sh-background: #1e1f23;
   --sh-foreground: #e4e4e7;
   --sh-card: #232428;
   --sh-card-foreground: #e4e4e7;
@@ -196,7 +195,7 @@ html.dim {
   --sh-muted-foreground: #b4b4bd;
   --sh-border: #ffffff1a;
   --sh-input: #ffffff26;
-  --color-secondary: #35172a;
+  --color-secondary: #19191c;
   --color-scrollbar: #45464e;
   --color-scrollbar-hover: #55565f;
   /* The surfaces above are as light as dark's raw palette text (violet 400 chips, red 400 tones) allows at 4.5:1.
@@ -211,7 +210,7 @@ html.dim {
 }
 
 html.midnight {
-  --sh-background: #1a0612;
+  --sh-background: #000000;
   --sh-foreground: #f4f4f5;
   --sh-card: #08080a;
   --sh-card-foreground: #f4f4f5;
@@ -221,7 +220,7 @@ html.midnight {
   --sh-muted-foreground: #a1a1aa;
   --sh-border: #ffffff12;
   --sh-input: #ffffff1a;
-  --color-secondary: #14040e;
+  --color-secondary: #000000;
   --color-scrollbar: #222227;
   --color-scrollbar-hover: #33333a;
 }
@@ -337,12 +336,16 @@ a.underline:visited:where(.text-accent-text), .prose-links a:visited { color: co
    towards the bottom, and everything is transform/opacity on its own layer. */
 :root { --amb-line: 0.05; --amb-glow: 0.11; --amb-breath: 0.06; --amb-tint: 255 199 0; }
 html.light { --amb-line: 0.045; --amb-glow: 0.14; --amb-breath: 0.08; --amb-tint: 234 179 8; }
-/* Dog illustrations over the pink page: in the ambient layer under the top bar, above the grid and below the page
-   (Shell.tsx draws it). Decorative only. */
-.dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180" fill="none" stroke="%23ec4899" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"%3E%3Cg transform="translate(20 20)"%3E%3Ccircle cx="30" cy="32" r="20"/%3E%3Cpath d="M12 22c-8-4-12 8-8 20 2 6 8 4 9-2M48 22c8-4 12 8 8 20-2 6-8 4-9-2"/%3E%3Ccircle cx="23" cy="30" r="1.8" fill="%23ec4899"/%3E%3Ccircle cx="37" cy="30" r="1.8" fill="%23ec4899"/%3E%3Cpath d="M27 38h6l-3 3z" fill="%23ec4899"/%3E%3Cpath d="M30 41v3M25 46c3 2 7 2 10 0"/%3E%3C/g%3E%3Cg transform="translate(110 105)"%3E%3Ccircle cx="20" cy="26" r="9"/%3E%3Ccircle cx="8" cy="12" r="4"/%3E%3Ccircle cx="17" cy="6" r="4"/%3E%3Ccircle cx="27" cy="7" r="4"/%3E%3Ccircle cx="34" cy="15" r="4"/%3E%3C/g%3E%3Cg transform="translate(115 25) rotate(20)"%3E%3Cpath d="M6 12h28M6 12c-4-5-9-1-6 3-3 3 2 7 6 2M34 12c4-5 9-1 6 3 3 3-2 7-6 2"/%3E%3C/g%3E%3C/svg%3E'); background-size: 180px 180px; opacity: 0.18; }
-html.light .dog-bg { opacity: 0.22; }
-
+/* The owner's dog theme (dogTheme, off by default; ThemeSync adds html.dog): the page and sidebar tinted yellow in
+   every theme, cards and text as they are, and the dog's photo faintly across the page in the ambient layer under
+   the top bar (Shell.tsx draws it). Decorative only. */
+html.dog { --sh-background: #17130a; --color-secondary: #120f07; }
+html.dog.light { --sh-background: #fff8dc; --color-secondary: #fff8dc; }
+html.dog.dim { --sh-background: #2a2513; --color-secondary: #241f10; }
+html.dog.midnight { --sh-background: #0b0903; --color-secondary: #080602; }
+.dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.13;
+  background: url("/dog.jpg") 0 0 / 200px 200px repeat; }
+html.light .dog-bg { opacity: 0.18; }
 /* The fade towards the bottom is drawn into the layers themselves, not a mask-image over them: the page
    scrolls over this layer, and a masked layer there was repainted on every scrolled frame (scroll frame
    times doubled). The grid lays the page colour over its lines (the same picture over the plain page),

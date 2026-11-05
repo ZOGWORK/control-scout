@@ -151,6 +151,8 @@ describe("feature flags", () => {
       realtime: true, errorReporting: true, failedSearchReports: true, photos: false, push: false, autoPowerRankings: true, dailyPowerRankings: true, weeklyDigest: true, seasonRoadMap: true,
       // Bruno AI in search starts off (OFF_BY_DEFAULT): the owner turns it on.
       brunoSearch: false, brunoAnswers: true, searchLearning: true,
+      // The dog theme starts off too: the owner turns it on when they like.
+      dogTheme: false,
     });
     expect(r.headers.get("cache-control")).toBe("public, max-age=15");
   });
