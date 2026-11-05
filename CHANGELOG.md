@@ -26,7 +26,7 @@ The site looks as it did yesterday, and the owner has a dog theme to switch on w
 - [appearance] A dog theme the owner can turn on: a yellow tint and a real dog photo
 
 ### Appearance
-- **As before.** The pink page and sidebar in every theme, the drawn dogs and bones across the page, and the pink browser bar are gone: Light is white again, Dim soft grey, Dark graphite and Midnight black. (#PRNUM)
+- **As before.** The pink page and sidebar in every theme, the drawn dogs and bones across the page, and the pink browser bar are gone: Light is white again, Dim soft grey, Dark graphite and Midnight black. (#771)
 - **Team colours.** Compared teams on search answers are sky blue, orange and green again, as the results guide's colour-blind-safe set.
 - **Dog theme.** A new switch in the owner console's Features tab, off until the owner turns it on: every theme's page and sidebar tinted yellow, with a real dog photo faintly across the background. Cards, text and answer colours stay as they are.
 
