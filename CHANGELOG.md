@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.8 — 2026-11-05
 
-Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to. (#PRNUM)
+Questions about a team's wins and losses answer with the matches asked for: the last loss, the first win, the longest losing streak, the teams it lost to. (#729)
 
 ### Highlights
 - [fixes] "When did a team last lose a match" shows that loss
