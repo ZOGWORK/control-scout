@@ -260,7 +260,7 @@ export function CurrentEngineTable() {
   const fmtN = (n: number) => n.toLocaleString("en-US");
   return (
     <Figure id="current-engine" narrow label={`Engine ${CURRENT_ENGINE.version} · ${CURRENT_ENGINE.test}`} title="Today's engine, replayed month by month"
-      caption={<>Each month from October 2024 to July 2026 is predicted by an engine fitted only on the year before it, on matches with a winner at rated events. 2024–25 was used to tune it; 2025–26 has been looked at before, so it isn't a fully fresh test. Win odds haven't changed since engine 3.3. Engine 3.5 scales each predicted gap by 0.95, which cut margin error and moved no win chance. This test has its own match list, so it doesn't match the ledger's season replay above exactly.</>}>
+      caption={<>Each month from October 2024 to July 2026 is predicted by an engine fitted only on the year before it, on matches with a winner at rated events. One exception: the calibration's last step was fitted on data through July 2026, worth at most 0.00005 Brier. 2024–25 was used to tune it; 2025–26 has been looked at before, so it isn't a fully fresh test. Win odds haven't changed since engine 3.3. Engine 3.5 scales each predicted gap by 0.95, which cut margin error and moved no win chance. This test has its own match list, so it doesn't match the ledger's season replay above exactly.</>}>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs text-muted-foreground">
