@@ -9,13 +9,18 @@ export type SuggestionKind =
   | "team" | "opr" | "rating" | "record" | "matches" | "awards" | "worlds" | "versus" | "three"
   | "leaderboard" | "winners" | "predict" | "spelling" | "question" | "filters";
 
-/** `q` runs on tap; `label` is the chip's text when the query is too long for a chip (sentence case). */
-export interface HomeSuggestion { q: string; kind: SuggestionKind; label?: string }
+/** `q` runs on tap; `label` is the chip's text when the query is too long for a chip (sentence case); `teams`: the
+ *  team numbers a query names by name, not number ("hypnotic robotics" is 4215), so a team still shows once. */
+export interface HomeSuggestion { q: string; kind: SuggestionKind; label?: string; teams?: readonly string[] }
 
 /** The chip text: its own short label, or the query itself. */
 export const suggestionLabel = (s: HomeSuggestion) => s.label ?? s.q;
 
-/** The longest chip label, so six chips always fit the three rows the hero keeps for them. */
+/** The teams a suggestion is about: the numbers in its query, and any it names by name. */
+export const suggestionTeams = (s: HomeSuggestion): string[] => [...(s.q.match(/\b\d{3,5}\b/g) ?? []), ...(s.teams ?? [])];
+
+/** The longest chip label: two such chips share a row wherever the hero lets the chips wrap
+ *  (src/components/home/HeroSearch.tsx), so any six fit the three rows it keeps for them. */
 export const SUGGESTION_LABEL_MAX = 28;
 
 export const HOME_SUGGESTIONS: readonly HomeSuggestion[] = [
@@ -23,7 +28,7 @@ export const HOME_SUGGESTIONS: readonly HomeSuggestion[] = [
   { q: "Where is 11115 from", kind: "team" },
   { q: "21229 school", kind: "team" },
   { q: "Where is 23314 from", kind: "team" },
-  { q: "where is hypnotic robotics from", kind: "team", label: "Where is Hypnotic Robotics" },
+  { q: "where is hypnotic robotics from", kind: "team", label: "Where is Hypnotic Robotics", teams: ["4215"] },
   { q: "How many teams in NJ", kind: "team" },
   // OPR and phase OPR
   { q: "19460 OPR", kind: "opr" },
@@ -86,14 +91,14 @@ export const HOME_SUGGESTIONS: readonly HomeSuggestion[] = [
   { q: "What is 7149's next event", kind: "predict", label: "7149's next event" },
   { q: "16461 vs 6165 who wins", kind: "predict" },
   // Spelling: "Did you mean"
-  { q: "hypnotik robotics opr", kind: "spelling", label: "Hypnotik robotics OPR" },
-  { q: "infinte turtles record", kind: "spelling", label: "Infinte turtles record" },
-  { q: "bad wolff record", kind: "spelling", label: "Bad wolff record" },
+  { q: "hypnotik robotics opr", kind: "spelling", label: "Hypnotik robotics OPR", teams: ["4215"] },
+  { q: "infinte turtles record", kind: "spelling", label: "Infinte turtles record", teams: ["16461"] },
+  { q: "bad wolff record", kind: "spelling", label: "Bad wolff record", teams: ["6980"] },
   // Questions in a whole sentence
   { q: "when was the first time 7149 went to worlds", kind: "question", label: "7149's first time at Worlds" },
   { q: "what did 4215 do at states", kind: "question", label: "What did 4215 do at states" },
   { q: "What was 7149's record at Worlds", kind: "question", label: "7149's record at Worlds" },
-  { q: "which teams has 6980 partnered with the most", kind: "question", label: "6980's most common partner" },
+  { q: "which teams has 14343 partnered with the most", kind: "question", label: "14343's top partner" },
   { q: "what was 22105's record in playoffs", kind: "question", label: "22105's playoff record" },
   // Several filters at once
   { q: "top 5 nj teams by auto opr who also won inspire", kind: "filters", label: "NJ Inspire winners by auto" },
@@ -124,8 +129,6 @@ function seeded(seed: number): () => number {
   };
 }
 
-const teamsIn = (q: string) => q.match(/\b\d{3,5}\b/g) ?? [];
-
 /** The six for the UTC hour holding `now`: a leaderboard, a whole-sentence or several-filter query, then four other
  *  families, never two of one family. A family whose every query names a team already showing is passed over for
  *  the next one, so a team shows once (the first two always fill: most of their queries name no team). In a
@@ -142,10 +145,10 @@ export function suggestionsAt(now: number, pool: readonly HomeSuggestion[] = HOM
   for (const kind of wanted) {
     if (out.length === SUGGESTION_COUNT) break;
     const all = pool.filter((s) => s.kind === kind);
-    const fresh = all.filter((s) => !teamsIn(s.q).some((t) => used.has(t)));
+    const fresh = all.filter((s) => !suggestionTeams(s).some((t) => used.has(t)));
     if (!fresh.length && !must.includes(kind)) continue;
     const s = pick(fresh.length ? fresh : all);
-    teamsIn(s.q).forEach((t) => used.add(t));
+    suggestionTeams(s).forEach((t) => used.add(t));
     out.push(s);
   }
   return shuffle(out);

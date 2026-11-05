@@ -1,12 +1,11 @@
 // Home's suggestion pool and the hourly pick: every family of answer is in the pool, each chip fits, and each hour
 // gives six of different families, with a leaderboard and a sentence or filtered query, the same in every browser.
 import { describe, expect, it } from "vitest";
-import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, placeholderable, suggestionLabel, suggestionsAt, type SuggestionKind } from "./homeSuggestions";
+import { HOME_SUGGESTIONS, SUGGESTION_COUNT, SUGGESTION_HOUR_MS, SUGGESTION_LABEL_MAX, placeholderable, suggestionLabel, suggestionTeams, suggestionsAt, type SuggestionKind } from "./homeSuggestions";
 
 const KINDS: SuggestionKind[] = ["team", "opr", "rating", "record", "matches", "awards", "worlds", "versus", "three", "leaderboard", "winners", "predict", "spelling", "question", "filters"];
 const T0 = Date.UTC(2026, 10, 4, 0, 0);
 const hours = Array.from({ length: 24 * 60 }, (_, h) => T0 + h * SUGGESTION_HOUR_MS);
-const teamsIn = (q: string) => q.match(/\b\d{3,5}\b/g) ?? [];
 
 describe("home suggestion pool", () => {
   it("holds 40 to 80 queries, each once, covering every family at least twice", () => {
@@ -24,7 +23,7 @@ describe("home suggestion pool", () => {
   });
   it("names many teams, not one team over and over", () => {
     const counts = new Map<string, number>();
-    for (const s of HOME_SUGGESTIONS) for (const t of teamsIn(s.q)) counts.set(t, (counts.get(t) ?? 0) + 1);
+    for (const s of HOME_SUGGESTIONS) for (const t of suggestionTeams(s)) counts.set(t, (counts.get(t) ?? 0) + 1);
     expect(counts.size).toBeGreaterThanOrEqual(12);
     for (const [t, n] of counts) expect(n, t).toBeLessThanOrEqual(8);
   });
@@ -51,7 +50,7 @@ describe("suggestionsAt", () => {
     expect(HOME_SUGGESTIONS.filter((s) => !seen.has(s.q)).map((s) => s.q)).toEqual([]);
   });
   it("never names one team twice in an hour", () => {
-    const clashes = hours.filter((h) => { const t = suggestionsAt(h).flatMap((s) => teamsIn(s.q)); return new Set(t).size !== t.length; }).length;
+    const clashes = hours.filter((h) => { const t = suggestionsAt(h).flatMap(suggestionTeams); return new Set(t).size !== t.length; }).length;
     expect(clashes).toBe(0);
   });
 });

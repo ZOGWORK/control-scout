@@ -39,13 +39,18 @@ export const HERO_EXAMPLE_MS = 3500;
 /** The placeholder for a suggestion. */
 export const heroPlaceholder = (s: HomeSuggestion) => `Try “${s.q}”`;
 
-/** This UTC hour's six, changing on the hour while the page stays open. */
+/** This UTC hour's six, changing on the hour while the page stays open. Each wake-up sets the next one itself, so a
+ *  clock moved back (the same hour read again) still keeps them turning. */
 export function useHourSuggestions(): HomeSuggestion[] {
   const [hour, setHour] = useState(() => Math.floor(Date.now() / SUGGESTION_HOUR_MS));
   useEffect(() => {
-    const t = setTimeout(() => setHour(Math.floor(Date.now() / SUGGESTION_HOUR_MS)), SUGGESTION_HOUR_MS - (Date.now() % SUGGESTION_HOUR_MS) + 50);
+    let t: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      t = setTimeout(() => { setHour(Math.floor(Date.now() / SUGGESTION_HOUR_MS)); arm(); }, SUGGESTION_HOUR_MS - (Date.now() % SUGGESTION_HOUR_MS) + 50);
+    };
+    arm();
     return () => clearTimeout(t);
-  }, [hour]);
+  }, []);
   return useMemo(() => suggestionsAt(hour * SUGGESTION_HOUR_MS), [hour]);
 }
 
@@ -72,7 +77,7 @@ export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRe
   const run = (q: string) => { addRecentSearch(q); nav(hitHref(searchPagePick(q))); };
   return (
     // The field speaks for itself: its label and placeholder, no heading or tag around it.
-    <section aria-label="Search" className="mt-6 max-sm:mt-4 max-w-[38rem]">
+    <section aria-label="Search" className="@container/chips mt-6 max-sm:mt-4 max-w-[38rem]">
       <div onFocus={() => setFocused(true)} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}>
         <SearchBox
           size="lg" inputRef={inputRef} onEscape={onEscape} hint={hint} tour="search" initialQuery={initialQuery} discover
@@ -82,15 +87,18 @@ export function HeroSearch({ inputRef, onEscape, hint, initialQuery }: { inputRe
           className="cs-hero-search w-full"
         />
       </div>
-      {/* This hour's six, one tap each: on a wider screen they wrap inside three rows' room, whichever six they are
-          (labels are SUGGESTION_LABEL_MAX at most, so two always share a row), and scroll sideways on a phone. A chip
-          is drawn 36px tall; its tap area reaches 44px (the row's padding keeps that inside the scroller). */}
-      <ul aria-label="Example searches" className="mt-3 flex gap-2 max-sm:-mx-4 max-sm:mt-2 max-sm:overflow-x-auto max-sm:px-4 max-sm:py-1 max-sm:[scrollbar-width:none] sm:min-h-[7.75rem] sm:flex-wrap sm:content-start">
+      {/* This hour's six, one tap each. Where two of the widest chips (SUGGESTION_LABEL_MAX, about 245px) fit side by
+          side (32rem), they wrap inside three rows' room, which any six fill at most, so the hourly change never moves
+          the page; in a narrower column (a phone, or beside the globe, where some sixes would need five rows) they
+          are one row that scrolls sideways, the same height whichever six. A chip keeps its
+          drawn size; its tap area is 44px on a touch screen (tap-44), and the row's padding keeps that inside the
+          scroller, the chips where they were. */}
+      <ul aria-label="Example searches" className="mt-[calc(0.75rem-7px)] flex gap-2 overflow-x-auto py-[7px] [scrollbar-width:none] max-sm:-mx-4 max-sm:px-4 @min-[32rem]/chips:mt-3 @min-[32rem]/chips:min-h-[7.75rem] @min-[32rem]/chips:flex-wrap @min-[32rem]/chips:content-start @min-[32rem]/chips:overflow-visible @min-[32rem]/chips:py-0">
         {six.map((s) => { const K = KINDS[s.kind]; const label = suggestionLabel(s); return (
           <li key={s.q} className="shrink-0">
             <button
               type="button" onClick={() => run(s.q)} aria-label={`${K.label}: search “${s.q}”`}
-              className={"relative inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] hover:border-accent/60 hover:text-foreground "
+              className={"tap-44 inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm transition-colors hover:border-accent/60 hover:text-foreground "
                 + (s === shown && !focused ? "border-accent/50 bg-accent/10 text-foreground" : "border-border bg-card text-text-muted")}
             >
               <K.icon className="size-3.5 shrink-0 text-accent" />{label}
