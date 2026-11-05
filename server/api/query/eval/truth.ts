@@ -1,23 +1,39 @@
 // What the data says, read straight from the tables (docs/search-pipeline.md, "Eval"): the eval checks search's cards
 // against these, not against another reading of search's own code. The rules are the cards' stated ones
-// (answers/families/matches.ts SCORE_RULE, HIGH_RULE, RESULT_RULE): scores from matches the team was on the field for,
-// at official events, with penalties; the highest and lowest picked by the alliance's points without penalties; the
+// (answers/families/matches.ts SCORE_RULE, HIGH_RULE, RESULT_RULE) and the matches they read (answers/matchSet.ts):
+// a played match with both scores without penalties on record, at an official event held in person (never a remote
+// one); scores from matches the team was on the field for, with penalties; the highest and lowest picked by the alliance's points without penalties; the
 // record as FIRST's rankings keep it (a qualification no-show counts, a surrogate match doesn't, a playoff only on the
 // field).
 import { all, get } from "../../../db.js";
+import { fold } from "../names.js";
 import { OFFICIAL_TYPES } from "../../answers/clauses.js";
 
 export interface TeamTruth { wins: number; losses: number; ties: number; matches: number; avg: number; high: number[]; low: number[] }
 
+const ELIGIBLE = `m.played = 1 AND m.red_np IS NOT NULL AND m.blue_np IS NOT NULL AND COALESCE(e.remote, 0) = 0
+       AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`;
+
+/** The newest season a team has a counted match in: where an answer over every season ("highest score", each season a
+ *  different game) takes its number from. */
+export async function newestSeason(team: number): Promise<number | null> {
+  const r = await get<{ s: number | null }>(
+    `SELECT MAX(x.season) s FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
+       JOIN events e ON e.season = m.season AND e.code = m.code
+     WHERE x.team = ? AND COALESCE(x.on_field, 1) = 1 AND ${ELIGIBLE}`, [team, ...OFFICIAL_TYPES]);
+  return r?.s == null ? null : Number(r.s);
+}
+
 /** A team's season, as the cards should state it. Null: no official matches that season. */
 export async function teamTruth(team: number, season: number): Promise<TeamTruth | null> {
-  const listed = await all<{ own: number; opp: number; np: number | null; surrogate: number | null; on_field: number | null; level: string }>(
+  const rows0 = await all<{ own: number | null; opp: number | null; np: number | null; surrogate: number | null; on_field: number | null; level: string }>(
     `SELECT CASE x.alliance WHEN 'red' THEN m.red_total ELSE m.blue_total END own, CASE x.alliance WHEN 'red' THEN m.blue_total ELSE m.red_total END opp,
        CASE x.alliance WHEN 'red' THEN m.red_np ELSE m.blue_np END np, x.surrogate, x.on_field, m.level
      FROM match_teams x JOIN matches m ON m.season = x.season AND m.code = x.code AND m.level = x.level AND m.series = x.series AND m.number = x.number
        JOIN events e ON e.season = m.season AND e.code = m.code
-     WHERE x.team = ? AND x.season = ? AND m.played = 1 AND m.red_total IS NOT NULL AND m.blue_total IS NOT NULL
-       AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")})`, [team, season, ...OFFICIAL_TYPES]);
+     WHERE x.team = ? AND x.season = ? AND ${ELIGIBLE}`, [team, season, ...OFFICIAL_TYPES]);
+  // A total missing with its points on record counts as 0, as the match list shows it.
+  const listed = rows0.map((r) => ({ ...r, own: Number(r.own) || 0, opp: Number(r.opp) || 0 }));
   const onField = (r: { on_field: number | null }) => Number(r.on_field ?? 1) === 1;
   const rows = listed.filter(onField);
   if (!rows.length) return null;
@@ -32,13 +48,15 @@ export async function teamTruth(team: number, season: number): Promise<TeamTruth
   };
 }
 
-/** Teams with official matches in `season`, with their names and whether another team shares the name. */
+/** Teams with official matches in `season`, with their names and whether another team shares the name as search
+ *  compares names (folded: case, accents and punctuation aside). */
 export async function teamsPlayed(season: number): Promise<{ number: number; name: string | null; state: string | null; country: string | null; unique: boolean }[]> {
-  const rows = await all<{ number: number; name: string | null; state: string | null; country: string | null; same: number }>(
-    `SELECT t.number, t.name, t.state, t.country, (SELECT COUNT(*) FROM teams u WHERE LOWER(u.name) = LOWER(t.name)) same
-     FROM teams t WHERE t.number IN (SELECT DISTINCT x.team FROM match_teams x JOIN events e ON e.season = x.season AND e.code = x.code
+  const rows = await all<{ number: number; name: string | null; state: string | null; country: string | null }>(
+    `SELECT t.number, t.name, t.state, t.country FROM teams t WHERE t.number IN (SELECT DISTINCT x.team FROM match_teams x JOIN events e ON e.season = x.season AND e.code = x.code
        WHERE x.season = ? AND e.type IN (${OFFICIAL_TYPES.map(() => "?").join(", ")}))`, [season, ...OFFICIAL_TYPES]);
-  return rows.map((r) => ({ number: Number(r.number), name: r.name, state: r.state, country: r.country, unique: Number(r.same) === 1 }));
+  const names = new Map<string, number>();
+  for (const r of await all<{ name: string | null }>("SELECT name FROM teams WHERE name IS NOT NULL")) { const k = fold(r.name ?? ""); if (k) names.set(k, (names.get(k) ?? 0) + 1); }
+  return rows.map((r) => ({ number: Number(r.number), name: r.name, state: r.state, country: r.country, unique: !!r.name && names.get(fold(r.name)) === 1 }));
 }
 
 /** Two teams that met (on opposite alliances) in `season`, for the matchup questions. */

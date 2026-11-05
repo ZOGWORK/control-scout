@@ -39,7 +39,7 @@ const { refreshSearchSeason } = await import("../server/api/answers/season.js");
 const { searchAnswer } = await import("../server/api/searchAnswer.js");
 const { seasonLabel } = await import("../src/shared/format.js");
 const { SHAPES, paraphrases, rng, sample, pick } = await import("../server/api/query/eval/generate.js");
-const { teamTruth, teamsPlayed, opponentsOf } = await import("../server/api/query/eval/truth.js");
+const { newestSeason, teamTruth, teamsPlayed, opponentsOf } = await import("../server/api/query/eval/truth.js");
 type Answer = Awaited<ReturnType<typeof searchAnswer>>;
 
 const index = await names();
@@ -51,7 +51,7 @@ const r = rng(SEED);
 const times: number[] = [];
 const timed: [number, string][] = [];
 const failures: string[] = [];
-let asked = 0, checks = 0;
+let asked = 0, checks = 0, evaluated = 0;
 const ask = async (q: string): Promise<Answer> => {
   const t = performance.now();
   const a = await searchAnswer(q, { learn: false, limit: 12, full: true });
@@ -73,15 +73,20 @@ const teams = sample(r, pool, TEAMS);
 console.log(`seed ${SEED} · season ${seasonLabel(season)} · ${teams.length} of ${pool.length} teams · ${PER} paraphrases per question`);
 
 for (const t of teams) {
+  // The record and average read the default season (the latest completed, which every sampled team played); the
+  // highest and lowest score read every season and give the newest one's (each season is a different game).
   const truth = await teamTruth(t.number, season);
-  if (!truth) continue;
+  const newest = await newestSeason(t.number);
+  const allTime = newest == null ? null : newest === season ? truth : await teamTruth(t.number, newest);
+  if (!truth || !allTime) continue;
+  evaluated++;
   for (const shape of SHAPES) {
     const qs = paraphrases(r, shape, t, t.unique, PER);
     const as: Answer[] = [];
     for (const q of qs) as.push(await ask(q));
     const want = shape.id === "record" ? [`${truth.wins}-${truth.losses}-${truth.ties}`]
       : shape.id === "average-score" ? [truth.avg.toFixed(1)]
-      : (shape.id === "highest-score" ? truth.high : truth.low).map((s) => `${s} points`);
+      : (shape.id === "highest-score" ? allTime.high : allTime.low).map((s) => `${s} points`);
     as.forEach((a, i) => {
       const q = qs[i];
       if (!check(a.stat?.team?.number === t.number, `${shape.id} · "${q}": wrong team or no card (${card(a)})`)) return;
@@ -130,12 +135,14 @@ for (const t of teams) {
       const i = 1 + Math.floor(r() * (long.length - 2));
       const typo = words.map((w) => (w === long ? w.slice(0, i) + w.slice(i + 1) : w)).join(" ").toLowerCase();
       const a = await ask(`${typo} record`);
-      const reached = a.stat?.team?.number === t.number || a.hits.slice(0, 3).some((h) => h.ref === `team:${t.number}`) || !!a.didYouMean?.toLowerCase().includes(long.toLowerCase());
+      const reached = a.stat?.team?.number === t.number || a.hits.slice(0, 3).some((h) => h.kind === "team" && h.ref === String(t.number)) || !!a.didYouMean?.toLowerCase().includes(long.toLowerCase());
       check(reached, `misspelled · "${typo} record" (${t.name}): ${card(a)}; did you mean ${a.didYouMean ?? "–"}`);
     }
   }
 }
 
+// A run that asked nothing proves nothing: no teams sampled, or none with matches to check, fails.
+check(evaluated > 0 && asked > 0, `empty run · ${evaluated} teams evaluated, ${asked} questions asked (pool ${pool.length})`);
 times.sort((a, b) => a - b);
 const p95 = times[Math.floor(0.95 * (times.length - 1))] ?? 0;
 const slowest = times[times.length - 1] ?? 0;
