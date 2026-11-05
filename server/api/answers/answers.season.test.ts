@@ -82,16 +82,26 @@ describe("a team's season, said in words", () => {
 });
 
 describe("leaderboards", () => {
-  it("default to the latest completed season, never the one just begun", async () => {
-    const a = await searchAnswer("top 10 teams by opr in New Jersey", { limit: 25, full: true });
-    expect(a.stat).toMatchObject({ title: "Top 10 teams by OPR in New Jersey · 2025–26", headline: { value: "23268 Ultraviolet" } });
-    expect(a.stat?.definition).toContain("latest completed season");
-    const w = await searchAnswer("top 10 teams by opr worldwide", { limit: 25, full: true });
-    expect(w.stat?.title).toBe("Top 10 teams by OPR worldwide · 2025–26");
+  it("said any way: who has the highest, the lowest first, a town in its state, a count at the end, undefeated", async () => {
+    const board = async (q: string) => { const a = await searchAnswer(q, { limit: 25, full: true, now: NOW }); if (!a.stat) throw new Error(`${q}: ${a.understood?.label}`); const st = a.stat; const b = st.blocks[0]; return { st, rows: b.kind === "leaderboard" ? b.rows.map((r) => r.team.label) : [] }; };
+    expect((await board("who has the highest opr in new jersey in 2025-26")).st.headline?.value).toBe("23268 Ultraviolet");
+    const low = await board("worst opr in new jersey in 2025-26, just curious");
+    expect(low.st.title).toMatch(/^Lowest .* by OPR in New Jersey · 2025–26$/);
+    expect(low.rows[0]).toBe("6980 Bad Wolf");
+    expect((await board("best team in Oradell, NJ, by opr in 2025-26")).rows).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
+    expect((await board("which teams have the best opr in new jersey in 2025-26, top 2")).rows).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics"]);
+    expect((await board("is there any team with a perfect record in new jersey")).st).toMatchObject({ title: "Undefeated teams in New Jersey by wins · 2026–27", headline: { value: "30000 Early Bird" } });
+  });
+  it("no season said is the current one once a team is ranked in it, else the one before (server/api/query/execute.test.ts)", async () => {
+    // 2026–27 has begun, and one New Jersey team is ranked in it already.
+    const a = await searchAnswer("top 10 teams by opr in New Jersey", { limit: 25, full: true, now: NOW });
+    expect(a.stat).toMatchObject({ title: "Top 10 teams by OPR in New Jersey · 2026–27", headline: { value: "30000 Early Bird" } });
+    // A season said is that season.
+    expect((await searchAnswer("top 10 teams by opr in New Jersey in 2025-26", { limit: 25, full: true, now: NOW })).stat?.headline?.value).toBe("23268 Ultraviolet");
   });
   it("by reliability and by record", async () => {
     expect(readLeaderboard("top 5 teams by reliability in New Jersey")).toMatchObject({ kind: "top", stat: "reliability", n: 5, region: { key: "USA:NJ" } });
-    const r = await searchAnswer("top 5 teams by reliability in New Jersey", { limit: 25, full: true });
+    const r = await searchAnswer("top 5 teams by reliability in New Jersey in 2025-26", { limit: 25, full: true });
     const rb = r.stat!.blocks[0];
     if (rb.kind !== "leaderboard") throw new Error(rb.kind);
     expect(rb.rows.map((x) => [x.team.label, x.display])).toEqual([["18061 Simply Complex", "93"], ["23268 Ultraviolet", "91"], ["4215 Hypnotic Robotics", "88"], ["6980 Bad Wolf", "70"]]);
@@ -111,7 +121,7 @@ describe("leaderboards", () => {
   });
   it("the best team in a place by a stat is that place's #1, never a team named \"best\"", async () => {
     expect(readLeaderboard("best team in New Jersey by opr")).toMatchObject({ kind: "top", stat: "opr", best: true, region: { key: "USA:NJ" } });
-    const a = await searchAnswer("best team in New Jersey by opr", { limit: 25, full: true });
+    const a = await searchAnswer("best team in New Jersey by opr in 2025-26", { limit: 25, full: true });
     expect(a.stat).toMatchObject({ title: "Best team in New Jersey by OPR · 2025–26", headline: { value: "23268 Ultraviolet", sub: "#1 of 4 ranked in New Jersey" } });
   });
   it("a city's best team: its top OPR that season; a city no team lists is left to search", async () => {

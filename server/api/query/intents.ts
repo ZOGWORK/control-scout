@@ -39,6 +39,10 @@ export interface IntentRule {
 }
 
 const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
+/** The season numbers a leaderboard ranks teams by. */
+const BOARD_METRICS = ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:reliability"];
+/** What a leaderboard takes in: its stats, a record beside them (every row shows it), "by". */
+const BOARD_OPT = ["thing:team", ...BOARD_METRICS, "metric:record", "metric:win", "prep:by", "list"];
 const R = (id: PipelineIntent, teams: 0 | 1 | 2, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
 
 /** Every rule. Order breaks a tie between rules that explain the same symbols. */
@@ -134,7 +138,14 @@ export const INTENTS: IntentRule[] = [
   R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
   R("upset-matches", 0, ["metric:upset"], ["agg:max", "thing:match", "metric:win", "metric:margin", "metric:score", "and"]),
   R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
-  R("leaderboard", 0, ["agg:max", "thing:team"], ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:record", "metric:win", "prep:by"]),
+  ...["agg:max", "agg:min"].flatMap((agg) => [
+    R("leaderboard", 0, [agg, "thing:team"], BOARD_OPT),
+    // A team stat asked about everyone, with no "team": "who has the highest auto OPR in NJ".
+    ...BOARD_METRICS.map((m) => R("leaderboard", 0, [agg, m], BOARD_OPT)),
+  ]),
+  // Teams with no losses, the most wins first.
+  // "and" is "with": "teams with a perfect record".
+  R("leaderboard", 0, ["undefeated"], [...BOARD_OPT, "agg:max", "agg:min", "metric:loss", "and"]),
 ];
 
 /** Symbols that are slots, never what is asked: always taken in. */

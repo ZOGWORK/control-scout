@@ -15,6 +15,20 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.7 — 2026-11-05
+
+Lists of teams answer however they're asked: the lowest first, a town, a country by its people, undefeated. (#PRNUM)
+
+### Highlights
+- [rankings] "Who has the highest auto OPR in NJ" lists the teams
+- [rankings] "Worst teleop OPR in Romania" lists the lowest first
+- [rankings] "Best team in Cluj-Napoca, Romania" and "Romanian teams" work
+- [rankings] "Any team with a perfect record" lists undefeated teams
+
+### Changes
+- **Leaderboards said any way.** A list of teams by a season stat reads with or without "team", lowest first ("worst", "lowest"), for a whole country, a town with its state or country after it, a country by its people's word, a count at the end ("top 3") and undefeated teams. "Just curious", "only" and other asides are never read as a team's name.
+- **Season.** No season said reads the current season once a team is ranked in it, and otherwise shows last season and says so.
+
 ## 3.2.6 — 2026-11-05
 
 Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback. (#727)

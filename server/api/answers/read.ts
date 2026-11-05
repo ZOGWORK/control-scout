@@ -439,6 +439,12 @@ export interface LeaderboardQuestion {
   season: number | null;
   /** "best team in New Jersey by OPR": one team asked for. */
   best?: boolean;
+  /** The lowest first. */
+  lowest?: boolean;
+  /** Teams with no losses only. */
+  undefeated?: boolean;
+  /** A town in the region: its teams only. */
+  town?: string | null;
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [

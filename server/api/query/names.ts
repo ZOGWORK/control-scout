@@ -3,7 +3,7 @@
 // search index. Nothing here is typed by hand: a new team, town or country is known as soon as it's synced.
 import { all, kvGet } from "../../db.js";
 import { registerCache } from "../../caches.js";
-import { countryOf } from "../../../src/shared/countries.js";
+import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
 
@@ -89,7 +89,9 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
       const r = regionOf((typed ?? w).split(/\s+/)) ?? (f.length >= 5 ? nearRegion(f) : null);
       if (r) return { kind: "region", country: r.country, state: r.state, city: null, name: r.name };
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
-      const stored = countries.get(f) ?? [...countries.values()].find((c) => countryOf(c) && countryOf(c) === countryOf(w));
+      // Or by its people's word ("Romanian teams").
+      const people = countryOfDemonym(f);
+      const stored = countries.get(f) ?? [...countries.values()].find((c) => countryOf(c) && (countryOf(c) === countryOf(w) || (!!people && countryOf(c) === people)));
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
       const town = towns.get(f);
       if (town && town.size === 1 && f.length >= 3) {

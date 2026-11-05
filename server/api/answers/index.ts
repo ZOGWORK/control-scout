@@ -776,8 +776,8 @@ export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { ful
   const city = isCity ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
   if (isCity && !city) return null;
   const st = BOARD_STATS[b.stat];
-  const where = b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
+  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.lowest ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
