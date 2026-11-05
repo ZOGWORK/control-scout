@@ -6,6 +6,7 @@ import { AWARD_ONE_WORD, EVENT_NAME_WORDS, LEXICON, type Agg, type Sym } from ".
 import { pickIntent, type IntentRule, type PipelineIntent } from "./intents.js";
 import { readTime, type TimeSlot } from "./time.js";
 import { fold, type Names, type Place, type TeamName } from "./names.js";
+import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
 
 export interface TeamSlot {
   number: number; name: string | null; typed: string; via: "number" | "name" | "near";
@@ -27,6 +28,11 @@ export interface Parsed {
   place: (Place & { typed: string }) | null;
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
+  /** The finals only ("closest finals match"), a playoff level too. */
+  finals: boolean;
+  /** A kind of event named by its type words alone ("at a league meet", "at qualifiers"), no event's name: the
+   *  words, read by the match finder (./matchFind.ts eventKindOf), the one reader that filters by it. */
+  eventKind: string | null;
   alliance: "red" | "blue" | null;
   worlds: boolean;
   states: boolean;
@@ -110,7 +116,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   });
   const symbols = new Set<string>();
   const p: Parsed = {
-    q: raw, teams: [], event: null, place: null, time, level: null, alliance: null, worlds: false, states: false, award: null, agg: null,
+    q: raw, teams: [], event: null, place: null, time, level: null, finals: false, eventKind: null, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
@@ -182,6 +188,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
     for (const s of e.syms) {
       if (s.k === "level") p.level = s.v;
+      else if (s.k === "finals") p.finals = true;
       else if (s.k === "alliance") { p.alliance = s.v; e.words.forEach((_, j) => (toks[i + j].side = s.v)); }
       else if (s.k === "worlds") p.worlds = true;
       else if (s.k === "states") p.states = true;
@@ -233,6 +240,20 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const bare = toks.slice(from, to + 1).filter((t) => !EVENT_NAME_WORDS.has(t.w));
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
       if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
+    }
+    // A kind of event by its type words alone ("league", with "meet" the lexicon read beside it; "qualifiers"): every
+    // word one of FIRST's event types, never an event's name (read above).
+    const kindSpan = (() => {
+      let a = from, b = to;
+      while (a > 0 && KIND_WORDS.has(toks[a - 1].w)) a--;
+      while (b + 1 < toks.length && KIND_WORDS.has(toks[b + 1].w)) b++;
+      return toks.slice(a, b + 1);
+    })();
+    if (!p.event && !p.eventKind && toks.slice(from, to + 1).every((t) => EVENT_TYPES[t.w.replace(/s$/, "")] || EVENT_TYPES[t.w])) {
+      p.eventKind = kindSpan.map((t) => t.w).join(" ");
+      kindSpan.forEach((t) => (t.used = true));
+      if (!toks.some((t) => !kindSpan.includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
+      continue;
     }
     // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean". A name can start with a word
     // read as filler ("the roocats": The Robocats) or a colour read as an alliance, so the words just before the run are
@@ -319,7 +340,7 @@ export function describe(p: Parsed): string[] {
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
     p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
     p.time ? `Time: ${p.time.label}` : "",
-    p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
+    p.finals ? "Finals" : p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
     p.alliance ? `${p.alliance === "red" ? "Red" : "Blue"} alliance` : "",
     p.award ? `Award: ${p.award}` : "",
     p.n != null ? `Limit: ${p.n}` : "",
