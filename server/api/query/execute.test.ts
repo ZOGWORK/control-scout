@@ -226,6 +226,8 @@ describe("failure patterns", () => {
     expect(c).toEqual({ key: a.key, missed: ["scoresheet"] });
     // No name or number ever in the pattern.
     expect((await failurePattern("6980 vs 17713 zzz", NOW)).key).not.toMatch(/6980|17713/);
+    // With no intent read, what it did read keeps different questions apart.
+    expect((await failurePattern("4215 rp zzz qqq", NOW)).key).not.toBe((await failurePattern("4215 reliability zzz qqq", NOW)).key);
   });
 });
 
