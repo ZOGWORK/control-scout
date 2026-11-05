@@ -212,6 +212,15 @@ describe("the match finder: matches by a measure, every filter applied and state
     expect(a.stat?.headline?.value).toBe("60% favourite lost");
     expect(a.stat?.scope[0]).toBe("No 2026–27 matches yet in New Jersey; showing 2025–26");
     expect(a.understood?.label).toMatch(/2025–26 · No 2026–27 matches yet in New Jersey$/);
+    // An upset is only a favourite's loss: a win the winner was expected to get is never one.
+    const t = a.stat?.blocks.find((b) => b.kind === "table");
+    expect(t && t.kind === "table" && t.rows.every((r) => Number(String(r.cells.value).slice(0, -"% favourite lost".length)) > 50)).toBe(true);
+    // "Last season" is the one before the current one, for a place as for the world.
+    expect((await ask("biggest upset in new jersey last season", Date.parse("2026-11-04T12:00:00Z"))).stat?.scope[0]).toBe("2025–26");
+  });
+  it("the highest score with no season said: the current one, then the one before, as every place answer", async () => {
+    const a = await ask("highest score in new jersey", Date.parse("2026-11-04T12:00:00Z"));
+    expect(a.stat?.scope).toContain("No 2026–27 scored matches yet in New Jersey; showing 2025–26");
   });
   it("a match type with nothing in it is said, never another type's matches", async () => {
     const s = await stat("closest playoff match in new jersey this season");

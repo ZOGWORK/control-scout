@@ -24,9 +24,10 @@ export function windowSteps(window: { label: string }, season: number): { step: 
   ];
 }
 
-/** No time said: the current season, then (when it has nothing yet) the one before, `where` the place it's about. */
-export function defaultSteps(season: number, where: string): { step: Relaxation; season: number }[] {
-  return [{ step: { filter: "default", from: seasonLabel(season), to: seasonLabel(season - 1), note: `No ${seasonLabel(season)} matches yet${where}; showing ${seasonLabel(season - 1)}` }, season: season - 1 }];
+/** No time said: the current season, then (when it has nothing yet) the one before, `where` the place it's about and
+ *  `what` what it has none of yet ("matches" when nothing is played there, "undefeated teams" when only that is). */
+export function defaultSteps(season: number, where: string, what = "matches"): { step: Relaxation; season: number }[] {
+  return [{ step: { filter: "default", from: seasonLabel(season), to: seasonLabel(season - 1), note: `No ${seasonLabel(season)} ${what} yet${where}; showing ${seasonLabel(season - 1)}` }, season: season - 1 }];
 }
 
 /** Runs `attempt` with each step in turn until one finds something; the answer says every step it took. */
@@ -56,7 +57,7 @@ function said(a: SearchAnswer, steps: Relaxation[], first: SearchAnswer): Search
   const from = steps[0].from, to = steps[steps.length - 1].to;
   const note = steps.find((s) => s.note)?.note;
   const chip = note ?? `Relaxed: ${from} → ${to}`;
-  const why = note ? `${note}: no season was named, so the current one was read first, and it has nothing here yet. Every other filter is as asked.`
+  const why = note ? `${note}: no season was named, so the current one was read first, and it has none yet. Every other filter is as asked.`
     : `Nothing matched ${from}${first.stat?.none ? ` (${first.stat.none.replace(/\.$/, "")})` : ""}, so the time filter was relaxed in order: ${steps.map((s) => `${s.from} → ${s.to}`).join(", then ")}. Every other filter is as asked.`;
   const stat = a.stat ? { ...a.stat, scope: [chip, ...a.stat.scope], definition: `${why} ${a.stat.definition}` } : a.stat;
   const label = `${a.understood?.label ?? stat?.title ?? ""} · ${note?.replace(/; showing .*$/, "") ?? `relaxed from ${from} to ${to}`}`;

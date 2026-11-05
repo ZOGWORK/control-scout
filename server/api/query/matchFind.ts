@@ -10,6 +10,8 @@ import { dateRange, seasonLabel } from "../../../src/shared/format.js";
 import { EVENT_TYPES } from "../../../src/shared/searchEventQuery.js";
 import { all, get } from "../../db.js";
 import { OFFICIAL_TYPES } from "../answers/clauses.js";
+import { BRACKETS } from "@control-scout/predict-engine";
+import { DOUBLE_ELIM_FROM } from "../../../src/shared/bracketOdds.js";
 import { matchHref, shortEvent, teamLinks } from "../answers/matchSet.js";
 
 export type MatchMeasure = "high" | "low" | "closest" | "lopsided" | "penalties" | "upset" | "comeback";
@@ -20,7 +22,7 @@ export interface MatchFind {
   window?: { from: string; to: string; label: string };
   region: Region | null;
   level: "qual" | "playoff" | null;
-  /** The finals only (labels "F1", "Final 2"). */
+  /** The finals only: a classic bracket's "F" series, a double-elimination bracket's grand final and its replay. */
   finals: boolean;
   /** FIRST event types ("LeagueMeet"), with the words for them; none: every official event. */
   kind: { types: string[]; label: string } | null;
@@ -69,13 +71,24 @@ const MEASURES: Record<MatchMeasure, Measure> = {
     rule: "the margin is the difference between the two alliances' final scores, penalties included; the largest first.", show: (v) => `${v}-point margin` },
   penalties: { value: "ABS(m.red_total - m.red_np) + ABS(m.blue_total - m.blue_np)", order: "DESC", title: "Match with the most penalty points", plural: "Matches with the most penalty points", column: "Penalty points",
     rule: "a match's penalty points are both alliances' final scores less their points without penalties, added together; the most first.", show: (v) => `${v} penalty points` },
-  upset: { value: `CASE WHEN m.red_total > m.blue_total THEN ${CHANCE("blue")} WHEN m.blue_total > m.red_total THEN ${CHANCE("red")} END`, order: "DESC", title: "Biggest upset", plural: "Biggest upsets", column: "Favourite's chance",
-    rule: "an upset is a match the favourite lost; the biggest is the one whose losing alliance had the highest predicted chance to win before it was played (the engine's call saved before the match, else its replay with only earlier matches). A tie is never an upset.", show: (v) => `${Math.round(v * 100)}% favourite lost` },
+  upset: { value: `CASE WHEN m.red_total > m.blue_total AND ${CHANCE("blue")} > 0.5 THEN ${CHANCE("blue")} WHEN m.blue_total > m.red_total AND ${CHANCE("red")} > 0.5 THEN ${CHANCE("red")} END`, order: "DESC", title: "Biggest upset", plural: "Biggest upsets", column: "Favourite's chance",
+    rule: "an upset is a match the favourite lost: its losing alliance had over a 50% predicted chance to win before it was played (the engine's call saved before the match, else its replay with only earlier matches); the biggest is the one with the highest such chance. A tie is never an upset.", show: (v) => `${v > 0.99 ? ">99" : Math.round(v * 100)}% favourite lost` },
   comeback: { value: "CASE WHEN m.red_total > m.blue_total AND m.red_auto < m.blue_auto THEN m.blue_auto - m.red_auto WHEN m.blue_total > m.red_total AND m.blue_auto < m.red_auto THEN m.red_auto - m.blue_auto END", order: "DESC", title: "Biggest comeback", plural: "Biggest comebacks", column: "Behind after auto",
     rule: "a comeback is a match won by the alliance that was behind after the autonomous period (fewer auto points); the biggest is the one it was furthest behind in.", show: (v) => `Won after trailing by ${v} after auto` },
 };
 /** The upset rule's fallback, when the matches have no saved call: the larger summed season rating that lost. */
-const UPSET_BY_RATING = `CASE WHEN m.red_total > m.blue_total THEN ${RATING("blue")} - ${RATING("red")} WHEN m.blue_total > m.red_total THEN ${RATING("red")} - ${RATING("blue")} END`;
+const UPSET_BY_RATING = `CASE WHEN m.red_total > m.blue_total AND ${RATING("blue")} > ${RATING("red")} THEN ${RATING("blue")} - ${RATING("red")}
+  WHEN m.blue_total > m.red_total AND ${RATING("red")} > ${RATING("blue")} THEN ${RATING("red")} - ${RATING("blue")} END`;
+
+/** A final: a classic bracket's "F" series, or a double-elimination bracket's grand final and its if-needed replay,
+ *  found by the bracket the event's posted series fit (the engine's BRACKETS, the grand final its last match). */
+const FINAL = (() => {
+  const span = `(SELECT MAX(x.series) - MIN(x.series) + 1 FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff' AND x.label LIKE 'M%')`;
+  const at = `(m.series - (SELECT MIN(x.series) FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff' AND x.label LIKE 'M%') + 1)`;
+  const grand = [...new Set(Object.values(BRACKETS).map((b) => b.matches.length))];
+  const double = grand.map((g) => `(${span} IN (${g}, ${g + 1}) AND ${at} IN (${g}, ${g + 1}))`).join(" OR ");
+  return `m.level = 'playoff' AND (m.label LIKE 'F%' OR (m.season >= ${DOUBLE_ELIM_FROM} AND m.label LIKE 'M%' AND (${double})))`;
+})();
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; red_total: number; blue_total: number; v: number }
 
@@ -88,7 +101,7 @@ function where(f: MatchFind) {
   if (f.region) { sql.push(f.region.state ? "e.country = ? AND e.state = ?" : "e.country = ?"); args.push(f.region.country, ...(f.region.state ? [f.region.state] : [])); }
   if (f.window) { sql.push("substr(COALESCE(m.time, e.start), 1, 10) BETWEEN ? AND ?"); args.push(f.window.from, f.window.to); }
   if (f.level) { sql.push("m.level = ?"); args.push(f.level); }
-  if (f.finals) sql.push("m.level = 'playoff' AND m.label LIKE 'F%'");
+  if (f.finals) sql.push(FINAL);
   return { sql: sql.join(" AND "), args };
 }
 
