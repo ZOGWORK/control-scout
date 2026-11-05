@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.1 — 2026-11-04
 
-Ask for a team's prediction at an event and search shows the forecast before and the result after, side by side.
+Ask for a team's prediction at an event and search shows the forecast before and the result after, side by side. (#717)
 
 ### Highlights
 - [predict] "Predicted chances of 4215 at East Bergen": before vs after
