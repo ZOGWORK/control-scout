@@ -23,6 +23,7 @@
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "search:eval": "tsx scripts/search-eval.ts",
+    "search:heldout": "tsx scripts/search-heldout.ts",
     "sync": "tsx scripts/sync.ts",
     "seed:scout": "tsx scripts/seed-from-scout-cache.ts",
     "stats": "tsx scripts/stats.ts",
