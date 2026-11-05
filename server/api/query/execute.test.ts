@@ -245,6 +245,32 @@ describe("the match finder: matches by a measure, every filter applied and state
   });
 });
 
+describe("a win or a loss said with a team's match question is a filter", () => {
+  it("the most recent loss, the first win, the last losses and the longest losing streak", async () => {
+    const lost = await stat("when did 4215 last lose a match");
+    expect(lost.title).toMatch(/^Most recent loss/);
+    expect(lost.headline?.value).toMatch(/^Lost /);
+    const won = await stat("4215 first win");
+    expect(won.title).toMatch(/^First win/);
+    expect(won.headline?.value).toMatch(/^Won /);
+    const last = await stat("4215 last 2 losses");
+    expect(last.title).toMatch(/^Last 2 losses/);
+    // The fixture's 4215 has lost once: that one, said as one.
+    expect(last.headline?.label).toBe("in the last 1 loss, oldest to newest L");
+    expect((await stat("longest losing streak for 4215")).title).toMatch(/^Longest losing streak/);
+    // No outcome said: every match, as before.
+    expect((await stat("4215 last match")).title).toMatch(/^Most recent match/);
+  });
+  it("losing to someone is the opponents that beat the team; winning a match, its wins", async () => {
+    for (const q of ["who did 4215 lose to the most times", "teams 4215 lost to most often"]) expect((await stat(q)).title, q).toMatch(/^Teams lost to most often/);
+    // A count of them is another question: never answered with the one that beat it most.
+    expect((await ask("how many teams has 4215 lost to")).stat?.title ?? "").not.toMatch(/^Teams lost to most often/);
+    expect((await stat("did 4215 ever win a match")).title).toMatch(/^Match wins/);
+    // "Most often" is how often, never the best: the partners list, not the best partner.
+    expect((await stat("4215 partners most often")).title).toMatch(/^Alliance partners/);
+  });
+});
+
 describe("forecasts", () => {
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
@@ -255,7 +281,17 @@ describe("forecasts", () => {
       expect(s.headline, q).toMatchObject({ value: "1.3 → 1 wins", sub: expect.stringContaining("logged live before each match") });
       const t = s.blocks.find((b) => b.kind === "table");
       expect(t && t.kind === "table" && t.rows.map((r) => [r.cells.before, r.cells.after, r.cells.called]), q).toEqual([["70% · 140–100", "W 150–90", "Yes"], ["60% · 110–100", "L 80–120", "No"], ["55%", "Not played yet", "–"]]);
-      expect(a.pages[0], q).toMatchObject({ title: "Open in Predict: 4215 at Garden Qualifier", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+      // Predict is the card's own action (below), so the page lists it nowhere else; the search box keeps the link.
+      expect(a.pages.map((x) => x.title), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      expect((await searchAnswer(q, { limit: 25, full: false, now: NOW })).pages[0], q).toMatchObject({ title: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+      // The chance on its 0–100% bar leads: the next match still to come (Q99, 55%), Predict its one action and
+      // printed nowhere else on the card.
+      expect(s.blocks[0], q).toMatchObject({ kind: "chance", p: 0.55, who: "4215", label: "to win the next match (Q99), before it's played", action: { label: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" } });
+      const links = s.blocks.filter((b) => b.kind === "links").flatMap((b) => (b.kind === "links" ? b.items : []));
+      expect(links.map((l) => l.label), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      // The chance's percentage is printed once: no tile repeats it.
+      const tiles = s.blocks.flatMap((b) => (b.kind === "kpis" ? b.items.map((i) => i.value) : []));
+      expect(tiles, q).not.toContain("55%");
     }
   });
   it("two teams at an event: their meetings, before and after", async () => {

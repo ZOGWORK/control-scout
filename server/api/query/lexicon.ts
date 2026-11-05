@@ -44,7 +44,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin of victory|victory margin|winning margin|margin of win", [{ k: "metric", v: "margin" }, { k: "outcome", v: "W" }]],
   ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
   // Aggregations.
-  ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best", { k: "agg", v: "max" }],
+  ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
@@ -63,7 +63,11 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
   ["record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
   ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],
-  ["loss|losses|lost|defeat|defeats", { k: "metric", v: "loss" }],
+  ["loss|losses|lost|lose|loses|defeat|defeats", { k: "metric", v: "loss" }],
+  // Winning a match, as a question ("did they ever win a match"): its wins.
+  ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],
+  // Losing to someone: the opponents that beat the team.
+  ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],
   ["win rate|win percentage|win pct|win %|win%|winning percentage|winning rate", { k: "metric", v: "winrate" }],
   ["opr|offensive power rating|offense rating|offensive rating", { k: "metric", v: "opr" }],
@@ -98,7 +102,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Everywhere, said: no place filter (never the FIRST Championship).
   ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
   // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
-  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now", { k: "filler" }],
+  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
@@ -122,7 +126,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["from|based in|located in|out of", { k: "prep", v: "from" }],
   ["by|sorted by|ranked by|ordered by", { k: "prep", v: "by" }],
   ["for|of", { k: "prep", v: "for" }],
-  ["list|show all|all of|every|each|history|log", { k: "list" }],
+  ["list|show all|all of|every|each|history|log|most often|the most often|by type|by kind|each type|of each type", { k: "list" }],
   // "Per match", "per event", "rate": how a count is divided.
   ["per match|per game|a match|a game|each match|every match|per round", { k: "per", v: "match" }],
   ["per event|each event|every event|per competition|per tournament|by event", { k: "per", v: "event" }],

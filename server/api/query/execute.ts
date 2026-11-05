@@ -60,7 +60,7 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
   "record", "win-percent", "average-score", "median-score", "average-margin", "total-points", "total-matches", "total-events", "seasons-count",
   "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "score-range",
   "score-consistency", "awards", "total-awards", "results", "event-rank", "event-opr", "best-partner", "partners", "opponents", "playoff-matches",
-  "qual-matches", "match-lookup", "avg-penalties",
+  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most",
 ]);
 const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
   "head-to-head": "head-to-head", "shared-matches": "shared-matches", "h2h-wins": "h2h-wins", "opr-vs": "opr-vs", "rating-vs": "rating-vs",
@@ -85,6 +85,8 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
   if (p.time?.kind === "season" && p.time.relative === "last") return current - 1;
   return said ?? current;
 }
+/** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
+const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
 const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict"]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
@@ -110,11 +112,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const future = await noEventsYet(p, team.number, id, opts);
     if (future) return future(opts);
     const named = scope.season != null || scope.latest || scope.ever || scope.championship || scope.states || !!scope.at || !!scope.window;
-    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && intent === "closest-match") ? "W" : null;
+    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;
     const it: StatQuestion = {
       id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
       leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
-      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: ["closest-match", "current-streak", "average-margin"].includes(id) ? outcome : null,
+      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
@@ -137,9 +139,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!found) return null;
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now());
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
-    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : [])).find((l) => l.label.startsWith("Open in Predict"));
+    // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
+    const inCard = stat.blocks.some((b) => b.kind === "chance" && b.action);
+    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
     return {
-      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
       step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict [event]`, met: true, understood: [] },
     };
