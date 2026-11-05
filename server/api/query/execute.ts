@@ -12,6 +12,8 @@ import { intentDefaults, scopeFits, type IntentId, type LeaderboardQuestion, typ
 import { boardSearch, statAnswerOf, topSearch, twoTeamSearch, type Resolve } from "../answers/index.js";
 import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
+import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
+import { relaxed, windowSteps } from "./relax.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import type { PipelineIntent } from "./intents.js";
@@ -59,7 +61,7 @@ const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_T
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
-  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:consistency": "reliability",
+  "metric:endgame": "endgame", "metric:record": "record", "metric:win": "wins", "metric:reliability": "reliability",
 };
 
 async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer | null> {
@@ -93,7 +95,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
       ...(id === "penalties" ? { variant: p.symbols.includes("per:event") ? "per-event" : p.symbols.includes("per:rate") ? "rate" : null } : {}),
     };
-    return statAnswerOf(p.q, it, opts.resolve, opts);
+    const a = await statAnswerOf(p.q, it, opts.resolve, opts);
+    // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
+    // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
+    if (!opts.full || !scope.window || scope.season == null || p.time?.year != null) return a;
+    return relaxed(a, windowSteps(scope.window, scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;
@@ -107,10 +113,13 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // "The highest-scoring match": one match; "matches", "scores", "top 5", or no match said ("highest score in
     // decode"): a list.
     const one = /\b(?:match|game)\b/.test(said) && !/\b(?:matches|games|scores)\b/.test(said);
-    return topSearch(p.q, {
+    const t: TopMatchesQuestion = {
       season: scope.season, game: null, ever: scope.ever, region: regionOf(p), event: null,
       ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : one ? { n: 1 } : {}), ...(p.noPenalties ? { noPenalties: true } : {}),
-    }, opts);
+    };
+    const a = await topSearch(p.q, t, opts);
+    if (!scope.window || scope.season == null || p.time?.year != null) return a;
+    return relaxed(a, windowSteps(scope.window, scope.season), (season) => topSearch(p.q, { ...t, window: undefined, season }, opts));
   }
   if (!p.teams.length && intent === "leaderboard") {
     // The search box keeps the asks' own short card; the page draws the list.
