@@ -18,6 +18,10 @@ const TEAMS = [
   { number: 30003, name: "The Copper Lanterns", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30004, name: "Deltav", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
   { number: 30005, name: "Delta", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30006, name: "Blue Lanternfish", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30007, name: "Lanternfih", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30008, name: "s", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -36,6 +40,11 @@ describe("slots", () => {
     expect((await parseQuery("deltv record", near)).teams).toEqual([]);
     // Two letters off a five-letter name is past the limit, even with no other name as close.
     expect(ctx.names.nearTeam("dexxa")).toBeNull();
+    // A colour the lexicon read as an alliance can start the name: the whole name is nearer than its last word alone.
+    expect(await parseQuery("blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006, via: "near" }], alliance: null, complete: true });
+  });
+  it("drops a possessive after any letter, so a name in another script never leaves a stray 's'", async () => {
+    expect(await parse("what is 30009 Mitspe Yam/מצפה ים's lowest score")).toMatchObject({ teams: [{ number: 30009 }], intent: "lowest-score" });
   });
   it("reads a long name whole, punctuation and all, in any order", async () => {
     for (const q of ["greatest scoring for Santo Domingo Incredible First Team (Team Spark) 30001", "santo domingo incredible first team team spark record"]) {

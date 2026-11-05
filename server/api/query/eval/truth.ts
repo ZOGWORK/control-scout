@@ -69,3 +69,29 @@ export async function opponentsOf(team: number, season: number): Promise<number 
      WHERE x.team = ? AND x.season = ? AND y.alliance <> x.alliance ORDER BY y.team LIMIT 1`, [team, season]);
   return r ? Number(r.team) : null;
 }
+
+/** Every team name, folded as search compares them: the typo cases are picked against these, not against search's
+ *  own nearest-name reader. */
+export async function allNames(): Promise<{ number: number; name: string }[]> {
+  const rows = await all<{ number: number; name: string | null }>("SELECT number, name FROM teams WHERE name IS NOT NULL");
+  return rows.map((r) => ({ number: Number(r.number), name: fold(r.name ?? "") })).filter((r) => r.name);
+}
+
+/** Edit distance, stopping early once it is over `max` (then max + 1). */
+export function editDistance(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (Math.min(...cur) > max) return max + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+/** A misspelling a reader could tell apart: one edit from this team's name and more than one from every other's. */
+export const unambiguousTypo = (typo: string, team: number, names: { number: number; name: string }[]): boolean => {
+  const t = fold(typo);
+  return names.every((n) => (n.number === team ? editDistance(t, n.name, 1) <= 1 : editDistance(t, n.name, 1) > 1));
+};

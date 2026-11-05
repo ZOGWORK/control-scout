@@ -63,7 +63,7 @@ export interface ParseContext {
   prefer?: ReadonlySet<string>;
 }
 
-type Tok = { w: string; typed: string; used: boolean };
+type Tok = { w: string; typed: string; used: boolean; alliance?: boolean };
 /** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
 const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** The kind words an event's name can end with. */
@@ -86,7 +86,7 @@ const symKey = (s: Sym): string | null => {
 export function normalise(q: string): string {
   return ` ${q.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
     .replace(/[’‘`]/g, "'").replace(/\bwhat's\b/g, "what is").replace(/\bwho's\b/g, "who is").replace(/\bhow's\b/g, "how is")
-    .replace(/(\w)'s\b/g, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
+    .replace(/([\p{L}\p{N}])'s\b/gu, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
     .replace(/(?<=[a-z])-(?=[a-z])/g, " ").replace(/[?!,;:()"[\]{}]/g, " ").replace(/\.(?=\s|$)/g, " ")
     .replace(/\s+/g, " ").trim();
 }
@@ -178,6 +178,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
+    // A colour read as an alliance can start a team's name typed nearly right ("blue megalodns"): step 4 may take it back.
+    if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
     for (const s of e.syms) {
       if (s.k === "level") p.level = s.v;
       else if (s.k === "alliance") p.alliance = s.v;
@@ -233,16 +235,18 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
     }
     // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean". A name can start with a word
-    // read as filler ("the roocats": The Robocats), so the words just before the run are tried with it first.
+    // read as filler ("the roocats": The Robocats) or a colour read as an alliance, so the words just before the run are
+    // tried with it first; a colour taken into the name is no longer the alliance.
     if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
     for (const k of [2, 1, 0]) {
       const start = from - k;
-      if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w))) continue;
+      if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w) && !t.alliance)) continue;
       const span = toks.slice(start, to + 1);
       const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
       if (!near || p.teams.some((t) => t.number === near.number)) continue;
       p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
       span.forEach((t) => (t.used = true));
+      if (span.some((t) => t.alliance) && !toks.some((t) => t.alliance && !span.includes(t))) { symbols.delete(`alliance:${p.alliance}`); p.alliance = null; }
       break;
     }
   }

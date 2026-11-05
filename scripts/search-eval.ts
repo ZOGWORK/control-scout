@@ -33,13 +33,13 @@ const { ensureSearchIndex } = await import("../server/api/search.js");
 const { rebuildSearch } = await import("../server/stats/job.js");
 await ensureSearchIndex(rebuildSearch);
 const { names, fold } = await import("../server/api/query/names.js");
-const { forecasterFor } = await import("../server/predict/engine.js");
+const { forecasterFor, recentRecords } = await import("../server/predict/engine.js");
 const { CURRENT_SEASON } = await import("../server/data/seasons.js");
 const { refreshSearchSeason } = await import("../server/api/answers/season.js");
 const { searchAnswer } = await import("../server/api/searchAnswer.js");
 const { seasonLabel } = await import("../src/shared/format.js");
 const { SHAPES, paraphrases, rng, sample, pick } = await import("../server/api/query/eval/generate.js");
-const { newestSeason, teamTruth, teamsPlayed, opponentsOf } = await import("../server/api/query/eval/truth.js");
+const { newestSeason, teamTruth, teamsPlayed, opponentsOf, allNames, unambiguousTypo } = await import("../server/api/query/eval/truth.js");
 type Answer = Awaited<ReturnType<typeof searchAnswer>>;
 
 const index = await names();
@@ -51,7 +51,8 @@ const r = rng(SEED);
 const times: number[] = [];
 const timed: [number, string][] = [];
 const failures: string[] = [];
-let asked = 0, checks = 0, evaluated = 0;
+let asked = 0, checks = 0, evaluated = 0, typos = 0, typoCases = 0;
+const everyName = await allNames();
 const ask = async (q: string): Promise<Answer> => {
   const t = performance.now();
   const a = await searchAnswer(q, { learn: false, limit: 12, full: true });
@@ -122,19 +123,32 @@ for (const t of teams) {
   if (opp) {
     const q = pick(r, [`${t.number} vs ${opp} prediction`, `who would win ${t.number} vs ${opp}`, `${t.number} versus ${opp} odds`, `predict ${t.number} against ${opp}`]);
     const a = await ask(q);
-    // The winner, both scores and the odds, and Predict opened on these two teams.
+    // The winner, both scores and the odds, each the engine's own call for the pair (the ratings alone, with no call,
+    // fail: the card owes a forecast), and Predict opened on these two teams.
     const h = a.stat?.headline;
     const links = [...a.pages, ...(a.stat?.blocks ?? []).flatMap((b) => (b.kind === "links" ? b.items.map((i) => ({ title: i.label, href: i.href })) : []))];
     const open = links.some((l) => /^Open in Predict/.test(l.title) && l.href.includes(`red=${t.number}`) && l.href.includes(`blue=${opp}`));
-    check(!!h && /favoured|rated higher|even/i.test(String(h.value)) && /\d+% to win · predicted \d+–\d+/.test(String(h.label)) && open, `matchup · "${q}": ${card(a)} · ${h?.label ?? ""}; links ${links.map((l) => l.title).join(", ")}`);
+    const x = (await forecasterFor(season)).explain(season, [t.number], [opp], "qual", undefined, await recentRecords(season, [t.number, opp]));
+    const got = /(\d+)% to win · predicted (\d+)–(\d+)/.exec(String(h?.label ?? ""));
+    let right = false, want = "";
+    if (x) {
+      const pa = x.winProbA, even = Math.abs(pa - 0.5) < 0.005, fav = pa >= 0.5 ? t.number : opp;
+      want = `${even ? "Even" : `${fav} favoured`}, ${Math.round(100 * Math.max(pa, 1 - pa))}% to win · predicted ${Math.round(x.predictedScoreA)}–${Math.round(x.predictedScoreB)}`;
+      right = !!got && String(h?.value) === (even ? "Even" : `${fav} favoured`) && Math.abs(Number(got[1]) - 100 * Math.max(pa, 1 - pa)) <= 1
+        && Number(got[2]) === Math.round(x.predictedScoreA) && Number(got[3]) === Math.round(x.predictedScoreB);
+    }
+    check(!!h && right && open, `matchup · "${q}": ${card(a)} · ${h?.label ?? ""}, the engine says ${want || "(no call)"}; links ${links.map((l) => l.title).join(", ")}`);
   }
-  // A misspelled name: one letter dropped from its longest word. Only a typo that is nearer this team's name than any
-  // other's ("deltv" is as near several teams' DeltaV): one a reader could tell apart.
+  // A misspelled name: one letter dropped from its longest word. Only a typo one edit from this team's name and more
+  // than one from every other team's, picked from the names table (never search's own nearest-name reader): one a
+  // reader could tell apart.
   if (t.name && t.unique) {
     const words = t.name.split(/\s+/), long = words.reduce((x, y) => (y.length > x.length ? y : x));
     const i = 1 + Math.floor(r() * (long.length - 2));
     const typo = words.map((w) => (w === long ? w.slice(0, i) + w.slice(i + 1) : w)).join(" ").toLowerCase();
-    if (long.length >= 6 && index.nearTeam(typo)?.number === t.number) {
+    if (long.length >= 6) typoCases++;
+    if (long.length >= 6 && unambiguousTypo(typo, t.number, everyName)) {
+      typos++;
       const a = await ask(`${typo} record`);
       const reached = a.stat?.team?.number === t.number || a.hits.slice(0, 3).some((h) => h.kind === "team" && h.ref === String(t.number)) || !!a.didYouMean?.toLowerCase().includes(long.toLowerCase());
       check(reached, `misspelled · "${typo} record" (${t.name}): ${card(a)}; did you mean ${a.didYouMean ?? "–"}`);
@@ -144,6 +158,8 @@ for (const t of teams) {
 
 // A run that asked nothing proves nothing: no teams sampled, or none with matches to check, fails.
 check(evaluated > 0 && asked > 0, `empty run · ${evaluated} teams evaluated, ${asked} questions asked (pool ${pool.length})`);
+// A sample with names long enough to misspell must check at least one: typo checks that all drop out prove nothing.
+check(!typoCases || typos > 0, `misspelled · none of ${typoCases} sampled names gave a typo nearer it than any other team's: run with more --teams`);
 times.sort((a, b) => a - b);
 const p95 = times[Math.floor(0.95 * (times.length - 1))] ?? 0;
 const slowest = times[times.length - 1] ?? 0;
