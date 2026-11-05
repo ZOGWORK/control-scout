@@ -95,7 +95,8 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   const pre = run?.teams.find((t) => t.team === a.number);
   const rank = await get<{ rank: number | null }>("SELECT rank FROM event_teams WHERE season = ? AND team = ? AND (code = ? OR code IN (SELECT code FROM events WHERE season = ? AND division_code = ?)) AND rank IS NOT NULL ORDER BY rank LIMIT 1", [ev.season, a.number, ev.code, ev.season, ev.code]);
   const won = await wonEvent(Number(ev.season), ev.code, a.number);
-  if (!ms.length && !pre) return { ...base, blocks: [links], none: `No prediction was stored for ${teams.map(who).join(" and ")}${b ? " meeting" : ""} at ${ev.name} (${S}).` };
+  // Two teams: only their meetings are the answer (one team's odds to win the event never stand in for them).
+  if (!ms.length && (b || !pre)) return { ...base, blocks: [links], none: `No prediction was stored for ${teams.map(who).join(" and ")}${b ? " meeting" : ""} at ${ev.name} (${S}).` };
   // The team's side in each match: its predicted win chance and score, and what happened.
   const side = (r: Pred) => (has(r.red, a.number) ? "red" : "blue");
   const table = ms.map((r) => {
