@@ -7,12 +7,16 @@
 
 export interface CurrentEngineRow {
   season: string;
+  /** The ledger's season number (2025 for 2025–26). */
+  seasonYear: number;
   /** "tuning" was used to pick settings; "reused" has been examined before, so it isn't a clean test. */
   role: "tuning" | "reused";
   /** Decisive matches scored for Brier and accuracy. */
   matches: number;
   brier: number;
   accuracy: number;
+  /** Of `matches`, how many winners were called right. */
+  correct: number;
   /** Matches with a predicted score, for margin error. */
   marginMatches: number;
   marginMae: number;
@@ -23,6 +27,6 @@ export interface CurrentEngineRow {
 export const CURRENT_ENGINE = { version: "3.5", test: "rolling monthly test" } as const;
 
 export const CURRENT_ENGINE_ROWS: CurrentEngineRow[] = [
-  { season: "2024–25", role: "tuning", matches: 32974, brier: 0.1578, accuracy: 0.7654, marginMatches: 33271, marginMae: 38.64, marginMaeBefore: 38.75 },
-  { season: "2025–26", role: "reused", matches: 36572, brier: 0.1681, accuracy: 0.7479, marginMatches: 36842, marginMae: 37.26, marginMaeBefore: 37.36 },
+  { season: "2024–25", seasonYear: 2024, role: "tuning", matches: 32974, brier: 0.1578, accuracy: 25235 / 32974, correct: 25235, marginMatches: 33271, marginMae: 38.64, marginMaeBefore: 38.75 },
+  { season: "2025–26", seasonYear: 2025, role: "reused", matches: 36572, brier: 0.1681, accuracy: 27354 / 36572, correct: 27354, marginMatches: 36842, marginMae: 37.26, marginMaeBefore: 37.36 },
 ];

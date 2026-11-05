@@ -15,6 +15,18 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.6 — 2026-11-05
+
+The home track record leads with today's engine: 74.8% of 2025–26 winners called right.
+
+### Highlights
+- [home] The track record's big number is engine 3.5's month-by-month test
+- [home] 27,354 correct and 9,218 missed on 2025–26 matches with a winner
+- [home] The site's full-season replay (73.8%) is named right below it
+
+### Changes
+- **Today's engine on the home page.** The track record's "Last season" tab (was "Season replay") shows engine 3.5 on the month-by-month test from How it works › Accuracy: 74.8% on 2025–26, 27,354 of 36,572 matches with a winner at rated events. The line below names the site's own replay of every match in order (73.8% on 41,405 decisive calls) and says the two use different match lists. "This season so far" is unchanged. (#720)
+
 ## 3.1.5 — 2026-11-04
 
 How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.
