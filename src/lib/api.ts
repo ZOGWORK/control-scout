@@ -151,12 +151,13 @@ async function respond<T>(request: Promise<Response>, kind: "saved" | "lite" | "
   if (first !== TIMED_OUT) return first;
   if (kind === "lite" || kind === "snapshot") { ctrl.abort(); throw unreachable(); }
   // A search asked before anything else answered (the page's first request), while the server has answered
-  // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then says so; saved data never answers.
+  // something since: slow, not offline. It gets up to SEARCH_SLOW_MS in all, then one more try as any search while
+  // the server is up (apiFetch, searchOnline); saved data never answers.
   if (SEARCH_PATH.test(path) && serverUp()) {
     const more = await Promise.race([request, new Promise<typeof TIMED_OUT>((r) => { timer = setTimeout(() => r(TIMED_OUT), SEARCH_SLOW_MS - OFFLINE_TIMEOUT_MS); })]).finally(() => clearTimeout(timer));
     if (more !== TIMED_OUT) return more;
     ctrl.abort();
-    throw new ApiError(0, SEARCH_SLOW, false, "search-slow");
+    throw new ApiError(0, SEARCH_SLOW, false, SEARCH_RETRY);
   }
   const won = await Promise.race([request.then((res) => ({ res })), savedAnswer(path).then((data) => ({ data }))]);
   if ("res" in won) return won.res;
@@ -172,8 +173,12 @@ const callerAborted = () => new DOMException("The request was cancelled", "Abort
  *  a network (an order, never a comparison of clock times). */
 let lastAnswerAt = 0, answeredSinceFail = false;
 /** A search slower than OFFLINE_TIMEOUT_MS while the server answers everything else is a slow search, not "no
- *  signal": it gets this long, then one more try, then says so (SEARCH_SLOW). Saved data never answers it then. */
+ *  signal": it gets this long, then one more try, then says so (SEARCH_SLOW). Saved data never answers it then.
+ *  The server answers 99 searches in 100 within a second (scripts/search-bench.ts), so a try this long only runs out
+ *  when the server or the connection is stuck; one more try gets past a stall that has cleared. */
 export const SEARCH_SLOW_MS = 10_000;
+/** A page's first search that ran out of time (respond): retried once (searchOnline), never shown as slow before. */
+const SEARCH_RETRY = "search-slow-retry";
 export const SEARCH_SLOW = "Search is slow right now. Try again.";
 const SEARCH_PATH = /^\/api\/search(\?|$)/;
 /** The server is up: the browser says it's online and the server answered within the last minute, since the last
@@ -182,10 +187,10 @@ const serverUp = () => navigator.onLine !== false && answeredSinceFail && Math.a
 
 /** A search while the server is up: SEARCH_SLOW_MS a try, two tries. Twice no network at all is no signal after all
  *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly. */
-async function searchOnline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number }) | undefined): Promise<T> {
+async function searchOnline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number }) | undefined, tries = 2): Promise<T> {
   const outer = init?.signal;
   let last: unknown, noNetwork = 0;
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < tries; i++) {
     if (outer?.aborted) throw callerAborted();
     const ctrl = new AbortController();
     const forward = () => ctrl.abort();
@@ -205,7 +210,7 @@ async function searchOnline<T>(path: string, init: (RequestInit & { json?: unkno
     }
   }
   // Saved data only when both tries found no network at all; one slow try means the server is there.
-  if (noNetwork === 2) return offlineOr<T>(path, init?.method, last as ApiError);
+  if (noNetwork === tries) return offlineOr<T>(path, init?.method, last as ApiError);
   if (last instanceof ApiError && !last.offline) throw last;
   throw new ApiError(0, SEARCH_SLOW, false, "search-slow");
 }
@@ -245,6 +250,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     lastAnswerAt = Date.now();
     answeredSinceFail = true;
   } catch (e) {
+    // The page's first search ran out its first try while the server answered other requests: one more try.
+    if (e instanceof ApiError && e.code === SEARCH_RETRY) return searchOnline<T>(path, init, 1);
     if (e instanceof ApiError) throw e;
     // The page let the request go itself (it moved on): not unreachable, and no saved-data answer (or Offline badge).
     if (outer?.aborted) throw callerAborted();

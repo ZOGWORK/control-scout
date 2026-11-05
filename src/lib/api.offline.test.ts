@@ -439,15 +439,35 @@ describe("a slow search while the server answers isn't offline (owner bug: 'high
     networkDown();
     await apiFetch("/api/meta").catch(() => {});
     const hang = hanging();
-    vi.stubGlobal("fetch", vi.fn((p: string, init?: RequestInit) => (p.startsWith("/api/search") ? hang(p, init) : Promise.resolve(ok({})))));
+    const fetch = vi.fn((p: string, init?: RequestInit) => (p.startsWith("/api/search") ? hang(p, init) : Promise.resolve(ok({}))));
+    vi.stubGlobal("fetch", fetch);
     const p = apiFetch("/api/search?q=gear&answer=1");
     const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
     await vi.advanceTimersByTimeAsync(1000);
     await apiFetch("/api/meta");
     await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
+    // Its first try ran out: one more before saying so, as for any search while the server is up.
+    expect(fetch.mock.calls.filter(([u]) => u.startsWith("/api/search"))).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
     await settled;
     expect(offlineAnswer).not.toHaveBeenCalled();
     expect(mode.result.current).toBe(false);
+  });
+  it("a page's first search that runs out its first try is answered by the retry, never shown as slow", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    networkDown();
+    await apiFetch("/api/meta").catch(() => {});
+    const hang = hanging();
+    let searches = 0;
+    vi.stubGlobal("fetch", vi.fn((p: string, init?: RequestInit) => (!p.startsWith("/api/search") ? Promise.resolve(ok({})) : searches++ ? Promise.resolve(ok({ live: true })) : hang(p, init))));
+    const p = apiFetch("/api/search?q=ultraviolet%20nj%20lasetest%20matches&answer=1");
+    await vi.advanceTimersByTimeAsync(1000);
+    await apiFetch("/api/meta");
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
+    expect(await p).toEqual({ live: true });
+    expect(searches).toBe(2);
+    expect(offlineAnswer).not.toHaveBeenCalled();
   });
   it("a cold start's Retry-After wait ends at the search's deadline (Greptile on #463)", async () => {
     vi.useFakeTimers();
