@@ -32,7 +32,7 @@ Ask for a team's prediction at an event and search shows the forecast before and
 
 ## 3.2.0 — 2026-11-04
 
-When a question's time window has nothing in it, search widens it one step at a time and says so on the card.
+When a question's time window has nothing in it, search widens it one step at a time and says so on the card. (#715)
 
 ### Highlights
 - [teams] Nothing this week? The season's answer, marked as relaxed
@@ -44,7 +44,7 @@ When a question's time window has nothing in it, search widens it one step at a 
 
 ## 3.1.9 — 2026-11-04
 
-Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data.
+Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data. (#713)
 
 ### Highlights
 - [teams] Any word order, any filler: one question gets one answer card

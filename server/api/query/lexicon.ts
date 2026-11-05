@@ -64,7 +64,10 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["auto|autonomous|auton|auto period", { k: "metric", v: "auto" }],
   ["teleop|tele op|tele-op|driver controlled|driver-controlled|driver period|dc", { k: "metric", v: "teleop" }],
   ["endgame|end game|end-game", { k: "metric", v: "endgame" }],
-  ["streak|win streak|winning streak|run", { k: "metric", v: "streak" }],
+  // A win streak is wins only (and a losing one losses only): the current run of the other kind is never the answer.
+  ["win streak|winning streak|streak of wins", [{ k: "metric", v: "streak" }, { k: "outcome", v: "W" }]],
+  ["losing streak|loss streak|streak of losses", [{ k: "metric", v: "streak" }, { k: "outcome", v: "L" }]],
+  ["streak|run", { k: "metric", v: "streak" }],
   ["partner|partners|alliance partner|alliance partners|teammate|teammates|allies", { k: "metric", v: "partner" }],
   ["opponent|opponents|rival|rivals|nemesis|enemy|enemies", { k: "metric", v: "opponent" }],
   ["ranking points|rp|rps", { k: "metric", v: "rp" }],

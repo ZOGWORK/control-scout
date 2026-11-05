@@ -94,6 +94,18 @@ describe("place and time are applied and stated", () => {
     expect(s.none).toBeTruthy();
     expect(s.scope.some((c) => c.startsWith("Relaxed"))).toBe(false);
   });
+  it("a window with its year typed keeps that year", async () => {
+    for (const q of ["highest scoring match in California in february 2026", "highest scoring match in California on feb 3 2026"]) {
+      const s = await stat(q);
+      expect(s.none, q).toBeTruthy();
+      expect(s.scope.some((c) => c.startsWith("Relaxed")), q).toBe(false);
+    }
+  });
+  it("nothing after every step says which steps were tried", async () => {
+    const s = await stat("highest scoring match in Texas this week");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toContain("Nothing in 2025–26 or 2024–25 either");
+  });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");
     expect(s.title).toBe("Highest-scoring match on Mar 14, 2026, DECODE 2025–26");
@@ -135,6 +147,15 @@ describe("what the pipeline leaves to the other readers", () => {
   it("season side-by-sides never take a place", async () => {
     const a = await ask("4215 vs 6980 opr in romania");
     expect(a.stat?.scope ?? []).not.toContain("Events in Romania");
+  });
+  it("a win streak is wins only; one award named is left to the readers that count it alone", async () => {
+    const { parseQuery } = await import("./parse");
+    const { parseContext } = await import("./context");
+    const ctx = await parseContext(NOW);
+    expect(await parseQuery("4215 current win streak", ctx)).toMatchObject({ intent: "current-streak", symbols: expect.arrayContaining(["outcome:W"]), complete: true });
+    expect(await parseQuery("4215 losing streak", ctx)).toMatchObject({ intent: "current-streak", symbols: expect.arrayContaining(["outcome:L"]), complete: true });
+    expect((await parseQuery("4215 vs 6980 inspire awards", ctx)).complete).toBe(false);
+    expect(await parseQuery("4215 vs 6980 awards", ctx)).toMatchObject({ intent: "awards-vs", complete: true });
   });
   it("margin of victory is wins only", async () => {
     const { parseQuery } = await import("./parse");

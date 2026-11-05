@@ -244,6 +244,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
+  // The awards side-by-side counts every award: one award named ("4215 vs 6980 inspire awards") is left to the
+  // readers that count that award alone.
+  if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
 }
