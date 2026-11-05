@@ -81,12 +81,12 @@ const UPSET_BY_RATING = `CASE WHEN m.red_total > m.blue_total AND ${RATING("blue
   WHEN m.blue_total > m.red_total AND ${RATING("red")} > ${RATING("blue")} THEN ${RATING("red")} - ${RATING("blue")} END`;
 
 /** A final: a classic bracket's "F" series, or a double-elimination bracket's grand final and its if-needed replay,
- *  found by the bracket the event's posted series fit (the engine's BRACKETS, the grand final its last match). */
+ *  by the event's bracket (its alliance count in the engine's BRACKETS, the grand final its last match). */
 const FINAL = (() => {
-  const span = `(SELECT MAX(x.series) - MIN(x.series) + 1 FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff' AND x.label LIKE 'M%')`;
+  // The bracket is the event's own (its alliance count), never guessed from how far its posted matches reach.
+  const alliances = `(SELECT COUNT(*) FROM alliances a WHERE a.season = m.season AND a.code = m.code)`;
   const at = `(m.series - (SELECT MIN(x.series) FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff' AND x.label LIKE 'M%') + 1)`;
-  const grand = [...new Set(Object.values(BRACKETS).map((b) => b.matches.length))];
-  const double = grand.map((g) => `(${span} IN (${g}, ${g + 1}) AND ${at} IN (${g}, ${g + 1}))`).join(" OR ");
+  const double = Object.entries(BRACKETS).map(([n, b]) => `(${alliances} = ${Number(n)} AND ${at} IN (${b.matches.length}, ${b.matches.length + 1}))`).join(" OR ");
   return `m.level = 'playoff' AND (m.label LIKE 'F%' OR (m.season >= ${DOUBLE_ELIM_FROM} AND m.label LIKE 'M%' AND (${double})))`;
 })();
 
@@ -121,8 +121,10 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   };
   let { rows, count } = await ranked(ms.value);
   let rule = ms.rule, show = ms.show, column = ms.column;
-  // No saved call for these matches: the upset is the largest rating gap that lost, said so.
-  if (f.measure === "upset" && !rows.length && count) {
+  // No saved call for any of these matches: the upset is the largest rating gap that lost, said so. Calls saved
+  // with none of them an upset is no upsets, never a guess from the ratings.
+  const called = f.measure === "upset" && !rows.length && count ? Number((await get<{ n: number }>(`SELECT COUNT(*) n ${FROM} WHERE ${w.sql} AND ${CHANCE("red")} IS NOT NULL`, w.args))?.n ?? 0) : 0;
+  if (f.measure === "upset" && !rows.length && count && !called) {
     ({ rows, count } = await ranked(UPSET_BY_RATING));
     rule = "an upset is a match the favourite lost; with no predicted chance saved for these matches, the favourite is the alliance with the larger summed season prediction rating, and the biggest upset the largest such gap that lost. A tie is never an upset.";
     show = (v) => `Favourite by ${v.toFixed(1)} rating lost`;
