@@ -13,6 +13,7 @@
 import type { SearchAnswer, SearchHit } from "../../src/shared/api.js";
 import { search } from "./search.js";
 import { all, kvGet } from "../db.js";
+import { teamPageSql } from "../../src/shared/teamPages.js";
 import { registerCache } from "../caches.js";
 import { SEASONS } from "../data/seasons.js";
 import { REGION_PHRASES } from "../../src/shared/regions.js";
@@ -31,7 +32,7 @@ const ASKED_WORDS = [
   "ranking", "rankings", "score", "scores", "scored", "scoring", "highest", "lowest", "average", "total", "points", "auto", "autonomous",
   "teleop", "endgame", "penalty", "penalties", "foul", "fouls", "match", "matches", "event", "events", "team", "teams", "season",
   "seasons", "rookie", "veteran", "school", "sponsor", "sponsors", "website", "location", "upcoming", "latest", "previous", "winner",
-  "winners", "wins", "losses", "ties", "versus", "compare", "comparison", "stats", "statistics", "history", "timeline", "rating",
+  "winners", "winning", "appearance", "appearances", "wins", "losses", "ties", "versus", "compare", "comparison", "stats", "statistics", "history", "timeline", "rating",
   "ratings", "prediction", "predictions", "predicted", "predict", "odds", "advancement", "advancing", "reliability", "consistency",
   "streak", "streaks", "percentile", "schedule", "difficulty", "bracket", "elims", "eliminations", "results", "standings", "rules",
   "robot", "robots", "robotics", "scouting", "finalist", "finalists", "regional", "kickoff", "invitational", "interleague",
@@ -174,6 +175,17 @@ function formOfKnown(w: string, keep: Set<string>): boolean {
   return keep.has(stem) || keep.has(`${stem}e`) || (/(.)\1$/.test(stem) && keep.has(stem.slice(0, -1)));
 }
 
+/** The same letters, give or take one ("appreacne", "appearance"): the letters one has and the other doesn't, counted
+ *  both ways, number at most one. */
+function jumbled(a: string, b: string): boolean {
+  const n = new Map<string, number>();
+  for (const ch of a) n.set(ch, (n.get(ch) ?? 0) + 1);
+  for (const ch of b) n.set(ch, (n.get(ch) ?? 0) - 1);
+  let off = 0;
+  for (const k of n.values()) off += Math.abs(k);
+  return off <= 1;
+}
+
 /** A correction: the word it reaches and whether it is one of search's own words. */
 export interface WordFix { word: string; own: boolean }
 
@@ -198,6 +210,13 @@ export function correctWord(w: string, v: Vocab, last = false): WordFix | null {
       // word that is clearly the usual one: search's own, or one seen five times as often.
       if (seen && !own && n < Math.max(5, seen * 5)) continue;
       found.push({ word: c, d, own, slip: d === 1 && slip(w, c), n });
+    }
+  }
+  // Else a long word typed with its letters jumbled ("appreacne" for "appearance"): one of search's own words with the
+  // same first letter and the same letters, give or take one, in any order. Edits count each move, so they miss it.
+  if (!found.length && w.length >= 7) {
+    for (let len = w.length - 1; len <= w.length + 1; len++) {
+      for (const c of v.byLength.get(len) ?? []) if (c[0] === w[0] && v.own.get(c) === 2 && !pluralPair(c, w) && jumbled(w, c)) found.push({ word: c, d: max, own: 2, slip: false, n: v.count.get(c) ?? 0 });
     }
   }
   if (!found.length) return null;
@@ -265,6 +284,19 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   if (was >= 4) return a;
   // A team number typed wrong ("42-5", "4z15"): the real team numbers one key away.
   if (was <= 1) { const n = await numberFix(typed); if (n) return carryOutcome(a, { ...n, q: a.q }); }
+  // "What is the bet", "what is the best time": search ranks teams, so "… best team" is offered (and shown when the
+  // query as typed found nothing that matches).
+  const best = was <= 3 ? bestFix(typed) : null;
+  if (best) {
+    const b = await run(best);
+    if (strength(b) >= 4) return was === 3 ? carryOutcome(a, { ...a, didYouMean: best }) : carryOutcome(b, { ...b, q: a.q, step: "did-you-mean", didYouMean: best });
+  }
+  // A query cut off mid-word: read without the word, offered as a correction.
+  const cut = was <= 1 ? await cutOff(typed) : null;
+  if (cut) {
+    const b = await run(cut);
+    if (strength(b) > was) return carryOutcome(b, { ...b, q: a.q, step: b.step === "deterministic" ? "did-you-mean" : b.step, didYouMean: b.step === "did-you-mean" && b.didYouMean ? b.didYouMean : cut });
+  }
   const fix = await correctQuery(typed);
   // A query that matched what it asked can only be improved to a direct answer, which only a question word's fix makes.
   if (!fix || (was >= 3 && !fix.own)) return a;
@@ -282,9 +314,33 @@ export async function spelled(typed: string, a: SearchAnswer, run: (q: string) =
   return a;
 }
 
-/** A team number one key off: 2 to 6 characters starting and ending with a digit, at most one of them not a digit
+/** "What is the bet", "what is the best time": a "what is the best" question with "best" mistyped, or with a word
+ *  after it that isn't a team ("time"). Search ranks teams, so the fix is "what is the best team", or null. A stat
+ *  after it ("what is the best auto") is answered as typed before this is read. */
+export function bestFix(typed: string): string | null {
+  const m = /^((?:what|who|which)(?:'s|s| is| are) (?:the )?)(\p{L}+)(?: (\p{L}+))?$/iu.exec(typed.trim().replace(/\s+/g, " "));
+  if (!m) return null;
+  const b = m[2].toLowerCase(), w = m[3]?.toLowerCase();
+  if (b !== "best" && !(b.length >= 3 && editDistance(b, "best", 1) <= 1)) return null;
+  if ((b === "best" && !w) || (w && /^(?:teams?|robots?)$/.test(w))) return null;
+  return `${m[1]}best team`;
+}
+
+/** A query cut off mid-word ("when was the first time enforcers whe"): its last word, of three letters or fewer, is no
+ *  word search or the data knows. The query without it, or null. A trip question left without its trip ("when was the
+ *  first time enforcers") is completed as the one asked about most, Worlds ("… went to worlds"). */
+export async function cutOff(typed: string): Promise<string | null> {
+  const m = /^(.*\S)\s+(\p{L}{1,3})$/u.exec(typed.trim());
+  if (!m) return null;
+  const w = m[2].toLowerCase(), v = await vocab();
+  if (v.keep.has(w) || v.count.has(w) || v.own.has(w)) return null;
+  const rest = m[1];
+  return /^when (?:was|is) the (?:first|last|most recent) time \S/i.test(rest) && !/\b(?:worlds?|states?|championships?)\b/i.test(rest) ? `${rest} went to worlds` : rest;
+}
+
+/** A team number one key off: a digit alone, or 2 to 6 characters starting and ending with a digit, at most one of them not a digit
  *  ("42-5", "4z15"), or all digits and no team by that number ("42155"). A match code ("q12") is never one. */
-const NUMBERISH = /^\d[\da-z_-]{0,4}\d$/i;
+const NUMBERISH = /^(?:\d|\d[\da-z_-]{0,4}\d)$/i;
 
 /** "42-5" isn't a team, nor a name: the teams whose number is one edit away (a key changed, added or dropped; a
  *  non-digit only changed or dropped) that search lists, the most recently active first, then the most matches played,
@@ -295,7 +351,10 @@ export async function numberFix(typed: string): Promise<SearchAnswer | null> {
   if (!NUMBERISH.test(t)) return null;
   const odd = [...t].filter((c) => !/\d/.test(c)).length;
   if (odd > 1) return null;
-  if (!odd && (await all("SELECT 1 FROM teams WHERE number = ?", [Number(t)])).length) return null;
+  // A real team is no typo; a placeholder entry's number ("99999", the off-season demo team) has no page to show.
+  const own = odd ? [] : await all<{ page: number }>(`SELECT ${teamPageSql("t.number", "t.name")} AS page FROM teams t WHERE t.number = ?`, [Number(t)]);
+  if (own.some((r) => Number(r.page))) return null;
+  const placeholder = own.length > 0;
   const near = new Set<string>();
   const add = (s: string) => { if (/^[1-9]\d{0,5}$/.test(s)) near.add(s); };
   for (let i = 0; i < t.length; i++) {
@@ -304,18 +363,28 @@ export async function numberFix(typed: string): Promise<SearchAnswer | null> {
   }
   if (!odd) for (let i = 0; i <= t.length; i++) for (let d = 0; d <= 9; d++) add(t.slice(0, i) + d + t.slice(i));
   near.delete(t);
-  if (!near.size) return null;
   const nums = [...near].map(Number);
   // Every registered team that close (a new team has a page before its first match), ranked by its match history.
-  const rows = await all<{ team: number }>(`SELECT t.number AS team, MAX(s.season) AS s, COALESCE(SUM(s.matches), 0) AS m FROM teams t LEFT JOIN team_season_stats s ON s.team = t.number AND s.matches > 0 WHERE t.number IN (${nums.map(() => "?").join(",")}) GROUP BY t.number ORDER BY s IS NULL, s DESC, m DESC, t.number LIMIT 6`, nums);
-  if (!rows.length) return null;
-  const hits: SearchHit[] = [];
-  for (const r of rows) {
-    if (hits.length >= 3) break;
-    const h = (await search(String(r.team), 5, new Set(), new Set(["team"]))).find((x) => x.kind === "team" && x.ref === String(r.team));
-    if (h) hits.push({ ...h, match: "fuzzy" });
+  const rows = nums.length ? await all<{ team: number }>(`SELECT t.number AS team, MAX(s.season) AS s, COALESCE(SUM(s.matches), 0) AS m FROM teams t LEFT JOIN team_season_stats s ON s.team = t.number AND s.matches > 0 WHERE t.number IN (${nums.map(() => "?").join(",")}) GROUP BY t.number ORDER BY s IS NULL, s DESC, m DESC, t.number LIMIT 6`, nums) : [];
+  const listed = async (teams: number[]) => {
+    const out: SearchHit[] = [];
+    for (const n of teams) {
+      if (out.length >= 3) break;
+      const h = (await search(String(n), 5, new Set(), new Set(["team"]))).find((x) => x.kind === "team" && x.ref === String(n));
+      if (h) out.push({ ...h, match: "fuzzy" });
+    }
+    return out;
+  };
+  let hits = await listed(rows.map((r) => Number(r.team)));
+  // No team one key away that search lists ("676767"): the nearest numbers of teams that have played, on each side, so
+  // a number is never answered with an empty page.
+  if (!hits.length && !odd) {
+    const n = Number(t);
+    const side = (op: string, dir: string) => all<{ team: number }>(`SELECT t.number AS team FROM teams t WHERE t.number ${op} ? AND ${teamPageSql("t.number", "t.name")} AND EXISTS (SELECT 1 FROM team_season_stats s WHERE s.team = t.number AND s.matches > 0) ORDER BY t.number ${dir} LIMIT 3`, [n]);
+    const [below, above] = await Promise.all([side("<", "DESC"), side(">", "ASC")]);
+    hits = await listed([...below, ...above].map((r) => Number(r.team)).sort((a, b) => Math.abs(a - n) - Math.abs(b - n) || a - b));
   }
   if (!hits.length) return null;
-  const label = `No team ${t}: the closest team number${hits.length > 1 ? "s" : ""}`;
+  const label = `${placeholder ? `No team page for ${t} (a placeholder entry)` : `No team ${t}`}: the closest team number${hits.length > 1 ? "s" : ""}`;
   return { q: t, hits, pages: pagesFor(t), step: "did-you-mean", didYouMean: hits[0].ref, weak: true, understood: { kind: "names", label } };
 }

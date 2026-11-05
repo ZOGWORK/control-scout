@@ -15,7 +15,7 @@ import { findRegions } from "../../src/shared/regions.js";
 import { registerCache } from "../caches.js";
 import { teamPageSql } from "../../src/shared/teamPages.js";
 import { searchTeamTitle, teamNameOf } from "../../src/shared/teamTitle.js";
-import { nameWords } from "../../src/shared/searchQuery.js";
+import { nameWords, onlyCommonWords } from "../../src/shared/searchQuery.js";
 import { placeHit } from "./searchEvents.js";
 import { searchRead } from "./searchReads.js";
 
@@ -208,7 +208,13 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
   //    re-ranked together by how closely each query word matches.
   type Cand = SearchHit & { weight: number; name: string };
   const cands = new Map<string, Cand>();
+  // Common words alone ("without", "team", "best") name no team (COMMON_WORDS): a team's name matches on a word of its
+  // own, or when it's typed whole ("match point" is Match Point; both sides cleaned alike, so "the best" is The Best).
+  const plain = (t: string) => t.toLowerCase().replace(/[^\p{L}\d]+/gu, " ").trim();
+  const nameless = onlyCommonWords(query) ? plain(query) : null;
+  const unnamed = (kind: string, title: string) => nameless != null && kind === "team" && plain(nameWords(teamNameOf(title))) !== nameless;
   const add = (r: any, name: string) => {
+    if (unnamed(r.kind, r.title)) return;
     const k = `${r.kind}:${r.ref}`;
     if (!cands.has(k)) cands.set(k, { kind: r.kind, ref: r.ref, title: r.title, subtitle: r.subtitle, season: r.season == null ? null : Number(r.season), weight: Number(r.weight) || 1, name });
   };
@@ -238,7 +244,7 @@ async function searchWords(q: string, limit: number, prefer: ReadonlySet<string>
     // then checked on the few names that score (both are filters, so the order doesn't change which pass).
     const passed: { r: FuzzyRow; s: number }[] = [];
     for (const r of index.rows) {
-      if (!allow(r.kind)) continue;
+      if (!allow(r.kind) || unnamed(r.kind, r.title)) continue;
       const s = scoreIds(qs, scores, r);
       if (s >= 0.6) passed.push({ r, s });
     }

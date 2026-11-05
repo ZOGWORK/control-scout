@@ -229,6 +229,17 @@ function MatchRow({ r }: { r: StatMatchRow }) {
             <span className="tabular-nums"><b className={r.alliance === "red" ? "text-red-alliance-text" : "text-blue-alliance-text"}>{r.ownNp ?? r.own}</b>{r.ownNp != null && r.ownNp !== r.own && <span className="text-[11px] text-muted-foreground"> ({r.own} with penalties)</span>}<span className="text-muted-foreground"> – {r.opp}</span></span>
           </p>
           <p className="break-words text-xs text-muted-foreground"><Link to={r.event.href} className="hover:text-accent-text hover:underline">{r.event.label}</Link> · {r.season}{r.date ? ` · ${r.date}` : ""}</p>
+          {/* The alliance's points by period, in the phases' own colours; the period ranked in bold. */}
+          {r.phases && (
+            <p className="mt-1 flex flex-wrap gap-1 text-[11px]" data-phases>
+              {(["auto", "teleop", "endgame"] as const).filter((k) => r.phases![k] != null).map((k) => (
+                <span key={k} className={cn("inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5", TONES[OPR_TONE[k]].chip, r.ranked === k && "font-semibold ring-1 ring-current")} data-phase={k}>
+                  {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
+                  <span className="opacity-80">{k === "auto" ? "Auto" : k === "teleop" ? (r.phases!.teleopWithEndgame ? "Teleop + endgame" : "Teleop") : "Endgame"}</span><b className="tabular-nums">{r.phases![k]}</b>
+                </span>
+              ))}
+            </p>
+          )}
           {!!(r.partners?.length || r.opponents?.length) && (
             <p className="mt-0.5 break-words text-[11px] text-muted-foreground">
               {r.partners?.length ? <>With {r.partners.map((p, i) => <span key={p.href}>{i > 0 && ", "}<Link to={p.href} className="hover:text-accent-text hover:underline">{p.label}</Link></span>)}</> : null}
