@@ -6,7 +6,9 @@
 export type Agg = "max" | "min" | "mean" | "median" | "sum" | "count" | "first" | "last" | "closest" | "next";
 export type Metric =
   | "score" | "margin" | "record" | "win" | "loss" | "tie" | "winrate" | "opr" | "rating" | "rank" | "award" | "penalty"
-  | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs";
+  | "auto" | "teleop" | "endgame" | "streak" | "partner" | "opponent" | "rp" | "range" | "consistency" | "reliability" | "playoffs"
+  // Derived from a match's numbers by a rule the card prints (./matchFind.ts).
+  | "upset" | "comeback";
 export type Thing = "match" | "event" | "season" | "team";
 
 export type Sym =
@@ -15,6 +17,8 @@ export type Sym =
   | { k: "metric"; v: Metric }
   | { k: "thing"; v: Thing }
   | { k: "level"; v: "qual" | "playoff" }
+  /** The finals only, of the playoffs. */
+  | { k: "finals" }
   | { k: "alliance"; v: "red" | "blue" }
   | { k: "worlds" }
   | { k: "states" }
@@ -29,7 +33,9 @@ export type Sym =
   | { k: "award"; v: string }
   | { k: "list" }
   | { k: "per"; v: "match" | "event" | "rate" }
-  | { k: "nopen" };
+  | { k: "nopen" }
+  /** No losses: "undefeated", "a perfect record". */
+  | { k: "undefeated" };
 
 /** Each entry: the phrases (`|`-separated, words separated by spaces) and the symbol they mean (or several: "margin of
  *  victory" is a margin of wins only). Longer phrases win over shorter ones at the same place, so "win rate" is one
@@ -38,7 +44,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["margin of victory|victory margin|winning margin|margin of win", [{ k: "metric", v: "margin" }, { k: "outcome", v: "W" }]],
   ["margin of defeat|losing margin|margin of loss|defeat margin", [{ k: "metric", v: "margin" }, { k: "outcome", v: "L" }]],
   // Aggregations.
-  ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best", { k: "agg", v: "max" }],
+  ["highest|high|best|top|max|maximum|biggest|largest|greatest|most|record high|peak|strongest|winningest|career high|personal best|longest|most times|the most times", { k: "agg", v: "max" }],
   ["lowest|low|worst|min|minimum|smallest|fewest|least|weakest", { k: "agg", v: "min" }],
   ["average|avg|mean|typical|on average", { k: "agg", v: "mean" }],
   ["median", { k: "agg", v: "median" }],
@@ -50,10 +56,18 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["next|upcoming|coming up", { k: "agg", v: "next" }],
   // Metrics.
   ["score|scores|scored|scoring|points|point|pts|total points", { k: "metric", v: "score" }],
-  ["margin|margin of victory|point differential|differential|point diff|spread|blowout|blowouts", { k: "metric", v: "margin" }],
-  ["record|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
+  ["margin|margin of victory|point differential|differential|point diff|spread|gap|score gap|point gap|points gap|difference in score", { k: "metric", v: "margin" }],
+  // The biggest margin, said as one word.
+  ["lopsided|most lopsided|one sided|blowout|blowouts|biggest blowout|mismatch|mismatches|rout|routs|beatdown", [{ k: "agg", v: "max" }, { k: "metric", v: "margin" }]],
+  ["upset|upsets|underdog|underdogs|giant killing|giant killer|shock win|shock result|surprise win|surprise result", { k: "metric", v: "upset" }],
+  ["comeback|comebacks|come back|came back|comeback win|comeback wins|rallied|rally", { k: "metric", v: "comeback" }],
+  ["record|records|w-l-t|w l t|wlt|win loss|win-loss|win loss record|win loss tie|wins and losses|win/loss", { k: "metric", v: "record" }],
   ["win|wins|won|victory|victories|beat|beaten|defeated", { k: "metric", v: "win" }],
-  ["loss|losses|lost|defeat|defeats", { k: "metric", v: "loss" }],
+  ["loss|losses|lost|lose|loses|defeat|defeats", { k: "metric", v: "loss" }],
+  // Winning a match, as a question ("did they ever win a match"): its wins.
+  ["win a match|won a match|win a game|won a game|win any match|won any match|win any matches|won any matches", [{ k: "metric", v: "win" }, { k: "thing", v: "match" }]],
+  // Losing to someone: the opponents that beat the team.
+  ["lose to|lost to|loses to|losing to|lost against|beaten by|defeated by|beat by", [{ k: "metric", v: "opponent" }, { k: "outcome", v: "L" }]],
   ["tie|ties|tied|draw|draws", { k: "metric", v: "tie" }],
   ["win rate|win percentage|win pct|win %|win%|winning percentage|winning rate", { k: "metric", v: "winrate" }],
   ["opr|offensive power rating|offense rating|offensive rating", { k: "metric", v: "opr" }],
@@ -73,17 +87,22 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["ranking points|rp|rps", { k: "metric", v: "rp" }],
   ["range|score range|spread of scores", { k: "metric", v: "range" }],
   ["consistency|consistent|score consistency", { k: "metric", v: "consistency" }],
-  ["reliability|reliable|dependability|dependable", { k: "metric", v: "reliability" }],
+  ["reliability|reliable|dependability|dependable|reliability score|reliability index", { k: "metric", v: "reliability" }],
   // What is counted or listed.
   ["match|matches|game|games|round|rounds|qualification match", { k: "thing", v: "match" }],
   ["event|events|competition|competitions|comp|comps|tournament|tournaments|meet|meets", { k: "thing", v: "event" }],
   ["season|seasons|year|years", { k: "thing", v: "season" }],
   ["team|teams|robot|robots", { k: "thing", v: "team" }],
   // Scope words.
-  ["playoff|playoffs|elim|elims|elimination|eliminations|bracket|finals|semifinals|semis", { k: "level", v: "playoff" }],
+  ["finals|grand final|grand finals|finals match|finals matches|final match|final matches|championship match|championship final", [{ k: "level", v: "playoff" }, { k: "finals" }]],
+  ["playoff|playoffs|elim|elims|elimination|eliminations|bracket|semifinals|semis", { k: "level", v: "playoff" }],
   ["qual|quals|qualification|qualifications|qualifying|qualis", { k: "level", v: "qual" }],
   ["red|red alliance|red side|on red|as red", { k: "alliance", v: "red" }],
   ["blue|blue alliance|blue side|on blue|as blue", { k: "alliance", v: "blue" }],
+  // Everywhere, said: no place filter (never the FIRST Championship).
+  ["in the world|worldwide|world wide|globally|across the world|around the world|all over the world|internationally|anywhere|in ftc", { k: "filler" }],
+  // Asides and slang around a question: never part of it, nor a team's name ("just curious" is no team called Curious).
+  ["only|just|just curious|curious|out of curiosity|wondering|i wonder|i was wondering|honestly|be honest|lol|lmao|bruh|da|ur|ya|yall|kinda|sorta|gonna|wanna|nah|or nah|right now|these days|lately|by now|if any|if there is one|if there are any|often|frequently", { k: "filler" }],
   ["worlds|world|world championship|world championships|world champs|first championship|first champs|championship of the world|cmp|houston championship|houston", { k: "worlds" }],
   ["states|state|state championship|state championships|state champs|state finals|regionals|regional championship|regional", { k: "states" }],
   // Forecasts.
@@ -97,6 +116,8 @@ const TABLE: [string, Sym | Sym[]][] = [
   // Wins and losses as an outcome ("closest win", "biggest loss").
   ["winning", { k: "outcome", v: "W" }],
   ["losing", { k: "outcome", v: "L" }],
+  // No losses.
+  ["undefeated|unbeaten|perfect record|a perfect record|perfect season|no losses|zero losses|without a loss|never lost|not lost|havent lost|hasnt lost", { k: "undefeated" }],
   // Penalty points left out.
   ["without penalties|no penalties|excluding penalties|minus penalties|penalty free|np|non penalty", { k: "nopen" }],
   // Prepositions that say which slot follows.
@@ -105,7 +126,7 @@ const TABLE: [string, Sym | Sym[]][] = [
   ["from|based in|located in|out of", { k: "prep", v: "from" }],
   ["by|sorted by|ranked by|ordered by", { k: "prep", v: "by" }],
   ["for|of", { k: "prep", v: "for" }],
-  ["list|show all|all of|every|each|history|log", { k: "list" }],
+  ["list|show all|all of|every|each|history|log|most often|the most often|by type|by kind|each type|of each type", { k: "list" }],
   // "Per match", "per event", "rate": how a count is divided.
   ["per match|per game|a match|a game|each match|every match|per round", { k: "per", v: "match" }],
   ["per event|each event|every event|per competition|per tournament|by event", { k: "per", v: "event" }],

@@ -116,6 +116,67 @@ to the slow legacy chain at 2.7 s, now 30 ms); "mean" in "mean scoring for …" 
 average; the event check searched again for every repeat of a name (now remembered per index, and skipped for words
 that start like no event's).
 
+## Match finder
+
+`server/api/query/matchFind.ts`: matches found by a measure, no team named. The place, the time, the match type
+(qualification, playoff, finals) and the kind of event ("at a league meet", "qualifiers") are filters; the measure is
+the order. Each measure is one rule, printed on the card under "How this is counted":
+
+| Measure | Said as | Rule |
+|---|---|---|
+| highest / lowest | "lowest scoring match", "highest scoring quals match" | the match's higher alliance score without penalties |
+| closest | "closest", "tightest", "smallest margin" | the difference in final scores, penalties in; a tie is closest |
+| most lopsided | "most lopsided", "blowout", "biggest score gap" | the same difference, largest first |
+| most penalties | "most penalty points" | both alliances' final scores less their points without penalties |
+| biggest upset | "upset", "underdog won" | a favourite's loss: the losing alliance had over a 50% predicted chance before the match (the call saved live, else its replay), highest first; with no call saved for any of the matches, the larger summed season rating that lost |
+| biggest comeback | "comeback", "came back" | won by the alliance behind after auto, furthest behind first |
+
+The finals are a classic bracket's "F" series, or a double-elimination bracket's grand final and its if-needed
+replay (the event's bracket by its alliance count, from the engine's `BRACKETS`). Only the finder applies the finals:
+any other answer said with them is left to the readers after it, never answered for every playoff match.
+
+No season said (or "this season") reads the season today is in; when it has none of the matches asked for yet it
+reads the season before and says so: "No 2026–27 matches yet in California; showing 2025–26", "No 2026–27
+comebacks yet…". The plain highest score (no measure, no match type) follows the same rule. "Last season" is the one
+before the season today is in. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
+the world", "worldwide" and "globally" mean every place.
+
+## Leaderboards
+
+The pipeline's leaderboard (`execute.ts`, over `answers/families/leaderboard.ts`) reads a list of teams however it's
+said: with or without "team" ("who has the highest auto OPR in NJ"), the highest or the lowest first ("worst teleop
+OPR in Romania"), a whole country, a town with its region after it ("best team in Cluj-Napoca, Romania, by OPR",
+"Oradell, NJ"), a country by its people's word ("Romanian teams", `src/shared/countries.ts`), a count at the end
+("…, top 3") and undefeated ("a perfect record", "no losses": no losses that season, the most wins first). "Auto OPR"
+is the auto phase's OPR, and a record beside another stat is the column every row already shows. Asides ("just
+curious", "only", "da") are filler and never a team's name. No season said follows the same rule as the match finder:
+the current season once a team is ranked in it, else the one before, said ("No 2026–27 ranked teams yet in Romania;
+showing 2025–26").
+
+## A team's wins and losses
+
+A win or a loss said with one team's match question is a filter on its matches, in any of its words ("lose", "lost",
+"losing", "win", "won"): "when did 12345 last lose a match" is its most recent loss, "first win" its first win,
+"last 5 losses" its last five losses, and "longest losing streak" the longest run of losses (a tie ends a run). The
+card's title says which ("Most recent loss"). Losing to someone ("lose to", "lost to", "beaten by") is the opponents
+that beat the team, most often first; "most often" is how often, never the best. "Did 12345 ever win a match" is its
+match wins, none said as none. "If any", "often" and "by type" are read as asides: every answer already says when there
+is none, and a total of awards already lists each type.
+
+## Prediction answers and no answer
+
+Drawn as the search results guide (Nov 5, `.claude/search-viz-guide-2026-11-05.txt`) says, §8. A team's prediction at
+a named event ("predicted chances of 12345 east bergen conference") leads with a `chance` block
+(`src/components/search/page/ChanceBar.tsx`): the chance as a number and a bar on a 0–100% scale split at it, in
+`--color-chance` (Okabe–Ito blue, never volt), with Open in Predict as the card's one action, printed nowhere else on
+the page. The chance is the next match's when one is still to come (with the engine's call now and its 80% score
+ranges, "Predicted 138 ±14 – 92 ±12": a stored call keeps no range), else the average over the matches played, else
+the event's stored pre-event chance to win. Before and after stay beside it, match by match.
+
+A search nothing answers (`NoResults.tsx`) says what's missing in one sentence, shows the closest real teams and events
+as full cards, and offers searches that answer about them, plus the browse links. What the query was understood as is
+a `data-understood` attribute only, never page text (§7).
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was
