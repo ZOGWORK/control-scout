@@ -96,8 +96,9 @@ const RECORD = /^(\d+)-(\d+)-(\d+)$/;
 const TEAM_IN_HREF = /^\/teams\/(\d+)/;
 
 /** A stat leaderboard's rows (server/api/answers/families/leaderboard.ts) as the same table. */
-export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[], teleopWithEndgame = false): TeamTable {
-  const by: TeamTable["by"] = ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame" } as Record<string, TeamTable["by"]>)[statId] ?? "rank";
+export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[], teleopWithEndgame = false, lowest = false): TeamTable {
+  // A lowest-first list keeps its own order (the asked stat as its column), as an OPR column would sort highest first.
+  const by: TeamTable["by"] = lowest ? "rank" : ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame" } as Record<string, TeamTable["by"]>)[statId] ?? "rank";
   return {
     by,
     ...(by === "rank" ? { asked: { label: statLabel } } : {}),

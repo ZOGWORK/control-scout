@@ -105,7 +105,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   const shown = (r: (typeof rows)[number]) => (st.id === "record" ? record(r) : fmt(r.v, st));
   const board: StatBlock = {
     kind: "leaderboard", title: rookie ? `Rookie teams by ${st.label}` : b.lowest ? `Lowest ${rows.length} by ${st.label}` : `Top ${rows.length} by ${st.label}`, stat: { id: st.id, label: st.label, ...(st.unit ? { unit: st.unit } : {}) },
-    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}),
+    ...(reportedTeleopIncludesEndgame(season) ? { teleopWithEndgame: true } : {}), ...(b.lowest ? { lowest: true } : {}),
     note: `${seasonLabel(season)} · ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where} · by ${statWords(st)}`,
     rows: rows.map((r, i) => ({
       rank: i + 1, team: { label: `${r.team} ${r.name ?? ""}`.trim(), href: teamHref(Number(r.team), season) },
@@ -118,7 +118,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   };
   return {
     ...base,
-    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.id === "record" ? `Record ${record(top)}` : `${st.label} ${fmt(top.v, st)}, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`, sub: b.best ? `#1 of ${total.toLocaleString("en-US")} ranked${where}` : `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
+    headline: { value: `${top.team} ${top.name ?? ""}`.trim(), label: `${st.id === "record" ? `Record ${record(top)}` : `${st.label} ${fmt(top.v, st)}, ${record(top)}`}${top.city ? ` · ${top.city}` : ""}`, sub: b.lowest ? `Lowest of ${total.toLocaleString("en-US")} ranked${where}` : b.best ? `#1 of ${total.toLocaleString("en-US")} ranked${where}` : `#1 of ${rows.length} shown`, href: teamHref(Number(top.team), season) },
     blocks: [board],
   };
 }

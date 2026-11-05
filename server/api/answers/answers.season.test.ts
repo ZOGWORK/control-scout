@@ -88,6 +88,8 @@ describe("leaderboards", () => {
     const low = await board("worst opr in new jersey in 2025-26, just curious");
     expect(low.st.title).toMatch(/^Lowest .* by OPR in New Jersey · 2025–26$/);
     expect(low.rows[0]).toBe("6980 Bad Wolf");
+    expect(low.st.headline?.sub).toBe("Lowest of 4 ranked in New Jersey");
+    expect(low.st.blocks[0]).toMatchObject({ lowest: true });
     expect((await board("best team in Oradell, NJ, by opr in 2025-26")).rows).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
     expect((await board("which teams have the best opr in new jersey in 2025-26, top 2")).rows).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics"]);
     expect((await board("is there any team with a perfect record in new jersey")).st).toMatchObject({ title: "Undefeated teams in New Jersey by wins · 2026–27", headline: { value: "30000 Early Bird" } });

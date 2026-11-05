@@ -71,7 +71,9 @@ export type StatBlock =
    *  endgame split stacked in it. `note`: the season, how many teams are ranked and by what. */
   | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink;
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
-      teleopWithEndgame?: boolean }
+      teleopWithEndgame?: boolean;
+      /** The lowest first: drawn in the list's own order, never re-sorted highest first. */
+      lowest?: boolean }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */
