@@ -1,12 +1,13 @@
 // Filter relaxation (docs/search-pipeline.md, "Relax"): when the exact filters find nothing, the pipeline widens them
 // one step at a time in a fixed order and says which step it took, on the card and in its heading. The order:
-//   1. a date window ("this week") to the season it's in
+//   1. a date window ("this week") to the season it's in (each season its dates touch, newest first)
 //   2. a season that came from that window to the season before (one step, the latest finished one)
 // A filter the query typed in its own words other than a window (a place, an event, a year, a team) is never relaxed:
 // a year named returns that year, a place named stays that place. Nothing is invented; an answer that's still empty
 // after the last step is said plainly, with the steps tried.
 import type { SearchAnswer } from "../../../src/shared/api.js";
 import { seasonLabel } from "../../../src/shared/format.js";
+import { seasonOfDate } from "./time.js";
 
 /** One step taken: what the filter was, and what it became. */
 export interface Relaxation { filter: "window" | "season"; from: string; to: string }
@@ -14,12 +15,17 @@ export interface Relaxation { filter: "window" | "season"; from: string; to: str
 /** An answer with nothing found for its filters. */
 export const isEmpty = (a: SearchAnswer | null): boolean => !!a?.stat && !a.stat.headline && !!a.stat.none;
 
-/** The steps for a window in `season`: the window's season, then the season before. */
-export function windowSteps(window: { label: string }, season: number): { step: Relaxation; season: number }[] {
-  return [
-    { step: { filter: "window", from: window.label, to: seasonLabel(season) }, season },
-    { step: { filter: "season", from: seasonLabel(season), to: seasonLabel(season - 1) }, season: season - 1 },
-  ];
+/** The steps for a window read in `season`: each season the window's dates touch, newest first (a week across the
+ *  season's start, Aug 31 to Sep 6, touches two), then the season before the oldest. */
+export function windowSteps(window: { label: string; from?: string; to?: string }, season: number): { step: Relaxation; season: number }[] {
+  const touched = [...new Set([window.to, window.from].filter((d): d is string => !!d).map(seasonOfDate).concat(season))].sort((a, b) => b - a);
+  const steps: { step: Relaxation; season: number }[] = [];
+  let from = window.label;
+  for (const s of [...touched, touched[touched.length - 1] - 1]) {
+    steps.push({ step: { filter: steps.length < touched.length ? "window" : "season", from, to: seasonLabel(s) }, season: s });
+    from = seasonLabel(s);
+  }
+  return steps;
 }
 
 /** Runs `attempt` with each step in turn until one finds something; the answer says every step it took. */
