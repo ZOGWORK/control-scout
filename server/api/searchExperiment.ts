@@ -60,8 +60,8 @@ export function expandShortForms(q: string): string {
   return q.split(/\s+/).map((w) => SHORT_FORMS[w.toLowerCase()] ?? w).join(" ");
 }
 
-/** A+: the whole query, or its name-and-topic reading ("team 4215" read as "4215"), whichever top result fits what
- *  was typed better. The plain search keeps the whole query whenever it finds anything, so "team" can win over 4215. */
+/** A+: the whole query, or its name-and-topic reading ("team 12345" read as "12345"), whichever top result fits what
+ *  was typed better. The plain search keeps the whole query whenever it finds anything, so "team" can win over 12345. */
 async function bestReading(q: string): Promise<SearchHit[]> {
   const full = await search(q, LIMIT);
   const intent = searchIntent(q);

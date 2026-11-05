@@ -27,6 +27,8 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
   if (!p.complete || !p.intent) return null;
   let a = await execute(p, opts);
   if (!a) return null;
+  // Part of a region ("north jersey") is read as all of it, and the card says so.
+  if (p.place?.part && a.understood) a = { ...a, understood: { ...a.understood, label: `${a.understood.label} · ${p.place.part.replace(/(^|\s)\p{L}/gu, (c) => c.toUpperCase())} isn't a separate region: all of ${p.place.name}` } };
   // A team's name typed nearly right: answered for that team, with the spelling to search for.
   const near = p.teams.filter((t) => t.via === "near" && t.name);
   if (near.length) {

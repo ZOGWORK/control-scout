@@ -1,6 +1,6 @@
 // Questions search answers directly (docs/search.md), by fixed rules and from the stored data only:
-//   "when did hypnotic robotics go to worlds" / "did 4215 go to worlds in 2025"  → the team's Worlds appearances
-//   "how many times did 4215 go to states"                                      → its state (region) championships
+//   "when did hypnotic robotics go to worlds" / "did 12345 go to worlds in 2025"  → the team's Worlds appearances
+//   "how many times did 12345 go to states"                                      → its state (region) championships
 //   "what events did hypnotic win"                                              → the events it won
 //   "has bad wolf won anything"                                                 → every award it has won
 //   "when is hypnotic's next event" / "… next match"                            → its next published event or match
@@ -22,7 +22,7 @@ export type QuestionKind = Exclude<SearchCard["kind"], "high-scores" | "rule" | 
 
 export interface ParsedQuestion {
   kind: QuestionKind;
-  /** What names the team ("hypnotics robotics", "4215"). */
+  /** What names the team ("hypnotics robotics", "12345"). */
   core: string;
   /** "did hypnotic go to worlds in 2025": the year the championship was held in. */
   year: number | null;
@@ -50,8 +50,8 @@ const WHICH = /\b(?:the\s+)?(first|earliest|last|latest|most\s+recent)\s+(?:time
 
 /** The question `q` asks, or null when it isn't one of these. */
 export function parseQuestion(q: string): ParsedQuestion | null {
-  // "when does 4215 play next": its next match.
-  // Only when "play next" ends the question: "when does 4215 play next season" asks about a season.
+  // "when does 12345 play next": its next match.
+  // Only when "play next" ends the question: "when does 12345 play next season" asks about a season.
   const playNext = /\b(?:when\s+(?:does|do|will|is)\s+)?(.+?)\s+(?:play(?:ing)?|plays?)\s+next\s*$/i.exec(q);
   if (playNext) { const core = coreOf(playNext[1]); return core ? { kind: "next-match", core, year: null } : null; }
   const next = /\bnext\s+(match|game|event|competition|tournament|meet)\b/i.exec(q);
@@ -147,7 +147,7 @@ export async function questionCard(it: ParsedQuestion, team: { number: number; n
     });
     const asked = it.year != null ? all_.filter((x) => x.year === it.year) : all_;
     card.lines = asked.map((x) => x.line);
-    // "How many times": the count, read first ("State championships · Hypnotic Robotics (4215) · 3 times").
+    // "How many times": the count, read first ("State championships · Hypnotic Robotics (12345) · 3 times").
     if (card.lines.length) card.count = card.lines.length;
     // "When was the first time": that trip, from the records below ("First went to Worlds in 2021–22 · FREIGHT FRENZY, Franklin Division").
     // By season, never by date alone: an undated trip (no start stored) would sort before every dated one.

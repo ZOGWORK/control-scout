@@ -78,15 +78,17 @@ stripped:
 
 | Hit | Where | Kind | Plan |
 |---|---|---|---|
-| "north/south/central jersey" → New Jersey | searchCoverage.ts:240 | a place special case | replaced by place resolution; delete |
+| "north/south/central jersey" → New Jersey | searchCoverage.ts:240 | a place special case | done (3.2.3): any direction and region is that region, said so (`regionPartOf`), in the pipeline and the readers |
 | "houston" as Worlds | read.ts:130, :236; searchQuestions.ts:35; compound.ts:107 | a synonym written into regexes | now one row in lexicon.ts |
-| "6980" in the not-operator help | searchBoolean.ts:432, :441 | example copy | an example drawn from the data |
-| "4215 awards", "nj states", "Edison", … | searchCoverage.ts:391–404, :504–505, :749 | example copy on help cards | examples drawn from the data |
-| 4215, New Jersey Championship, USNJCMP | searchExperiment.ts:113 | the AI experiment's prompt examples | stays behind its flag; generic examples |
+| "6980" in the not-operator help | searchBoolean.ts:432, :441 | example copy | done (3.2.3): the team's most-played opponent, from its matches |
+| "4215 awards", "nj states", "Edison", … | searchCoverage.ts:391–404, :504–505, :749 | example copy on help cards | kept: queries for a visitor to try, not reading code |
+| 4215, New Jersey Championship, USNJCMP | searchExperiment.ts:113 | the AI experiment's prompt examples | kept: word for word as Control Point sends it, behind its flag |
 | 4215, 6980, hypnotic robotics, new jersey | searchLayers.sets.ts | a hand-written paraphrase list (tests only) | superseded by the generated harness |
 | state names and codes | regions.ts | data table | fine (data) |
 
-No parser branch names a team, event, division or place. The hard-coding is in templates (fixed phrasings), in
+No parser branch names a team, event, division or place. Since 3.2.3 the comments' examples in `server/api` use
+made-up numbers too, so the brief's grep (4215, 6980, Parkway, Turnpike) finds only the help card's queries to try
+and the AI prompt above; `server/api/query/hardcode.test.ts` keeps the pipeline itself at none. The hard-coding is in templates (fixed phrasings), in
 per-reader synonym lists and in example copy.
 
 ## Eval

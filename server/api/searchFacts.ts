@@ -50,7 +50,7 @@ export async function teamSeason(team: number, asked?: number | null): Promise<{
 export async function teamAtEvent(team: number, eventWords: string, asked?: number | null): Promise<{ event: SearchEventPick; facts: SearchFact[] } | { ambiguous: true; season: number } | null> {
   const { season: latest } = await teamSeason(team, asked);
   if (latest == null) return null;
-  // With no season named, the newest season one of its events matches ("4215 matches at worlds": the last Worlds it
+  // With no season named, the newest season one of its events matches ("12345 matches at worlds": the last Worlds it
   // went to, not this season's, which it may not have played).
   const seasons = asked != null ? [latest] : [latest, ...(await all<{ season: number }>("SELECT DISTINCT season FROM team_event_stats WHERE team = ? AND season < ? ORDER BY season DESC", [team, latest])).map((r) => Number(r.season))];
   let season = latest, best: { e: SearchEventPick; s: number } | undefined, next: { e: SearchEventPick; s: number } | undefined;

@@ -1,9 +1,9 @@
 // Phrasings people type that the other readers miss, so a search never ends on an empty page when the words say
 // clearly what they want (docs/search.md). Fixed rules, no model; every number is from the stored data.
-//   rewrites   "compare 4215 and 6980", "is 4215 better than 6980", "4215 6980"   → "4215 vs 6980" (Compare)
-//              "who would win 4215 or 6980"                                       → "4215 vs 6980 who wins" (Predict)
-//              "is 6980 good"                                                     → "how good is 6980"
-//              "predict 4215 next games"                                          → "will 4215 win their next match"
+//   rewrites   "compare 12345 and 67890", "is 12345 better than 67890", "12345 67890"   → "12345 vs 67890" (Compare)
+//              "who would win 12345 or 67890"                                       → "12345 vs 67890 who wins" (Predict)
+//              "is 67890 good"                                                     → "how good is 67890"
+//              "predict 12345 next games"                                          → "will 12345 win their next match"
 //              "teams near Hackettstown"                                          → "teams in Hackettstown"
 //              "north jersey", "south jersey", "central jersey"                   → New Jersey (said so in the label)
 //              "top ranked team", "best team in ftc"                              → the world leaderboard
@@ -11,12 +11,12 @@
 //   counts     "how many teams in NJ", "how many events this season"            → the count, from the stored data
 //   Worlds     "where is worlds", "worlds 2026", "worlds divisions"             → the FIRST Championship's events
 //   an event's page  "nj states rankings", "match 12 at nj states"             → that event's tab or match
-//   a team, kept     "4215 alliance partners", "bad wolf robotics"             → the team, never "no results"
+//   a team, kept     "12345 alliance partners", "bad wolf robotics"             → the team, never "no results"
 import type { SearchAnswer, SearchCardFact, SearchCardLine, SearchHit, SearchSection } from "../../src/shared/api.js";
 import type { TeamTable } from "../../src/shared/teamTable.js";
 import { PHASE_COLS, tableOf, tableRow } from "./teamTableRows.js";
 import { SEARCH_BROWSE, pagesFor } from "../../src/shared/search.js";
-import { readEventQuery, regionOf, type EventQuery } from "../../src/shared/searchEventQuery.js";
+import { readEventQuery, regionOf, regionPartOf, type EventQuery } from "../../src/shared/searchEventQuery.js";
 import { num, seasonLabel } from "../../src/shared/format.js";
 import { stateName } from "../../src/shared/regions.js";
 import { teamNameOf } from "../../src/shared/teamTitle.js";
@@ -28,6 +28,8 @@ import { searchSeason } from "./answers/season.js";
 import { RECORD_TYPES } from "./searchHighScores.js";
 import { allowedEdits, editDistance, normalize } from "./fuzzy.js";
 import { search } from "./search.js";
+import { names } from "./query/names.js";
+import { parseContext } from "./query/context.js";
 import { seasonStats } from "./teams.js";
 import { REGION_RULESETS, pointsSystem } from "../data/roadmapRules.js";
 import { FORECAST_RUNS } from "../../src/shared/projections.js";
@@ -74,15 +76,35 @@ function seasonWord(t: string, typos = false): { season: string; rest: string; g
 }
 
 /** A query said another way that the readers already answer, and why; or null. `q` is cleaned, any case. `pre`: tried
- *  before the stat answers, whose readers would take the original the wrong way ("have 4215 and 6980 played each other"
- *  read "6980 played each other" as a team's name). */
-export function rewriteQuery(q: string): { q: string; note?: string; pre?: true } | null {
+ *  before the stat answers, whose readers would take the original the wrong way ("have 12345 and 67890 played each other"
+ *  read "67890 played each other" as a team's name). */
+/** The direction-and-region words in `q` that name something stored ("East Brunswick", a town; "North Texas
+ *  Championship", an event): rewriteQuery keeps them as typed. Nothing to look up unless a direction word is there. */
+export async function namedParts(q: string): Promise<Set<string>> {
+  const ws = squash(q.toLowerCase()).split(" "), out = new Set<string>();
+  if (!ws.some((w) => regionPartOf([w, "jersey"]))) return out;
+  const [idx, ctx] = await Promise.all([names(), parseContext()]);
+  for (let i = 0; i + 1 < ws.length; i++) {
+    for (const len of [3, 2]) {
+      const part = ws.slice(i, i + len);
+      if (part.length < len || !regionPartOf(part)) continue;
+      let named = idx.place(part.join(" "))?.kind === "city";
+      // The part and at least one word after it, as far as an event's name could run: the part alone ("north texas")
+      // is only some words of a longer name, which the query didn't type.
+      for (let k = i + len + 1; !named && k <= Math.min(ws.length, i + len + 3); k++) named = await ctx.isEvent(ws.slice(i, k).join(" "));
+      if (named) out.add(part.join(" "));
+    }
+  }
+  return out;
+}
+
+export function rewriteQuery(q: string, named: ReadonlySet<string> = new Set()): { q: string; note?: string; pre?: true } | null {
   const t = squash(q.toLowerCase());
   let m: RegExpExecArray | null;
   // Whether two teams have met: their head-to-head (every match they played on opposite alliances).
   if ((m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:and|&)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)(?:\\s+(?:each other|one another|before|against each other))?$`).exec(t))
     || (m = new RegExp(`^(?:have|has|did)\\s+${TEAM}\\s+(?:ever\\s+)?(?:played|faced|met|play|face|meet)\\s+(?:against\\s+)?${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} head to head`, pre: true };
-  // A team at a state championship by its short name ("4215 record at nj states", "4215 match 12 at nj states"):
+  // A team at a state championship by its short name ("12345 record at nj states", "12345 match 12 at nj states"):
   // that state's championship among the team's events.
   if ((m = /^(\d{1,6}(?:\s+vs\.?\s+\d{1,6})?)\s+(.*?)\s*\b(?:at|in)\s+(?:the\s+)?(.+?)\s+(?:states|state championships?|state champs|championship)$/.exec(t)) && regionOf(m[3].split(" "))) {
     const r = regionOf(m[3].split(" "))!;
@@ -132,11 +154,11 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = /^(?:all\s+)?(?:the\s+)?(?:ftc\s+)?(events?|meets?|competitions?|tournaments?)(?:\s+(?:this|ths|tis|thsi|current)(?:\s+(?:season|year))?)?$/.exec(t))) {
     return { q: `${m[1].replace(/s?$/, "s")} in ${seasonLabel(CURRENT_SEASON).replace("–", "-")}`, pre: true };
   }
-  // A question opened with filler ("so like what was 4215 last game"): the question.
+  // A question opened with filler ("so like what was 12345 last game"): the question.
   if ((m = /^(?:(?:so|like|um+|uh+|ok|okay|hey|yo|bro)\s+)+((?:what|who|when|where|how|which|is|are|did|does|has|have)\b.+|\d{1,6}\b.+)$/.exec(t))) return { q: m[1], pre: true };
-  // A team's matches "in" an event, said as "at" ("4215 matches in worlds").
+  // A team's matches "in" an event, said as "at" ("12345 matches in worlds").
   if ((m = /^(\d{1,6})\s+(matches|match|games?|record)\s+in\s+(worlds|first championship|world championships?)$/.exec(t))) return { q: `${m[1]} ${m[2]} at worlds`, pre: true };
-  // "When did hypnotic last play", "when did 4215 play last", "when did they last compete": the team's most recent match.
+  // "When did hypnotic last play", "when did 12345 play last", "when did they last compete": the team's most recent match.
   if ((m = new RegExp(`^when\\s+(?:did|was|were)\\s+${TEAM}\\s+(?:last\\s+(?:play|played|compete|competed|playing|competing)|(?:play|compete)\\s+last)$`).exec(t))) return { q: `${m[1]} last match`, pre: true };
   // No-shows and disqualifications are counted in the team's reliability.
   if ((m = /^(\d{1,6})\s+(?:no[\s-]?shows?|dqs?|disqualifications?|disqualified)$/.exec(t))) return { q: `${m[1]} reliability`, note: "no-shows and disqualifications are counted in reliability", pre: true };
@@ -153,7 +175,7 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = /^(\d{1,6})\s+(?:events?|competitions?|tournaments?)\s+(?:this|current)\s+(?:season|year)$/.exec(t))) return { q: `${m[1]} events in ${seasonLabel(searchSeason()).replace("–", "-")}`, pre: true };
   // A team's world rank: by OPR, as on Rankings.
   if ((m = /^(\d{1,6})\s+(?:world|global|worldwide|overall)\s+(?:rank|ranking|standing)$/.exec(t))) return { q: `${m[1]} opr`, note: "the world rank by OPR; the prediction rating has its own (\"" + m[1] + " prediction rating\")", pre: true };
-  // A team's rank in a place, said with the place first ("4215 nj rank").
+  // A team's rank in a place, said with the place first ("12345 nj rank").
   if ((m = /^(\d{1,6})\s+(.+?)\s+(?:rank|ranking|standing)$/.exec(t)) && regionOf(m[2].split(" "))) return { q: `${m[1]} rank in ${regionOf(m[2].split(" "))!.name}` };
   // A team's next match, asked as a win chance.
   if ((m = /^(\d{1,6})\s+(?:win\s+(?:probability|chance|odds)|chance of winning|odds)\s+(?:in\s+|for\s+)?(?:the\s+|their\s+)?next\s+(?:match|game)$/.exec(t))) return { q: `will ${m[1]} win their next match` };
@@ -161,14 +183,14 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = /^(?:who won\s+)?(?:the\s+)?(inspire|think|innovate|design|motivate|connect|control|reach|sustain|compass|promote|judges)(?:\s+award)?(?:\s+winners?)?\s+(?:at\s+|in\s+)?(.+)$/.exec(t)) && !/^who won (?:the )?\w+ at /.test(t)) {
     if (readEventQuery(squash(m[2])) || /\b(?:states|championship|qualifier|meet|league|premier|division)\b/.test(m[2])) return { q: `who won ${m[1]} at ${m[2]}` };
   }
-  // A team number with its home state after it ("6980 texas"): one team, the place adds nothing.
+  // A team number with its home state after it ("67890 texas"): one team, the place adds nothing.
   if ((m = /^(\d{1,6})\s+(.+)$/.exec(t)) && regionOf(m[2].split(" ")) && regionOf(m[2].split(" "))!.name.toLowerCase() === m[2]) return { q: m[1], note: `a team number names one team, so "${titleCase(m[2])}" is left out` };
-  // Three or four team numbers side by side ("compare 4215 6980 16461", "compare 4215, 6980 and 16461"); Compare holds
+  // Three or four team numbers side by side ("compare 12345 67890 16461", "compare 12345, 67890 and 16461"); Compare holds
   // four. Numbers only: a name may hold "and" ("Nuts and Bolts"), so names are compared with "vs", and two teams with a
   // word between them are the rule below's.
   if ((m = /^(?:compare|comparing|comparison of|compare teams?)\s+(\d{1,6}(?:(?:\s*,\s*|\s+)(?:(?:and|with|&|vs\.?|versus)\s+)?\d{1,6})+)$/.exec(t))) {
     const list = m[1].split(/[^\d]+/).filter(Boolean);
-    // Bare numbers with only spaces may hold a year ("compare 4215 2024" is 4215's 2024 season); a list joined by
+    // Bare numbers with only spaces may hold a year ("compare 12345 2024" is 12345's 2024 season); a list joined by
     // "and" or "vs" names teams.
     const bare = !/[^\d\s]/.test(m[1]);
     if ((list.length > 2 || bare) && list.length <= 4 && new Set(list).size === list.length && !(bare && list.some((n) => /^(?:19|20)\d\d$/.test(n)))) return { q: list.join(" vs ") };
@@ -179,7 +201,7 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = new RegExp(`^(?:who|which(?: team)?)\\s+(?:is|s|'s)\\s+(?:better|stronger)\\s*:?\\s+${TEAM}\\s+(?:or|and|vs\\.?)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]}` };
   if ((m = new RegExp(`^who\\s+(?:would|will|is going to|wins)\\s*(?:win)?\\s+(?:between\\s+)?${TEAM}\\s+(?:or|and)\\s+${TEAM}$`).exec(t))) return { q: `${m[1]} vs ${m[2]} who wins` };
   if ((m = new RegExp(`^${TEAM}\\s+(?:or|and)\\s+${TEAM}\\s+(?:who wins|who would win|who will win|which is better|who is better)$`).exec(t))) return { q: `${m[1]} vs ${m[2]}${/win/.test(t) ? " who wins" : ""}` };
-  // Two numbers are two teams, unless one is a year ("4215 2024" and "2024 4215" are 4215's 2024 season).
+  // Two numbers are two teams, unless one is a year ("12345 2024" and "2024 12345" are 12345's 2024 season).
   const year = (n: string) => /^(?:19|20)\d\d$/.test(n);
   if ((m = /^(\d{1,6})(?:\s*[,&]\s*|\s+(?:and\s+|or\s+)?)(\d{1,6})$/.exec(t)) && m[1] !== m[2] && year(m[1]) === year(m[2])) return { q: `${m[1]} vs ${m[2]}` };
   // A team's quality, asked the short way.
@@ -211,14 +233,14 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = /^(?:the\s+)?inspire(?: award)? (?:winners?|winner list)(?: (?:in|from|at))? (.+)$/.exec(t)) && regionOf(m[1].split(" "))) {
     return { q: `who won inspire at ${m[1]} states`, note: `the Inspire Award at the ${regionOf(m[1].split(" "))!.name} championship` };
   }
-  // A team's Worlds or states history, asked with no verb: "4215 worlds", "bad wolf states history".
+  // A team's Worlds or states history, asked with no verb: "12345 worlds", "bad wolf states history".
   if ((m = /^(.+?)\s+(worlds|states|state championships?|first championship)(?:\s+(?:history|appearances|record|results))?$/.exec(t)) && !regionOf(m[1].split(" ")) && !readEventQuery(squash(q))?.region
     && !/\b(?:meets?|events?|teams?|top|best|who|when|where|q|quals?|qualification|match(?:es)?|finals?|semis?|playoffs?|rankings?|awards?|will|did|does|do|can|has|have|advance|qualify|go|went|make|to|at|in|for)\b|\bq\d/.test(m[1])
     // "all state championships" lists them; "the bad wolf worlds" is still Bad Wolf's.
     && !/^(?:all|every|list|show)(?:\s|$)/.test(m[1]) && !/^(?:the|a|an)$/.test(m[1])) {
     return { q: `when did ${m[1]} go to ${/^worlds|first/.test(m[2]) ? "worlds" : "states"}` };
   }
-  // A team's wins and awards: "has 4215 won an event" (its event wins and awards), "did 4215 win inspire", "4215 inspire".
+  // A team's wins and awards: "has 12345 won an event" (its event wins and awards), "did 12345 win inspire", "12345 inspire".
   if ((m = /^(?:has|have|did)\s+(.+?)\s+(?:ever\s+)?(?:won|win)\s+(?:an?\s+|any\s+)?(?:event|events|tournament|competition|anything)$/.exec(t))) return { q: `has ${m[1]} won anything` };
   if ((m = /^(?:did|has)\s+(.+?)\s+(?:ever\s+)?(?:win|won|get|got)\s+(?:the\s+|an?\s+)?(inspire|think|innovate|design|motivate|connect|control|reach|sustain|compass)(?:\s+award)?$/.exec(t)) || (m = /^(\d{1,6})\s+(inspire|think|innovate|design|motivate|connect|control|reach|sustain|compass)(?:\s+awards?)?$/.exec(t))) return { q: `${m[1]} awards`, note: `the ${titleCase(m[2])} Award among their awards` };
   if ((m = /^(.+?)\s+(?:event wins|events won|tournament wins)$/.exec(t))) return { q: `has ${m[1]} won anything` };
@@ -226,7 +248,7 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   if ((m = /^(\d{1,6})\s+(?:losses|career record|all[\s-]time record|overall record|win[\s-]loss(?: record)?|w[\s-]?l(?:[\s-]?t)?)$/.exec(t))) return { q: `${m[1]} record` };
   if ((m = /^(\d{1,6})\s+(?:total matches|match count|matches played|games played|all matches)$/.exec(t))) return { q: `${m[1]} matches` };
   if ((m = /^(\d{1,6})\s+(?:seasons(?: played)?|years(?: active)?|past seasons)$/.exec(t))) return { q: `${m[1]} history` };
-  // A game's name after a team ("4215 decode", "4215 awards into the deep") is that season.
+  // A game's name after a team ("12345 decode", "12345 awards into the deep") is that season.
   for (const s of SEASONS) {
     const g = new RegExp(`^(\\d{1,6}|.+?)\\s+(?!in\\s)(.*?)\\b(${s.game.toLowerCase().split(" ").join("\\s*")})(?:\\s+season)?$`).exec(t);
     if (g && !/\b(?:in|during|the)\s*$/.test(`${g[1]} ${g[2]}`.trim()) && /^\d{1,6}$/.test(g[1])) return { q: squash(`${g[1]} ${g[2]} in ${s.game}`) };
@@ -236,8 +258,19 @@ export function rewriteQuery(q: string): { q: string; note?: string; pre?: true 
   // A rookie list said without "in" ("rookie teams new jersey", "nj rookie teams").
   if (((m = /^rookies?(?:\s+teams?)?\s+(?!in\s|from\s)(.+)$/.exec(t)) || (m = /^(.+?)\s+rookies?(?:\s+teams?)?$/.exec(t))) && regionOf(m[1].split(" "))) return { q: `rookie teams in ${regionOf(m[1].split(" "))!.name.toLowerCase()}` };
   if ((m = /^(.+?)\s+(?:in my (?:state|area|region|city|town)|near me|around me|close to me|nearby)$/.exec(t)) && !BARE_KIND.test(m[1])) return { q: m[1], note: `where you are isn't known, so this is everyone's: add a place ("${m[1]} in NJ")` };
-  // New Jersey's halves name no region of their own.
-  if (/\b(?:north|south|central|northern|southern)\s+jersey\b/.test(t)) return { q: t.replace(/\b(?:north|south|central|northern|southern)\s+jersey\b/, "new jersey"), note: "North, South and Central Jersey aren't separate regions: all of New Jersey" };
+  // A part of a region ("north jersey", "northern california") names no region of its own: the whole region, said so.
+  const ws = t.split(" ");
+  // The words as typed, for the regions read by case ("northern IN" is Indiana, "northern in" isn't).
+  const typedWs = squash(q).split(" ");
+  const as = typedWs.length === ws.length ? typedWs : ws;
+  for (let i = 0; i + 1 < ws.length; i++) {
+    for (const len of [3, 2]) {
+      // Never words of a whole region ("south wales" in New South Wales) or of a stored town or event.
+      const whole = [1, 2].some((b) => i - b >= 0 && regionOf(as.slice(i - b, i + len)));
+      const part = i + len <= ws.length && !whole && !named.has(ws.slice(i, i + len).join(" ")) ? regionPartOf(as.slice(i, i + len)) : null;
+      if (part) return { q: [...ws.slice(0, i), part.region.name.toLowerCase(), ...ws.slice(i + len)].join(" "), note: `${titleCase(part.part)} isn't a separate region: all of ${part.region.name}` };
+    }
+  }
   return null;
 }
 
@@ -666,7 +699,7 @@ const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc"
 /** The last stop before "no results": a team number in the query that's a real team, or a team's name with
  *  trailing words that aren't part of it. The team, and what wasn't read, said plainly. Null when neither. */
 export async function teamFallback(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
-  // "4215's": the team's number.
+  // "12345's": the team's number.
   const ws = squash(q).split(" ").map((w) => w.replace(/^(\d{1,6})['’]s$/, "$1"));
   // A number that's a team.
   const nums = [...new Set(ws.filter((w) => /^\d{1,6}$/.test(w)))];
@@ -912,11 +945,11 @@ function regionText(code: string | null, state: string | null, country: string |
   return named ? `${named} (${code})` : code;
 }
 
-/** A team's own facts from FIRST's listing: "4215 school", "where is 4215 from", "4215 rookie year", "4215 website";
- *  its name and region; and its profile ("4215 team profile summary"): the team page's numbers for one season. */
+/** A team's own facts from FIRST's listing: "12345 school", "where is 12345 from", "12345 rookie year", "12345 website";
+ *  its name and region; and its profile ("12345 team profile summary"): the team page's numbers for one season. */
 export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
   const raw = squash(q.toLowerCase().replace(/[?]/g, ""));
-  // A season named anywhere ("4215 profile 2024-25", "4215 2024-25 profile", "4215 record this season") is the season of
+  // A season named anywhere ("12345 profile 2024-25", "12345 2024-25 profile", "12345 record this season") is the season of
   // the card's numbers, and never part of the team's name. "This season" is the latest completed one, "last" the one before.
   const sm = new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(raw);
   const full = sm ? squash(raw.replace(sm[0], " ")) : raw;
@@ -938,13 +971,13 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const teamHit = async (n: string) => (await search(String(Number(n)), 5, prefer, new Set(["team"]))).find((h) => h.kind === "team" && h.ref === String(Number(n)));
   const find = async (who: string) => {
     if (/^\d{1,6}$/.test(who)) return teamHit(who);
-    // A number with the team's own name after it ("6980 bad wolf"): that team, when the name is its own.
+    // A number with the team's own name after it ("67890 bad wolf"): that team, when the name is its own.
     const nm = /^(\d{1,6})\s+(.+)$/.exec(who);
     const h = nm ? await teamHit(nm[1]) : undefined;
     if (h && normalize(teamNameOf(h.title)) === normalize(nm![2])) return h;
     return (await search(who, 5, prefer, new Set(["team"]))).find((x) => x.kind === "team" && normalize(teamNameOf(x.title)) === normalize(who));
   };
-  // More than one fact asked at once ("4215 sponsors school", "4215 rookie year, website and sponsors"): each is
+  // More than one fact asked at once ("12345 sponsors school", "12345 rookie year, website and sponsors"): each is
   // answered. The whole name is tried first, so a team named with a fact word ("River City") is never cut short.
   let who = m[0].replace(/^(?:team|ftc)\s+/, "");
   const facts: Fact[] = [last];
@@ -1016,7 +1049,7 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     const profile: SearchCardFact[] = [
       factOf("name"), factOf("place"), ...(region ? [factOf("region")] : []),
       ...(row.rookie_year ? [{ label: "Rookie year", values: [String(row.rookie_year)], detail: `First season ${seasonLabel(Number(row.rookie_year))}` }] : []),
-      // Anything else asked with it ("4215 school and profile"), each as its own fact.
+      // Anything else asked with it ("12345 school and profile"), each as its own fact.
       ...facts.filter((f) => !["summary", "name", "place", "region", "rookie"].includes(f)).map(factOf),
       ...numbers,
     ];

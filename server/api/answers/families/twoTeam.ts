@@ -41,8 +41,8 @@ const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(
 /** A team's counted matches in scope with its robot on the field (a no-show is no meeting), newest first. */
 const counted = (ms: TeamMatch[], scope: Scope) => { const keep = inScope(scope); return ms.filter((m) => m.counted && m.onField && keep(m)).reverse(); };
 
-/** "A vs B head to head": the matches they met in, the record, and how often they were partners. `wins`: "4215 wins
- *  against 6980" leads with the first team's wins in those meetings. */
+/** "A vs B head to head": the matches they met in, the record, and how often they were partners. `wins`: "12345 wins
+ *  against 67890" leads with the first team's wins in those meetings. */
 export async function headToHead(a: AnswerTeam, b: AnswerTeam, msA: TeamMatch[], scope: Scope, opts: { wins?: boolean } = {}): Promise<StatAnswer> {
   const ms = counted(msA, scope);
   const met = ms.filter((m) => m.opponents.includes(b.number));
@@ -248,7 +248,7 @@ export async function neverPlayedAnswer(team: AnswerTeam, msAll: TeamMatch[], sc
 const PHASE_NAME = { auto: "Auto", teleop: "TeleOp", endgame: "Endgame" } as const;
 const PHASE_RULE = "Each phase's OPR is the team's season number for that phase (the points it adds to its alliance in that phase, without penalties), as its team page shows it. The better team is the higher one.";
 
-/** "4215 vs 6980 who is better at auto": both teams' season OPR for the phase, the team page's tiles, the higher named. */
+/** "12345 vs 67890 who is better at auto": both teams' season OPR for the phase, the team page's tiles, the higher named. */
 export async function phaseSideBySide(phase: "auto" | "teleop" | "endgame", a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
   const s = await bothSeasons(a.number, b.number, scope.season);
   const P = PHASE_NAME[phase];
@@ -286,7 +286,7 @@ export function reliabilityRows(rs: Reliability[]): CompareInput[] {
   ];
 }
 
-/** "4215 vs 6980 who has higher reliability": both teams' stored season reliability (the team page's), the higher named. */
+/** "12345 vs 67890 who has higher reliability": both teams' stored season reliability (the team page's), the higher named. */
 export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<StatAnswer> {
   const s = await bothSeasons(a.number, b.number, scope.season);
   const phrase = s.season != null ? ` in ${seasonLabel(s.season)}` : "";
@@ -304,7 +304,7 @@ export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope:
   };
 }
 
-/** "4215 vs 6980 who has won more awards": every award each team won, every season, as its team page's Awards counts them. */
+/** "12345 vs 67890 who has won more awards": every award each team won, every season, as its team page's Awards counts them. */
 export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: number | null = null): Promise<StatAnswer> {
   const rows = await all<{ team: number; season: number; n: number }>(`SELECT a.team, a.season, COUNT(*) n FROM awards a JOIN events e ON e.season = a.season AND e.code = a.code WHERE a.team IN (?, ?)${season != null ? " AND a.season = ?" : ""} GROUP BY a.team, a.season`, season != null ? [a.number, b.number, season] : [a.number, b.number]);
   const where = season != null ? seasonLabel(season) : "all seasons";
@@ -332,7 +332,7 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
 
 const COMPARE_RULE = "Each team's stored season numbers, as their team pages show them: OPR (the points a team adds to its alliance without penalties) and its rank among every team with an OPR that season, OPR by phase, the prediction rating (points per match ± its uncertainty) and the season's record.";
 
-/** "4215 vs 6980 compare", "4215 6980 33950 compare": the teams' season numbers in one card. */
+/** "12345 vs 67890 compare", "12345 67890 33950 compare": the teams' season numbers in one card. */
 export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<StatAnswer> {
   const s = await seasonRows(teams.map((t) => t.number), scope.season);
   const phrase = s.season != null ? `, ${seasonLabel(s.season)}` : "";
