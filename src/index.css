@@ -343,9 +343,9 @@ html.dog { --sh-background: #17130a; --color-secondary: #120f07; }
 html.dog.light { --sh-background: #fff8dc; --color-secondary: #fff8dc; }
 html.dog.dim { --sh-background: #2a2513; --color-secondary: #241f10; }
 html.dog.midnight { --sh-background: #0b0903; --color-secondary: #080602; }
-.dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.08;
+.dog-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.13;
   background: url("/dog.jpg") 0 0 / 200px 200px repeat; }
-html.light .dog-bg { opacity: 0.14; }
+html.light .dog-bg { opacity: 0.18; }
 /* The fade towards the bottom is drawn into the layers themselves, not a mask-image over them: the page
    scrolls over this layer, and a masked layer there was repainted on every scrolled frame (scroll frame
    times doubled). The grid lays the page colour over its lines (the same picture over the plain page),

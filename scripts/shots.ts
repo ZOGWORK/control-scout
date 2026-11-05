@@ -2,6 +2,7 @@
 //
 //   npm run shots -- /teams/18360 "/events/2025/AUSYQ1?tab=odds"
 //   npm run shots -- --mobile --light /predict
+//   npm run shots -- --theme dim /       (--theme light|dim|dark|midnight; --light is --theme light)
 //   npm run shots -- --out C:/tmp/shots /
 //   npm run shots -- --steps flow.json --name builder /teams
 //
@@ -56,6 +57,9 @@ const STEPS: Step[] = (() => {
 })();
 /** A route as a file-name part (long filter URLs cut to a readable length). */
 const slug = (route: string) => (route.replace(/^\//, "").replace(/[^\w-]+/g, "_") || "home").slice(0, 80);
+/** The theme the shot is in: --theme light|dim|dark|midnight (--light is light); dark, the default, when neither. */
+const THEME = opt("theme") ?? (flag("light") ? "light" : "dark");
+if (!["light", "dim", "dark", "midnight"].includes(THEME)) throw new Error(`--theme ${THEME}: light, dim, dark or midnight`);
 const LABEL = opt("name") ? `-${opt("name")!.replace(/[^\w-]+/g, "_")}` : "";
 /** Run --steps in order (a pause after each, so a video shows what happened). */
 async function runSteps(page: Page, slow: boolean) {
@@ -108,7 +112,8 @@ const STORAGE: Record<string, string> = (() => {
 const SIZES = { desktop: { width: 1440, height: 900 }, wide: { width: 2200, height: 1240 }, mobile: { width: 390, height: 844 }, narrow: { width: 320, height: 700 }, tv: { width: 1920, height: 1080 }, laptop: { width: 1366, height: 768 } } as const;
 
 
-async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, light: boolean): Promise<string> {
+async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, theme: string): Promise<string> {
+  const light = theme === "light";
   // Still by default (stable shots); --motion / --pointer / --video show animation as users see it.
   const videoSecs = VIDEO_SECS;
   const motion = flag("motion") || flag("pointer") || videoSecs > 0;
@@ -152,7 +157,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
         });`,
     });
   }
-  if (light) await ctx.addInitScript(() => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: "light", density: "comfortable", notify: {} }, updatedAt: 1 })));
+  if (theme !== "dark") await ctx.addInitScript((t) => localStorage.setItem("cs-personal:settings", JSON.stringify({ value: { theme: t, density: "comfortable", notify: {} }, updatedAt: 1 })), theme);
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -190,7 +195,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
     const video = page.video();
     await ctx.close();
     const tmp = await video!.path();
-    const file = join(out, `${vp}${light ? "-light" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-video-${slug(route)}.webm`);
+    const file = join(out, `${vp}${theme !== "dark" ? `-${theme}` : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-video-${slug(route)}.webm`);
     renameSync(tmp, file);
     if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
     return file;
@@ -202,7 +207,7 @@ async function capture(browser: Browser, route: string, vp: keyof typeof SIZES, 
   // A long list renders only the rows on screen (src/components/ui/windowing.tsx), and every row for print: a
   // picture of the whole page asks for the same, so it has no blank spacers below the first screen.
   if (full) { await page.evaluate(() => window.dispatchEvent(new Event("beforeprint"))); await page.waitForTimeout(400); }
-  const name = `${vp}${light ? "-light" : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-${slug(route)}.png`;
+  const name = `${vp}${theme !== "dark" ? `-${theme}` : ""}${flag("pointer") ? "-pointer" : ""}${q ? `-search-${q.replace(/[^\w]+/g, "_")}` : ""}${LABEL}-${slug(route)}.png`;
   const file = join(out, name);
   await page.screenshot({ path: file, fullPage: full });
   if (errors.length) console.warn(`  ! ${route}: page errors: ${errors.join(" | ")}`);
@@ -217,7 +222,7 @@ try {
   const browser = await chromium.launch();
   const files: string[] = [];
   for (const r of routes) for (const vp of viewports) {
-    const f = await capture(browser, r, vp, flag("light"));
+    const f = await capture(browser, r, vp, THEME);
     console.log(`  ✓ ${f}`);
     files.push(f);
   }
