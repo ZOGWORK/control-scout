@@ -244,6 +244,8 @@ describe("Home", () => {
     expect(screen.getByText(/replay of every 2025–26 DECODE match in order scores 73\.8% on 41,405 decisive calls/)).toBeTruthy();
     fireEvent.click(radios[1]);
     expect(screen.getByText("Season replay · 2026–27 BIOBUZZ so far")).toBeTruthy();
+    // The "Last season" tab keeps its own count while the other tab is open.
+    expect(screen.getAllByRole("radio")[0].getAttribute("aria-label")).toBe("Last season, 36,572 scored");
     expect(screen.getByText("68.4")).toBeTruthy();
     expect(screen.getByText("728 correct")).toBeTruthy();
     expect(screen.getByText("337 missed")).toBeTruthy();

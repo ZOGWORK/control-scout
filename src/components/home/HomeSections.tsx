@@ -214,8 +214,11 @@ export function PredictionRecord() {
   const view = views[tab];
   // Last season leads with today's engine on the month-by-month test (How it works › Accuracy) when that season
   // has one; the site's own full-season replay is named beside it.
-  const eng = tab === "replay" && view && !view.noneDecided ? CURRENT_ENGINE_ROWS.find((r) => r.seasonYear === view.season) : undefined;
-  const tabN = (k: RecordTab) => (k === "replay" && eng ? eng.matches : views[k]!.block.n);
+  // Tied to the "Last season" replay, not to the selected tab, so that tab's count stays put while the other is open.
+  const last = views.replay;
+  const lastEng = last && !last.noneDecided ? CURRENT_ENGINE_ROWS.find((r) => r.seasonYear === last.season) : undefined;
+  const eng = tab === "replay" ? lastEng : undefined;
+  const tabN = (k: RecordTab) => (k === "replay" && lastEng ? lastEng.matches : views[k]!.block.n);
   return (
     <section aria-labelledby="record-title" className="min-w-0 rounded-2xl border border-line bg-card p-5 max-sm:p-4 @2xl/home:p-6">
       <Kicker>The public track record</Kicker>
