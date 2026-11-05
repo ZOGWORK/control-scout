@@ -7,9 +7,9 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer, StatMatchRow } from "../../../shared/searchStat";
 import { TONES } from "../../StatTile";
-import { RankPill, RecordText, ResultPill, RichText } from "./answerCells";
+import { RankPill, RecordText, ResultPill, RichText, better } from "./answerCells";
 import { MatchBox } from "./MatchBox";
-import { StatAnswerCard, better } from "./StatAnswer";
+import { StatAnswerCard } from "./StatAnswer";
 
 afterEach(cleanup);
 const html = (n: React.ReactNode) => render(<MemoryRouter>{n}</MemoryRouter>).container;

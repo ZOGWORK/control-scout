@@ -50,6 +50,7 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
         <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
           <EventMarker type={r.type} />
           <Link to={r.event.href} className="break-words font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.event.label}</Link>
+          {!!r.type && <EventMarker type={r.type} chip />}
           {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
         </span>
       </div>

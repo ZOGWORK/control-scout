@@ -1,7 +1,7 @@
 // The colour language every /search answer card's numbers speak, taken from the team and event pages: a rank as a
 // pill (the search podium's 1st green, 2nd blue, 3rd orange with a medal; the rest neutral), a W-L-T record with
-// wins green and losses red, a win or loss its own chip, an OPR with a small bar against the best one listed (in
-// its phase's colour where the column is a phase), a season as the header's season badge, an event's type as the
+// wins green and losses red, a win or loss its own chip, an OPR with a small teal bar against the best one listed (in
+// its phase's colour where the column is a phase; never gold), a season as the header's season badge, an event's type as the
 // Events cards' type colour. Drawn from the text the server sends: a cell that isn't in a known shape stays plain.
 import type { ReactNode } from "react";
 import { Award, Medal, Trophy } from "lucide-react";
@@ -60,16 +60,12 @@ export function ResultChip({ text }: { text: string }) {
 /** A season ("2025–26") as the header's season badge. */
 export const SeasonChip = ({ text }: { text: string }) => <Badge variant="secondary" className="tabular-nums" data-season-chip>{text}</Badge>;
 
-/** An event's type as a dot in its Events-card colour; with `chip`, the type's label beside it on wider screens. */
+/** An event's type as a dot in its Events-card colour; with `chip`, its type chip instead (wider screens only). */
 export function EventMarker({ type, chip }: { type: string | null | undefined; chip?: boolean }) {
   if (type === undefined) return null;
   const tone = EVENT_TYPE_TONE[type ?? ""];
-  return (
-    <>
-      <span aria-hidden className={cn("mr-1.5 inline-block size-2 shrink-0 rounded-full align-middle", tone?.bar ?? "bg-muted-foreground/50")} data-event-marker={type ?? ""} />
-      {chip && type && <EventTypeChip type={type} label={eventTypeLabel(type)} className="ml-1.5 align-middle max-md:hidden" />}
-    </>
-  );
+  if (chip) return type ? <EventTypeChip type={type} label={eventTypeLabel(type)} className="ml-1.5 align-middle max-md:hidden" /> : null;
+  return <span aria-hidden className={cn("mr-1.5 inline-block size-2 shrink-0 rounded-full align-middle", tone?.bar ?? "bg-muted-foreground/50")} data-event-marker={type ?? ""} />;
 }
 
 type Col = { key: string; label: string; num?: boolean };
@@ -110,7 +106,7 @@ export function Cell({ col, value, max, phase }: { col: Col; value: string | num
     return (
       <span className="inline-flex flex-col items-end gap-0.5" data-opr-cell>
         <span className={cn("font-semibold", phase ? TONES[phase].text : "text-foreground")}>{text}</span>
-        <span className="block w-12" data-opr-bar><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: phase ? TONES[phase].bar : TONES.accent.bar }]} /></span>
+        <span className="block w-12" data-opr-bar><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: phase ? TONES[phase].bar : TONES.teal.bar }]} /></span>
       </span>
     );
   }
@@ -154,4 +150,15 @@ export function ResultPill({ text }: { text: string }) {
   if (/\b(award|alliance|winner|finalist|inspire|think|connect|innovate|control|motivate|design|reach|sustain)\b/i.test(text)) return <span className={cn(box, TONES.violet.chip, "border-transparent")}><Award className="size-3" aria-hidden />{text}</span>;
   if (/^(auto|tele-?op|end-?game)\b/i.test(text)) { const t: Tone = /^auto/i.test(text) ? "sky" : /^tele/i.test(text) ? "emerald" : "violet"; return <span className={cn(box, TONES[t].chip, "border-transparent")}>{text}</span>; }
   return <span className={cn(box, "border-border bg-muted/50 text-foreground")}>{text}</span>;
+}
+
+/** Which of two teams' numbers in a row is the better one ("a", "b", or null on a tie or a word): the higher, but
+ *  the lower for a rank, a miss or penalties. */
+export function better(label: string, a: unknown, b: unknown): "a" | "b" | null {
+  if (a == null || b == null) return null;
+  const n = (x: unknown) => Number(String(x).replace(/[#,%+]/g, "").replace("−", "-"));
+  const x = n(a), y = n(b);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x === y || String(a).trim() === "" || String(b).trim() === "") return null;
+  const low = /pen|foul|rank|miss/i.test(label) || String(a).startsWith("#");
+  return (low ? x < y : x > y) ? "a" : "b";
 }

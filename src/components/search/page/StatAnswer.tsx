@@ -16,7 +16,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { OPR_CARDS, OPR_TONE, oprRankHint } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
-import { Cell, EventMarker, HeadlineValue, RecordText, RichText, SeasonChip, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
@@ -277,17 +277,6 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   );
 }
 
-/** Which of two teams' numbers in a row is the better one ("a", "b", or null on a tie or a word): the higher, but
- *  the lower for a rank, a miss or penalties. */
-export function better(label: string, a: unknown, b: unknown): "a" | "b" | null {
-  if (a == null || b == null) return null;
-  const n = (x: unknown) => Number(String(x).replace(/[#,%+]/g, "").replace("−", "-"));
-  const x = n(a), y = n(b);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || x === y || String(a).trim() === "" || String(b).trim() === "") return null;
-  const low = /pen|foul|rank|miss/i.test(label) || String(a).startsWith("#");
-  return (low ? x < y : x > y) ? "a" : "b";
-}
-
 /** Matches in a table with both alliances' teams (a season's top combined scores): a row each, its place as a podium
  *  badge, the number it ranks by with a thin bar (scaled from the lowest listed to the top, so the gaps show), the
  *  red and blue scores in their colours (the winner bold), the match, its event with its type, and both alliances as
@@ -323,6 +312,7 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                 <span className="min-w-0 flex-1 basis-48 text-xs">
                   <EventMarker type={r.type} />
                   {r.eventHref ? <Link to={r.eventHref} className="font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.cells.event}</Link> : r.cells.event}
+                  {!!r.type && <EventMarker type={r.type} chip />}
                   {r.cells.date && <span className="text-muted-foreground"> · {r.cells.date}</span>}
                 </span>
                 {r.teams && (
