@@ -1,0 +1,144 @@
+// What a query asks for, from the symbols it holds (docs/search-pipeline.md, "Intent"): one table, read in any word
+// order. A rule names the symbols it needs (`all`) and the ones it takes in when they're there (`opt`), and how many
+// teams it's about. The rule that explains the most of the query wins; a symbol no rule explains leaves the query to
+// search's older readers, never to a guess. A new way to ask is a new phrase in ./lexicon.ts or a rule here.
+
+/** The answer kinds the executor (./execute.ts) knows. Team intents are the stat answers' own ids
+ *  (server/api/answers/read.ts IntentId); the rest are the pipeline's. */
+export type PipelineIntent =
+  // One team.
+  | "highest-score" | "lowest-score" | "biggest-win" | "biggest-loss" | "closest-match" | "first-match" | "recent-match" | "last-matches"
+  | "best-finish" | "worst-finish" | "average-rank" | "first-event" | "last-event" | "best-opr-event" | "best-season" | "first-season"
+  | "wins-count" | "losses" | "ties-count" | "record" | "win-percent" | "average-score" | "median-score" | "average-margin" | "total-points"
+  | "total-matches" | "total-events" | "seasons-count" | "current-streak" | "longest-streak" | "highest-auto" | "highest-teleop" | "highest-endgame"
+  | "most-penalties" | "penalties" | "score-range" | "score-consistency" | "awards" | "total-awards" | "results" | "event-rank" | "event-opr"
+  | "best-partner" | "partners" | "opponents" | "team-opr" | "team-rating" | "team-predict" | "playoff-matches" | "qual-matches"
+  // Two teams.
+  | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
+  // No team.
+  | "top-matches" | "leaderboard";
+
+export interface IntentRule {
+  id: PipelineIntent;
+  teams: 0 | 1 | 2;
+  /** Symbols the rule needs ("agg:max", "metric:score", "predict"). */
+  all: string[];
+  /** Symbols it takes in when present. */
+  opt?: string[];
+  /** The query must name an event or a state championship ("4215 rank at nj states"). */
+  event?: boolean;
+  /** The query must name no event. */
+  noEvent?: boolean;
+  /** A count asked for ("top 5", "last 10 matches"). */
+  n?: boolean;
+}
+
+const SCORE_LIKE = ["metric:score", "thing:match", "thing:event"];
+const R = (id: PipelineIntent, teams: 0 | 1 | 2, all: string[], opt: string[] = [], more: Partial<IntentRule> = {}): IntentRule => ({ id, teams, all, opt, ...more });
+
+/** Every rule. Order breaks a tie between rules that explain the same symbols. */
+export const INTENTS: IntentRule[] = [
+  // One team: the best or worst of its matches.
+  R("highest-score", 1, ["agg:max", "metric:score"], ["thing:match", "thing:event", "nopen"]),
+  R("lowest-score", 1, ["agg:min", "metric:score"], ["thing:match", "thing:event", "nopen"]),
+  R("biggest-win", 1, ["agg:max", "metric:win"], ["metric:margin", "thing:match", "outcome:W"]),
+  R("biggest-win", 1, ["agg:max", "metric:margin"], ["outcome:W", "thing:match"]),
+  R("biggest-loss", 1, ["agg:max", "metric:loss"], ["metric:margin", "thing:match", "outcome:L"]),
+  R("closest-match", 1, ["agg:closest"], ["thing:match", "metric:win", "metric:loss", "metric:margin", "metric:score", "outcome:W", "outcome:L"]),
+  R("closest-match", 1, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
+  R("highest-auto", 1, ["agg:max", "metric:auto"], SCORE_LIKE),
+  R("highest-teleop", 1, ["agg:max", "metric:teleop"], SCORE_LIKE),
+  R("highest-endgame", 1, ["agg:max", "metric:endgame"], SCORE_LIKE),
+  R("most-penalties", 1, ["agg:max", "metric:penalty"], SCORE_LIKE),
+  R("first-match", 1, ["agg:first", "thing:match"], ["agg:max"]),
+  R("last-matches", 1, ["agg:last", "thing:match"], ["metric:score"], { n: true }),
+  R("recent-match", 1, ["agg:last", "thing:match"], ["metric:score"]),
+  // Its events and seasons.
+  R("best-finish", 1, ["agg:max", "metric:rank"], ["thing:event"], { noEvent: true }),
+  R("worst-finish", 1, ["agg:min", "metric:rank"], ["thing:event"], { noEvent: true }),
+  R("average-rank", 1, ["agg:mean", "metric:rank"], ["thing:event"], { noEvent: true }),
+  R("first-event", 1, ["agg:first", "thing:event"], [], { noEvent: true }),
+  R("last-event", 1, ["agg:last", "thing:event"], [], { noEvent: true }),
+  R("best-opr-event", 1, ["agg:max", "metric:opr", "thing:event"], [], { noEvent: true }),
+  R("best-season", 1, ["agg:max", "thing:season"], [], { noEvent: true }),
+  R("first-season", 1, ["agg:first", "thing:season"], [], { noEvent: true }),
+  // Counts, means and records over its matches.
+  R("wins-count", 1, ["agg:count", "metric:win"], ["thing:match"]),
+  R("losses", 1, ["metric:loss"], ["agg:count", "thing:match"]),
+  R("ties-count", 1, ["metric:tie"], ["agg:count", "thing:match"]),
+  R("record", 1, ["metric:record"], ["metric:win", "metric:loss", "metric:tie", "thing:match"]),
+  R("win-percent", 1, ["metric:winrate"], ["thing:match"]),
+  R("average-score", 1, ["agg:mean", "metric:score"], ["thing:match", "nopen"]),
+  R("median-score", 1, ["agg:median", "metric:score"], ["thing:match"]),
+  R("average-margin", 1, ["agg:mean", "metric:margin"], ["outcome:W", "outcome:L", "metric:win", "thing:match"]),
+  R("total-points", 1, ["agg:sum", "metric:score"], ["thing:match"]),
+  R("total-matches", 1, ["agg:count", "thing:match"], ["agg:sum"]),
+  R("total-events", 1, ["agg:count", "thing:event"], ["agg:sum"], { noEvent: true }),
+  R("seasons-count", 1, ["agg:count", "thing:season"], [], { noEvent: true }),
+  R("longest-streak", 1, ["agg:max", "metric:streak"], ["metric:win", "outcome:W"]),
+  R("current-streak", 1, ["metric:streak"], ["agg:last", "metric:win", "metric:loss", "outcome:W", "outcome:L"]),
+  R("penalties", 1, ["metric:penalty"], ["agg:mean", "thing:match"]),
+  R("score-range", 1, ["metric:range"], ["metric:score"]),
+  R("score-consistency", 1, ["metric:consistency"], ["metric:score"]),
+  R("playoff-matches", 1, ["level:playoff", "thing:match"], ["list"], { noEvent: true }),
+  R("qual-matches", 1, ["level:qual", "thing:match"], ["list"], { noEvent: true }),
+  // Awards.
+  R("total-awards", 1, ["agg:count", "metric:award"], ["agg:sum", "metric:win"]),
+  R("awards", 1, ["metric:award"], ["list", "agg:first", "agg:last", "metric:win"]),
+  // At one event.
+  R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
+  R("event-rank", 1, ["metric:rank"], [], { event: true }),
+  R("event-opr", 1, ["metric:opr"], [], { event: true }),
+  // A state championship alone ("24033 states"): the team's results there.
+  R("results", 1, ["states"], ["list"]),
+  // Partners and opponents.
+  R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),
+  R("partners", 1, ["metric:partner"], ["list", "thing:team"]),
+  R("opponents", 1, ["metric:opponent"], ["list", "thing:team"]),
+  // The team's own numbers: its OPR, its rating, its forecast.
+  R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
+  R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),
+  R("team-predict", 1, ["predict"], ["metric:win", "metric:record", "metric:score", "metric:rank", "thing:event", "thing:match", "agg:next", "metric:playoffs"]),
+  // Two teams.
+  R("two-predict", 2, ["predict"], ["vs", "and", "compare", "metric:win", "metric:score", "metric:margin", "thing:match"]),
+  R("shared-matches", 2, ["together"], ["vs", "and", "thing:match", "list", "same-side"]),
+  R("shared-matches", 2, ["same-side"], ["vs", "and", "thing:match", "list"]),
+  R("shared-matches", 2, ["and", "thing:match"], ["list"]),
+  R("head-to-head", 2, ["vs", "metric:record"], ["thing:match", "and"]),
+  R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record"]),
+  R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
+  R("opr-vs", 2, ["metric:opr"], ["vs", "compare", "and"]),
+  R("rating-vs", 2, ["metric:rating"], ["vs", "compare", "and"]),
+  R("awards-vs", 2, ["metric:award"], ["vs", "compare", "and", "agg:max", "agg:count"]),
+  R("compare", 2, ["compare"], ["vs", "and"]),
+  R("compare", 2, ["vs"], []),
+  // No team: the best matches anywhere, and ranked lists of teams.
+  R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "nopen"]),
+  R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
+  R("leaderboard", 0, ["agg:max", "thing:team"], ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:record", "metric:win", "prep:by"]),
+];
+
+/** Symbols that are slots, never what is asked: always taken in. */
+export const SLOT_SYMBOLS = /^(?:level|alliance|worlds|states|award|prep|filler)(?::|$)/;
+
+export interface IntentPick { rule: IntentRule; unexplained: string[] }
+
+/** The rule for these symbols, `teams` teams named and an event named or not, or null. */
+export function pickIntent(symbols: Set<string>, teams: number, opts: { event: boolean; n: boolean }): IntentPick | null {
+  const atEvent = opts.event || symbols.has("states");
+  const asked = [...symbols].filter((s) => !SLOT_SYMBOLS.test(s) || s === "level:playoff" || s === "level:qual");
+  let best: { rule: IntentRule; score: number; unexplained: string[] } | null = null;
+  for (const rule of INTENTS) {
+    if (rule.teams !== Math.min(teams, 2) || (teams > 2)) continue;
+    if (rule.event && !atEvent) continue;
+    if (rule.noEvent && opts.event) continue;
+    if (rule.n && !opts.n) continue;
+    if (!rule.all.every((s) => symbols.has(s))) continue;
+    const took = new Set([...rule.all, ...(rule.opt ?? [])]);
+    // A match type is a scope for every rule but the match-type lists themselves.
+    const unexplained = asked.filter((s) => !took.has(s) && !/^level:/.test(s));
+    const score = rule.all.length * 2 + (rule.opt ?? []).filter((s) => symbols.has(s)).length - unexplained.length * 3 + (rule.n ? 1 : 0);
+    if (!best || score > best.score) best = { rule, score, unexplained };
+  }
+  return best ? { rule: best.rule, unexplained: best.unexplained } : null;
+}
