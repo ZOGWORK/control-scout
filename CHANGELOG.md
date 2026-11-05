@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.3 — 2026-11-05
 
-Search gains a reader that takes a question apart into its parts, in any word order: the groundwork for answering any phrasing the same way. Answers don't change yet. (#736)
+Search gains a reader that takes a question apart into its parts, in any word order: the groundwork for answering any phrasing the same way. Answers don't change yet.
 
 ### Highlights
 - [report] Search reads a question's parts in any word order
@@ -27,7 +27,7 @@ Search gains a reader that takes a question apart into its parts, in any word or
 ### Search
 - **The question as parts.** A new reader (`server/api/query/`) splits a question into its parts: teams, event, place, time, match type, side, Worlds or states, award, highest or lowest, a count, a match number and what's asked. It reads them in any word order and skips filler. Every word has to be explained, and a question with a word left over is left to today's search. Nothing is guessed. It isn't used to answer yet; the next release runs it first.
 - **One word list.** Every synonym, filler phrase and measure word sits in one table ("worlds" is the FIRST Championship, "opr" the offensive power rating, "record" W-L-T), and what's asked is picked by one rule table.
-- **Time and place.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season, read against today. Teams, towns, regions and countries come from the data, and a name several teams share is picked by Compare's rules or left unread.
+- **Time and place.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season, read against today. Teams, towns, regions and countries come from the data, and a name several teams share is picked by Compare's rules or left unread. (#736)
 
 ## 3.2.2 — 2026-11-05
 
