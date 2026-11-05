@@ -55,6 +55,10 @@ beforeAll(async () => {
   // A meeting still to come at the same event, its call saved before any rated match (win odds only, no score).
   await run("INSERT INTO matches (season, code, level, series, number, label, time, played, source) VALUES (2025, 'USNJQ1', 'qual', 0, 99, 'Q99', '2026-01-10T18:00:00Z', 0, 't')");
   await run("INSERT INTO predictions (kind, season, code, level, series, number, red, blue, p_red, red_mean, blue_mean, no_score_basis, tier, engine_version, predicted_at) VALUES ('live', 2025, 'USNJQ1', 'qual', 0, 99, '[4215]', '[6980]', 0.55, 100, 100, 1, 'low', 't', '2026-01-09')");
+  // Matches the cards never count, for the eval's truth: one at a remote event, one with no points without penalties.
+  await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, remote, source) VALUES (2025, 'USOHR1', 'Remote Qualifier', 'Qualifier', 'Town', 'OH', 'USA', '2025-12-01', '2025-12-01', 1, 't'), (2025, 'USOHQ1', 'Buckeye Qualifier', 'Qualifier', 'Town', 'OH', 'USA', '2025-12-02', '2025-12-02', 0, 't')");
+  await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USOHR1', 'qual', 0, 1, 'Q1', '2025-12-01T10:00:00Z', 1, 500, 500, 10, 10, 't'), (2025, 'USOHQ1', 'qual', 0, 1, 'Q1', '2025-12-02T10:00:00Z', 1, 999, NULL, 0, NULL, 't')");
+  await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USOHR1', 'qual', 0, 1, 5555, 'red', 1), (2025, 'USOHQ1', 'qual', 0, 1, 5555, 'red', 1)");
   // A Leadership Award is filed as a "Winner" too: never the event won.
   await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJQ1', 4215, 'Winner', 'Leadership Award', 1)");
   await rebuildSearch();
@@ -193,8 +197,23 @@ describe("forecasts", () => {
     const k = (await stat("4215 garden qualifier prediction")).blocks.find((b) => b.kind === "kpis");
     expect(k && k.kind === "kpis" && k.items.find((i) => i.label === "After: event")?.value).not.toBe("Won");
   });
+  it("two teams who never met there: said so, never one team's event odds", async () => {
+    const s = await stat("4215 vs 10809 at golden qualifier prediction");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toMatch(/No prediction was stored .* meeting at Golden Qualifier/);
+  });
   it("a team not listed at the event is told so, never another event", async () => {
     expect((await stat("24033 garden qualifier prediction")).none).toContain("isn't listed at Garden Qualifier");
+  });
+});
+
+describe("the eval's truth", () => {
+  it("counts the matches the cards count: never a remote event's, never one without its points", async () => {
+    const { teamTruth, newestSeason } = await import("./eval/truth");
+    expect(await teamTruth(5555, 2025)).toMatchObject({ wins: 0, losses: 2, ties: 0, matches: 2, high: [110] });
+    expect(await newestSeason(5555)).toBe(2025);
+    // The card agrees.
+    expect((await stat("5555 highest score")).headline?.value).toBe("110 points");
   });
 });
 
