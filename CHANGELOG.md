@@ -25,7 +25,7 @@ The home track record leads with today's engine: 74.8% of 2025–26 winners call
 - [home] The site's full-season replay (73.8%) is named right below it
 
 ### Changes
-- **Today's engine on the home page.** The track record's "Last season" tab (was "Season replay") shows engine 3.5 on the month-by-month test from How it works › Accuracy: 74.8% on 2025–26, 27,354 of 36,572 matches with a winner at rated events. The line below names the site's own replay of every match in order (73.8% on 41,405 decisive calls) and says the two use different match lists. "This season so far" is unchanged. (#PR)
+- **Today's engine on the home page.** The track record's "Last season" tab (was "Season replay") shows engine 3.5 on the month-by-month test from How it works › Accuracy: 74.8% on 2025–26, 27,354 of 36,572 matches with a winner at rated events. The line below names the site's own replay of every match in order (73.8% on 41,405 decisive calls) and says the two use different match lists. "This season so far" is unchanged. (#720)
 
 ## 3.1.5 — 2026-11-04
 
