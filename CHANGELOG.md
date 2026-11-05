@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.1.9 — 2026-11-04
 
-Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data.
+Search reads a question as its parts in any order (team, event, place, time, what's asked) and answers from the data. (#713)
 
 ### Highlights
 - [teams] Any word order, any filler: one question gets one answer card

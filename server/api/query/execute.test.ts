@@ -115,6 +115,15 @@ describe("what the pipeline leaves to the other readers", () => {
     const a = await ask("4215 vs 6980 opr in romania");
     expect(a.stat?.scope ?? []).not.toContain("Events in Romania");
   });
+  it("a win streak is wins only; one award named is left to the readers that count it alone", async () => {
+    const { parseQuery } = await import("./parse");
+    const { parseContext } = await import("./context");
+    const ctx = await parseContext(NOW);
+    expect(await parseQuery("4215 current win streak", ctx)).toMatchObject({ intent: "current-streak", symbols: expect.arrayContaining(["outcome:W"]), complete: true });
+    expect(await parseQuery("4215 losing streak", ctx)).toMatchObject({ intent: "current-streak", symbols: expect.arrayContaining(["outcome:L"]), complete: true });
+    expect((await parseQuery("4215 vs 6980 inspire awards", ctx)).complete).toBe(false);
+    expect(await parseQuery("4215 vs 6980 awards", ctx)).toMatchObject({ intent: "awards-vs", complete: true });
+  });
   it("margin of victory is wins only", async () => {
     const { parseQuery } = await import("./parse");
     const { parseContext } = await import("./context");
