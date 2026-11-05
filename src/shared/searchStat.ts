@@ -40,6 +40,8 @@ export interface StatMatchRow {
   phases?: { auto: number | null; teleop?: number | null; endgame?: number | null; pen?: number | null; teleopWithEndgame?: boolean } | null;
   /** Its place in a ranked list (1 is the top score). */
   rank?: number;
+  /** Why it's listed, when a list mixes reasons (a team's highlights: "Best score", "Biggest win"). */
+  note?: string;
   /** The team the row is about (not in `partners`): the first chip on its alliance. Each row its own (a list of
    *  matches across several teams). */
   self?: StatLink;

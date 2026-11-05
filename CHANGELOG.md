@@ -30,6 +30,18 @@ The site looks as it did yesterday, and the owner has a dog theme to switch on w
 - **Team colours.** Compared teams on search answers are sky blue, orange and green again, as the results guide's colour-blind-safe set.
 - **Dog theme.** A new switch in the owner console's Features tab, off until the owner turns it on: every theme's page and sidebar tinted yellow, with a real dog photo faintly across the background. Cards, text and answer colours stay as they are.
 
+## 3.2.7 — 2026-11-05
+
+Searching a team's number or name now shows its highlights: its standout matches of the season, each with its video when one exists.
+
+### Highlights
+- [teams] A team search shows its best matches of the season
+- [teams] Each highlight says why it's there: best score, biggest win, playoffs
+- [teams] Highlights with a match video play right on the answer
+
+### Search
+- **A team's highlights.** A search for one team alone ("4215", or its name) opens the results page, which answers with its standout matches of its latest season with matches (or the season the search names, "4215 2024-25"): its best score (points without penalties), biggest win, latest playoff win, best Auto and closest win, each match listed once under the first reason it meets, with a label saying which. Only matches its robot played in count, and points are never compared across seasons. Each match box links to the match, and the answer's video plays the best score's clip when the match has one, with each other highlight's clip one tap away. A team with no match on record still opens its team page straight away (#770).
+
 ## 3.2.6 — 2026-11-05
 
 Every search answer card now passes the results guide's checks: colour means team, bars match their numbers, and every number is readable in every theme.
