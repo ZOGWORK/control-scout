@@ -31,7 +31,17 @@ export async function relaxed(first: SearchAnswer | null, steps: { step: Relaxat
     const a = await attempt(s.season);
     if (a && !isEmpty(a)) return said(a, taken, first);
   }
-  return first;
+  return triedAll(first, taken);
+}
+
+/** Nothing after every step: the first answer, saying which steps were tried too. */
+function triedAll(first: SearchAnswer, steps: Relaxation[]): SearchAnswer {
+  if (!first.stat || !steps.length) return first;
+  const tried = `Nothing in ${steps.map((s) => s.to).join(" or ")} either: the time filter was relaxed in order (${steps.map((s) => `${s.from} → ${s.to}`).join(", then ")}) and every other filter kept as asked.`;
+  return {
+    ...first, stat: { ...first.stat, none: `${first.stat.none!.replace(/\.?$/, ".")} ${tried}` },
+    ...(first.intent ? { intent: { ...first.intent, pattern: `${first.intent.pattern} [relaxed-none:${steps.map((s) => s.filter).join(">")}]` } } : {}),
+  };
 }
 
 /** The answer, stating the steps: a chip, a sentence in its definition, and its heading. */

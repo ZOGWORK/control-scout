@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.0 — 2026-11-04
 
-When a question's time window has nothing in it, search widens it one step at a time and says so on the card.
+When a question's time window has nothing in it, search widens it one step at a time and says so on the card. (#715)
 
 ### Highlights
 - [teams] Nothing this week? The season's answer, marked as relaxed

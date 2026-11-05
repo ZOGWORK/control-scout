@@ -92,6 +92,18 @@ describe("place and time are applied and stated", () => {
     expect(s.none).toBeTruthy();
     expect(s.scope.some((c) => c.startsWith("Relaxed"))).toBe(false);
   });
+  it("a window with its year typed keeps that year", async () => {
+    for (const q of ["highest scoring match in California in february 2026", "highest scoring match in California on feb 3 2026"]) {
+      const s = await stat(q);
+      expect(s.none, q).toBeTruthy();
+      expect(s.scope.some((c) => c.startsWith("Relaxed")), q).toBe(false);
+    }
+  });
+  it("nothing after every step says which steps were tried", async () => {
+    const s = await stat("highest scoring match in Texas this week");
+    expect(s.headline).toBeFalsy();
+    expect(s.none).toContain("Nothing in 2025–26 or 2024–25 either");
+  });
   it("no place named is every place, never one region by default", async () => {
     const s = await stat("highest scoring match on mar 14 2026");
     expect(s.title).toBe("Highest-scoring match on Mar 14, 2026, DECODE 2025–26");

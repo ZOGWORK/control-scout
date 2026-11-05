@@ -90,7 +90,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     };
     const a = await statAnswerOf(p.q, it, opts.resolve, opts);
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
-    if (!opts.full || !scope.window || scope.season == null) return a;
+    // A window with its year typed ("march 2026", a date) keeps that year: only a window said against today is relaxed.
+    if (!opts.full || !scope.window || scope.season == null || p.time?.year != null) return a;
     return relaxed(a, windowSteps(scope.window, scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
@@ -109,7 +110,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
       ...(scope.window ? { window: scope.window } : {}), ...(p.n != null ? { n: p.n } : plural ? {} : { n: 1 }),
     };
     const a = await topSearch(p.q, t, opts);
-    if (!scope.window || scope.season == null) return a;
+    if (!scope.window || scope.season == null || p.time?.year != null) return a;
     return relaxed(a, windowSteps(scope.window, scope.season), (season) => topSearch(p.q, { ...t, window: undefined, season }, opts));
   }
   if (!p.teams.length && intent === "leaderboard") {
