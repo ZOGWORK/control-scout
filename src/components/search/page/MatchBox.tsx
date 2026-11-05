@@ -5,6 +5,7 @@
 // colours. Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
 import { Link } from "react-router-dom";
 import type { StatLink, StatMatchRow } from "../../../shared/searchStat";
+import { PODIUM_CHIP } from "../../../lib/textTones";
 import { TONES, type Tone } from "../../StatTile";
 import { cn } from "../../cn";
 import { EventMarker, PODIUM } from "./answerCells";
@@ -15,7 +16,7 @@ type Who = { number: number; name: string | null };
 /** A list position: the top three in the search podium's colours, the rest a plain number. */
 export function RankBadge({ rank }: { rank: number }) {
   const tone = PODIUM[rank];
-  return <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums", tone ? TONES[tone].chip : "bg-text-base/[0.07] text-muted-foreground")} data-rank-badge={rank}>{rank}</span>;
+  return <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums", tone ? PODIUM_CHIP[rank] : "bg-text-base/[0.07] text-muted-foreground")} data-rank-badge={rank}>{rank}</span>;
 }
 
 /** A team as a chip in its alliance's colour: the number bold, the name muted (cut on narrow boxes). */

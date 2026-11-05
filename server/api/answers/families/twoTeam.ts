@@ -20,6 +20,7 @@ import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
+import { compareBlock, winShare } from "../compareBlock.js";
 
 const LIST_CAP = 25, TOP = 10;
 /** Meetings an opponent (or matches a partner) needs before "toughest" or "best" ranks it. */
@@ -129,8 +130,11 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
       ...base,
       headline: { value: verdict, label: Math.abs(d) < 0.0005 ? `Both win ${pct(rA)} of their matches` : `${pct(d > 0 ? rA : rB)} win rate against ${pct(d > 0 ? rB : rA)}`, href: Math.abs(d) < 0.0005 ? undefined : teamHref(d > 0 ? a.number : b.number, s.season) },
       blocks: [
-        { kind: "table", title: `Records, ${seasonLabel(s.season!)}`, columns: [{ key: "team", label: "Team" }, { key: "record", label: "W-L-T" }, { key: "rate", label: "Win rate", num: true }, { key: "n", label: "Matches", num: true }],
-          rows: [[a, rA], [b, rB]].map(([t, r]) => ({ cells: { team: whoOf(t as AnswerTeam), record: recText(r as Rec), rate: pct(r as Rec), n: played(r as Rec) }, href: teamHref((t as AnswerTeam).number, s.season), strong: verdict === whoOf(t as AnswerTeam) })) },
+        compareBlock(`Records, ${seasonLabel(s.season!)}`, [a, b], [
+          { label: "Win rate", values: [rateOf(rA), rateOf(rB)], show: (v) => (v == null ? "–" : `${Math.round(100 * v)}%`), better: "higher", gap: (g) => `+${Math.round(100 * g)}%` },
+          { label: "W-L-T", values: [winShare(rA), winShare(rB)], show: (_, i) => recText(i === 0 ? rA : rB), better: "higher", gap: () => "better" },
+          { label: "Matches", values: [played(rA), played(rB)], show: (v) => String(v ?? "–"), better: null },
+        ], s.season),
         predict,
       ],
     };
@@ -143,7 +147,12 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
     const missing = [va[0] == null ? whoOf(a) : "", vb[0] == null ? whoOf(b) : ""].filter(Boolean).join(" and ");
     return { ...base, blocks: [], none: `No ${opr ? "OPR" : "prediction rating"} for ${missing} in ${seasonLabel(s.season!)} yet.` };
   }
-  const bars: StatBlock = { kind: "bars", title: opr ? "OPR by phase" : "Rating by phase", unit: "pts", groups: ["Total", "Auto", "TeleOp", "Endgame"].map((label, i) => ({ label, items: [{ label: String(a.number), value: va[i], tone: "a" as const }, { label: String(b.number), value: vb[i], tone: "b" as const }] })) };
+  // Head to head, a row per phase and the world rank: no bar chart.
+  const rk = (r: SeasonRow) => (opr ? r.rank_np : r.rating_rank);
+  const bars: StatBlock = compareBlock(opr ? "OPR by phase" : "Rating by phase", [a, b], [
+    ...(["Total", "Auto", "TeleOp", "Endgame"] as const).map((label, i) => ({ label, ...(i ? { phase: (["auto", "teleop", "endgame"] as const)[i - 1] } : {}), values: [va[i], vb[i]], better: "higher" as const })),
+    ...(rk(ra) != null || rk(rb) != null ? [{ label: "World rank", values: [rk(ra), rk(rb)], show: (v: number | null | undefined) => (v == null ? "–" : `#${v.toLocaleString("en-US")}`), better: "lower" as const, gap: (g: number) => `${g.toLocaleString("en-US")} places` }] : []),
+  ], s.season);
   const d = (va[0] ?? 0) - (vb[0] ?? 0);
   const ahead = d >= 0 ? a : b;
   const rankText = (r: SeasonRow) => (opr ? (r.rank_np ? `#${r.rank_np} of ${r.ranked_teams ?? "?"}` : undefined) : r.rating_rank ? `#${r.rating_rank} worldwide` : undefined);
@@ -268,7 +277,10 @@ export async function phaseSideBySide(phase: "auto" | "teleop" | "endgame", a: A
     headline: { value: even ? "Even" : whoOf(ahead), label: even ? `Both ${num1(va)} ${P} OPR` : `${P} OPR ${num1(Math.max(va, vb))} against ${num1(Math.min(va, vb))}, +${num1(Math.abs(d))}`, href: even ? undefined : teamHref(ahead.number, s.season) },
     blocks: [
       { kind: "kpis", items: [tile(a, s.ra!, va), tile(b, s.rb!, vb)] },
-      { kind: "bars", title: `${P} OPR`, unit: "pts", groups: [{ label: P, items: [{ label: String(a.number), value: va, tone: "a" }, { label: String(b.number), value: vb, tone: "b" }] }] },
+      compareBlock(`${P} OPR`, [a, b], [
+        { label: P, phase, values: [va, vb], better: "higher" },
+        { label: `${P} rank`, values: [rk(s.ra), rk(s.rb)], show: (v) => (v == null ? "–" : `#${v.toLocaleString("en-US")}`), better: "lower", gap: (g) => `${g.toLocaleString("en-US")} places` },
+      ], s.season),
     ],
   };
 }
@@ -291,8 +303,11 @@ export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope:
     headline: { value: d === 0 ? "Even" : whoOf(ahead), label: d === 0 ? `Both ${ra.index} out of 100` : `${Math.max(ra.index, rb.index)} against ${Math.min(ra.index, rb.index)} out of 100`, sub: ra.fieldIndex != null ? `Field average ${ra.fieldIndex}` : undefined, href: d === 0 ? undefined : teamHref(ahead.number, s.season) },
     blocks: [
       { kind: "kpis", items: [tile(a, ra), tile(b, rb)] },
-      { kind: "table", title: "Breakdown", columns: [{ key: "part", label: "Part" }, { key: "a", label: String(a.number), num: true }, { key: "b", label: String(b.number), num: true }],
-        rows: parts.map(([part, f]) => ({ cells: { part, a: f(ra), b: f(rb) } })) },
+      compareBlock("Breakdown", [a, b], [
+        { label: "Reliability", values: [ra.index, rb.index], show: (v) => String(v ?? "–"), better: "higher", gap: (g) => `+${Math.round(g)}` },
+        // Every part counts against a team: fewer is better.
+        ...parts.map(([part, f]) => ({ label: part, values: [Number.parseFloat(String(f(ra))), Number.parseFloat(String(f(rb)))], show: (_: unknown, i: number) => String(f(i === 0 ? ra : rb)), better: "lower" as const, gap: (g: number) => (Number.isInteger(g) ? String(g) : g.toFixed(2)) })),
+      ], s.season),
     ],
   };
 }
@@ -313,8 +328,7 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
     headline: { value: na === nb ? "Even" : whoOf(ahead), label: na === nb ? `${count(na)} each` : `${count(Math.max(na, nb))} against ${Math.min(na, nb)}`, href: na === nb ? undefined : `${teamHref(ahead.number)}#awards` },
     blocks: [
       { kind: "kpis", items: [tile(a, na), tile(b, nb)] },
-      ...(seasons.length > 1 ? [{ kind: "table" as const, title: "By season", columns: [{ key: "season", label: "Season" }, { key: "a", label: String(a.number), num: true }, { key: "b", label: String(b.number), num: true }],
-        rows: seasons.map((x) => ({ cells: { season: seasonLabel(x), a: of(a.number, x), b: of(b.number, x) } })) }] : []),
+      ...(seasons.length > 1 ? [compareBlock("By season", [a, b], seasons.map((x) => ({ label: seasonLabel(x), values: [of(a.number, x), of(b.number, x)], show: (v: number | null | undefined) => String(v ?? 0), better: "higher" as const, gap: (g: number) => `+${g}` })))] : []),
     ],
   };
 }
@@ -336,18 +350,19 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
   // No OPR for any of them (counted matches can all be no-shows): the table, with no leader named.
   const noOpr = rows.every((r) => r?.opr_np == null);
   const rec = (r: SeasonRow): Rec => ({ wins: r.wins, losses: r.losses, ties: r.ties });
-  const tones = ["a", "b", "c", "d"] as const;
   const compareHref = `/compare?teams=${teams.map((t) => t.number).sort((x, y) => x - y).join(",")}&season=${season}`;
   const phases = ["np", "auto", "teleop", "endgame"] as const;
   return {
     ...base,
     headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : { value: whoOf(lead), label: `Highest OPR: ${num1(best.opr_np)}${best.rank_np ? ` (#${best.rank_np} of ${best.ranked_teams ?? "?"})` : ""}`, sub: `Prediction rating ${num1(best.rating_np)} · record ${recText(rec(best))}`, href: teamHref(lead.number, season) },
     blocks: [
-      // Five columns fit a 390 px phone: the team by number (the profiles row names it), the phases in the bars below.
-      { kind: "table", title: `Season numbers, ${seasonLabel(season)}`,
-        columns: [{ key: "team", label: "Team" }, { key: "opr", label: "OPR", num: true }, { key: "rank", label: `Rank of ${(best.ranked_teams ?? 0).toLocaleString("en-US")}`, num: true }, { key: "rating", label: "Rating", num: true }, { key: "record", label: "W-L-T" }],
-        rows: rows.map((r, i) => ({ cells: { team: String(teams[i].number), opr: num1(r.opr_np), rank: r.rank_np ? `#${r.rank_np}` : "–", rating: num1(r.rating_np), record: recText(rec(r)) }, href: teamHref(teams[i].number, season), strong: !noOpr && r === best })) },
-      { kind: "bars", title: "OPR by phase", unit: "pts", groups: phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], items: rows.map((r, i) => ({ label: String(teams[i].number), value: r[`opr_${k}`], tone: tones[i % tones.length] })) })) },
+      // One head-to-head table, a column per team: OPR and its phases, the world rank, the rating and the record.
+      compareBlock(`Season numbers, ${seasonLabel(season)}`, teams, [
+        ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], ...(k !== "np" ? { phase: k } : {}), values: rows.map((r) => r[`opr_${k}`]), better: "higher" as const })),
+        { label: `Rank of ${(best.ranked_teams ?? 0).toLocaleString("en-US")}`, values: rows.map((r) => r.rank_np), show: (v) => (v == null ? "–" : `#${v.toLocaleString("en-US")}`), better: "lower", gap: (g) => `${g.toLocaleString("en-US")} places` },
+        { label: "Rating", values: rows.map((r) => r.rating_np), better: "higher" },
+        { label: "W-L-T", values: rows.map((r) => winShare(rec(r))), show: (_, i) => recText(rec(rows[i])), better: "higher", gap: () => "better" },
+      ], season),
       { kind: "links", title: "Try it", items: [{ label: "Compare side by side", href: compareHref }, ...(teams.length === 2 && !isLegacy(season) ? [{ label: `Predict ${teams[0].number} vs ${teams[1].number}`, href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : [])] },
     ],
   };

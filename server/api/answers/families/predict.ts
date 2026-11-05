@@ -20,6 +20,7 @@ import { readProjections } from "../../../projections/store.js";
 import { eventHref, teamHref } from "../matchSet.js";
 import type { IntentId } from "../read.js";
 import { whoOf, type AnswerTeam } from "./matches.js";
+import { compareBlock } from "../compareBlock.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 
 const pct = (p: number) => `${Math.round(100 * p)}%`;
@@ -81,9 +82,12 @@ export async function pairPrediction(intent: string, title: string, a: AnswerTea
         { label: "Predicted margin", value: `${Math.abs(Math.round(margin))} pts`, sub: margin === 0 ? "Level" : `${margin > 0 ? a.number : b.number} ahead` },
         { label: "Confidence", value: x.confidence.tier[0].toUpperCase() + x.confidence.tier.slice(1), sub: x.confidence.reason },
       ] },
-      { kind: "bars", title: "Predicted score", unit: "pts", groups: [{ label: "Qualification match", items: [{ label: String(a.number), value: Math.round(sa), tone: "a" }, { label: String(b.number), value: Math.round(sb), tone: "b" }] }] },
-      { kind: "table", title: "Score ranges", columns: [{ key: "team", label: "Team" }, { key: "score", label: "Predicted", num: true }, { key: "range", label: `${Math.round(100 * x.scoreBandA.level)}% range` }],
-        rows: [[a, sa, x.scoreRangeA], [b, sb, x.scoreRangeB]].map(([t, s, r]) => ({ cells: { team: whoOf(t as AnswerTeam), score: Math.round(s as number), range: `${Math.round((r as [number, number])[0])}–${Math.round((r as [number, number])[1])}` }, href: teamHref((t as AnswerTeam).number, season) })) },
+      // Head to head, no bar chart: the predicted score, its range and the rating.
+      compareBlock("Predicted qualification match", [a, b], [
+        { label: "Predicted score", values: [Math.round(sa), Math.round(sb)], show: (v) => String(v ?? "–"), better: "higher", gap: (g) => `+${g}` },
+        { label: `${Math.round(100 * x.scoreBandA.level)}% range`, values: [null, null], show: (_, i) => { const r = i === 0 ? x.scoreRangeA : x.scoreRangeB; return `${Math.round(r[0])}–${Math.round(r[1])}`; }, better: null },
+        { label: "Prediction rating", values: [Number(ra!.rating_np), Number(rb!.rating_np)], show: (v, i) => `${num1(v)} ±${Math.round((i === 0 ? ra! : rb!).rating_sd ?? 0)}`, better: "higher" },
+      ], season),
       { kind: "kpis", items: [rating(a, ra!, Number(ra!.rating_np) > Number(rb!.rating_np)), rating(b, rb!, Number(rb!.rating_np) > Number(ra!.rating_np))] },
       links,
     ],

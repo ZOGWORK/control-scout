@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
-import { CHART_LEGEND_TEXT, EVENT_FILTER_COUNT, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { CHART_LEGEND_TEXT, COMPARE_SIDE_TONE, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
@@ -125,6 +125,15 @@ describe("text tones reach WCAG AA in every theme", () => {
         const m = measure(theme, `bg-${tone}/${a} text-${tone}`);
         expect(m.ratio, `${tone}/${a}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
       }
+    });
+    it(`compared teams' colours, as bold text on the card and as chips (${theme})`, () => {
+      for (const [i, t] of COMPARE_SIDE_TONE.entries()) for (const cls of [t.text, t.chip]) {
+        const m = measure(theme, cls);
+        expect(m.ratio, `side ${i} ${cls}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+      }
+    });
+    it(`search podium place chips (${theme})`, () => {
+      for (const [k, cls] of Object.entries(PODIUM_CHIP)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);
     });
     it(`link buttons (${theme})`, () => {
       const m = measure(theme, buttonVariants({ variant: "link" }));

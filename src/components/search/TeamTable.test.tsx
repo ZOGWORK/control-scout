@@ -34,8 +34,9 @@ describe("TeamTable", () => {
     const bars = [...container.querySelectorAll<HTMLElement>("[data-opr-bar]")].map((b) => b.style.width);
     expect(bars[0]).toBe("calc(100% - 0.5rem)");
     expect(bars[3]).toBe("calc(40% - 0.5rem)");
-    // The phases stack in one order on every row, with a legend and the note that they don't add up to the OPR.
-    expect(container.querySelector("[data-phase-bar]")?.getAttribute("aria-label")).toBe("Auto 20.0, DC 90.0, Endgame 12.5, Pen (given away) 3.0");
+    // No stacked phase bar (no bar charts on answer cards): each phase is its own column, with a legend and the note
+    // that they don't add up to the OPR.
+    expect(container.querySelector("[data-phase-bar]")).toBeNull();
     expect(container.querySelector("[data-phase-note]")?.textContent).toMatch(/don't add up to the OPR/);
     expect(container.querySelector("[data-sort-key]")?.getAttribute("data-sort-key")).toBe("opr");
     expect(container.querySelector('th[aria-sort="descending"]')?.textContent).toMatch(/OPR/);
@@ -83,20 +84,14 @@ describe("TeamTable", () => {
     fireEvent.click(container.querySelector('button[data-sort="asked"]')!);
     expect(teams(container)).toEqual([200, 100, 400, 300]);
   });
-  it("a season whose TeleOp includes the endgame: named TeleOp, and the bar never draws the endgame twice", () => {
+  it("a season whose TeleOp includes the endgame: named TeleOp, and the note says so", () => {
     const { container } = draw({ ...TABLE, teleopWithEndgame: true });
     expect(heads(container)).toEqual(["#", "Team", "OPR", "Auto", "TeleOp", "Endgame", "Pen", "W-L-T"]);
-    const bar = container.querySelector("[data-phase-bar]")!;
-    expect(bar.children).toHaveLength(3);
-    expect(bar.getAttribute("aria-label")).toBe("Auto 20.0, TeleOp 90.0, Pen (given away) 3.0");
     expect(container.querySelector("[data-phase-note]")?.textContent).toMatch(/TeleOp already includes the endgame/);
   });
-  it("a negative phase OPR has no segment, and its label says so", () => {
+  it("a negative phase OPR reads as its number, sign and all", () => {
     const { container } = draw({ by: "opr", rows: [{ ...TABLE.rows[0], pen: -1.3 }, TABLE.rows[1]] });
-    const bar = container.querySelector('[data-team-row="100"] [data-phase-bar]')!;
-    expect(bar.getAttribute("aria-label")).toMatch(/Pen \(given away\) -1\.3 \(below zero, not drawn\)$/);
-    expect((bar.lastElementChild as HTMLElement).style.width).toBe("0%");
-    expect(container.querySelector("[data-phase-note]")?.textContent).toMatch(/negative OPR gets no segment/);
+    expect(container.querySelector('[data-team-row="100"]')!.textContent).toContain("-1.3");
   });
   it("no phase numbers: no phase columns, bar or toggle", () => {
     const { container } = draw({ by: "opr", rows: TABLE.rows.map((r) => ({ ...r, auto: null, dc: null, endgame: null, pen: null })) });

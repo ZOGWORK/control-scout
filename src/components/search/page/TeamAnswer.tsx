@@ -16,6 +16,7 @@ import { Button } from "../../ui/button";
 import { Badge } from "../../ui/basic";
 import { cn } from "../../cn";
 import { EventMarker, RankPill, RecordText } from "./answerCells";
+import { COMPARE_SIDE_TONE } from "../../../lib/textTones";
 
 /** The touch rule every search control keeps: 44px tall on phones and touch screens. */
 export const TAP = "max-md:min-h-[44px] pointer-coarse:min-h-[44px]";
@@ -126,7 +127,7 @@ function TeamsHeader({ teams, season }: { teams: Who[]; season?: number | null }
       </div>
       <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
         {teams.slice(0, 2).map((t, i) => (
-          <TeamSide key={t.number} t={t} q={q} right={i === 1} first={i === 0} />
+          <TeamSide key={t.number} t={t} q={q} right={i === 1} first={i === 0} i={i} />
         ))}
       </div>
       {teams.length > 2 && (
@@ -138,12 +139,13 @@ function TeamsHeader({ teams, season }: { teams: Who[]; season?: number | null }
   );
 }
 
-function TeamSide({ t, q, right, first }: { t: Who; q: string; right: boolean; first: boolean }) {
+function TeamSide({ t, q, right, first, i }: { t: Who; q: string; right: boolean; first: boolean; i: number }) {
   return (
     <>
       <Link to={`/teams/${t.number}${q}`} aria-label={t.name ? `${t.name} (${t.number})` : `Team ${t.number}`} className={cn("group block min-w-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring/60", right && "col-start-3 text-right")}>
         <span className="block font-display text-3xl font-semibold leading-none tracking-tight tabular-nums text-foreground transition-colors group-hover:text-accent-text sm:text-4xl">{t.number}</span>
         <span className="mt-1.5 block break-words text-base text-foreground/90 sm:text-lg">{t.name ?? "Name not on file"}</span>
+        <span aria-hidden className={cn("mt-2 block h-1 w-10 rounded-full", COMPARE_SIDE_TONE[i].dot, right && "ml-auto")} data-side-mark={i} />
       </Link>
       {first && <span aria-hidden className="col-start-2 row-start-1 text-sm font-medium text-muted-foreground">vs</span>}
     </>

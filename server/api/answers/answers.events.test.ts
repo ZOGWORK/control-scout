@@ -200,13 +200,16 @@ describe("two teams", () => {
     const n = await searchAnswer("4215 vs 207 head to head", { limit: 25 });
     expect(n.stat!.none).toBe("Hypnotic Robotics (4215) and Critical Mass (207) have never played each other.");
   });
-  it("season numbers side by side: OPR bars, the better record, a win chance that points to Predict", async () => {
+  it("season numbers side by side: a head-to-head table (no bars), the better record, a win chance that points to Predict", async () => {
     await run("INSERT INTO team_season_stats (season, team, opr_np, opr_auto, opr_teleop, opr_endgame, rank_np, ranked_teams, rating_np, rating_auto, rating_teleop, rating_endgame, rating_sd, rating_rank, matches, wins, losses, ties) VALUES (2025, 4215, 101.6, 30, 60, 11.6, 3, 50, 98, 29, 58, 11, 6, 40, 12, 9, 3, 0), (2025, 6980, 88.2, 25, 52, 11.2, 9, 50, 90, 26, 53, 11, 7, 80, 12, 10, 2, 0)");
     const o = await searchAnswer("4215 OPR vs 6980", { limit: 25 });
     expect(o.stat!.headline).toMatchObject({ value: "Hypnotic Robotics (4215)", label: "OPR 101.6 against 88.2, +13.4" });
-    expect(o.stat!.blocks.find((b) => b.kind === "bars")).toMatchObject({ groups: [{ label: "Total", items: [{ value: 101.6 }, { value: 88.2 }] }, {}, {}, {}] });
+    expect(o.stat!.blocks.find((b) => b.kind === "bars")).toBeUndefined();
+    expect(o.stat!.blocks.find((b) => b.kind === "compare")).toMatchObject({ teams: [{ label: "4215" }, { label: "6980" }],
+      rows: [{ label: "Total", values: ["101.6", "88.2"], best: 0, gap: "+13.4" }, { label: "Auto", phase: "auto" }, { label: "TeleOp", phase: "teleop" }, { label: "Endgame", phase: "endgame" }, { label: "World rank", values: ["#3", "#9"], best: 0, gap: "6 places" }] });
     const r = await searchAnswer("Who has a better record, 4215 or 6980", { limit: 25 });
     expect(r.stat!.headline).toMatchObject({ value: "Bad Wolf (6980)", label: "83% win rate against 75%" });
+    expect(r.stat!.blocks.find((b) => b.kind === "compare")).toMatchObject({ rows: [{ label: "Win rate", values: ["75%", "83%"], best: 1 }, { label: "W-L-T", values: ["9-3-0", "10-2-0"], best: 1 }, { label: "Matches", best: null }] });
     const w = await searchAnswer("4215 win chance vs 6980", { limit: 25 });
     // No ratings built in a test: the stored ratings said plainly, never a made-up score (the engine's call when built).
     expect(w.stat!.headline).toMatchObject({ value: "4215 rated higher", label: "by 8.0 points per match" });

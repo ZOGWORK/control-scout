@@ -137,3 +137,49 @@ describe("combined scores", () => {
     expect([...c.querySelectorAll("[data-match-row] [data-team-chip]")].map((t) => t.getAttribute("data-team-chip"))).toEqual(["1", "2"]);
   });
 });
+
+describe("two teams side by side", () => {
+  const vs: StatAnswer = {
+    family: "two-team", intent: "opr-vs", title: "OPR: 23268 vs 7149 in 2025–26", team: { number: 23268, name: "Ultraviolet" }, teams: [{ number: 23268, name: "Ultraviolet" }, { number: 7149, name: "ENFORCERS" }], scope: ["2025–26"],
+    blocks: [
+      { kind: "kpis", items: [{ label: "Ultraviolet (23268)", value: "157.9", sub: "#144 of 8308" }, { label: "ENFORCERS (7149)", value: "115.3", sub: "#446 of 8308" }] },
+      { kind: "compare", title: "OPR by phase", teams: [{ label: "23268", href: "/teams/23268" }, { label: "7149", href: "/teams/7149" }], rows: [
+        { label: "Total", values: ["157.9", "115.3"], best: 0, gap: "+42.6", lead: 0.27 },
+        { label: "Auto", phase: "auto", values: ["36.5", "41.6"], best: 1, gap: "+5.1", lead: 0.12 },
+        { label: "W-L-T", values: ["26-6-0", "18-13-0"], best: 0, gap: "better" },
+        { label: "Matches", values: ["32", "31"], best: null },
+      ] },
+    ],
+    definition: "…", source: "…",
+  };
+  it("each team's tile under its own header: A left in teal, B right in orange", () => {
+    const tiles = [...html(<StatAnswerCard stat={vs} />).querySelectorAll("[data-kpi-sides] > [data-kpi]")];
+    expect(tiles.map((t) => t.getAttribute("data-side"))).toEqual(["0", "1"]);
+    expect(tiles[0].firstElementChild!.className).toContain("border-teal-500/30");
+    expect(tiles[1].firstElementChild!.className).toContain("border-orange-500/30");
+    expect(tiles[1].firstElementChild!.className).toContain("text-right");
+  });
+  it("a head-to-head table, no bars: A's value left, B's right, the gap and leader between, the winner bold in its colour", () => {
+    const c = html(<StatAnswerCard stat={vs} />);
+    expect(c.querySelector('[data-block="bars"]')).toBeNull();
+    const total = c.querySelector('[data-compare-row="Total"]')!;
+    const [a, , b] = [...total.children];
+    expect(a.textContent).toBe("157.9");
+    expect(a.querySelector("[data-won]")!.className).toContain("text-teal-700");
+    expect(b.querySelector(".text-muted-foreground")!.textContent).toBe("115.3");
+    expect(total.querySelector("[data-gap]")!.textContent).toBe("+42.6 · 23268");
+    const auto = c.querySelector('[data-compare-row="Auto"]')!;
+    expect(auto.querySelector(".text-info")!.textContent).toBe("Auto");
+    expect([...auto.children][2].querySelector("[data-won]")!.className).toContain("text-orange-700");
+    // No better side: neither is marked.
+    expect(c.querySelector('[data-compare-row="Matches"] [data-won]')).toBeNull();
+    // Never yellow, blue or red as a team's colour.
+    expect(c.querySelector("[data-block=compare]")!.innerHTML).not.toMatch(/accent|sky-|blue-|red-|chart-/);
+  });
+  it("three teams: a column each, the best bold in its team's colour", () => {
+    const three = { ...vs, teams: [...vs.teams!, { number: 16461, name: "Infinite Turtles" }], blocks: [{ kind: "compare" as const, title: "Season numbers", teams: [{ label: "23268", href: "/t/1" }, { label: "7149", href: "/t/2" }, { label: "16461", href: "/t/3" }], rows: [{ label: "OPR", values: ["157.9", "115.3", "87.9"], best: 0, gap: "+42.6" }] }] };
+    const c = html(<StatAnswerCard stat={three} />);
+    expect(c.querySelector("[data-compare-sides='3']")).toBeTruthy();
+    expect(c.querySelector('[data-compare-row="OPR"] [data-won]')!.textContent).toBe("157.9");
+  });
+});

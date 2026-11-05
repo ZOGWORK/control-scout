@@ -15,22 +15,24 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.1.8 — 2026-11-04
+## 3.2.1 — 2026-11-05
 
-Search answer cards speak the team page's colours, and match lists are match boxes with both alliances' teams.
+Search answer cards speak the team page's colours: comparisons are head-to-head tables, match lists are match boxes.
 
 ### Highlights
 - [appearance] Ranks as podium pills; W-L-T wins green, losses red
-- [appearance] Event type and season chips, OPR bars against the best
+- [appearance] Compare cards: each team's numbers under its own header
+- [appearance] Head-to-head tables replace bar charts, the gap between
 - [appearance] Top scores: match boxes with both alliances and phases
-- [appearance] Combined scores list red and blue teams as chips
 - [appearance] Phone tables keep numbers; season and date fold under
 
 ### Search
-- **One colour language.** Every answer's table draws a rank as a pill (1st green, 2nd blue, 3rd orange with a medal, the rest neutral), a W-L-T record with wins green and losses red, a season as a badge, a win or loss as its chip, an award with its icon and an OPR with a small teal bar against the best one listed (in its phase's colour for an Auto, TeleOp or Endgame column). An event's name carries its type's colour, and the headline event gets a marker and its type and season as chips. Two teams side by side mark each row's better number; a best row gets a trophy. Leaderboards colour their records and phase numbers. (#709)
+- **One colour language.** Every answer's table draws a rank as a pill (1st green, 2nd blue, 3rd orange with a medal, the rest neutral), a W-L-T record with wins green and losses red, a season as a badge, a win or loss as its chip, an award with its icon and an OPR with a small teal bar against the best one listed (in its phase's colour for an Auto, TeleOp or Endgame column). An event's name carries its type's colour, and the headline event gets a marker and its type and season as chips. A best row gets a trophy. Leaderboards colour their records and phase numbers.
+- **Comparisons head to head.** Two-team, three-team, OPR, rating, phase, record, reliability, awards and prediction cards show each team's tiles under its own header (the first team left, the second right) and their numbers as one head-to-head table: a row per stat, each team's value in its column, the better one bold in its team's colour and the other muted, the gap and who leads in the middle over a thin marker. Teams are teal, orange and violet, never yellow, blue or red, and every pair reaches AA in Light, Dim, Dark and Midnight.
+- **No bar charts.** The side-by-side bar charts are gone from every answer card. A single set of values (an event's OPR by phase) is small tiles in the phase colours; leaderboards keep each phase as its own coloured column, with no stacked bar.
 - **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams as chips and their scores big (the winner marked, the loser muted, the score with penalties under it when it differs) and the listed alliance's points by phase. The highest-scoring matches card drops its bar chart, so each match shows once, and the headline names the alliance's teams.
-- **Combined scores.** The highest combined scores list each match's red and blue teams, its event with its type, the winning side bold and a thin bar scaled from the lowest listed to the top.
-- **Phones.** An event table's season and date fold under the event's name, so the columns left are numbers; combined-score rows are two lines.
+- **Combined scores.** The highest combined scores list each match's red and blue teams, its event with its type, the official winner bold and a thin bar scaled from the lowest listed to the top.
+- **Phones.** An event table's season and date fold under the event's name, so the columns left are numbers. (#709)
 
 ## 3.1.5 — 2026-11-04
 

@@ -20,6 +20,7 @@ import type { TeamEvent, TeamSeason } from "../eventSet.js";
 import { eventHref, matchRow, teamHref, teamLinks, type TeamMatch } from "../matchSet.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { BOARD_STATS, statWords } from "./leaderboard.js";
+import { compareBlock } from "../compareBlock.js";
 import { LIST_CAP, RESULT_RULE, SCORE_RULE, pct, recText, record, sourceOf, whoOf, type AnswerTeam } from "./matches.js";
 
 const num1 = (x: number | null | undefined) => (x == null ? "–" : (Math.round(x * 10) / 10).toFixed(1));
@@ -455,9 +456,12 @@ export async function reliabilitySetAnswer(teams: AnswerTeam[], season: number |
     headline: { value: leaders.length > 1 ? `Tied: ${leaders.map((t) => t.number).join(", ")}` : whoOf(leaders[0]), label: `Highest reliability: ${top} out of 100`, sub: `${sorted.map((x) => `${x.t.number} ${x.r.index}`).join(" · ")}${R[0].fieldIndex != null ? ` · field average ${R[0].fieldIndex}` : ""}`, ...(leaders.length === 1 ? { href: teamHref(leaders[0].number, s) } : {}) },
     blocks: [
       { kind: "kpis", items: sorted.map(({ t, r }) => ({ label: whoOf(t), value: String(r.index), sub: `out of 100 · ${r.matches} qualification matches`, href: teamHref(t.number, s), ...(r.index === top ? { tone: "accent" as const } : {}) })) },
-      { kind: "bars", title: "Reliability index", groups: [{ label: seasonLabel(s), items: teams.map((t, i) => ({ label: String(t.number), value: R[i].index, tone: (["a", "b", "c", "d"] as const)[i % 4] })) }] },
-      { kind: "table", title: "Breakdown", columns: [{ key: "part", label: "Part" }, ...teams.map((t) => ({ key: String(t.number), label: String(t.number), num: true }))],
-        rows: parts.map(([part, f]) => ({ cells: { part, ...Object.fromEntries(teams.map((t, i) => [String(t.number), f(R[i])])) } })) },
+      // Head to head, a column per team: the index (higher is better), then each part (all count against a team).
+      compareBlock("Breakdown", teams, [
+        { label: "Reliability", values: R.map((r) => r.index), show: (v) => String(v ?? "–"), better: "higher", gap: (g) => `+${Math.round(g)}` },
+        // The index is the row above; matches played favour no one.
+        ...parts.filter(([part]) => part !== "Index").map(([part, f]) => ({ label: part, values: R.map((r) => Number.parseFloat(String(f(r)))), show: (_: unknown, i: number) => String(f(R[i])), better: part === "Matches" ? null : ("lower" as const), gap: (g: number) => (Number.isInteger(g) ? String(g) : g.toFixed(2)) })),
+      ], s),
     ],
   };
 }

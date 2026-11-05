@@ -134,8 +134,15 @@ describe("the answers", () => {
   it("236 and 237: one card with OPR, rank, phases, rating and record, the season stated", async () => {
     const a = await ask("4215 versus 6980 compare");
     expect(a.stat!.title).toContain(`4215 vs 6980, ${S}–`);
-    const t = a.stat!.blocks.find((b) => b.kind === "table");
-    expect(t).toMatchObject({ rows: [{ cells: { team: "4215", opr: "101.6", rank: "#600", rating: "98.0", record: "6-2-0" } }, { cells: { opr: "46.9", record: "1-4-0" } }] });
+    // One head-to-head table, a column per team, the better value named: no bar chart, no per-team rows.
+    expect(a.stat!.blocks.find((b) => b.kind === "bars")).toBeUndefined();
+    const t = a.stat!.blocks.find((b) => b.kind === "compare");
+    expect(t).toMatchObject({ teams: [{ label: "4215" }, { label: "6980" }] });
+    const row = (l: string) => t && t.kind === "compare" ? t.rows.find((r) => r.label === l || r.label.startsWith(l)) : undefined;
+    expect(row("OPR")).toMatchObject({ values: ["101.6", "46.9"], best: 0 });
+    expect(row("Rank of")).toMatchObject({ values: ["#600", expect.any(String)] });
+    expect(row("Rating")).toMatchObject({ values: ["98.0", expect.any(String)] });
+    expect(row("W-L-T")).toMatchObject({ values: ["6-2-0", "1-4-0"], best: 0 });
     const b = await ask("4215 6980 33950 compare");
     expect(b.stat!.teams!.map((x) => x.number)).toEqual([4215, 6980, 33950]);
     expect(b.hits[0]).toMatchObject({ kind: "compare", ref: "4215,6980,33950" });

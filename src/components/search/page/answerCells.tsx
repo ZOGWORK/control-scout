@@ -5,7 +5,7 @@
 // Events cards' type colour. Drawn from the text the server sends: a cell that isn't in a known shape stays plain.
 import type { ReactNode } from "react";
 import { Award, Medal, Trophy } from "lucide-react";
-import { EVENT_TYPE_TONE } from "../../../lib/textTones";
+import { EVENT_TYPE_TONE, PODIUM_CHIP } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
 import { EventTypeChip } from "../../EventChips";
 import { Badge } from "../../ui/basic";
@@ -28,7 +28,7 @@ export function RankPill({ text, className }: { text: string; className?: string
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap", className)} data-rank={rank}>
       {m[1] && <span className="text-muted-foreground">Ranked</span>}
-      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? TONES[tone].chip : "bg-text-base/[0.07] text-foreground")} data-rank-pill>
+      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums leading-none", tone ? PODIUM_CHIP[rank] : "bg-text-base/[0.07] text-foreground")} data-rank-pill>
         {tone && <Medal className="size-3" aria-hidden />}#{rank.toLocaleString()}
         {m[3] && <span className="font-medium opacity-80">{` of ${n(m[3]).toLocaleString()}`}</span>}
       </span>

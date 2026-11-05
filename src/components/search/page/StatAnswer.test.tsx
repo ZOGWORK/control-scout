@@ -66,15 +66,18 @@ describe("StatAnswerCard, a team's OPR", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
     expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
   });
-  it("phase bars and phase columns in the team page's phase colours", () => {
+  it("phase values (no bars) and phase columns in the team page's phase colours", () => {
     const c = draw({ ...opr, intent: "phase", blocks: [
       { kind: "bars", title: "Phases", groups: [{ label: "x", items: [{ label: "Auto", value: 20 }, { label: "TeleOp", value: 60 }, { label: "Endgame", value: 10 }] }] },
       { kind: "table", title: "By event", columns: [{ key: "e", label: "Event" }, { key: "a", label: "Auto", num: true }, { key: "t", label: "TeleOp", num: true }, { key: "g", label: "Endgame", num: true }], rows: [{ cells: { e: "Q", a: "1", t: "2", g: "3" } }] },
     ] } as StatAnswer);
-    const bars = [...c.querySelectorAll('[data-block="bars"] li > span:nth-child(2) > span')].map((b) => b.className);
-    expect(bars[0]).toContain(TONES.sky.bar);
-    expect(bars[1]).toContain(TONES.emerald.bar);
-    expect(bars[2]).toContain(TONES.violet.bar);
+    // The owner's rule: no bar charts on answer cards. The values are small tiles, each phase in its colour.
+    const tiles = [...c.querySelectorAll<HTMLElement>("[data-bar-value]")];
+    expect(tiles.map((t) => t.textContent)).toEqual(["Auto20", "TeleOp60", "Endgame10"]);
+    expect(tiles[0].className).toContain(TONES.sky.box.split(" ")[0]);
+    expect(tiles[1].className).toContain(TONES.emerald.box.split(" ")[0]);
+    expect(tiles[2].className).toContain(TONES.violet.box.split(" ")[0]);
+    expect(c.querySelector('[data-block="bars"] [style*="width"]')).toBeNull();
     expect([...c.querySelectorAll("th[data-phase]")].map((t) => t.getAttribute("data-phase"))).toEqual(["sky", "emerald", "violet"]);
   });
   it("two teams' tiles for one phase both show, each naming its team", () => {
