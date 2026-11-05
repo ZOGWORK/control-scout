@@ -62,7 +62,8 @@ line("all", rows.map((r) => r.ms));
 console.log("slowest:");
 for (const r of [...rows].sort((a, b) => b.ms - a.ms).slice(0, 10)) console.log(`  ${r.ms.toFixed(0).padStart(5)} ms  ${r.q}`);
 const failed = rows.filter((r) => r.status !== 200);
-if (failed.length) console.log(`${failed.length} failed: ${failed.map((r) => `${r.q} (${r.status})`).join(", ")}`);
+// A failed request is a failed run: its time and answer are missing from what was measured.
+if (failed.length) { console.log(`${failed.length} failed: ${failed.map((r) => `${r.q} (${r.status})`).join(", ")}`); process.exitCode = 1; }
 
 const out = arg("--out");
 if (out) writeFileSync(out, rows.map((r) => JSON.stringify({ q: r.q, ...r.reading })).join("\n") + "\n");
