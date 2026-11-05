@@ -89,27 +89,29 @@ export type StatBlock =
   | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink;
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
       teleopWithEndgame?: boolean }
-  /** Two or more teams head to head (server/api/answers/compareBlock.ts): a row per stat, each team's value in its
-   *  own column (in `teams` order), the better one's index and, for two teams, the gap. No bars. */
-  | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[] }
+  /** Two or more teams compared (server/api/answers/compareBlock.ts): a row per metric, Total first and then by the
+   *  gap, each on its own scale from zero. `scale`: where the scales come from, for the footnote. */
+  | { kind: "compare"; title: string; teams: StatLink[]; rows: CompareRow[]; scale?: string }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */
   | { kind: "related"; title: string; queries: string[] };
 
-/** One stat in a head-to-head table. */
+/** One metric in a comparison (server/api/answers/compareBlock.ts). */
 export interface CompareRow {
   label: string;
-  /** A phase row: its name in the team page's phase colour. */
-  phase?: "auto" | "teleop" | "endgame";
   /** Each team's value as it reads, in the block's team order. */
   values: string[];
   /** The better team's index; null on a tie, a missing value or a stat with no better side. */
   best: number | null;
   /** How far ahead the better one is ("+42.7", "Even"). */
   gap?: string;
-  /** The gap next to the larger value, 0 to 1 (a thin marker's length). */
-  lead?: number;
+  /** The gap as a number (the rows' sort key). */
+  diff?: number;
+  /** The row's scale, from zero (the season's highest, rounded up): drawn as paired bars to `nums`, "max" printed.
+   *  Absent: a row of values only. */
+  max?: number;
+  nums?: (number | null)[];
 }
 
 export interface StatAnswer {

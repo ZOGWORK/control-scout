@@ -1,19 +1,21 @@
-// The colour language every /search answer card's numbers speak, taken from the team and event pages: a rank as a
-// pill (the search podium's 1st green, 2nd blue, 3rd orange with a medal; the rest neutral), a W-L-T record with
-// wins green and losses red, a win or loss its own chip, an OPR with a small teal bar against the best one listed (in
-// its phase's colour where the column is a phase; never gold), a season as the header's season badge, an event's type as the
-// Events cards' type colour. Drawn from the text the server sends: a cell that isn't in a known shape stays plain.
+// How every /search answer card's numbers read, by the search results guide (.claude/search-viz-guide-2026-11-05.txt):
+// hue means team only, so nothing here is coloured by what it is. A rank is a neutral pill (a medal on the top three),
+// a record and a result read as their text with the win in bold, an OPR has a small neutral bar from zero to the best
+// one listed, a season is the header's season badge, an event's type a neutral badge. Alliance red and blue stay where
+// they mark an alliance. Drawn from the text the server sends: a cell that isn't in a known shape stays plain.
 import type { ReactNode } from "react";
 import { Award, Medal, Trophy } from "lucide-react";
-import { EVENT_TYPE_TONE, PODIUM_CHIP } from "../../../lib/textTones";
+import { PODIUM_CHIP } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
-import { EventTypeChip } from "../../EventChips";
 import { Badge } from "../../ui/basic";
-import { Meter, TONES, type Tone } from "../../StatTile";
+import { Meter } from "../../StatTile";
 import { cn } from "../../cn";
 
-/** The search podium's colours (./EventAwards.tsx, ../TeamTable.tsx): 1st green, 2nd blue, 3rd orange. */
-export const PODIUM: Record<number, Tone> = { 1: "emerald", 2: "sky", 3: "orange" };
+/** The places that get a medal: the top three, all in the same neutral chip (no hue for a place). */
+export const PODIUM: Record<number, true> = { 1: true, 2: true, 3: true };
+
+/** A data bar's ink where no team is meant (one team's numbers, a table column): neutral, never a hue. */
+export const INK_BAR = "bg-foreground/55";
 
 const RANK = /^(Ranked\s+)?#?(\d[\d,]*)(?:\s+of\s+(\d[\d,]*))?(.*)$/;
 const RECORD = /^(\d{1,4})-(\d{1,4})-(\d{1,4})(.*)$/;
@@ -37,35 +39,33 @@ export function RankPill({ text, className }: { text: string; className?: string
   );
 }
 
-/** "5-3-0" with wins green, losses red and ties muted (the team page's record tile); anything after it plain. */
+/** "5-3-0" with the wins in bold (no win or loss hue: red and blue are alliances); anything after it muted. */
 export function RecordText({ text, className }: { text: string; className?: string }) {
   const m = RECORD.exec(text.trim());
   if (!m) return <>{text}</>;
   return (
     <span className={cn("whitespace-nowrap tabular-nums", className)} aria-label={`${m[1]} wins, ${m[2]} losses, ${m[3]} ties${m[4]}`} data-record-text>
-      <span aria-hidden><b className="font-semibold text-success-text">{m[1]}</b><span className="text-muted-foreground">-</span><b className="font-semibold text-danger-text">{m[2]}</b><span className="text-muted-foreground">-{m[3]}</span></span>
+      <span aria-hidden><b className="font-semibold text-foreground">{m[1]}</b><span className="text-muted-foreground">-{m[2]}-{m[3]}</span></span>
       {m[4] && <span aria-hidden className="text-muted-foreground">{m[4]}</span>}
     </span>
   );
 }
 
-/** A won, lost or tied result as a chip (the match rows' own). */
+/** A won, lost or tied result as a chip: a win solid, a loss outlined, a tie muted (told apart without hue). */
 export function ResultChip({ text }: { text: string }) {
   const r = /^w/i.test(text) ? "W" : /^l/i.test(text) ? "L" : /^t/i.test(text) ? "T" : null;
   if (!r) return <>{text}</>;
-  const tone = r === "W" ? "bg-success/15 text-success-text" : r === "L" ? "bg-danger/15 text-danger-text" : "bg-muted text-foreground";
+  const tone = r === "W" ? "bg-foreground text-background" : r === "L" ? "border border-border text-foreground" : "bg-muted text-muted-foreground";
   return <span className={cn("inline-flex min-w-6 items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold", tone)} data-result={r}>{text}</span>;
 }
 
 /** A season ("2025–26") as the header's season badge. */
 export const SeasonChip = ({ text }: { text: string }) => <Badge variant="secondary" className="tabular-nums" data-season-chip>{text}</Badge>;
 
-/** An event's type as a dot in its Events-card colour; with `chip`, its type chip instead (wider screens only). */
+/** An event's type as a neutral badge (wider screens only); no dot, no hue. Only with `chip`. */
 export function EventMarker({ type, chip }: { type: string | null | undefined; chip?: boolean }) {
-  if (type === undefined) return null;
-  const tone = EVENT_TYPE_TONE[type ?? ""];
-  if (chip) return type ? <EventTypeChip type={type} label={eventTypeLabel(type)} className="ml-1.5 align-middle max-md:hidden" /> : null;
-  return <span aria-hidden className={cn("mr-1.5 inline-block size-2 shrink-0 rounded-full align-middle", tone?.bar ?? "bg-muted-foreground/50")} data-event-marker={type ?? ""} />;
+  if (type === undefined || !chip || !type) return null;
+  return <Badge variant="outline" className="ml-1.5 align-middle max-md:hidden" data-event-type={type}>{eventTypeLabel(type)}</Badge>;
 }
 
 type Col = { key: string; label: string; num?: boolean };
@@ -83,8 +83,8 @@ export function columnMax(c: Col, values: (string | number | null | undefined)[]
   return xs.length ? Math.max(...xs) : null;
 }
 
-/** One table cell in the answer's colours, by what its column holds. `phase`: the column is a phase (its colour). */
-export function Cell({ col, value, max, phase }: { col: Col; value: string | number | null | undefined; max?: number | null; phase?: Tone | null }): ReactNode {
+/** One table cell, by what its column holds. */
+export function Cell({ col, value, max }: { col: Col; value: string | number | null | undefined; max?: number | null }): ReactNode {
   if (value == null || value === "") return "–";
   const text = String(value);
   if (text === "–" || text === "—") return <span className="text-muted-foreground">–</span>;
@@ -92,7 +92,7 @@ export function Cell({ col, value, max, phase }: { col: Col; value: string | num
   if (isRecordCol(col)) return <RecordText text={text} />;
   if (isSeasonCol(col)) return <SeasonChip text={text} />;
   if (col.key === "result") return <ResultChip text={text} />;
-  if (col.key === "award") return <span className="inline-flex items-start gap-1.5"><Award className="mt-0.5 size-3.5 shrink-0 text-accent-text" aria-hidden /><span>{text}</span></span>;
+  if (col.key === "award") return <span className="inline-flex items-start gap-1.5"><Award className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden /><span>{text}</span></span>;
   if (col.label === "Red–Blue") {
     const [r, b] = text.split("–");
     if (b != null) return <span className="whitespace-nowrap tabular-nums"><b className="font-semibold text-red-alliance-text">{r}</b><span className="text-muted-foreground">–</span><b className="font-semibold text-blue-alliance-text">{b}</b></span>;
@@ -100,13 +100,13 @@ export function Cell({ col, value, max, phase }: { col: Col; value: string | num
   const v = Number(text);
   if (isRateCol(col) && /%$/.test(text)) {
     const pc = Number(text.replace("%", ""));
-    return <span className="inline-flex flex-col items-end gap-0.5" data-rate-cell><span>{text}</span>{Number.isFinite(pc) && <span className="block w-12"><Meter parts={[{ pc, cls: "bg-success" }]} /></span>}</span>;
+    return <span className="inline-flex flex-col items-end gap-0.5" data-rate-cell><span>{text}</span>{Number.isFinite(pc) && <span className="block w-12"><Meter parts={[{ pc, cls: INK_BAR }]} /></span>}</span>;
   }
   if (max && Number.isFinite(v)) {
     return (
       <span className="inline-flex flex-col items-end gap-0.5" data-opr-cell>
-        <span className={cn("font-semibold", phase ? TONES[phase].text : "text-foreground")}>{text}</span>
-        <span className="block w-12" data-opr-bar><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: phase ? TONES[phase].bar : TONES.teal.bar }]} /></span>
+        <span className="font-semibold text-foreground">{text}</span>
+        <span className="block w-12" data-opr-bar data-bar data-value={v} data-scale={max}><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: INK_BAR }]} /></span>
       </span>
     );
   }
@@ -119,36 +119,32 @@ export const foldsOnPhone = (c: Col, first: Col) => first.key === "event" && (is
 
 const INLINE = /(Ranked\s+#\d[\d,]*(?:\s+of\s+\d[\d,]*)?|#\d[\d,]*\s+of\s+\d[\d,]*|\b\d{1,4}-\d{1,4}-\d{1,4}\b)/g;
 
-/** A line of an answer's words with its ranks as pills and its records coloured ("Ranked #6 of 24 · OPR 101.6"). */
+/** A line of an answer's words with its ranks as pills and its records with the wins bold ("Ranked #6 of 24 · OPR 101.6"). */
 export function RichText({ text }: { text: string }) {
   const parts = text.split(INLINE);
   if (parts.length === 1) return <>{text}</>;
   return <>{parts.map((p, i) => (i % 2 === 0 ? p : RECORD.test(p) ? <RecordText key={i} text={p} /> : <RankPill key={i} text={p} />))}</>;
 }
 
-/** A headline's value in its colour: a record coloured, a won or lost result in its tone, a yes or no likewise, a
- *  rank in its podium colour. Anything else in the foreground. */
+/** A headline's value in the foreground: a record with its wins bold, a podium rank with a medal. No hue. */
 export function HeadlineValue({ value }: { value: string }) {
   if (RECORD.test(value) && !RECORD.exec(value)![4].trim()) return <RecordText text={value} />;
   const res = /^(Won|Lost|Tied)\b(.*)$/.exec(value);
-  if (res) return <><span className={res[1] === "Won" ? "text-success-text" : res[1] === "Lost" ? "text-danger-text" : undefined}>{res[1]}</span>{res[2]}</>;
-  if (value === "Yes") return <span className="text-success-text">Yes</span>;
-  if (value === "No") return <span className="text-danger-text">No</span>;
+  if (res) return <><span>{res[1]}</span>{res[2]}</>;
   const rank = /^#(\d+)\b/.exec(value);
-  if (rank && PODIUM[Number(rank[1])]) return <span className="inline-flex items-center gap-2"><Trophy className={cn("size-8", TONES[PODIUM[Number(rank[1])]].text)} aria-hidden />{value}</span>;
+  if (rank && PODIUM[Number(rank[1])]) return <span className="inline-flex items-center gap-2"><Trophy className="size-8 text-muted-foreground" aria-hidden />{value}</span>;
   return <>{value}</>;
 }
 
 /** One of a card line's small stat pills ("Ranked #1", "6-0-0 in quals", "OPR 50.0", "Red alliance", an award): a
- *  rank as its pill, a record coloured, an alliance in its colour, an award with its icon; anything else plain. */
+ *  rank as its pill, an alliance in its colour (red and blue mark alliances), an award with its icon; the rest plain. */
 export function ResultPill({ text }: { text: string }) {
   const box = "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold tabular-nums";
   if (/^(Ranked\s+)?#\d/.test(text)) return <RankPill text={text} />;
   if (RECORD.test(text)) return <span className={cn(box, "border-border bg-muted/50")}><RecordText text={text} /></span>;
   if (/^red\b/i.test(text)) return <span className={cn(box, "border-red-alliance/30 bg-red-alliance/10 text-red-alliance-text")}>{text}</span>;
   if (/^blue\b/i.test(text)) return <span className={cn(box, "border-blue-alliance/30 bg-blue-alliance/10 text-blue-alliance-text")}>{text}</span>;
-  if (/\b(award|alliance|winner|finalist|inspire|think|connect|innovate|control|motivate|design|reach|sustain)\b/i.test(text)) return <span className={cn(box, TONES.violet.chip, "border-transparent")}><Award className="size-3" aria-hidden />{text}</span>;
-  if (/^(auto|tele-?op|end-?game)\b/i.test(text)) { const t: Tone = /^auto/i.test(text) ? "sky" : /^tele/i.test(text) ? "emerald" : "violet"; return <span className={cn(box, TONES[t].chip, "border-transparent")}>{text}</span>; }
+  if (/\b(award|alliance|winner|finalist|inspire|think|connect|innovate|control|motivate|design|reach|sustain)\b/i.test(text)) return <span className={cn(box, "border-border bg-muted/50 text-foreground")}><Award className="size-3 text-muted-foreground" aria-hidden />{text}</span>;
   return <span className={cn(box, "border-border bg-muted/50 text-foreground")}>{text}</span>;
 }
 

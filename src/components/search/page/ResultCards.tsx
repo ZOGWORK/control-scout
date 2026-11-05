@@ -212,9 +212,9 @@ export function HeadToHead({ h, now, before, season: current }: { h: SearchHit; 
                 const share = (r: string | null) => { const m = r && /^(\d+)-(\d+)-(\d+)/.exec(r); const g = m ? +m[1] + +m[2] + +m[3] : 0; return m && g ? (+m[1] + +m[3] / 2) / g : null; };
                 const win = vs.length === 2 ? (label === "Record" ? better(label, share(vs[0]), share(vs[1])) : better(label, vs[0], vs[1])) : null;
                 return sides.map(({ n }, i) => (
-                  <span key={n} className={cn("inline-flex items-center gap-1", win === (i === 0 ? "a" : "b") && "text-success-text")} data-better={win === (i === 0 ? "a" : "b") ? "" : undefined}>
+                  <span key={n} className={cn("inline-flex items-center gap-1", win === (i === 0 ? "a" : "b") && "font-bold")} data-better={win === (i === 0 ? "a" : "b") ? "" : undefined}>
                     {vs[i] == null ? "—" : label === "Record" ? <RecordText text={vs[i]!} /> : vs[i]}
-                    {win === (i === 0 ? "a" : "b") && <Trophy className="size-3.5" aria-label="Better" />}
+                    {win === (i === 0 ? "a" : "b") && <Trophy className="size-3.5 text-muted-foreground" aria-label="Better" />}
                   </span>
                 ));
               })()}</dd>

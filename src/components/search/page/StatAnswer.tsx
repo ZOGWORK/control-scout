@@ -3,29 +3,35 @@
 // counted and from which records. Drawn here from the JSON the server sends; nothing is computed or filled in.
 import { Link } from "react-router-dom";
 import { ArrowRight, BarChart3, CalendarDays, Hash, Info, Medal, Sparkles, Target, Trophy, type LucideIcon } from "lucide-react";
-import { EVENT_TYPE_TONE } from "../../../lib/textTones";
 import { eventTypeLabel } from "../../../shared/labels";
 import { seasonLabel } from "../../../shared/format";
-import { EventTypeChip } from "../../EventChips";
 import { useMemo } from "react";
 import type { StatAnswer, StatBlock, StatLink, StatRecord } from "../../../shared/searchStat";
 import { teamTableOfLeaderboard } from "../../../shared/teamTable";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
-import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
-import { OPR_CARDS, OPR_TONE, oprRankHint } from "../../oprCards";
+import { Meter, StatTile, rankPc, type Tone } from "../../StatTile";
+import { Badge } from "../../ui/basic";
+import { OPR_CARDS, oprRankHint } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
-import { Cell, EventMarker, HeadlineValue, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
+import { Cell, EventMarker, HeadlineValue, INK_BAR, RecordText, RichText, SeasonChip, better, columnMax, foldsOnPhone } from "./answerCells";
 import { MatchBox, RankBadge, TeamChip } from "./MatchBox";
-import { CompareTable } from "./CompareTable";
+import { CompareCard, comparisonOf } from "./CompareCard";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
 export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   // One card in the team page's treatment (./TeamAnswer.tsx): the team (or both teams) up top with the season the
   // answer states, then the answer's title and what it covers, the number asked for big and bold with no band
-  // behind it, and its blocks. A team's season OPR keeps the team page's coloured OPR tiles (../../oprCards.ts).
+  // behind it, and its blocks. No hue on data (the search results guide): tiles, bars and marks are neutral.
+  // A comparison of teams: its own card, each fact said once (./CompareCard.tsx).
+  const cmp = comparisonOf(stat);
+  if (cmp) return <CompareCard stat={stat} b={cmp} />;
+  return <OneCard stat={stat} heading={heading} />;
+}
+
+function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
   const teams = stat.teams && stat.teams.length > 1 ? stat.teams : stat.team ? [stat.team] : undefined;
   const stated = statedSeason(stat.title, ...stat.scope);
   const season = useAnswerSeason(stated);
@@ -56,8 +62,8 @@ export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: 
 
 /** The number asked for: big and bold, what it is under it; no band behind it (the team page shows its numbers so). */
 function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
-  // One event's headline: a marker in its type's colour beside it, the type and season as chips (the season leaves
-  // the line under it, so it isn't said twice).
+  // One event's headline: its type and season as neutral badges (the season leaves the line under it, so it isn't
+  // said twice).
   const ev = h.type !== undefined;
   const season = ev ? statedSeason(h.sub) : null;
   const sub = h.sub && season != null ? h.sub.split(" · ").filter((x) => x !== seasonLabel(season)).join(" · ") : h.sub;
@@ -68,7 +74,7 @@ function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
       {sub && <p className="mt-0.5 text-xs text-muted-foreground"><RichText text={sub} /></p>}
       {ev && (h.type || season != null) && (
         <p className="mt-2 flex flex-wrap gap-1.5" data-headline-chips>
-          {h.type && <EventTypeChip type={h.type} label={eventTypeLabel(h.type)} />}
+          {h.type && <Badge variant="outline" data-event-type={h.type}>{eventTypeLabel(h.type)}</Badge>}
           {season != null && <SeasonChip text={seasonLabel(season)} />}
         </p>
       )}
@@ -78,7 +84,6 @@ function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
   const main = h.href ? <Link to={h.href} className={cls}>{body}</Link> : <div className={cls}>{body}</div>;
   return (
     <div className="flex gap-3" data-headline>
-      {ev && <span aria-hidden className={cn("my-1.5 w-1 shrink-0 rounded-full", EVENT_TYPE_TONE[h.type ?? ""]?.bar ?? "bg-muted-foreground/50")} data-headline-marker />}
       <div className="min-w-0 flex-1">
         {main}
         {!!h.teams?.length && h.alliance && (
@@ -91,22 +96,11 @@ function Headline({ h }: { h: NonNullable<StatAnswer["headline"]> }) {
   );
 }
 
-/** A plain number's tile colour and icon, by what it counts (the team page's tones; a good or bad result its own). */
-function kpiLook(label: string, tone?: string): [LucideIcon, Tone] {
+/** A plain number's tile icon, by what it counts; the tile itself neutral (no hue for a kind of number). */
+function kpiLook(label: string, _tone?: string): [LucideIcon, Tone] {
   const icon: LucideIcon = /win|record|loss|won|lost/i.test(label) ? Trophy : /rank|#|place/i.test(label) ? Hash : /season|year|date|when/i.test(label) ? CalendarDays
     : /rating/i.test(label) ? Sparkles : /award/i.test(label) ? Medal : /opr|score|points|margin/i.test(label) ? Target : BarChart3;
-  if (tone === "good") return [icon, "emerald"];
-  if (tone === "bad") return [icon, "rose"];
-  const t: Tone = icon === Trophy ? "emerald" : icon === Hash ? "violet" : icon === CalendarDays ? "sky" : icon === Sparkles ? "amber" : icon === Medal ? "orange" : "teal";
-  return [icon, t];
-}
-
-/** A phase's colour where a block names one (Auto, TeleOp, Endgame): the team page's OPR tile colours, never another. */
-export function phaseTone(label: string): Tone | null {
-  if (/^auto(nomous)?\b/i.test(label)) return OPR_TONE.auto;
-  if (/^tele-?op\b/i.test(label)) return OPR_TONE.teleop;
-  if (/^end-?game\b/i.test(label)) return OPR_TONE.endgame;
-  return null;
+  return [icon, "neutral"];
 }
 
 /** The compared team a tile is about (its label names the team: "Ultraviolet (23268)", "4215 wins"), or -1. */
@@ -114,15 +108,11 @@ function teamOf(label: string, teams: { number: number }[]): number {
   return teams.findIndex((t) => new RegExp(`(^|\\(|\\s)${t.number}(\\)|\\s|$)`).test(label));
 }
 
-/** Each compared team's tile colour, in the order of the card's header (src/lib/textTones.ts COMPARE_SIDE_TONE). */
-const SIDE_TONES: Tone[] = ["teal", "orange", "violet", "emerald"];
-
 function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; teams?: { number: number; name: string | null }[] }) {
   switch (b.kind) {
     case "kpis": {
       if (b.items.some((k) => k.phase)) return <OprTiles items={b.items} teams={teams} />;
-      // Two or more teams: each team's tile under its own header, in its colour (A left, B right), anything about
-      // both between them.
+      // Two or more teams: each team's tile under its own header (A left, B right), anything about both between them.
       const sides = teams && teams.length > 1 ? b.items.map((k) => teamOf(k.label, teams)) : [];
       if (teams && sides.length && teams.every((_, i) => sides.includes(i))) {
         const n = teams.length;
@@ -131,10 +121,9 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
         return (
           <div className={cn("grid gap-3", cols)} data-block="kpis" data-kpi-sides>
             {order.map(({ k, s }, j) => {
-              const [icon, look] = kpiLook(k.label, k.tone);
-              const tone = s >= 0 ? SIDE_TONES[s % SIDE_TONES.length] : look;
+              const [icon, tone] = kpiLook(k.label, k.tone);
               const right = order.length === 2 && j === 1;
-              const value = <span className={cn(k.tone === "good" ? "text-success-text" : k.tone === "bad" ? "text-danger-text" : "text-foreground")}>{k.value}</span>;
+              const value = <span className="text-foreground">{k.value}</span>;
               const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} className={cn(right && "items-end text-right")} />;
               return k.href
                 ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi data-side={s}>{tile}</Link>
@@ -147,7 +136,7 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
         <div className={cn("grid gap-3", b.items.length === 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : b.items.length === 3 ? "grid-cols-2 lg:grid-cols-3" : "grid-cols-2 lg:grid-cols-4")} data-block="kpis">
           {b.items.map((k) => {
             const [icon, tone] = kpiLook(k.label, k.tone);
-            const value = <span className={cn(k.tone === "good" ? "text-success-text" : k.tone === "bad" ? "text-danger-text" : "text-foreground")}>{k.value}</span>;
+            const value = <span className="text-foreground">{k.value}</span>;
             const tile = <StatTile tone={tone} icon={icon} label={k.label} value={value} hint={k.sub} />;
             return k.href
               ? <Link key={k.label} to={k.href} className="block rounded-xl transition-transform hover:-translate-y-0.5 motion-reduce:hover:translate-y-0" data-kpi>{tile}</Link>
@@ -157,7 +146,8 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
       );
     }
     case "compare":
-      return <CompareTable b={b} />;
+      // Only inside a card of several answers (a combined card): the comparison's own rows.
+      return <CompareCard stat={{ family: "two-team", intent: "compare", title: b.title, scope: [], blocks: [], definition: "", source: "", teams: b.teams.map((t) => ({ number: Number(t.label), name: null })) }} b={b} />;
     case "record": {
       const n = b.wins + b.losses + b.ties;
       const w = (x: number) => `${n ? (100 * x) / n : 0}%`;
@@ -165,12 +155,12 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
-            <span className="bg-success" style={{ width: w(b.wins) }} />
-            <span className="bg-danger" style={{ width: w(b.losses) }} />
-            <span className="bg-muted-foreground/50" style={{ width: w(b.ties) }} />
+            <span className="bg-foreground/70" style={{ width: w(b.wins) }} />
+            <span className="bg-foreground/25" style={{ width: w(b.losses) }} />
+            <span className="bg-muted-foreground/40" style={{ width: w(b.ties) }} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
-            <span><b className="text-success-text">{b.wins}</b> won</span><span><b className="text-danger-text">{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
+            <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
             {n > 0 && <span className="text-muted-foreground">{Math.round((100 * b.wins) / n)}% win rate</span>}
           </p>
           {b.split && <RecordSplit split={b.split} />}
@@ -211,20 +201,21 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
   }
 }
 
-/** A season OPR and its phases as the team page's OPR tiles: each in its phase's colour, with its rank line and bar. */
+/** A season OPR and its phases as the team page's OPR tiles, neutral (no phase hue), each with its rank line and bar. */
 function OprTiles({ items, teams }: { items: Extract<StatBlock, { kind: "kpis" }>["items"]; teams?: { number: number }[] }) {
   // Two teams' tiles for one phase: one column each, under its own header (A left, B right).
   const many = !!teams && teams.length > 1 && OPR_CARDS.some(([k]) => items.filter((i) => i.phase === k).length > 1);
   return (
     <div className={cn("grid gap-3", many ? (teams!.length === 2 ? "grid-cols-2" : "grid-cols-3") : "grid-cols-2 lg:grid-cols-4")} data-block="kpis" data-opr-tiles>
-      {OPR_CARDS.flatMap(([k, label, Icon, tone]) => {
+      {OPR_CARDS.flatMap(([k, label, Icon]) => {
+        const tone: Tone = "neutral";
         // Two teams' tiles for one phase (a phase side by side) each name their team.
         const its = items.filter((i) => i.phase === k);
         return its.map((it, n) => (
           <StatTile key={`${k}-${n}`} tone={tone} icon={Icon} label={its.length > 1 ? `${label} · ${it.label}` : label}
-            value={<span className={TONES[tone].text}>{it.value}</span>}
+            value={<span className="text-foreground">{it.value}</span>}
             hint={it.rank == null && it.pc != null ? it.sub : oprRankHint(it.rank, it.of)}
-            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: TONES[tone].bar }]} />} />
+            bar={<Meter parts={[{ pc: it.rank == null && it.pc != null ? it.pc : rankPc(it.rank, it.of), cls: INK_BAR }]} />} />
         ));
       })}
     </div>
@@ -247,7 +238,7 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
             <tr key={label} className="border-t border-border" data-split={label}>
               <th scope="row" className="px-3 py-2 text-left font-medium text-foreground">
                 {label}
-                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className="block h-full bg-success" style={{ width: `${pc}%` }} /></span>
+                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className={cn("block h-full", INK_BAR)} style={{ width: `${pc}%` }} /></span>
               </th>
               <td className="px-3 py-2 text-right font-semibold text-foreground"><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} /></td>
               <td className="px-3 py-2 text-right text-foreground">{pc}%</td>
@@ -260,10 +251,10 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
   );
 }
 
-/** Rows of named columns, each cell in the answer's colours (./answerCells.tsx): ranks as pills, records coloured,
- *  an OPR with a bar against the best listed, seasons as badges, an event's name with its type's marker. On a phone
+/** Rows of named columns, each cell as ./answerCells.tsx reads it: ranks as pills, records with the wins bold, an OPR
+ *  with a neutral bar from zero to the best listed, seasons and event types as badges. On a phone
  *  an event's season and date fold under its name, so the columns left are numbers (the team page's phone rows). Two
- *  teams side by side (columns `a` and `b`): each row's better number is marked. */
+ *  teams side by side (columns `a` and `b`): each row's better number is bold with a trophy (no hue). */
 function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   const first = b.columns[0];
   const max = new Map(b.columns.map((c) => [c.key, columnMax(c, b.rows.map((r) => r.cells[c.key]))]));
@@ -275,25 +266,24 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
-            <tr>{b.columns.map((c) => { const p = phaseTone(c.label); return <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", p && cn("border-b-2", BORDER[p]))} data-phase={p ?? undefined}>{c.label}</th>; })}</tr>
+            <tr>{b.columns.map((c) => <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== first && "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden")}>{c.label}</th>)}</tr>
           </thead>
           <tbody>
             {b.rows.map((r, i) => {
               const win = vs ? better(String(r.cells[first.key] ?? ""), r.cells.a, r.cells.b) : null;
               return (
-                <tr key={i} className={cn("border-t border-border", r.strong && "bg-success/[0.07] font-semibold")} data-strong={r.strong ? "" : undefined}>
+                <tr key={i} className={cn("border-t border-border", r.strong && "font-semibold")} data-strong={r.strong ? "" : undefined}>
                   {b.columns.map((c, j) => {
                     const v = r.cells[c.key];
                     const won = win === c.key;
                     return (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-semibold text-success-text")} data-better={won ? "" : undefined}>
-                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-success-text" aria-label="Best" />}
-                        {j === 0 && first.key === "event" && <EventMarker type={r.type} />}
+                      <td key={c.key} className={cn("px-2.5 py-1.5 align-middle", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5", folded.includes(c) && "max-md:hidden", won && "font-bold text-foreground")} data-better={won ? "" : undefined}>
+                        {j === 0 && r.strong && <Trophy className="mr-1 inline size-3.5 align-[-2px] text-muted-foreground" aria-label="Best" />}
                         {j === 0 && r.href
                           ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{v ?? "–"}</Link>
-                          : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} phase={phaseTone(c.label)} />}
+                          : j === 0 ? (v ?? "–") : <Cell col={c} value={v} max={max.get(c.key)} />}
                         {j === 0 && first.key === "event" && !!r.type && <EventMarker type={r.type} chip />}
-                        {won && <Trophy className="ml-1 inline size-3 align-[-1px]" aria-label="Better" />}
+                        {won && <Trophy className="ml-1 inline size-3 align-[-1px] text-muted-foreground" aria-label="Better" />}
                         {j === 0 && !!folded.length && (
                           <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] font-normal text-muted-foreground md:hidden" data-folded>
                             {folded.map((f) => r.cells[f.key] != null && <span key={f.key}>{f.key === "season" ? <SeasonChip text={String(r.cells[f.key])} /> : r.cells[f.key]}</span>)}
@@ -314,14 +304,14 @@ function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
 }
 
 /** Matches in a table with both alliances' teams (a season's top combined scores): a row each, its place as a podium
- *  badge, the number it ranks by with a thin bar (scaled from the lowest listed to the top, so the gaps show), the
+ *  badge, the number it ranks by with a thin neutral bar from zero to the top one (never a cut baseline), the
  *  red and blue scores in their colours (the winner bold), the match, its event with its type, and both alliances as
  *  team chips. On a phone each row is two lines: the numbers and the match, then the event and the teams. */
 function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
   const key = b.columns.find((c) => c.num && c.key !== "rank")?.key ?? "combined";
   const vs = b.rows.map((r) => Number(r.cells[key])).filter(Number.isFinite);
-  const lo = Math.min(...vs), hi = Math.max(...vs);
-  const pc = (v: number) => (hi === lo ? 100 : 20 + (80 * (v - lo)) / (hi - lo));
+  const hi = Math.max(0, ...vs);
+  const pc = (v: number) => (hi > 0 ? (100 * Math.max(0, v)) / hi : 0);
   const label = b.columns.find((c) => c.key === key)?.label ?? "";
   return (
     <div data-block="table" data-match-table>
@@ -340,7 +330,7 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
               <RankBadge rank={Number(r.cells.rank) || i + 1} />
               <span className="w-20 shrink-0 text-right" data-combined>
                 <b className="block font-display text-lg font-semibold leading-tight tabular-nums text-foreground">{r.cells[key]}</b>
-                {Number.isFinite(v) && <span aria-hidden className="flex h-1 w-full justify-end overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", TONES.teal.bar)} style={{ width: `${pc(v)}%` }} /></span>}
+                {Number.isFinite(v) && <span aria-hidden className="flex h-1 w-full overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${pc(v)}%` }} data-bar data-value={v} data-scale={hi} /></span>}
               </span>
               <span className="w-24 shrink-0 text-center tabular-nums" aria-label={`Red ${red}, blue ${blue}`}>
                 <span className={cn("text-red-alliance-text", won === "red" ? "font-bold" : "opacity-80")}>{red}</span><span className="text-muted-foreground">–</span><span className={cn("text-blue-alliance-text", won === "blue" ? "font-bold" : "opacity-80")}>{blue}</span>
@@ -348,7 +338,6 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
               {r.href ? <Link to={r.href} className={cn("inline-flex w-16 shrink-0 items-center font-medium text-foreground hover:text-accent-text hover:underline", TAP)}>{r.cells.match}</Link> : <span className="w-16 shrink-0">{r.cells.match}</span>}
               <span className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 max-md:pl-9 md:basis-0 md:flex-1">
                 <span className="min-w-0 flex-1 basis-48 text-xs">
-                  <EventMarker type={r.type} />
                   {r.eventHref ? <Link to={r.eventHref} className={cn("inline-flex items-center font-medium text-foreground/90 hover:text-accent-text hover:underline", TAP)}>{r.cells.event}</Link> : r.cells.event}
                   {!!r.type && <EventMarker type={r.type} chip />}
                   {r.cells.date && <span className="text-muted-foreground"> · {r.cells.date}</span>}
@@ -414,12 +403,8 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
   );
 }
 
-/** A phase column's thin underline, in its phase's colour (static strings: Tailwind only builds what it sees). */
-const BORDER: Partial<Record<Tone, string>> = { sky: "border-b-info", emerald: "border-b-success", violet: "border-b-violet-500" };
-
 function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
-  // The owner's rule: no bar charts on answer cards. One group's values are small tiles (a phase in its team page
-  // colour); several groups a compact table, a row each.
+  // One group's values are small neutral tiles (no phase hue); several groups a compact table, a row each.
   const fmt = (v: number | null) => (v == null ? "–" : `${Number.isInteger(v) ? v : v.toFixed(1)}${b.unit === "%" ? "%" : ""}`);
   if (b.groups.length === 1) {
     const g = b.groups[0];
@@ -427,15 +412,12 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
       <figure data-block="bars">
         <figcaption className={H3}>{b.title}</figcaption>
         <dl className={cn("grid gap-2", g.items.length <= 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4")}>
-          {g.items.map((i) => {
-            const p = phaseTone(i.label);
-            return (
-              <div key={i.label} className={cn("rounded-lg border px-3 py-2", p ? TONES[p].box : "border-border bg-muted/30")} data-bar-value={i.label}>
-                <dt className={cn("text-xs font-medium", p ? TONES[p].text : "text-muted-foreground")}>{i.label}</dt>
-                <dd className={cn("font-display text-xl font-semibold tabular-nums", (i.value ?? 0) < 0 ? "text-danger-text" : "text-foreground")}>{fmt(i.value)}</dd>
-              </div>
-            );
-          })}
+          {g.items.map((i) => (
+            <div key={i.label} className="rounded-lg border border-border bg-muted/30 px-3 py-2" data-bar-value={i.label}>
+              <dt className="text-xs font-medium text-muted-foreground">{i.label}</dt>
+              <dd className="font-display text-xl font-semibold tabular-nums text-foreground">{fmt(i.value)}</dd>
+            </div>
+          ))}
         </dl>
       </figure>
     );
@@ -448,15 +430,12 @@ function Bars({ b }: { b: Extract<StatBlock, { kind: "bars" }> }) {
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-[11px] text-muted-foreground"><tr><th scope="col" className="px-2.5 py-1.5 text-left font-medium"><span className="sr-only">Group</span></th>{labels.map((l) => <th key={l} scope="col" className="px-2.5 py-1.5 text-right font-medium">{l}</th>)}</tr></thead>
           <tbody>
-            {b.groups.map((g) => {
-              const p = phaseTone(g.label);
-              return (
-                <tr key={g.label} className="border-t border-border">
-                  <th scope="row" className={cn("px-2.5 py-1.5 text-left text-xs font-medium", p ? TONES[p].text : "text-foreground")}>{g.label}</th>
-                  {labels.map((l) => <td key={l} className="px-2.5 py-1.5 text-right tabular-nums">{fmt(g.items.find((i) => i.label === l)?.value ?? null)}</td>)}
-                </tr>
-              );
-            })}
+            {b.groups.map((g) => (
+              <tr key={g.label} className="border-t border-border">
+                <th scope="row" className="px-2.5 py-1.5 text-left text-xs font-medium text-foreground">{g.label}</th>
+                {labels.map((l) => <td key={l} className="px-2.5 py-1.5 text-right tabular-nums">{fmt(g.items.find((i) => i.label === l)?.value ?? null)}</td>)}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

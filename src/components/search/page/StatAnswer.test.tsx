@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // Search's OPR answer drawn as the team page draws its OPR: a plain card, no band behind the number, and the phases as
-// the team page's coloured OPR tiles (src/components/oprCards.ts) with the same rank line. Other stat answers keep theirs.
+// the team page's OPR tiles (src/components/oprCards.ts) with the same rank line, neutral (the search results guide:
+// hue means team only).
 import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -24,7 +25,7 @@ const opr: StatAnswer = {
 const draw = (s: StatAnswer) => render(<MemoryRouter><StatAnswerCard stat={s} /></MemoryRouter>).container;
 
 describe("StatAnswerCard, a team's OPR", () => {
-  it("has the team page's tiles: its names, each phase's colour, its rank line", () => {
+  it("has the team page's tiles: its names and rank line, no phase hue", () => {
     const c = draw(opr);
     const tiles = [...c.querySelectorAll("[data-opr-tiles] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual([
@@ -33,12 +34,10 @@ describe("StatAnswerCard, a team's OPR", () => {
       "TeleOp73.4OPR #640 of 8,308 with an OPR · top 8%",
       "Endgame6.7OPR #5,013 of 8,308 with an OPR · top 61%",
     ]);
-    // Each tile's box, value and bar in its own colour, as on /teams/4215.
-    (["accent", "sky", "emerald", "violet"] as const).forEach((tone, i) => {
-      expect(tiles[i].className).toContain(TONES[tone].box.split(" ")[0]);
-      expect(tiles[i].querySelector(`.${CSS.escape(TONES[tone].text.split(" ")[0])}`)).toBeTruthy();
-      expect(tiles[i].querySelector(`.${CSS.escape(TONES[tone].bar)}`)).toBeTruthy();
-    });
+    for (const t of tiles) {
+      expect(t.className).toContain(TONES.neutral.box.split(" ")[0]);
+      expect(t.innerHTML).not.toMatch(/(text|bg|border)-(accent|info|success|violet)/);
+    }
   });
   it("puts no band behind the number, and keeps its rank, season and chip", () => {
     const c = draw(opr);
@@ -52,7 +51,7 @@ describe("StatAnswerCard, a team's OPR", () => {
     const c = draw({ ...opr, intent: "wins-count", blocks: [{ kind: "kpis", items: [{ label: "Wins", value: "26", sub: "2025–26" }] }] });
     expect(c.querySelector("[data-opr-tiles]")).toBeNull();
     expect(c.querySelector("[data-headline]")!.className).not.toMatch(/bg-accent/);
-    expect(c.querySelector("[data-kpi] > div")!.className).toContain(TONES.emerald.box.split(" ")[0]);
+    expect(c.querySelector("[data-kpi] > div")!.className).toContain(TONES.neutral.box.split(" ")[0]);
     expect(c.innerHTML).not.toMatch(/(border|bg)-accent/);
   });
   it("the team's header up top: its number, name and the season it states", () => {
@@ -66,19 +65,17 @@ describe("StatAnswerCard, a team's OPR", () => {
     const c = render(<MemoryRouter><StatAnswerCard stat={opr} heading="Hypnotic Robotics (4215) · OPR in 2025–26" /></MemoryRouter>).container;
     expect(c.querySelector("[data-answer-title]")!.className).toContain("sr-only");
   });
-  it("phase values (no bars) and phase columns in the team page's phase colours", () => {
+  it("phase values (no bars) and phase columns, neutral", () => {
     const c = draw({ ...opr, intent: "phase", blocks: [
       { kind: "bars", title: "Phases", groups: [{ label: "x", items: [{ label: "Auto", value: 20 }, { label: "TeleOp", value: 60 }, { label: "Endgame", value: 10 }] }] },
       { kind: "table", title: "By event", columns: [{ key: "e", label: "Event" }, { key: "a", label: "Auto", num: true }, { key: "t", label: "TeleOp", num: true }, { key: "g", label: "Endgame", num: true }], rows: [{ cells: { e: "Q", a: "1", t: "2", g: "3" } }] },
     ] } as StatAnswer);
-    // The owner's rule: no bar charts on answer cards. The values are small tiles, each phase in its colour.
+    // One team's phase values are small tiles with no hue of their own (phase is the label, not a colour).
     const tiles = [...c.querySelectorAll<HTMLElement>("[data-bar-value]")];
     expect(tiles.map((t) => t.textContent)).toEqual(["Auto20", "TeleOp60", "Endgame10"]);
-    expect(tiles[0].className).toContain(TONES.sky.box.split(" ")[0]);
-    expect(tiles[1].className).toContain(TONES.emerald.box.split(" ")[0]);
-    expect(tiles[2].className).toContain(TONES.violet.box.split(" ")[0]);
+    for (const t of tiles) expect(t.className).toContain("border-border");
     expect(c.querySelector('[data-block="bars"] [style*="width"]')).toBeNull();
-    expect([...c.querySelectorAll("th[data-phase]")].map((t) => t.getAttribute("data-phase"))).toEqual(["sky", "emerald", "violet"]);
+    expect(c.querySelectorAll("th[data-phase]")).toHaveLength(0);
   });
   it("two teams' tiles for one phase both show, each naming its team", () => {
     const c = draw({ ...opr, family: "two-team", intent: "phase-vs", blocks: [{ kind: "kpis", items: [

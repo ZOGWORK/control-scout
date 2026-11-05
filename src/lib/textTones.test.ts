@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { contrast, over, parseColor, toHex, type RGBA } from "./contrast";
-import { CHART_LEGEND_TEXT, COMPARE_SIDE_TONE, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
+import { CHART_LEGEND_TEXT, TEAM_FILL, EVENT_FILTER_COUNT, PODIUM_CHIP, EVENT_STATUS_TONE, VIDEO_TONE, EVENT_TYPE_CHIP_FILL, EVENT_TYPE_TONE, PROFILE_PERCENTILE_TEXT, RECORDS_CAP_NOTE_TONE, ROSTER_CHIP_TONE } from "./textTones";
 import { TONE_CLASS } from "./records/describe";
 import { badgeVariants } from "../components/ui/basic";
 import { buttonVariants } from "../components/ui/button";
@@ -126,11 +126,15 @@ describe("text tones reach WCAG AA in every theme", () => {
         expect(m.ratio, `${tone}/${a}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
       }
     });
-    it(`compared teams' colours, as bold text on the card and as chips (${theme})`, () => {
-      for (const [i, t] of COMPARE_SIDE_TONE.entries()) for (const cls of [t.text, t.chip]) {
-        const m = measure(theme, cls);
-        expect(m.ratio, `side ${i} ${cls}: ${m.pair}`).toBeGreaterThanOrEqual(AA);
+    it(`compared teams' bar hues reach 3:1 against the card as graphics, and differ from each other (${theme})`, () => {
+      const card = value(theme, "--color-card");
+      const fills = TEAM_FILL.map((cls) => utility(theme, cls, "bg")!);
+      for (const [i, f] of fills.entries()) {
+        const r = contrast(over(f, card), card);
+        expect(r, `team ${"abc"[i]} ${toHex(f)} on ${toHex(card)} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(LARGE);
       }
+      // Okabe–Ito: A and B told apart by lightness too, so grayscale still separates them.
+      expect(Math.abs(contrast(fills[0], card) - contrast(fills[1], card)) + contrast(fills[0], fills[1])).toBeGreaterThan(1);
     });
     it(`search podium place chips (${theme})`, () => {
       for (const [k, cls] of Object.entries(PODIUM_CHIP)) expect(measure(theme, cls).ratio, `${k}: ${measure(theme, cls).pair}`).toBeGreaterThanOrEqual(AA);

@@ -202,7 +202,7 @@ describe("Layers 3 and 5, scope position, precedence and ambiguity", () => {
   it("two intents with no rule between them are named, never guessed", async () => {
     const a = await ask("4215 awards location");
     expect(searchOutcome(a)).toMatchObject({ result: "ambiguous", intents: ["awards", "location"], won: null });
-    expect(a.understood?.label).toMatch(/awards or location: say which/);
+    expect(a.understood?.label).toMatch(/awards or location\? Say which/);
     // Two facts from FIRST's listing are both answered, not ambiguous (failed-search #489).
     expect(searchOutcome(await ask("4215 sponsors school"))?.result).toBe("answered");
     // A weak word with two meanings is named too.

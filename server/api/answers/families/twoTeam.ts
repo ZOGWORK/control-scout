@@ -20,7 +20,7 @@ import type { TwoTeamId, IntentId } from "../read.js";
 import { teamReliability } from "../../teams.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { sourceOf, whoOf, type AnswerTeam } from "./matches.js";
-import { compareBlock, winShare } from "../compareBlock.js";
+import { awardScale, compareBlock, decidedText, leadHeadline, seasonScale, winShare, type CompareInput, type StatColumn } from "../compareBlock.js";
 
 const LIST_CAP = 25, TOP = 10;
 /** Meetings an opponent (or matches a partner) needs before "toughest" or "best" ranks it. */
@@ -120,23 +120,19 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
     return { ...base, blocks: [], none: s.season == null ? `${whoOf(a)} and ${whoOf(b)} have no season they both played.` : `No ${seasonLabel(s.season)} matches on record for ${missing}.` };
   }
   // Predict covers 2023–24 on; an older season is Compare only.
-  const predict: StatBlock = { kind: "links", title: "Try it", items: [...(isLegacy(s.season!) ? [] : [{ label: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season: s.season!, red: [a.number], blue: [b.number] }) }]), { label: "Compare side by side", href: `/compare?teams=${[a.number, b.number].sort((x, y) => x - y).join(",")}&season=${s.season}` }] };
+  const predict: StatBlock = { kind: "links", title: "Try it", items: [...(isLegacy(s.season!) ? [] : [{ label: "Open in Predict", href: predictHref({ mode: "match", season: s.season!, red: [a.number], blue: [b.number] }) }]), { label: "Compare side by side", href: `/compare?teams=${[a.number, b.number].sort((x, y) => x - y).join(",")}&season=${s.season}` }] };
 
   if (id === "better-record") {
     const rA: Rec = { wins: ra.wins, losses: ra.losses, ties: ra.ties }, rB: Rec = { wins: rb.wins, losses: rb.losses, ties: rb.ties };
-    const d = rateOf(rA) - rateOf(rB);
-    const verdict = Math.abs(d) < 0.0005 ? "Even" : d > 0 ? whoOf(a) : whoOf(b);
+    // The win rate on its own scale, 0 to 100%; the records and matches played as the context line.
+    const block = compareBlock("Win rate", [a, b], [
+      { label: "Win rate", total: true, values: [rateOf(rA), rateOf(rB)], max: 1, show: (v) => (v == null ? "–" : `${Math.round(100 * v)}%`), better: "higher", gap: (g) => `+${Math.round(100 * g)}%` },
+    ], s.season, "0 to 100%");
+    const rows = block.kind === "compare" ? block.rows : [];
     return {
       ...base,
-      headline: { value: verdict, label: Math.abs(d) < 0.0005 ? `Both win ${pct(rA)} of their matches` : `${pct(d > 0 ? rA : rB)} win rate against ${pct(d > 0 ? rB : rA)}`, href: Math.abs(d) < 0.0005 ? undefined : teamHref(d > 0 ? a.number : b.number, s.season) },
-      blocks: [
-        compareBlock(`Records, ${seasonLabel(s.season!)}`, [a, b], [
-          { label: "Win rate", values: [rateOf(rA), rateOf(rB)], show: (v) => (v == null ? "–" : `${Math.round(100 * v)}%`), better: "higher", gap: (g) => `+${Math.round(100 * g)}%` },
-          { label: "W-L-T", values: [winShare(rA), winShare(rB)], show: (_, i) => recText(i === 0 ? rA : rB), better: "higher", gap: () => "better" },
-          { label: "Matches", values: [played(rA), played(rB)], show: (v) => String(v ?? "–"), better: null },
-        ], s.season),
-        predict,
-      ],
+      headline: leadHeadline([a, b], rows[0], [`${recText(rA)} in ${played(rA)} matches`, `${recText(rB)} in ${played(rB)}`], rows[0].best != null ? teamHref([a, b][rows[0].best].number, s.season) : undefined),
+      blocks: [block, predict],
     };
   }
 
@@ -147,35 +143,26 @@ export async function seasonSideBySide(id: TwoTeamId, a: AnswerTeam, b: AnswerTe
     const missing = [va[0] == null ? whoOf(a) : "", vb[0] == null ? whoOf(b) : ""].filter(Boolean).join(" and ");
     return { ...base, blocks: [], none: `No ${opr ? "OPR" : "prediction rating"} for ${missing} in ${seasonLabel(s.season!)} yet.` };
   }
-  // Head to head, a row per phase and the world rank: no bar chart.
-  const rk = (r: SeasonRow) => (opr ? r.rank_np : r.rating_rank);
-  const bars: StatBlock = compareBlock(opr ? "OPR by phase" : "Rating by phase", [a, b], [
-    ...(["Total", "Auto", "TeleOp", "Endgame"] as const).map((label, i) => ({ label, ...(i ? { phase: (["auto", "teleop", "endgame"] as const)[i - 1] } : {}), values: [va[i], vb[i]], better: "higher" as const })),
-    ...(rk(ra) != null || rk(rb) != null ? [{ label: "World rank", values: [rk(ra), rk(rb)], show: (v: number | null | undefined) => (v == null ? "–" : `#${v.toLocaleString("en-US")}`), better: "lower" as const, gap: (g: number) => `${g.toLocaleString("en-US")} places` }] : []),
-  ], s.season);
-  const d = (va[0] ?? 0) - (vb[0] ?? 0);
-  const ahead = d >= 0 ? a : b;
-  const rankText = (r: SeasonRow) => (opr ? (r.rank_np ? `#${r.rank_np} of ${r.ranked_teams ?? "?"}` : undefined) : r.rating_rank ? `#${r.rating_rank} worldwide` : undefined);
-  const show = (r: SeasonRow, v: number | null) => (opr ? num1(v) : `${num1(v)} ±${Math.round(r.rating_sd ?? 0)}`);
-  const kpis: StatBlock = { kind: "kpis", items: [
-    { label: whoOf(a), value: show(ra, va[0]), sub: rankText(ra), href: teamHref(a.number, s.season), tone: d > 0 ? "accent" : undefined },
-    { label: whoOf(b), value: show(rb, vb[0]), sub: rankText(rb), href: teamHref(b.number, s.season), tone: d < 0 ? "accent" : undefined },
-  ] };
+  // A row per phase, each on the season's own scale from zero (the highest any team reached, rounded up); the world
+  // ranks go in the context line, said once.
+  const cols = (opr ? ["opr_np", "opr_auto", "opr_teleop", "opr_endgame"] : ["rating_np", "rating_auto", "rating_teleop", "rating_endgame"]) as StatColumn[];
+  const scale = await seasonScale(s.season!, cols);
+  const bars: StatBlock = compareBlock(opr ? "OPR" : "Prediction rating", [a, b], (["Total", "Auto", "TeleOp", "Endgame"] as const).map((label, i) => ({ label, total: i === 0, values: [va[i], vb[i]], max: scale[cols[i]], better: "higher" as const })), s.season, `season ${seasonLabel(s.season!)} highs`);
+  const rows = bars.kind === "compare" ? bars.rows : [];
+  const rankText = (r: SeasonRow) => (opr ? (r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked") : r.rating_rank ? `#${r.rating_rank.toLocaleString("en-US")} worldwide` : "unranked");
+  const context = [rankText(ra), rankText(rb), decidedText(rows), opr ? null : `±${Math.round(ra.rating_sd ?? 0)} and ±${Math.round(rb.rating_sd ?? 0)} uncertainty`];
+  const lead = rows[0].best != null ? teamHref([a, b][rows[0].best].number, s.season) : undefined;
   if (id === "win-chance") {
     // FTC matches are two alliances, never one team against another: the ratings say who is stronger, and Predict works
     // out a real match's chances once its alliances are set.
     return {
       ...base,
-      headline: { value: Math.abs(d) < 0.05 ? "Even" : `${ahead.number} is stronger`, label: Math.abs(d) < 0.05 ? "Same prediction rating" : `by ${num1(Math.abs(d))} points per match (prediction rating)`, sub: "A match is two alliances, so a win chance needs both alliances: Predict works it out for any lineup." },
-      blocks: [kpis, bars, predict],
-      definition: `${SEASON_RULE} No one-on-one win chance is given: every FTC match is two alliances against each other.${s.why ? ` ${s.why}` : ""}`,
+      headline: leadHeadline([a, b], rows[0], context, lead),
+      blocks: [bars, predict],
+      definition: `${SEASON_RULE} No one-on-one win chance is given: every FTC match is two alliances against each other, so Predict works it out for any lineup.${s.why ? ` ${s.why}` : ""}`,
     };
   }
-  return {
-    ...base,
-    headline: { value: Math.abs(d) < 0.05 ? "Even" : `${whoOf(ahead)}`, label: Math.abs(d) < 0.05 ? `Both ${num1(va[0])}` : `${opr ? "OPR" : "rating"} ${num1(d >= 0 ? va[0] : vb[0])} against ${num1(d >= 0 ? vb[0] : va[0])}, +${num1(Math.abs(d))}` },
-    blocks: [kpis, bars, predict],
-  };
+  return { ...base, headline: leadHeadline([a, b], rows[0], context, lead), blocks: [bars, predict] };
 }
 
 type Tally = { team: number; ms: TeamMatch[] };
@@ -270,19 +257,32 @@ export async function phaseSideBySide(phase: "auto" | "teleop" | "endgame", a: A
   const v = (r?: SeasonRow) => (r ? r[`opr_${phase}`] : null), rk = (r?: SeasonRow) => (r ? r[`rank_${phase}`] : null);
   const va = v(s.ra), vb = v(s.rb);
   if (va == null || vb == null) return { ...base, blocks: [], none: s.season == null ? `${whoOf(a)} and ${whoOf(b)} have no season they both played.` : `No ${seasonLabel(s.season)} ${P} OPR for ${[va == null ? whoOf(a) : "", vb == null ? whoOf(b) : ""].filter(Boolean).join(" and ")}.` };
-  const d = va - vb, even = Math.abs(d) < 0.05, ahead = d >= 0 ? a : b;
-  const tile = (t: AnswerTeam, r: SeasonRow, x: number) => ({ label: whoOf(t), value: num1(x), phase, rank: rk(r), of: r.ranked_teams, href: teamHref(t.number, s.season), ...(!even && t === ahead ? { tone: "accent" as const } : {}) });
+  const col = `opr_${phase}` as StatColumn;
+  const scale = await seasonScale(s.season!, [col]);
+  const block = compareBlock(`${P} OPR`, [a, b], [{ label: P, total: true, values: [va, vb], max: scale[col], better: "higher" }], s.season, `season ${seasonLabel(s.season!)} high`);
+  const rows = block.kind === "compare" ? block.rows : [];
+  const rankText = (r?: SeasonRow) => (rk(r) ? `#${rk(r)!.toLocaleString("en-US")} of ${(r!.ranked_teams ?? 0).toLocaleString("en-US")} in ${P}` : `unranked in ${P}`);
   return {
     ...base,
-    headline: { value: even ? "Even" : whoOf(ahead), label: even ? `Both ${num1(va)} ${P} OPR` : `${P} OPR ${num1(Math.max(va, vb))} against ${num1(Math.min(va, vb))}, +${num1(Math.abs(d))}`, href: even ? undefined : teamHref(ahead.number, s.season) },
-    blocks: [
-      { kind: "kpis", items: [tile(a, s.ra!, va), tile(b, s.rb!, vb)] },
-      compareBlock(`${P} OPR`, [a, b], [
-        { label: P, phase, values: [va, vb], better: "higher" },
-        { label: `${P} rank`, values: [rk(s.ra), rk(s.rb)], show: (v) => (v == null ? "–" : `#${v.toLocaleString("en-US")}`), better: "lower", gap: (g) => `${g.toLocaleString("en-US")} places` },
-      ], s.season),
-    ],
+    headline: leadHeadline([a, b], rows[0], [rankText(s.ra), rankText(s.rb)], rows[0].best != null ? teamHref([a, b][rows[0].best].number, s.season) : undefined),
+    blocks: [block],
   };
+}
+
+type Reliability = NonNullable<Awaited<ReturnType<typeof teamReliability>>>;
+/** Reliability's rows: the index on its own 0–100 scale, then the parts that count against a team (fewer is better),
+ *  values only: four, so the card keeps five rows. */
+export function reliabilityRows(rs: Reliability[]): CompareInput[] {
+  const parts: [string, (r: Reliability) => number, (r: Reliability) => string][] = [
+    ["No-shows and DQs", (r) => r.noShows + r.dqs, (r) => String(r.noShows + r.dqs)],
+    ["Near-zero matches", (r) => r.nearZero, (r) => String(r.nearZero)],
+    ["Swing", (r) => r.parts.swing, (r) => r.parts.swing.toFixed(2)],
+    ["Penalties vs field", (r) => r.parts.penaltyRatio, (r) => `${r.parts.penaltyRatio.toFixed(2)}×`],
+  ];
+  return [
+    { label: "Reliability", total: true, values: rs.map((r) => r.index), max: 100, show: (v) => String(v ?? "–"), better: "higher", gap: (g) => `+${Math.round(g)}` },
+    ...parts.map(([label, v, show]): CompareInput => ({ label, values: rs.map(v), show: (_, i) => show(rs[i]), better: "lower", gap: (g) => (Number.isInteger(g) ? String(g) : g.toFixed(2)) })),
+  ];
 }
 
 /** "4215 vs 6980 who has higher reliability": both teams' stored season reliability (the team page's), the higher named. */
@@ -294,21 +294,12 @@ export async function reliabilitySideBySide(a: AnswerTeam, b: AnswerTeam, scope:
   if (s.season == null) return { ...base, blocks: [], none: `${whoOf(a)} and ${whoOf(b)} have no season they both played.` };
   const [ra, rb] = await Promise.all([teamReliability(s.season, a.number), teamReliability(s.season, b.number)]);
   if (!ra || !rb) return { ...base, blocks: [], none: `No ${seasonLabel(s.season)} reliability for ${[!ra ? whoOf(a) : "", !rb ? whoOf(b) : ""].filter(Boolean).join(" and ")} yet.` };
-  type R = NonNullable<typeof ra>;
-  const d = ra.index - rb.index, ahead = d >= 0 ? a : b;
-  const tile = (t: AnswerTeam, r: R) => ({ label: whoOf(t), value: String(r.index), sub: `out of 100 · ${r.matches} qualification matches`, href: teamHref(t.number, s.season), ...(d !== 0 && t === ahead ? { tone: "accent" as const } : {}) });
-  const parts: [string, (r: R) => string | number][] = [["No-shows", (r) => r.noShows], ["Disqualified", (r) => r.dqs], ["Near-zero matches", (r) => r.nearZero], ["Swing", (r) => r.parts.swing.toFixed(2)], ["Penalties given away vs field", (r) => `${r.parts.penaltyRatio.toFixed(2)}×`]];
+  const block = compareBlock("Reliability", [a, b], reliabilityRows([ra, rb]), s.season, "0 to 100");
+  const rows = block.kind === "compare" ? block.rows : [];
   return {
     ...base,
-    headline: { value: d === 0 ? "Even" : whoOf(ahead), label: d === 0 ? `Both ${ra.index} out of 100` : `${Math.max(ra.index, rb.index)} against ${Math.min(ra.index, rb.index)} out of 100`, sub: ra.fieldIndex != null ? `Field average ${ra.fieldIndex}` : undefined, href: d === 0 ? undefined : teamHref(ahead.number, s.season) },
-    blocks: [
-      { kind: "kpis", items: [tile(a, ra), tile(b, rb)] },
-      compareBlock("Breakdown", [a, b], [
-        { label: "Reliability", values: [ra.index, rb.index], show: (v) => String(v ?? "–"), better: "higher", gap: (g) => `+${Math.round(g)}` },
-        // Every part counts against a team: fewer is better.
-        ...parts.map(([part, f]) => ({ label: part, values: [Number.parseFloat(String(f(ra))), Number.parseFloat(String(f(rb)))], show: (_: unknown, i: number) => String(f(i === 0 ? ra : rb)), better: "lower" as const, gap: (g: number) => (Number.isInteger(g) ? String(g) : g.toFixed(2)) })),
-      ], s.season),
-    ],
+    headline: leadHeadline([a, b], rows[0], [`${ra.matches} and ${rb.matches} qualification matches`, ra.fieldIndex != null ? `field average ${ra.fieldIndex}` : null], rows[0].best != null ? teamHref([a, b][rows[0].best].number, s.season) : undefined),
+    blocks: [block],
   };
 }
 
@@ -321,15 +312,20 @@ export async function awardsSideBySide(a: AnswerTeam, b: AnswerTeam, season: num
   const seasons = [...new Set(rows.map((r) => Number(r.season)))].sort((x, y) => y - x);
   const of = (t: number, s: number) => Number(rows.find((r) => Number(r.team) === t && Number(r.season) === s)?.n ?? 0);
   const count = (n: number) => `${n} award${n === 1 ? "" : "s"}`;
-  const tile = (t: AnswerTeam, n: number) => ({ label: whoOf(t), value: String(n), sub: `awards, ${where}`, href: `${teamHref(t.number)}#awards`, ...(na !== nb && t === ahead ? { tone: "accent" as const } : {}) });
+  // The total on the scale of the most awards any team has won (that season, or in all seasons), then the seasons
+  // with the largest gaps on each season's own scale: five rows at most.
+  const [allMax, ...seasonMax] = await Promise.all([awardScale(season), ...seasons.map((x) => awardScale(x))]);
+  const block = compareBlock("Awards", [a, b], [
+    { label: "Total", total: true, values: [na, nb], max: allMax, show: (v) => String(v ?? 0), better: "higher", gap: (g) => `+${g}` },
+    ...(seasons.length > 1 ? seasons.map((x, i) => ({ label: seasonLabel(x), values: [of(a.number, x), of(b.number, x)], max: seasonMax[i], show: (v: number | null | undefined) => String(v ?? 0), better: "higher" as const, gap: (g: number) => `+${g}` })) : []),
+  ], null, "the most any team has won");
+  if (block.kind === "compare" && block.rows.length > 5) block.rows = block.rows.slice(0, 5);
+  const crow = block.kind === "compare" ? block.rows : [];
   return {
     family: "two-team", intent: "awards-vs", title: `Awards: ${a.number} vs ${b.number}${season != null ? ` in ${where}` : ""}`, team: a, teams: [a, b], scope: [season != null ? where : "All seasons"],
     definition: "Every award in the events' published awards, the season named or every season we cover, as each team page's Awards section counts them (an alliance award counts once for each of its teams).", source: `From ${na + nb} award records`,
-    headline: { value: na === nb ? "Even" : whoOf(ahead), label: na === nb ? `${count(na)} each` : `${count(Math.max(na, nb))} against ${Math.min(na, nb)}`, href: na === nb ? undefined : `${teamHref(ahead.number)}#awards` },
-    blocks: [
-      { kind: "kpis", items: [tile(a, na), tile(b, nb)] },
-      ...(seasons.length > 1 ? [compareBlock("By season", [a, b], seasons.map((x) => ({ label: seasonLabel(x), values: [of(a.number, x), of(b.number, x)], show: (v: number | null | undefined) => String(v ?? 0), better: "higher" as const, gap: (g: number) => `+${g}` })))] : []),
-    ],
+    headline: na === nb ? { value: "Even", label: `${count(na)} each` } : leadHeadline([a, b], crow[0], [seasons.length > 4 ? `${crow.length - 1} of ${seasons.length} seasons shown, largest gaps first` : seasons.length > 1 ? `${seasons.length} seasons` : null], na === nb ? undefined : `${teamHref(ahead.number)}#awards`),
+    blocks: [block],
   };
 }
 
@@ -352,18 +348,23 @@ export async function compareAnswer(teams: AnswerTeam[], scope: Scope): Promise<
   const rec = (r: SeasonRow): Rec => ({ wins: r.wins, losses: r.losses, ties: r.ties });
   const compareHref = `/compare?teams=${teams.map((t) => t.number).sort((x, y) => x - y).join(",")}&season=${season}`;
   const phases = ["np", "auto", "teleop", "endgame"] as const;
+  // OPR and its phases, then the rating, each on the season's own scale (five rows); the ranks and records are the
+  // context line, said once.
+  const scale = await seasonScale(season, ["opr_np", "opr_auto", "opr_teleop", "opr_endgame", "rating_np"]);
+  const block = compareBlock("Season numbers", teams, [
+    ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], total: k === "np", values: rows.map((r) => r[`opr_${k}`]), max: scale[`opr_${k}`], better: "higher" as const })),
+    { label: "Rating", values: rows.map((r) => r.rating_np), max: scale.rating_np, better: "higher" },
+  ], season, `season ${seasonLabel(season)} highs`);
+  const crow = block.kind === "compare" ? block.rows : [];
+  const two = teams.length === 2;
+  const who = (i: number) => (two ? "" : `${teams[i].number} `);
+  const context = [...rows.map((r, i) => `${who(i)}${r.rank_np ? `#${r.rank_np.toLocaleString("en-US")} of ${(r.ranked_teams ?? 0).toLocaleString("en-US")}` : "unranked"} (${recText(rec(r))})`), decidedText(crow)];
   return {
     ...base,
-    headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : { value: whoOf(lead), label: `Highest OPR: ${num1(best.opr_np)}${best.rank_np ? ` (#${best.rank_np} of ${best.ranked_teams ?? "?"})` : ""}`, sub: `Prediction rating ${num1(best.rating_np)} · record ${recText(rec(best))}`, href: teamHref(lead.number, season) },
+    headline: noOpr ? { value: "No OPR", label: `No ${seasonLabel(season)} OPR on record for these teams`, href: compareHref } : leadHeadline(teams, crow[0], context, teamHref(lead.number, season)),
     blocks: [
-      // One head-to-head table, a column per team: OPR and its phases, the world rank, the rating and the record.
-      compareBlock(`Season numbers, ${seasonLabel(season)}`, teams, [
-        ...phases.map((k) => ({ label: k === "np" ? "OPR" : PHASE_NAME[k], ...(k !== "np" ? { phase: k } : {}), values: rows.map((r) => r[`opr_${k}`]), better: "higher" as const })),
-        { label: `Rank of ${(best.ranked_teams ?? 0).toLocaleString("en-US")}`, values: rows.map((r) => r.rank_np), show: (v) => (v == null ? "–" : `#${v.toLocaleString("en-US")}`), better: "lower", gap: (g) => `${g.toLocaleString("en-US")} places` },
-        { label: "Rating", values: rows.map((r) => r.rating_np), better: "higher" },
-        { label: "W-L-T", values: rows.map((r) => winShare(rec(r))), show: (_, i) => recText(rec(rows[i])), better: "higher", gap: () => "better" },
-      ], season),
-      { kind: "links", title: "Try it", items: [{ label: "Compare side by side", href: compareHref }, ...(teams.length === 2 && !isLegacy(season) ? [{ label: `Predict ${teams[0].number} vs ${teams[1].number}`, href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : [])] },
+      block,
+      { kind: "links", title: "Try it", items: [...(two && !isLegacy(season) ? [{ label: "Open in Predict", href: predictHref({ mode: "match", season, red: [teams[0].number], blue: [teams[1].number] }) }] : []), { label: "Compare side by side", href: compareHref }] },
     ],
   };
 }

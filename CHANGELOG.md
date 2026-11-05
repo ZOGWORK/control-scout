@@ -17,22 +17,21 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.1 — 2026-11-05
 
-Search answer cards speak the team page's colours: comparisons are head-to-head tables, match lists are match boxes.
+Search answer cards follow the search results guide: comparisons say the result once, bars start at zero, and colour means team.
 
 ### Highlights
-- [appearance] Ranks as podium pills; W-L-T wins green, losses red
-- [appearance] Compare cards: each team's numbers under its own header
-- [appearance] Head-to-head tables replace bar charts, the gap between
-- [appearance] Top scores: match boxes with both alliances and phases
-- [appearance] Phone tables keep numbers; season and date fold under
+- [appearance] One headline per comparison: who leads and by how much
+- [appearance] Paired bars from zero, each row on its own season scale
+- [appearance] Colour means team only: blue, orange and green bars
+- [appearance] No phase, podium or win colours on answer data
+- [fixes] No "read as" text; team names printed once per card
 
 ### Search
-- **One colour language.** Every answer's table draws a rank as a pill (1st green, 2nd blue, 3rd orange with a medal, the rest neutral), a W-L-T record with wins green and losses red, a season as a badge, a win or loss as its chip, an award with its icon and an OPR with a small teal bar against the best one listed (in its phase's colour for an Auto, TeleOp or Endgame column). An event's name carries its type's colour, and the headline event gets a marker and its type and season as chips. A best row gets a trophy. Leaderboards colour their records and phase numbers.
-- **Comparisons head to head.** Two-team, three-team, OPR, rating, phase, record, reliability, awards and prediction cards show each team's tiles under its own header (the first team left, the second right) and their numbers as one head-to-head table: a row per stat, each team's value in its column, the better one bold in its team's colour and the other muted, the gap and who leads in the middle over a thin marker. Teams are teal, orange and violet, never yellow, blue or red, and every pair reaches AA in Light, Dim, Dark and Midnight.
-- **No bar charts.** The side-by-side bar charts are gone from every answer card. A single set of values (an event's OPR by phase) is small tiles in the phase colours; leaderboards keep each phase as its own coloured column, with no stacked bar.
-- **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams as chips and their scores big (the winner marked, the loser muted, the score with penalties under it when it differs) and the listed alliance's points by phase. The highest-scoring matches card drops its bar chart, so each match shows once, and the headline names the alliance's teams.
-- **Combined scores.** The highest combined scores list each match's red and blue teams, its event with its type, the official winner bold and a thin bar scaled from the lowest listed to the top.
-- **Phones.** An event table's season and date fold under the event's name, so the columns left are numbers. (#709)
+- **Comparison cards.** Two- and three-team answers (OPR, rating, phase, record, reliability, awards, compare) are one card: the teams named once in the title, one headline with the result and the gap, one context line (ranks, records, the phase that decided it), then a row per metric. Each row has a bar per team from zero to the row's own maximum, printed as "max N", and the gap on the right. The Total comes first, then the rest by the size of the gap, five rows at most. A row's maximum is the season's highest, rounded up, so the same number draws the same bar on every card that season. The team header strip, the second season pill and the stat tiles are gone; the method sits behind an info button, and "Open in Predict" is the one button.
+- **Team colours.** Teams are blue, orange and green (Okabe–Ito, readable with any colour vision), each at least 3:1 against the card in Light, Dim, Dark and Midnight. They are used only on bars and swatches. A winner is bold with its "+N", not coloured.
+- **No hue on other data.** Phases, ranks, podium places, records, results, event types and stat tiles are neutral on every answer card. Red and blue stay only where they mark an alliance. OPR and combined-score bars are neutral and start at zero.
+- **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams and scores (the winner marked, the loser muted) and the listed alliance's points by phase.
+- **Less meta text.** Boolean queries no longer add "read as" to their label, and an unclear query asks "awards or location? Say which". (#709)
 
 ## 3.1.5 — 2026-11-04
 

@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
-// Search answer cards in the team and event pages' colours: ranks as podium pills, records with wins green and losses
-// red, seasons as badges, an event's type colour, OPR bars against the best listed, and every list of matches as
-// match boxes (red over blue, the winner marked, the phases in the team page's colours).
+// Search answer cards by the search results guide: no hue on data (ranks as neutral pills with a medal, records with
+// the wins bold, event types and seasons as badges, OPR bars in neutral ink from zero to the best listed), and every
+// list of matches as match boxes (red over blue only because they are alliances, the winner marked, the phases neutral).
 import { cleanup, render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import type { StatAnswer, StatMatchRow } from "../../../shared/searchStat";
-import { TONES } from "../../StatTile";
 import { RankPill, RecordText, ResultPill, RichText, better } from "./answerCells";
 import { MatchBox } from "./MatchBox";
 import { StatAnswerCard } from "./StatAnswer";
@@ -27,19 +26,20 @@ const latest: StatAnswer = {
 };
 
 describe("answer cells", () => {
-  it("a rank is a pill: the top three in the podium colours with a medal, the rest neutral", () => {
+  it("a rank is a neutral pill, a medal on the top three", () => {
     const one = html(<RankPill text="#1 of 21" />).querySelector("[data-rank-pill]")!;
-    expect(one.className).toContain(TONES.emerald.chip.split(" ")[0]);
+    expect(one.className).toContain("bg-muted");
+    expect(one.className).not.toMatch(/success|info|orange/);
     expect(one.querySelector("svg")).toBeTruthy();
     expect(one.textContent).toBe("#1 of 21");
     const six = html(<RankPill text="#6 of 24" />).querySelector("[data-rank-pill]")!;
     expect(six.querySelector("svg")).toBeNull();
     expect(six.className).not.toMatch(/accent/);
   });
-  it("a record has its wins green and its losses red, and reads as words", () => {
+  it("a record has its wins bold, no win or loss hue, and reads as words", () => {
     const c = html(<RecordText text="5-3-0" />);
-    expect(c.querySelector(".text-success-text")!.textContent).toBe("5");
-    expect(c.querySelector(".text-danger-text")!.textContent).toBe("3");
+    expect(c.querySelector("b")!.textContent).toBe("5");
+    expect(c.innerHTML).not.toMatch(/success|danger/);
     expect(c.querySelector("[aria-label]")!.getAttribute("aria-label")).toBe("5 wins, 3 losses, 0 ties");
   });
   it("a line of words keeps its words, with its ranks and records coloured", () => {
@@ -68,22 +68,26 @@ describe("answer cells", () => {
 });
 
 describe("most recent event card", () => {
-  it("the headline event has its type's marker and chips, the season said once", () => {
+  it("the headline event has its type and season as neutral badges, the season said once", () => {
     const c = html(<StatAnswerCard stat={latest} />);
-    expect(c.querySelector("[data-headline-marker]")!.className).toContain("bg-accent");
+    expect(c.querySelector("[data-headline-marker]")).toBeNull();
     const chips = c.querySelector("[data-headline-chips]")!;
     expect(chips.textContent).toBe("Championship2025–26");
     expect(c.querySelector("[data-headline] p.text-xs")!.textContent).toBe("Mar 15, 2026 · Hillsborough Township, NJ");
   });
-  it("its table: ranks as pills, records coloured, seasons as badges, OPR bars to the best listed, type markers", () => {
+  it("its table: ranks as pills, records with the wins bold, seasons as badges, neutral OPR bars from zero, type badges", () => {
     const c = html(<StatAnswerCard stat={latest} />);
     const rows = [...c.querySelectorAll('[data-block="table"] tbody tr')];
-    expect(rows[1].querySelector("[data-rank-pill]")!.className).toContain(TONES.emerald.chip.split(" ")[0]);
-    expect(rows[0].querySelector("[data-record-text] .text-success-text")!.textContent).toBe("5");
+    expect(rows[1].querySelector("[data-rank-pill] svg")).toBeTruthy();
+    expect(rows[0].querySelector("[data-record-text] b")!.textContent).toBe("5");
     expect(rows[0].querySelector("[data-season-chip]")!.textContent).toBe("2025–26");
     const bars = [...c.querySelectorAll<HTMLElement>("[data-opr-bar] span > span")].map((b) => b.style.width);
     expect(bars[0]).toBe("100%");
-    expect(rows.map((r) => r.querySelector("[data-event-marker]")!.getAttribute("data-event-marker"))).toEqual(["Championship", "LeagueTournament", "LeagueMeet"]);
+    // From zero: 84.4 of 101.6 draws 83%, never a cut baseline.
+    expect(Number.parseFloat(bars[1])).toBeCloseTo((100 * 84.4) / 101.6, 1);
+    expect(rows.map((r) => r.querySelector("[data-event-type]")!.getAttribute("data-event-type"))).toEqual(["Championship", "LeagueTournament", "LeagueMeet"]);
+    // No hue on the data (a hover's link colour is chrome).
+    expect(c.querySelector('[data-block="table"]')!.innerHTML).not.toMatch(/(?<![:\w-])(text|bg|border)-(success|info|teal|sky|emerald|violet|accent)/);
     // On a phone the season and date fold under the event's name: the columns left are the numbers.
     expect([...c.querySelectorAll("thead th.max-md\\:hidden")].map((t) => t.textContent)).toEqual(["Season", "Date"]);
     expect(rows[0].querySelector("[data-folded]")!.textContent).toBe("2025–26Mar 15, 2026");
@@ -108,14 +112,14 @@ describe("match box", () => {
     expect(sides[1].querySelector("b.font-display")!.textContent).toBe("416");
     expect(sides[1].textContent).toContain("428 with penalties");
     expect(sides[0].querySelector("b.font-display")!.className).toContain("text-muted-foreground");
-    expect(c.querySelector("[data-rank-badge]")!.className).toContain(TONES.emerald.chip.split(" ")[0]);
+    expect(c.querySelector("[data-rank-badge]")!.className).toContain("bg-muted");
   });
-  it("the listed score's phases in the team page's phase colours", () => {
-    const tiles = [...html(<ul><MatchBox r={m} /></ul>).querySelectorAll("[data-phases] > div")];
+  it("the listed score's phases as neutral tiles: no phase hue, red and blue only on the alliances", () => {
+    const c = html(<ul><MatchBox r={m} /></ul>);
+    const tiles = [...c.querySelectorAll("[data-phases] > div")];
     expect(tiles.map((t) => t.textContent)).toEqual(["Auto80", "TeleOp256", "Endgame80", "Pen given0"]);
-    expect(tiles[0].className).toContain(TONES.sky.box.split(" ")[0]);
-    expect(tiles[1].className).toContain(TONES.emerald.box.split(" ")[0]);
-    expect(tiles[2].className).toContain(TONES.violet.box.split(" ")[0]);
+    for (const t of tiles) expect(t.className).toContain("border-border");
+    expect(c.innerHTML).not.toMatch(/(text|bg|border)-(success|info|sky|emerald|violet|rose|teal)/);
   });
   it("a row's own team (a list across several teams) goes first on its alliance, with no card team", () => {
     const c = html(<ul><MatchBox r={{ ...m, alliance: "red", self: { label: "6980 Bad Wolf", href: "/teams/6980" }, partners: [{ label: "4215 Hypnotic Robotics", href: "/teams/4215" }] }} /></ul>);
@@ -135,51 +139,10 @@ describe("combined scores", () => {
     expect(c.querySelector("[data-match-row] .text-red-alliance-text")!.className).toContain("font-bold");
     expect(c.querySelector("[data-match-row] .text-blue-alliance-text.opacity-80")).toBeTruthy();
     expect([...c.querySelectorAll("[data-match-row] [data-team-chip]")].map((t) => t.getAttribute("data-team-chip"))).toEqual(["1", "2"]);
+    // The combined bar from zero, in neutral ink.
+    const bar = c.querySelector<HTMLElement>("[data-combined] [data-bar]")!;
+    expect(bar.style.width).toBe("100%");
+    expect(bar.className).toContain("bg-foreground/55");
   });
 });
 
-describe("two teams side by side", () => {
-  const vs: StatAnswer = {
-    family: "two-team", intent: "opr-vs", title: "OPR: 23268 vs 7149 in 2025–26", team: { number: 23268, name: "Ultraviolet" }, teams: [{ number: 23268, name: "Ultraviolet" }, { number: 7149, name: "ENFORCERS" }], scope: ["2025–26"],
-    blocks: [
-      { kind: "kpis", items: [{ label: "Ultraviolet (23268)", value: "157.9", sub: "#144 of 8308" }, { label: "ENFORCERS (7149)", value: "115.3", sub: "#446 of 8308" }] },
-      { kind: "compare", title: "OPR by phase", teams: [{ label: "23268", href: "/teams/23268" }, { label: "7149", href: "/teams/7149" }], rows: [
-        { label: "Total", values: ["157.9", "115.3"], best: 0, gap: "+42.6", lead: 0.27 },
-        { label: "Auto", phase: "auto", values: ["36.5", "41.6"], best: 1, gap: "+5.1", lead: 0.12 },
-        { label: "W-L-T", values: ["26-6-0", "18-13-0"], best: 0, gap: "better" },
-        { label: "Matches", values: ["32", "31"], best: null },
-      ] },
-    ],
-    definition: "…", source: "…",
-  };
-  it("each team's tile under its own header: A left in teal, B right in orange", () => {
-    const tiles = [...html(<StatAnswerCard stat={vs} />).querySelectorAll("[data-kpi-sides] > [data-kpi]")];
-    expect(tiles.map((t) => t.getAttribute("data-side"))).toEqual(["0", "1"]);
-    expect(tiles[0].firstElementChild!.className).toContain("border-teal-500/30");
-    expect(tiles[1].firstElementChild!.className).toContain("border-orange-500/30");
-    expect(tiles[1].firstElementChild!.className).toContain("text-right");
-  });
-  it("a head-to-head table, no bars: A's value left, B's right, the gap and leader between, the winner bold in its colour", () => {
-    const c = html(<StatAnswerCard stat={vs} />);
-    expect(c.querySelector('[data-block="bars"]')).toBeNull();
-    const total = c.querySelector('[data-compare-row="Total"]')!;
-    const [a, , b] = [...total.children];
-    expect(a.textContent).toBe("157.9");
-    expect(a.querySelector("[data-won]")!.className).toContain("text-teal-700");
-    expect(b.querySelector(".text-muted-foreground")!.textContent).toBe("115.3");
-    expect(total.querySelector("[data-gap]")!.textContent).toBe("+42.6 · 23268");
-    const auto = c.querySelector('[data-compare-row="Auto"]')!;
-    expect(auto.querySelector(".text-info")!.textContent).toBe("Auto");
-    expect([...auto.children][2].querySelector("[data-won]")!.className).toContain("text-orange-700");
-    // No better side: neither is marked.
-    expect(c.querySelector('[data-compare-row="Matches"] [data-won]')).toBeNull();
-    // Never yellow, blue or red as a team's colour.
-    expect(c.querySelector("[data-block=compare]")!.innerHTML).not.toMatch(/accent|sky-|blue-|red-|chart-/);
-  });
-  it("three teams: a column each, the best bold in its team's colour", () => {
-    const three = { ...vs, teams: [...vs.teams!, { number: 16461, name: "Infinite Turtles" }], blocks: [{ kind: "compare" as const, title: "Season numbers", teams: [{ label: "23268", href: "/t/1" }, { label: "7149", href: "/t/2" }, { label: "16461", href: "/t/3" }], rows: [{ label: "OPR", values: ["157.9", "115.3", "87.9"], best: 0, gap: "+42.6" }] }] };
-    const c = html(<StatAnswerCard stat={three} />);
-    expect(c.querySelector("[data-compare-sides='3']")).toBeTruthy();
-    expect(c.querySelector('[data-compare-row="OPR"] [data-won]')!.textContent).toBe("157.9");
-  });
-});

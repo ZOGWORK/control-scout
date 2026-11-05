@@ -48,6 +48,12 @@
   --color-line: var(--sh-border);
   --color-info: #38bdf8;
   --color-success: #34d399;
+  /* Compared teams' hues (the search results guide, Okabe–Ito, safe for every colour vision): team A, B, C on bars
+     and swatches only, never text, never a phase or a winner. Dark's are the light-on-dark steps; Dim and Midnight
+     keep them. textTones.test.ts holds each to 3:1 against the card as a graphic. */
+  --color-team-a: #56b4e9;
+  --color-team-b: #e69f00;
+  --color-team-c: #009e73;
   --color-warning: #fb923c;
   --color-danger: #fb7185;
   /* Status colours as small text. On dark they are the bright shades above; on light (html.light) a deeper
@@ -149,6 +155,9 @@ html.light {
   --color-accent-text: #875200;
   --color-info: #0ea5e9;
   --color-success: #10b981;
+  --color-team-a: #0072b2;
+  --color-team-b: #d55e00;
+  --color-team-c: #009e73;
   --color-warning: #f97316;
   --color-danger: #f43f5e;
   --color-red-alliance: #f43f5e;

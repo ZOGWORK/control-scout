@@ -52,7 +52,7 @@ export function FactCard({ card, heading, season: asked }: { card: CardExtra; he
       sub={facts.length ? "As FIRST's team listing gives it" : SOURCE[card.kind]} data={{ "data-fact-card": facts.length ? "" : undefined, "data-card-kind": card.kind }}>
       {!!card.count && (
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile tone="sky" icon={ICON[card.kind] ?? Trophy} label={card.title} value={card.count} hint={card.count === 1 ? "time" : "times"} />
+          <StatTile tone="neutral" icon={ICON[card.kind] ?? Trophy} label={card.title} value={card.count} hint={card.count === 1 ? "time" : "times"} />
         </div>
       )}
       {!!facts.length && <FactTiles facts={facts} />}
@@ -91,14 +91,14 @@ export function hrefOf(raw: string): string | null {
   } catch { return null; }
 }
 
-/** Each fact its own colour and icon, by what it is (the team page's tile tones; never a new palette). */
+/** Each fact's icon, by what it is; the tile neutral (the search results guide: hue means team only). */
 function factLook(label: string): [LucideIcon, Tone] {
-  if (/where|location|from|city|home/i.test(label)) return [MapPin, "sky"];
-  if (/school|organi[sz]ation/i.test(label)) return [GraduationCap, "violet"];
-  if (/sponsor/i.test(label)) return [Handshake, "emerald"];
-  if (/web|site/i.test(label)) return [Globe, "teal"];
-  if (/rookie|founded|since/i.test(label)) return [Sparkles, "orange"];
-  return [Info, "teal"];
+  if (/where|location|from|city|home/i.test(label)) return [MapPin, "neutral"];
+  if (/school|organi[sz]ation/i.test(label)) return [GraduationCap, "neutral"];
+  if (/sponsor/i.test(label)) return [Handshake, "neutral"];
+  if (/web|site/i.test(label)) return [Globe, "neutral"];
+  if (/rookie|founded|since/i.test(label)) return [Sparkles, "neutral"];
+  return [Info, "neutral"];
 }
 
 /** The facts as the team page's tiles: the value big and bold, its name above, a note under; several values (the

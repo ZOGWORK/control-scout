@@ -1,19 +1,18 @@
 // One match in a search answer, as a box (every list of matches search shows: a season's top scores, a team's best
 // and latest matches, two teams' meetings): its place in the list as a podium badge, the match and its event, then a
 // scoreboard, the red alliance over the blue, each with its teams as chips and its score big in its colour (the loser
-// muted, the winner marked), and the listed alliance's points by phase as small tiles in the team page's phase
-// colours. Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
+// muted, the winner marked), and the listed alliance's points by phase as small neutral tiles (the search results
+// guide: red and blue mark alliances, no other hue). Drawn from the row the server sends; nothing is fetched or worked out beyond adding the numbers up.
 import { Link } from "react-router-dom";
 import type { StatLink, StatMatchRow } from "../../../shared/searchStat";
 import { PODIUM_CHIP } from "../../../lib/textTones";
-import { TONES, type Tone } from "../../StatTile";
 import { cn } from "../../cn";
 import { EventMarker, PODIUM } from "./answerCells";
 import { TAP } from "./TeamAnswer";
 
 type Who = { number: number; name: string | null };
 
-/** A list position: the top three in the search podium's colours, the rest a plain number. */
+/** A list position: the top three in a bordered chip, the rest a plain number; no hue. */
 export function RankBadge({ rank }: { rank: number }) {
   const tone = PODIUM[rank];
   return <span className={cn("inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums", tone ? PODIUM_CHIP[rank] : "bg-text-base/[0.07] text-muted-foreground")} data-rank-badge={rank}>{rank}</span>;
@@ -31,7 +30,7 @@ export function TeamChip({ t, side, self }: { t: StatLink; side: "red" | "blue";
   );
 }
 
-const PHASES: [keyof NonNullable<StatMatchRow["phases"]>, string, Tone][] = [["auto", "Auto", "sky"], ["teleop", "TeleOp", "emerald"], ["endgame", "Endgame", "violet"], ["pen", "Pen given", "rose"]];
+const PHASES: [keyof NonNullable<StatMatchRow["phases"]>, string][] = [["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"], ["pen", "Pen given"]];
 
 export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
   const other = r.alliance === "red" ? "blue" : "red";
@@ -52,7 +51,6 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
         {r.rank != null && <RankBadge rank={r.rank} />}
         <Link to={r.href} className={cn("inline-flex items-center font-display text-base font-semibold text-foreground hover:text-accent-text hover:underline", TAP)}>{r.label}</Link>
         <span className="min-w-0 flex-1 basis-40 text-xs text-muted-foreground">
-          <EventMarker type={r.type} />
           <Link to={r.event.href} className="break-words font-medium text-foreground/90 hover:text-accent-text hover:underline">{r.event.label}</Link>
           {!!r.type && <EventMarker type={r.type} chip />}
           {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
@@ -71,7 +69,7 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="flex items-center justify-end gap-1.5">
-                    {won && <span className="rounded bg-success/15 px-1 text-[10px] font-bold text-success-text" aria-hidden>W</span>}
+                    {won && <span className="rounded bg-foreground px-1 text-[10px] font-bold text-background" aria-hidden>W</span>}
                     <b className={cn("font-display text-2xl font-semibold leading-none tabular-nums", lost ? "text-muted-foreground" : s === "red" ? "text-red-alliance-text" : "text-blue-alliance-text")}>{sc.shown}</b>
                   </span>
                   {sc.total !== sc.shown && <span className="block text-[11px] text-muted-foreground">{sc.total} with penalties</span>}
@@ -82,10 +80,10 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
         </div>
         {!!phases?.length && (
           <dl className="grid grid-cols-4 gap-1 self-center sm:w-44 sm:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
-            {phases.map(([k, label, tone]) => (
-              <div key={k} className={cn("rounded-md border px-1.5 py-1", TONES[tone].box)}>
+            {phases.map(([k, label]) => (
+              <div key={k} className="rounded-md border border-border bg-muted/30 px-1.5 py-1">
                 <dt className="truncate text-[10px] leading-tight text-muted-foreground">{label}</dt>
-                <dd className={cn("font-semibold tabular-nums", TONES[tone].text)}>{r.phases![k]}</dd>
+                <dd className="font-semibold tabular-nums text-foreground">{r.phases![k]}</dd>
               </div>
             ))}
           </dl>
