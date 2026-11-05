@@ -128,12 +128,18 @@ the order. Each measure is one rule, printed on the card under "How this is coun
 | closest | "closest", "tightest", "smallest margin" | the difference in final scores, penalties in; a tie is closest |
 | most lopsided | "most lopsided", "blowout", "biggest score gap" | the same difference, largest first |
 | most penalties | "most penalty points" | both alliances' final scores less their points without penalties |
-| biggest upset | "upset", "underdog won" | the losing alliance's predicted chance before the match (the call saved live, else its replay); with no call saved, the larger summed season rating that lost |
+| biggest upset | "upset", "underdog won" | a favourite's loss: the losing alliance had over a 50% predicted chance before the match (the call saved live, else its replay), highest first; with no call saved, the larger summed season rating that lost |
 | biggest comeback | "comeback", "came back" | won by the alliance behind after auto, furthest behind first |
 
-No season said (or "this season") reads the season today is in; when it has no matches yet it reads the season
-before and says so: "No 2026–27 matches yet in California; showing 2025–26". A window ("this week") relaxes as
-everywhere else; a year said is never relaxed. "In the world", "worldwide" and "globally" mean every place.
+The finals are a classic bracket's "F" series, or a double-elimination bracket's grand final and its if-needed
+replay (the bracket the event's posted series fit, from the engine's `BRACKETS`). Only the finder applies the finals:
+any other answer said with them is left to the readers after it, never answered for every playoff match.
+
+No season said (or "this season") reads the season today is in; when it has none of the matches asked for yet it
+reads the season before and says so: "No 2026–27 matches yet in California; showing 2025–26", "No 2026–27
+comebacks yet…". The plain highest score (no measure, no match type) follows the same rule. "Last season" is the one
+before the season today is in. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
+the world", "worldwide" and "globally" mean every place.
 
 ## Leaderboards
 

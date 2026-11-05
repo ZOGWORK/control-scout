@@ -40,8 +40,8 @@ Search finds matches by what made them stand out: the closest, the most lopsided
 - [fixes] No season said reads this season, or says it's showing last season
 
 ### Changes
-- **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match, the next few under it and every filter on the card. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted".
-- **Season.** A question about a place or everyone with no season said reads the current season, and when that has nothing yet it shows last season and says so.
+- **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match, the next few under it and every filter on the card. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final.
+- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one.
 - **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship.
 
 ## 3.2.5 — 2026-11-05
