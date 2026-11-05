@@ -28,6 +28,36 @@ Home's search chips wrap onto rows instead of sliding sideways, and a chip is sh
 ### Home
 - **Chips on rows.** The hour's six chips under Home's search wrap onto rows of a fixed height: three from a small tablet up, two on a phone. Each chip is measured once, and the most that fit whole are packed onto the rows, a leaderboard and a sentence or filtered search kept first; one that doesn't fit is left out, never cut off, and the "Try" hint walks only through the chips showing. Nothing scrolls sideways, and the list is the same height every hour, so the change on the hour never moves the page. On a touch screen each chip's tap area is 44px, with the rows far enough apart that two never overlap. (#735)
 
+## 3.2.3 — 2026-11-05
+
+Search gains a reader that takes a question apart into its parts, in any word order: the groundwork for answering any phrasing the same way. Answers don't change yet.
+
+### Highlights
+- [report] Search reads a question's parts in any word order
+- [report] One table of synonyms and filler, not one list per answer
+- [report] Times like "this week" and "last month" are read against today
+
+### Search
+- **The question as parts.** A new reader (`server/api/query/`) splits a question into its parts: teams, event, place, time, match type, side, Worlds or states, award, highest or lowest, a count, a match number and what's asked. It reads them in any word order and skips filler. Every word has to be explained, and a question with a word left over is left to today's search. Nothing is guessed. It isn't used to answer yet; the next release runs it first.
+- **One word list.** Every synonym, filler phrase and measure word sits in one table ("worlds" is the FIRST Championship, "opr" the offensive power rating, "record" W-L-T), and what's asked is picked by one rule table.
+- **Time and place.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season, read against today. Teams, towns, regions and countries come from the data, and a name several teams share is picked by Compare's rules or left unread. (#736)
+
+## 3.2.2 — 2026-11-05
+
+Search plays the video the site has for what you asked: a match's clip, or the event's stream, in the answer.
+
+### Highlights
+- [live] "USMACMP Q12" plays that match from its second in the stream
+- [live] An event's results, winners or awards play the event's stream
+- [live] Top matches and match lists: a play button on each clip
+- [speed] The player loads only when tapped; search stays as fast
+
+### Search
+- **The match asked about, in the answer.** An answer about one match ("USMACMP Q12", "the highest scoring match in decode", "highest score at massachusetts championship") plays FIRST's own video of it, else the event's recording from that match's second, else the event's stream from its start: the same videos the event page plays. Nothing plays until it's tapped: the card shows the video's picture and a play button, and the player loads on the tap.
+- **An event's stream.** An event's results, rank, winning alliance and awards, and an event searched by name, play its live stream or recording in the card. An event with no video shows nothing about it.
+- **Play buttons in lists.** Top-scoring matches and a team's matches at an event give each match with a clip a small play button; it plays in the app's video player over the search page, so search stays where it was.
+- **One read for all of it.** An answer's video is read once for the whole answer, whatever its number of rows, from the stored match times and the kept recording lists, which now keep answering while they refresh. Event-local match times convert about ten times faster. (#725)
+
 ## 3.2.1 — 2026-11-05
 
 Search answer cards follow the search results guide: comparisons say the result once, bars start at zero, and colour means team.

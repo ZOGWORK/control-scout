@@ -10,6 +10,7 @@ import { Button } from "../../ui/button";
 import { TONES, type Tone } from "../../StatTile";
 import { cn } from "../../cn";
 import { AnswerFrame, PART, TAP, repeats } from "./TeamAnswer";
+import { AnswerVideo } from "./AnswerVideo";
 
 /** Each place its own colour (the team page's tile tones, no gold): 1st green, 2nd blue, 3rd orange. */
 const PLACE: Record<number, { tone: Tone; height: string; label: string }> = {
@@ -33,6 +34,7 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
       data={{ "data-card-kind": card.kind, "data-event-awards": "" }}>
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
       {podium.some((a) => a.placement === 1) && <Podium places={podium} season={ev?.season} />}
+      <AnswerVideo />
       {/* An older server's card (no award list): its lines, as before. */}
       {!awards.length && !!card.lines.length && (
         <ul className="grid gap-2 sm:grid-cols-2" data-lines>

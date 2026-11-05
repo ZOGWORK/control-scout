@@ -161,6 +161,15 @@ export function actualStart(time: string | null | undefined): boolean {
 /** YouTube's own page for the video at a second (the link when the page has no player to seek). */
 export const watchUrl = (videoId: string, t?: number | null) => `https://www.youtube.com/watch?v=${videoId}${t ? `&t=${t}s` : ""}`;
 
+/** The second a YouTube link starts at (t=90, t=90s, t=1m30s, start=90; #t= too), 0 without one. */
+export function linkStart(url: string): number {
+  let u: URL;
+  try { u = new URL(url); } catch { return 0; }
+  const raw = u.searchParams.get("t") ?? u.searchParams.get("start") ?? new URLSearchParams(u.hash.slice(1)).get("t");
+  const m = raw ? /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(raw) : null;
+  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : 0;
+}
+
 /** 3725 → "1:02:05", 125 → "2:05". */
 export function clipTime(t: number): string {
   const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;

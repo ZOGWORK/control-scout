@@ -9,6 +9,7 @@ import { PODIUM_CHIP } from "../../../lib/textTones";
 import { cn } from "../../cn";
 import { EventMarker, PODIUM } from "./answerCells";
 import { TAP } from "./TeamAnswer";
+import { RowPlay } from "./AnswerVideo";
 
 type Who = { number: number; name: string | null };
 
@@ -55,6 +56,7 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
           {!!r.type && <EventMarker type={r.type} chip />}
           {` · ${r.season}`}{r.date ? ` · ${r.date}` : ""}
         </span>
+        <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1 ml-auto" />
       </div>
       <div className="grid min-w-0 flex-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_auto]">
         <div className="grid gap-1.5" data-scoreboard>

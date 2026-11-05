@@ -20,7 +20,8 @@ export interface VideoMeta extends WatchPageFacts { videoId: string; checkedAt: 
 export interface Recording { videoId: string; source: "owner" | "first"; meta: VideoMeta | null }
 
 const TTL_MS = 60_000;
-let cache = new Map<number, { at: number; v: Promise<{ first: Map<string, string>; official: Set<string>; meta: Map<string, VideoMeta> }> }>();
+type SeasonData = { first: Map<string, string>; official: Set<string>; meta: Map<string, VideoMeta> };
+let cache = new Map<number, { at: number; v: Promise<SeasonData>; ready?: boolean }>();
 registerCache("Event recordings", () => { cache = new Map(); });
 
 /** A FIRST liveStreamUrl → its YouTube video id, or null (a channel page, Twitch, anything else). */
@@ -75,9 +76,13 @@ function seasonData(season: number, now = Date.now()) {
     }
     return { first, official: new Set(official.map((o) => String(o.code))), meta };
   })();
-  cache.set(season, { at: now, v });
-  v.catch(() => { if (cache.get(season)?.v === v) cache.delete(season); });
-  return v;
+  // A map read before keeps being given while its next read runs (search reads these on its answer path: a read
+  // costs a season's matches); forgetRecordings drops it at once when the links change.
+  const entry = hit?.ready ? { at: now, v: hit.v, ready: true } : { at: now, v };
+  cache.set(season, entry);
+  v.then(() => { if (cache.get(season) === entry) cache.set(season, { at: now, v, ready: true }); },
+    () => { if (cache.get(season) === entry) { if (entry.v === v) cache.delete(season); else entry.at = 0; } });
+  return entry.v;
 }
 
 /** Every event's recording in a season, by event code; a video YouTube says won't play is left out. */
@@ -184,7 +189,7 @@ export async function eventMatchSpan(season: number, code: string): Promise<Even
  * The matches with their place in the recording (clip); the given objects are never changed. `span`: the event's
  * played matches (timingTrusted, chaptersConfirm), read from `matches` when they're the whole event.
  */
-export function withClips(matches: MatchView[], r: Recording | null, now = Date.now(), span?: EventSpan): MatchView[] {
+export function withClips<M extends Pick<MatchView, "label" | "time" | "startsAt" | "played" | "clip">>(matches: M[], r: Recording | null, now = Date.now(), span?: EventSpan): M[] {
   const meta = r?.meta;
   if (!r || !meta || meta.status !== "ok") return matches;
   const m = withConfirmed(meta, span ?? eventSpan(matches.filter((x) => x.played && actualStart(x.time)).map((x) => ({ label: x.label, startsAt: x.startsAt }))));

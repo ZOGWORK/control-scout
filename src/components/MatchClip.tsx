@@ -4,10 +4,12 @@
 import type { MouseEvent, ReactNode } from "react";
 import { MonitorPlay, PlayCircle } from "lucide-react";
 import type { MatchClip } from "../shared/api";
-import { clipTime } from "../shared/recording";
+import { clipTime, linkStart } from "../shared/recording";
 import { youtubeId } from "../shared/personal";
 import { playMatchVideo, type MatchPlay } from "../lib/streamSeek";
 import { cn } from "./cn";
+
+export { linkStart };
 
 /** A click that plays in the app; anything else (new tab, middle click) is left to the link. */
 const inApp = (p: MatchPlay) => (e: MouseEvent<HTMLAnchorElement>) => {
@@ -23,15 +25,6 @@ export function ClipLink({ clip, label = "this match", matchKey, className, chil
       <MonitorPlay className="size-3.5 shrink-0" aria-hidden />{children}
     </a>
   );
-}
-
-/** The second a YouTube link starts at (t=90, t=90s, t=1m30s, start=90; #t= too), 0 without one. */
-export function linkStart(url: string): number {
-  let u: URL;
-  try { u = new URL(url); } catch { return 0; }
-  const raw = u.searchParams.get("t") ?? u.searchParams.get("start") ?? new URLSearchParams(u.hash.slice(1)).get("t");
-  const m = raw ? /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(raw) : null;
-  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0) : 0;
 }
 
 /** FIRST's own video of a match, from the second its link names. A link that isn't a YouTube video stays a plain link out. */
