@@ -181,11 +181,15 @@ async function typedAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnsw
   return layeredAnswer(cleanQuery(raw), reader);
 }
 
+/** A team number typed against the next word ("23268matches at nj championship"): the two words apart. Three letters
+ *  or more, so an ordinal ("2nd", "10th") or a match code ("q12") stays as typed. */
+export const unglue = (q: string): string => q.replace(/(^|\s)(\d{1,6})(\p{L}{3,})(?=\s|$)/gu, "$1$2 $3");
+
 /** Layer 1, the readers' answer for `raw`. Plurals are read as their singular first (src/shared/searchQuery.ts),
  *  so "meets in New Jersey" is answered exactly as "meet in New Jersey"; the answer keeps the query as typed. */
 export async function readerAnswer(raw: string, opts: AnswerOptions): Promise<SearchAnswer> {
   const typed = cleanQuery(raw);
-  const read = singularize(typed);
+  const read = singularize(unglue(typed));
   // Cleaning takes the "?" off; that it was there still says the query is a question ("robots can descore?").
   // One reading for every surface (brief Requirement 2): the answer is worked out on the page's full list, whatever
   // the caller's limit, and only then cut to it. A dropdown's 15 are the page's first 15, same step, same order.
