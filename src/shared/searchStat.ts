@@ -71,11 +71,16 @@ export type StatBlock =
    *  endgame split stacked in it. `note`: the season, how many teams are ranked and by what. */
   | { kind: "leaderboard"; title: string; stat: { id: string; label: string; unit?: string }; note: string; rows: LeaderboardRow[]; more?: StatLink;
       /** The season's TeleOp OPR includes the endgame, as FIRST reports it (server/data/seasons.ts, teleopAsReported). */
-      teleopWithEndgame?: boolean }
+      teleopWithEndgame?: boolean;
+      /** The lowest first: drawn in the list's own order, never re-sorted highest first. */
+      lowest?: boolean }
   /** Buttons to pages (a championship's divisions). */
   | { kind: "links"; title: string; items: (StatLink & { sub?: string })[]; none?: string }
   /** Related questions, each run as a search. */
-  | { kind: "related"; title: string; queries: string[] };
+  | { kind: "related"; title: string; queries: string[] }
+  /** A chance on a 0–100% scale (the search results guide, §8 "Prediction"): the number, a bar split at it from 0, the
+   *  call's score with its range when there is one, and the card's one action (Open in Predict). */
+  | { kind: "chance"; label: string; p: number; who: string; note?: string; action?: StatLink };
 
 export interface StatAnswer {
   family: StatFamily;

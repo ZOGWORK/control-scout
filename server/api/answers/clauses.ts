@@ -16,7 +16,7 @@ export const STATES_TYPE = "Championship";
 export interface Scope {
   /** One season, or null for every season on record. */
   season: number | null;
-  /** How the season was chosen, said in the answer ("latest season with matches for 4215"). */
+  /** How the season was chosen, said in the answer ("latest season with matches for 12345"). */
   seasonWhy?: string;
   /** Only FIRST Championship (Worlds) events. */
   championship?: boolean;

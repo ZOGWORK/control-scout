@@ -3,13 +3,14 @@
 // search index. Nothing here is typed by hand: a new team, town or country is known as soon as it's synced.
 import { all, kvGet } from "../../db.js";
 import { registerCache } from "../../caches.js";
-import { countryOf } from "../../../src/shared/countries.js";
-import { regionOf } from "../../../src/shared/searchEventQuery.js";
+import { countryOf, countryOfDemonym } from "../../../src/shared/countries.js";
+import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
 import { edits, nearRegion } from "../../../src/shared/regions.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
-export interface Place { kind: "region" | "country" | "city"; country: string; state: string | null; city: string | null; name: string }
+/** `part`: the words when they named part of a region ("north jersey"), which is read as the whole region. */
+export interface Place { kind: "region" | "country" | "city"; country: string; state: string | null; city: string | null; name: string; part?: string }
 
 export interface Names {
   team(n: number): TeamName | undefined;
@@ -88,13 +89,19 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
       const r = regionOf((typed ?? w).split(/\s+/)) ?? (f.length >= 5 ? nearRegion(f) : null);
       if (r) return { kind: "region", country: r.country, state: r.state, city: null, name: r.name };
       // A country as the data stores it ("Romania", "USA") or by another of its names ("Turkey", "UK").
-      const stored = countries.get(f) ?? [...countries.values()].find((c) => countryOf(c) && countryOf(c) === countryOf(w));
+      // Or by its people's word ("Romanian teams").
+      const people = countryOfDemonym(f);
+      const stored = countries.get(f) ?? [...countries.values()].find((c) => countryOf(c) && (countryOf(c) === countryOf(w) || (!!people && countryOf(c) === people)));
       if (stored && f.length >= 3) return { kind: "country", country: stored, state: null, city: null, name: countryOf(stored)?.name ?? stored };
       const town = towns.get(f);
       if (town && town.size === 1 && f.length >= 3) {
         const t = [...town.values()][0];
         return { kind: "city", country: t.country, state: t.state, city: t.city, name: t.city };
       }
+      // A part of a region ("north jersey", "northern IN"), as typed so a code in capitals still reads: after a stored
+      // town of that name ("East Brunswick" is a town, never New Brunswick).
+      const half = regionPartOf((typed ?? w).split(/\s+/));
+      if (half) return { kind: "region", country: half.region.country, state: half.region.state, city: null, name: half.region.name, part: half.part };
       return null;
     },
   };

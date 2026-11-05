@@ -175,6 +175,14 @@ describe("failed searches filed against this reader", () => {
     expect(a.understood?.label).not.toContain("isn't answered directly yet");
     expect(a.stat?.blocks[0]).toMatchObject({ kind: "links", items: [{ label: "4215 opr" }, { label: "4215 matches" }] });
   });
+  it("the not example names a team really played: never a scheduled match, a robot sitting out or a year-like number", async () => {
+    await run("INSERT INTO teams (number, name, city, state, country, rookie_year) VALUES (2024, 'Year Team', 'Oradell', 'NJ', 'USA', 2015)");
+    for (const [n, played, opp, onField] of [[30, 0, 7418, 1], [31, 0, 7418, 1], [32, 0, 7418, 1], [33, 0, 7418, 1], [34, 1, 5110, 0], [35, 1, 5110, 0], [36, 1, 5110, 0], [37, 1, 5110, 0], [38, 1, 2024, 1], [39, 1, 2024, 1], [40, 1, 2024, 1], [41, 1, 2024, 1]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USNJCMP', 'qual', 0, ?, ?, null, ?, 100, 100, 90, 90, 't')", [n, `Q${n}`, played]);
+      await run("INSERT INTO match_teams (season, code, level, series, number, team, alliance, on_field) VALUES (2025, 'USNJCMP', 'qual', 0, ?, 4215, 'red', 1), (2025, 'USNJCMP', 'qual', 0, ?, ?, 'blue', ?)", [n, n, opp, onField]);
+    }
+    expect((await ask("4215 not opr")).understood?.label).toContain('"4215 not 6980"');
+  });
 });
 
 describe("precedence and parsing", () => {

@@ -101,7 +101,7 @@ const LEADER_STATS: Record<string, (f: Found) => string> = {
 export const LEADER_STAT_WORDS = Object.keys(LEADER_STATS);
 const LEADER_STAT_ORDER = ["win rate", "wins", "auto", "teleop", "endgame", "opr", "prediction rating", "rating", "teams"];
 
-/** A phase is its own stat word: "4215 auto" is the team's Auto OPR, "best auto" the Auto OPR leaderboard. */
+/** A phase is its own stat word: "12345 auto" is the team's Auto OPR, "best auto" the Auto OPR leaderboard. */
 export const PHASES: Record<string, Found["phase"]> = { auto: "auto", autonomous: "auto", teleop: "teleop", endgame: "endgame" };
 
 /** Award names in the data: a name narrows the awards (or winners) intent, never a team-name search. */
@@ -132,12 +132,14 @@ export const PARAPHRASES: [string, string][] = [
   ["what town", "location"],
   ["what state", "location"],
   ["based in", "location"],
+  ["based out of", "location"],
   ["what school", "school"],
   ["which school", "school"],
   ["who sponsors", "sponsors"],
   ["when did start", "rookie year"],
   ["first season", "rookie year"],
   ["start year", "rookie year"],
+  ["how old", "rookie year"],
   ["offensive power rating", "opr"],
   ["tele op", "teleop"],
   ["driver controlled", "teleop"],
@@ -181,6 +183,8 @@ export const FILLER: string[] = [
   "please", "pls", "plz", "just", "really", "basically", "actually", "quick", "kindly",
   // Greetings, only with a team and an intent (filler never makes an intent from nothing).
   "hey", "hi", "hello",
+  // An answer of none allowed: every answer already says when there is none.
+  "if any", "if there is one", "if there are any",
 ];
 
 /** Question and conversational scaffolding, read by the keyword layer around the team, intent and scope (never by

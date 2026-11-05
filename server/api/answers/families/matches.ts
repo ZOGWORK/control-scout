@@ -167,14 +167,18 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
 
     case "first-match":
     case "recent-match": {
-      const m = id === "first-match" ? ms[0] : ms[ms.length - 1];
-      const title = id === "first-match" ? `First match${where}` : `Most recent match${where}`;
-      if (!m) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
-      const near = id === "first-match" ? ms.slice(0, 5) : newestFirst(ms).slice(0, 5);
+      // A win or a loss said ("first win", "when did they last lose"): only those matches.
+      const xs = opts.outcome ? ms.filter((m) => m.result === opts.outcome) : ms;
+      const noun = opts.outcome === "W" ? "win" : opts.outcome === "L" ? "loss" : "match";
+      const m = id === "first-match" ? xs[0] : xs[xs.length - 1];
+      const title = id === "first-match" ? `First ${noun}${where}` : `Most recent ${noun}${where}`;
+      if (!m) return { ...base, family: "superlative", intent: id, title, blocks: [], definition: RESULT_RULE, none: none(opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches") };
+      const near = id === "first-match" ? xs.slice(0, 5) : newestFirst(xs).slice(0, 5);
+      const plural = opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches";
       return {
         ...base, family: "superlative", intent: id, title,
         headline: { value: `${m.result === "W" ? "Won" : m.result === "L" ? "Lost" : "Tied"} ${m.own}–${m.opp}`, label: `${m.label} at ${m.event}`, sub: [seasonLabel(m.season), row(m).date].filter(Boolean).join(" · "), href: row(m).href },
-        blocks: [matchesBlock(id === "first-match" ? "First matches" : "Latest matches", near)], definition: RESULT_RULE,
+        blocks: [matchesBlock(id === "first-match" ? `First ${plural}` : `Latest ${plural}`, near)], definition: RESULT_RULE,
       };
     }
 
@@ -192,7 +196,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         blocks.push({ kind: "record", title: "On red", ...red }, { kind: "record", title: "On blue", ...blue },
           { kind: "bars", title: "Win rate by colour", unit: "%", groups: [{ label: "Win rate", items: [{ label: "Red", value: rate(red), tone: "a" }, { label: "Blue", value: rate(blue), tone: "b" }] }] });
       } else {
-        // Qualifications and playoffs apart, when the matches hold both ("4215 states record": 15-5-0 and 9-7-0).
+        // Qualifications and playoffs apart, when the matches hold both ("12345 states record": 15-5-0 and 9-7-0).
         const quals = ms.filter((m) => m.level !== "playoff"), playoffs = ms.filter((m) => m.level === "playoff");
         blocks.push({ kind: "record", title: "Wins, losses and ties", ...r, ...(quals.length && playoffs.length ? { split: { quals: record(quals), playoffs: record(playoffs) } } : {}) });
       }
@@ -307,7 +311,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     case "current-streak":
     case "longest-streak": {
       const want = opts.outcome ?? null;
-      const title = id === "current-streak" ? `Current ${want === "W" ? "win " : want === "L" ? "losing " : ""}streak${where}` : `Longest win streak${where}`;
+      const title = id === "current-streak" ? `Current ${want === "W" ? "win " : want === "L" ? "losing " : ""}streak${where}` : `Longest ${want === "L" ? "losing" : "win"} streak${where}`;
       const def = `A streak: matches in a row with the same result, in date order across events and seasons (a tie ends it). ${RESULT_RULE}`;
       if (!ms.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: none("matches") };
       let run: TeamMatch[] = [];
@@ -322,9 +326,11 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
         }
       } else {
         let cur: TeamMatch[] = [];
-        for (const m of ms) { if (m.result === "W") { cur.push(m); if (cur.length > run.length) run = [...cur]; } else cur = []; }
+        // The longest run of wins, or of losses when a losing streak is asked.
+        const of = want === "L" ? "L" : "W";
+        for (const m of ms) { if (m.result === of) { cur.push(m); if (cur.length > run.length) run = [...cur]; } else cur = []; }
       }
-      if (!run.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: `${who} has no match wins${where} on record.` };
+      if (!run.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: def, none: `${who} has no match ${want === "L" ? "losses" : "wins"}${where} on record.` };
       const kind = run[0].result === "W" ? "win" : run[0].result === "L" ? "loss" : "tie";
       return {
         ...base, family: "aggregate", intent: id, title,
@@ -334,9 +340,11 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
     }
 
     case "last-matches": {
-      const n = opts.n ?? 5, xs = newestFirst(ms).slice(0, n);
-      const title = `Last ${n} matches${where}`;
-      if (!xs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none("matches") };
+      // A win or a loss said ("last 5 losses"): only those matches.
+      const plural = opts.outcome === "W" ? "wins" : opts.outcome === "L" ? "losses" : "matches";
+      const n = opts.n ?? 5, xs = newestFirst(opts.outcome ? ms.filter((m) => m.result === opts.outcome) : ms).slice(0, n);
+      const title = `Last ${n} ${plural}${where}`;
+      if (!xs.length) return { ...base, family: "aggregate", intent: id, title, blocks: [], definition: RESULT_RULE, none: none(plural) };
       const r = record(xs);
       // The form and its trend: each result oldest to newest, and the scores beside the season's average. Points are
       // never compared across seasons: when the run reaches back into an earlier season, its scores, average and
@@ -349,7 +357,7 @@ export async function matchAnswer(id: IntentId, team: AnswerTeam, all: TeamMatch
       const dir = half ? Number(avg(late)) - Number(avg(early)) : 0;
       return {
         ...base, family: "aggregate", intent: id, title,
-        headline: { value: recText(r), label: `in the last ${xs.length} matches, oldest to newest ${[...xs].reverse().map((m) => m.result).join(" ")}`, sub: `${seasonLabel(xs[0].season)} · scores ${run.map((m) => m.own).join(", ")}${mixed ? ` (the ${run.length} in ${seasonLabel(xs[0].season)}; each season is a different game)` : ""}` },
+        headline: { value: recText(r), label: `in the last ${xs.length} ${xs.length === 1 ? ({ wins: "win", losses: "loss", matches: "match" } as const)[plural] : plural}, oldest to newest ${[...xs].reverse().map((m) => m.result).join(" ")}`, sub: `${seasonLabel(xs[0].season)} · scores ${run.map((m) => m.own).join(", ")}${mixed ? ` (the ${run.length} in ${seasonLabel(xs[0].season)}; each season is a different game)` : ""}` },
         blocks: [
           { kind: "kpis", items: [
             { label: `Average, last ${run.length}`, value: avg(run), sub: `${avg(season)} over the season's ${season.length}` },
