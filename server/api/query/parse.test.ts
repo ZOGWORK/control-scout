@@ -14,6 +14,14 @@ const TEAMS = [
   { number: 23268, name: "Ultraviolet", city: "Hackettstown", state: "NJ", country: "USA", lastPlayed: 2026 },
   { number: 19731, name: "Robotics", city: "Somewhere", state: "TX", country: "USA", lastPlayed: 2024 },
   { number: 2024, name: "Year Team", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 },
+  { number: 30001, name: "Santo Domingo Incredible First Team (Team Spark)", city: "Santo Domingo", state: null, country: "Dominican Republic", lastPlayed: 2026 },
+  { number: 30003, name: "The Copper Lanterns", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30004, name: "Deltav", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30005, name: "Delta", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30006, name: "Blue Lanternfish", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30007, name: "Lanternfih", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30008, name: "s", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30009, name: "Mitspe Yam/מצפה ים", city: "Town", state: null, country: "Israel", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -24,6 +32,28 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("a name typed nearly right is that team, a leading 'the' included; never a guess between two", async () => {
+    const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
+    expect(await parseQuery("hypnotc robotics record", near)).toMatchObject({ teams: [{ number: 4215, via: "near" }], complete: true });
+    expect(await parseQuery("the coper lanterns record", near)).toMatchObject({ teams: [{ number: 30003, via: "near", typed: "the coper lanterns" }], complete: true });
+    // "deltv" is one letter from Deltav and from Delta: no team.
+    expect((await parseQuery("deltv record", near)).teams).toEqual([]);
+    // Two letters off a five-letter name is past the limit, even with no other name as close.
+    expect(ctx.names.nearTeam("dexxa")).toBeNull();
+    // A colour the lexicon read as an alliance can start the name: the whole name is nearer than its last word alone.
+    expect(await parseQuery("blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006, via: "near" }], alliance: null, complete: true });
+    // An alliance said apart from the name stays: the one said outside the name.
+    expect(await parseQuery("on red blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006 }], alliance: "red" });
+    expect(await parseQuery("red alliance blue lanternfsh record", near)).toMatchObject({ teams: [{ number: 30006 }], alliance: "red" });
+  });
+  it("drops a possessive after any letter, so a name in another script never leaves a stray 's'", async () => {
+    expect(await parse("what is 30009 Mitspe Yam/מצפה ים's lowest score")).toMatchObject({ teams: [{ number: 30009 }], intent: "lowest-score" });
+  });
+  it("reads a long name whole, punctuation and all, in any order", async () => {
+    for (const q of ["greatest scoring for Santo Domingo Incredible First Team (Team Spark) 30001", "santo domingo incredible first team team spark record"]) {
+      expect(await parse(q), q).toMatchObject({ teams: [{ number: 30001 }], place: null, complete: true });
+    }
+  });
   it("reads the brief's walkthrough: one match, place and time, no team", async () => {
     const p = await parse("highest-scoring match in California this week");
     expect(p).toMatchObject({ intent: "top-matches", complete: true, teams: [], place: { kind: "region", state: "CA" }, time: { kind: "window", from: "2026-11-02", to: "2026-11-08", season: 2026 } });

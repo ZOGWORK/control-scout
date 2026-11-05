@@ -63,7 +63,9 @@ export interface ParseContext {
   prefer?: ReadonlySet<string>;
 }
 
-type Tok = { w: string; typed: string; used: boolean };
+type Tok = { w: string; typed: string; used: boolean; alliance?: boolean; side?: "red" | "blue" };
+/** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
+const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -84,7 +86,7 @@ const symKey = (s: Sym): string | null => {
 export function normalise(q: string): string {
   return ` ${q.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase()} `
     .replace(/[’‘`]/g, "'").replace(/\bwhat's\b/g, "what is").replace(/\bwho's\b/g, "who is").replace(/\bhow's\b/g, "how is")
-    .replace(/(\w)'s\b/g, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
+    .replace(/([\p{L}\p{N}])'s\b/gu, "$1").replace(/s'(?=\s)/g, "s").replace(/#(?=\d)/g, " ")
     .replace(/(?<=[a-z])-(?=[a-z])/g, " ").replace(/[?!,;:()"[\]{}]/g, " ").replace(/\.(?=\s|$)/g, " ")
     .replace(/\s+/g, " ").trim();
 }
@@ -116,7 +118,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
-  for (let len = Math.min(ctx.names.longest, 6); len >= 1; len--) {
+  for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
     for (let i = 0; i + len <= toks.length; i++) {
       const span = toks.slice(i, i + len);
       if (span.some((t) => t.used) || span.every((t) => isLex(t.w) || /^\d+$/.test(t.w))) continue;
@@ -176,9 +178,11 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
+    // A colour read as an alliance can start a team's name typed nearly right ("blue megalodns"): step 4 may take it back.
+    if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
     for (const s of e.syms) {
       if (s.k === "level") p.level = s.v;
-      else if (s.k === "alliance") p.alliance = s.v;
+      else if (s.k === "alliance") { p.alliance = s.v; e.words.forEach((_, j) => (toks[i + j].side = s.v)); }
       else if (s.k === "worlds") p.worlds = true;
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
@@ -209,7 +213,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
-    // One event: a second one named ("at nj championship at turnpike division") is left unexplained, never dropped.
+    // One event: a second one named ("at nj championship at northern division") is left unexplained, never dropped.
     if (!p.event && await ctx.isEvent(words())) {
       // The event words the lexicon read beside it ("northern league meet": "meet") stay in its name when the name
       // with them is an event too, so a meet is never read as the league's tournament.
@@ -230,11 +234,26 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
       if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
     }
-    // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean".
-    const near = ctx.nearTeam && words().length >= 3 && !/^\d+$/.test(words()) ? await ctx.nearTeam(words()) : null;
-    if (near && !p.teams.some((t) => t.number === near.number)) {
-      p.teams.push({ number: near.number, name: near.name, typed: typed(), via: "near", at: from });
-      toks.slice(from, to + 1).forEach((t) => (t.used = true));
+    // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean". A name can start with a word
+    // read as filler ("the roocats": The Robocats) or a colour read as an alliance, so the words just before the run are
+    // tried with it first; a colour taken into the name is no longer an alliance, and the alliance is the one the
+    // phrases outside the name said ("on red blue lanternfsh": red).
+    if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
+    for (const k of [2, 1, 0]) {
+      const start = from - k;
+      if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w) && !t.alliance)) continue;
+      const span = toks.slice(start, to + 1);
+      const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
+      if (!near || p.teams.some((t) => t.number === near.number)) continue;
+      p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
+      span.forEach((t) => (t.used = true));
+      if (span.some((t) => t.alliance)) {
+        const side = toks.filter((t) => t.side && !span.includes(t)).pop()?.side ?? null;
+        symbols.delete("alliance:red"); symbols.delete("alliance:blue");
+        p.alliance = side;
+        if (side) symbols.add(`alliance:${side}`);
+      }
+      break;
     }
   }
 
@@ -258,7 +277,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
-  // The awards side-by-side counts every award: one award named ("4215 vs 6980 inspire awards") is left to the
+  // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
