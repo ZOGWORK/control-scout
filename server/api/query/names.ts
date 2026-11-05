@@ -5,7 +5,7 @@ import { all, kvGet } from "../../db.js";
 import { registerCache } from "../../caches.js";
 import { countryOf } from "../../../src/shared/countries.js";
 import { regionOf, regionPartOf } from "../../../src/shared/searchEventQuery.js";
-import { nearRegion } from "../../../src/shared/regions.js";
+import { edits, nearRegion } from "../../../src/shared/regions.js";
 
 export interface TeamName { number: number; name: string | null; country: string | null; state: string | null; city: string | null; lastPlayed: number | null }
 /** A place: a region (a state or province), a whole country, or a town (with the region it's in). */
@@ -16,6 +16,9 @@ export interface Names {
   team(n: number): TeamName | undefined;
   /** Teams whose whole name is these words (folded). */
   teamsNamed(words: string): TeamName[];
+  /** The one team whose name these words nearly spell ("the robcats": The Robocats): one letter off in a name of up
+   *  to eight letters, two in a longer one, and no other name as close. Null when none is, or two are. */
+  nearTeam(words: string): TeamName | null;
   /** The place these words name, or null. */
   place(words: string, typed?: string): Place | null;
   /** The longest team name, in words (the parser looks no further). */
@@ -34,11 +37,14 @@ interface Row { number: number; name: string | null; city: string | null; state:
 export function buildNames(teams: Row[], places: { city: string | null; state: string | null; country: string | null; name?: string | null; code?: string | null }[]): Names {
   const byNumber = new Map<number, TeamName>(), byName = new Map<string, TeamName[]>();
   let longest = 1;
+  /** Folded names by length, for the near-miss look-up. */
+  const byLength = new Map<number, string[]>();
   for (const t of teams) {
     const tn: TeamName = { number: Number(t.number), name: t.name, city: t.city, state: t.state, country: t.country, lastPlayed: t.lastPlayed == null ? null : Number(t.lastPlayed) };
     byNumber.set(tn.number, tn);
     const k = fold(t.name ?? "");
     if (!k) continue;
+    if (!byName.has(k)) (byLength.get(k.length) ?? byLength.set(k.length, []).get(k.length)!).push(k);
     (byName.get(k) ?? byName.set(k, []).get(k)!).push(tn);
     longest = Math.max(longest, k.split(" ").length);
   }
@@ -57,6 +63,22 @@ export function buildNames(teams: Row[], places: { city: string | null; state: s
   return {
     team: (n) => byNumber.get(n),
     teamsNamed: (w) => byName.get(fold(w)) ?? [],
+    nearTeam(w) {
+      const f = fold(w);
+      if (f.replace(/\s/g, "").length < 5 || byName.has(f)) return null;
+      const most = f.length <= 8 ? 1 : 2;
+      let best = most + 1, found: string[] = [];
+      for (let len = f.length - most; len <= f.length + most; len++) {
+        for (const k of byLength.get(len) ?? []) {
+          // Same first letter, as a near-miss of a name starts as the name does.
+          if (k[0] !== f[0]) continue;
+          const d = edits(f, k);
+          if (d < best) { best = d; found = [k]; } else if (d === best) found.push(k);
+        }
+      }
+      const teams = found.length === 1 ? byName.get(found[0]) ?? [] : [];
+      return teams.length === 1 ? teams[0] : null;
+    },
     longest,
     eventStem: (w) => stems.has(fold(w).slice(0, 3)),
     place(w, typed) {

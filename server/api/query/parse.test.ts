@@ -15,6 +15,9 @@ const TEAMS = [
   { number: 19731, name: "Robotics", city: "Somewhere", state: "TX", country: "USA", lastPlayed: 2024 },
   { number: 2024, name: "Year Team", city: "Town", state: "OH", country: "USA", lastPlayed: 2025 },
   { number: 30001, name: "Santo Domingo Incredible First Team (Team Spark)", city: "Santo Domingo", state: null, country: "Dominican Republic", lastPlayed: 2026 },
+  { number: 30003, name: "The Copper Lanterns", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30004, name: "Deltav", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
+  { number: 30005, name: "Delta", city: "Town", state: "OH", country: "USA", lastPlayed: 2026 },
 ];
 const EVENTS = ["east bergen conference", "new jersey championship", "nj championship", "turnpike division"];
 const ctx: ParseContext = {
@@ -25,6 +28,13 @@ const ctx: ParseContext = {
 const parse = (q: string) => parseQuery(q, ctx);
 
 describe("slots", () => {
+  it("a name typed nearly right is that team, a leading 'the' included; never a guess between two", async () => {
+    const near = { ...ctx, nearTeam: async (w: string) => ctx.names.nearTeam(w) };
+    expect(await parseQuery("hypnotc robotics record", near)).toMatchObject({ teams: [{ number: 4215, via: "near" }], complete: true });
+    expect(await parseQuery("the coper lanterns record", near)).toMatchObject({ teams: [{ number: 30003, via: "near", typed: "the coper lanterns" }], complete: true });
+    // "deltv" is one letter from Deltav and from Delta: no team.
+    expect((await parseQuery("deltv record", near)).teams).toEqual([]);
+  });
   it("reads a long name whole, punctuation and all, in any order", async () => {
     for (const q of ["greatest scoring for Santo Domingo Incredible First Team (Team Spark) 30001", "santo domingo incredible first team team spark record"]) {
       expect(await parse(q), q).toMatchObject({ teams: [{ number: 30001 }], place: null, complete: true });
