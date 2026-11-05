@@ -30,6 +30,7 @@ import { scheduleGate } from "./api/eventGates.js";
 import { eventView, withStream } from "./api/eventView.js";
 import { perTeamOf, simulatedRankings } from "./projections/rankingSim.js";
 import { eventRecording, recordingStream, seasonRecordings, seasonVideoKinds, withClips, eventMatchSpan } from "./videos/recordings.js";
+import { answerVideo } from "./api/answers/video.js";
 import { matchDetail, matchViews } from "./api/matches.js";
 import { matchReport } from "./api/matchReport.js";
 import { resultChanges } from "./api/resultChanges.js";
@@ -370,7 +371,9 @@ export function createApp(opts: { dist?: string } = {}) {
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
       // The key is search's own (keyFor), worked out off the answer path too.
       void reportingOn().then(async (on) => { if (on) noteSearch(q, ans, req.ip ?? "?", trace, at, await keyFor(q)); }).catch(() => {});
-      return { ...ans, hits: await withTeamStats(ans.hits) };
+      // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
+      const [hits, video] = await Promise.all([withTeamStats(ans.hits), answerVideo(ans).catch(() => undefined)]);
+      return { ...ans, hits, ...(video ? { video } : {}) };
     }
     return { q: String(req.query.q ?? ""), hits: await search(String(req.query.q ?? "").slice(0, 80), limit, prefer, kinds) };
   }));

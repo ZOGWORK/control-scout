@@ -157,6 +157,30 @@ export interface SearchAnswer {
   /** A team found but its question not answered directly: two or three questions search does answer about it, each
    *  from what its records hold ("4215 worlds appearances", "4215 record 2025–26"), shown as taps. */
   suggest?: string[];
+  /** The video the site has for what the answer is about (server/api/answers/video.ts); absent: none. */
+  video?: SearchVideo;
+}
+
+/**
+ * An answer's video: the one match or event it's about, played in the card, and each listed match that has a clip,
+ * played in the app's video dialog. Every one is a YouTube video from a second (0: its start).
+ *   match      FIRST's own video of the match
+ *   recording  the event's recording (or live stream), from the match's second in it
+ *   stream     the event's recording or live stream, from its start
+ */
+export interface SearchVideoItem {
+  videoId: string;
+  t: number;
+  kind: "match" | "recording" | "stream";
+  /** The match's label ("Q12", "M3"): match and recording only. */
+  match?: string;
+  /** The broadcast is still live (a stream or recording only). */
+  live?: boolean;
+}
+export interface SearchVideo {
+  main?: SearchVideoItem;
+  /** Listed matches with a clip (match or recording), by the row's href (StatMatchRow.href, a table row's href). */
+  rows?: Record<string, SearchVideoItem>;
 }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
