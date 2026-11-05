@@ -36,7 +36,7 @@ const flag = (f: string) => args.includes(`--${f}`);
 const opt = (f: string) => { const i = args.indexOf(`--${f}`); return i >= 0 ? args[i + 1] : undefined; };
 // Routes: "/teams/1" or "teams/1". Git Bash rewrites a leading "/" into its
 // install path (C:/Program Files/Git/...) — undo that.
-const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name", "--cookie-file", "--clock"]);
+const VALUE_FLAGS = new Set(["--out", "--base", "--search", "--video", "--storage", "--steps", "--name", "--cookie-file", "--clock", "--theme"]);
 // --cookie-file <file>: a "name=value" cookie (e.g. cs_session=<a local test account's session>) for pages
 // that need a signed-in account, such as /owner. Read from a file so the value never lands in shell history
 // or the output; only sent to a localhost base.
