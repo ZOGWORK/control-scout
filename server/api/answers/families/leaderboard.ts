@@ -21,6 +21,8 @@ import { all, get } from "../../../db.js";
 import { searchSeason, searchSeasonWhy } from "../season.js";
 import { reportedTeleopIncludesEndgame } from "../../../data/seasons.js";
 import { teamHref } from "../matchSet.js";
+import { seasonOfDate } from "../../query/time.js";
+import { searchToday } from "../../searchEvents.js";
 
 export const LEADERBOARD_MAX = 25;
 
@@ -55,16 +57,18 @@ export const statWords = (st: BoardStat) => (/OPR/.test(st.label) ? st.label : s
 const fmt = (v: number | null, st: BoardStat) => (v == null ? "–" : st.unit === "%" ? `${Math.round(v * 100)}%` : st.digits ? (Math.round(v * 10) / 10).toFixed(1) : String(Math.round(v)));
 
 /** The Teams page's season table, filtered and sorted as this list (src/lib/records/urlState.ts reads these). */
-export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false): string | null {
+export function teamsHref(season: number, st: BoardStat, region: Region | null, rookie = false, lowest = false): string | null {
   if (!st.teamsSort) return null;
   const p = new URLSearchParams({ view: "season", season: String(season) });
   const iso = region ? countryOf(region.country)?.code : null;
   if (region && iso) { p.set("country", iso); p.set("state", region.state); }
   p.set("sort", st.teamsSort);
+  if (lowest) p.set("dir", "asc");
   p.set("filter", `and-qualMatchesPlayed.gte.${RANKED_MIN_MATCHES}${rookie ? ` rookieYear.eq.${season}` : ""}-`);
   return `/teams?${p}`;
 }
-const rankingsHref = (season: number, region: Region | null) => `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key)}` : ""}`;
+// A whole country's key ends in ":" ("Romania:"); Rankings reads a country alone without it.
+const rankingsHref = (season: number, region: Region | null) => `/rankings?season=${season}${region ? `&region=${encodeURIComponent(region.key.replace(/:$/, ""))}` : ""}`;
 
 const RANKED = `A team is ranked once it has played ${RANKED_MIN_MATCHES} matches that season, as on Rankings, from the season numbers each team page shows (OPR and averages without penalties).`;
 const record = (r: { wins: number; losses: number; ties: number }) => `${r.wins}-${r.losses}-${r.ties}`;
@@ -73,7 +77,7 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   if (b.kind === "city") return cityAnswer(b.city!);
   const season = b.season ?? searchSeason();
   const why = b.season == null ? ` ${searchSeasonWhy(season)}` : b.seasonWhy ? ` ${b.seasonWhy}` : "";
-  if (b.kind === "city-best") return cityBestAnswer(b, season, why);
+  if (b.kind === "city-best") return b.season == null ? cityBestNow(b) : cityBestAnswer(b, season, why);
   // A region, or a whole country (no state); a town in it narrows to the teams from there.
   const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : " worldwide";
   const regionSql = `${b.region ? ` AND t.country = ?${b.region.state ? " AND t.state = ?" : ""}` : ""}${b.town ? " AND lower(t.city) = lower(?)" : ""}`;
@@ -94,8 +98,10 @@ export async function leaderboardAnswer(b: BoardQuestion): Promise<StatAnswer> {
   ]);
   const title = b.undefeated ? `Undefeated teams${where} by ${statWords(st)}` : rookie ? `Best rookie team${b.n > 1 ? "s" : ""}${where} by ${statWords(st)}` : b.lowest ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}`
     : b.best ? `Best team${where} by ${statWords(st)}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
-  // Rankings has no rookie filter: a rookie rating list gets no link rather than one to every team.
-  const href = st.teamsSort ? teamsHref(season, st, b.region, rookie) : st.id === "rating" && !rookie ? rankingsHref(season, b.region) : null;
+  // A link opens the same list or none: Rankings has no rookie filter and no lowest-first order, and neither page
+  // takes a town or undefeated teams, so those get no link rather than one to a different list.
+  const href = b.town || b.undefeated ? null : st.teamsSort ? teamsHref(season, st, b.region, rookie, !!b.lowest)
+    : st.id === "rating" && !rookie && !b.lowest ? rankingsHref(season, b.region) : null;
   const definition = `${b.undefeated ? "Undefeated: no losses in the season's matches (ties allowed). " : ""}${b.lowest ? "The lowest first. " : ""}${RANKED}${rookie ? ` A rookie team's rookie year is ${seasonLabel(season)}.` : ""}${st.id === "win-rate" ? " Win rate: wins over matches played, ties counted as played." : ""}${st.id === "record" ? " Record: wins-losses-ties, the best win rate first (wins over matches played, ties counted as played), then the most wins." : ""}${st.id === "reliability" ? " Reliability: the team page's index out of 100, from no-shows, disqualifications, near-zero matches and how steady its scoring is." : ""}${st.id === "rating" ? " The prediction rating is the engine's points-per-match strength; ranked once 3 matches are rated, as on Rankings." : ""}${why}`;
   const total = Number(count?.n ?? 0);
   const base = { family: "leaderboard" as const, intent: rookie ? "best-rookie" : `top-${st.id}`, title: `${title} · ${seasonLabel(season)}`, scope: chips, definition, source: `From the ${seasonLabel(season)} season numbers of ${total.toLocaleString("en-US")} ranked ${rookie ? "rookie " : ""}team${total === 1 ? "" : "s"}${where}` };
@@ -149,6 +155,18 @@ async function improvedAnswer(b: BoardQuestion, season: number, where: string, r
       rows: rows.map((r, i) => ({ cells: { rank: i + 1, team: `${r.team} ${r.name ?? ""}`.trim(), before: `#${r.r0} (${share(r.r0, r.n0)})`, now: `#${r.r1} (${share(r.r1, r.n1)})`, opr: r.o1 == null ? "–" : (Math.round(r.o1 * 10) / 10).toFixed(1) }, href: teamHref(Number(r.team), season), strong: i === 0 })),
     }],
   };
+}
+
+/** A city's best with no season said, as every place answer (docs/search-pipeline.md, "Leaderboards"): the current
+ *  season once a team of the city is ranked in it, else the one before, said on the card. */
+async function cityBestNow(b: BoardQuestion): Promise<StatAnswer> {
+  const current = seasonOfDate(searchToday());
+  const now = await cityBestAnswer(b, current, "");
+  if (now.headline) return now;
+  const before = await cityBestAnswer(b, current - 1, "");
+  if (!before.headline) return now;
+  const note = `No ${seasonLabel(current)} ranked teams yet in ${before.scope[0]}; showing ${seasonLabel(current - 1)}`;
+  return { ...before, scope: [note, ...before.scope], definition: `${before.definition} ${note}: no season was named, so the current one was read first, and it has none yet.` };
 }
 
 /** "Best team in Oradell": the city's teams ranked by OPR in the season (3+ matches), the best first. */

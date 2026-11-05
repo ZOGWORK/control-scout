@@ -90,6 +90,10 @@ describe("leaderboards", () => {
     expect(low.rows[0]).toBe("6980 Bad Wolf");
     expect(low.st.headline?.sub).toBe("Lowest of 4 ranked in New Jersey");
     expect(low.st.blocks[0]).toMatchObject({ lowest: true });
+    // Its link opens the same list, lowest first; a town's list has none (no page lists one town's teams).
+    const more = (low.st.blocks[0] as { more?: { href: string } }).more;
+    expect(more?.href).toContain("dir=asc");
+    expect((await searchAnswer("top 5 teams in Oradell, NJ by opr in 2025-26", { limit: 25, full: true })).stat?.blocks[0]).not.toHaveProperty("more");
     expect((await board("best team in Oradell, NJ, by opr in 2025-26")).rows).toEqual(["4215 Hypnotic Robotics", "6980 Bad Wolf"]);
     expect((await board("which teams have the best opr in new jersey in 2025-26, top 2")).rows).toEqual(["23268 Ultraviolet", "4215 Hypnotic Robotics"]);
     expect((await board("is there any team with a perfect record in new jersey")).st).toMatchObject({ title: "Undefeated teams in New Jersey by wins · 2026–27", headline: { value: "30000 Early Bird" } });
@@ -130,6 +134,8 @@ describe("leaderboards", () => {
     expect(readLeaderboard("best team in Oradell")).toMatchObject({ kind: "city-best", city: "oradell" });
     const a = await searchAnswer("best team in Oradell", { limit: 25, full: true });
     expect(a.stat).toMatchObject({ title: "Best team in Oradell, NJ by OPR · 2025–26", headline: { value: "4215 Hypnotic Robotics", label: "OPR 101.6, 26-6-0" } });
+    // No season said: the current season first; none of the city's teams is ranked in it yet, said so.
+    expect(a.stat?.scope[0]).toBe("No 2026–27 ranked teams yet in Oradell; showing 2025–26");
     expect((await searchAnswer("best team in atlantis", { limit: 25, full: true })).stat?.intent).not.toBe("city-best");
     // "Top 1" still counts every ranked team of the city.
     expect((await searchAnswer("top 1 teams in Oradell", { limit: 25, full: true })).stat?.headline).toMatchObject({ value: "4215 Hypnotic Robotics", sub: "#1 of 2 ranked in Oradell, NJ" });
