@@ -204,6 +204,10 @@ export interface ReadScope {
   outOfState?: boolean;
   /** `at` was read beside the team, with no "at" (StatQuestion.eventInCore): only the team's own events count. */
   own?: boolean;
+  /** "this week", "on Mar 15, 2026": a date window (the search pipeline's time slot, server/api/query/time.ts). */
+  window?: { from: string; to: string; label: string };
+  /** A place that's a whole country or a region, read by the search pipeline (the regex readers name regions only). */
+  area?: { country: string; state: string | null; name: string };
 }
 
 export interface StatQuestion {
@@ -331,6 +335,34 @@ const namesSeasons = (s: ReadScope) => s.season != null || s.latest || s.ever ||
 const PLACE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "biggest-win", "biggest-loss", "closest-match", "first-match", "recent-match", "wins-count", "record", "average-score", "average-margin", "total-points", "total-matches",
   "current-streak", "longest-streak", "last-matches", "blowout-wins", "losses", "playoff-matches", "qual-matches", "ties-count", "win-percent", "score-range", "median-score", "score-consistency", "scores-over",
   "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "vs-top", "vs-rookies", "early-late"]);
+
+/** Whether `scope` can apply to the rows intent `id` is answered from: a scope that can't is never dropped silently,
+ *  the question is left to search instead. The regex readers and the search pipeline both ask it. */
+export function scopeFits(id: IntentId, family: StatFamily, scope: ReadScope, opts: { place?: boolean } = {}): boolean {
+  const matchLevel = !!(scope.level || scope.alliance);
+  if (SEASON_ROWS.has(id) && (scope.championship || scope.states || matchLevel || scope.at || scope.window)) return false;
+  if (EVENT_ROWS.has(id) && matchLevel) return false;
+  if (id === "never-played" && (scope.championship || scope.states || matchLevel || scope.ever || scope.at || scope.window)) return false;
+  // An event's rank and OPR are whole-event numbers: a match type or a colour can't apply to them.
+  if ((id === "event-rank" || id === "event-opr") && matchLevel) return false;
+  // A trend is the team's events or seasons: an event, Worlds, a match type or a colour can't apply.
+  if (family === "trend" && (scope.at || scope.championship || scope.states || matchLevel || scope.window)) return false;
+  // A season's penalty total is every event's quals: an event, Worlds, a match type, a colour or all time can't apply.
+  if (id === "total-penalties" && (scope.at || scope.championship || scope.states || matchLevel || scope.ever || scope.window)) return false;
+  if (AWARD_IDS.has(id) && matchLevel) return false;
+  // Awards and event rows take a place and a window too ("4215 awards at New Jersey events"): their clauses read the
+  // event's region and days. A state's championship is any team question's ("nj states opr").
+  const where = (scope.place && !scope.states) || scope.outOfState || scope.area || scope.window;
+  if (opts.place !== false && where && !PLACE_IDS.has(id) && !AWARD_IDS.has(id) && !EVENT_ROWS.has(id)) return false;
+  return true;
+}
+
+/** An intent's family and the season it reads when none is named (the search pipeline builds its questions with
+ *  these, server/api/query/execute.ts). */
+export function intentDefaults(id: IntentId): { family: StatFamily; season: "all" | "latest"; alone?: "all" | "latest" } | null {
+  const r = RULES.find((x) => x.id === id);
+  return r ? { family: r.family, season: r.season, ...(r.alone ? { alone: r.alone } : {}) } : null;
+}
 
 /** The stat question `raw` asks, or null when it isn't one. `raw` is the query as search cleaned it. */
 export interface TwoTeamQuestion { id: TwoTeamId; scope: ReadScope; a: string; b: string; phase?: "auto" | "teleop" | "endgame" }
@@ -613,23 +645,13 @@ export function readStatQuestion(raw: string): StatQuestion | null {
       if (!/^(?:who|winning\s)/.test(m[0]) && !(scope.championship || scope.states || scope.season != null || scope.lastYear || scope.latest)) bare = true;
     }
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
-    if (SEASON_ROWS.has(r.id) && (scope.championship || scope.states || scope.level || scope.alliance)) return null;
-    if (EVENT_ROWS.has(r.id) && (scope.level || scope.alliance)) return null;
-    if (r.id === "never-played" && (scope.championship || scope.states || scope.level || scope.alliance || scope.ever || scope.at)) return null;
-    // An event's rank and OPR are whole-event numbers: a match type or a colour can't apply to them.
-    if ((r.id === "event-rank" || r.id === "event-opr") && (scope.level || scope.alliance)) return null;
-    if (SEASON_ROWS.has(r.id) && scope.at) return null;
-    // A trend is the team's events or seasons: an event, Worlds, a match type or a colour can't apply.
-    if (r.family === "trend" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance)) return null;
+    if (!scopeFits(r.id, r.family, scope, { place: false })) return null;
     // Season by season covers every season (a season named isn't one of its rows); event by event stays in one season
     // (every season is a different game), so "all time" can't apply.
     // A bare year with nothing else naming a team is the team's number ("2024 OPR by season"), not a season.
     const yearIsTeam = scope.year && !squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     if ((r.id === "opr-by-season" || r.id === "record-by-season") && scope.season != null && !yearIsTeam) return null;
     if (r.family === "trend" && r.id !== "opr-by-season" && r.id !== "record-by-season" && scope.ever) return null;
-    // A season's penalty total is every event's quals: an event, Worlds, a match type, a colour or all time can't apply.
-    if (r.id === "total-penalties" && (scope.at || scope.championship || scope.states || scope.level || scope.alliance || scope.ever)) return null;
-    if (AWARD_IDS.has(r.id) && (scope.level || scope.alliance)) return null;
     // "Wins" alone counts match wins only with a scope ("4215 worlds wins"); "4215 wins" stays search's.
     if (r.id === "wins-count" && m[0] === "wins" && !(scope.championship || scope.states || scope.season != null || scope.latest || scope.at)) continue;
     // Worlds divisions are the FIRST Championship's, whichever word named it ("championship divisions").

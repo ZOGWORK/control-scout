@@ -36,7 +36,8 @@ export interface Parsed {
   n: number | null;
   /** "match 12", "q12": a match's number. */
   matchNumber: number | null;
-  /** Penalty points left out of scores. */
+  /** Penalty points left out of scores ("without penalties"): read, and an intent that can't apply it leaves the parse
+   *  incomplete. */
   noPenalties: boolean;
   /** Every intent symbol read ("agg:max", "metric:score"). */
   symbols: string[];
@@ -63,6 +64,8 @@ export interface ParseContext {
 }
 
 type Tok = { w: string; typed: string; used: boolean };
+/** The kind words an event's name can end with. */
+const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
 const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
 const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
@@ -71,7 +74,7 @@ const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
 const symKey = (s: Sym): string | null => {
   switch (s.k) {
-    case "agg": case "metric": case "thing": case "level": case "alliance": case "outcome": case "prep": case "award": return `${s.k}:${s.v}`;
+    case "agg": case "metric": case "thing": case "level": case "alliance": case "outcome": case "prep": case "award": case "per": return `${s.k}:${s.v}`;
     case "filler": return null;
     default: return s.k;
   }
@@ -119,9 +122,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (span.some((t) => t.used) || span.every((t) => isLex(t.w) || /^\d+$/.test(t.w))) continue;
       // After "in" or "from", a place's name is the place ("teams from Texas"), whatever team shares it.
       if (/^(?:in|from|at|near)$/.test(toks[i - 1]?.w ?? "") && ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "))) continue;
-      // A name covers its whole run of unknown words: "robotics" alone isn't the team in "hypnotc robotics".
+      // A one-word name covers its whole run of unknown words: "robotics" alone isn't the team in "hypnotc robotics".
+      // A longer name is specific enough beside another ("hypnotic robotics bad wolf").
       const loose = (t: Tok | undefined) => !!t && !t.used && !isLex(t.w) && !/^\d+$/.test(t.w);
-      if (loose(toks[i - 1]) || loose(toks[i + len])) continue;
+      if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
       // A number typed beside its own name ("12345 hypnotic robotics") is one team.
@@ -172,16 +176,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const e = lexAt(i);
     if (!e) continue;
     e.words.forEach((_, j) => (toks[i + j].used = true));
-    const s = e.sym;
-    if (s.k === "level") p.level = s.v;
-    else if (s.k === "alliance") p.alliance = s.v;
-    else if (s.k === "worlds") p.worlds = true;
-    else if (s.k === "states") p.states = true;
-    else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
-    else if (s.k === "nopen") p.noPenalties = true;
-    else if (s.k === "agg" && !p.agg) p.agg = s.v;
-    const k = symKey(s);
-    if (k && s.k !== "award") symbols.add(k);
+    for (const s of e.syms) {
+      if (s.k === "level") p.level = s.v;
+      else if (s.k === "alliance") p.alliance = s.v;
+      else if (s.k === "worlds") p.worlds = true;
+      else if (s.k === "states") p.states = true;
+      else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
+      else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "agg" && !p.agg) p.agg = s.v;
+      const k = symKey(s);
+      if (k && s.k !== "award") symbols.add(k);
+    }
   }
   // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
@@ -216,7 +221,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const [x, y] = wide ? [a, b] : [from, to];
       p.event = { words: span(x, y).map((t) => t.w).join(" "), typed: span(x, y).map((t) => t.typed).join(" ") };
       span(x, y).forEach((t) => (t.used = true));
-      symbols.delete("thing:event");
+      if (!toks.some((t) => !span(x, y).includes(t) && KIND_WORDS.has(t.w))) symbols.delete("thing:event");
       continue;
     }
     // A place with an event word after it, read as both: "California events".
@@ -248,8 +253,14 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   if (unread) p.leftover.unshift(unread);
   if (p.teams.some((t) => t.candidates && !t.rule)) p.leftover.push(...p.teams.filter((t) => t.candidates && !t.rule).map((t) => t.typed));
   p.symbols = [...symbols];
-  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null });
+  const pick = pickIntent(symbols, p.teams.length, { event: !!p.event, n: p.n != null, matchNo: p.matchNumber != null });
   if (pick) { p.intent = pick.rule.id; p.rule = pick.rule; p.unexplained = pick.unexplained; }
+  // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
+  // parse is left incomplete rather than answered with penalties in.
+  if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
+  // The awards side-by-side counts every award: one award named ("4215 vs 6980 inspire awards") is left to the
+  // readers that count that award alone.
+  if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
 }

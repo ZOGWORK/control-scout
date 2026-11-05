@@ -17,17 +17,22 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.3 — 2026-11-05
 
-Search gains a reader that takes a question apart into its parts, in any word order: the groundwork for answering any phrasing the same way. Answers don't change yet.
+Search reads a question as its parts in any word order (team, event, place, time, what's asked) and answers from the data, the same card for every phrasing.
 
 ### Highlights
 - [report] Search reads a question's parts in any word order
 - [report] One table of synonyms and filler, not one list per answer
 - [report] Times like "this week" and "last month" are read against today
+- [teams] Any word order, any filler: one question gets one answer card
+- [fixes] A future year says it has no events yet, never the latest season
 
 ### Search
-- **The question as parts.** A new reader (`server/api/query/`) splits a question into its parts: teams, event, place, time, match type, side, Worlds or states, award, highest or lowest, a count, a match number and what's asked. It reads them in any word order and skips filler. Every word has to be explained, and a question with a word left over is left to today's search. Nothing is guessed. It isn't used to answer yet; the next release runs it first.
+- **The question as parts.** A new reader (`server/api/query/`) splits a question into its parts: teams, event, place, time, match type, side, Worlds or states, award, highest or lowest, a count, a match number and what's asked. It reads them in any word order and skips filler. Every word has to be explained, and a question with a word left over is left to today's search. Nothing is guessed. A complete reading is answered first, ahead of today's readers.
 - **One word list.** Every synonym, filler phrase and measure word sits in one table ("worlds" is the FIRST Championship, "opr" the offensive power rating, "record" W-L-T), and what's asked is picked by one rule table.
 - **Time and place.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season, read against today. Teams, towns, regions and countries come from the data, and a name several teams share is picked by Compare's rules or left unread. (#736)
+- **Answered from the parts.** A complete reading runs as one structured question over the stored matches, events and awards. "12345 highest score", "highest score 12345", "what is the best score for 12345" and "score highest 12345 rn" read the same and show the same card, for any team, and the card lists what was read. "This week" filters matches by their date and says "This week".
+- **Places and years.** A state, a province, a country ("in Romania") or a region code filters events by where they were held; a team's question with no place keeps the team's own events, and no place is ever read as New Jersey. A year is that season; one with no events on record yet ("12345 record 2027") says so, with the latest season as a question to ask.
+- **One highest-scoring match.** "The highest-scoring match" lists that one match with both alliances, their teams, the event and the date; "matches", "scores" or "top 5" lists several. (#743)
 
 ## 3.2.2 — 2026-11-05
 

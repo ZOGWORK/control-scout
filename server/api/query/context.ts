@@ -9,6 +9,8 @@ import { names } from "./names.js";
 import type { ParseContext } from "./parse.js";
 
 const EVENT = new Set(["event"] as const);
+const KINDS = /^(?:meets?|tournaments?|events?|competitions?)$/;
+const EVENT_KIND_PHRASE = /^(?:league meets?|league tournaments|qualifiers|scrimmages?)$/;
 
 /** How well words must name an event to be read as one. */
 export const EVENT_FIT = 0.75;
@@ -25,7 +27,10 @@ export async function parseContext(now = Date.now(), prefer: ReadonlySet<string>
       const hits = await search(words, 5, new Set(), EVENT);
       // One plain word names an event only as its code ("usnjcmp"): a word inside an event's name ("Alphatronic" in
       // "DecodeRA: Alphatronic Version") is a team's or a place's first.
-      if (ws.length === 1 && !EVENT_NAME_WORDS.has(ws[0])) return hits.some((h) => h.kind === "event" && h.ref.split(":")[1]?.toLowerCase() === words);
+      // Event words alone ("league", "league meets") are a kind of event, read by the answers' own event kinds
+      // (server/api/answers/index.ts EVENT_KINDS), never one event by name.
+      if (ws.every((w) => EVENT_NAME_WORDS.has(w) || KINDS.test(w))) return ws.length > 1 && EVENT_KIND_PHRASE.test(words);
+      if (ws.length === 1) return hits.some((h) => h.kind === "event" && h.ref.split(":")[1]?.toLowerCase() === words);
       return hits.some((h) => h.kind === "event" && eventFit(words, h.title, h.ref.split(":")[1] ?? "") >= EVENT_FIT);
     },
   };
