@@ -112,6 +112,10 @@ export interface CompareRow {
    *  Absent: a row of values only. */
   max?: number;
   nums?: (number | null)[];
+  /** On a tie for the lead: the teams level at the top, by index. */
+  tied?: number[];
+  /** Why a row with a scale has no bars ("below zero: no bars"). */
+  note?: string;
 }
 
 export interface StatAnswer {

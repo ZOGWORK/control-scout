@@ -71,6 +71,9 @@ describe("comparison card (the guide's contract)", () => {
     expect(labels.map((l) => l.textContent)).toEqual(["157.9", "115.3"]);
     expect(labels[0].className).toContain("font-bold");
     expect(labels[1].className).not.toContain("font-bold");
+    // A share's maximum reads in its unit.
+    const rate = html({ ...VS, blocks: [{ kind: "compare", title: "Win rate", teams: VS.blocks[0].kind === "compare" ? VS.blocks[0].teams : [], rows: [{ label: "Win rate", values: ["75%", "83%"], nums: [0.75, 0.83], max: 1, best: 1, gap: "+8%" }] }] });
+    expect(rate.querySelector("[data-max]")!.textContent).toBe("max 100%");
     // A missing value says so.
     expect(metrics[3].textContent).toContain("— not on record");
     // No team header strip, no second season pill, no stat tiles.

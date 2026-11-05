@@ -39,12 +39,17 @@ export function niceMax(v: number): number {
 export function compareRow(x: CompareInput): CompareRow {
   const vs = x.values.map((v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v)));
   const shown = vs.map((v, i) => (x.show ?? one)(v, i));
+  // A value below zero (an OPR can be) gets no bar: a bar from zero can't show it, so the row is its values, noted.
+  const negative = vs.some((v) => v != null && v < 0);
+  const top = Math.max(...vs.map((v) => v ?? 0));
   const base: CompareRow = { label: x.label, values: shown, best: null,
-    ...(x.max != null && vs.some((v) => v != null) ? { max: Math.max(...vs.map((v) => v ?? 0)) > x.max ? niceMax(Math.max(...vs.map((v) => v ?? 0))) : x.max, nums: vs } : {}) };
+    ...(x.max != null && !negative && vs.some((v) => v != null) ? { max: top > x.max ? niceMax(top) : x.max, nums: vs } : {}),
+    ...(x.max != null && negative ? { note: "below zero: no bars" } : {}) };
   if (!x.better || !vs.every((v) => v != null)) return base;
   const order = vs.map((v, i) => ({ v: v!, i })).sort((a, b) => (x.better === "higher" ? b.v - a.v : a.v - b.v));
   const d = Math.abs(order[0].v - order[1].v);
-  if (d < 1e-9) return { ...base, gap: "Even", diff: 0 };
+  // A tie for the lead: the teams level at the top, by index (the rest are behind them).
+  if (d < 1e-9) return { ...base, gap: "Even", diff: 0, tied: order.filter((o) => Math.abs(o.v - order[0].v) < 1e-9).map((o) => o.i).sort((p, q) => p - q) };
   return { ...base, best: order[0].i, gap: (x.gap ?? ((g) => `+${one(g)}`))(d), diff: d };
 }
 
@@ -98,7 +103,14 @@ export function decidingPhase(rows: CompareRow[]): CompareRow | null {
  *  fact once: ranks, records, what decided it). The leader's value first; a tie is "Even". */
 export function leadHeadline(teams: AnswerTeam[], total: CompareRow, context: (string | null | undefined)[], href?: string): { value: string; label: string; sub?: string; href?: string } {
   const sub = context.filter(Boolean).join(" · ") || undefined;
-  if (total.best == null) return { value: total.gap === "Even" ? `Even at ${total.values[0]}` : total.values.join(" – "), label: total.gap === "Even" ? "No gap" : "No leader: a value is missing", ...(sub ? { sub } : {}) };
+  if (total.best == null && total.tied?.length) {
+    // Level at the top: all of them ("Even at 50.0"), or the leaders named ("6980 and 33950 tie at 20.0").
+    const at = total.values[total.tied[0]];
+    return total.tied.length === teams.length
+      ? { value: `Even at ${at}`, label: "No gap", ...(sub ? { sub } : {}) }
+      : { value: `${total.tied.map((i) => teams[i].number).join(" and ")} tie at ${at}`, label: "No gap between them", ...(sub ? { sub } : {}) };
+  }
+  if (total.best == null) return { value: total.values.join(" – "), label: "No leader: a value is missing", ...(sub ? { sub } : {}) };
   const order = [total.best, ...total.values.map((_, i) => i).filter((i) => i !== total.best)];
   return { value: `${teams[total.best].number} leads ${order.map((i) => total.values[i]).join(" – ")}`, label: total.gap ?? "", ...(sub ? { sub } : {}), ...(href ? { href } : {}) };
 }

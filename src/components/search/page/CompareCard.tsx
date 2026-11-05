@@ -24,7 +24,8 @@ export function comparisonOf(stat: StatAnswer): Compare | null {
 /** A bar's width, value over the row's maximum from zero: the only way a bar is drawn (the lie-factor test reads it). */
 export const barPc = (v: number | null | undefined, max: number) => (v == null || !(max > 0) ? 0 : (100 * Math.max(0, v)) / max);
 
-const fmtMax = (n: number) => (Number.isInteger(n) ? n.toLocaleString("en-US") : n <= 1 ? `${Math.round(100 * n)}%` : n.toFixed(1));
+/** A row's maximum in its values' unit: a share (values in %) as a percentage, a count or score as itself. */
+const fmtMax = (n: number, values: string[]) => (values.some((v) => /%$/.test(v)) && n <= 1 ? `${Math.round(100 * n)}%` : Number.isInteger(n) ? n.toLocaleString("en-US") : n.toFixed(1));
 
 export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
   const teams: Who[] = stat.teams ?? [];
@@ -87,7 +88,8 @@ function Metric({ r, teams }: { r: CompareRow; teams: Who[] }) {
     <div data-metric={r.label}>
       <div className="flex items-baseline gap-2 text-sm">
         <span className="font-medium text-foreground">{r.label}</span>
-        {r.max != null && <span className="text-xs text-muted-foreground" data-max>max {fmtMax(r.max)}</span>}
+        {r.max != null && <span className="text-xs text-muted-foreground" data-max>max {fmtMax(r.max, r.values)}</span>}
+        {r.note && <span className="text-xs text-muted-foreground" data-note>{r.note}</span>}
         <span className="ml-auto font-semibold tabular-nums text-foreground" data-gap>{r.gap ?? ""}</span>
       </div>
       <div className="mt-1.5 space-y-1">

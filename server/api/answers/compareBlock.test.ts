@@ -31,5 +31,14 @@ describe("compare rows", () => {
     expect(leadHeadline([{ number: 1, name: null }, { number: 2, name: null }], even, [])).toMatchObject({ value: "Even at 50.0" });
     const [gap] = compareRows([{ label: "Total", total: true, values: [50, null], max: 60, better: "higher" }]);
     expect(gap.best).toBeNull();
+    // Two of three level at the top: they are named, at their shared value, never the trailing team's.
+    const three = [1, 2, 3].map((n) => ({ number: n, name: null }));
+    const [top2] = compareRows([{ label: "Total", total: true, values: [10, 20, 20], max: 30, better: "higher" }]);
+    expect(leadHeadline(three, top2, [])).toMatchObject({ value: "2 and 3 tie at 20.0" });
+  });
+  it("a value below zero gets no bars, and the row says why", () => {
+    const [r] = compareRows([{ label: "Auto", values: [-2, -10], max: 40, better: "higher" }]);
+    expect(r).toMatchObject({ values: ["-2.0", "-10.0"], note: "below zero: no bars", best: 0 });
+    expect(r.max).toBeUndefined();
   });
 });
