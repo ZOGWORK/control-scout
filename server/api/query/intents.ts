@@ -119,7 +119,8 @@ export const INTENTS: IntentRule[] = [
   R("partners", 1, ["metric:partner"], ["list", "thing:team"]),
   R("opponents", 1, ["metric:opponent"], ["list", "thing:team"]),
   // "Who did 12345 lose to the most": the opponents that beat it, most often first.
-  R("lost-to-most", 1, ["metric:opponent", "outcome:L"], ["agg:max", "agg:count", "thing:team", "thing:match", "per:match", "list"]),
+  // A count ("how many teams has it lost to") is a different answer: left unexplained.
+  R("lost-to-most", 1, ["metric:opponent", "outcome:L"], ["agg:max", "thing:team", "thing:match", "per:match", "list"]),
   // The team's own numbers: its OPR, its rating, its forecast.
   R("team-opr", 1, ["metric:opr"], ["agg:last"], { noEvent: true }),
   R("team-rating", 1, ["metric:rating"], ["agg:last"], { noEvent: true }),

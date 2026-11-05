@@ -258,6 +258,8 @@ describe("a win or a loss said with a team's match question is a filter", () => 
   });
   it("losing to someone is the opponents that beat the team; winning a match, its wins", async () => {
     for (const q of ["who did 4215 lose to the most times", "teams 4215 lost to most often"]) expect((await stat(q)).title, q).toMatch(/^Teams lost to most often/);
+    // A count of them is another question: never answered with the one that beat it most.
+    expect((await ask("how many teams has 4215 lost to")).stat?.title ?? "").not.toMatch(/^Teams lost to most often/);
     expect((await stat("did 4215 ever win a match")).title).toMatch(/^Match wins/);
     // "Most often" is how often, never the best: the partners list, not the best partner.
     expect((await stat("4215 partners most often")).title).toMatch(/^Alliance partners/);
