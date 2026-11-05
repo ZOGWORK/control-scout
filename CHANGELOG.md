@@ -29,7 +29,7 @@ Search plays the video the site has for what you asked: a match's clip, or the e
 - **The match asked about, in the answer.** An answer about one match ("USMACMP Q12", "the highest scoring match in decode", "highest score at massachusetts championship") plays FIRST's own video of it, else the event's recording from that match's second, else the event's stream from its start: the same videos the event page plays. Nothing plays until it's tapped: the card shows the video's picture and a play button, and the player loads on the tap.
 - **An event's stream.** An event's results, rank, winning alliance and awards, and an event searched by name, play its live stream or recording in the card. An event with no video shows nothing about it.
 - **Play buttons in lists.** Top-scoring matches and a team's matches at an event give each match with a clip a small play button; it plays in the app's video player over the search page, so search stays where it was.
-- **One read for all of it.** An answer's video is read once for the whole answer, whatever its number of rows, from the stored match times and the kept recording lists, which now keep answering while they refresh. Event-local match times convert about ten times faster.
+- **One read for all of it.** An answer's video is read once for the whole answer, whatever its number of rows, from the stored match times and the kept recording lists, which now keep answering while they refresh. Event-local match times convert about ten times faster. (#725)
 
 ## 3.1.7 — 2026-11-05
 
