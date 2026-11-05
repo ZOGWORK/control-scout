@@ -122,7 +122,7 @@ export async function matchFindAnswer(f: MatchFind): Promise<StatAnswer> {
   const title = `${(filters ? `${ms.title.replace(/match/, `${filters} match`)}` : ms.title)}${typed ? ` ${typed}` : ""}, ${seasonLabel(f.season)}`;
   const scope = [seasonLabel(f.season), ...(place ? [place] : []), ...(f.window ? [f.window.label.replace(/^./, (c) => c.toUpperCase())] : []),
     ...(f.finals ? ["Finals"] : f.level === "qual" ? ["Qualification matches"] : f.level === "playoff" ? ["Playoff matches"] : []), ...(f.kind ? [f.kind.label] : []), "Official events"];
-  const definition = `How this is counted: ${rule} Only played matches at official events held in person, with both alliances' points on record.`;
+  const definition = `${rule.replace(/^./, (c) => c.toUpperCase())} Only played matches at official events held in person, with both alliances' points on record.`;
   const where2 = `${place ? ` in ${place}` : ""}${f.kind ? ` at ${f.kind.label.toLowerCase()}` : ""}${f.window ? ` ${f.window.label}` : ` in ${seasonLabel(f.season)}`}`;
   const base = { family: "superlative" as const, intent: `find-${f.measure}`, title, scope, definition, source: `From ${count.toLocaleString("en-US")} played match${count === 1 ? "" : "es"}${where2}` };
   if (!rows.length) {

@@ -59,7 +59,7 @@ function said(a: SearchAnswer, steps: Relaxation[], first: SearchAnswer): Search
   const why = note ? `${note}: no season was named, so the current one was read first, and it has nothing here yet. Every other filter is as asked.`
     : `Nothing matched ${from}${first.stat?.none ? ` (${first.stat.none.replace(/\.$/, "")})` : ""}, so the time filter was relaxed in order: ${steps.map((s) => `${s.from} → ${s.to}`).join(", then ")}. Every other filter is as asked.`;
   const stat = a.stat ? { ...a.stat, scope: [chip, ...a.stat.scope], definition: `${why} ${a.stat.definition}` } : a.stat;
-  const label = `${a.understood?.label ?? stat?.title ?? ""} · ${note ?? `relaxed from ${from} to ${to}`}`;
+  const label = `${a.understood?.label ?? stat?.title ?? ""} · ${note?.replace(/; showing .*$/, "") ?? `relaxed from ${from} to ${to}`}`;
   return {
     ...a, stat, understood: { ...(a.understood ?? { kind: "question" }), label },
     ...(a.intent ? { intent: { ...a.intent, pattern: `${a.intent.pattern} [relaxed:${steps.map((s) => s.filter).join(">")}]` } } : {}),

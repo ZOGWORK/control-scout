@@ -202,7 +202,7 @@ describe("the match finder: matches by a measure, every filter applied and state
     const close = await stat("closest match in new jersey this season");
     expect(close.headline).toMatchObject({ value: "40-point margin", label: expect.stringMatching(/^Q2 /) });
     expect(close.scope).toEqual(expect.arrayContaining(["2025–26", "New Jersey"]));
-    expect(close.definition).toMatch(/^How this is counted: /);
+    expect(close.definition).toMatch(/^The margin is /);
     expect((await stat("most lopsided match in romania this season")).headline?.value).toBe("210-point margin");
     expect((await stat("lowest scoring match in california this season")).headline?.value).toBe("210 points");
   });
@@ -211,7 +211,7 @@ describe("the match finder: matches by a measure, every filter applied and state
     const a = await ask("biggest upset in new jersey", Date.parse("2026-11-04T12:00:00Z"));
     expect(a.stat?.headline?.value).toBe("60% favourite lost");
     expect(a.stat?.scope[0]).toBe("No 2026–27 matches yet in New Jersey; showing 2025–26");
-    expect(a.understood?.label).toContain("No 2026–27 matches yet in New Jersey; showing 2025–26");
+    expect(a.understood?.label).toMatch(/2025–26 · No 2026–27 matches yet in New Jersey$/);
   });
   it("a match type with nothing in it is said, never another type's matches", async () => {
     const s = await stat("closest playoff match in new jersey this season");
