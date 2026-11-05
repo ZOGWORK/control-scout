@@ -124,4 +124,19 @@ describe("HeroSearch", () => {
       }
     } finally { rect.mockRestore(); cw.mockRestore(); ch.mockRestore(); }
   });
+
+  it("draws no chip, and stays put, when none fits the list", () => {
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const width = this.tagName === "BUTTON" ? 400 : this.tagName === "UL" ? 300 : 0, height = this.tagName === "BUTTON" ? 30 : 0;
+      return { top: 0, bottom: height, left: 0, right: width, width, height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    const ch = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) { return this.tagName === "UL" ? 60 : 0; });
+    try {
+      show();
+      expect(chips()).toEqual([]);
+      act(() => { vi.advanceTimersByTime(HERO_EXAMPLE_MS * 3); });
+      expect(chips()).toEqual([]);
+      expect(field().getAttribute("placeholder")).toBe(heroPlaceholder(six()[0]));
+    } finally { rect.mockRestore(); ch.mockRestore(); }
+  });
 });

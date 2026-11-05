@@ -74,11 +74,13 @@ export function useRotatingExample(paused: boolean, reduced: boolean, count: num
 export function useFittingChips(list: RefObject<HTMLUListElement | null>, items: HomeSuggestion[]): HomeSuggestion[] {
   const [fit, setFit] = useState<{ items: HomeSuggestion[]; shown: HomeSuggestion[] } | null>(null);
   const widths = useRef(new Map<string, number>());
+  // A chip's height, kept from the last draw that had one: when none fit, none is drawn to read it from.
+  const chipH = useRef(0);
   const [run, setRun] = useState(0);
   const current = fit?.items === items ? fit.shown : null;
   useEffect(() => {
     let live = true;
-    document.fonts?.ready.then(() => { if (live) { widths.current.clear(); setFit(null); setRun((n) => n + 1); } });
+    document.fonts?.ready.then(() => { if (live) { widths.current.clear(); chipH.current = 0; setFit(null); setRun((n) => n + 1); } });
     return () => { live = false; };
   }, []);
   useLayoutEffect(() => {
@@ -89,7 +91,9 @@ export function useFittingChips(list: RefObject<HTMLUListElement | null>, items:
       const px = (v: string) => parseFloat(v) || 0;
       const width = Math.floor(ul.getBoundingClientRect().width) - px(cs.paddingLeft) - px(cs.paddingRight);
       const height = ul.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
-      const chip = ul.querySelector("button")?.getBoundingClientRect().height ?? 0;
+      const drawnH = ul.querySelector("button")?.getBoundingClientRect().height;
+      if (drawnH) chipH.current = drawnH;
+      const chip = chipH.current;
       const ws = items.map((s) => widths.current.get(s.q) ?? 0);
       if (!width || !chip || ws.some((w) => !w)) { setFit({ items, shown: items }); return; }
       const rows = Math.max(1, Math.floor((height + px(cs.rowGap) + 0.5) / (chip + px(cs.rowGap))));
@@ -102,11 +106,14 @@ export function useFittingChips(list: RefObject<HTMLUListElement | null>, items:
     // First draw (all of them, in order): measure each chip, then pack.
     if (items.some((s) => !widths.current.has(s.q))) for (const [q, b] of drawn()) widths.current.set(q, widthOf(b));
     pack();
-    let w = ul.clientWidth;
+    let w = ul.clientWidth, h = ul.clientHeight;
     const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
-      // A drawn chip of a new width: the text size changed, so every width is stale. Draw all six and measure again.
-      if (drawn().some(([q, b]) => { const now = widthOf(b); return now > 0 && now !== widths.current.get(q); })) {
-        widths.current.clear(); setFit(null); setRun((n) => n + 1); return;
+      // A drawn chip of a new width, or the list a new height (its rows are in rem): the text size changed, so every
+      // width is stale. Draw all six and measure again.
+      const resized = ul.clientHeight !== h;
+      h = ul.clientHeight;
+      if (resized || drawn().some(([q, b]) => { const now = widthOf(b); return now > 0 && now !== widths.current.get(q); })) {
+        widths.current.clear(); chipH.current = 0; setFit(null); setRun((n) => n + 1); return;
       }
       if (ul.clientWidth !== w) { w = ul.clientWidth; pack(); }
     });
