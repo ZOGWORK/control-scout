@@ -153,6 +153,16 @@ curious", "only", "da") are filler and never a team's name. No season said follo
 the current season once a team is ranked in it, else the one before, said ("No 2026–27 ranked teams yet in Romania;
 showing 2025–26").
 
+## A team's wins and losses
+
+A win or a loss said with one team's match question is a filter on its matches, in any of its words ("lose", "lost",
+"losing", "win", "won"): "when did 12345 last lose a match" is its most recent loss, "first win" its first win,
+"last 5 losses" its last five losses, and "longest losing streak" the longest run of losses (a tie ends a run). The
+card's title says which ("Most recent loss"). Losing to someone ("lose to", "lost to", "beaten by") is the opponents
+that beat the team, most often first; "most often" is how often, never the best. "Did 12345 ever win a match" is its
+match wins, none said as none. "If any", "often" and "by type" are read as asides: every answer already says when there
+is none, and a total of awards already lists each type.
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was
