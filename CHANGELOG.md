@@ -32,7 +32,7 @@ Search reads a question as its parts in any word order (team, event, place, time
 - **Time and place.** "This week", "last week", "this weekend", "last month", "in March", "on Mar 15, 2026", "2024-25", a game's name, "last season" and "ever" each become a date range or a season, read against today. Teams, towns, regions and countries come from the data, and a name several teams share is picked by Compare's rules or left unread. (#736)
 - **Answered from the parts.** A complete reading runs as one structured question over the stored matches, events and awards. "12345 highest score", "highest score 12345", "what is the best score for 12345" and "score highest 12345 rn" read the same and show the same card, for any team, and the card lists what was read. "This week" filters matches by their date and says "This week".
 - **Places and years.** A state, a province, a country ("in Romania") or a region code filters events by where they were held; a team's question with no place keeps the team's own events, and no place is ever read as New Jersey. A year is that season; one with no events on record yet ("12345 record 2027") says so, with the latest season as a question to ask.
-- **One highest-scoring match.** "The highest-scoring match" lists that one match with both alliances, their teams, the event and the date; "matches", "scores" or "top 5" lists several. (#PR)
+- **One highest-scoring match.** "The highest-scoring match" lists that one match with both alliances, their teams, the event and the date; "matches", "scores" or "top 5" lists several. (#743)
 
 ## 3.2.2 — 2026-11-05
 
