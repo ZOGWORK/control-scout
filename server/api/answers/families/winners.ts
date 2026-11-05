@@ -89,6 +89,12 @@ async function winnersOf(e: Ev): Promise<{ teams: number[]; finals: StatMatchRow
   return { teams, finals, from };
 }
 
+/** Whether `team` is on the event's winning alliance, by winnersOf's rules (a decided final, else the award). */
+export async function wonEventByRules(season: number, code: string, team: number): Promise<boolean> {
+  const e = await get<Ev>(`SELECT ${evCols} FROM events WHERE season = ? AND code = ?`, [season, code]);
+  return !!e && !!(await winnersOf(e))?.teams.includes(team);
+}
+
 /** The winning-alliance answer for a season's championship (`core` empty) or a named event. Null when nothing names one. */
 export async function winnersAnswer(core: string, season: number | null, championship: boolean, findEvent: (words: string, season: number | null) => Promise<Ev | null>, which: WhichSeason = {}): Promise<StatAnswer | null> {
   let parent: Ev | null;
