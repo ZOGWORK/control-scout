@@ -33,6 +33,19 @@ Search answers misspelled questions about four times faster, and filtered team l
 - **Filtered lists.** "NJ teams that won Inspire" and "teams that went to Worlds" looked up each team's awards and events the slow way: 30 to 100 seconds a list, holding up every other request meanwhile. A new index (migration 72) and a reordered lookup make them a few tens of milliseconds.
 - **Slow searches.** A page's first search that runs out of time now tries once more before showing "Search is slow", as every other search already did.
 
+## 3.1.5 — 2026-11-04
+
+How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.
+
+### Highlights
+- [report] How it works shows engine 3.5's accuracy and Brier per season
+- [report] The 72.7% figure is now labelled as the first engine 1.x test
+- [predict] Margin error shows engine 3.5's drop next to the old engine
+
+### Changes
+- **Today's engine.** How it works › Accuracy opens its engine results with a table of engine 3.5 on the rolling monthly test: 76.5% called right, Brier 0.1578 and margin error 38.64 points on 2024–25; 74.8%, 0.1681 and 37.26 on 2025–26. The margin column shows 3.5's smaller error next to the previous one.
+- **Engine 1.x test, named.** The 72.7% headline, its baselines (Figure 8) and the learning curve come from the engine's first held-out test; they now say engine 1.x. Its 82% range coverage is engine 2.2's ranges result and says so. The ledger's season replay (73.8% on 2025–26) is unchanged: 3.5 moved no win chance. (#673)
+
 ## 3.1.4 — 2026-11-04
 
 Search answers questions that join filters or ask two things at once, each filter it read named on the card and applied.
