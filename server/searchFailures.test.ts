@@ -13,8 +13,7 @@ import { setFlag } from "./flags";
 import { searchAnswer } from "./api/searchAnswer";
 import {
   counters, failureBody, onRows, failureOf, readTrace, failureTitle, flushSearchFailures, githubPausedUntil, keyFor, keyHash, noteSearch, outcomeTrace, recheck, redact, reportKey,
-  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace,
-} from "./searchFailures";
+  NEW_PER_DAY, resetSearchFailures, settle, SETTLE_MS, syncOne, syncSearchFailures, type SearchTrace, MISSED_KEEP, mergeMissed, patternFor } from "./searchFailures";
 import type { SearchAnswer } from "../src/shared/api";
 
 let server: Server;
@@ -179,6 +178,71 @@ describe("what counts as a failed search (§12.1)", () => {
   });
 });
 
+describe("failure patterns (docs/search-pipeline.md)", () => {
+  it("queries that fail the same way are one row, their unread words counted, never a query's old row", async () => {
+    const key = "pattern: intent: opr · slots: team · not read: 1 word";
+    await run("INSERT INTO search_failures (key, hash, result_type, intent, reading, label, examples, count, first_seen, last_seen) VALUES ('4215 opr scorecard', 'h', 'team-fallback', 'opr', '{}', '', '[]', 1, 'a', 'a')");
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "192.0.2.21", null, clock, key, ["scorecard"]);
+    noteSearch("6980 opr scoresheet", fallback("6980 opr scoresheet", "opr scoresheet"), "192.0.2.22", null, clock, key, ["scoresheet"]);
+    noteSearch("17713 opr scorecard", fallback("17713 opr scorecard", "opr scorecard"), "192.0.2.23", null, clock, key, ["scorecard"]);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    const r = (await all<{ key: string; count: number; examples: string; missed: string }>("SELECT key, count, examples, missed FROM search_failures WHERE key = ?", [key]))[0];
+    expect(r).toMatchObject({ key, count: 3 });
+    expect(JSON.parse(r.missed)).toEqual({ scorecard: 2, scoresheet: 1 });
+    expect(JSON.parse(r.examples)).toHaveLength(3);
+    // The query's own old row is left as it was.
+    expect((await all<{ count: number }>("SELECT count FROM search_failures WHERE key = '4215 opr scorecard'"))[0].count).toBe(1);
+    // A second flush adds to the tally.
+    noteSearch("4215 opr scorecard", fallback("4215 opr scorecard", "opr scorecard"), "192.0.2.24", null, clock, key, ["scorecard"]);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures WHERE key = ?", [key]))[0].missed)).toEqual({ scorecard: 3, scoresheet: 1 });
+  });
+  it("a pattern's issue shows the pattern and the unread words, the most frequent first", () => {
+    const body = failureBody({ key: "pattern: intent: opr · slots: team · not read: 1 word", hash: "h", result_type: "team-fallback", intent: "opr", reading: JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), label: "", examples: JSON.stringify(["4215 opr scorecard"]), missed: JSON.stringify({ scorecard: 3, scoresheet: 1 }), count: 4, first_seen: "a", last_seen: "b", issue_number: 1, issue_state: "open", reported_count: 0, filing_at: null, regression_seen: null });
+    expect(body).toContain("### Pattern");
+    expect(body).toMatch(/scorecard ×3\nscoresheet ×1/);
+  });
+  it("rows keep counting well past the words an issue lists, so a newly frequent word can climb", () => {
+    const many = Object.fromEntries(Array.from({ length: MISSED_KEEP + 5 }, (_, i) => [`w${i}`, 100]));
+    expect(Object.keys(mergeMissed(many, []))).toHaveLength(MISSED_KEEP);
+    // A full tally, every word at 100: a new word missed once a flush keeps its count, and overtakes them all.
+    let m: Record<string, number> = Object.fromEntries(Array.from({ length: MISSED_KEEP }, (_, i) => [`old${i}`, 100]));
+    for (let i = 0; i < 101; i++) {
+      m = mergeMissed(m, [["new", 1]]);
+      expect(Object.keys(m)).toHaveLength(MISSED_KEEP);
+    }
+    expect(Object.entries(m).sort((a, b) => b[1] - a[1])[0]).toEqual(["new", 101]);
+    // The most counted are never pushed out to make room.
+    expect(m.old0).toBe(100);
+  });
+  it("a word repeated in one query counts the same whether its pattern is new or buffered", async () => {
+    const key = "pattern: intent: team opr · slots: team · not read: 2 words";
+    noteSearch("4215 opr zzz zzz", fallback("4215 opr zzz zzz", "opr zzz zzz"), "192.0.2.31", null, clock, key, ["zzz", "zzz"]);
+    noteSearch("6980 opr zzz zzz", fallback("6980 opr zzz zzz", "opr zzz zzz"), "192.0.2.32", null, clock, key, ["zzz", "zzz"]);
+    clock += SETTLE_MS; settle(clock);
+    await flushSearchFailures(clock);
+    expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures WHERE key = ?", [key]))[0].missed)).toEqual({ zzz: 4 });
+  });
+  it("a query that is only personal data has no pattern: skipped as before", async () => {
+    expect(await patternFor("jane@example.com")).toBeNull();
+  });
+  it("personal data in a question never splits its pattern", async () => {
+    expect((await patternFor("xyzzyq jane@example.com"))?.key).toBe((await patternFor("xyzzyq"))?.key);
+  });
+  it("two flushes at once never lose words", async () => {
+    const key = "pattern: intent: team opr · slots: team · not read: 1 word";
+    noteSearch("4215 opr aaa", fallback("4215 opr aaa", "opr aaa"), "192.0.2.41", null, clock, key, ["aaa"]);
+    clock += SETTLE_MS; settle(clock);
+    const one = flushSearchFailures(clock);
+    noteSearch("6980 opr bbb", fallback("6980 opr bbb", "opr bbb"), "192.0.2.42", null, clock, key, ["bbb"]);
+    clock += SETTLE_MS;
+    await Promise.all([one, flushSearchFailures(clock)]);
+    expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures WHERE key = ?", [key]))[0].missed)).toEqual({ aaa: 1, bbb: 1 });
+  });
+});
+
 describe("normalizing, aggregating and redacting (§12.2, §12.3)", () => {
   it("a query on record under its pre-2.8.1 key stays on that row and its issue (Greptile on #495)", async () => {
     // Filed by 2.8.0 under reportKey ("tell me" out); the new key keeps it, so the old row must be found.
@@ -189,7 +253,7 @@ describe("normalizing, aggregating and redacting (§12.2, §12.3)", () => {
     await flushSearchFailures(clock);
     expect((await rows()).map((r) => [r.key, r.count, r.issue_number, r.issue_state])).toEqual([["4215 opr zzz", 5, 777, "dismissed"]]);
     // Two items landing on one row merge, the newer's examples first.
-    const it = (key: string, last: number, examples: string[]) => ({ key, legacy: "old", count: 1, first: last, last, examples, failure: { type: "weak" as const, intent: null, trace: readTrace("x", base0) }, label: "" });
+    const it = (key: string, last: number, examples: string[]) => ({ key, legacy: "old", count: 1, first: last, last, examples, failure: { type: "weak" as const, intent: null, trace: readTrace("x", base0) }, label: "", missed: new Map<string, number>() });
     expect(onRows([it("a", 2, ["A"]), it("b", 3, ["B"])], new Set(["old"]))).toMatchObject([{ key: "old", count: 2, first: 2, last: 3, examples: ["B", "A"] }]);
     expect(onRows([it("a", 2, ["A"])], new Set(["a", "old"]))).toMatchObject([{ key: "a" }]);
   });
@@ -373,7 +437,9 @@ describe("GitHub issues (cases 23–30)", () => {
     await new Promise((r) => setTimeout(r, 20)); // the route notes it after answering
     clock = Date.now() + SETTLE_MS * 2;
     await flushSearchFailures(clock);
-    expect((await rows()).map((r) => r.key)).toEqual(["xyzzyq"]);
+    // Filed by its pattern (names and numbers left out), the unread word counted beside it.
+    expect((await rows()).map((r) => r.key)).toEqual(["pattern: intent: unread question · slots: none · read: nothing · not read: 1 word"]);
+    expect(JSON.parse((await all<{ missed: string }>("SELECT missed FROM search_failures"))[0].missed)).toEqual({ xyzzyq: 1 });
     await syncSearchFailures();
     expect(counters.unfiled).toBe(1);
     // GitHub back: the next sync files it.
@@ -545,7 +611,7 @@ describe("never a duplicate, never hammering GitHub (§12.3, §12.6)", () => {
     expect(failureTitle(long)).toHaveLength("Failed search: ".length + 80);
     expect(failureTitle(long).endsWith("…")).toBe(true);
     expect(failureTitle("@octocat #12")).not.toMatch(/@octocat|#12/);
-    const body = failureBody({ key: long, hash: "h", result_type: "no-match", intent: null, reading: JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), label: "", examples: JSON.stringify([long]), count: 1, first_seen: "a", last_seen: "b", issue_number: 1, issue_state: "open", reported_count: 0, filing_at: null, regression_seen: null });
+    const body = failureBody({ key: long, hash: "h", result_type: "no-match", intent: null, reading: JSON.stringify({ layers: [], won: null, team: null, intents: [], scope: [], filler: [] }), label: "", examples: JSON.stringify([long]), missed: "{}", count: 1, first_seen: "a", last_seen: "b", issue_number: 1, issue_state: "open", reported_count: 0, filing_at: null, regression_seen: null });
     expect(body).toContain(long);
   });
 });

@@ -132,6 +132,15 @@ It prints the pass rate per set and per pattern, each failing question with its 
 states them). A pattern is fixed in the pipeline (a phrase in the lexicon, a rule, a family), and every set and the
 generated eval run again.
 
+## Failure patterns
+
+Failed-search reporting (`server/searchFailures.ts`, `docs/failed-search-reporting.md`) files a failure under its
+pattern, not its query: `server/api/query/pattern.ts` parses it and keeps the intent read, the slots filled (team,
+teams, place, event, window, count…), the symbols left unexplained and how many words weren't read. Names, numbers
+and places never appear in it, so every team's "… opr scorecard" is one issue. The unread words are counted under
+the pattern (`search_failures.missed`, migration 73) and listed on the issue, the most frequent first: the word most
+often missed is the synonym to add. One issue per pattern replaces one issue per query.
+
 ## Plan (one PR per group)
 
 1. **Slot parser, intent and synonym tables, time and place resolution** (`server/api/query/`), with tests that read
