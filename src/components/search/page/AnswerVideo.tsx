@@ -80,7 +80,7 @@ export function RowPlay({ href, label, className }: { href: string; label: strin
   return (
     <button type="button" onClick={() => { rowPlayed(); playMatchVideo({ videoId: v.videoId, t: v.t, label }); }}
       className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-text-base/[0.06] hover:text-foreground max-md:size-11 pointer-coarse:size-11", className)}
-      aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind}>
+      aria-label={`Play ${label}: ${v.kind === "match" ? "official match video" : `the event's recording from ${clipTime(v.t)}`}`} title={videoCaption(v)} data-row-play={v.kind} data-video-control>
       <PlayCircle className="size-5" aria-hidden />
     </button>
   );

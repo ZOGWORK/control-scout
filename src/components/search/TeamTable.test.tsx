@@ -32,8 +32,8 @@ describe("TeamTable", () => {
     expect(container.querySelectorAll("[data-rank-badge]")).toHaveLength(3);
     // The OPR bar is scaled to the best OPR listed: #1 full, #4 at 40%.
     const bars = [...container.querySelectorAll<HTMLElement>("[data-opr-bar]")].map((b) => b.style.width);
-    expect(bars[0]).toBe("calc(100% - 0.5rem)");
-    expect(bars[3]).toBe("calc(40% - 0.5rem)");
+    expect(bars[0]).toBe("100%");
+    expect(bars[3]).toBe("40%");
     // No stacked phase bar (no bar charts on answer cards): each phase is its own column, with a legend and the note
     // that they don't add up to the OPR.
     expect(container.querySelector("[data-phase-bar]")).toBeNull();

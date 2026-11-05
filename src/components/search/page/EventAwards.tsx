@@ -7,16 +7,15 @@ import { ArrowRight, Award, Medal, Trophy } from "lucide-react";
 import type { SearchCard, SearchCardAward } from "../../../shared/api";
 import { awardLabel, seasonLabel } from "../../../shared/format";
 import { Button } from "../../ui/button";
-import { TONES, type Tone } from "../../StatTile";
 import { cn } from "../../cn";
 import { AnswerFrame, PART, TAP, repeats } from "./TeamAnswer";
 import { AnswerVideo } from "./AnswerVideo";
 
-/** Each place its own colour (the team page's tile tones, no gold): 1st green, 2nd blue, 3rd orange. */
-const PLACE: Record<number, { tone: Tone; height: string; label: string }> = {
-  1: { tone: "emerald", height: "h-28 max-sm:h-24", label: "1st" },
-  2: { tone: "sky", height: "h-20 max-sm:h-16", label: "2nd" },
-  3: { tone: "orange", height: "h-14 max-sm:h-12", label: "3rd" },
+/** Each place told by its step's height, its icon and its label, never a colour (on a search card hue means team). */
+const PLACE: Record<number, { height: string; label: string }> = {
+  1: { height: "h-28 max-sm:h-24", label: "1st" },
+  2: { height: "h-20 max-sm:h-16", label: "2nd" },
+  3: { height: "h-14 max-sm:h-12", label: "3rd" },
 };
 
 const nameOf = (a: SearchCardAward) => (a.name ?? awardLabel(a.type, a.placement)).replace(/<[^>]+>/g, "");
@@ -28,12 +27,15 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
   // The podium: the asked award's first three places (a placement each), in podium order 2nd, 1st, 3rd.
   const placed = card.award ? awards.filter((a) => a.type === card.award && a.placement >= 1 && a.placement <= 3) : [];
   const podium = [2, 1, 3].map((p) => placed.find((a) => a.placement === p)).filter((a): a is SearchCardAward => !!a);
+  // The rest of the event's awards: the podium's places aren't listed again (each fact once).
+  const shown = podium.some((a) => a.placement === 1);
+  const rest = shown ? awards.filter((a) => !podium.includes(a)) : awards;
   return (
     <AnswerFrame title={card.title} hideTitle={repeats(heading, card.title)}
       sub={ev ? `${ev.name} · ${seasonLabel(ev.season)} · from FIRST's award list for the event` : "From FIRST's award list for the event"}
       data={{ "data-card-kind": card.kind, "data-event-awards": "" }}>
       {card.none && <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>{card.none}</p>}
-      {podium.some((a) => a.placement === 1) && <Podium places={podium} season={ev?.season} />}
+      {shown && <Podium places={podium} season={ev?.season} />}
       <AnswerVideo />
       {/* An older server's card (no award list): its lines, as before. */}
       {!awards.length && !!card.lines.length && (
@@ -45,11 +47,11 @@ export function EventAwardsAnswer({ card, heading }: { card: SearchCard; heading
           ))}
         </ul>
       )}
-      {!!awards.length && (
-        <section aria-label="Every award at this event" className={cn(podium.length && "mt-6")} data-all-awards>
-          <h3 className={PART}>Every award at this event · {awards.length}</h3>
+      {!!rest.length && (
+        <section aria-label={shown ? "Other awards at this event" : "Every award at this event"} className={cn(shown && "mt-6")} data-all-awards>
+          <h3 className={PART}>{shown ? "Other awards at this event" : "Every award at this event"} · {rest.length}</h3>
           <ul className="grid gap-2 sm:grid-cols-2">
-            {awards.map((a) => (
+            {rest.map((a) => (
               <li key={`${a.type}|${a.placement}|${a.team}`} data-award={a.type}>
                 <AwardRow name={nameOf(a)} team={`${a.team}${a.teamName ? ` ${a.teamName}` : ""}`} href={`/teams/${a.team}${ev ? `?season=${ev.season}` : ""}`} asked={a.type === card.award} />
               </li>
@@ -74,17 +76,16 @@ function Podium({ places, season }: { places: SearchCardAward[]; season?: number
     <ol className="grid grid-cols-3 items-end gap-2 sm:gap-4" aria-label="Podium" data-podium>
       {places.map((a) => {
         const p = PLACE[a.placement];
-        const t = TONES[p.tone];
         const Icon = a.placement === 1 ? Trophy : Medal;
         return (
           <li key={a.placement} className={cn("flex min-w-0 flex-col items-center text-center", "row-start-1", a.placement === 1 ? "col-start-2" : a.placement === 2 ? "col-start-1" : "col-start-3")} data-place={a.placement}>
             <Link to={`/teams/${a.team}${season ? `?season=${season}` : ""}`} className={cn("group flex w-full min-w-0 flex-col items-center rounded-xl px-1 py-2 hover:bg-muted/50", TAP)}>
-              <span className={cn("grid place-items-center rounded-full", t.chip, a.placement === 1 ? "size-12" : "size-10")}><Icon className={a.placement === 1 ? "size-6" : "size-5"} aria-hidden /></span>
+              <span className={cn("grid place-items-center rounded-full bg-muted text-foreground", a.placement === 1 ? "size-12" : "size-10")}><Icon className={a.placement === 1 ? "size-6" : "size-5"} aria-hidden /></span>
               <span className={cn("mt-2 font-display font-semibold tabular-nums text-foreground group-hover:underline", a.placement === 1 ? "text-3xl max-sm:text-2xl" : "text-2xl max-sm:text-xl")}>{a.team}</span>
               <span className="w-full break-words text-sm font-medium leading-snug text-foreground">{a.teamName ?? `Team ${a.team}`}</span>
               <span className="mt-0.5 w-full break-words text-xs text-muted-foreground">{nameOf(a)}</span>
             </Link>
-            <span className={cn("mt-2 flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 font-display text-lg font-semibold", t.box, t.text, p.height)} aria-hidden>{p.label}</span>
+            <span className={cn("mt-2 flex w-full items-start justify-center rounded-t-xl border border-b-0 pt-2 font-display text-lg font-semibold border-border bg-muted/40 text-foreground", p.height)} aria-hidden>{p.label}</span>
           </li>
         );
       })}
@@ -95,7 +96,7 @@ function Podium({ places, season }: { places: SearchCardAward[]; season?: number
 function AwardRow({ name, team, href, asked }: { name: string; team: string; href?: string; asked?: boolean }) {
   const body = (
     <>
-      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", asked ? TONES.emerald.chip : "bg-muted text-muted-foreground")}><Award className="size-4" aria-hidden /></span>
+      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", asked ? "bg-foreground text-background" : "bg-muted text-muted-foreground")}><Award className="size-4" aria-hidden /></span>
       <span className="min-w-0 flex-1">
         <span className="block break-words text-sm font-medium text-foreground">{name}</span>
         <span className="block break-words text-sm text-muted-foreground group-hover:text-foreground">{team}</span>

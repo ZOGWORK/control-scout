@@ -58,11 +58,12 @@ export function StatTile({ tone, icon: Icon, label, value, hint, bar, onClick, s
   );
 }
 
-/** A thin bar of coloured parts, each a percent of the whole. Decorative: the numbers are always in text beside it. */
-export function Meter({ parts }: { parts: { pc: number; cls: string }[] }) {
+/** A thin bar of coloured parts, each a percent of the whole. Decorative: the numbers are always in text beside it.
+ *  `value` and `scale`: the number a part stands for and its whole (marked for the answer-card audit), else the pc. */
+export function Meter({ parts }: { parts: { pc: number; cls: string; value?: number; scale?: number }[] }) {
   return (
     <span aria-hidden className="flex h-1.5 overflow-hidden rounded-full bg-muted">
-      {parts.map((x, i) => <span key={i} className={cn("h-full transition-[width] duration-700 motion-reduce:transition-none", x.cls)} style={{ width: `${x.pc}%` }} />)}
+      {parts.map((x, i) => <span key={i} className={cn("h-full transition-[width] duration-700 motion-reduce:transition-none", x.cls)} style={{ width: `${x.pc}%` }} data-bar data-value={x.value ?? x.pc} data-scale={x.scale ?? 100} />)}
     </span>
   );
 }
