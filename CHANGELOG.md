@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.9 — 2026-11-05
 
-Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results. (#PRNUM)
+Prediction questions answer in the card, with the chance on a 0–100% bar, and a search nothing answers shows the closest real results. (#730)
 
 ### Highlights
 - [predict] "Predicted chances of a team at an event" gets an answer
