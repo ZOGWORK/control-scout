@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.7 — 2026-11-05
 
-Lists of teams answer however they're asked: the lowest first, a town, a country by its people, undefeated. (#PRNUM)
+Lists of teams answer however they're asked: the lowest first, a town, a country by its people, undefeated. (#728)
 
 ### Highlights
 - [rankings] "Who has the highest auto OPR in NJ" lists the teams
