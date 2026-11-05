@@ -28,7 +28,20 @@ Home's search chips change every hour, six at a time from a pool that shows each
 ### Home
 - **Suggestions that rotate.** The six chips under Home's search are picked each UTC hour from about 70 queries: team facts, OPR by phase, prediction rating, records with quals and playoffs apart, matches at an event or Worlds, awards, Worlds trips, two and three teams compared, leaderboards, event winners, next events, a misspelt name, questions in a sentence and searches joining several filters. Never two of one kind, always a leaderboard and a sentence or filtered search, and no team twice. A long query shows a short label and runs in full. The pick is worked out from the clock, so nothing extra loads and a cached page still changes on the hour.
 - **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found. (#705)
-- **Taps.** On a phone each chip's tap area is 44px tall, with the chip drawn the same size as before.
+- **Taps and room.** On a touch screen each chip's tap area is 44px tall, with the chip drawn the same size as before. Where the search column is too narrow for three rows to hold any six (a phone, or beside the globe), the chips are one row that scrolls sideways, so the hourly change never moves the page.
+
+## 3.1.5 — 2026-11-04
+
+How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.
+
+### Highlights
+- [report] How it works shows engine 3.5's accuracy and Brier per season
+- [report] The 72.7% figure is now labelled as the first engine 1.x test
+- [predict] Margin error shows engine 3.5's drop next to the old engine
+
+### Changes
+- **Today's engine.** How it works › Accuracy opens its engine results with a table of engine 3.5 on the rolling monthly test: 76.5% called right, Brier 0.1578 and margin error 38.64 points on 2024–25; 74.8%, 0.1681 and 37.26 on 2025–26. The margin column shows 3.5's smaller error next to the previous one.
+- **Engine 1.x test, named.** The 72.7% headline, its baselines (Figure 8) and the learning curve come from the engine's first held-out test; they now say engine 1.x. Its 82% range coverage is engine 2.2's ranges result and says so. The ledger's season replay (73.8% on 2025–26) is unchanged: 3.5 moved no win chance. (#673)
 
 ## 3.1.4 — 2026-11-04
 
