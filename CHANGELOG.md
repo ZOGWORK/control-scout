@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.6 — 2026-11-05
 
-Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback. (#PRNUM)
+Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback. (#727)
 
 ### Highlights
 - [fixes] "Closest match in Romania last month" answers with the match
