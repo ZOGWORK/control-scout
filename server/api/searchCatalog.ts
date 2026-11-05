@@ -132,12 +132,14 @@ export const PARAPHRASES: [string, string][] = [
   ["what town", "location"],
   ["what state", "location"],
   ["based in", "location"],
+  ["based out of", "location"],
   ["what school", "school"],
   ["which school", "school"],
   ["who sponsors", "sponsors"],
   ["when did start", "rookie year"],
   ["first season", "rookie year"],
   ["start year", "rookie year"],
+  ["how old", "rookie year"],
   ["offensive power rating", "opr"],
   ["tele op", "teleop"],
   ["driver controlled", "teleop"],
@@ -181,6 +183,8 @@ export const FILLER: string[] = [
   "please", "pls", "plz", "just", "really", "basically", "actually", "quick", "kindly",
   // Greetings, only with a team and an intent (filler never makes an intent from nothing).
   "hey", "hi", "hello",
+  // An answer of none allowed: every answer already says when there is none.
+  "if any", "if there is one", "if there are any",
 ];
 
 /** Question and conversational scaffolding, read by the keyword layer around the team, intent and scope (never by

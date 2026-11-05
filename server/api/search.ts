@@ -92,6 +92,30 @@ export function searchIntent(q: string, typos = false): { topic: SearchTopic | n
 /** `season`: the season a query named ("last season", "2024-25"): a team's numbers and links are that season's. */
 /** `asked`: the query as typed ended in "?" (a question: its own words name nothing, src/shared/searchQuery.ts). */
 export async function search(q: string, limit = 12, prefer: ReadonlySet<string> = new Set(), kinds?: ReadonlySet<SearchHit["kind"]>, season?: number | null, asked = false): Promise<SearchHit[]> {
+  const version = (await kvGet<string>("search:version")) ?? "0";
+  if (version !== memoVersion) { memo.clear(); memoVersion = version; }
+  // The one flag search reads (a team's schedule difficulty) is part of the key.
+  const difficulty = await isEnabled("scheduleDifficulty").catch(() => false);
+  const key = JSON.stringify([q, limit, [...prefer].sort(), kinds ? [...kinds].sort() : null, season ?? null, asked, difficulty]);
+  let m = memo.get(key);
+  if (!m || Date.now() - m.at > SEARCH_MEMO_MS) {
+    if (memo.size >= SEARCH_MEMO_MAX) memo.delete(memo.keys().next().value!);
+    m = { at: Date.now(), hits: searchOnce(q, limit, prefer, kinds, season, asked) };
+    memo.set(key, m);
+    m.hits.catch(() => memo.delete(key));
+  }
+  return (await m.hits).map((h) => ({ ...h }));
+}
+
+/** search() by its arguments, for one search index version: one answer looks the same words up many times (each
+ *  reader and layer asks for the team or the word again), and a word that finds nothing scans every name. A minute
+ *  at most, so a fact outside the index is soon seen. */
+const SEARCH_MEMO_MAX = 500, SEARCH_MEMO_MS = 60_000;
+const memo = new Map<string, { at: number; hits: Promise<SearchHit[]> }>();
+let memoVersion: string | null = null;
+registerCache("search-memo", () => memo.clear());
+
+async function searchOnce(q: string, limit: number, prefer: ReadonlySet<string>, kinds: ReadonlySet<SearchHit["kind"]> | undefined, season: number | null | undefined, asked: boolean): Promise<SearchHit[]> {
   const at = await teamAtEventAnswer(q, limit, prefer, kinds, season);
   if (at) return at;
   const full = await searchWords(q, limit, prefer, kinds, asked);

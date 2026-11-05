@@ -7,39 +7,39 @@
 export const SEARCH_STEPS: { title: string; body: string; example: string; detail: string }[] = [
   {
     title: "Tidy the words",
-    body: "Punctuation goes, spaces fold, a few common plurals turn singular.",
+    body: "Punctuation goes, spaces fold, case and accents are ignored.",
     example: "Meets this weekend!",
-    detail: "Punctuation is dropped and spaces are folded; the query is cut at 80 characters. A fixed list of plurals (meets, events, matches, teams, championships, qualifiers and a few more) is turned singular, because names are matched by the start of each word. Case and accents are ignored, except for two-letter state codes that are also English words: \"OR\" is Oregon, \"or\" is just a word.",
+    detail: "Punctuation is dropped and spaces are folded; the query is cut at 80 characters. Case and accents are ignored, except for two-letter state codes that are also English words: \"OR\" is Oregon, \"or\" is just a word.",
   },
   {
-    title: "Reword common phrasings",
-    body: "A few ways of asking are turned into the one form the next steps know.",
-    example: "compare 4215 and 6980",
-    detail: "\"compare A and B\", \"is A better than B\" and two bare team numbers become \"A vs B\". \"teams near X\" becomes \"teams in X\" (there are no distances). A year on a Worlds question becomes its season: \"who won worlds 2025\" is the 2024–25 championship. The result keeps the words you typed in its label and notes what it changed.",
+    title: "Read it in any order",
+    body: "Each word fills a slot: the team, what to find, the place, the time, the kind of event or match.",
+    example: "closest match in Romania last month",
+    detail: "The same slots in any order give the same question: \"Romania last month closest match\" reads the same. A word list says what each word can mean (\"blowout\" and \"most lopsided\" are the same measure), and a time is read against today (\"last month\" is the calendar month before this one). When every word has a job, the question is answered from the stored records with every filter applied, and the card names each filter. A word with no job sends the question on to the next steps, never guessed.",
+  },
+  {
+    title: "Widen in a stated order",
+    body: "Nothing in the time asked? It widens one step at a time, and says so on the card.",
+    example: "highest score in California this week",
+    detail: "A window with nothing in it widens in a fixed order: this week, then its season, then the season before. A place or leaderboard question with no season named reads the current season, and when it has nothing yet, the season before (\"No 2026–27 matches yet in California; showing 2025–26\"). Every other filter is kept as asked. A year you typed is never widened.",
   },
   {
     title: "Answer the question",
     body: "Fixed question shapes, tried in a fixed order: records, counts, leaders, winners, rules.",
     example: "4215 highest score in worlds",
-    detail: "A team's own records first (highest score, biggest win, streaks), then explainers (\"what is OPR\"), counts (\"how many teams in NJ\"), team facts (\"4215 school\"), team lists (\"undefeated teams\"), teams in a place, events in a month, Worlds, an event's tabs and matches, leaderboards and stat leaders, predictions and advancement, award winners, rules, season high scores and team questions (\"when did hypnotic go to worlds\"). Each answer is computed from the match and event records.",
-  },
-  {
-    title: "Find the events",
-    body: "Event words plus a place and a time become a list of events.",
-    example: "meets this weekend",
-    detail: "A kind of event (meet, qualifier, championship, scrimmage…), a place (a state or province by name or code, a city or a venue) and a time (today, tomorrow, this or next weekend, week or month, upcoming, past, a month, a year or a season) together pick a set of events. Upcoming events come soonest first, past ones most recent first.",
+    detail: "Questions the slots don't cover go to fixed question shapes, after a few phrasings are turned into one form (\"compare A and B\" becomes \"A vs B\"; \"who won worlds 2025\" is the 2024–25 championship). A team's own records come first, then explainers (\"what is OPR\"), counts, team facts (\"4215 school\"), team lists, events in a month, Worlds, leaderboards, predictions and advancement, award winners, rules and season high scores. Each answer is computed from the match and event records.",
   },
   {
     title: "Find the team, event or match",
-    body: "A number, a name, an event code or two teams to compare.",
+    body: "A number, a name, an event code, or event words with a place and a time.",
     example: "hypnotic robotics",
-    detail: "A bare number (\"4215\", \"team 4215\", \"#4215\") is that team. Two to four teams with \"vs\" open a comparison. Otherwise names are matched word by word: a typo of one letter is forgiven in words of 4 to 7 letters and two in longer ones, and a name typed without spaces (\"badwolf\") still matches. A weaker match is labelled \"Did you mean …?\".",
+    detail: "A bare number (\"4215\", \"team 4215\") is that team. Two to four teams with \"vs\" open a comparison. A kind of event with a place and a time (\"meets this weekend\") lists those events. Otherwise names are matched word by word: a one-letter typo is forgiven in words of 4 to 7 letters and two in longer ones, and a weaker match is labelled \"Did you mean …?\".",
   },
   {
     title: "Say so when nothing fits",
-    body: "No exact match? It says so and shows the closest, labelled.",
+    body: "No answer? It says what's missing and shows the closest real results.",
     example: "asdf",
-    detail: "When nothing matches every word, the page says \"Nothing matched … exactly\" and lists up to ten closest matches, each with the words it did match, under \"Closest matches (not an exact match)\". A number that isn't a team gets the same honest page, never another team. It never shows a closest match as if it were the answer.",
+    detail: "When nothing answers, the page says so in one sentence, shows the closest real teams and events as full cards (never as the answer), offers searches that do answer about them, and links to browse every team and event. A number that isn't a team gets the same honest page, never another team.",
   },
 ];
 

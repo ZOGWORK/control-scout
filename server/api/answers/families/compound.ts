@@ -88,11 +88,14 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
   if (c.award) {
     // Placement 1: the award's winner (a 2nd or 3rd place is its own line on the team page); FIRST also stores its
     // Leadership Award as a Winner, never a winning alliance.
-    filters.push(`EXISTS (SELECT 1 FROM awards a WHERE a.season = s.season AND a.team = s.team AND a.type = ?${c.award.type === "Winner" ? " AND COALESCE(a.name, '') NOT LIKE '%eadership%'" : " AND a.placement = 1"})`);
+    // "+a.season": by awards_team (team, season), as the Worlds filter below reads event_teams.
+    filters.push(`EXISTS (SELECT 1 FROM awards a WHERE +a.season = s.season AND a.team = s.team AND a.type = ?${c.award.type === "Winner" ? " AND COALESCE(a.name, '') NOT LIKE '%eadership%'" : " AND a.placement = 1"})`);
     filterArgs.push(c.award.type);
   }
   if (c.worlds) {
-    filters.push(`EXISTS (SELECT 1 FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.season = s.season AND et.team = s.team AND e.type = ? AND ${ATTENDED})`);
+    // "+et.season": the team's own events by event_teams_team (team, season), never the season's every row for each
+    // team (with no statistics the planner takes the primary key's season prefix instead: 45 s for one state's list).
+    filters.push(`EXISTS (SELECT 1 FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE +et.season = s.season AND et.team = s.team AND e.type = ? AND ${ATTENDED})`);
     filterArgs.push(CHAMPIONSHIP_TYPE);
   }
   const unit = (x: typeof st) => (x.unit === "%" ? "%" : "");
