@@ -9,6 +9,7 @@ import { isLegacy } from "../../data/seasons.js";
 import { ROSTER } from "../../data/registrations.js";
 import { all, get } from "../../db.js";
 import { search } from "../search.js";
+import { isEnabled } from "../../flags.js";
 import { eventFit } from "../answers/index.js";
 import { eventHref, matchHref, shortEvent } from "../answers/matchSet.js";
 import { nextEventPrediction } from "../answers/families/predict.js";
@@ -34,7 +35,21 @@ export async function eventFor(words: string, teams: number[], year: number | nu
   return theirs.length ? { ev: theirs[0], listed: true } : { ev: named[0], listed: false };
 }
 
-interface Pred { level: string; series: number; number: number; red: string; blue: string; p_red: number; red_mean: number; blue_mean: number; red_score: number | null; blue_score: number | null; kind: string; label: string | null }
+interface Pred { code: string; level: string; series: number; number: number; red: string; blue: string; p_red: number; red_mean: number; blue_mean: number; no_score_basis: number | null; red_score: number | null; blue_score: number | null; played: number; kind: string; label: string | null }
+
+/** Whether `team` won the event: on the winning side of its last playoff match (the final), at the event itself, not a
+ *  division. With no playoff on record, the event's Winning Alliance award (a Leadership Award is filed as a "Winner"
+ *  too, so never that). */
+async function wonEvent(season: number, code: string, team: number): Promise<boolean> {
+  const f = await get<{ alliance: string; red_total: number; blue_total: number }>(
+    `SELECT x.alliance, m.red_total, m.blue_total FROM matches m JOIN match_teams x ON x.season = m.season AND x.code = m.code AND x.level = m.level AND x.series = m.series AND x.number = m.number AND x.team = ?
+     WHERE m.season = ? AND m.code = ? AND m.level = 'playoff' AND m.played = 1 AND m.red_total IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM matches l WHERE l.season = m.season AND l.code = m.code AND l.level = 'playoff' AND l.played = 1 AND (l.series > m.series OR (l.series = m.series AND l.number > m.number)))`, [team, season, code]);
+  if (f) return f.alliance === "red" ? f.red_total > f.blue_total : f.blue_total > f.red_total;
+  const final = await get("SELECT 1 FROM matches WHERE season = ? AND code = ? AND level = 'playoff' AND played = 1 LIMIT 1", [season, code]);
+  if (final) return false;
+  return !!(await get("SELECT 1 FROM awards WHERE season = ? AND code = ? AND team = ? AND type = 'Winner' AND COALESCE(name, '') NOT LIKE '%eadership%' LIMIT 1", [season, code, team]));
+}
 
 /** Before and after at `ev` for `teams` (one team, or two teams' meetings). */
 export async function forecastAt(teams: { number: number; name: string | null }[], ev: Ev, listed: boolean, now: number): Promise<StatAnswer> {
@@ -60,11 +75,13 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     const f = await nextEventPrediction("event-win-chance", a, new Date(now), { season: Number(ev.season), code: ev.code }, Number(ev.season));
     return { ...f, title, intent: base.intent, scope: [...f.scope, "Not played yet"], blocks: [...f.blocks.filter((x) => x.kind !== "links"), links], definition: `${f.definition} After: the event hasn't been played yet, so there's no result to set beside it.` };
   }
-  // The matches: the team's (or both teams'), qualifications and playoffs, at the event and its divisions.
-  const rows = await all<Pred>(`SELECT p.kind, p.level, p.series, p.number, p.red, p.blue, p.p_red, p.red_mean, p.blue_mean, m.red_total red_score, m.blue_total blue_score, m.label
+  // The matches: the team's (or both teams'), qualifications and playoffs, at the event and its divisions; one still to
+  // be played shows its saved call with no result yet.
+  const rows = await all<Pred>(`SELECT p.code, p.kind, p.level, p.series, p.number, p.red, p.blue, p.p_red, p.red_mean, p.blue_mean, p.no_score_basis,
+      m.red_total red_score, m.blue_total blue_score, m.played, m.label
     FROM predictions p JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
-    WHERE p.season = ? AND (p.code = ? OR p.code IN (SELECT code FROM events WHERE season = ? AND division_code = ?)) AND m.played = 1
-    ORDER BY m.time, p.level DESC, p.series, p.number`, [ev.season, ev.code, ev.season, ev.code]);
+    WHERE p.season = ? AND (p.code = ? OR p.code IN (SELECT code FROM events WHERE season = ? AND division_code = ?))
+    ORDER BY m.played DESC, m.time, p.level DESC, p.series, p.number`, [ev.season, ev.code, ev.season, ev.code]);
   // A lineup is stored as a JSON list of team numbers ("[12345,67890]").
   const lineup = (side: string): number[] => { try { const v = JSON.parse(side); return Array.isArray(v) ? v.map(Number) : []; } catch { return side.split(",").map(Number); } };
   const has = (side: string, n: number) => lineup(side).includes(n);
@@ -72,22 +89,26 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   // One kind per card: live when any match was logged live, else the replay.
   const kind = mine.some((r) => r.kind === "live") ? "live" : "backtest";
   const ms = mine.filter((r) => r.kind === kind);
-  const run = (await readProjections(Number(ev.season), ev.code).catch(() => null))?.baseline;
+  // The pre-event projection, only while event forecasts are switched on (as on the event page).
+  const odds = await isEnabled("advancementOdds").catch(() => false);
+  const run = odds ? (await readProjections(Number(ev.season), ev.code).catch(() => null))?.baseline : undefined;
   const pre = run?.teams.find((t) => t.team === a.number);
   const rank = await get<{ rank: number | null }>("SELECT rank FROM event_teams WHERE season = ? AND team = ? AND (code = ? OR code IN (SELECT code FROM events WHERE season = ? AND division_code = ?)) AND rank IS NOT NULL ORDER BY rank LIMIT 1", [ev.season, a.number, ev.code, ev.season, ev.code]);
-  const won = await get("SELECT 1 FROM awards WHERE season = ? AND code = ? AND team = ? AND type = 'Winner' LIMIT 1", [ev.season, ev.code, a.number]);
+  const won = await wonEvent(Number(ev.season), ev.code, a.number);
   if (!ms.length && !pre) return { ...base, blocks: [links], none: `No prediction was stored for ${teams.map(who).join(" and ")}${b ? " meeting" : ""} at ${ev.name} (${S}).` };
   // The team's side in each match: its predicted win chance and score, and what happened.
   const side = (r: Pred) => (has(r.red, a.number) ? "red" : "blue");
   const table = ms.map((r) => {
     const s = side(r), pWin = s === "red" ? r.p_red : 1 - r.p_red;
-    const own = s === "red" ? r.red_score : r.blue_score, opp = s === "red" ? r.blue_score : r.red_score;
+    const own = Number(r.played) ? (s === "red" ? r.red_score : r.blue_score) : null, opp = Number(r.played) ? (s === "red" ? r.blue_score : r.red_score) : null;
     const predOwn = Math.round(s === "red" ? r.red_mean : r.blue_mean), predOpp = Math.round(s === "red" ? r.blue_mean : r.red_mean);
     const result = own == null || opp == null ? "–" : own > opp ? "W" : own < opp ? "L" : "T";
     const partners = b ? (has(r.red, b.number) === has(r.red, a.number) ? "partners" : "opponents") : null;
-    return { pWin, result, row: { cells: { match: r.label ?? `${r.level === "qual" ? "Q" : "M"}${r.number}`, ...(partners ? { as: partners } : {}), before: `${pct(pWin)} · ${predOwn}–${predOpp}`, after: own == null ? "–" : `${result} ${own}–${opp}`, called: result === "–" || result === "T" ? "–" : (pWin >= 0.5) === (result === "W") ? "Yes" : "No" }, href: matchHref({ season: Number(ev.season), code: ev.code, level: r.level, series: r.series, number: r.number }) } };
+    return { pWin, result, played: !!Number(r.played), row: { cells: { match: r.label ?? `${r.level === "qual" ? "Q" : "M"}${r.number}`, ...(partners ? { as: partners } : {}), before: Number(r.no_score_basis) ? pct(pWin) : `${pct(pWin)} · ${predOwn}–${predOpp}`, after: !Number(r.played) ? "Not played yet" : own == null ? "–" : `${result} ${own}–${opp}`, called: result === "–" || result === "T" ? "–" : (pWin >= 0.5) === (result === "W") ? "Yes" : "No" }, href: matchHref({ season: Number(ev.season), code: r.code, level: r.level, series: r.series, number: r.number }) } };
   });
-  const expWins = table.reduce((n, r) => n + r.pWin, 0), wins = table.filter((r) => r.result === "W").length, losses = table.filter((r) => r.result === "L").length, ties = table.filter((r) => r.result === "T").length;
+  // Expected and actual wins over the matches played; one still to come shows its call alone.
+  const done = table.filter((r) => r.played), next = table.find((r) => !r.played);
+  const expWins = done.reduce((n, r) => n + r.pWin, 0), wins = table.filter((r) => r.result === "W").length, losses = table.filter((r) => r.result === "L").length, ties = table.filter((r) => r.result === "T").length;
   const called = table.filter((r) => r.row.cells.called === "Yes").length, decided = table.filter((r) => r.row.cells.called !== "–").length;
   const label = kind === "live" ? "logged live before each match" : "walk-forward replay (not logged live)";
   // Two teams always on the same footing (all partners, or all opponents) say so in the title, not a column.
@@ -97,8 +118,8 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   if (!asColumn) for (const r of table) delete r.row.cells.as;
   const blocks: StatBlock[] = [
     { kind: "kpis", items: [
-      { label: "Before: expected wins", value: ms.length ? expWins.toFixed(1) : "–", sub: ms.length ? `of ${ms.length} match${ms.length === 1 ? "" : "es"}, ${label}` : "No match predictions stored" },
-      { label: "After: record", value: ms.length ? `${wins}-${losses}-${ties}` : "–", sub: rank?.rank != null ? `Ranked #${rank.rank}` : undefined },
+      { label: "Before: expected wins", value: done.length ? expWins.toFixed(1) : "–", sub: done.length ? `of ${done.length} match${done.length === 1 ? "" : "es"} played, ${label}` : ms.length ? "None played yet" : "No match predictions stored" },
+      { label: "After: record", value: done.length ? `${wins}-${losses}-${ties}` : "–", sub: rank?.rank != null ? `Ranked #${rank.rank}` : undefined },
       ...(pre ? [{ label: "Before: projected rank", value: pre.rank ? `#${Math.round(pre.rank.p50)}` : "–", sub: `Win the event ${pct(pre.pWin)} · playoffs ${pct(pre.pPlayoff)}` }] : []),
       { label: "After: event", value: won ? "Won" : rank?.rank != null ? `#${rank.rank}` : "–", ...(won ? { tone: "good" as const } : {}) },
       ...(decided ? [{ label: "Called right", value: `${called} of ${decided}`, sub: pct(called / decided) }] : []),
@@ -108,7 +129,11 @@ export async function forecastAt(teams: { number: number; name: string | null }[
   ];
   return {
     ...base, blocks,
-    headline: { value: ms.length ? `${expWins.toFixed(1)} → ${wins} wins` : pre ? pct(pre.pWin) : "–", label: ms.length ? `expected before, won after${b ? `, in their ${ms.length} meeting${ms.length === 1 ? "" : "s"}` : ""}` : "to win the event, before it started", sub: [S, when, ms.length ? label : ""].filter(Boolean).join(" · "), href: predict.href },
+    headline: done.length
+      ? { value: `${expWins.toFixed(1)} → ${wins} wins`, label: `expected before, won after${b ? `, in their ${done.length} meeting${done.length === 1 ? "" : "s"}` : ""}`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
+      : next
+        ? { value: pct(next.pWin), label: `to win ${b ? "their next meeting" : "the next match"} (${next.row.cells.match}), not played yet`, sub: [S, when, label].filter(Boolean).join(" · "), href: predict.href }
+        : { value: pre ? pct(pre.pWin) : "–", label: "to win the event, before it started", sub: [S, when].filter(Boolean).join(" · "), href: predict.href },
   };
 }
 
