@@ -34,7 +34,9 @@ export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySe
   return p.complete && !!p.intent && ANSWERED.has(p.intent);
 }
 
-/** The award answers that take "first" and "latest" ("4215 latest Inspire award"). */
+/** The answers that list as many rows as a count said ("12345 last 3 matches"). */
+const COUNTED = new Set<IntentId>(["last-matches"]);
+/** The award answers that take "first" and "latest" ("12345 latest Inspire award"). */
 const AWARD_LISTS = new Set<IntentId>(["awards", "total-awards", "inspire-awards"]);
 
 /** The intents that are a stat answer's own (server/api/answers/read.ts IntentId), by the same name. */
@@ -66,11 +68,16 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (!scope) return null;
   const said = normalise(p.q);
   if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
-    // An award with an answer of its own: Inspire (its places) and Finalist finishes.
+    // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
+    // award is the award list's, filtered to Finalist, which takes the pick (Finalist finishes only counts them).
+    const pickSaid = p.agg === "first" || p.agg === "last";
     const id = (p.award === "Inspire" && (intent === "awards" || intent === "total-awards") ? "inspire-awards"
-      : p.award === "Finalist" && (intent === "awards" || intent === "total-awards") ? "finalist-finishes" : intent) as IntentId;
+      : p.award === "Finalist" && (intent === "awards" || intent === "total-awards") && !pickSaid ? "finalist-finishes" : intent) as IntentId;
     const d = intentDefaults(id);
     if (!d || !scopeFits(id, d.family, scope)) return null;
+    // A count said ("top 3 scores") applies only where the answer lists that many; elsewhere it's left to search
+    // rather than answered with a different number of rows.
+    if (p.n != null && !COUNTED.has(id)) return null;
     const team = p.teams[0];
     // A season or a year with no events on record yet (a future year): said so, never the latest instead.
     const future = await noEventsYet(p, team.number, id, opts);

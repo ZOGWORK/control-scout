@@ -42,8 +42,9 @@ export interface Scope {
 /** What an event-level clause reads: the event's season, code, type, country and state. */
 export interface EventFacts { season: number; code: string; type: string | null; country?: string | null; state?: string | null; start?: string | null; end?: string | null; date?: string | null }
 
-/** Season clause. */
-export const seasonClause = (s: Scope) => (e: EventFacts) => s.season == null || e.season === s.season;
+/** Season clause. A date window decides by its dates alone: a week across the season's start (Aug 31 to Sep 6) takes
+ *  both seasons' matches in it. */
+export const seasonClause = (s: Scope) => (e: EventFacts) => s.season == null || !!s.window || e.season === s.season;
 /** Championship scope clause (Worlds), and the states one. */
 export const championshipClause = (s: Scope) => (e: EventFacts) => !s.championship || e.type === CHAMPIONSHIP_TYPE;
 export const statesClause = (s: Scope) => (e: EventFacts) => !s.states || e.type === STATES_TYPE;
@@ -84,7 +85,7 @@ export function inScope(s: Scope): (m: EventFacts & { level: string; alliance: s
  *  arguments. Official-only is left to the caller (awards come from any event that gives them). */
 export function eventSql(s: Scope, alias = "e"): { sql: string; args: (string | number)[] } {
   const parts: string[] = [], args: (string | number)[] = [];
-  if (s.season != null) { parts.push(`${alias}.season = ?`); args.push(s.season); }
+  if (s.season != null && !s.window) { parts.push(`${alias}.season = ?`); args.push(s.season); }
   if (s.championship) { parts.push(`${alias}.type = ?`); args.push(CHAMPIONSHIP_TYPE); }
   if (s.states) { parts.push(`${alias}.type = ?`); args.push(STATES_TYPE); }
   if (s.event) {

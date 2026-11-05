@@ -140,3 +140,24 @@ describe("years", () => {
     expect(f.stat?.headline).toBeUndefined();
   });
 });
+
+describe("review fixes", () => {
+  it("a date window decides alone: a week across the season's start takes both seasons' events", async () => {
+    const { seasonClause, eventSql } = await import("../answers/clauses");
+    const s = { season: 2025, window: { from: "2026-08-31", to: "2026-09-06", label: "this week" } };
+    expect(seasonClause(s)({ season: 2026, code: "X", type: "Qualifier" })).toBe(true);
+    expect(eventSql(s).sql).not.toMatch(/season = \?/);
+    expect(seasonClause({ season: 2025 })({ season: 2026, code: "X", type: "Qualifier" })).toBe(false);
+  });
+  it("a count the answer can't list is left to search, never a card with another number of rows", async () => {
+    const a = await ask("4215 top 3 scores");
+    expect(a.intent?.understood?.[0] ?? "").not.toMatch(/^Intent:/);
+  });
+  it("the first or latest Finalist award keeps its pick", async () => {
+    await run("INSERT INTO awards (season, code, team, type, name, placement) VALUES (2025, 'USNJQ1', 4215, 'Finalist', 'Finalist Alliance', 2)");
+    clearAllCaches();
+    const a = await ask("4215 latest finalist award");
+    expect(a.intent?.understood?.[0]).toMatch(/^Intent:/);
+    expect(a.stat?.intent).not.toBe("finalist-finishes");
+  });
+});
