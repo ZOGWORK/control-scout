@@ -44,7 +44,7 @@ export interface SearchOutcome {
 
 const outcomes = new WeakMap<SearchAnswer, SearchOutcome>();
 /** A forbidden word an answer names in its own words, so it was read, not dropped. */
-const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/ };
+const SAID_AS: Record<string, RegExp> = { last: /\b(?:latest|most recent)\b/, next: /\bupcoming\b/, and: /\s\+\s/ };
 
 const LAYER_NUMBER: Record<LayerId, string> = { normalize: "0", template: "1", longform: "1L", keyword: "2", paraphrase: "3", filler: "4", scope: "5", fallback: "6" };
 /** An outcome as failed-search reporting's trace reads it (server/searchFailures.ts SearchTrace): layers by number,

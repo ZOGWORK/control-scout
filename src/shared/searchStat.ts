@@ -27,14 +27,17 @@ export interface StatMatchRow {
   /** The alliance's score without penalties, when it's what the answer ranks by. */
   ownNp?: number | null;
   result: "W" | "L" | "T";
+  /** `ranked`, the period an answer ranks by (`phases` holds its points). */
+  ranked?: "auto" | "teleop" | "endgame";
   partners?: StatLink[];
   opponents?: StatLink[];
   /** The other alliance's score without penalties. */
   oppNp?: number | null;
   /** The event's type as FIRST lists it ("Qualifier", "FIRSTChampionship"): its Events-card colour. */
   type?: string | null;
-  /** The alliance's points by phase (TeleOp without the endgame, as stored) and the penalty points it gave away. */
-  phases?: { auto: number | null; teleop: number | null; endgame: number | null; pen: number | null } | null;
+  /** The alliance's points by period (without penalties), as reported: TeleOp with the endgame where FIRST counts it
+   *  so (`teleopWithEndgame`); only Auto for a totals-only match. `pen`, the penalty points it gave away. */
+  phases?: { auto: number | null; teleop?: number | null; endgame?: number | null; pen?: number | null; teleopWithEndgame?: boolean } | null;
   /** Its place in a ranked list (1 is the top score). */
   rank?: number;
   /** The team the row is about (not in `partners`): the first chip on its alliance. Each row its own (a list of

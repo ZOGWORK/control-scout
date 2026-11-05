@@ -32,6 +32,7 @@
     "snapshot": "tsx scripts/snapshot.ts",
     "replica:check": "tsx scripts/replica-check.ts",
     "live:check": "tsx scripts/live-check.ts",
+    "suggestions:check": "tsx scripts/check-suggestions.ts",
     "equivalence": "tsx scripts/engine-equivalence.ts",
     "slices": "tsx scripts/engine-slices.ts",
     "projections": "tsx scripts/projections.ts",

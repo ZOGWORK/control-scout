@@ -22,6 +22,7 @@ import { forecasterFor, refreshForecasters } from "./predict/engine.js";
 import { CURRENT_SEASON } from "./data/seasons.js";
 import { warmTrackRecord } from "./api/accuracy.js";
 import { warmSpelling } from "./api/spelling.js";
+import { warmTypoIndex } from "./api/search.js";
 import { seasonCutoffs } from "./api/matchReport.js";
 import { installShippedPacks, restoreSnapshotIfEmpty } from "./data/snapshot.js";
 import { drainOnSigterm, systemdSocket } from "./listen.js";
@@ -77,7 +78,9 @@ warmTrackRecord().then(() => log("track record ready")).catch((e) => log(`track 
   // Then the match report's flag cutoffs (two scans of a season) for this season and last, so a first report doesn't wait for them.
   .then(() => seasonCutoffs(CURRENT_SEASON)).then(() => seasonCutoffs(CURRENT_SEASON - 1)).catch(() => { /* built on the first report instead */ });
 // And search's spelling vocabulary (every team, event and place word: about a second cold).
-warmSpelling().then(() => log("spelling ready")).catch((e) => log(`spelling not ready: ${(e as Error).message}`));
+warmSpelling().then(() => log("spelling ready")).catch((e) => log(`spelling not ready: ${(e as Error).message}`))
+  // Then search's typo index (every name's words, numbered: about a second cold), so a deploy's first typo doesn't wait.
+  .then(() => warmTypoIndex()).then(() => log("typo index ready")).catch((e) => log(`typo index not ready: ${(e as Error).message}`));
 // After a sync (often in a child process) the data version moves: rebuild the
 // ratings in use and the track record right away, in the background, so no
 // visitor's request is the one that waits for them (pages keep the previous

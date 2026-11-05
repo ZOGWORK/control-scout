@@ -30,7 +30,7 @@ export function TeamChip({ t, side, self }: { t: StatLink; side: "red" | "blue";
   );
 }
 
-const PHASES: [keyof NonNullable<StatMatchRow["phases"]>, string][] = [["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"], ["pen", "Pen given"]];
+const PHASES: ["auto" | "teleop" | "endgame" | "pen", string][] = [["auto", "Auto"], ["teleop", "TeleOp"], ["endgame", "Endgame"], ["pen", "Pen given"]];
 
 export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
   const other = r.alliance === "red" ? "blue" : "red";
@@ -81,8 +81,10 @@ export function MatchBox({ r, team }: { r: StatMatchRow; team?: Who }) {
         {!!phases?.length && (
           <dl className="grid grid-cols-4 gap-1 self-center sm:w-44 sm:grid-cols-2" aria-label={`${r.alliance === "red" ? "Red" : "Blue"} alliance's points by phase`} data-phases>
             {phases.map(([k, label]) => (
-              <div key={k} className="rounded-md border border-border bg-muted/30 px-1.5 py-1">
-                <dt className="truncate text-[10px] leading-tight text-muted-foreground">{label}</dt>
+              // The period a list ranks by: a stronger border and bold label (no hue).
+              <div key={k} className={cn("rounded-md border bg-muted/30 px-1.5 py-1", r.ranked === k ? "border-foreground/60" : "border-border")} data-phase={k} data-ranked={r.ranked === k ? "" : undefined}>
+                {/* TeleOp as FIRST reports it: with the endgame where the season counts it so. */}
+                <dt className={cn("truncate text-[10px] leading-tight", r.ranked === k ? "font-semibold text-foreground" : "text-muted-foreground")}>{k === "teleop" && r.phases!.teleopWithEndgame ? "TeleOp + end" : label}</dt>
                 <dd className="font-semibold tabular-nums text-foreground">{r.phases![k]}</dd>
               </div>
             ))}

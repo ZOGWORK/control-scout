@@ -33,6 +33,85 @@ Search answer cards follow the search results guide: comparisons say the result 
 - **Matches as boxes.** Every list of matches is a grid of match boxes: the place in the list, the match and its event, the red alliance over the blue with their teams and scores (the winner marked, the loser muted) and the listed alliance's points by phase.
 - **Less meta text.** Boolean queries no longer add "read as" to their label, and an unclear query asks "awards or location? Say which". (#709)
 
+## 3.2.0 — 2026-11-05
+
+Search answers misspelled questions about four times faster, and filtered team lists in well under a second.
+
+### Highlights
+- [speed] A misspelled search answers about four times faster
+- [speed] Filtered team lists answer in under a second, not a minute
+- [speed] A search asked again within a minute answers at once
+- [fixes] A page's first slow search tries once more before saying so
+
+### Search
+- **Typos, faster.** Search's in-memory typo scan scores each distinct name word once per word typed (about a third of the work), skips the spelling distance for words whose letters are already too different, and reuses its working rows. Spelling correction skips the same words. Every score is the same number as before. (#716)
+- **Repeated reads kept.** The search index's reads and the event lists a search reads are kept until the data or the index changes, so the readings of one search (and a correction's second reading) share them. A whole answer is kept for a minute.
+- **Places.** "Events at River Dell High School" and "events in Oradell" work out each venue's spelling once, and each time zone's date format once, instead of once per event per search.
+- **Measured.** `scripts/search-bench.ts` asks a running server 365 queries (the 260 list, the complex queries, misspellings) and checks every answer against an earlier run's.
+- **Filtered lists.** "NJ teams that won Inspire" and "teams that went to Worlds" looked up each team's awards and events the slow way: 30 to 100 seconds a list, holding up every other request meanwhile. A new index (migration 72) and a reordered lookup make them a few tens of milliseconds.
+- **Slow searches.** A page's first search that runs out of time now tries once more before showing "Search is slow", as every other search already did.
+
+## 3.1.9 — 2026-11-05
+
+Home's search chips change every hour, six at a time from a pool that shows each kind of answer search gives.
+
+### Highlights
+- [home] Six new search chips every hour, the same for everyone
+- [home] Chips for OPR, records, Worlds, awards, winners and more
+- [home] Questions in a sentence and searches with several filters
+- [home] The box's "Try" hint walks through the hour's chips
+
+### Home
+- **Suggestions that rotate.** The six chips under Home's search are picked each UTC hour from about 70 queries: team facts, OPR by phase, prediction rating, records with quals and playoffs apart, matches at an event or Worlds, awards, Worlds trips, two and three teams compared, leaderboards, event winners, next events, a misspelt name, questions in a sentence and searches joining several filters. Never two of one kind, always a leaderboard and a sentence or filtered search, and no team twice. A long query shows a short label and runs in full. The pick is worked out from the clock, so nothing extra loads and a cached page still changes on the hour.
+- **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found. (#705)
+- **Taps and room.** On a touch screen each chip's tap area is 44px tall, with the chip drawn the same size as before. Where the search column is too narrow for three rows to hold any six (a phone, or beside the globe), the chips are one row that scrolls sideways, so the hourly change never moves the page.
+
+## 3.1.8 — 2026-11-05
+
+Search reads a season's best scores by its game, without penalties or by period, and common words never name a team.
+
+### Highlights
+- [rankings] "Highest score in decode without penalties": the season's best
+- [rankings] "Highest auto score in centerstage", each period's best
+- [fixes] Words like "without", "team" and "best" never name a team alone
+
+### Search
+- **A season's best, by its game.** "What was the highest score in decode without penalties" is DECODE's (2025–26) best alliance score with penalties taken off: the match, its event, both alliances, the score with and without penalties and its auto, teleop and endgame points in their phase colours. Each season's game name, in any spelling ("center stage", "into the deep"), is read from the season list, and a place narrows it ("highest score in nj in into the deep").
+- **One period's best.** "Highest auto score in centerstage", "top teleop scores in decode", "highest endgame score in nj in into the deep": the season's best alliance scores in that period, and both alliances' combined, the period marked on each match.
+- **Common words name no team.** A question whose leftover words are only common ones ("without", "team", "best", "the", "robotics", …) names no team, however many team names hold them ("T.W.C.A. (Team Without a Cool Acronym)" for "without"). Beside a word of a name's own ("team without a cool acronym", "sparks") they still find it, and a name typed whole is still found. (#712)
+
+## 3.1.7 — 2026-11-05
+
+Search answers the failed searches filed since 3.1.4: an event named without "at", numbers typed against words, typos, bare numbers and sorts said in plain words.
+
+### Highlights
+- [teams] "What rank did 4215 get in the east bergen conference"
+- [rankings] "Teleop ranked", "best auto sorted lowest to highest"
+- [fixes] "4215matches", "winnng", "appreacne" and cut-off words read
+- [fixes] A number with no team shows the closest team numbers
+- [teams] A team that skipped an event: the reason, and its real events
+
+### Search
+- **An event named beside the team.** An event's rank, OPR and results, and the forecasts, read the event wherever the query names it ("what rank did 4215 conference", "predicted chances of 4215 east bergen conference"), as one of the team's own events; "conference" alone is the team's conference tournament. Words that name none of its events leave the question as it was. (#694)
+- **Typed together, misspelled, cut off.** A team number typed against the next word ("23268matches") is two words. A long word with its letters jumbled ("appreacne") reaches search's own word, "winnng" is "winning", and "east bergen conference winner" is the event's winning alliance. A query cut off mid-word is read without it, a trip question ("when was the first time enforcers whe") as the Worlds one, offered as a correction.
+- **Numbers with no team.** A single digit or a number no team has ("676767") shows the closest real team numbers, as "238" did, never an empty page; a placeholder entry's number says it has no page.
+- **Sorts in plain words.** "Best team sorted by auto", "teleop ranked", "sorted lowest to highest" (the bottom of the list, each team's place counted from the top) and "best auto and endgame" (the two OPRs added) are the phase-OPR leaderboards. "What is the bet" and "what is the best time" offer "what is the best team".
+- **A rating change with no team.** "Predicted changes" says a change is one team's and asks it of the season's top-rated teams; "4215 predicted change" is its rating change.
+- **An event a team didn't play.** The card says why, from the records: a team from another state or country, else the kinds of events it played that season (or none, with its latest season's), and links each of those events' pages.
+- **Worlds trips name their game.** "Last went to Worlds in 2023–24 · CENTERSTAGE, Edison Division": the headline, each trip and the streak and best-rank notes say the season's game. The trip asked about is marked, and ranks, records, OPRs, awards and the summary numbers take the team page's colours.
+
+## 3.1.6 — 2026-11-05
+
+The home track record leads with today's engine: 74.8% of 2025–26 winners called right.
+
+### Highlights
+- [home] The track record's big number is engine 3.5's month-by-month test
+- [home] 27,354 correct and 9,218 missed on 2025–26 matches with a winner
+- [home] The site's full-season replay (73.8%) is named right below it
+
+### Changes
+- **Today's engine on the home page.** The track record's "Last season" tab (was "Season replay") shows engine 3.5 on the month-by-month test from How it works › Accuracy: 74.8% on 2025–26, 27,354 of 36,572 matches with a winner at rated events. The line below names the site's own replay of every match in order (73.8% on 41,405 decisive calls) and says the two use different match lists. "This season so far" is unchanged. (#720)
+
 ## 3.1.5 — 2026-11-04
 
 How it works shows today's engine on the month-by-month test, instead of the engine 1.x figure.

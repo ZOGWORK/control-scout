@@ -94,7 +94,9 @@ export async function listAnswer(c: ListQuestion): Promise<StatAnswer | null> {
     filterArgs.push(c.award.type);
   }
   if (c.worlds) {
-    filters.push(`EXISTS (SELECT 1 FROM event_teams et JOIN events e ON e.season = et.season AND e.code = et.code WHERE et.season = s.season AND et.team = s.team AND e.type = ? AND ${ATTENDED})`);
+    // The season's championship divisions first (CROSS JOIN keeps that order), then the team on each: read the other
+    // way, every one of the season's teams had each of its events checked for matches played, a second a list.
+    filters.push(`EXISTS (SELECT 1 FROM events e CROSS JOIN event_teams et ON et.season = e.season AND et.code = e.code WHERE e.season = s.season AND e.type = ? AND et.team = s.team AND ${ATTENDED})`);
     filterArgs.push(CHAMPIONSHIP_TYPE);
   }
   const unit = (x: typeof st) => (x.unit === "%" ? "%" : "");

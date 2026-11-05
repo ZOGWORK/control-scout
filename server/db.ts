@@ -1872,6 +1872,17 @@ CREATE TABLE search_failures (
 CREATE INDEX search_failures_issue ON search_failures (issue_number);
 `,
   },
+  {
+    version: 72,
+    name: "award lookups by team for search's list filters",
+    sql: `
+-- Search's filtered lists (server/api/answers/families/compound.ts: "NJ teams that won Inspire") ask, for each team
+-- of a season, whether it won an award there. Only the primary key held every column that reads, so SQLite took it
+-- and read every award of the season for each team: 30 s and more a list. This one holds them too, team first, so
+-- each team's check is a few index rows.
+CREATE INDEX awards_team_type ON awards (team, season, type, placement, name);
+`,
+  },
 ];
 
 export type Db = Client;
@@ -1982,13 +1993,25 @@ export async function get<T = Row>(sql: string, args: InArgs = []): Promise<T | 
   return (await db().execute({ sql, args })).rows[0] as unknown as T | undefined;
 }
 
+/** A write to what search reads (the competition data, the search index, feature flags, kv): server/api/searchReads.ts
+ *  drops what it kept when this process makes one. Another process's writes reach it through "data:version". */
+const DATA_WRITE = /^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM)\s+(?:events|teams|matches|match_teams|event_teams|team_seasons|team_season_stats|team_event_stats|team_season_records|team_event_records|team_reliability|awards|alliances|seasons|advancement|event_registrations|search|search_fuzzy|feature_flags|kv)\b/i;
+let dataWrites = 0;
+/** How many such writes this process has made. */
+export const dataWriteCount = () => dataWrites;
+const noteWrite = (sql: string) => { if (DATA_WRITE.test(sql)) dataWrites++; };
+
 export async function run(sql: string, args: InArgs = []): Promise<number> {
-  return (await db().execute({ sql, args })).rowsAffected;
+  try { return (await db().execute({ sql, args })).rowsAffected; } finally { noteWrite(sql); }
 }
 
 /** Run statements atomically, in chunks (libsql batches are one transaction each). */
 export async function writeBatch(stmts: InStatement[], chunk = 2000): Promise<void> {
   if (!stmts.length) return;
+  try { await batchWrite(stmts, chunk); } finally { for (const st of stmts) noteWrite(typeof st === "string" ? st : st.sql); }
+}
+
+async function batchWrite(stmts: InStatement[], chunk: number): Promise<void> {
   if (stmts.length <= chunk) { await db().batch(stmts, "write"); return; }
   const tx = await db().transaction("write");
   try {
