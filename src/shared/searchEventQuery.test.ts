@@ -1,7 +1,7 @@
 // Reading an event set from a query (src/shared/searchEventQuery.ts): place, city or venue, time, year, kind.
 // The answers on data are in server/api/searchEvents.test.ts.
 import { describe, expect, it } from "vitest";
-import { eventSetLabel, eventTypesOf, readEventQuery, regionOf, timeWindow } from "./searchEventQuery";
+import { eventSetLabel, eventTypesOf, readEventQuery, regionOf, regionPartOf, timeWindow } from "./searchEventQuery";
 
 describe("reading an event set", () => {
   it("reads a place by name or code, with any plural or preposition", () => {
@@ -37,6 +37,15 @@ describe("reading an event set", () => {
     expect(regionOf(["me"])).toBeNull();
     expect(regionOf(["IN"])).toMatchObject({ key: "USA:IN" });
     expect(regionOf(["nj"])).toMatchObject({ key: "USA:NJ" });
+  });
+});
+
+describe("part of a region", () => {
+  it("a direction and a region is the whole region; a place named so by itself stays itself", () => {
+    expect(regionPartOf(["north", "jersey"])?.region.name).toBe("New Jersey");
+    expect(regionPartOf(["northern", "california"])?.region.name).toBe("California");
+    expect(regionPartOf(["western", "new", "york"])?.region.name).toBe("New York");
+    for (const w of ["north carolina", "west virginia", "south dakota", "northern ireland", "north robotics", "jersey"]) expect(regionPartOf(w.split(" ")), w).toBeNull();
   });
 });
 

@@ -27,6 +27,8 @@ export interface Parsed {
   place: (Place & { typed: string }) | null;
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
+  /** The finals only ("closest finals match"), a playoff level too. */
+  finals: boolean;
   alliance: "red" | "blue" | null;
   worlds: boolean;
   states: boolean;
@@ -47,6 +49,8 @@ export interface Parsed {
   leftover: string[];
   /** Symbols no intent explained. */
   unexplained: string[];
+  /** No losses asked ("undefeated teams"). */
+  undefeated?: boolean;
   /** Every word explained and an intent found. */
   complete: boolean;
 }
@@ -59,11 +63,13 @@ export interface ParseContext {
   isEvent: (words: string) => Promise<boolean>;
   /** The team a near miss of a name means ("hypnotc robotics"), or null. */
   nearTeam?: (words: string) => Promise<TeamName | null>;
-  /** The visitor's own teams ("team:4215"), first when several share a name. */
+  /** The visitor's own teams ("team:12345"), first when several share a name. */
   prefer?: ReadonlySet<string>;
 }
 
 type Tok = { w: string; typed: string; used: boolean };
+/** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
+const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -108,7 +114,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   });
   const symbols = new Set<string>();
   const p: Parsed = {
-    q: raw, teams: [], event: null, place: null, time, level: null, alliance: null, worlds: false, states: false, award: null, agg: null,
+    q: raw, teams: [], event: null, place: null, time, level: null, finals: false, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
@@ -116,7 +122,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
 
   // 1. Teams by their whole name, longest first: a name made only of search's own words ("The Best") isn't claimed,
   // so "best team" stays a question.
-  for (let len = Math.min(ctx.names.longest, 6); len >= 1; len--) {
+  for (let len = Math.min(ctx.names.longest, 12); len >= 1; len--) {
     for (let i = 0; i + len <= toks.length; i++) {
       const span = toks.slice(i, i + len);
       if (span.some((t) => t.used) || span.every((t) => isLex(t.w) || /^\d+$/.test(t.w))) continue;
@@ -128,7 +134,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       if (len === 1 && (loose(toks[i - 1]) || loose(toks[i + len]))) continue;
       const named = ctx.names.teamsNamed(span.map((t) => t.w).join(" "));
       if (!named.length) continue;
-      // A number typed beside its own name ("4215 hypnotic robotics") is one team.
+      // A number typed beside its own name ("12345 hypnotic robotics") is one team.
       if (!named.some((n) => p.teams.some((t) => t.number === n.number))) {
         p.teams.push({ number: named[0].number, name: named[0].name, typed: span.map((t) => t.typed).join(" "), via: "name", at: i, ...(named.length > 1 ? { candidates: named.map((n) => n.number) } : {}) });
       }
@@ -146,7 +152,8 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
     if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
-    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && next && !ctx.names.team(Number(next))) { p.n = n; t.used = true; continue; }
+    // "Top 5 teams", and "top 3" ending the query.
+    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && (next ? !ctx.names.team(Number(next)) : !p.teams.length)) { p.n = n; t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
       if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
@@ -178,17 +185,19 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     e.words.forEach((_, j) => (toks[i + j].used = true));
     for (const s of e.syms) {
       if (s.k === "level") p.level = s.v;
+      else if (s.k === "finals") p.finals = true;
       else if (s.k === "alliance") p.alliance = s.v;
       else if (s.k === "worlds") p.worlds = true;
       else if (s.k === "states") p.states = true;
       else if (s.k === "award") { p.award = s.v; symbols.add("metric:award"); }
       else if (s.k === "nopen") p.noPenalties = true;
+      else if (s.k === "undefeated") p.undefeated = true;
       else if (s.k === "agg" && !p.agg) p.agg = s.v;
       const k = symKey(s);
       if (k && s.k !== "award") symbols.add(k);
     }
   }
-  // One-word awards beside an award word: "design award", "4215 think awards".
+  // One-word awards beside an award word: "design award", "12345 think awards".
   if (symbols.has("metric:award")) {
     for (const t of toks) if (!t.used && AWARD_ONE_WORD.has(t.w)) { p.award = AWARD_ONE_WORD.get(t.w)!; t.used = true; }
   }
@@ -209,8 +218,10 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
+    // The region or country a town named is in, said after it ("Cluj-Napoca, Romania", "Oradell, NJ"): the same place.
+    if (place && p.place && within(p.place, place)) { toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
     // An event's name takes in the kind word that ends it ("Northern League Meet", "league meets"). One event: a
-    // second one named ("at nj championship at turnpike division") is left unexplained, never dropped.
+    // second one named ("at nj championship at northern division") is left unexplained, never dropped.
     const kind = toks[to + 1] && KIND_WORDS.has(toks[to + 1].w) ? 1 : 0;
     const named = toks.slice(from, to + 1 + kind);
     if (!p.event && await ctx.isEvent(named.map((t) => t.w).join(" "))) {
@@ -225,11 +236,18 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
       if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
     }
-    // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean".
-    const near = ctx.nearTeam && words().length >= 3 && !/^\d+$/.test(words()) ? await ctx.nearTeam(words()) : null;
-    if (near && !p.teams.some((t) => t.number === near.number)) {
-      p.teams.push({ number: near.number, name: near.name, typed: typed(), via: "near", at: from });
-      toks.slice(from, to + 1).forEach((t) => (t.used = true));
+    // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean". A name can start with a word
+    // read as filler ("the roocats": The Robocats), so the words just before the run are tried with it first.
+    if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
+    for (const k of [2, 1, 0]) {
+      const start = from - k;
+      if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w))) continue;
+      const span = toks.slice(start, to + 1);
+      const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
+      if (!near || p.teams.some((t) => t.number === near.number)) continue;
+      p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
+      span.forEach((t) => (t.used = true));
+      break;
     }
   }
 
@@ -244,11 +262,17 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   // "Without penalties" is a slot only the rules that list it take (the season's best matches); anywhere else the
   // parse is left incomplete rather than answered with penalties in.
   if (pick && p.noPenalties && !(pick.rule.opt ?? []).includes("nopen")) pick.unexplained.push("nopen");
-  // The awards side-by-side counts every award: one award named ("4215 vs 6980 inspire awards") is left to the
+  // The awards side-by-side counts every award: one award named ("12345 vs 67890 inspire awards") is left to the
   // readers that count that award alone.
   if (pick && p.award && pick.rule.id === "awards-vs") pick.unexplained.push(`award:${p.award}`);
   p.complete = !!pick && !pick.unexplained.length && !p.leftover.length;
   return p;
+}
+
+/** Whether `inner` lies in `outer` (a town in its region or country, a region in its country). */
+function within(inner: Place, outer: Place): boolean {
+  if (inner.country !== outer.country || outer.kind === "city") return false;
+  return outer.kind === "country" ? inner.kind !== "country" : inner.kind === "city" && inner.state === outer.state;
 }
 
 /** One of the teams sharing a name, by the rules Compare uses (server/api/searchCompare.ts): the visitor's own team,
@@ -276,7 +300,7 @@ function pickShared(slot: TeamSlot, p: Parsed, ctx: ParseContext): Partial<TeamS
   return {};
 }
 
-/** The slots in words, for the card's "Read as" line: "Intent: highest score · Team 4215 · In California · This week". */
+/** The slots in words, for the card's "Read as" line: "Intent: highest score · Team 12345 · In California · This week". */
 export function describe(p: Parsed): string[] {
   return [
     p.intent ? `Intent: ${p.intent.replace(/-/g, " ")}` : "",
@@ -285,7 +309,7 @@ export function describe(p: Parsed): string[] {
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
     p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
     p.time ? `Time: ${p.time.label}` : "",
-    p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
+    p.finals ? "Finals" : p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
     p.alliance ? `${p.alliance === "red" ? "Red" : "Blue"} alliance` : "",
     p.award ? `Award: ${p.award}` : "",
     p.n != null ? `Limit: ${p.n}` : "",

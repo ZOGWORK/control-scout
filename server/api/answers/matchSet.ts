@@ -104,7 +104,7 @@ export const matchHref = (m: { season: number; code: string; level: string; seri
 export const eventHref = (season: number, code: string, team?: number) => `/events/${season}/${encodeURIComponent(code)}${team ? `?team=${team}` : ""}`;
 export const teamHref = (n: number, season?: number | null) => `/teams/${n}${season != null ? `?season=${season}` : ""}`;
 
-/** Team numbers → "4215 Hypnotic Robotics" links, read once for every row of an answer. */
+/** Team numbers → "12345 Hypnotic Robotics" links, read once for every row of an answer. */
 export async function teamLinks(numbers: Iterable<number>): Promise<Map<number, StatLink>> {
   const ns = [...new Set(numbers)].slice(0, 400);
   const out = new Map<number, StatLink>();

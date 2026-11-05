@@ -84,6 +84,18 @@ export function regionOf(ws: string[]): Region | null {
   return findRegions(text).find((r) => r.name.toLowerCase() === f || (f.length === 2 && r.state.toLowerCase() === f && (r.country === "USA" || r.country === "Canada"))) ?? australianCode(text);
 }
 
+/** A part of a region said with a direction ("north jersey", "northern california", "western new york"): that whole
+ *  region, since parts aren't stored. Never a place that is one by its own name ("North Carolina", "West Virginia",
+ *  "Northern Ireland"). "Jersey" names New Jersey: a bare word is a region named "New …" too. */
+export function regionPartOf(ws: string[]): { region: Region; part: string } | null {
+  if (ws.length < 2 || !DIRECTION.test(ws[0]) || regionOf(ws)) return null;
+  const rest = ws.slice(1);
+  const f = rest.join(" ").toLowerCase();
+  const region = regionOf(rest) ?? (rest.length === 1 ? findRegions(`new ${f}`).find((r) => r.name.toLowerCase() === `new ${f}`) ?? null : null);
+  return region ? { region, part: ws.join(" ") } : null;
+}
+const DIRECTION = /^(?:north|south|east|west|central|northern|southern|eastern|western|northeast|northwest|southeast|southwest|upstate|downstate)$/i;
+
 /** An Australian state's own three-letter code ("NSW", "QLD"): the ones no US or Canadian code shares. "VIC", "TAS"
  *  and "ACT" are words too, so only in capitals. (SA, WA and NT are US or Canadian codes as well: their names only.) */
 function australianCode(text: string): Region | null {
