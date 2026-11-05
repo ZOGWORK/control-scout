@@ -36,7 +36,7 @@ export type IntentId =
   // Family 4 again: a season's penalty points.
   | "total-penalties";
 
-/** Family 6 with two teams named ("4215 vs 6980 head to head"). */
+/** Family 6 with two teams named ("12345 vs 67890 head to head"). */
 export type TwoTeamId = "head-to-head" | "opr-vs" | "rating-vs" | "win-chance" | "better-record"
   | "predict" | "h2h-wins" | "shared-matches" | "compare" | "phase-vs" | "reliability-vs" | "awards-vs";
 
@@ -46,9 +46,9 @@ interface IntentRule {
   re: RegExp;
   /** The season used when none is named: every season, or the team's latest season with matches. */
   season: "all" | "latest";
-  /** The season used when the question names no scope at all ("4215 record": the team's latest season). */
+  /** The season used when the question names no scope at all ("12345 record": the team's latest season). */
   alone?: "all" | "latest";
-  /** Taken only with an event ("4215 rank at New Jersey Championship"). */
+  /** Taken only with an event ("12345 rank at New Jersey Championship"). */
   needsEvent?: boolean;
   /** Names no team: what's left names an event, or nothing (the season's championship). */
   noTeam?: boolean;
@@ -62,8 +62,8 @@ const HALF = String.raw`(?:early|late|first[\s-]half|second[\s-]half)(?:\s+(?:of
 const EARLY_LATE = new RegExp(String.raw`\b${HALF}\s+(?:vs\.?|versus|against|and|or|compared\s+(?:to|with))\s+${HALF}\b|\b(?:early|late)\s+(?:vs\.?|versus|and)\s+(?:early|late)\s+season\b`);
 /** A side of a two-team question that's a group or a time, never a team: "top teams", "rookie teams", "early season". */
 export const NOT_A_TEAM = new RegExp(String.raw`^(?:the\s+)?(?:top|best|strong(?:est)?|elite|good|weak(?:er|est)?|better|worse|rookies?|rookie\s+teams?|new\s+teams?|highest[\s-]rated|top[\s-]rated|low(?:er)?[\s-]rated)(?:\s+(?:teams?|opponents?|alliances?|competition))?$|\b${HALF}$`);
-/** The words some intents leave around the team ("4215 match with the most penalties", "4215 form in their last 5
- *  matches", "4215 performance against top teams"): never part of a team's name there. */
+/** The words some intents leave around the team ("12345 match with the most penalties", "12345 form in their last 5
+ *  matches", "12345 performance against top teams"): never part of a team's name there. */
 const AROUND = /\b(?:with|where|when|they|them|trend|form|over|performance|recent|per|rate)\b/g;
 const AROUND_IDS = new Set<IntentId>(["ties-count", "win-percent", "score-range", "median-score", "score-consistency", "scores-over", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "easiest-opponent", "vs-top", "vs-rookies", "early-late", "last-matches", "highest-score", "opr-history"]);
 /** The awards by the words people use: a question naming one is about that award, never the winning alliance. */
@@ -123,10 +123,10 @@ const RULES: IntentRule[] = [
   { id: "partners", family: "two-team", season: "all", alone: "latest", re: /\b(?:all\s+)?(?:alliance\s+)?partners\b|\bteams?\s+(?:they|it)\s+(?:partnered|played)\s+with\b/ },
   { id: "opponents", family: "two-team", season: "all", alone: "latest", re: /\b(?:all\s+)?opponents\b|\bteams?\s+(?:they|it)\s+(?:faced|played\s+against)\b/ },
   { id: "award-split", family: "awards", season: "all", re: /\bjudged\s+(?:vs\.?|versus|and|or)\s+performance(?:\s+awards?)?\b|\bperformance\s+(?:vs\.?|versus|and|or)\s+judged(?:\s+awards?)?\b|\bawards?\s+by\s+(?:type|kind)\b/ },
-  // Events the team ranked first at (a placement, never an award): "events 4215 won outright", "… placed first in".
+  // Events the team ranked first at (a placement, never an award): "events 12345 won outright", "… placed first in".
   { id: "first-place-events", family: "superlative", season: "all", re: /\b(?:events?|tournaments?|competitions?|meets?)\s+(?<team>.+?)\s+(?:won\s+outright|(?:placed|ranked|finished)\s+(?:first|1st|#1|number\s+one)(?:\s+(?:in|at))?)(?=\s|$)|\b(?:placed|ranked|finished)\s+(?:first|1st|#1)\s+(?:in|at)\s+(?:events?|tournaments?)\b|\bwon\s+(?:events?\s+)?outright\b/ },
-  // The team's Worlds divisions (one per championship it went to): "4215 worlds divisions", "championship divisions
-  // 4215 played in", "4215 championship appearances count".
+  // The team's Worlds divisions (one per championship it went to): "12345 worlds divisions", "championship divisions
+  // 12345 played in", "12345 championship appearances count".
   { id: "worlds-divisions", family: "aggregate", season: "all", re: /\b(?:(?:world|first|houston)\s+)?(?:championship|worlds?)\s+divisions?\b|\bchampionship\s+appearances?\b|\bdivisions?\s+(?:at|in)\s+(?:the\s+)?(?:worlds?|(?:first\s+)?championship)\b/ },
   { id: "event-wins", family: "awards", season: "all", re: /\bhow\s+many\s+(?:events?|tournaments?|competitions?)\s+(?:has|have|did)\s+(?<team>.+?)\s+won?\b|\b(?:ever\s+)?won\s+(?:an?\s+|any\s+)?(?:events?|tournaments?|competitions?)\b|\bevent\s+wins?\b|\b(?:events?|tournaments?)\s+won\b/ },
   { id: "inspire-awards", family: "awards", season: "all", re: /\binspire(?:\s+awards?)?\b/ },
@@ -212,7 +212,7 @@ export interface StatQuestion {
   family: StatFamily;
   defaultSeason: "all" | "latest";
   scope: ReadScope;
-  /** "which event did 4215 score highest in": the answer leads with the event. */
+  /** "which event did 12345 score highest in": the answer leads with the event. */
   leadEvent: boolean;
   /** "last 5 matches": how many; "score in match 12": the match number. */
   n: number | null;
@@ -220,13 +220,13 @@ export interface StatQuestion {
   outcome: "W" | "L" | null;
   /** "how many inspire awards", "event wins count": a count, not the list. */
   count: boolean;
-  /** "4215 design award", "4215 winning alliance awards": the one award asked about (its awards.type). */
+  /** "12345 design award", "12345 winning alliance awards": the one award asked about (its awards.type). */
   award?: string;
-  /** "4215 latest inspire award", "4215 first award ever": only the newest or the earliest of the awards. */
+  /** "12345 latest inspire award", "12345 first award ever": only the newest or the earliest of the awards. */
   pick?: "first" | "latest";
-  /** "4215 best event": the event's record breaks a tie on rank, and is shown. */
+  /** "12345 best event": the event's record breaks a tie on rank, and is shown. */
   byRecord?: boolean;
-  /** "4215 event schedule": every event, the ones still to come included. */
+  /** "12345 event schedule": every event, the ones still to come included. */
   schedule?: boolean;
   /** "penalties per event", "penalty rate": which figure leads a penalties answer; "at least 200": a limit that
    *  includes itself. */
@@ -284,7 +284,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
     const m = new RegExp(`\\b(?:in\\s+|during\\s+)?${[...s.game.replace(/\s+/g, "").toLowerCase()].join("[\\s-]?")}\\b`).exec(rest);
     if (m) { scope.season = s.season; rest = rest.replace(m[0], " "); }
   }
-  // A bare year is its season, as search reads it ("4215 worlds record 2024": 2024–25): one after "in" or "during"
+  // A bare year is its season, as search reads it ("12345 worlds record 2024": 2024–25): one after "in" or "during"
   // first; a number after "team" is always the team ("team 2024 worlds record in 2025").
   if (scope.season == null) {
     const y = /\b(?:in|during)\s+(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest) ?? /(?<!\bteam\s+)\b(20\d\d)\b(?!\s*[-–/]\s*\d)/.exec(rest);
@@ -299,7 +299,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   else if (take(/\b(?:on|as|from)\s+(?:the\s+)?blue(?:\s+alliance|\s+side)?\b|\bblue\s+alliance\b/)) scope.alliance = "blue";
   if (take(/\b(?:in|during)\s+(?:the\s+)?(?:playoffs?|eliminations?|elims?)\b/)) scope.level = "playoff";
   else if (take(/\b(?:in|during)\s+(?:the\s+)?(?:qualifications?|quals?|qualifying)\b/)) scope.level = "qual";
-  // The match type said before the intent ("4215 playoff record", "quals record this season"); never a match list's
+  // The match type said before the intent ("12345 playoff record", "quals record this season"); never a match list's
   // own words ("playoff matches"), which their intents read.
   else if (take(/\b(?:playoffs?|eliminations?|elims?)\b(?!\s+(?:matches|match|games?|appearances?|odds|chances?|bracket))/)) scope.level = "playoff";
   else if (take(/\b(?:qualifications?|quals?|qualifying)\b(?!\s+(?:matches|match|games?|odds|chances?))/)) scope.level = "qual";
@@ -318,7 +318,7 @@ export function readScope(q: string): { scope: ReadScope; rest: string } {
   return { scope, rest: squash(rest) };
 }
 
-/** A scope that says which seasons: with none, an intent's `alone` season applies ("4215 record in quals": the latest). */
+/** A scope that says which seasons: with none, an intent's `alone` season applies ("12345 record in quals": the latest). */
 const namesSeasons = (s: ReadScope) => s.season != null || s.latest || s.ever || s.championship || s.states || !!s.at;
 /** Read from the team's match rows: the only answers a place of events ("at NJ events") applies to. */
 const PLACE_IDS = new Set<IntentId>(["highest-score", "lowest-score", "biggest-win", "biggest-loss", "closest-match", "first-match", "recent-match", "wins-count", "record", "average-score", "average-margin", "total-points", "total-matches",
@@ -339,7 +339,7 @@ export function scopeFits(id: IntentId, family: StatFamily, scope: ReadScope, op
   // A season's penalty total is every event's quals: an event, Worlds, a match type, a colour or all time can't apply.
   if (id === "total-penalties" && (scope.at || scope.championship || scope.states || matchLevel || scope.ever || scope.window)) return false;
   if (AWARD_IDS.has(id) && matchLevel) return false;
-  // Awards and event rows take a place and a window too ("4215 awards at New Jersey events"): their clauses read the
+  // Awards and event rows take a place and a window too ("12345 awards at New Jersey events"): their clauses read the
   // event's region and days. A state's championship is any team question's ("nj states opr").
   const where = (scope.place && !scope.states) || scope.outOfState || scope.area || scope.window;
   if (opts.place !== false && where && !PLACE_IDS.has(id) && !AWARD_IDS.has(id) && !EVENT_ROWS.has(id)) return false;
@@ -362,32 +362,32 @@ const WHO = String.raw`(?:who|which(?: team)?)(?: is|'s| has| had)?`;
 const PHASE = String.raw`(auto(?:nomous)?|tele ?op|driver(?:[- ]controlled)?|end ?game)`;
 /** In order; each names its two teams as groups 1 and 2 (a phase, when asked, as group 3). */
 const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
-  // "4215 vs 6980 prediction", "6980 versus 4215 who wins", "4215 predicted score against 6980", "4215 expected margin
-  // against 6980": the engine's call for the two of them (families/predict.ts).
+  // "12345 vs 67890 prediction", "67890 versus 12345 who wins", "12345 predicted score against 67890", "12345 expected margin
+  // against 67890": the engine's call for the two of them (families/predict.ts).
   { id: "predict", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:prediction|predicted (?:score|winner|result|margin)|forecast|who (?:wins|will win|would win|is favou?red)|favou?rite)$`) },
   { id: "predict", re: new RegExp(String.raw`^(?:who (?:wins|will win|would win)|prediction(?: for)?) (.+?) (?:${VS}|or) (.+)$`) },
   { id: "predict", re: new RegExp(String.raw`^(.+?) (?:predicted|expected|projected) (?:score|margin|result|points) (?:${VS}|over) (.+)$`) },
-  // "4215 wins against 6980": the meetings' wins.
+  // "12345 wins against 67890": the meetings' wins.
   { id: "h2h-wins", re: new RegExp(String.raw`^(.+?) (?:wins|victories) (?:${VS}|over) (.+)$`) },
-  // "4215 versus 6980 matches together", "4215 and 6980 matches in common": the list both are in (search's AND list).
+  // "12345 versus 67890 matches together", "12345 and 67890 matches in common": the list both are in (search's AND list).
   { id: "shared-matches", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|with) (.+?) (?:matches|match|games?) (?:together|in common|shared)$`) },
   { id: "shared-matches", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|with) (.+?) (?:shared|common) (?:matches|match|games?)$`) },
-  // "4215 and 6980 matches at river dell": the matches both are in there (an event or a venue named only).
+  // "12345 and 67890 matches at river dell": the matches both are in there (an event or a venue named only).
   { id: "shared-matches", atOnly: true, re: new RegExp(String.raw`^(.+?) (?:${VS}|and|with) (.+?) (?:matches|match|games?)$`) },
-  // "4215 vs 6980 at worlds who scored higher": their meetings there.
+  // "12345 vs 67890 at worlds who scored higher": their meetings there.
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|or) (.+?) (?:${WHO} )?(?:scored|scores|scoring) (?:higher|more|the most)$`) },
-  // "4215 versus 6980 who is better at auto", "who is better at endgame 4215 or 6980".
+  // "12345 versus 67890 who is better at auto", "who is better at endgame 12345 or 67890".
   { id: "phase-vs", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:${WHO} )?(?:better|stronger|best) (?:at|in) ${PHASE}$`) },
   { id: "phase-vs", re: new RegExp(String.raw`^${WHO} (?:better|stronger) (?:at|in) ${PHASE} (.+?) (?:${VS}|or) (.+)$`) },
   { id: "phase-vs", re: new RegExp(String.raw`^(.+?) ${PHASE} (?:${VS}|compared to|or) (.+)$`) },
-  // "4215 versus 6980 who has higher reliability".
+  // "12345 versus 67890 who has higher reliability".
   { id: "reliability-vs", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:${WHO} )?(?:higher|better|more|greater) reliab(?:ility|le)$`) },
   { id: "reliability-vs", re: new RegExp(String.raw`^(.+?) reliability (?:${VS}|compared to|or) (.+)$`) },
   { id: "reliability-vs", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) reliability$`) },
-  // "4215 versus 6980 who has won more awards".
+  // "12345 versus 67890 who has won more awards".
   { id: "awards-vs", re: new RegExp(String.raw`^(.+?) (?:${VS}|or) (.+?) (?:${WHO} )?(?:won )?more awards$`) },
   { id: "awards-vs", re: new RegExp(String.raw`^(.+?) awards (?:${VS}|compared to|or) (.+)$`) },
-  // "4215 versus 6980 compare": both teams' season numbers in one card.
+  // "12345 versus 67890 compare": both teams' season numbers in one card.
   { id: "compare", re: new RegExp(String.raw`^(.+?) (?:${VS}|and|or) (.+?) (?:compare|comparison|compared|side by side|stats compared)$`) },
   { id: "head-to-head", re: new RegExp(String.raw`^(.+?) (?:${VS}|and) (.+?) ${H2H}(?: record| matches| results| history)?$`) },
   { id: "head-to-head", re: new RegExp(String.raw`^${H2H}(?: record| matches| results| history)?(?: of| for| between)? (.+?) (?:${VS}|and) (.+)$`) },
@@ -407,14 +407,14 @@ const TWO_TEAM: { id: TwoTeamId; re: RegExp; atOnly?: boolean }[] = [
 /** Read from the matches the two teams met in: a match-type, colour, Worlds or states scope applies to them. */
 const MEETING_IDS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
 
-/** "4215 6980 33950 compare", "compare 4215, 6980 and 33950", "4215 vs 6980 vs 33950": three or four team numbers (as
+/** "12345 67890 33950 compare", "compare 12345, 67890 and 33950", "12345 vs 67890 vs 33950": three or four team numbers (as
  *  many as Compare takes), side by side (families/twoTeam.ts compareAnswer). Two teams are readTwoTeam's. Numbers only:
  *  names are Compare's. */
 /** The most teams Compare shows side by side. */
 const COMPARE_MAX = 4;
 export interface TeamSetQuestion { teams: number[]; season: number | null }
 export function readTeamSet(raw: string): TeamSetQuestion | null {
-  // A bare year in a list of numbers is a team ("4215 6980 2024 compare"); a season is written as one ("2024-25") or
+  // A bare year in a list of numbers is a team ("12345 67890 2024 compare"); a season is written as one ("2024-25") or
   // named as one ("in 2024", "during 2024").
   const q = ` ${raw.toLowerCase().replace(/[?!,&]/g, " ").replace(/#/g, "")} `.replace(/\s+/g, " ").replace(/(?<!\b(?:in|during|for|from|season|year) )\b(20\d\d)\b(?!\s*[-–/]\s*\d)/g, "n$1");
   const { scope, rest: said } = readScope(q);
@@ -426,7 +426,7 @@ export function readTeamSet(raw: string): TeamSetQuestion | null {
   return teams.length >= 3 && teams.length <= COMPARE_MAX ? { teams, season: scope.season } : null;
 }
 
-/** "4215 vs 6980 head to head", "4215 OPR vs 6980", "who has a better record, 4215 or 6980": two teams named, or null. */
+/** "12345 vs 67890 head to head", "12345 OPR vs 67890", "who has a better record, 12345 or 67890": two teams named, or null. */
 /** Family 7: a ranked list ("top 10 teams by OPR in NJ", "best rookie team in New Jersey", "most improved team in
  *  New Jersey") or a city's teams ("teams in Oradell"). */
 export interface LeaderboardQuestion {
@@ -439,6 +439,12 @@ export interface LeaderboardQuestion {
   season: number | null;
   /** "best team in New Jersey by OPR": one team asked for. */
   best?: boolean;
+  /** The lowest first. */
+  lowest?: boolean;
+  /** Teams with no losses only. */
+  undefeated?: boolean;
+  /** A town in the region: its teams only. */
+  town?: string | null;
 }
 
 const BOARD_STAT_WORDS: [string, RegExp][] = [
@@ -486,7 +492,7 @@ export function readLeaderboard(raw: string): LeaderboardQuestion | null {
   // the prediction rating, as Rankings, unless a stat is named)
   if ((m = /^(?:the )?(?:(.+?) )?(?:leaderboard|rankings?|standings)(?: (?:by|for|on) (.+?))?(?: (?:in|from) (.+))?$/.exec(rest)) && (m[1] || m[2] || m[3]) && !(m[1] && m[3])) {
     const stat = m[2] ? boardStat(m[2]) : "rating", region = place(m[1] ?? m[3]);
-    // "4215 rankings" names a team: only a place (or no place, with a stat) is a leaderboard.
+    // "12345 rankings" names a team: only a place (or no place, with a stat) is a leaderboard.
     if (stat && region !== false && (region || !m[1])) return { kind: "top", stat, n: m[2] ? 25 : 10, region, city: null, season: scope.season };
   }
   // "top 10 teams in nj": a number asked for is honoured (search's own leaderboard shows 5); ranked as Rankings ranks,
@@ -521,7 +527,7 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
   const q = ` ${raw.toLowerCase().replace(/['’]s\b/g, "").replace(/[?!,]/g, " ").replace(/\.+\s*$/, " ")} `.replace(/\s+/g, " ");
   // "red vs blue record" is one team's split by colour, not two teams.
   if (/\b(?:red\s+(?:vs\.?|versus|v\.?|and|or)\s+blue|blue\s+(?:vs\.?|versus|v\.?|and|or)\s+red)\b/.test(q)) return null;
-  // A bare year is a season, unless that leaves a side empty: then it's a team's number ("4215 vs 2024 head to head").
+  // A bare year is a season, unless that leaves a side empty: then it's a team's number ("12345 vs 2024 head to head").
   for (const yearIsTeam of [false, true]) {
     // "better at auto" names a phase, not an event called Auto.
     const said = q.replace(new RegExp(String.raw`\b(better|stronger|best) at ${PHASE}\b`, "g"), "$1 in $2");
@@ -540,9 +546,9 @@ export function readTwoTeam(raw: string): TwoTeamQuestion | null {
       const [ga, gb] = r.id === "phase-vs" ? groups.filter((g) => g !== phaseWord) : groups;
       const a = side(ga ?? ""), b = side(gb ?? "");
       if (!a || !b || a === b) break;
-      // "4215 record against top teams": a group of opponents (the stat answers' own), never a team named "Top Hat".
+      // "12345 record against top teams": a group of opponents (the stat answers' own), never a team named "Top Hat".
       if (NOT_A_TEAM.test(a) || NOT_A_TEAM.test(b)) return null;
-      // "4215 OPR vs New Jersey average": a team against a field's average (families/facts.ts), not two teams.
+      // "12345 OPR vs New Jersey average": a team against a field's average (families/facts.ts), not two teams.
       if (/\b(?:average|avg|mean)$/.test(b)) return null;
       // A side still holding a versus word names more than one team: Compare's question, not this one.
       if (new RegExp(String.raw`\b${VS}\b`).test(a) || new RegExp(String.raw`\b${VS}\b`).test(b)) return null;
@@ -565,16 +571,16 @@ export function readStatQuestion(raw: string): StatQuestion | null {
   for (const r of RULES) {
     const m = r.re.exec(q);
     if (!m) continue;
-    // The intent's own words go; a team named inside them ("how many matches has 4215 in 2024-25 played") stays, so
+    // The intent's own words go; a team named inside them ("how many matches has 12345 in 2024-25 played") stays, so
     // its scope words are read like any other.
     const { scope, rest } = readScope(q.replace(m[0], ` ${m.groups?.team ?? ""} `));
     if (r.id === "winning-alliance") {
       if (/^world\s/.test(m[0])) scope.championship = true;
-      // An award's winner ("who won inspire at nj states", "4215 inspire winner") is the awards' own question; "winner"
-      // and "champion" alone name a season's winners only with Worlds or a season ("4215 champion" is a team).
+      // An award's winner ("who won inspire at nj states", "12345 inspire winner") is the awards' own question; "winner"
+      // and "champion" alone name a season's winners only with Worlds or a season ("12345 champion" is a team).
       if (AWARD_WORDS.test(q)) continue;
       if (!/^(?:who|winning)/.test(m[0]) && !(scope.championship || scope.states || scope.season != null || scope.lastYear || scope.latest)) continue;
-      // A team's number left over ("4215 worlds winner") is a question about that team.
+      // A team's number left over ("12345 worlds winner") is a question about that team.
       if (/(?:^|\s)\d{1,5}(?:\s|$)/.test(rest)) continue;
     }
     // A scope the answer's rows can't apply is never dropped silently: the query is left to search.
@@ -585,20 +591,20 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     const yearIsTeam = scope.year && !squash(rest.replace(FRAME, " ").replace(/\b(?:highest|lowest|best|worst|biggest|average|record)\b/g, " "));
     if ((r.id === "opr-by-season" || r.id === "record-by-season") && scope.season != null && !yearIsTeam) return null;
     if (r.family === "trend" && r.id !== "opr-by-season" && r.id !== "record-by-season" && scope.ever) return null;
-    // "Wins" alone counts match wins only with a scope ("4215 worlds wins"); "4215 wins" stays search's.
+    // "Wins" alone counts match wins only with a scope ("12345 worlds wins"); "12345 wins" stays search's.
     if (r.id === "wins-count" && m[0] === "wins" && !(scope.championship || scope.states || scope.season != null || scope.latest || scope.at)) continue;
     // Worlds divisions are the FIRST Championship's, whichever word named it ("championship divisions").
     if (r.id === "worlds-divisions") scope.championship = true;
-    // "4215 matches at worlds in 2025": the championship held in 2025 (2024–25), as the winners read a year.
+    // "12345 matches at worlds in 2025": the championship held in 2025 (2024–25), as the winners read a year.
     if (r.id === "results" && scope.championship && scope.year && scope.season != null) { scope.season -= 1; scope.year = false; }
     // Search reads plurals as their singular ("matches" → "match"): "match" alone names a team's matches only at an
-    // event or Worlds ("4215 match record" is the record's).
-    // Nor a question that asks for a record, rank or OPR ("4215 match record at worlds in 2025" is the record's).
+    // event or Worlds ("12345 match record" is the record's).
+    // Nor a question that asks for a record, rank or OPR ("12345 match record at worlds in 2025" is the record's).
     if (r.id === "results" && m[0] === "match" && (!(scope.at || scope.championship || scope.states) || /\b(?:record|w-l-t|win[\s-]+loss|rank(?:ed|ing)?|placement|place[ds]?|finish(?:ed)?|seed(?:ed)?|opr)\b/.test(q))) continue;
-    // A team's matches at Worlds need no one event ("4215 matches at worlds in 2025").
+    // A team's matches at Worlds need no one event ("12345 matches at worlds in 2025").
     // At states: the team's own state championship that season (its division and finals), answered as one event.
     if (r.needsEvent && !scope.at && !(r.id === "results" && scope.championship) && !(scope.states && r.id !== "match-lookup")) return null;
-    // Awards and event rows take a place too ("4215 awards at New Jersey events"): their clauses read the event's region.
+    // Awards and event rows take a place too ("12345 awards at New Jersey events"): their clauses read the event's region.
     // A state's championship is any team question's ("nj states opr").
     if (((scope.place && !scope.states) || scope.outOfState) && !PLACE_IDS.has(r.id) && !AWARD_IDS.has(r.id) && !EVENT_ROWS.has(r.id)) return null;
     // A rules question about a penalty ("penalty for pinning", "what is a major foul") is the rules' own, never a team's.
@@ -606,7 +612,7 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     // The red-vs-blue split names both colours itself: never read as a red-only scope.
     if (r.id === "red-blue-record") scope.alliance = null;
     const leadEvent = r.id === "highest-score" && /\b(?:which|what)\s+(?:event|competition|tournament|meet)\b/.test(q);
-    // A team's best score is always this answer ("4215 high score", "4215 best match", "highest scoring match this
+    // A team's best score is always this answer ("12345 high score", "12345 best match", "highest scoring match this
     // season"): the official score, as its match list shows it, so every phrasing names the same match. A season's
     // records with no team stay searchHighScores.ts's.
     // "q12", "qual 12": a qualification match only, never a playoff match with that number.
@@ -638,12 +644,12 @@ export function readStatQuestion(raw: string): StatQuestion | null {
     const byRecord = (r.id === "best-finish" || r.id === "worst-finish") && /\b(?:event|competition|tournament)$/.test(m[0]);
     return { id: r.id, family: r.family, defaultSeason: defaultOf(), scope, leadEvent, n, outcome, count, variant, noTeam: false, core, ...(award ? { award } : {}), ...(pick ? { pick } : {}), ...(byRecord ? { byRecord } : {}), ...(r.id === "total-events" && /schedule|calendar/.test(m[0]) ? { schedule: true } : {}) };
   }
-  // "4215 at states": its results there.
+  // "12345 at states": its results there.
   const { scope, rest } = readScope(q);
   const core = squash(rest.replace(FRAME, " "));
   if (scope.states && core && !/\s/.test(core)) return { id: "results", family: "event", defaultSeason: "all", scope, leadEvent: false, n: null, outcome: null, count: false, noTeam: false, core };
   return null;
 }
 
-/** The team's own last and first event, as an event scope's words ("4215 matches at their last event"). */
+/** The team's own last and first event, as an event scope's words ("12345 matches at their last event"). */
 export const THEIR_LAST = "their-last-event", THEIR_FIRST = "their-first-event";

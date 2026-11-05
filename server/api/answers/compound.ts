@@ -1,5 +1,5 @@
 // Compound questions (docs/search.md, "Stat answers"): one question that joins filters or asks for two things at once
-// ("top 5 NJ teams by auto opr who also won inspire", "4215 matches where they lost by less than 10 points", "4215
+// ("top 5 NJ teams by auto opr who also won inspire", "12345 matches where they lost by less than 10 points", "12345
 // awards and record in 2025-26 combined"). Read by fixed rules, clause by clause, into subject teams, filters and
 // outputs; answered from the stored rows (./families/compound.ts). Every filter read is applied and shown on the card;
 // a question with a clause these rules don't read is left to the readers after this one.
@@ -147,7 +147,7 @@ export function readCompound(raw: string): CompoundQuestion | null {
   let m: RegExpExecArray | null;
   const when = (tail: string) => { const s = seasonWords(tail); return s.rest ? null : { season: s.season, ever: s.ever, latest: s.latest }; };
 
-  // "4215 vs 6980 vs 33950 which has highest reliability": three or four team numbers.
+  // "12345 vs 67890 vs 33950 which has highest reliability": three or four team numbers.
   if ((m = new RegExp(String.raw`^((?:\d{1,5} (?:vs\.? |versus |and |or )?){2,3}\d{1,5}) (?:which|who)(?: one| team)? (?:has |have |is |had )?(?:the )?(?:highest|best|most|higher|better|greatest|strongest) (reliability|reliable|opr)${SIDE_END}`).exec(q))) {
     const teams = [...new Set(m[1].split(" ").filter((w) => /^\d+$/.test(w)).map(Number))];
     const w = when(m[3]);
@@ -155,20 +155,20 @@ export function readCompound(raw: string): CompoundQuestion | null {
     if (teams.length >= 3 && teams.length <= 4 && w && !w.ever) return { kind: "set-best", teams, stat: /^reliab/.test(m[2]) ? "reliability" : "opr", when: w };
   }
 
-  // "what was 4215 opr at their first event this season compared to last season".
+  // "what was 12345 opr at their first event this season compared to last season".
   if ((m = /^(?:what (?:was|is|were) )?(.+?) opr (?:at|in) (?:their|its|the) (first|last|latest|most recent|final) (?:event|competition|meet|tournament) (?:of |in )?(.+?) (?:compared (?:to|with)|vs\.?|versus|against|and) (.+?)$/.exec(q))) {
     const a = seasonWords(m[3]), b = seasonWords(m[4]);
     if (!a.rest && !b.rest && a.season != null && b.season != null && a.season !== b.season) return { kind: "event-pair", core: m[1], which: m[2] === "first" ? "first" : "last", seasons: [a.season, b.season] };
   }
 
-  // "4215 matches where they lost by less than 10 points", "4215 wins by more than 50 this season".
+  // "12345 matches where they lost by less than 10 points", "12345 wins by more than 50 this season".
   if ((m = new RegExp(String.raw`^(.+?) (?:(?:matches|match|games?) (?:where|when|in which|that)? ?(?:they |it |the team )?(won|lost|win|lose)|(wins?|losses|loss)) by ${OP} ${NUM}(?: points?| pts)?${SIDE_END}`).exec(q))) {
     const w = when(m[6]);
     const word = m[2] ?? m[3];
     if (w) return { kind: "margin", core: m[1], result: /^w/.test(word) ? "W" : "L", margin: { op: opOf(m[4]), value: Number(m[5]) }, when: w };
   }
 
-  // "4215 awards and record in 2025-26 combined".
+  // "12345 awards and record in 2025-26 combined".
   const PART = String.raw`(awards?|record|opr)`;
   if ((m = new RegExp(String.raw`^(.+?) ${PART} (?:and|&|plus|with) (?:their |its )?${PART}${SIDE_END}`).exec(q))) {
     const part = (s: string) => (/^award/.test(s) ? "awards" : s === "record" ? "record" : "opr") as "awards" | "record" | "opr";
@@ -177,7 +177,7 @@ export function readCompound(raw: string): CompoundQuestion | null {
     if (parts.length === 2 && w && !/\b(?:vs\.?|versus|and|or)\b/.test(m[1])) return { kind: "combined", core: m[1], parts, when: w };
   }
 
-  // "4215 partners at NJ championship who had opr over 80", "4215 opponents this season with opr above 100".
+  // "12345 partners at NJ championship who had opr over 80", "12345 opponents this season with opr above 100".
   if ((m = new RegExp(String.raw`^(.+?) (?:alliance )?(partners?|opponents?)(?: (?:at|in) (.+?))? (?:who|that|which|with)(?: had| have| has| having)? (?:an? )?(?:opr|event opr) (?:of |is |was )?${OP} ${NUM}${SIDE_END}`).exec(q))) {
     const w = when(m[6]);
     // "at <event>" names an event unless its words are only a season ("in 2024-25").
@@ -187,13 +187,13 @@ export function readCompound(raw: string): CompoundQuestion | null {
     if (w && !(scoped ?? w).ever) return { kind: "side-threshold", core: m[1], side: /^p/.test(m[2]) ? "partners" : "opponents", at: at?.rest || null, threshold: { op: opOf(m[4]), value: Number(m[5]) }, when: scoped && w.season == null ? scoped : w };
   }
 
-  // "did 4215 ever beat a team ranked top 10 worldwide".
+  // "did 12345 ever beat a team ranked top 10 worldwide".
   if ((m = /^(?:did|has|have) (.+?) (?:(ever) )?(?:beat|beaten|defeat|defeated|win against|won against) (?:a|any|an) (?:team|opponent)s? (?:that (?:was|is|were) |who (?:was|is|were) )?(?:ranked )?(?:in the )?top (\d{1,3})(?: (?:teams? )?(?:worldwide|in the world|globally|world ?wide|in the world rankings))?(?: by (opr|rating))?(.*)$/.exec(q))) {
     const w = when(`${m[2] ?? ""} ${m[5]}`);
     if (w) return { kind: "beat-top", core: m[1], n: Number(m[3]), by: m[4] === "opr" ? "opr" : "rating", when: w };
   }
 
-  // "4215 best event by rank and worst event by opr in same season".
+  // "12345 best event by rank and worst event by opr in same season".
   const PICK = String.raw`(best|worst|top|lowest|highest) (?:event|competition|tournament) by (rank|ranking|opr|record)`;
   if ((m = new RegExp(String.raw`^(.+?) ${PICK} and (?:their |its |the )?${PICK}${SIDE_END}`).exec(q))) {
     const pick = (p: string, by: string) => ({ pick: /^(?:best|top|highest)$/.test(p) ? "best" as const : "worst" as const, by: /^rank/.test(by) ? "rank" as const : by === "opr" ? "opr" as const : "record" as const });
@@ -201,7 +201,7 @@ export function readCompound(raw: string): CompoundQuestion | null {
     if (w && !w.ever) return { kind: "event-picks", core: m[1], picks: [pick(m[2], m[3]), pick(m[4], m[5])], when: w };
   }
 
-  // "what is 4215 average score when they win versus when they lose".
+  // "what is 12345 average score when they win versus when they lose".
   const WIN = String.raw`(?:they |it )?(?:win|wins|won|winning)`, LOSE = String.raw`(?:they |it )?(?:lose|loses|lost|losing|losses|loss)`;
   const VS = String.raw`(?:versus|vs\.?|compared (?:to|with)|and|or|against)`;
   if ((m = new RegExp(String.raw`^(?:what (?:is|was|are|were) )?(.+?) (?:average|avg|mean) (?:match |alliance )?(?:score|point)s? (?:when|in|in matches) (?:${WIN} ${VS} (?:when |in )?${LOSE}|${LOSE} ${VS} (?:when |in )?${WIN})${SIDE_END}`).exec(q))) {
@@ -209,7 +209,7 @@ export function readCompound(raw: string): CompoundQuestion | null {
     if (w) return { kind: "win-loss-average", core: m[1], when: w };
   }
 
-  // "4215 opr if you exclude their worst event".
+  // "12345 opr if you exclude their worst event".
   if ((m = /^(?:what (?:is|was|would be) )?(.+?) opr (?:if (?:you |we )?|when (?:you |we )?)?(?:exclude|excluding|without|drop|dropping|minus|ignore|ignoring|remove|removing|leaving out|leave out) (?:their|its|the) (worst|lowest|weakest|best|highest) event(.*)$/.exec(q))) {
     const w = when(m[3]);
     if (w && !w.ever) return { kind: "opr-excluding", core: m[1], drop: /^(?:best|highest)$/.test(m[2]) ? "best" : "worst", when: w };

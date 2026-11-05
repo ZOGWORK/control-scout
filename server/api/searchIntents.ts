@@ -1,7 +1,7 @@
 // What a query asks for besides a name (docs/search.md): a season ("last year's DECODE season"), a region ("state of
 // New Jersey"), a ranking, or something no view answers yet ("reputation", robot specs). Parsed by fixed rules,
 // so it works offline of any model, and every number shown still comes from the stored data:
-//   - Understood, and a view answers it: that view ("4215 ranking last season in New Jersey" → 4215 in New Jersey's
+//   - Understood, and a view answers it: that view ("12345 ranking last season in New Jersey" → 12345 in New Jersey's
 //     2025–26 rankings, with its place there, and its 2025–26 page).
 //   - Understood, but no view answers it: the closest real result and a plain note on what's missing (step
 //     "closest"). Never a stand-in number: there is no reputation score, so none is shown.

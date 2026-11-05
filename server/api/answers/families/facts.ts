@@ -42,11 +42,11 @@ const RULES: { id: FactId; re: RegExp }[] = [
   { id: "teleop-opr", re: /\b(?:tele-?op|driver[\s-]controlled)\s+opr\b/ },
   { id: "endgame-opr", re: /\bend\s?game\s+opr\b/ },
   { id: "report-card", re: /\b(?:prediction\s+)?report\s+card\b|\bprediction\s+(?:accuracy|record)\b/ },
-  // Only the predicted score: "will 4215 win its next match" and "when is 4215's next match" are the asks' own.
+  // Only the predicted score: "will 12345 win its next match" and "when is 12345's next match" are the asks' own.
   { id: "next-match", re: /\bpredicted\s+score(?:\s+(?:for\s+)?(?:the\s+|its\s+)?next\s+match)?\b|\bnext\s+match\s+(?:prediction|forecast|predicted\s+score)\b/ },
   // "reliability rating" is the reliability index, below.
   { id: "rating", re: /(?<!\breliability\s)\b(?:prediction\s+|engine\s+|predicted\s+)?rating\b/ },
-  // Search reads plurals as singular ("4215 event in 2025-26"), so both.
+  // Search reads plurals as singular ("12345 event in 2025-26"), so both.
   { id: "events-place", re: /\bevents?\s+in\s+(?<what>.+)$/ },
   { id: "events-season", re: /\b(?:events?|competitions?|tournaments?)\b/ },
   { id: "reliability", re: /\breliab(?:ility|le)(?:\s+(?:score|index|rating))?\b|\bdependab(?:ility|le)\b/ },
@@ -62,7 +62,7 @@ export function readTeamFact(raw: string): FactQuestion | null {
     const m = r.re.exec(q);
     if (!m) continue;
     const what = m.groups?.what?.trim() ?? "";
-    // The fact's own words go; the season, if named, is read from what's left ("4215 events in 2025-26").
+    // The fact's own words go; the season, if named, is read from what's left ("12345 events in 2025-26").
     const { scope, rest } = readScope(q.replace(m[0], " "));
     if (scope.championship || scope.states || scope.level || scope.alliance || scope.at || scope.ever) return null;
     let region: Region | null = null, world = false, event: string | null = null;
@@ -79,13 +79,13 @@ export function readTeamFact(raw: string): FactQuestion | null {
       if (!(region = regionOf(place.split(" ")))) return null;
       if (s.scope.season != null) scope.season ??= s.scope.season;
     }
-    // "4215 events" alone is the count, another answer's: the season list needs a season. A question about them
-    // ("when is 4215's next event", "what events did 4215 win in 2024") is the asks' own.
+    // "12345 events" alone is the count, another answer's: the season list needs a season. A question about them
+    // ("when is 12345's next event", "what events did 12345 win in 2024") is the asks' own.
     if (r.id === "events-season" && scope.season == null) return null;
     if ((r.id === "events-season" || r.id === "events-place") && /\b(?:when|next|win|won|did|does|what|which|how|where|awards?|upcoming)\b/.test(q)) return null;
     // "past events in michigan", "recent events in nj": a time, not a team ("past" isn't PastaBots), the event sets' own.
     if ((r.id === "events-season" || r.id === "events-place") && /^\s*(?:past|recent|previous|latest|future|coming|all|every|the|list|show)\s*$/.test(rest)) return null;
-    // "what does 4215's reliability score mean": the question's own words, never part of the team's name.
+    // "what does 12345's reliability score mean": the question's own words, never part of the team's name.
     const core = (/^\s*what\b/.test(q) ? rest.replace(/\s(?:mean|means|stand for)\s*$/, " ") : rest).replace(/\b(?:what|whats|what's|is|are|the|of|for|team|ftc|does|did|has|have|its|their)\b/g, " ").replace(/\s+/g, " ").trim();
     // A bare year with nothing else naming a team is the team's number ("2024 reliability").
     if (!core && scope.year && scope.season != null) return { id: r.id, core: String(scope.season), season: null, region, world, event };

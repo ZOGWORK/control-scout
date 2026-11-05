@@ -2,10 +2,10 @@
 // rules, no model; every number comes from the stored data, and each answer links the view that holds the rest:
 //   leaderboards   "top teams in New Jersey", "NJ rankings", "best team in NJ"     → the region's ranking (top 5 + /rankings)
 //   stat leaders   "highest OPR", "best auto team", "most wins" (optionally "in NJ") → the season's leaders by that stat
-//   predictions    "will 4215 win their next match"   → its next match, and Predict opened on the team's matches
-//                  "4215 vs 6980 who wins"            → Compare, and Predict with both teams filled in
+//   predictions    "will 12345 win their next match"   → its next match, and Predict opened on the team's matches
+//                  "12345 vs 67890 who wins"            → Compare, and Predict with both teams filled in
 //                  "who will win New Jersey Championship" → the event's odds
-//   advancement    "will 4215 advance to states", "what does 4215 need to advance" → Predict's advancement simulator
+//   advancement    "will 12345 advance to states", "what does 12345 need to advance" → Predict's advancement simulator
 //   event awards   "who won Inspire at New Jersey Championship" → that event's award, from its results
 //   event winners  "who won nj states", "who won the New Jersey Championship" → its newest finished one: the winning
 //                  alliance and the Inspire Award, from its results
@@ -102,7 +102,7 @@ export function readAsk(q: string): Ask | null {
   m = /^who (?:will|is going to|would) win (?:the )?(.+)$/.exec(t);
   if (m) return { kind: "event-winner", event: m[1] };
   // Advancement.
-  // "Did 4215 qualify to worlds" is history (parseQuestion), not the simulator.
+  // "Did 12345 qualify to worlds" is history (parseQuestion), not the simulator.
   m = /^(?:will|can|does) (.+?) (?:advance|qualify|make it)(?: to (?:states?|worlds|the championship|regionals?))?$/.exec(t)
     ?? /^what does (.+?) need to (?:advance|qualify)(?: to .+)?$/.exec(t) ?? /^(.+?) (?:advancement|advancement odds|chances? to advance)$/.exec(t);
   if (m) return { kind: "advance", team: m[1] };
@@ -163,7 +163,7 @@ export async function eventWon(words: string, prefer: ReadonlySet<string>, now =
       `SELECT season, code, name, start, end, timezone FROM events WHERE type = 'FIRSTChampionship' ORDER BY season DESC, length(code), code`, []);
     return pick(finished(rows).filter(inScope)[0]);
   }
-  // An event by name ("New Jersey Championship Parkway Division"): the code search finds, its newest finished season
+  // An event by name ("New Jersey Championship Eastern Division"): the code search finds, its newest finished season
   // (or the one named).
   // A code is reused for other events over the years (USNJNELT2 was a South Essex tournament in 2024–25): a season
   // counts only while its event still has a name every word typed matches, and the events found that do lead.

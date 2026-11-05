@@ -1,8 +1,15 @@
 # Failed searches → GitHub issues
 
-FTC One Search logs each search that found no answer as a GitHub issue on `ZOGWORK/control-scout`, labelled
-`failed-search`. **The open issues with that label are the list of searches still to fix.** Visitors see nothing of
-this.
+FTC One Search logs searches that found no answer as GitHub issues on `ZOGWORK/control-scout`, labelled
+`failed-search`: **one issue per failure pattern**, not per query (since 3.2.3). **The open issues with that label are
+the list of searches still to fix.** Visitors see nothing of this.
+
+A pattern is what search read, with every name, number and place left out
+(`server/api/query/pattern.ts`): `pattern: intent: team opr · slots: team · not read: 1 word`. Every query that fails
+that way lands on that one issue, which shows its latest examples and the words search couldn't read, counted, the
+most frequent first. A word at the top of that list is usually a missing synonym: one line in
+`server/api/query/lexicon.ts`. Review the list weekly, most-counted first. Issues filed per query before 3.2.3 stay as
+they are; new failures of those queries go to their pattern.
 
 **It only logs.** Nothing here fixes, assigns, closes, marks in progress, opens a pull request or merges. The owner
 reads the list, directs the work, and closes an issue by hand after checking the query live.

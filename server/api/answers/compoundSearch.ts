@@ -43,7 +43,7 @@ async function seasonFor(w: SeasonWords, team: number, deps: CompoundDeps, everA
 }
 
 /** Two of the team's events that name the words about as well (pickTeamEvent picks neither) but are one championship:
- *  a division and its finals ("New Jersey Championship - Turnpike Division", "New Jersey Championship"). The division. */
+ *  a division and its finals ("New Jersey Championship - Northern Division", "New Jersey Championship"). The division. */
 function familyPick(evs: TeamEvent[], words: string, season: number | null): TeamEvent | null {
   const scored = evs.filter((e) => season == null || e.season === season)
     .map((e) => ({ e, s: Math.max(fuzzyScore(words, e.name), fuzzyScore(words, e.code)) })).filter((x) => x.s >= 0.75)
@@ -177,7 +177,7 @@ async function listSearch(q: string, c: Extract<CompoundQuestion, { kind: "list"
   return stat ? { ...answer, understood: { ...answer.understood!, label: stat.title }, stat } : null;
 }
 
-/** "4215 vs 6980 vs 33950 which has highest reliability": each team found by its number. */
+/** "12345 vs 67890 vs 33950 which has highest reliability": each team found by its number. */
 async function setSearch(q: string, c: Extract<CompoundQuestion, { kind: "set-best" }>, resolve: Resolve, opts: Opts): Promise<SearchAnswer | null> {
   const hits = await Promise.all(c.teams.map(async (n) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n) && !h.href)));
   if (hits.some((h) => !h)) return null;
