@@ -45,7 +45,7 @@ export async function pairPrediction(intent: string, title: string, a: AnswerTea
   const S = seasonLabel(season);
   const base = { family: "two-team" as const, intent, title, team: a, teams: [a, b], scope: [S, "Qualification match, one team per alliance"], definition: `${PREDICT_RULE}${why ? ` ${why}` : ""}`, source: `From the engine's ${S} prediction ratings` };
   const links: StatBlock = { kind: "links", title: "Try it", items: [
-    ...(isLegacy(season) ? [] : [{ label: `Predict ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season, red: [a.number], blue: [b.number] }) }]),
+    ...(isLegacy(season) ? [] : [{ label: `Open in Predict: ${a.number} vs ${b.number}`, href: predictHref({ mode: "match", season, red: [a.number], blue: [b.number] }) }]),
     { label: "Compare side by side", href: `/compare?teams=${[a.number, b.number].sort((x, y) => x - y).join(",")}&season=${season}` },
   ] };
   if (isLegacy(season)) return { ...base, blocks: [links], none: `Predictions start with 2023–24: ${S} has no prediction ratings.` };

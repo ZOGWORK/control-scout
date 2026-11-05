@@ -14,6 +14,7 @@ import { searchSeason } from "../answers/season.js";
 import { BOARD_STATS } from "../answers/families/leaderboard.js";
 import type { TopMatchesQuestion } from "../answers/families/topMatches.js";
 import { relaxed, windowSteps } from "./relax.js";
+import { eventFor, forecastAt } from "./forecast.js";
 import { describe, normalise, parseQuery, type Parsed } from "./parse.js";
 import { parseContext } from "./context.js";
 import type { PipelineIntent } from "./intents.js";
@@ -33,7 +34,7 @@ export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<
 /** Whether the pipeline reads `q` completely (an intent it answers, every word explained). */
 export async function pipelineReads(q: string, now?: number, prefer?: ReadonlySet<string>): Promise<boolean> {
   const p = await parseQuery(q, await parseContext(now, prefer));
-  return p.complete && !!p.intent && ANSWERED.has(p.intent);
+  return p.complete && !!p.intent && ANSWERED.has(p.intent) && (p.intent !== "team-predict" || !!p.event);
 }
 
 /** The award answers that take "first" and "latest" ("4215 latest Inspire award"). */
@@ -55,7 +56,7 @@ const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
 /** The two-team answers read from the matches the teams met in: the only ones an event, a match type or a side applies to. */
 const MEETINGS = new Set<TwoTeamId>(["head-to-head", "h2h-wins", "shared-matches"]);
 /** Every intent execute() answers (the rest are left to search's readers). */
-const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), "top-matches", "leaderboard"]);
+const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict"]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
   "metric:opr": "opr", "metric:rating": "rating", "metric:winrate": "win-rate", "metric:auto": "auto", "metric:teleop": "teleop",
@@ -92,6 +93,24 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     // Nothing in the window asked ("this week"): its season, then the season before, said on the card.
     if (!opts.full || !scope.window || scope.season == null) return a;
     return relaxed(a, windowSteps(scope.window, scope.season), (season) => statAnswerOf(p.q, { ...it, scope: { ...scope, window: undefined, season } }, opts.resolve, opts));
+  }
+  // A forecast at an event named: before and after, side by side (./forecast.ts). With no event, two teams' head-on
+  // call (the engine's, with Predict open on it); one team's next match or event is left to the readers that know
+  // which ("predicted score next match", "predicted wins at their next event").
+  if ((intent === "team-predict" || intent === "two-predict") && p.event) {
+    if (scope.level || scope.alliance || scope.place || scope.area || scope.window || p.worlds || p.states) return null;
+    const year = p.time?.kind === "season" && p.time.year != null ? p.time.year : null;
+    if (p.time && year == null) return null;
+    const found = await eventFor(p.event.words, p.teams.map((t) => t.number), year);
+    if (!found) return null;
+    const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now());
+    const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
+    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : [])).find((l) => l.label.startsWith("Open in Predict"));
+    return {
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
+      step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
+      intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict [event]`, met: true, understood: [] },
+    };
   }
   if (p.teams.length === 2 && TWO_TEAM[intent]) {
     const id = TWO_TEAM[intent]!;

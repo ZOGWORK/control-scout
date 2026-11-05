@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.1 — 2026-11-04
+
+Ask for a team's prediction at an event and search shows the forecast before and the result after, side by side.
+
+### Highlights
+- [predict] "Predicted chances of 4215 at East Bergen": before vs after
+- [predict] Each match: predicted win chance and score beside the result
+- [predict] Open in Predict, filled in with the team and the event
+- [predict] Two teams at an event: their meetings, predicted and played
+
+### Changes
+- **Before and after.** A prediction question that names an event ("predicted chances of 4215 east bergen conference", "east bergen conference 4215 forecast 2025") shows, for that event, what the engine predicted before each match beside what happened. That means the win chance and predicted score next to the result, whether the call was right, expected wins against actual wins, and the stored pre-event projection when there is one. The match predictions come from the log made before each match. Where a match wasn't logged live, the card uses the walk-forward replay and says so. The two are never mixed on one card.
+- **Which event.** With no year, it's the latest event of that name the team is listed at. With a year, the one held that year. A team that isn't listed there is told so, and no other event is shown instead. An event still to come shows its forecast only.
+- **Open in Predict** sits at the top of the page links, opened on the team at that event, or on the two teams for a matchup. The two-team call's own link reads "Open in Predict" too.
+
 ## 3.2.0 — 2026-11-04
 
 When a question's time window has nothing in it, search widens it one step at a time and says so on the card.
