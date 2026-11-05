@@ -21,7 +21,7 @@ beforeAll(async () => {
   const teams: [number, string, string, string, string][] = [
     [4215, "Hypnotic Robotics", "Oradell", "NJ", "USA"], [6980, "Bad Wolf", "Fair Lawn", "NJ", "USA"], [24033, "Alphatronic", "Cluj-Napoca", "CJ", "Romania"],
     [17713, "Delta Force", "Arad", "AR", "Romania"], [10809, "Crow Force", "Los Angeles", "CA", "USA"], [5555, "Never Listed", "Fresno", "CA", "USA"],
-    [30010, "Brunswick Bots", "East Brunswick", "NJ", "USA"],
+    [30010, "Brunswick Bots", "East Brunswick", "NJ", "USA"], [30011, "Keystone Bots", "Erie", "PA", "USA"], [30012, "Liberty Bots", "Reading", "PA", "USA"],
   ];
   for (const [n, name, city, state, country] of teams) {
     await run("INSERT INTO teams (number, name, city, state, country) VALUES (?, ?, ?, ?, ?)", [n, name, city, state, country]);
@@ -35,6 +35,7 @@ beforeAll(async () => {
   await ev("ROCMP", "Romania Championship", "Championship", "2026-03-14", "B", "Romania");
   await ev("FTCCMP1", "FIRST Championship", "FIRSTChampionship", "2026-04-29", "TX", "USA");
   await ev("USTXNOCMP", "North Texas Championship", "Championship", "2026-02-28", "TX", "USA");
+  await ev("USPAQ1", "Keystone Qualifier", "Qualifier", "2026-02-07", "PA", "USA");
   let n = 0;
   const match = async (code: string, day: string, red: number, blue: number, reds: number[], blues: number[]) => {
     n++;
@@ -51,6 +52,9 @@ beforeAll(async () => {
   await match("USCAQ0", "2026-01-24", 260, 110, [10809], [5555]);
   await match("ROCMP", "2026-03-14", 300, 140, [24033], [17713]);
   await match("ROCMP", "2026-03-14", 120, 330, [24033], [17713]);
+  // Pennsylvania: a tie and a 10-point win (the closest match is the tie; the closest win never is).
+  await match("USPAQ1", "2026-02-07", 100, 100, [30011], [30012]);
+  await match("USPAQ1", "2026-02-07", 120, 110, [30011], [30012]);
   for (const t of [4215, 6980, 24033, 17713, 10809, 5555]) {
     await run("INSERT OR IGNORE INTO team_event_stats (season, code, team, opr_np, matches) SELECT season, code, team, 50, 1 FROM event_teams WHERE team = ?", [t]);
   }
@@ -223,8 +227,9 @@ describe("the match finder: matches by a measure, every filter applied and state
     expect(a.stat?.scope).toContain("No 2026–27 scored matches yet in New Jersey; showing 2025–26");
   });
   it("a win or a loss said with the closest is a decided match, never a tie", async () => {
-    const s = await stat("closest win in new jersey this season");
-    expect(s.headline?.value).not.toBe("Tie");
+    expect((await stat("closest match in pennsylvania this season")).headline?.value).toBe("Tie");
+    const s = await stat("closest win in pennsylvania this season");
+    expect(s.headline?.value).toBe("10-point margin");
     expect(s.scope).toContain("No ties");
   });
   it("a match type with nothing in it is said, never another type's matches", async () => {
