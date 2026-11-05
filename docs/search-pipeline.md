@@ -141,6 +141,42 @@ comebacks yet…". The plain highest score (no measure, no match type) follows t
 before the season today is in. A window ("this week") relaxes as everywhere else; a year said is never relaxed. "In
 the world", "worldwide" and "globally" mean every place.
 
+## Leaderboards
+
+The pipeline's leaderboard (`execute.ts`, over `answers/families/leaderboard.ts`) reads a list of teams however it's
+said: with or without "team" ("who has the highest auto OPR in NJ"), the highest or the lowest first ("worst teleop
+OPR in Romania"), a whole country, a town with its region after it ("best team in Cluj-Napoca, Romania, by OPR",
+"Oradell, NJ"), a country by its people's word ("Romanian teams", `src/shared/countries.ts`), a count at the end
+("…, top 3") and undefeated ("a perfect record", "no losses": no losses that season, the most wins first). "Auto OPR"
+is the auto phase's OPR, and a record beside another stat is the column every row already shows. Asides ("just
+curious", "only", "da") are filler and never a team's name. No season said follows the same rule as the match finder:
+the current season once a team is ranked in it, else the one before, said ("No 2026–27 ranked teams yet in Romania;
+showing 2025–26").
+
+## A team's wins and losses
+
+A win or a loss said with one team's match question is a filter on its matches, in any of its words ("lose", "lost",
+"losing", "win", "won"): "when did 12345 last lose a match" is its most recent loss, "first win" its first win,
+"last 5 losses" its last five losses, and "longest losing streak" the longest run of losses (a tie ends a run). The
+card's title says which ("Most recent loss"). Losing to someone ("lose to", "lost to", "beaten by") is the opponents
+that beat the team, most often first; "most often" is how often, never the best. "Did 12345 ever win a match" is its
+match wins, none said as none. "If any", "often" and "by type" are read as asides: every answer already says when there
+is none, and a total of awards already lists each type.
+
+## Prediction answers and no answer
+
+Drawn as the search results guide (Nov 5, `.claude/search-viz-guide-2026-11-05.txt`) says, §8. A team's prediction at
+a named event ("predicted chances of 12345 east bergen conference") leads with a `chance` block
+(`src/components/search/page/ChanceBar.tsx`): the chance as a number and a bar on a 0–100% scale split at it, in
+`--color-chance` (Okabe–Ito blue, never volt), with Open in Predict as the card's one action, printed nowhere else on
+the page. The chance is the next match's when one is still to come (with the engine's call now and its 80% score
+ranges, "Predicted 138 ±14 – 92 ±12": a stored call keeps no range), else the average over the matches played, else
+the event's stored pre-event chance to win. Before and after stay beside it, match by match.
+
+A search nothing answers (`NoResults.tsx`) says what's missing in one sentence, shows the closest real teams and events
+as full cards, and offers searches that answer about them, plus the browse links. What the query was understood as is
+a `data-understood` attribute only, never page text (§7).
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was

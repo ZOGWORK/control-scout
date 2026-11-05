@@ -34,6 +34,8 @@ export type TeamSortKey = "rank" | "opr" | "auto" | "dc" | "endgame" | "pen" | "
 export interface TeamTable {
   /** What the list is ranked by, its sort when it opens. "rank": as listed (the asked number's order). */
   by: Exclude<TeamSortKey, "record">;
+  /** The direction it opens in, when not that key's usual first one: a lowest-first list opens lowest first. */
+  dir?: "asc" | "desc";
   /** The list's own column ("Win rate"), when the rows carry `asked`. */
   asked?: { label: string };
   /** The stored TeleOp OPR includes the endgame, as FIRST reports it from 2024–25 on (server/data/seasons.ts,
@@ -96,10 +98,11 @@ const RECORD = /^(\d+)-(\d+)-(\d+)$/;
 const TEAM_IN_HREF = /^\/teams\/(\d+)/;
 
 /** A stat leaderboard's rows (server/api/answers/families/leaderboard.ts) as the same table. */
-export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[], teleopWithEndgame = false): TeamTable {
+export function teamTableOfLeaderboard(statId: string, statLabel: string, rows: readonly LeaderboardRow[], teleopWithEndgame = false, lowest = false): TeamTable {
   const by: TeamTable["by"] = ({ opr: "opr", auto: "auto", teleop: "dc", endgame: "endgame" } as Record<string, TeamTable["by"]>)[statId] ?? "rank";
   return {
-    by,
+    // A lowest-first list opens lowest first by its own column ("rank" is the list's order already).
+    by, ...(lowest && by !== "rank" ? { dir: "asc" as const } : {}),
     ...(by === "rank" ? { asked: { label: statLabel } } : {}),
     ...(teleopWithEndgame ? { teleopWithEndgame: true } : {}),
     rows: rows.map((r) => {

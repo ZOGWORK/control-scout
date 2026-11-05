@@ -60,7 +60,7 @@ const TEAM_INTENTS = new Set<PipelineIntent>([
   "record", "win-percent", "average-score", "median-score", "average-margin", "total-points", "total-matches", "total-events", "seasons-count",
   "current-streak", "longest-streak", "highest-auto", "highest-teleop", "highest-endgame", "most-penalties", "penalties", "score-range",
   "score-consistency", "awards", "total-awards", "results", "event-rank", "event-opr", "best-partner", "partners", "opponents", "playoff-matches",
-  "qual-matches", "match-lookup", "avg-penalties",
+  "qual-matches", "match-lookup", "avg-penalties", "lost-to-most",
 ]);
 const TWO_TEAM: Partial<Record<PipelineIntent, TwoTeamId>> = {
   "head-to-head": "head-to-head", "shared-matches": "shared-matches", "h2h-wins": "h2h-wins", "opr-vs": "opr-vs", "rating-vs": "rating-vs",
@@ -85,6 +85,8 @@ function placeSeason(p: Parsed, said: number | null | undefined, opts: PipelineO
   if (p.time?.kind === "season" && p.time.relative === "last") return current - 1;
   return said ?? current;
 }
+/** The answers a win or a loss said with them narrows ("closest loss", "first win", "longest losing streak"). */
+const OUTCOME_IDS = new Set(["closest-match", "current-streak", "average-margin", "first-match", "recent-match", "last-matches", "longest-streak"]);
 const ANSWERED = new Set<PipelineIntent>([...TEAM_INTENTS, ...(Object.keys(TWO_TEAM) as PipelineIntent[]), ...(Object.keys(FIND) as PipelineIntent[]), "top-matches", "leaderboard", "team-predict"]);
 /** The leaderboard's stat for a metric said ("by opr"); the prediction rating when none is. */
 const BOARD_STAT: Partial<Record<string, string>> = {
@@ -110,11 +112,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const future = await noEventsYet(p, team.number, id, opts);
     if (future) return future(opts);
     const named = scope.season != null || scope.latest || scope.ever || scope.championship || scope.states || !!scope.at || !!scope.window;
-    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && intent === "closest-match") ? "W" : null;
+    const outcome = p.symbols.includes("outcome:L") || (p.symbols.includes("metric:loss") && intent !== "losses") ? "L" : p.symbols.includes("outcome:W") || (p.symbols.includes("metric:win") && OUTCOME_IDS.has(intent) && intent !== "average-margin") ? "W" : null;
     const it: StatQuestion = {
       id, family: d.family, defaultSeason: d.alone && !named ? d.alone : d.season, scope,
       leadEvent: id === "highest-score" && p.symbols.includes("thing:event"),
-      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: ["closest-match", "current-streak", "average-margin"].includes(id) ? outcome : null,
+      n: id === "match-lookup" ? p.matchNumber : p.n ?? (id === "last-matches" ? 5 : null), outcome: OUTCOME_IDS.has(id) ? outcome : null,
       count: p.agg === "count", noTeam: false, core: String(team.number),
       ...(p.award && (id === "awards" || id === "total-awards") ? { award: p.award } : {}),
       ...(AWARD_LISTS.has(id) && (p.agg === "first" || p.agg === "last") ? { pick: p.agg === "first" ? "first" : "latest" } : {}),
@@ -137,9 +139,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!found) return null;
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now());
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
-    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : [])).find((l) => l.label.startsWith("Open in Predict"));
+    // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
+    const inCard = stat.blocks.some((b) => b.kind === "chance" && b.action);
+    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
     return {
-      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
       step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict [event]`, met: true, understood: [] },
     };
@@ -198,13 +202,26 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (!p.teams.length && intent === "leaderboard") {
     // The search box keeps the asks' own short card; the page draws the list.
     if (!opts.full) return null;
-    if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever || (p.place && p.place.kind !== "region")) return null;
-    const stats = p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]);
+    if (p.event || p.worlds || p.states || p.level || p.alliance || scope.window || scope.ever) return null;
+    let stats = [...new Set(p.symbols.map((s) => BOARD_STAT[s]).filter((s): s is string => !!s && !!BOARD_STATS[s]))];
+    // "Auto OPR" is the auto phase's OPR; a record beside another stat is the column every row shows.
+    if (stats.some((s) => s === "auto" || s === "teleop" || s === "endgame")) stats = stats.filter((s) => s !== "opr");
+    if (stats.length > 1) stats = stats.filter((s) => s !== "record" && s !== "wins");
     if (stats.length > 1) return null;
     // "The best team in NJ by OPR": one team, the next few under it; with no place or stat named, the top 10.
-    const one = /\bteam\b/.test(said) && !/\bteams\b/.test(said) && p.n == null && !!p.place && stats.length === 1;
-    const b: LeaderboardQuestion = { kind: "top", stat: stats[0] ?? "rating", n: one ? 5 : Math.min(25, p.n ?? 10), region: regionOf(p), city: null, season: scope.season, ...(one ? { best: true } : {}) };
-    return boardSearch(p.q, b, opts);
+    const one = /\b(?:team|who)\b/.test(said) && !/\bteams\b/.test(said) && p.n == null && (!!p.place || stats.length === 1);
+    const town = p.place?.kind === "city" ? p.place : null;
+    // A whole country's or a town's list with no stat said is left to the readers that list them by OPR.
+    if ((town || p.place?.kind === "country") && !stats.length && !p.undefeated) return null;
+    const region: Region | null = town ? { key: `${town.country}:${town.state ?? ""}`, country: town.country, state: town.state ?? "", name: town.state ?? town.country } : regionOf(p);
+    const b: LeaderboardQuestion = {
+      kind: "top", stat: stats[0] ?? (p.undefeated ? "wins" : "rating"), ...(p.undefeated ? { undefeated: true } : {}), n: one ? 5 : Math.min(25, p.n ?? 10), region, city: null, town: town?.city ?? null, season: placeSeason(p, scope.season, opts),
+      ...(one ? { best: true } : {}), ...(p.agg === "min" ? { lowest: true } : {}),
+    };
+    const a = await boardSearch(p.q, b, opts);
+    // No season said, or "this season": the current one, then the one before when nobody has played enough yet.
+    if (scope.season != null || !(p.time == null || (p.time.kind === "season" && p.time.relative === "this"))) return a;
+    return relaxed(a, defaultSteps(b.season!, town ? ` in ${town.city}` : region ? ` in ${region.name}` : "", b.undefeated ? "undefeated teams" : b.kind === "top" ? "ranked teams" : "teams"), (season) => boardSearch(p.q, { ...b, season }, opts));
   }
   return null;
 }
@@ -222,8 +239,8 @@ function readScopeOf(p: Parsed): ReadScope | null {
   } else if (t?.kind === "ever") s.ever = true;
   if (p.place) {
     // A town names where a team is from, which a team's own question already knows: only events in a region or a
-    // country are a filter.
-    if (p.place.kind === "city") return null;
+    // country are a filter. A leaderboard's town is the teams from it.
+    if (p.place.kind === "city") return p.intent === "leaderboard" ? s : null;
     if (p.place.kind === "region") s.place = regionOf(p);
     else s.area = { country: p.place.country, state: null, name: p.place.name };
   }
