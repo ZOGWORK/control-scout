@@ -222,6 +222,11 @@ describe("the match finder: matches by a measure, every filter applied and state
     const a = await ask("highest score in new jersey", Date.parse("2026-11-04T12:00:00Z"));
     expect(a.stat?.scope).toContain("No 2026–27 scored matches yet in New Jersey; showing 2025–26");
   });
+  it("a win or a loss said with the closest is a decided match, never a tie", async () => {
+    const s = await stat("closest win in new jersey this season");
+    expect(s.headline?.value).not.toBe("Tie");
+    expect(s.scope).toContain("No ties");
+  });
   it("a match type with nothing in it is said, never another type's matches", async () => {
     const s = await stat("closest playoff match in new jersey this season");
     expect(s.headline).toBeUndefined();
