@@ -13,6 +13,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "search:eval": "tsx scripts/search-eval.ts",
+    "search:heldout": "tsx scripts/search-heldout.ts",
     "postinstall": "npm run build -w @control-scout/predict-engine",
     "dev": "concurrently -k -n api,web -c yellow,cyan \"tsx watch server/index.ts\" \"vite\"",
     "dev:api": "tsx watch server/index.ts",

@@ -523,8 +523,8 @@ export async function layeredAnswer(typed: string, reader: Run): Promise<SearchA
         if (ok(bare) && !same(bare, base)) { layers.push("filler"); return done(showing(bare, typed, strip.q), "filler", x0, "answered", strip.dropped); }
       }
       // A definition question beats a name search (brief section 10): "what does opr mean" read "mean" as the start
-      // of a team's name.
-      if (x0.intent?.id === "meaning" && x0.canonical && !base.card) {
+      // of a team's name. Never a stat answer: "mean scoring for quioxte" is an average.
+      if (x0.intent?.id === "meaning" && x0.canonical && !base.card && !base.stat) {
         const k = await keywordTry(q0, x0, "keyword", x0.dropped);
         if (k?.card) return k;
       }

@@ -99,7 +99,7 @@ export const INTENTS: IntentRule[] = [
   R("results", 1, ["thing:match"], ["list", "metric:score", "metric:record"], { event: true }),
   R("event-rank", 1, ["metric:rank"], [], { event: true }),
   R("event-opr", 1, ["metric:opr"], [], { event: true }),
-  // A state championship alone ("24033 states"): the team's results there.
+  // A state championship alone ("12345 states"): the team's results there.
   R("results", 1, ["states"], ["list"]),
   // Partners and opponents.
   R("best-partner", 1, ["agg:max", "metric:partner"], ["thing:team"]),
@@ -116,7 +116,7 @@ export const INTENTS: IntentRule[] = [
   R("shared-matches", 2, ["and", "thing:match"], ["list"]),
   R("head-to-head", 2, ["vs", "thing:match"], ["list", "metric:record"]),
   R("h2h-wins", 2, ["vs", "metric:win"], ["agg:count", "thing:match"]),
-  // "4215 and 6980 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
+  // "12345 and 67890 awards" is each team's own list (search's AND list); a versus or a comparison is the side by side.
   R("opr-vs", 2, ["metric:opr", "vs"], ["compare"]),
   R("opr-vs", 2, ["metric:opr", "compare"], []),
   R("rating-vs", 2, ["metric:rating", "vs"], ["compare"]),

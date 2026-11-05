@@ -75,7 +75,7 @@ export async function forecastAt(teams: { number: number; name: string | null }[
     FROM predictions p JOIN matches m ON m.season = p.season AND m.code = p.code AND m.level = p.level AND m.series = p.series AND m.number = p.number
     WHERE p.season = ? AND (p.code = ? OR p.code IN (SELECT code FROM events WHERE season = ? AND division_code = ?))
     ORDER BY m.played DESC, m.time, p.level DESC, p.series, p.number`, [ev.season, ev.code, ev.season, ev.code]);
-  // A lineup is stored as a JSON list of team numbers ("[4215,6980]").
+  // A lineup is stored as a JSON list of team numbers ("[12345,67890]").
   const lineup = (side: string): number[] => { try { const v = JSON.parse(side); return Array.isArray(v) ? v.map(Number) : []; } catch { return side.split(",").map(Number); } };
   const has = (side: string, n: number) => lineup(side).includes(n);
   const mine = rows.filter((r) => teams.every((t) => has(r.red, t.number) || has(r.blue, t.number)));
