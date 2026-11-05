@@ -90,9 +90,13 @@ const UPSET_BY_RATING = `CASE WHEN m.red_total > m.blue_total AND ${RATING("blue
 const FINAL = (() => {
   // The bracket is the event's own (its alliance count), never guessed from how far its posted matches reach.
   const alliances = `(SELECT COUNT(*) FROM alliances a WHERE a.season = m.season AND a.code = m.code)`;
-  const at = `(m.series - (SELECT MIN(x.series) FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff' AND x.label LIKE 'M%') + 1)`;
+  // A match's place in the bracket, counted from the event's first playoff series whatever its label (a bracket
+  // numbered from 0 posts its opening match as "F1").
+  const at = `(m.series - (SELECT MIN(x.series) FROM matches x WHERE x.season = m.season AND x.code = m.code AND x.level = 'playoff') + 1)`;
+  const isDouble = `(m.season >= ${DOUBLE_ELIM_FROM} AND ${alliances} IN (${Object.keys(BRACKETS).map(Number).join(", ")}))`;
   const double = Object.entries(BRACKETS).map(([n, b]) => `(${alliances} = ${Number(n)} AND ${at} IN (${b.matches.length}, ${b.matches.length + 1}))`).join(" OR ");
-  return `m.level = 'playoff' AND (m.label LIKE 'F%' OR (m.season >= ${DOUBLE_ELIM_FROM} AND m.label LIKE 'M%' AND (${double})))`;
+  // A double-elimination bracket's final is its last match (and the replay); only a classic bracket's is its "F" series.
+  return `m.level = 'playoff' AND ((NOT ${isDouble} AND m.label LIKE 'F%') OR (${isDouble} AND (${double})))`;
 })();
 
 interface Row { season: number; code: string; level: string; series: number; number: number; label: string; time: string | null; name: string; type: string | null; start: string | null; red_total: number; blue_total: number; v: number }

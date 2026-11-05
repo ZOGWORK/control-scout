@@ -255,6 +255,17 @@ describe("the match finder: matches by a measure, every filter applied and state
     expect(l.scope).toContain("No ties");
     for (const q of ["biggest routs in pennsylvania this season", "closest wins in pennsylvania this season"]) expect((await stat(q)).headline, q).toBeUndefined();
   });
+  it("the finals of a double-elimination bracket numbered from 0: its last match, never the opening 'F1'", async () => {
+    await run("INSERT INTO events (season, code, name, type, city, state, country, start, end, source) VALUES (2025, 'USDEF1', 'Diamond Championship', 'Championship', 'Town', 'DE', 'USA', '2026-03-01', '2026-03-01', 't')");
+    for (let a = 1; a <= 4; a++) await run("INSERT INTO alliances (season, code, number, captain) VALUES (2025, 'USDEF1', ?, ?)", [a, 30010 + a]);
+    // Series 0 is the opening match, posted as F1 and the closest (1 point); series 5 is the grand final (6th of 6).
+    for (const [series, label, red, blue] of [[0, "F1", 101, 100], [1, "M1", 150, 100], [2, "M2", 160, 100], [3, "M3", 170, 100], [4, "M4", 180, 100], [5, "M5", 130, 120]] as const) {
+      await run("INSERT INTO matches (season, code, level, series, number, label, time, played, red_total, red_np, blue_total, blue_np, source) VALUES (2025, 'USDEF1', 'playoff', ?, 1, ?, '2026-03-01T15:00:00Z', 1, ?, ?, ?, ?, 't')", [series, label, red, red, blue, blue]);
+    }
+    const s = await matchFindAnswer({ measure: "closest", season: 2025, region: null, level: "playoff", finals: true, kind: null, n: 5 });
+    expect(s.headline?.label).toMatch(/^M5 /);
+    expect(s.blocks).toEqual([]);
+  });
   it("a date window is its own range, whichever season it was read in", async () => {
     const s = await matchFindAnswer({ measure: "closest", season: 2024, region: null, level: null, finals: false, kind: null, window: { from: "2026-02-01", to: "2026-02-10", label: "in early February" }, n: 5 });
     expect(s.headline?.label).toMatch(/Keystone Qualifier/);
