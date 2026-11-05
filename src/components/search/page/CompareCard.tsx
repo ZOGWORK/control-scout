@@ -74,7 +74,7 @@ export function CompareCard({ stat, b }: { stat: StatAnswer; b: Compare }) {
         {(primary || rest.length > 0) && (
           <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             {primary && <Link to={primary.href} className={cn(buttonVariants(), "min-h-[44px]")} data-primary-cta>{primary.label}</Link>}
-            {rest.map((l) => <Link key={l.href} to={l.href} className="inline-flex min-h-[44px] items-center font-medium text-accent-text hover:underline">{l.label}</Link>)}
+            {rest.map((l) => <Link key={l.href} to={l.href} className="inline-flex min-h-[44px] items-center font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text">{l.label}</Link>)}
           </p>
         )}
       </footer>

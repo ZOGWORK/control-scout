@@ -56,7 +56,7 @@ function OneCard({ stat, heading }: { stat: StatAnswer; heading?: string }) {
       <footer className="mt-5 space-y-1 border-t border-border pt-3 text-xs text-muted-foreground" data-definition>
         <p><span className="font-medium text-foreground">How this is counted: </span>{stat.definition}</p>
         <p data-source>{stat.source}.</p>
-        {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
+        {stat.more && <p><Link to={stat.more.href} className="inline-flex items-center text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more>{stat.more.label}</Link></p>}
       </footer>
     </AnswerFrame>
   );
@@ -157,9 +157,9 @@ function Block({ b, team, teams }: { b: StatBlock; team?: StatAnswer["team"]; te
         <figure data-block="record">
           {b.title && <figcaption className={H3}>{b.title}</figcaption>}
           <div className="flex h-1.5 overflow-hidden rounded-full bg-muted" role="img" aria-label={`${b.wins} wins, ${b.losses} losses, ${b.ties} ties`}>
-            <span className="bg-foreground/70" style={{ width: w(b.wins) }} />
-            <span className="bg-foreground/25" style={{ width: w(b.losses) }} />
-            <span className="bg-muted-foreground/40" style={{ width: w(b.ties) }} />
+            <span className="bg-foreground/70" style={{ width: w(b.wins) }} data-bar data-value={b.wins} data-scale={n} />
+            <span className="bg-foreground/25" style={{ width: w(b.losses) }} data-bar data-value={b.losses} data-scale={n} />
+            <span className="bg-muted-foreground/40" style={{ width: w(b.ties) }} data-bar data-value={b.ties} data-scale={n} />
           </div>
           <p className="mt-1.5 flex flex-wrap gap-x-4 text-xs tabular-nums text-foreground" aria-hidden>
             <span><b>{b.wins}</b> won</span><span><b>{b.losses}</b> lost</span><span><b>{b.ties}</b> tied</span>
@@ -240,7 +240,7 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
             <tr key={label} className="border-t border-border" data-split={label}>
               <th scope="row" className="px-3 py-2 text-left font-medium text-foreground">
                 {label}
-                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className={cn("block h-full", INK_BAR)} style={{ width: `${pc}%` }} /></span>
+                <span className="mt-1 block h-1.5 w-full max-w-40 overflow-hidden rounded-full bg-muted" aria-hidden><span className={cn("block h-full", INK_BAR)} style={{ width: `${n ? (100 * r.wins) / n : 0}%` }} data-bar data-value={r.wins} data-scale={n} /></span>
               </th>
               <td className="px-3 py-2 text-right font-semibold text-foreground"><RecordText text={`${r.wins}-${r.losses}-${r.ties}`} /></td>
               <td className="px-3 py-2 text-right text-foreground">{pc}%</td>
@@ -337,7 +337,7 @@ function MatchTable({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
                 {Number.isFinite(v) && <span aria-hidden className="flex h-1 w-full overflow-hidden rounded-full bg-muted"><span className={cn("block h-full rounded-full", INK_BAR)} style={{ width: `${pc(v)}%` }} data-bar data-value={v} data-scale={hi} /></span>}
               </span>
               <span className="w-24 shrink-0 text-center tabular-nums" aria-label={`Red ${red}, blue ${blue}`}>
-                <span className={cn("text-red-alliance-text", won === "red" ? "font-bold" : "opacity-80")}>{red}</span><span className="text-muted-foreground">–</span><span className={cn("text-blue-alliance-text", won === "blue" ? "font-bold" : "opacity-80")}>{blue}</span>
+                <span className={won === "blue" ? "text-muted-foreground" : "font-bold text-red-alliance-text"}>{red}</span><span className="text-muted-foreground">–</span><span className={won === "red" ? "text-muted-foreground" : "font-bold text-blue-alliance-text"}>{blue}</span>
               </span>
               {r.href ? <Link to={r.href} className={cn("inline-flex w-16 shrink-0 items-center font-medium text-foreground hover:text-accent-text hover:underline", TAP)}>{r.cells.match}</Link> : <span className="w-16 shrink-0">{r.cells.match}</span>}
               <span className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1 max-md:pl-9 md:basis-0 md:flex-1">
@@ -382,10 +382,10 @@ function Series({ b }: { b: Extract<StatBlock, { kind: "series" }> }) {
       <figcaption className={H3}>{b.title}</figcaption>
       <div className="relative h-32 rounded-lg border border-border bg-muted/20">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 size-full" aria-hidden>
-          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-accent" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
+          {pts.length > 1 && <polyline points={pts.map((p) => `${x(p.i)},${y(p.y)}`).join(" ")} fill="none" className="stroke-foreground/70" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />}
         </svg>
         {pts.map((p) => {
-          const dot = <span className="block size-3 rounded-full border-2 border-accent bg-card" />;
+          const dot = <span className="block size-3 rounded-full border-2 border-foreground bg-card" />;
           const style = { left: `${x(p.i)}%`, top: `${y(p.y)}%` };
           const label = `${p.x}: ${p.y}${b.unit ? ` ${b.unit}` : ""}${p.note ? ` (${p.note})` : ""}`;
           return p.href
@@ -459,7 +459,7 @@ function Leaderboard({ b }: { b: Extract<StatBlock, { kind: "leaderboard" }> }) 
         <span className="text-[11px] text-muted-foreground" data-note>{b.note}</span>
       </figcaption>
       <TeamTable table={table} label={b.title} />
-      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-accent-text hover:underline max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
+      {b.more && <p className="mt-2"><Link to={b.more.href} className="inline-flex items-center gap-1 text-xs font-medium text-foreground underline decoration-border underline-offset-2 hover:text-accent-text max-md:min-h-[44px] pointer-coarse:min-h-[44px]" data-more-detail>{b.more.label}<ArrowRight className="size-3.5" aria-hidden /></Link></p>}
     </figure>
   );
 }

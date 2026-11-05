@@ -106,7 +106,7 @@ export function Cell({ col, value, max }: { col: Col; value: string | number | n
     return (
       <span className="inline-flex flex-col items-end gap-0.5" data-opr-cell>
         <span className="font-semibold text-foreground">{text}</span>
-        <span className="block w-12" data-opr-bar data-bar data-value={v} data-scale={max}><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: INK_BAR }]} /></span>
+        <span className="block w-12" data-opr-bar><Meter parts={[{ pc: Math.max(0, Math.min(100, (100 * v) / max)), cls: INK_BAR, value: v, scale: max }]} /></span>
       </span>
     );
   }

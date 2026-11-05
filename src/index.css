@@ -206,6 +206,8 @@ html.dim {
   --color-video: #ff7089;
   --sh-destructive: #fd8c9c;
   --color-red-alliance-ink: #fd8c9c;
+  /* Red alliance numbers on Dim's lighter card (a score on its box's tint): rose 500 is 3.8–4.2:1 there, rose 400 clears 4.5:1. */
+  --color-red-alliance-text: #fb7185;
 }
 
 html.midnight {
