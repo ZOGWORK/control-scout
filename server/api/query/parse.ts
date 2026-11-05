@@ -63,6 +63,9 @@ export interface ParseContext {
 }
 
 type Tok = { w: string; typed: string; used: boolean };
+/** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
+const COUNT_BEFORE = /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/;
+const MATCH_BEFORE = /^(?:match|qual|q|game|qualification)$/;
 /** Every word of a lexicon phrase: a team's name beside one ("bad wolf offensive power rating") still ends there. */
 const LEX_WORDS = new Set(LEXICON.flatMap((e) => e.words));
 
@@ -87,11 +90,19 @@ export function normalise(q: string): string {
 export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed> {
   const q = normalise(raw);
   const typedWords = raw.replace(/[?!,;:()"]/g, " ").split(/\s+/).filter(Boolean);
-  const nums = (q.match(/\b\d{1,5}\b/g) ?? []).map(Number);
-  // A bare year is a season unless it's the only number and a team has it ("2024 record": team 2024).
-  const yearOk = (y: number) => nums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|season|from)\\s+(?:the\\s+)?${y}\\b`).test(q);
+  // The other team numbers typed: a limit ("last 5") or a match's number ("match 3") is never a team.
+  const words0 = q.split(" ");
+  const teamNums = words0.filter((w, i) => /^\d{1,5}$/.test(w) && !COUNT_BEFORE.test(words0[i - 1] ?? "") && !MATCH_BEFORE.test(words0[i - 1] ?? "") && !!ctx.names.team(Number(w))).map(Number);
+  // A bare year is a season unless it's the only team number and a team has it ("2024 record", "2024 last 5 matches").
+  const yearOk = (y: number) => teamNums.some((n) => n !== y) || !ctx.names.team(y) || new RegExp(`\\b(?:in|during|for|season|from)\\s+(?:the\\s+)?${y}\\b`).test(q);
   const { time, rest } = readTime(q, ctx.today, yearOk);
-  const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => ({ w, typed: typedWords.find((t) => fold(t) === w) ?? w, used: false }));
+  // Each word with its own spelling as typed, matched in order ("in IN": the second is the state code).
+  let at = 0;
+  const toks: Tok[] = rest.split(" ").filter(Boolean).map((w) => {
+    const k = typedWords.findIndex((t, i) => i >= at && fold(t) === w);
+    if (k >= 0) at = k + 1;
+    return { w, typed: k >= 0 ? typedWords[k] : w, used: false };
+  });
   const symbols = new Set<string>();
   const p: Parsed = {
     q: raw, teams: [], event: null, place: null, time, level: null, alliance: null, worlds: false, states: false, award: null, agg: null,
@@ -130,13 +141,28 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (qm) { p.matchNumber = Number(qm[1]); if (/^q/.test(t.w)) p.level = "qual"; t.used = true; symbols.add("thing:match"); continue; }
     if (!/^\d{1,5}$/.test(t.w)) continue;
     const n = Number(t.w), prev = toks[i - 1]?.w, next = toks[i + 1]?.w;
-    if (prev && /^(?:match|qual|q|game|qualification)$/.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
-    if (prev && /^(?:top|last|first|best|latest|past|recent|bottom|worst|highest|lowest)$/.test(prev) && n <= 50 && next && !ctx.names.team(Number(next))) { p.n = n; t.used = true; continue; }
+    if (prev && MATCH_BEFORE.test(prev) && n <= 400) { p.matchNumber = n; t.used = true; toks[i - 1].used = true; symbols.add("thing:match"); if (prev !== "match" && prev !== "game") p.level = "qual"; continue; }
+    if (prev && COUNT_BEFORE.test(prev) && n <= 50 && next && !ctx.names.team(Number(next))) { p.n = n; t.used = true; continue; }
     const team = ctx.names.team(n);
     if (team) {
       if (!p.teams.some((x) => x.number === n)) p.teams.push({ number: n, name: team.name, typed: t.typed, via: "number", at: i });
       t.used = true;
       if (/^(?:team|ftc)$/.test(prev ?? "")) toks[i - 1].used = true;
+    }
+  }
+
+  // 2b. Places by their whole name or code, before the lexicon reads their words ("in ME" is Maine, "united states"
+  // a country): a region code only as typed in capitals after "in", "from" or "at"; never a word of an event's name
+  // ("New Jersey Championship").
+  for (let len = 4; len >= 1 && !p.place; len--) {
+    for (let i = 0; i + len <= toks.length && !p.place; i++) {
+      const span = toks.slice(i, i + len);
+      if (span.some((t) => t.used) || EVENT_NAME_WORDS.has(toks[i + len]?.w ?? "")) continue;
+      const code = len === 1 && /^[A-Z]{2}$/.test(span[0].typed);
+      if (code && !/^(?:in|from|at)$/.test(toks[i - 1]?.w ?? "")) continue;
+      if (!code && span.every((t) => isLex(t.w))) continue;
+      const pl = ctx.names.place(span.map((t) => t.w).join(" "), span.map((t) => t.typed).join(" "));
+      if (pl) { p.place = { ...pl, typed: span.map((t) => t.typed).join(" ") }; span.forEach((t) => (t.used = true)); }
     }
   }
 
@@ -178,8 +204,9 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     const hasEventWord = toks.slice(from, to + 1).some((t) => EVENT_NAME_WORDS.has(t.w));
     const place = !hasEventWord ? ctx.names.place(words(), typed()) : null;
     if (place && !p.place) { p.place = { ...place, typed: typed() }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); continue; }
-    if (await ctx.isEvent(words())) {
-      if (!p.event) p.event = { words: words(), typed: typed() };
+    // One event: a second one named ("at nj championship at turnpike division") is left unexplained, never dropped.
+    if (!p.event && await ctx.isEvent(words())) {
+      p.event = { words: words(), typed: typed() };
       toks.slice(from, to + 1).forEach((t) => (t.used = true));
       symbols.delete("thing:event");
       continue;
