@@ -160,6 +160,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     const f: MatchFind = {
       // The current season is the one today is in.
       measure: FIND[intent] ?? "high", season: placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,
+      ...(["metric:win", "metric:loss", "outcome:W", "outcome:L"].some((s) => p.symbols.includes(s)) ? { decided: true } : {}),
       ...(scope.window ? { window: scope.window } : {}), n: p.n ?? (plural ? 10 : 5),
     };
     const card = async (g: MatchFind): Promise<SearchAnswer> => {
