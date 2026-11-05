@@ -34,6 +34,8 @@ describe("slots", () => {
     expect(await parseQuery("the coper lanterns record", near)).toMatchObject({ teams: [{ number: 30003, via: "near", typed: "the coper lanterns" }], complete: true });
     // "deltv" is one letter from Deltav and from Delta: no team.
     expect((await parseQuery("deltv record", near)).teams).toEqual([]);
+    // Two letters off a five-letter name is past the limit, even with no other name as close.
+    expect(ctx.names.nearTeam("dexxa")).toBeNull();
   });
   it("reads a long name whole, punctuation and all, in any order", async () => {
     for (const q of ["greatest scoring for Santo Domingo Incredible First Team (Team Spark) 30001", "santo domingo incredible first team team spark record"]) {
