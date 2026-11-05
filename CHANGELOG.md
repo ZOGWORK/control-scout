@@ -27,7 +27,7 @@ Home's search chips change every hour, six at a time from a pool that shows each
 
 ### Home
 - **Suggestions that rotate.** The six chips under Home's search are picked each UTC hour from about 70 queries: team facts, OPR by phase, prediction rating, records with quals and playoffs apart, matches at an event or Worlds, awards, Worlds trips, two and three teams compared, leaderboards, event winners, next events, a misspelt name, questions in a sentence and searches joining several filters. Never two of one kind, always a leaderboard and a sentence or filtered search, and no team twice. A long query shows a short label and runs in full. The pick is worked out from the clock, so nothing extra loads and a cached page still changes on the hour.
-- **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found.
+- **Every chip answers.** `npm run suggestions:check` asks the live search for each query and fails on any that gives no answer card, or one that says nothing was found. (#705)
 - **Taps.** On a phone each chip's tap area is 44px tall, with the chip drawn the same size as before.
 
 ## 3.1.4 — 2026-11-04
