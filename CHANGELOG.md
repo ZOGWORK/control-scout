@@ -15,6 +15,22 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.1.8 — 2026-11-05
+
+Search plays the video the site has for what you asked: a match's clip, or the event's stream, in the answer.
+
+### Highlights
+- [live] "USMACMP Q12" plays that match from its second in the stream
+- [live] An event's results, winners or awards play the event's stream
+- [live] Top matches and match lists: a play button on each clip
+- [speed] The player loads only when tapped; search stays as fast
+
+### Search
+- **The match asked about, in the answer.** An answer about one match ("USMACMP Q12", "the highest scoring match in decode", "highest score at massachusetts championship") plays FIRST's own video of it, else the event's recording from that match's second, else the event's stream from its start: the same videos the event page plays. Nothing plays until it's tapped: the card shows the video's picture and a play button, and the player loads on the tap.
+- **An event's stream.** An event's results, rank, winning alliance and awards, and an event searched by name, play its live stream or recording in the card. An event with no video shows nothing about it.
+- **Play buttons in lists.** Top-scoring matches and a team's matches at an event give each match with a clip a small play button; it plays in the app's video player over the search page, so search stays where it was.
+- **One read for all of it.** An answer's video is read once for the whole answer, whatever its number of rows, from the stored match times and the kept recording lists, which now keep answering while they refresh. Event-local match times convert about ten times faster.
+
 ## 3.1.7 — 2026-11-05
 
 Search answers the failed searches filed since 3.1.4: an event named without "at", numbers typed against words, typos, bare numbers and sorts said in plain words.

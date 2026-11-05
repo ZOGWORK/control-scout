@@ -11,6 +11,7 @@ import type { SearchCard, SearchCardFact, SearchCardLine } from "../../../shared
 import { StatTile, type Tone } from "../../StatTile";
 import { TeamTable } from "../TeamTable";
 import { cn } from "../../cn";
+import { AnswerVideo } from "./AnswerVideo";
 import { AnswerFrame, PART, RelatedQuestions, SeasonEvents, SeasonTiles, TAP, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
 /** What a card is, as its subtitle: which records it read. */
@@ -62,6 +63,7 @@ export function FactCard({ card, heading, season: asked }: { card: CardExtra; he
       )}
       {card.table?.rows.length ? <TeamTable table={card.table} label={card.title} />
         : !!lines.length && <Lines lines={lines} icon={ICON[card.kind]} />}
+      <AnswerVideo />
       {!!card.none && !!card.closest?.length && (
         <div className="mt-4"><h3 className={PART}>Closest records</h3><Lines lines={card.closest} /></div>
       )}

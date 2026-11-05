@@ -12,6 +12,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { OPR_CARDS, OPR_TONE, oprRankHint } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
+import { AnswerVideo, RowPlay, useRowPlays } from "./AnswerVideo";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
@@ -32,6 +33,7 @@ export function StatAnswerCard({ stat, heading }: { stat: StatAnswer; heading?: 
     <AnswerFrame teams={teams} profile={profile} season={stated} title={stat.title} hideTitle={repeats(heading, stat.title)} sub={scope || undefined}
       data={{ "data-stat-answer": stat.intent, "data-family": stat.family }}>
       {stat.headline && <Headline h={stat.headline} />}
+      <AnswerVideo />
       {stat.none && (
         <p className="mt-3 flex items-start gap-2 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" data-none>
           <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />{stat.none}
@@ -122,30 +124,7 @@ function Block({ b }: { b: StatBlock }) {
         </div>
       );
     case "table":
-      return (
-        <div data-block="table">
-          <h3 className={H3}>{b.title}</h3>
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
-                <tr>{b.columns.map((c) => { const p = phaseTone(c.label); return <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== b.columns[0] && "whitespace-nowrap max-md:px-1.5", p && cn("border-b-2", BORDER[p]))} data-phase={p ?? undefined}>{c.label}</th>; })}</tr>
-              </thead>
-              <tbody>
-                {b.rows.map((r, i) => (
-                  <tr key={i} className={cn("border-t border-border", r.strong && "bg-muted/60 font-semibold")}>
-                    {b.columns.map((c, j) => (
-                      <td key={c.key} className={cn("px-2.5 py-1.5 align-top", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5")}>
-                        {j === 0 && r.href ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{r.cells[c.key] ?? "–"}</Link> : (r.cells[c.key] ?? "–")}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
-        </div>
-      );
+      return <Table b={b} />;
     case "leaderboard":
       return <Leaderboard b={b} />;
     case "series":
@@ -217,6 +196,36 @@ function RecordSplit({ split }: { split: { quals: StatRecord; playoffs: StatReco
   );
 }
 
+/** Rows of named columns; with any match's clip among them, a last column of play buttons (./AnswerVideo.tsx). */
+function Table({ b }: { b: Extract<StatBlock, { kind: "table" }> }) {
+  const plays = useRowPlays(b.rows.map((r) => r.href));
+  return (
+    <div data-block="table">
+      <h3 className={H3}>{b.title}</h3>
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
+            <tr>{b.columns.map((c) => { const p = phaseTone(c.label); return <th key={c.key} scope="col" className={cn("px-2.5 py-1.5 font-medium", c.num && "text-right", c !== b.columns[0] && "whitespace-nowrap max-md:px-1.5", p && cn("border-b-2", BORDER[p]))} data-phase={p ?? undefined}>{c.label}</th>; })}{plays && <th scope="col" className="w-0 px-1"><span className="sr-only">Video</span></th>}</tr>
+          </thead>
+          <tbody>
+            {b.rows.map((r, i) => (
+              <tr key={i} className={cn("border-t border-border", r.strong && "bg-muted/60 font-semibold")}>
+                {b.columns.map((c, j) => (
+                  <td key={c.key} className={cn("px-2.5 py-1.5 align-top", c.num && "text-right tabular-nums", j === 0 ? "min-w-[4.5rem] md:min-w-[8rem]" : "whitespace-nowrap max-md:px-1.5")}>
+                    {j === 0 && r.href ? <Link to={r.href} className="text-foreground hover:text-accent-text hover:underline max-md:inline-flex max-md:min-h-[44px] max-md:items-center pointer-coarse:inline-flex pointer-coarse:min-h-[44px] pointer-coarse:items-center">{r.cells[c.key] ?? "–"}</Link> : (r.cells[c.key] ?? "–")}
+                  </td>
+                ))}
+                {plays && <td className="w-0 px-1 py-0.5 align-middle">{r.href && <RowPlay href={r.href} label={[r.cells.match, r.cells.event].filter(Boolean).join(" · ") || "This match"} />}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {b.more && <p className="mt-1 text-[11px] text-muted-foreground">{b.more}</p>}
+    </div>
+  );
+}
+
 function MatchRow({ r }: { r: StatMatchRow }) {
   const tone = r.result === "W" ? "bg-success/15 text-success-text" : r.result === "L" ? "bg-danger/15 text-danger-text" : "bg-muted text-foreground";
   return (
@@ -236,6 +245,7 @@ function MatchRow({ r }: { r: StatMatchRow }) {
             </p>
           )}
         </div>
+        <RowPlay href={r.href} label={`${r.label} · ${r.event.label}`} className="-my-1 -mr-1" />
       </div>
     </li>
   );
