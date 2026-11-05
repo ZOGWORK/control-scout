@@ -142,6 +142,11 @@ describe("one question, any phrasing, any team", () => {
       expect(s.headline?.value, q).toBe("2");
     }
   });
+  it("a name typed nearly right offers the spelling, whatever stood between its words", async () => {
+    const a = await ask("hypnotc-robotics highest score");
+    expect(a.stat?.team?.number).toBe(4215);
+    expect(a.didYouMean).toBe("Hypnotic Robotics highest score");
+  });
 });
 
 describe("what the pipeline leaves to the other readers", () => {
