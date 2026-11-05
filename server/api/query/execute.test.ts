@@ -197,6 +197,32 @@ describe("what the pipeline leaves to the other readers", () => {
   });
 });
 
+describe("the match finder: matches by a measure, every filter applied and stated", () => {
+  it("the closest, the most lopsided and the lowest, in a place and a season", async () => {
+    const close = await stat("closest match in new jersey this season");
+    expect(close.headline).toMatchObject({ value: "40-point margin", label: expect.stringMatching(/^Q2 /) });
+    expect(close.scope).toEqual(expect.arrayContaining(["2025–26", "New Jersey"]));
+    expect(close.definition).toMatch(/^How this is counted: /);
+    expect((await stat("most lopsided match in romania this season")).headline?.value).toBe("210-point margin");
+    expect((await stat("lowest scoring match in california this season")).headline?.value).toBe("210 points");
+  });
+  it("an upset by the call saved before the match; no season said is the current one, then the one before, said so", async () => {
+    // November 2026: 2026–27 has begun, with nothing played in New Jersey yet.
+    const a = await ask("biggest upset in new jersey", Date.parse("2026-11-04T12:00:00Z"));
+    expect(a.stat?.headline?.value).toBe("60% favourite lost");
+    expect(a.stat?.scope[0]).toBe("No 2026–27 matches yet in New Jersey; showing 2025–26");
+    expect(a.understood?.label).toContain("No 2026–27 matches yet in New Jersey; showing 2025–26");
+  });
+  it("a match type with nothing in it is said, never another type's matches", async () => {
+    const s = await stat("closest playoff match in new jersey this season");
+    expect(s.headline).toBeUndefined();
+    expect(s.scope).toContain("Playoff matches");
+  });
+  it("a comeback needs the auto points: none on record is said with the rule", async () => {
+    expect((await stat("biggest comeback in california this season")).none).toMatch(/^None of the 2 played matches in California in 2025–26 is one: a comeback is a match won/);
+  });
+});
+
 describe("forecasts", () => {
   it("a team at a named event: before and after side by side, Predict open on it", async () => {
     for (const q of ["predicted chances of 4215 garden qualifier", "4215 garden qualifier prediction", "garden qualifier forecast for hypnotic robotics"]) {
