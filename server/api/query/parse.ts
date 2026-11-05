@@ -64,6 +64,8 @@ export interface ParseContext {
 }
 
 type Tok = { w: string; typed: string; used: boolean };
+/** The one-word filler phrases ("the", "a"): read before a name that starts with one. */
+const FILLER_WORDS = new Set(LEXICON.filter((e) => e.words.length === 1 && e.syms.every((x) => x.k === "filler")).map((e) => e.words[0]));
 /** The kind words an event's name can end with. */
 const KIND_WORDS = new Set(["meet", "meets", "tournament", "tournaments", "event", "events", "competition", "competitions"]);
 /** The words before a number that make it a count ("top 5", "last 10") or a match's number ("match 3"). */
@@ -225,11 +227,18 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
       const pl = bare.length ? ctx.names.place(bare.map((t) => t.w).join(" "), bare.map((t) => t.typed).join(" ")) : null;
       if (pl) { p.place = { ...pl, typed: bare.map((t) => t.typed).join(" ") }; toks.slice(from, to + 1).forEach((t) => (t.used = true)); symbols.add("thing:event"); continue; }
     }
-    // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean".
-    const near = ctx.nearTeam && words().length >= 3 && !/^\d+$/.test(words()) ? await ctx.nearTeam(words()) : null;
-    if (near && !p.teams.some((t) => t.number === near.number)) {
-      p.teams.push({ number: near.number, name: near.name, typed: typed(), via: "near", at: from });
-      toks.slice(from, to + 1).forEach((t) => (t.used = true));
+    // A team's name nearly right ("hypnotc robotics"): the team, with a "Did you mean". A name can start with a word
+    // read as filler ("the roocats": The Robocats), so the words just before the run are tried with it first.
+    if (!ctx.nearTeam || words().length < 3 || /^\d+$/.test(words())) continue;
+    for (const k of [2, 1, 0]) {
+      const start = from - k;
+      if (start < 0 || toks.slice(start, from).some((t) => !FILLER_WORDS.has(t.w))) continue;
+      const span = toks.slice(start, to + 1);
+      const near = await ctx.nearTeam(span.map((t) => t.w).join(" "));
+      if (!near || p.teams.some((t) => t.number === near.number)) continue;
+      p.teams.push({ number: near.number, name: near.name, typed: span.map((t) => t.typed).join(" "), via: "near", at: start });
+      span.forEach((t) => (t.used = true));
+      break;
     }
   }
 

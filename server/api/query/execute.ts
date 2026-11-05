@@ -25,8 +25,14 @@ export interface PipelineOptions { full: boolean; pages: SearchPageLink[]; resol
 export async function pipelineAnswer(q: string, opts: PipelineOptions): Promise<SearchAnswer | null> {
   const p = await parseQuery(q, await parseContext(opts.now, opts.prefer));
   if (!p.complete || !p.intent) return null;
-  const a = await execute(p, opts);
+  let a = await execute(p, opts);
   if (!a) return null;
+  // A team's name typed nearly right: answered for that team, with the spelling to search for.
+  const near = p.teams.filter((t) => t.via === "near" && t.name);
+  if (near.length) {
+    const fixed = near.reduce((s, t) => s.replace(new RegExp(t.typed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), t.name!), q);
+    a = { ...a, step: "did-you-mean", didYouMean: fixed };
+  }
   // How the query was read, slot by slot: the card states the filters it applied.
   return { ...a, intent: { ...(a.intent ?? { kind: `pipeline-${p.intent}`, pattern: p.intent, met: true, understood: [] }), understood: describe(p) } };
 }

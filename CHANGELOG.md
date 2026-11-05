@@ -27,7 +27,7 @@ Search is now checked every day against questions it has never seen, built from 
 
 ### Changes
 - **Search eval.** Each run draws teams at random from the latest season and asks about them in many ways: every phrase search knows for "highest", "score" and the rest, the team by number or name, in any order, with or without "what is" and "?". Each answer is checked against the match tables: the record, the highest, lowest and average score, a year typed, a future year, no place added, a place and a week stated, a matchup's forecast with Predict open, a misspelled name. Every answer must come back within a second.
-- **Fixes it found.** A team name of seven words or more was never read whole, so its questions fell to the slow path (2.7 s, now about 30 ms). "Mean scoring for …" showed what "mean" means instead of the average. A team's name already looked up isn't searched for as an event again.
+- **Fixes it found.** A team name of seven words or more was never read whole, so its questions fell to the slow path (2.7 s, now about 30 ms). "Mean scoring for …" showed what "mean" means instead of the average. A team's name already looked up isn't searched for as an event again. A team's name with a letter missing ("the roocats") is that team, with a "Did you mean", when no other team's name is as close; when two are, search doesn't guess.
 
 ## 3.2.1 — 2026-11-04
 
