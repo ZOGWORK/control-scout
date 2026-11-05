@@ -116,6 +116,25 @@ to the slow legacy chain at 2.7 s, now 30 ms); "mean" in "mean scoring for …" 
 average; the event check searched again for every repeat of a name (now remembered per index, and skipped for words
 that start like no event's).
 
+## Match finder
+
+`server/api/query/matchFind.ts`: matches found by a measure, no team named. The place, the time, the match type
+(qualification, playoff, finals) and the kind of event ("at a league meet", "qualifiers") are filters; the measure is
+the order. Each measure is one rule, printed on the card under "How this is counted":
+
+| Measure | Said as | Rule |
+|---|---|---|
+| highest / lowest | "lowest scoring match", "highest scoring quals match" | the match's higher alliance score without penalties |
+| closest | "closest", "tightest", "smallest margin" | the difference in final scores, penalties in; a tie is closest |
+| most lopsided | "most lopsided", "blowout", "biggest score gap" | the same difference, largest first |
+| most penalties | "most penalty points" | both alliances' final scores less their points without penalties |
+| biggest upset | "upset", "underdog won" | the losing alliance's predicted chance before the match (the call saved live, else its replay); with no call saved, the larger summed season rating that lost |
+| biggest comeback | "comeback", "came back" | won by the alliance behind after auto, furthest behind first |
+
+No season said (or "this season") reads the season today is in; when it has no matches yet it reads the season
+before and says so: "No 2026–27 matches yet in California; showing 2025–26". A window ("this week") relaxes as
+everywhere else; a year said is never relaxed. "In the world", "worldwide" and "globally" mean every place.
+
 ## Held-out sets
 
 `npm run search:heldout` (`scripts/search-heldout.ts`) asks the questions people wrote for search and that search was

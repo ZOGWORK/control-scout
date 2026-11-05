@@ -142,7 +142,7 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   const kind = p.event ? eventKindOf(normalise(p.event.words)) : null;
   if (!p.teams.length && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
     if ((p.event && !kind) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
-    const plural = /(?:matches|games|scores|upsets|comebacks|blowouts)/.test(said);
+    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
       measure: FIND[intent] ?? "high", season: scope.season ?? seasonOfDate(searchToday(opts.now)), region: regionOf(p), level: p.level, finals: p.finals, kind,
