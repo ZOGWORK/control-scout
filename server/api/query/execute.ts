@@ -139,9 +139,11 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
     if (!found) return null;
     const stat = await forecastAt(p.teams.map((t) => ({ number: t.number, name: t.name })), found.ev, found.listed, opts.now ?? Date.now());
     const hits = (await Promise.all(p.teams.map(async (t) => (await opts.resolve(String(t.number))).hits.find((h) => h.kind === "team" && h.ref === String(t.number))))).filter((h): h is NonNullable<typeof h> => !!h);
-    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : [])).find((l) => l.label.startsWith("Open in Predict"));
+    // The search box's link to Predict; the page prints it once, as the card's own action, so not again under it.
+    const inCard = stat.blocks.some((b) => b.kind === "chance" && b.action);
+    const predictLink = stat.blocks.flatMap((b) => (b.kind === "links" ? b.items : b.kind === "chance" && b.action ? [b.action] : [])).find((l) => l.label.startsWith("Open in Predict"));
     return {
-      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
+      q: p.q, hits: hits.map((h) => ({ ...h, facts: undefined, events: undefined })), pages: predictLink && !(opts.full && inCard) ? [{ title: predictLink.label, href: predictLink.href }, ...opts.pages] : opts.pages,
       step: "deterministic", weak: false, understood: { kind: "question", label: stat.title, season: found.ev.season }, ...(opts.full ? { stat } : {}),
       intent: { kind: `stat-${stat.intent}`, pattern: `${p.teams.map(() => "[team]").join(" ")} predict [event]`, met: true, understood: [] },
     };

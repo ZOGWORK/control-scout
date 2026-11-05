@@ -12,6 +12,7 @@ import { Meter, StatTile, TONES, rankPc, type Tone } from "../../StatTile";
 import { OPR_CARDS, OPR_TONE, oprRankHint } from "../../oprCards";
 import { AnswerFrame, RelatedQuestions, repeats, statedSeason, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 import { rangeCaption } from "../../../shared/format";
+import { ChanceBar } from "./ChanceBar";
 
 const H3 = "mb-1.5 text-xs font-semibold text-muted-foreground";
 
@@ -167,6 +168,8 @@ function Block({ b }: { b: StatBlock }) {
       );
     case "related":
       return <RelatedQuestions queries={b.queries} title={b.title} />;
+    case "chance":
+      return <ChanceBar b={b} />;
   }
 }
 

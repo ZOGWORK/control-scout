@@ -281,7 +281,17 @@ describe("forecasts", () => {
       expect(s.headline, q).toMatchObject({ value: "1.3 → 1 wins", sub: expect.stringContaining("logged live before each match") });
       const t = s.blocks.find((b) => b.kind === "table");
       expect(t && t.kind === "table" && t.rows.map((r) => [r.cells.before, r.cells.after, r.cells.called]), q).toEqual([["70% · 140–100", "W 150–90", "Yes"], ["60% · 110–100", "L 80–120", "No"], ["55%", "Not played yet", "–"]]);
-      expect(a.pages[0], q).toMatchObject({ title: "Open in Predict: 4215 at Garden Qualifier", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+      // Predict is the card's own action (below), so the page lists it nowhere else; the search box keeps the link.
+      expect(a.pages.map((x) => x.title), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      expect((await searchAnswer(q, { limit: 25, full: false, now: NOW })).pages[0], q).toMatchObject({ title: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" });
+      // The chance on its 0–100% bar leads: the next match still to come (Q99, 55%), Predict its one action and
+      // printed nowhere else on the card.
+      expect(s.blocks[0], q).toMatchObject({ kind: "chance", p: 0.55, who: "4215", label: "to win the next match (Q99), before it's played", action: { label: "Open in Predict", href: "/predict?mode=advancement&season=2025&code=USNJQ1&team=4215" } });
+      const links = s.blocks.filter((b) => b.kind === "links").flatMap((b) => (b.kind === "links" ? b.items : []));
+      expect(links.map((l) => l.label), q).not.toContain("Open in Predict: 4215 at Garden Qualifier");
+      // The chance's percentage is printed once: no tile repeats it.
+      const tiles = s.blocks.flatMap((b) => (b.kind === "kpis" ? b.items.map((i) => i.value) : []));
+      expect(tiles, q).not.toContain("55%");
     }
   });
   it("two teams at an event: their meetings, before and after", async () => {
