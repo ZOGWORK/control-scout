@@ -636,13 +636,38 @@ export async function eventPageAnswer(q: string, prefer: ReadonlySet<string>, no
   return answer(q, { hits: [{ ...target, section: sec }, ...others], pages: pagesFor(q), understood: { kind: "names", label: `${tab} · ${target.title} (${seasonLabel(Number(s))})` } });
 }
 
+/** Two or three questions search answers about a team, each from what its records hold (a Worlds trip, an award, a
+ *  season of matches), the ones nearest what was asked first: a fallback's way on, never a dead end. */
+export async function teamSuggestions(team: number, asked: string): Promise<string[]> {
+  const played = await all<{ season: number }>("SELECT season FROM team_season_stats WHERE team = ? AND matches > 0 ORDER BY season DESC", [team]);
+  if (!played.length) return [];
+  const def = searchSeason();
+  const season = played.some((r) => r.season === def) ? def : played[0].season;
+  const worlds = !!(await get("SELECT 1 FROM team_event_stats s JOIN events e ON e.season = s.season AND e.code = s.code WHERE s.team = ? AND e.type = 'FIRSTChampionship' AND s.matches > 0 LIMIT 1", [team]));
+  const awards = !!(await get("SELECT 1 FROM awards WHERE team = ? LIMIT 1", [team]));
+  const S = seasonLabel(season);
+  const options = [
+    { q: `${team} worlds appearances`, near: /\b(?:worlds?|championships?|cmp|houston)\b/, has: worlds },
+    { q: `${team} awards`, near: /\b(?:awards?|inspire|won|win)\b/, has: awards },
+    { q: `${team} highest score ever`, near: /\b(?:scores?|points?|best|highest|match(?:es)?)\b/, has: true },
+    { q: `${team} best alliance partner`, near: /\b(?:partners?|alliances?|with|teammates?|opponents?|against)\b/, has: true },
+    { q: `${team} record ${S}`, near: /\b(?:record|wins?|loss(?:es)?|did|do)\b/, has: true },
+    { q: `${team} opr ${S}`, near: /\b(?:opr|good|strong|rating|rank)\b/, has: true },
+  ].filter((x) => x.has);
+  const near = options.filter((x) => x.near.test(asked));
+  // The asked-about ones first, then the season's record and OPR, then the rest.
+  const order = [...near, ...options.filter((x) => /record|opr/.test(x.q)), ...options];
+  return [...new Set(order.map((x) => x.q))].slice(0, 3);
+}
+
 /** Words that may trail a team's name without being part of it ("bad wolf robotics", "ultraviolet team nj"). */
 const NAME_TAIL = new Set(["robotics", "robot", "robots", "team", "teams", "ftc", "club", "the", "first", "tech", "challenge"]);
 
 /** The last stop before "no results": a team number in the query that's a real team, or a team's name with
  *  trailing words that aren't part of it. The team, and what wasn't read, said plainly. Null when neither. */
 export async function teamFallback(q: string, prefer: ReadonlySet<string>): Promise<SearchAnswer | null> {
-  const ws = squash(q).split(" ");
+  // "4215's": the team's number.
+  const ws = squash(q).split(" ").map((w) => w.replace(/^(\d{1,6})['’]s$/, "$1"));
   // A number that's a team.
   const nums = [...new Set(ws.filter((w) => /^\d{1,6}$/.test(w)))];
   const found: SearchHit[] = [];
@@ -655,8 +680,10 @@ export async function teamFallback(q: string, prefer: ReadonlySet<string>): Prom
     const left = ws.filter((w) => w !== hit.ref).join(" ");
     const section: SearchSection | undefined = /\b(?:partners?|alliances?|pick|picks|opponents?|played with|played against)\b/i.test(left) ? "matches"
       : /\bevents?\b/i.test(left) ? "history" : /\b(?:matches|match|games?|scores?)\b/i.test(left) ? "matches" : undefined;
-    const label = `${nameOf(hit)} · "${left}" isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ": the rest is on their page"}`;
-    return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label } });
+    // Never the query echoed back (cleaning has already changed its words): what search can show instead, plainly.
+    const label = `${nameOf(hit)} · This isn't answered directly yet${section ? `: their ${section === "history" ? "events" : "matches"} are on their page` : ""}`;
+    const suggest = await teamSuggestions(Number(hit.ref), left);
+    return answer(q, { hits: [{ ...hit, ...(section ? { section } : {}), match: "exact" }], pages: pagesFor(q), understood: { kind: "team", label }, ...(suggest.length ? { suggest } : {}) });
   }
   if (found.length > 1 || nums.length) return null;
   // A name with trailing words: the words dropped from the end (a state or region too) until a team's whole name is left.
@@ -892,7 +919,12 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   // A season named anywhere ("4215 profile 2024-25", "4215 2024-25 profile", "4215 record this season") is the season of
   // the card's numbers, and never part of the team's name. "This season" is the latest completed one, "last" the one before.
   const sm = new RegExp(`(?:^|\\s)(?:in\\s+|for\\s+)?${SEASON_WORDS}(?=\\s|$)`).exec(raw);
-  const t = sm ? squash(raw.replace(sm[0], " ")) : raw;
+  const full = sm ? squash(raw.replace(sm[0], " ")) : raw;
+  // A second question about the same team ("where is bad wolf from and what is their record"): its season number is
+  // asked too, and shown with the fact rather than under it.
+  const also = /\s+(?:and|&)\s+(?:what(?:'s| is| are| was| were)\s+|how\s+(?:is|was|are)\s+)?(?:their|its|the\s+team's)\s+(record|opr|rating|reliability)$/.exec(full);
+  const t = also ? full.slice(0, also.index) : full;
+  const alsoLabel: string | null = also ? ({ record: "Record", opr: "OPR", rating: "Rating", reliability: "Reliability" } as Record<string, string>)[also[1]] : null;
   const named = /^(?:what(?:'s| is)\s+)?(?:the\s+)?name\s+of\s+(.+)$/.exec(t);
   const said = /^where\s+(?:is|are)\s+(.+?)\s+(from|located|based)$/.exec(t)
     ?? /^what(?:'s| is| are)\s+(.+?)\s+(called)$/.exec(t)
@@ -976,6 +1008,8 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
     ...(st.reliability ? [{ label: `Reliability, ${S}`, values: [`${st.reliability.index} out of 100`], ...(st.reliability.fieldIndex != null ? { detail: `Field average ${st.reliability.fieldIndex}` } : {}) }] : []),
   ] : [];
   const related = ["record", "awards", "opr"].map((x) => `${hit.ref} ${x}`);
+  // The number asked with the fact ("… and what is their record"), when the team has one that season.
+  const asked2 = alsoLabel ? numbers.find((f) => f.label.startsWith(`${alsoLabel},`)) ?? null : null;
 
   if (facts.includes("summary")) {
     // One card, every line the team page's: who and where, rookie year, and the season's numbers.
@@ -1005,28 +1039,31 @@ export async function teamFactAnswer(q: string, prefer: ReadonlySet<string>): Pr
   const support: SearchCardFact[] = [
     ...(!facts.includes("place") && !from && place ? [factOf("place")] : []),
     ...(!facts.includes("region") && region ? [factOf("region")] : []),
-    ...numbers,
+    ...numbers.filter((f) => f !== asked2),
   ];
   const extra = { season, ...(support.length ? { support } : {}) };
   if (facts.length > 1) {
     // Each fact on its own line, named; one FIRST's listing doesn't have is said so on its line.
-    const what = facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])).join(" and ");
+    const what = [...facts.map((f, i) => (i ? TITLE[f].toLowerCase() : TITLE[f])), ...(alsoLabel ? [alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()] : [])].join(" and ");
     return answer(q, {
       hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
-      card: { kind: "info", title: what, team, facts: facts.map(factOf), related, ...extra, lines: facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }) },
+      card: { kind: "info", title: what, team, facts: [...facts.map(factOf), ...(asked2 ? [asked2] : [])], related, ...extra, lines: [...facts.map((f) => { const r = read(f); return { text: `${LABEL[f]}: ${r.text ?? "not in FIRST's listing"}`, ...(r.detail ? { detail: r.detail } : {}), href: `/teams/${hit.ref}` }; }), ...(asked2 ? [{ text: `${asked2.label}: ${asked2.values[0]}`, href: `/teams/${hit.ref}?season=${season}` }] : [])],
+        ...(alsoLabel && !asked2 ? { none: `${name} has no ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()} on record in ${S}.` } : {}) },
       understood: { kind: "team", label: `${name} · ${what}` },
     });
   }
   const { text, detail } = read(last);
-  const what = TITLE[last];
+  // A number asked with it names both ("Where they're from and record"); one the team doesn't have that season is said.
+  const what = alsoLabel ? `${TITLE[last]} and ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()}` : TITLE[last];
   // The card names the fact; its team is on the card already (card.team), so the page never says the team twice.
   const title = `${name} · ${what}`;
+  const alsoLine = asked2 ? [{ text: `${asked2.label}: ${asked2.values[0]}`, ...(asked2.detail ? { detail: asked2.detail } : {}), href: `/teams/${hit.ref}?season=${season}` }] : [];
   return answer(q, {
     hits: [{ ...hit, match: "exact" }], pages: pagesFor(q),
     card: {
-      kind: "info", title: what, team, facts: [factOf(last), ...(from ? [factOf("place")] : [])], related, ...extra,
-      lines: text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : from ? [{ text: from, detail: "Where they're from", href: `/teams/${hit.ref}` }] : [],
-      ...(text ? {} : { none: `FIRST's listing for ${name} has no ${what.toLowerCase()}.${from ? ` The team is from ${place}.` : ""}` }),
+      kind: "info", title: what, team, facts: [factOf(last), ...(from ? [factOf("place")] : []), ...(asked2 ? [asked2] : [])], related, ...extra,
+      lines: [...(text ? [{ text, ...(detail ? { detail } : {}), href: `/teams/${hit.ref}` }] : from ? [{ text: from, detail: "Where they're from", href: `/teams/${hit.ref}` }] : []), ...alsoLine],
+      ...(text && (!alsoLabel || asked2) ? {} : { none: [text ? "" : `FIRST's listing for ${name} has no ${TITLE[last].toLowerCase()}.${from ? ` The team is from ${place}.` : ""}`, alsoLabel && !asked2 ? `${name} has no ${alsoLabel === "OPR" ? alsoLabel : alsoLabel.toLowerCase()} on record in ${S}.` : ""].filter(Boolean).join(" ") }),
     },
     understood: { kind: "team", label: title },
   });

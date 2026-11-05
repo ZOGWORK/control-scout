@@ -4,8 +4,9 @@
 // over the season and its best season rating. Every number is a stored one the team page (or the filtered list)
 // already shows: team_season_stats, team_event_stats, the weekly ranking snapshots. Nothing is recomputed here; an
 // average of stored event OPRs is the only arithmetic, and it says so.
+import { EXCLUDED_TYPES } from "@control-scout/predict-engine";
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
-import type { Region } from "../../../../src/shared/regions.js";
+import { findRegions, regionLabel, type Region } from "../../../../src/shared/regions.js";
 import { dateRange, num, possessive, seasonLabel } from "../../../../src/shared/format.js";
 import { regionOf } from "../../../../src/shared/searchEventQuery.js";
 import { RANKED_MIN_MATCHES, WEEK_MS, weekOf } from "../../../../src/shared/rankings.js";
@@ -381,7 +382,20 @@ async function regionAnswer(f: OprRatingQuestion, team: Team, season: number, st
     more: by === "opr" ? { label: `View the ${r.name} list on the Teams page`, href: teamsHref(season, BOARD_STATS.opr, r) ?? rankingsHref(season, r) } : { label: `View the ${r.name} rankings`, href: rankingsHref(season, r) },
   };
   const lead = by === "opr" ? opr : rating ?? opr;
-  if (!st || !lead) return { ...b, none: `${who(team)} isn't on the ${r.name} ${by === "opr" ? "OPR" : by === "rating" ? "rankings" : "lists"} for ${S}: it needs ${RANKED_MIN_MATCHES}+ ${by === "opr" ? "matches" : "rated matches"} that season.` };
+  const list = by === "opr" ? "OPR" : by === "rating" ? "rankings" : "lists";
+  if (!st || !lead) {
+    // A place's lists rank the teams from there: a team from elsewhere is said to be, with its own place's question.
+    const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team.number]);
+    if (home && (home.country !== r.country || (home.state ?? "") !== r.state)) {
+      // Its region's own name (as its code is stored: "NSW" is New South Wales), which the question reads back;
+      // a code with no known name ("BZ") is said as its country, and only a known region gets the question.
+      const named = home.country ? findRegions(regionLabel(`${home.country}:${home.state ?? ""}`)).find((x) => x.country === home.country) : undefined;
+      const from = named?.name ?? home.country;
+      const ask = `${team.number} ${by === "opr" ? "opr rank" : by === "rating" ? "rating" : "rank"} in ${from} in ${S}`;
+      return { ...b, blocks: named ? [{ kind: "related", title: `Its own ${from} ${list}`, queries: [ask] }] : [], none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: ${from ? `it's a team from ${from}, and` : ""} the ${r.name} ${list} rank teams from ${r.name} only.` };
+    }
+    return { ...b, none: `${who(team)} isn't on the ${r.name} ${list} for ${S}: it needs ${RANKED_MIN_MATCHES}+ ${by === "opr" ? "matches" : "rated matches"} that season.` };
+  }
   const leadBy = by === "opr" || (by === "both" && !rating) ? "OPR" : "prediction rating";
   const sub = by === "both"
     ? [rating && opr ? `#${n(opr.rank)} of ${n(opr.of)} in ${r.name} by OPR` : null, st.opr.np.rank && st.opr.np.of ? `#${n(st.opr.np.rank)} of ${n(st.opr.np.of)} worldwide by OPR` : null, S].filter(Boolean).join(" · ")
@@ -411,8 +425,10 @@ async function worldsAnswer(f: OprRatingQuestion, team: Team, set: { events: Tea
   };
   if (!worlds.length) return { ...b, none: `${who(team)} hasn't played the FIRST Championship${asked != null ? ` in ${seasonLabel(asked)}` : ""} on record.` };
   const rows = await Promise.all([...worlds].reverse().map(async (e) => {
-    // Every event it played after this division, playoffs counted (the Worlds finals have no qualification matches).
-    const season = set.events.filter((x) => x.season === e.season && (x.matches > 0 || (x.record != null && x.record.wins + x.record.losses + x.record.ties > 0)));
+    // Every rated event it played after this division, playoffs counted (the Worlds finals have no qualification
+    // matches). An off-season event or a scrimmage after Worlds isn't rated (the stats job leaves those types out), so
+    // the season's rating is still the one it finished Worlds on.
+    const season = set.events.filter((x) => x.season === e.season && !EXCLUDED_TYPES.has(x.type ?? "") && (x.matches > 0 || (x.record != null && x.record.wins + x.record.losses + x.record.ties > 0)));
     const after = season.slice(season.findIndex((x) => x.code === e.code) + 1);
     const st = rating ? await seasonStats(e.season, team.number) : null;
     return { e, final: after.every((x) => x.type === CHAMPIONSHIP_TYPE), finals: after.length > 0, r: st?.rating ?? null };

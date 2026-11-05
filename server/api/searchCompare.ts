@@ -60,13 +60,18 @@ async function sideTeams(name: string, prefer: ReadonlySet<string>, best: boolea
   return top ? { best: Number(top.ref) } : null;
 }
 
+/** Words that say how or when, never which team: a side made only of them is no team's name. */
+const COMMON_WORDS = /^(?:when|where|what|how|if|they|them|their|it|its|we|us|our|you|he|she|do|does|did|is|are|was|were|the|a|an|in|at|by|of|lose|loses|losing|lost|loss|losses|win|wins|winning|won|beat|beats|beaten|best|worst|better|worse|good|bad|high|low|score|scores|scored|average|play|plays|played|matches|match)$/;
+
 async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Side> {
   // Topic and filler words name no team ("… history").
   const words = (searchIntent(typed)?.rest ?? typed).trim().split(/\s+/).filter(Boolean);
   // The whole side first, then without its last words ("6980 please" → "6980"): an exact name or number, then
   // search's best team.
   let found: Awaited<ReturnType<typeof sideTeams>> = null;
-  for (const best of [false, true]) {
+  // A side of only question and result words ("when they lose") names a team only by that exact name, never by
+  // search's closest one ("Raiders of the Lost Bot", "The Loose Screws").
+  for (const best of words.length && words.every((w) => COMMON_WORDS.test(w.toLowerCase())) ? [false] : [false, true]) {
     for (let n = words.length; n >= 1 && !found; n--) found = await sideTeams(words.slice(0, n).join(" "), prefer, best);
     if (found) break;
   }

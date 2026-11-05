@@ -22,8 +22,13 @@ export interface Scope {
   championship?: boolean;
   /** Only region (state) championships. */
   states?: boolean;
-  /** One event ("season:CODE"), and its name for the chips. */
-  event?: { season: number; code: string; name: string };
+  /** One event ("season:CODE"), and its name for the chips. `codes`: every event the words named that the team played
+   *  in that season (a championship's division and its finals, an AM and a PM meet), read as one; `code` is the one
+   *  whose rank and OPR the answer shows. `absent`: the team played none of them (the answer says so; "never": it has
+   *  none of that kind on record, as a state championship). */
+  event?: { season: number; code: string; name: string; codes?: string[]; absent?: boolean | "never" };
+  /** Events held at one venue, any season ("River Dell High School"): their "season:CODE" keys. */
+  venue?: { name: string; keys: string[] };
   /** Events in one region (by the event's own state and country), or with `outside`, every event outside it (the
    *  team's home state: "out-of-state events"). */
   place?: { country: string; state: string; name: string; outside?: boolean };
@@ -42,7 +47,9 @@ export const statesClause = (s: Scope) => (e: EventFacts) => !s.states || e.type
 /** Official events only: always on for scores and records. */
 export const officialClause = () => (e: EventFacts) => (OFFICIAL_TYPES as readonly string[]).includes(e.type ?? "");
 /** Event clause. */
-export const eventClause = (s: Scope) => (e: EventFacts) => !s.event || (e.season === s.event.season && e.code === s.event.code);
+export const eventClause = (s: Scope) => (e: EventFacts) => !s.event || (e.season === s.event.season && (s.event.codes ?? [s.event.code]).includes(e.code));
+/** Venue clause. */
+export const venueClause = (s: Scope) => (e: EventFacts) => !s.venue || s.venue.keys.includes(`${e.season}:${e.code}`);
 /** Place clause (the event's region). */
 export const placeClause = (s: Scope) => (e: EventFacts) => !s.place || (e.country === s.place.country && e.state === s.place.state) !== !!s.place.outside;
 /** Match-type clause (qualifications or playoffs). */
@@ -52,7 +59,7 @@ export const allianceClause = (s: Scope) => (m: { alliance: string }) => !s.alli
 
 /** Every event-level clause of a scope, as one test. */
 export function eventInScope(s: Scope): (e: EventFacts) => boolean {
-  const cs = [seasonClause(s), championshipClause(s), statesClause(s), officialClause(), eventClause(s), placeClause(s)];
+  const cs = [seasonClause(s), championshipClause(s), statesClause(s), officialClause(), eventClause(s), venueClause(s), placeClause(s)];
   return (e) => cs.every((c) => c(e));
 }
 
@@ -69,7 +76,14 @@ export function eventSql(s: Scope, alias = "e"): { sql: string; args: (string | 
   if (s.season != null) { parts.push(`${alias}.season = ?`); args.push(s.season); }
   if (s.championship) { parts.push(`${alias}.type = ?`); args.push(CHAMPIONSHIP_TYPE); }
   if (s.states) { parts.push(`${alias}.type = ?`); args.push(STATES_TYPE); }
-  if (s.event) { parts.push(`${alias}.season = ? AND ${alias}.code = ?`); args.push(s.event.season, s.event.code); }
+  if (s.event) {
+    const codes = s.event.codes ?? [s.event.code];
+    parts.push(`${alias}.season = ? AND ${alias}.code IN (${codes.map(() => "?").join(", ")})`); args.push(s.event.season, ...codes);
+  }
+  if (s.venue) {
+    parts.push(s.venue.keys.length ? `(${s.venue.keys.map(() => `(${alias}.season = ? AND ${alias}.code = ?)`).join(" OR ")})` : "0 = 1");
+    for (const k of s.venue.keys) { const [season, code] = k.split(":"); args.push(Number(season), code); }
+  }
   if (s.place) { parts.push(`${s.place.outside ? "NOT " : ""}(COALESCE(${alias}.country, '') = ? AND COALESCE(${alias}.state, '') = ?)`); args.push(s.place.country, s.place.state); }
   return { sql: parts.length ? parts.join(" AND ") : "1 = 1", args };
 }
@@ -77,7 +91,7 @@ export function eventSql(s: Scope, alias = "e"): { sql: string; args: (string | 
 /** The scope in words, as chips: "FIRST Championship (Worlds)", "2025–26", "Playoffs", "Red alliance". */
 export function scopeChips(s: Scope): string[] {
   return [
-    s.event ? s.event.name : "",
+    s.event ? s.event.name : s.venue ? `At ${s.venue.name}` : "",
     s.championship ? "FIRST Championship (Worlds)" : s.states ? "State championships" : "",
     s.place ? `Events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "",
     s.season != null ? seasonLabel(s.season) : s.event ? "" : "All seasons",
@@ -90,7 +104,7 @@ export function scopeChips(s: Scope): string[] {
  *  all. The match type is said first, so a title always names it ("Record in quals in 2025–26"). */
 export function scopePhrase(s: Scope): string {
   const level = s.level === "qual" ? " in quals" : s.level === "playoff" ? " in playoffs" : "";
-  const where = s.event ? ` at ${s.event.name}` : s.championship ? " at Worlds" : s.states ? " at state championships" : s.place ? ` at events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "";
+  const where = s.event ? ` at ${s.event.name}` : s.venue ? ` at ${s.venue.name}` : s.championship ? " at Worlds" : s.states ? " at state championships" : s.place ? ` at events ${s.place.outside ? "outside" : "in"} ${s.place.name}` : "";
   const when = s.season != null && !s.event ? ` in ${seasonLabel(s.season)}` : "";
   return `${level}${where}${when}`;
 }

@@ -115,6 +115,9 @@ export interface SearchUnderstood {
   /** The hits are a labelled fallback, not the answer: "No league meets at X in New Jersey — showing all league meets
    *  in New Jersey instead". Show it above the list. */
   fallback?: string;
+  /** The query as search read it, when a layer said a long or wordy one the short way ("did 4215 win any awards last
+   *  season" → "4215 awards last season"): a quiet "Showing: …" line, never the heading (server/api/searchLayers.ts). */
+  showing?: string;
 }
 
 /** A site page a whole query word names ("records" → the records pages): listed apart, below the results. */
@@ -151,6 +154,9 @@ export interface SearchAnswer {
   stat?: StatAnswer;
   /** What the query was understood as (always set by the server's answer). */
   understood?: SearchUnderstood;
+  /** A team found but its question not answered directly: two or three questions search does answer about it, each
+   *  from what its records hold ("4215 worlds appearances", "4215 record 2025–26"), shown as taps. */
+  suggest?: string[];
 }
 
 /** A question's answer (server/api/searchQuestions.ts): each line a real record, linked to where it's shown. */
@@ -161,6 +167,8 @@ export interface SearchCard {
   /** The team it's about; none for a whole season's ("highest scores in BIOBUZZ"). */
   team?: { number: number; name: string | null };
   lines: SearchCardLine[];
+  /** "When was the first (or last) time": that trip in words, from `lines` ("First went to Worlds in 2021–22 (Franklin)"). */
+  headline?: string;
   /** "How many times": how many championships `lines` holds (Worlds and states questions). */
   count?: number;
   /** Nothing found for what was asked, said plainly ("No Worlds appearances found in recorded event history"). */
@@ -181,7 +189,15 @@ export interface SearchCard {
   /** Under the facts asked, the rest of the team's card: where it's from, its region, and the season's record, OPR,
    *  rating and reliability as the team page shows them (only what `facts` doesn't already hold). */
   support?: SearchCardFact[];
+  /** An award-at-event answer's event, which /search links to on its Awards tab. */
+  event?: { season: number; code: string; name: string };
+  /** The award asked about ("Inspire", FIRST's award type): its places draw as a podium. */
+  award?: string;
+  /** Every award the event gave, in the event page's order (its Awards tab), so the answer lists them all. */
+  awards?: SearchCardAward[];
 }
+/** One award an event gave, as its Awards tab lists it: `name` as FIRST names it ("Inspire Award 2nd Place"). */
+export interface SearchCardAward { type: string; placement: number; team: number; teamName: string | null; name: string | null }
 /** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */
 export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
