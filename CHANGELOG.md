@@ -15,6 +15,21 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
+## 3.2.7 — 2026-11-05
+
+Search finds matches by what made them stand out: the closest, the most lopsided, the biggest upset or comeback.
+
+### Highlights
+- [fixes] "Closest match in Romania last month" answers with the match
+- [fixes] "Biggest upset in New Jersey" and "best comeback in Michigan" work
+- [fixes] Filter by quals, playoffs, finals or league meets in any match question
+- [fixes] No season said reads this season, or says it's showing last season
+
+### Search
+- **Match finder.** Questions about matches with no team named ("lowest scoring match in Texas last week", "most lopsided match in Ohio", "match with the most penalty points in New Jersey", "closest finals match in California last year", "highest scoring match at a league meet") are answered with the match and every filter on the card. One match asked for is the headline, with the next few in a table under it. Matches asked for ("closest matches") are one ranked table. Each match is printed once. Upsets and comebacks are worked out by a rule printed on the card under "How this is counted". An upset is only a favourite's loss, and the finals include a double-elimination bracket's grand final. (#PRNUM)
+- **Season.** A question about a place or everyone with no season said reads the current season (the highest score too), and when that has none of what was asked yet it shows last season and says so. "Last season" is the one before the current one. (#PRNUM)
+- **Everywhere.** "In the world", "worldwide" and "globally" mean every place, never the FIRST Championship. (#PRNUM)
+
 ## 3.2.5 — 2026-11-05
 
 The whole site is pink now, with dog doodles drawn across the background.

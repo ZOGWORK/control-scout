@@ -17,7 +17,9 @@ export type PipelineIntent =
   // Two teams.
   | "head-to-head" | "shared-matches" | "two-predict" | "opr-vs" | "rating-vs" | "compare" | "h2h-wins" | "awards-vs"
   // No team.
-  | "top-matches" | "leaderboard";
+  | "top-matches" | "leaderboard"
+  // No team: matches found by a measure (./matchFind.ts).
+  | "low-matches" | "close-matches" | "lopsided-matches" | "penalty-matches" | "upset-matches" | "comeback-matches";
 
 export interface IntentRule {
   id: PipelineIntent;
@@ -128,11 +130,19 @@ export const INTENTS: IntentRule[] = [
   // No team: the best matches anywhere, and ranked lists of teams.
   R("top-matches", 0, ["agg:max", "metric:score"], ["thing:match", "nopen"]),
   R("top-matches", 0, ["agg:max", "thing:match"], ["metric:score", "nopen"]),
+  // Matches by a measure ("and" is "with": "the match with the most penalty points").
+  R("low-matches", 0, ["agg:min", "metric:score"], ["thing:match", "nopen", "and"]),
+  R("close-matches", 0, ["agg:closest"], ["thing:match", "metric:score", "metric:margin", "metric:win", "outcome:W", "and"]),
+  R("close-matches", 0, ["agg:min", "metric:margin"], ["thing:match", "metric:win", "metric:score", "and"]),
+  R("lopsided-matches", 0, ["agg:max", "metric:margin"], ["thing:match", "metric:win", "metric:score", "outcome:W", "and"]),
+  R("penalty-matches", 0, ["agg:max", "metric:penalty"], ["thing:match", "metric:score", "and"]),
+  R("upset-matches", 0, ["metric:upset"], ["agg:max", "thing:match", "metric:win", "metric:margin", "metric:score", "and"]),
+  R("comeback-matches", 0, ["metric:comeback"], ["agg:max", "thing:match", "metric:win", "and"]),
   R("leaderboard", 0, ["agg:max", "thing:team"], ["metric:opr", "metric:rating", "metric:winrate", "metric:auto", "metric:teleop", "metric:endgame", "metric:record", "metric:win", "prep:by"]),
 ];
 
 /** Symbols that are slots, never what is asked: always taken in. */
-export const SLOT_SYMBOLS = /^(?:level|alliance|worlds|states|award|prep|filler)(?::|$)/;
+export const SLOT_SYMBOLS = /^(?:level|finals|alliance|worlds|states|award|prep|filler)(?::|$)/;
 
 export interface IntentPick { rule: IntentRule; unexplained: string[] }
 
@@ -150,6 +160,7 @@ export function pickIntent(symbols: Set<string>, teams: number, opts: { event: b
     if (!!rule.matchNo !== !!opts.matchNo && (rule.matchNo || rule.event)) continue;
     if (!rule.all.every((s) => symbols.has(s))) continue;
     const took = new Set([...rule.all, ...(rule.opt ?? [])]);
+    // A match type is a scope for every rule but the match-type lists themselves.
     // A match type is a scope for every rule but the match-type lists themselves.
     const unexplained = asked.filter((s) => !took.has(s) && !/^level:/.test(s));
     const score = rule.all.length * 2 + (rule.opt ?? []).filter((s) => symbols.has(s)).length - unexplained.length * 3 + (rule.n ? 1 : 0) + (rule.matchNo ? 1 : 0);

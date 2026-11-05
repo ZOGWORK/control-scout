@@ -27,6 +27,8 @@ export interface Parsed {
   place: (Place & { typed: string }) | null;
   time: TimeSlot | null;
   level: "qual" | "playoff" | null;
+  /** The finals only ("closest finals match"), a playoff level too. */
+  finals: boolean;
   alliance: "red" | "blue" | null;
   worlds: boolean;
   states: boolean;
@@ -110,7 +112,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
   });
   const symbols = new Set<string>();
   const p: Parsed = {
-    q: raw, teams: [], event: null, place: null, time, level: null, alliance: null, worlds: false, states: false, award: null, agg: null,
+    q: raw, teams: [], event: null, place: null, time, level: null, finals: false, alliance: null, worlds: false, states: false, award: null, agg: null,
     n: null, matchNumber: null, noPenalties: false, symbols: [], intent: null, rule: null, leftover: [], unexplained: [], complete: false,
   };
   const lexAt = (i: number) => LEXICON.find((e) => e.words.every((w, j) => toks[i + j] && !toks[i + j].used && toks[i + j].w === w));
@@ -182,6 +184,7 @@ export async function parseQuery(raw: string, ctx: ParseContext): Promise<Parsed
     if (e.words.length === 1 && e.syms.length === 1 && e.syms[0].k === "alliance") toks[i].alliance = true;
     for (const s of e.syms) {
       if (s.k === "level") p.level = s.v;
+      else if (s.k === "finals") p.finals = true;
       else if (s.k === "alliance") { p.alliance = s.v; e.words.forEach((_, j) => (toks[i + j].side = s.v)); }
       else if (s.k === "worlds") p.worlds = true;
       else if (s.k === "states") p.states = true;
@@ -319,7 +322,7 @@ export function describe(p: Parsed): string[] {
     p.worlds ? "FIRST Championship" : p.states ? "State championship" : "",
     p.place ? `${p.place.kind === "city" ? "From" : "In"} ${p.place.name}` : "",
     p.time ? `Time: ${p.time.label}` : "",
-    p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
+    p.finals ? "Finals" : p.level ? (p.level === "qual" ? "Qualification matches" : "Playoff matches") : "",
     p.alliance ? `${p.alliance === "red" ? "Red" : "Blue"} alliance` : "",
     p.award ? `Award: ${p.award}` : "",
     p.n != null ? `Limit: ${p.n}` : "",
