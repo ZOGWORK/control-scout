@@ -6,10 +6,12 @@
 // already returned; nothing is typed in or guessed.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, CalendarDays, MapPin } from "lucide-react";
+import { ArrowRight, Award, CalendarDays, Flag, MapPin } from "lucide-react";
 import { seasonLabel } from "../../../lib/format";
 import { smoothBehavior } from "../../../lib/pageScroll";
 import { cn } from "../../cn";
+import { TONES, type Tone } from "../../StatTile";
+import { OPR_TONE } from "../../oprCards";
 import type { Appearance, Stat, Standing } from "./records";
 import { AnswerFrame, useAnswerSeason, useTeamProfile } from "./TeamAnswer";
 
@@ -83,15 +85,21 @@ export function Timeline({ apps }: { apps: Appearance[] }) {
   );
 }
 
+/** A summary number's colour, as the team page colours the same number: a count or OPR the accent, a rank violet, a
+ *  record or win rate the result green, a streak sky, a division teal. The tile stays the card's own (no tinted band). */
+function statTone(label: string): Tone {
+  return /rank/i.test(label) ? "violet" : /record|win rate/i.test(label) ? "emerald" : /consecutive/i.test(label) ? "sky" : /division/i.test(label) ? "teal" : OPR_TONE.np;
+}
+
 export function StatBanner({ stats }: { stats: Stat[] }) {
   if (!stats.length) return null;
   return (
     // Phones: one row that scrolls sideways, three blocks to a screen; from md up a grid.
     <dl className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:p-0" data-stat-banner>
       {stats.map((s) => (
-        <div key={s.label} className="w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-xl border border-border bg-card px-3.5 py-3 max-md:px-2.5 md:w-auto">
+        <div key={s.label} className="w-[calc((100%-1rem)/3)] min-w-0 shrink-0 snap-start rounded-xl border border-border bg-card px-3.5 py-3 max-md:px-2.5 md:w-auto" data-tone={statTone(s.label)}>
           <dt className="text-[11px] text-muted-foreground">{s.label}</dt>
-          <dd className="mt-1 break-words font-display text-2xl font-semibold tabular-nums leading-tight text-foreground">{s.value}</dd>
+          <dd className={cn("mt-1 break-words font-display text-2xl font-semibold tabular-nums leading-tight", TONES[statTone(s.label)].text)}>{s.value}</dd>
           {s.note && <dd className="text-[11px] text-muted-foreground">{s.note}</dd>}
         </div>
       ))}
@@ -131,29 +139,37 @@ export function QualityBanner({ s }: { s: Standing }) {
   );
 }
 
-const PILL = "inline-flex items-baseline gap-1 rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px]";
+const PILL = "inline-flex items-baseline gap-1 rounded-md px-1.5 py-0.5 text-[11px]";
+/** An award as the team page's event rows show one (the soft badge, its icon); "Played the finals" in the finals' sky. */
+const AWARD_CHIP = "inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent-text";
+const FINALS_CHIP = cn(PILL, "items-center font-medium", TONES.sky.chip);
 
 /** One championship trip as a card: its division as the title, the event, place and season as badges, its numbers
  *  as pills. The whole card opens the event on the team; the timeline's nodes land here. */
-export function AppearanceCard({ a }: { a: Appearance }) {
+export function AppearanceCard({ a, marked }: { a: Appearance; marked?: "first" | "last" }) {
   const body = (
     <>
-      {/* The question asks when: the season leads the card, ahead of the division. */}
-      <p className="leading-snug text-foreground group-hover:text-accent-text" data-card-title><b className="font-display text-lg font-semibold tabular-nums" data-season>{a.seasonLabel}</b><span className="text-muted-foreground"> · </span><span className="font-medium">{a.title}</span></p>
+      {/* The trip a "first time" or "last time" question named: marked, in the highlight's sky. */}
+      {marked && <p className="mb-2"><span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", TONES.sky.chip)} data-marked={marked}><Flag className="size-3" aria-hidden />{marked === "first" ? "First trip" : "Latest trip"}</span></p>}
+      {/* The question asks when: the season (its years and game) leads the card, ahead of the division. */}
+      <p className="leading-snug text-foreground group-hover:text-accent-text" data-card-title><b className="font-display text-lg font-semibold tabular-nums" data-season>{a.seasonLabel}</b>{a.game && <span className={cn("ml-1.5 text-sm font-semibold tracking-wide", TONES.sky.text)} data-game>{a.game}</span>}<span className="text-muted-foreground"> · </span><span className="font-medium">{a.title}</span></p>
       <p className="mt-1.5 flex flex-wrap gap-1 text-[11px]">
         {[...a.badges, a.place].filter(Boolean).map((b) => <span key={b} className="rounded-full border border-border bg-muted/50 px-2 py-0.5 font-medium text-foreground/80">{b}</span>)}
       </p>
       {a.when && <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="size-3.5 shrink-0" aria-hidden />{a.when}{a.place && <><MapPin className="ml-1.5 size-3.5 shrink-0" aria-hidden />{a.place}</>}</p>}
       <p className="mt-2 flex flex-wrap gap-1" data-pills>
-        {a.rank != null && <span className={PILL}><span className="text-muted-foreground">Rank</span><b className="tabular-nums text-foreground">#{a.rank}</b></span>}
-        {a.record && <span className={PILL}><span className="text-muted-foreground">Record</span><b className="tabular-nums text-foreground">{a.record.replace(/-/g, "–")}</b></span>}
-        {a.opr != null && <span className={PILL}><span className="text-muted-foreground">OPR</span><b className="tabular-nums text-foreground">{a.opr.toFixed(1)}</b></span>}
-        {a.more.map((m) => <span key={m} className={cn(PILL, "font-medium text-foreground")}>{m}</span>)}
+        {/* The team page's colours for the same numbers: a rank violet, a record the result green, OPR its tile's. */}
+        {a.rank != null && <span className={cn(PILL, TONES.violet.chip)} data-pill="rank"><span className="opacity-80">Rank</span><b className="tabular-nums">#{a.rank}</b></span>}
+        {a.record && <span className={cn(PILL, TONES.emerald.chip)} data-pill="record"><span className="opacity-80">Record</span><b className="tabular-nums">{a.record.replace(/-/g, "–")}</b></span>}
+        {a.opr != null && <span className={cn(PILL, TONES[OPR_TONE.np].chip)} data-pill="opr"><span className="opacity-80">OPR</span><b className="tabular-nums">{a.opr.toFixed(1)}</b></span>}
+        {a.more.map((m) => (m === "Played the finals"
+          ? <span key={m} className={FINALS_CHIP}>{m}</span>
+          : <span key={m} className={AWARD_CHIP} data-award><Award className="size-3" aria-hidden />{m}</span>))}
       </p>
       {a.href && <span className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-accent-text group-hover:underline max-sm:hidden" data-cta>View event<ArrowRight className="size-3.5" aria-hidden /></span>}
     </>
   );
-  const cls = "lift group block scroll-mt-24 rounded-xl border border-border bg-card p-4 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-info data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-info)_35%,transparent)]";
+  const cls = cn("lift group block scroll-mt-24 rounded-xl border p-4", marked ? TONES.sky.box : "border-border bg-card", " outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent transition-shadow data-[highlight=on]:border-info data-[highlight=on]:shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-info)_35%,transparent)]");
   return a.href
     ? <Link id={a.id} to={a.href} className={cls} data-appearance={a.season}>{body}</Link>
     : <div id={a.id} tabIndex={-1} className={cls} data-appearance={a.season}>{body}</div>;
@@ -161,14 +177,15 @@ export function AppearanceCard({ a }: { a: Appearance }) {
 
 /** A team's Worlds or states trips as one answer card: the team's header (from its team page), a card per trip,
  *  newest first (a "when" question reads from the latest). */
-/** `headline`: the trip a "first time" or "last time" question asked about, said first ("First went to Worlds in 2023–24 (Franklin)"). */
-export function AppearancesAnswer({ team, title, heading, headline, apps }: { team?: { number: number; name: string | null }; title: string; heading?: string | null; headline?: string; apps: Appearance[] }) {
+/** `headline`: the trip a "first time" or "last time" question asked about, said first ("First went to Worlds in 2023–24 ·
+ *  CENTERSTAGE, Franklin Division"); `trip` marks that trip's card. */
+export function AppearancesAnswer({ team, title, heading, headline, trip, apps }: { team?: { number: number; name: string | null }; title: string; heading?: string | null; headline?: string; trip?: { which: "first" | "last"; season: number }; apps: Appearance[] }) {
   const profile = useTeamProfile(team?.number, useAnswerSeason(null));
   return (
     <AnswerFrame teams={team ? [team] : undefined} profile={profile} title={title} hideTitle={!!heading?.toLowerCase().includes(title.toLowerCase())}
       sub={`${apps.length} ${apps.length === 1 ? "trip" : "trips"} in the team's recorded event history, newest first`} data={{ "data-section": "records" }}>
       {headline && <p className="mb-3 text-base font-semibold text-foreground" data-headline>{headline}</p>}
-      <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} />)}</div>
+      <div className="grid gap-3 sm:grid-cols-2">{[...apps].reverse().map((a) => <AppearanceCard key={a.id} a={a} marked={trip?.season === a.season ? trip.which : undefined} />)}</div>
     </AnswerFrame>
   );
 }

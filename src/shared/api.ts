@@ -169,6 +169,8 @@ export interface SearchCard {
   lines: SearchCardLine[];
   /** "When was the first (or last) time": that trip in words, from `lines` ("First went to Worlds in 2021–22 (Franklin)"). */
   headline?: string;
+  /** The trip `headline` names: its season, so the page marks that trip's card. */
+  trip?: { which: "first" | "last"; season: number };
   /** "How many times": how many championships `lines` holds (Worlds and states questions). */
   count?: number;
   /** Nothing found for what was asked, said plainly ("No Worlds appearances found in recorded event history"). */
@@ -201,7 +203,8 @@ export interface SearchCardAward { type: string; placement: number; team: number
 /** One listing fact: its name, its values exactly as FIRST lists them (none: not in the listing), and a note. */
 export interface SearchCardFact { label: string; values: string[]; detail?: string; link?: boolean }
 /** `detail`: when and where ("2022–23 · Mar 12, 2023 · Rockaway, NJ"); `results`: how it went, one point each ("Ranked #1", "OPR 102.6"). */
-export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string }
+/** `game`: the season's game name ("CENTERSTAGE"), for a line about one season's event. */
+export interface SearchCardLine { text: string; detail?: string; results?: string[]; href?: string; game?: string }
 
 /** An understood intent (server/api/searchIntents.ts): counted as `kind` and `pattern` (placeholders, no query text). */
 export interface SearchIntentNote {

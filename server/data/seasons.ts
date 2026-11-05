@@ -36,6 +36,12 @@ export const PREDICT_SEASONS = SEASON_NUMBERS.filter((s) => s >= FIRST_PREDICT_S
 export const isLegacy = (s: number) => s < FIRST_PREDICT_SEASON;
 export const seasonInfo = (s: number) => SEASONS.find((x) => x.season === s) ?? { season: s, game: `${s}–${String((s + 1) % 100).padStart(2, "0")}`, label: `${s}–${String((s + 1) % 100).padStart(2, "0")}` };
 
+/** A season's game name ("CENTERSTAGE" for 2023), or null for a season not listed: the one source every answer
+ *  card names a season's game from. */
+export const gameOf = (s: number): string | null => SEASONS.find((x) => x.season === s)?.game ?? null;
+/** "2023–24 CENTERSTAGE": a season by its years and its game (its years alone for a season not listed). */
+export const seasonWithGame = (s: number): string => { const g = gameOf(s); return g ? `${seasonInfo(s).label} ${g}` : seasonInfo(s).label; };
+
 /** The FTC season a date falls in (seasons kick off in September). */
 export function seasonForDate(d: Date): number {
   return d.getUTCMonth() >= 8 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;

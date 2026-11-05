@@ -87,7 +87,7 @@ describe("the answer cards", () => {
     expect(parseQuestion("did 4215 go to the league championship")).toBeNull();
     const a = await searchAnswer("how many times did hypnotic go to states");
     expect(a.card).toMatchObject({ kind: "states", title: "State championships", count: 1 });
-    expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX", results: ["Ranked #1", "6-0-0 in quals", "OPR 50.0", "Winning Alliance", "Design 2nd"], href: "/events/2023/USNJCMP?team=4215" });
+    expect(a.card!.lines[0]).toEqual({ text: "New Jersey State Championship", detail: "2023–24 · Mar 17, 2024 · Houston, TX", results: ["Ranked #1", "6-0-0 in quals", "OPR 50.0", "Winning Alliance", "Design 2nd"], href: "/events/2023/USNJCMP?team=4215", game: "CENTERSTAGE" });
     // None in a year asked: said plainly, with its real ones under it, and no count.
     const none = (await searchAnswer("did hypnotic go to states in 2025")).card!;
     expect(none).toMatchObject({ lines: [], none: "No state championship in 2025 found in Hypnotic Robotics' recorded event history." });
