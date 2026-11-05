@@ -17,7 +17,7 @@ fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 
 ## 3.2.3 — 2026-11-05
 
-Failed searches are grouped by how they failed, so the words search misses most rise to the top. (#PRNUM)
+Failed searches are grouped by how they failed, so the words search misses most rise to the top. (#721)
 
 ### Highlights
 - [report] Failed searches grouped by pattern, not one entry per query
