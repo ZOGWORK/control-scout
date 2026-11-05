@@ -70,15 +70,18 @@ const before = arg("--compare");
 if (before) {
   const was = new Map(readFileSync(before, "utf8").split("\n").filter(Boolean).map((l) => { const o = JSON.parse(l); return [o.q as string, o]; }));
   let changed = 0;
+  // A query the earlier run lacks (or one that failed either time) was never compared: the check is incomplete.
+  const missing = rows.filter((r) => !was.has(r.q) || !r.reading).map((r) => r.q);
   for (const r of rows) {
     const a = was.get(r.q);
-    if (!a) continue;
+    if (!a || !r.reading) continue;
     const now = { q: r.q, ...r.reading };
     if (JSON.stringify(a) === JSON.stringify(now)) continue;
     changed++;
     const keys = Object.keys({ ...a, ...now }).filter((k) => JSON.stringify(a[k]) !== JSON.stringify((now as Record<string, unknown>)[k]));
     console.log(`CHANGED ${JSON.stringify(r.q)}: ${keys.map((k) => `${k} ${JSON.stringify(a[k])} → ${JSON.stringify((now as Record<string, unknown>)[k])}`).join("; ")}`);
   }
-  console.log(`${changed} of ${rows.length} answers changed`);
-  if (changed) process.exitCode = 1;
+  console.log(`${changed} of ${rows.length - missing.length} answers compared changed`);
+  if (missing.length) console.log(`NOT COMPARED: ${missing.length} (not in ${before}, or no answer this run): ${missing.slice(0, 10).map((q) => JSON.stringify(q)).join(", ")}${missing.length > 10 ? ", …" : ""}`);
+  if (changed || missing.length) process.exitCode = 1;
 }

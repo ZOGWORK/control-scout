@@ -186,8 +186,10 @@ const SEARCH_PATH = /^\/api\/search(\?|$)/;
 const serverUp = () => navigator.onLine !== false && answeredSinceFail && Math.abs(Date.now() - lastAnswerAt) < 60_000;
 
 /** A search while the server is up: SEARCH_SLOW_MS a try, two tries. Twice no network at all is no signal after all
- *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly. */
-async function searchOnline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number }) | undefined, tries = 2): Promise<T> {
+ *  (saved data answers, as for any read); a server error of 500+ stands after the retry; slow is said plainly.
+ *  `slowBefore`: a try already ran out of time (a page's first search, respond): the server is there, so these
+ *  `tries` finding no network still end slow, never in saved data. */
+async function searchOnline<T>(path: string, init: (RequestInit & { json?: unknown; _tries?: number }) | undefined, tries = 2, slowBefore = false): Promise<T> {
   const outer = init?.signal;
   let last: unknown, noNetwork = 0;
   for (let i = 0; i < tries; i++) {
@@ -210,7 +212,7 @@ async function searchOnline<T>(path: string, init: (RequestInit & { json?: unkno
     }
   }
   // Saved data only when both tries found no network at all; one slow try means the server is there.
-  if (noNetwork === tries) return offlineOr<T>(path, init?.method, last as ApiError);
+  if (noNetwork === tries && !slowBefore) return offlineOr<T>(path, init?.method, last as ApiError);
   if (last instanceof ApiError && !last.offline) throw last;
   throw new ApiError(0, SEARCH_SLOW, false, "search-slow");
 }
@@ -251,7 +253,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { json?: un
     answeredSinceFail = true;
   } catch (e) {
     // The page's first search ran out its first try while the server answered other requests: one more try.
-    if (e instanceof ApiError && e.code === SEARCH_RETRY) return searchOnline<T>(path, init, 1);
+    if (e instanceof ApiError && e.code === SEARCH_RETRY) return searchOnline<T>(path, init, 1, true);
     if (e instanceof ApiError) throw e;
     // The page let the request go itself (it moved on): not unreachable, and no saved-data answer (or Offline badge).
     if (outer?.aborted) throw callerAborted();

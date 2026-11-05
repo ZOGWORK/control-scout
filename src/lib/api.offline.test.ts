@@ -469,6 +469,24 @@ describe("a slow search while the server answers isn't offline (owner bug: 'high
     expect(searches).toBe(2);
     expect(offlineAnswer).not.toHaveBeenCalled();
   });
+  it("a page's first search that runs out its first try and finds no network on the retry is slow, never saved data (Greptile on #716)", async () => {
+    vi.useFakeTimers();
+    writeSaved([saved]);
+    networkDown();
+    await apiFetch("/api/meta").catch(() => {});
+    const hang = hanging();
+    let searches = 0;
+    vi.stubGlobal("fetch", vi.fn((p: string, init?: RequestInit) => (!p.startsWith("/api/search") ? Promise.resolve(ok({})) : searches++ ? Promise.reject(new TypeError("Failed to fetch")) : hang(p, init))));
+    const p = apiFetch("/api/search?q=gear&answer=1");
+    const settled = expect(p).rejects.toMatchObject({ message: SEARCH_SLOW, offline: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    await apiFetch("/api/meta");
+    await vi.advanceTimersByTimeAsync(SEARCH_SLOW_MS);
+    await settled;
+    expect(searches).toBe(2);
+    expect(offlineAnswer).not.toHaveBeenCalled();
+    expect(mode.result.current).toBe(false);
+  });
   it("a cold start's Retry-After wait ends at the search's deadline (Greptile on #463)", async () => {
     vi.useFakeTimers();
     writeSaved([saved]);
