@@ -1,6 +1,6 @@
-// Family 5: one team at one event ("4215 results at New Jersey Championship", "… rank at …", "… OPR at …", "… score in
+// Family 5: one team at one event ("12345 results at New Jersey Championship", "… rank at …", "… OPR at …", "… score in
 // match 12 at …"). The match set filtered by the event clause (../clauses.ts) and the team page's own event row
-// (../eventSet.ts); families 3 and 4 take an event scope the same way ("4215 record at …", "4215 highest score at …").
+// (../eventSet.ts); families 3 and 4 take an event scope the same way ("12345 record at …", "12345 highest score at …").
 import type { StatAnswer, StatBlock } from "../../../../src/shared/searchStat.js";
 import { RECORD_RULE } from "../../../../src/shared/eventRecord.js";
 import { dateRange, place, possessive, seasonLabel } from "../../../../src/shared/format.js";
@@ -15,7 +15,7 @@ const OPR_RULE = "OPR at the event: the team's offensive power rating there with
 
 const rec = (ms: TeamMatch[]) => ({ wins: ms.filter((m) => m.result === "W").length, losses: ms.filter((m) => m.result === "L").length, ties: ms.filter((m) => m.result === "T").length });
 
-/** "4215 matches at worlds in 2025", "4215 matches at states ever": the team's matches at the FIRST Championship (its
+/** "12345 matches at worlds in 2025", "12345 matches at states ever": the team's matches at the FIRST Championship (its
  *  division and the finals) or at its state championships, in the season asked for or every season, with their scores.
  *  None in that season: said so, with the seasons it did play. */
 export async function championshipMatchesAnswer(team: AnswerTeam, all: TeamMatch[], scope: Scope): Promise<StatAnswer> {

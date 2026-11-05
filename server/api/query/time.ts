@@ -19,7 +19,8 @@ export interface TimeSlot {
   typed: string;
   /** "last season", "this season": relative to the default season, resolved by the executor. */
   relative?: "this" | "last";
-  /** A bare calendar year typed ("2025"), read as its season. */
+  /** A calendar year typed: a bare one ("2025", read as its season), or a date's or a month's ("march 2026"). A window
+   *  with its year typed is never relaxed to another season. */
   year?: number;
 }
 
@@ -74,12 +75,12 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
   let m = /\b(?:on\s+)?([a-z]{3,9}\.?)\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(20\d\d)\b/.exec(rest);
   if (m && monthIndex(m[1]) >= 0) {
     const day = iso(Number(m[3]), monthIndex(m[1]), Number(m[2]));
-    cut(m); return out({ kind: "window", from: day, to: day, season: seasonOfDate(day), label: label(day, day), typed: m[0].trim() });
+    cut(m); return out({ kind: "window", from: day, to: day, season: seasonOfDate(day), label: label(day, day), typed: m[0].trim(), year: Number(m[3]) });
   }
   m = /\b(?:on\s+)?(20\d\d)-(\d\d)-(\d\d)\b|\b(?:on\s+)?(\d{1,2})\/(\d{1,2})\/(20\d\d)\b/.exec(rest);
   if (m) {
     const day = m[1] ? `${m[1]}-${m[2]}-${m[3]}` : iso(Number(m[6]), Number(m[4]) - 1, Number(m[5]));
-    cut(m); return out({ kind: "window", from: day, to: day, season: seasonOfDate(day), label: label(day, day), typed: m[0].trim() });
+    cut(m); return out({ kind: "window", from: day, to: day, season: seasonOfDate(day), label: label(day, day), typed: m[0].trim(), year: Number(day.slice(0, 4)) });
   }
   // A window relative to today.
   for (const [re, w, said] of WINDOWS) {
@@ -107,7 +108,7 @@ export function readTime(q: string, today: string, yearOk: (y: number) => boolea
     const season = m[2] ? (mi >= 8 ? Number(m[2]) : Number(m[2]) - 1) : seasonOfDate(today);
     const year = mi >= 8 ? season : season + 1;
     const from = iso(year, mi, 1), to = iso(year, mi + 1, 0);
-    cut(m); return out({ kind: "window", from, to, season, label: `in ${MONTHS[mi][0].toUpperCase()}${MONTHS[mi].slice(1)} ${year}`, typed: m[0].trim() });
+    cut(m); return out({ kind: "window", from, to, season, label: `in ${MONTHS[mi][0].toUpperCase()}${MONTHS[mi].slice(1)} ${year}`, typed: m[0].trim(), ...(m[2] ? { year } : {}) });
   }
   // This season, last season (relative: the executor reads them against the default season).
   m = /\b(?:this|current|the\s+current)\s+(?:season|year)'?s?\b|\bthis\s+year'?s?\b/.exec(rest);

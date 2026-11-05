@@ -106,12 +106,14 @@ Paraphrases (Layer 3, `PARAPHRASES`), each tested:
 | what town | location |
 | what state | location |
 | based in | location |
+| based out of | location |
 | what school | school |
 | which school | school |
 | who sponsors | sponsors |
 | when did start | rookie year |
 | first season | rookie year |
 | start year | rookie year |
+| how old | rookie year |
 | offensive power rating | opr |
 | tele op | teleop |
 | driver controlled | teleop |
@@ -247,6 +249,7 @@ or stat:
 | rn, right now, currently, at the moment, at this moment | "Right now" with no date or season: every answer is already the latest season's or today's. |
 | please, pls, plz, just, really, basically, actually, quick, kindly | Politeness and softeners; no team, place or stat is said with them. `plz` is an extension: the same word as `pls`. |
 | hey, hi, hello | Greetings, only beside a team and an intent: a greeting alone is no query and is never rewritten. |
+| if any, if there is one, if there are any | An answer of none allowed: every answer already says when there is none ("no next event on record"). |
 
 A filler word inside a team's full name stays: "just in time opr" keeps "just" when Just In Time is a team. That is
 checked against every stored name.

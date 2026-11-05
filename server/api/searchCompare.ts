@@ -12,7 +12,7 @@
 // candidate (all of them), each naming its team's place, for the visitor to pick; with several sides tied, the
 // question for each, and no Compare until they're picked.
 // Trailing words never break the versus: topic words ("history", "record", "stats") are dropped, and when a side
-// still names no team, its last words are dropped one at a time until it does ("6980 please" → 6980).
+// still names no team, its last words are dropped one at a time until it does ("67890 please" → 67890).
 import type { SearchAnswer, SearchCompareSide, SearchHit } from "../../src/shared/api.js";
 import { SEARCH_BROWSE, VERSUS, pagesFor } from "../../src/shared/search.js";
 import { cleanTeamName, searchTeamTitle, teamWords } from "../../src/shared/teamTitle.js";
@@ -66,7 +66,7 @@ const COMMON_WORDS = /^(?:when|where|what|how|if|they|them|their|it|its|we|us|ou
 async function readSide(typed: string, prefer: ReadonlySet<string>): Promise<Side> {
   // Topic and filler words name no team ("… history").
   const words = (searchIntent(typed)?.rest ?? typed).trim().split(/\s+/).filter(Boolean);
-  // The whole side first, then without its last words ("6980 please" → "6980"): an exact name or number, then
+  // The whole side first, then without its last words ("67890 please" → "67890"): an exact name or number, then
   // search's best team.
   let found: Awaited<ReturnType<typeof sideTeams>> = null;
   // A side of only question and result words ("when they lose") names a team only by that exact name, never by

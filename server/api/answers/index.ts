@@ -169,7 +169,7 @@ function teamPick(evs: TeamEvent[], s: StatQuestion["scope"], season: number | n
   return null;
 }
 
-/** "New Jersey Championship (Turnpike Division and finals)", "P1-4 AM Northern League Meet and P1-4 PM Northern League
+/** "New Jersey Championship (Northern Division and finals)", "P1-4 AM Northern League Meet and P1-4 PM Northern League
  *  Meet", "3 events: A, B and C". */
 function pickName(events: TeamEvent[], families: number): string {
   if (events.length === 1) return events[0].name;
@@ -211,6 +211,8 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   const s = it.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
+  if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
+  if (s.window) scope.window = s.window;
   if (s.outOfState) {
     // "Out-of-state events": outside the team's own state, as its team page lists it.
     const home = await get<{ state: string | null; country: string | null }>("SELECT state, country FROM teams WHERE number = ?", [team]);
@@ -218,7 +220,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
     const region = findRegions(home.state).find((r) => r.country === (home.country ?? r.country) && r.state === home.state);
     scope.place = { country: home.country ?? "", state: home.state, name: region?.name ?? home.state, outside: true };
   }
-  // "4215 awards at New Jersey events" when the place wasn't read already: the events' own region, not one event.
+  // "12345 awards at New Jersey events" when the place wasn't read already: the events' own region, not one event.
   const region = !scope.place && s.at ? placeOf(s.at) : null;
   // "At states" and "at worlds" with no season named are one event for a team's results, rank or OPR there: its state
   // championship (the latest it played, or the year's) and its Worlds of the latest completed season.
@@ -266,7 +268,7 @@ async function scopeFor(it: StatQuestion, team: number): Promise<Scope | null> {
   // Worlds with no season named is every season the team went (a team goes to few), unless "this season" says one.
   if (s.season == null && !s.ever && (s.latest || (it.defaultSeason === "latest" && !s.championship))) {
     const latest = await latestSeason(team, it.id);
-    // A plain "4215 record" with no match on record is left to search's team answer (its stored season record).
+    // A plain "12345 record" with no match on record is left to search's team answer (its stored season record).
     if (latest == null && it.id === "record" && !s.latest) return null;
     scope.season = latest?.season ?? null;
     if (latest) {
@@ -331,7 +333,7 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   // The asks' leaderboards are drawn here on the page; the dropdown keeps the asks' own short card.
   const board = readLeaderboard(q) ?? (opts.full ? boardOfAsk(q) : null);
   if (board) return boardSearch(q, board, opts);
-  // "How much did 4215's OPR improve from last season to this season", "4215 rating change this season".
+  // "How much did 12345's OPR improve from last season to this season", "12345 rating change this season".
   const change = readChange(q);
   if (change) return changeSearch(q, change, resolve, opts);
   // One team's OPR or rating asked a particular way (its rank in a place, its best event, Auto against TeleOp)
@@ -351,6 +353,12 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
     return f ? factSearch(q, f, resolve, opts) : null;
   }
   if (it.noTeam) return winnersSearch(q, it, opts);
+  return statAnswerOf(q, it, resolve, opts);
+}
+
+/** The answer to a stat question already read (by ./read.ts, or by the search pipeline from its slots), or null when
+ *  its team isn't found. */
+export async function statAnswerOf(q: string, it: StatQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const base = await resolve(it.core);
   const top = base.step !== "recovery" ? base.hits[0] : undefined;
   if (!top || top.kind !== "team" || top.href) return null;
@@ -358,7 +366,11 @@ export async function statAnswer(q: string, resolve: Resolve, opts: { full: bool
   const scope = await scopeFor(it, team.number);
   if (!scope) return null;
   // "average winning margin" is titled as asked, not as the plain average margin.
-  const name = it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
+  // A win or a loss said with a match question is in its title too ("Most recent loss", "Longest losing streak").
+  const won = it.outcome === "W" ? "win" : "loss";
+  const outcomeTitle = !it.outcome ? null : ({ "first-match": `First ${won}`, "recent-match": `Most recent ${won}`, "last-matches": `Last ${it.outcome === "W" ? "wins" : "losses"}`,
+    "longest-streak": it.outcome === "L" ? "Longest losing streak" : null } as Partial<Record<IntentId, string | null>>)[it.id] ?? null;
+  const name = outcomeTitle ? outcomeTitle : it.id === "average-margin" && it.outcome ? `Average ${it.outcome === "W" ? "winning" : "losing"} margin` : it.id === "scores-over" ? `Scores ${it.variant === "at-least" ? "of at least" : "over"} ${it.n}`
     : it.id === "penalties" && it.variant ? (it.variant === "rate" ? "Penalty rate" : "Penalty points given away per event")
     : AWARD_INTENTS.has(it.id) ? awardsTitle(it.id, it) ?? TITLES[it.id] : it.byRecord ? (it.id === "best-finish" ? "Best event" : "Worst event") : it.schedule ? "Event schedule" : TITLES[it.id];
   const title = `${it.leadEvent ? "Event with the highest score" : name}${scopePhrase(it.id === "worlds-divisions" ? { ...scope, championship: false } : scope)}`;
@@ -444,7 +456,7 @@ async function build(it: StatQuestion, team: { number: number; name: string | nu
 
 /** "Highest scoring games in decode", "top scores in nj this season", "highest scoring match ever": no team, a
  *  season's best alliance and combined scores, worked out for the page only. */
-async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const label = `Highest-scoring matches${t.region ? ` in ${t.region.name}` : t.event ? ` at ${t.event}` : ""}${t.ever ? ", each season" : t.season != null ? `, ${seasonLabel(t.season)}` : ""}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
@@ -459,7 +471,7 @@ async function topSearch(q: string, t: TopMatchesQuestion, opts: { full: boolean
   return { ...answer, understood: { ...answer.understood!, label: stat.title }, stat };
 }
 
-/** "4215 auto OPR", "4215 reliability", "4215 school": one team's stored fact. The team is found as search finds it;
+/** "12345 auto OPR", "12345 reliability", "12345 school": one team's stored fact. The team is found as search finds it;
  *  the answer is worked out for the page only. */
 async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const base = await resolve(f.core);
@@ -480,7 +492,7 @@ async function factSearch(q: string, f: FactQuestion, resolve: Resolve, opts: { 
   return stat ? { ...answer, understood: { ...answer.understood!, label: `${whoOf(team)} · ${stat.title}` }, stat } : null;
 }
 
-/** "How much did 4215's OPR improve from last season to this season": one team's number in two seasons, or its rating
+/** "How much did 12345's OPR improve from last season to this season": one team's number in two seasons, or its rating
  *  across one season (./families/seasonChange.ts). */
 async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const base = await resolve(c.core);
@@ -501,7 +513,7 @@ async function changeSearch(q: string, c: ChangeQuestion, resolve: Resolve, opts
   return { ...answer, stat: await changeAnswer(c, team) };
 }
 
-/** "4215 opr rank in New Jersey", "4215 highest opr ever", "6980 auto opr versus teleop opr": one team's OPR or
+/** "12345 opr rank in New Jersey", "12345 highest opr ever", "67890 auto opr versus teleop opr": one team's OPR or
  *  rating, read from what its team page (or the place's filtered list) holds; worked out for the page only. */
 async function oprRatingSearch(q: string, f: OprRatingQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const base = await resolve(f.core);
@@ -547,7 +559,7 @@ async function namedEvent(it: StatQuestion, season: number | null) {
   return it.scope.states ? null : findEvent(it.core, season);
 }
 
-/** "winning alliance at 4215's last event": the team's latest event with a match it played (a division, when it played
+/** "winning alliance at 12345's last event": the team's latest event with a match it played (a division, when it played
  *  in one), in the season asked for when one is, or null when `words` aren't a team and "last event". */
 async function teamsLastEvent(words: string, season: number | null) {
   const m = /^(.+?)\s+(?:last|latest|most\s+recent|newest|previous)\s+(?:event|meet|competition|tournament)$/.exec(words);
@@ -583,9 +595,9 @@ async function winnersSearch(q: string, it: StatQuestion, opts: { full: boolean;
   };
 }
 
-/** "4215 vs 6980 head to head", "4215 OPR vs 6980": both teams found by search as typed (a team number or a name it
+/** "12345 vs 67890 head to head", "12345 OPR vs 67890": both teams found by search as typed (a team number or a name it
  *  matches outright), else left to Compare's own versus answer, which asks about a shared name. */
-async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   // Each side by Compare's own rules (a number, an exact name, the one that has played, the newest); a name several
   // teams share is left to Compare, which asks which one.
   const [na, nb] = await Promise.all([namedTeam(two.a, new Set()), namedTeam(two.b, new Set())]);
@@ -597,6 +609,8 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
   const s = two.scope;
   const scope: Scope = { season: s.season, championship: s.championship, states: s.states, level: s.level ?? undefined, alliance: s.alliance ?? undefined };
   if (s.place) scope.place = { country: s.place.country, state: s.place.state, name: s.place.name };
+  if (s.area) scope.place = { country: s.area.country, state: s.area.state ?? "", name: s.area.name };
+  if (s.window) scope.window = s.window;
   // "This season" for the meetings: the first team's latest season with matches; for season numbers, the latest both played.
   if (MEETING_IDS.has(two.id) && s.season == null && s.latest) {
     const ms = (await teamMatches(a.number)).filter(officialClause());
@@ -627,7 +641,7 @@ async function twoTeamSearch(q: string, two: TwoTeamQuestion, resolve: Resolve, 
 }
 
 /** No meetings in a scope (Worlds, states, an event): which team has no matches there is said, with the question to
- *  ask of each team's own ("6980 has no matches at Worlds on record"). */
+ *  ask of each team's own ("67890 has no matches at Worlds on record"). */
 async function missingSide(stat: StatAnswer, a: AnswerTeam, b: AnswerTeam, scope: Scope, words: string | null): Promise<void> {
   if (!scope.championship && !scope.states && !scope.event && !scope.venue) return;
   const keep = inScope(scope);
@@ -638,7 +652,7 @@ async function missingSide(stat: StatAnswer, a: AnswerTeam, b: AnswerTeam, scope
   stat.blocks.push({ kind: "related", title: "Each team's own", queries: [a, b].map((t) => `${t.number} matches ${ask}`.trim()) });
 }
 
-/** "4215 and 6980 matches together at nj championship", "… at river dell high school": the events the words name that
+/** "12345 and 67890 matches together at nj championship", "… at river dell high school": the events the words name that
  *  both teams played (a championship's division and finals as one), as their meetings' scope; else, when only one (or
  *  neither) was there, the answer saying so. A venue's events are read when no event of theirs is named so. */
 async function meetingsAt(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, scope: Scope): Promise<{ scope: Scope } | { stat: StatAnswer } | null> {
@@ -725,7 +739,7 @@ async function twoTeamStat(two: TwoTeamQuestion, a: AnswerTeam, b: AnswerTeam, s
   }
 }
 
-/** "4215 6980 33950 compare": three to six teams' season numbers in one card (compareAnswer). Every team found by its
+/** "12345 67890 33950 compare": three to six teams' season numbers in one card (compareAnswer). Every team found by its
  *  number, else left to search. */
 async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const hits = await Promise.all(set.teams.map(async (n) => (await resolve(String(n))).hits.find((h) => h.kind === "team" && h.ref === String(n) && !h.href)));
@@ -733,7 +747,7 @@ async function teamSetSearch(q: string, set: TeamSetQuestion, resolve: Resolve, 
   const found = hits as SearchHit[];
   const teams = found.map((h) => ({ number: Number(h.ref), name: teamNameOf(h.title) || null }));
   const label = `Compare: ${teams.map(whoOf).join(" vs ")}`;
-  // Compare's own hit for the set leads, as it does for "4215 vs 6980 vs 33950"; the card is the numbers.
+  // Compare's own hit for the set leads, as it does for "12345 vs 67890 vs 33950"; the card is the numbers.
   const found0 = (await resolve(set.teams.join(" vs "))).hits.find((h) => h.kind === "compare");
   // It opens on the card's season: the one named, else the one the card picks (every team played it).
   const season = set.season ?? (await compareSeason(set.teams));
@@ -761,13 +775,13 @@ function boardOfAsk(q: string): LeaderboardQuestion | null {
 
 /** "Top 10 teams by OPR in NJ", "best rookie team in New Jersey", "teams in Oradell": a ranked list (or a city's
  *  teams), worked out for the page only. A city no team lists is left to search. */
-async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
+export async function boardSearch(q: string, b: LeaderboardQuestion, opts: { full: boolean; pages: SearchPageLink[] }): Promise<SearchAnswer | null> {
   const isCity = b.kind === "city" || b.kind === "city-best";
   const city = isCity ? await get<{ city: string }>("SELECT city FROM teams WHERE lower(city) = lower(?) LIMIT 1", [b.city]) : null;
   if (isCity && !city) return null;
   const st = BOARD_STATS[b.stat];
-  const where = b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
-  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
+  const where = b.town ? ` in ${b.town}` : b.region ? ` in ${b.region.name}` : city ? ` in ${city.city}` : "";
+  const label = b.kind === "city" ? `Teams${where}` : b.kind === "city-best" ? `Best team${where} by OPR` : b.undefeated ? `Undefeated teams${where}` : b.lowest ? `Lowest ${b.n > 1 ? `${b.n} teams` : "team"} by ${statWords(st)}${where}` : b.best ? `Best team${where} by ${statWords(st)}` : b.kind === "rookie" ? `Best rookie teams${where}` : b.kind === "improved" ? `Most improved teams${where}` : `Top ${b.n} teams by ${statWords(st)}${where}`;
   const answer: SearchAnswer = {
     q, hits: [], pages: opts.pages, step: "deterministic", weak: false,
     understood: { kind: "question", label, ...(b.season != null ? { season: b.season } : {}), ...(b.region ? { place: { key: b.region.key, name: b.region.name } } : {}) },
