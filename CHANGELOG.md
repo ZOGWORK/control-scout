@@ -15,7 +15,9 @@ after 1.3.7 comes 1.3.8, then 1.3.9, then 1.4.0. No number goes past one digit.
 fix releases 1.8.1, 1.16.1–2 and 1.19.1–2 are now 1.0.8.1, 1.1.6.1–2 and
 1.1.9.1–2.)
 
-## 3.2.4 — 2026-11-05
+## Unreleased
+
+<!-- Home chips wrap (#735): numbered at merge. -->
 
 Home's search chips wrap onto rows instead of sliding sideways, and a chip is shown whole or not at all.
 
