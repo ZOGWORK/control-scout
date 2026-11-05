@@ -100,6 +100,8 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   if (!scope) return null;
   // The finals are a filter only the match finder applies: anything else would answer for every playoff match.
   if (p.finals && (p.teams.length || !(FIND[intent] || intent === "top-matches"))) return null;
+  // So is a kind of event by its type words alone ("at a league meet").
+  if (p.eventKind && (p.teams.length || !(FIND[intent] || intent === "top-matches"))) return null;
   const said = normalise(p.q);
   if (p.teams.length === 1 && TEAM_INTENTS.has(intent)) {
     // An award with an answer of its own: Inspire (its places) and Finalist finishes. The first or latest Finalist
@@ -162,10 +164,10 @@ async function execute(p: Parsed, opts: PipelineOptions): Promise<SearchAnswer |
   }
   // Matches by a measure, or the best ones with a filter the season records don't take (a match type, a kind of
   // event): the match finder.
-  const kind = p.event ? eventKindOf(normalise(p.event.words)) : null;
+  const kind = p.event ? eventKindOf(normalise(p.event.words)) : p.eventKind ? eventKindOf(p.eventKind) : null;
   if (!p.teams.length && (FIND[intent] || (intent === "top-matches" && (p.level || p.finals || kind)))) {
-    if ((p.event && !kind) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
-    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts)\b/.test(said);
+    if (((p.event || p.eventKind) && !kind) || p.worlds || p.states || p.alliance || scope.ever || (p.place && p.place.kind === "city")) return null;
+    const plural = /\b(?:matches|games|scores|upsets|comebacks|blowouts|routs|mismatches|underdogs|wins|losses)\b/.test(said);
     const f: MatchFind = {
       // The current season is the one today is in.
       measure: FIND[intent] ?? "high", season: placeSeason(p, scope.season, opts), region: regionOf(p), level: p.level, finals: p.finals, kind,

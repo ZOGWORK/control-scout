@@ -7,6 +7,7 @@ import { clearAllCaches } from "../../caches";
 import { searchAnswer } from "../searchAnswer";
 import { namedParts, rewriteQuery } from "../searchCoverage";
 import { names } from "./names";
+import { matchFindAnswer } from "./matchFind";
 import type { StatAnswer } from "../../../src/shared/searchStat";
 
 // Wednesday 2026-03-18: "this week" is Mar 16–22, 2026, inside the 2025–26 season.
@@ -238,6 +239,25 @@ describe("the match finder: matches by a measure, every filter applied and state
     expect(list.headline).toBeUndefined();
     const t = list.blocks.find((b) => b.kind === "table");
     expect(t && t.kind === "table" && t.rows.map((r) => r.cells.rank)).toEqual(Array.from({ length: (after && after.kind === "table" ? after.rows.length : 0) + 1 }, (_, i) => i + 1));
+  });
+  it("a kind of event by its type words alone: league meets, qualifiers, championships, never another kind's matches", async () => {
+    const q = await stat("closest match at qualifiers in pennsylvania this season");
+    expect(q.scope).toContain("Qualifiers");
+    expect(q.headline?.label).toMatch(/Keystone Qualifier/);
+    const m = await stat("highest scoring match at a league meet in pennsylvania this season");
+    expect(m.scope).toContain("League meets");
+    expect(m.headline).toBeUndefined();
+    expect((await stat("closest match at championships in pennsylvania this season")).scope).toContain("Championships");
+  });
+  it("a closest loss is a decided match too; every plural is a list", async () => {
+    const l = await stat("closest loss in pennsylvania this season");
+    expect(l.headline?.value).toBe("10-point margin");
+    expect(l.scope).toContain("No ties");
+    for (const q of ["biggest routs in pennsylvania this season", "closest wins in pennsylvania this season"]) expect((await stat(q)).headline, q).toBeUndefined();
+  });
+  it("a date window is its own range, whichever season it was read in", async () => {
+    const s = await matchFindAnswer({ measure: "closest", season: 2024, region: null, level: null, finals: false, kind: null, window: { from: "2026-02-01", to: "2026-02-10", label: "in early February" }, n: 5 });
+    expect(s.headline?.label).toMatch(/Keystone Qualifier/);
   });
   it("a win or a loss said with the closest is a decided match, never a tie", async () => {
     expect((await stat("closest match in pennsylvania this season")).headline?.value).toBe("Tie");
