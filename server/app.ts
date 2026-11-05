@@ -74,7 +74,7 @@ import { pushRouter } from "./push/routes.js";
 import { digestRouter } from "./digest/routes.js";
 import { vapidReady } from "./push/push.js";
 import { reportsRouter } from "./errorReports.js";
-import { keyFor, noteSearch, outcomeTrace, reportingOn, searchFailuresRouter } from "./searchFailures.js";
+import { keyFor, noteSearch, outcomeTrace, patternFor, reportingOn, searchFailuresRouter } from "./searchFailures.js";
 import { supporters } from "./sponsors.js";
 import { packsRouter } from "./packs/routes.js";
 import { bundleRouter } from "./packs/bundle.js";
@@ -372,8 +372,13 @@ export function createApp(opts: { dist?: string } = {}) {
       const trace = outcomeTrace(ans);
       const at = Date.now();
       // Failed searches → GitHub issues (server/searchFailures.ts): after the answer, in memory only, never awaited.
-      // The key is search's own (keyFor), worked out off the answer path too.
-      void reportingOn().then(async (on) => { if (on) noteSearch(q, ans, req.ip ?? "?", trace, at, await keyFor(q)); }).catch(() => {});
+      // The key is the failure's pattern (patternFor), else search's own key for the query (keyFor), worked out off
+      // the answer path too.
+      void reportingOn().then(async (on) => {
+        if (!on) return;
+        const p = await patternFor(q);
+        noteSearch(q, ans, req.ip ?? "?", trace, at, p?.key ?? (await keyFor(q)), p?.missed);
+      }).catch(() => {});
       // Its video (server/api/answers/video.ts): one read for the whole answer, beside the team rows'.
       const [hits, video] = await Promise.all([withTeamStats(ans.hits), answerVideo(ans).catch(() => undefined)]);
       return { ...ans, hits, ...(video ? { video } : {}) };
